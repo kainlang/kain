@@ -26,6 +26,7 @@ pub mod templates;
 pub mod oracle;
 pub mod engine_knowledge;
 pub mod widget_registry;
+pub mod uht_rules;
 
 // Re-export commonly used items
 pub use naming::*;
@@ -39,3 +40,4 @@ pub use resolver::*;
 pub use templates::TEMPLATES;
 pub use oracle::{validate_program, validate_program_with_knowledge};
 pub use engine_knowledge::EngineKnowledge;
+pub use uht_rules::UhtRules;

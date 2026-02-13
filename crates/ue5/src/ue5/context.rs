@@ -11,6 +11,7 @@ use crate::ue5::naming::to_module_api;
 use super::engine_knowledge::EngineKnowledge;
 use super::widget_registry::WidgetRegistry;
 use ue5_shaders::ShaderKnowledge;
+use super::uht_rules::UhtRules;
 
 /// Shared compilation context for UE5 code generation
 /// 
@@ -77,6 +78,9 @@ pub struct Ue5Context {
 
     /// Shader knowledge base (intrinsics, includes, permutations, material properties)
     pub shader_knowledge: ShaderKnowledge,
+
+    /// UHT validation rules (specifiers, property types, incompatible combos)
+    pub uht_rules: UhtRules,
 }
 
 use super::resolver::StdLibResolver;
@@ -89,6 +93,7 @@ impl Ue5Context {
         let mut knowledge = EngineKnowledge::new();
         let mut widget_registry = WidgetRegistry::new();
         let mut shader_knowledge = ShaderKnowledge::new();
+        let mut uht_rules = UhtRules::new();
         
         // Load all metadata from unreal/metadata/*.json into both systems
         let metadata_dir = std::path::Path::new("unreal/metadata");
@@ -103,6 +108,8 @@ impl Ue5Context {
                                 let _ = widget_registry.load(&data);
                             } else if filename == "shader_knowledge.json" {
                                 let _ = shader_knowledge.load(&data);
+                            } else if filename == "uht_rules.json" {
+                                let _ = uht_rules.load(&data);
                             } else {
                                 // Feed into EngineKnowledge system
                                 let _ = knowledge.load_metadata(&data);
@@ -140,6 +147,7 @@ impl Ue5Context {
             needed_modules: RefCell::new(HashSet::new()),
             widget_registry,
             shader_knowledge,
+            uht_rules,
         }
     }
 

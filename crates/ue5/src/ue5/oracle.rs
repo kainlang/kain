@@ -13,6 +13,7 @@ use kain_core::error::{KainError, KainResult};
 use kain_core::ast::{Type, Attribute};
 use kain_core::ast::Visibility;
 use super::engine_knowledge::EngineKnowledge;
+use super::uht_rules::UhtRules;
 
 /// Validation context for tracking state during validation
 pub struct ValidationContext {
@@ -69,9 +70,15 @@ pub fn validate_program(program: &TypedProgram) -> KainResult<()> {
 
 /// Validation with explicit EngineKnowledge (used when context already has one)
 pub fn validate_program_with_knowledge(program: &TypedProgram, kb: &EngineKnowledge) -> KainResult<()> {
+    let uht = UhtRules::new();
+    validate_program_full(program, kb, &uht)
+}
+
+/// Full validation with EngineKnowledge + UHT rules (used when Ue5Context is available)
+pub fn validate_program_full(program: &TypedProgram, kb: &EngineKnowledge, uht: &UhtRules) -> KainResult<()> {
     let mut ctx = ValidationContext::new();
     
-    // Validate each item in the program
+    // Phase 1: Per-item validation (existing hardcoded rules)
     for item in &program.items {
         match item {
             TypedItem::Function(func) => validate_function(&mut ctx, func),
@@ -80,6 +87,18 @@ pub fn validate_program_with_knowledge(program: &TypedProgram, kb: &EngineKnowle
             TypedItem::Component(comp) => validate_component(&mut ctx, comp, kb),
             TypedItem::Enum(en) => validate_enum(&mut ctx, en, kb),
             _ => {}
+        }
+    }
+    
+    // Phase 2: Data-driven UHT validation (from uht_rules.json)
+    if uht.is_loaded() {
+        for item in &program.items {
+            match item {
+                TypedItem::Actor(actor) => validate_actor_uht(&mut ctx, actor, uht),
+                TypedItem::Struct(struct_def) => validate_struct_uht(&mut ctx, struct_def, uht),
+                TypedItem::Component(comp) => validate_component_uht(&mut ctx, comp, uht),
+                _ => {}
+            }
         }
     }
     
@@ -509,6 +528,146 @@ mod tests {
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// DATA-DRIVEN UHT VALIDATION (Phase 2)
+// Uses rules extracted from Epic's EpicGames.UHT C# source
+// ═══════════════════════════════════════════════════════════════════
+
+/// Validate actor state fields against UHT property type rules
+fn validate_actor_uht(ctx: &mut ValidationContext, actor: &TypedActor, uht: &UhtRules) {
+    for state in &actor.ast.state {
+        validate_property_type_uht(ctx, &state.name, &actor.ast.name, &state.ty, &state.attributes, false, uht);
+    }
+}
+
+/// Validate struct fields against UHT property type rules
+fn validate_struct_uht(ctx: &mut ValidationContext, struct_def: &TypedStruct, uht: &UhtRules) {
+    for field in &struct_def.ast.fields {
+        validate_property_type_uht(ctx, &field.name, &struct_def.ast.name, &field.ty, &field.attributes, true, uht);
+    }
+}
+
+/// Validate component state fields against UHT property type rules
+fn validate_component_uht(ctx: &mut ValidationContext, comp: &TypedComponent, uht: &UhtRules) {
+    for state in &comp.ast.state {
+        validate_property_type_uht(ctx, &state.name, &comp.ast.name, &state.ty, &[], false, uht);
+    }
+}
+
+/// Data-driven property type validation using UHT rules
+fn validate_property_type_uht(
+    ctx: &mut ValidationContext,
+    prop_name: &str,
+    owner_name: &str,
+    ty: &Type,
+    attributes: &[Attribute],
+    is_struct_member: bool,
+    uht: &UhtRules,
+) {
+    // Check for nested container types (UHT rejects these)
+    // e.g., TMap<FString, TArray<int>> is invalid
+    if let Type::Generic { name, params, .. } = ty {
+        let type_name = map_kain_container(name);
+        if uht.is_container_type(&type_name) {
+            for param in params {
+                if let Type::Generic { name: inner_name, .. } = param {
+                    let inner_type = map_kain_container(inner_name);
+                    if uht.is_container_type(&inner_type) {
+                        ctx.error(format!(
+                            "Property '{}' in '{}': Nested containers are not supported by UHT. \
+                            '{}<..., {}<...>>' will fail UE5 compilation. Use a wrapper struct instead.",
+                            prop_name, owner_name, type_name, inner_type
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check specifier compatibility using UHT incompatible combos
+    let mut seen_specifiers: Vec<String> = Vec::new();
+    for attr in attributes {
+        let spec_name = map_kain_attr_to_specifier(&attr.name);
+        if !spec_name.is_empty() {
+            // Check against all previously seen specifiers
+            for prev in &seen_specifiers {
+                if let Some(msg) = uht.are_incompatible(&spec_name, prev) {
+                    ctx.error(format!(
+                        "Property '{}' in '{}': {} (UHT rule)",
+                        prop_name, owner_name, msg
+                    ));
+                }
+            }
+            seen_specifiers.push(spec_name);
+        }
+    }
+    
+    // UHT rule: BlueprintSetter/BlueprintGetter cannot be used on struct members
+    if is_struct_member {
+        for attr in attributes {
+            if attr.name == "blueprint_setter" {
+                ctx.error(format!(
+                    "Property '{}' in struct '{}': Cannot specify BlueprintSetter for a struct member. \
+                    This is only valid on class (actor/component) members. (UHT rule)",
+                    prop_name, owner_name
+                ));
+            }
+            if attr.name == "blueprint_getter" {
+                ctx.error(format!(
+                    "Property '{}' in struct '{}': Cannot specify BlueprintGetter for a struct member. \
+                    This is only valid on class (actor/component) members. (UHT rule)",
+                    prop_name, owner_name
+                ));
+            }
+        }
+    }
+    
+    // UHT rule: editor_only properties in Blueprint-exposed structs are invalid
+    let is_blueprint_exposed = attributes.iter().any(|a| 
+        a.name == "blueprint_read_write" || a.name == "blueprint_read_only"
+    );
+    let is_editor_only = attributes.iter().any(|a| a.name == "editor_only");
+    if is_struct_member && is_blueprint_exposed && is_editor_only {
+        ctx.error(format!(
+            "Property '{}' in struct '{}': Blueprint exposed struct members cannot be editor only. (UHT rule)",
+            prop_name, owner_name
+        ));
+    }
+}
+
+/// Map KAIN container type names to UHT type names
+fn map_kain_container(name: &str) -> String {
+    match name {
+        "Array" | "TArray" => "Array".to_string(),
+        "Map" | "TMap" => "Map".to_string(),
+        "Set" | "TSet" => "Set".to_string(),
+        "Optional" | "TOptional" => "Optional".to_string(),
+        _ => name.to_string(),
+    }
+}
+
+/// Map KAIN attribute names to UHT specifier names for compatibility checking
+fn map_kain_attr_to_specifier(attr_name: &str) -> String {
+    match attr_name {
+        "blueprint_read_write" => "BlueprintReadWrite".to_string(),
+        "blueprint_read_only" => "BlueprintReadOnly".to_string(),
+        "blueprint_setter" => "BlueprintSetter".to_string(),
+        "blueprint_getter" => "BlueprintGetter".to_string(),
+        "edit_anywhere" => "EditAnywhere".to_string(),
+        "edit_defaults_only" => "EditDefaultsOnly".to_string(),
+        "edit_instance_only" => "EditInstanceOnly".to_string(),
+        "visible_anywhere" => "VisibleAnywhere".to_string(),
+        "visible_defaults_only" => "VisibleDefaultsOnly".to_string(),
+        "visible_instance_only" => "VisibleInstanceOnly".to_string(),
+        "replicated" => "Replicated".to_string(),
+        "transient" => "Transient".to_string(),
+        "savegame" => "SaveGame".to_string(),
+        "config" => "Config".to_string(),
+        "interp" => "Interp".to_string(),
+        _ => String::new(),
+    }
+}
 
 /// Helper: Check if a type is a delegate
 fn is_delegate_type(ty: &Type) -> bool {

@@ -259,9 +259,17 @@ fn load_and_parse_sources(
     };
     println!();
     
-    // Run Oracle validation
+    // Run Oracle validation (with data-driven UHT rules when available)
     println!("🔬 Running Unreal Semantic Validator (Oracle)...");
-    match ue5::validate_program(&typed_program) {
+    let kb = ue5::ue5::engine_knowledge::EngineKnowledge::new();
+    let mut uht = ue5::ue5::uht_rules::UhtRules::new();
+    let uht_path = std::path::Path::new("unreal/metadata/uht_rules.json");
+    if uht_path.exists() {
+        if let Ok(data) = std::fs::read_to_string(uht_path) {
+            let _ = uht.load(&data);
+        }
+    }
+    match ue5::ue5::oracle::validate_program_full(&typed_program, &kb, &uht) {
         Ok(()) => {
             println!("   ✓ Oracle validation passed");
         }

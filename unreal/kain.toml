@@ -1,0 +1,15 @@
+[package]
+name = ""
+version = "1.0.0"
+authors = ["Zentako"]
+description = ""
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = ""
+plugin_dir = "."
+sources = [""]
+shaders = []
+modular_output = true
