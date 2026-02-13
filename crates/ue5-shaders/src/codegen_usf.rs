@@ -11,6 +11,7 @@ use kain_core::types::{TypedProgram, TypedItem, TypedShader};
 use kain_core::error::{KainResult, KainError};
 use kain_core::ast::{Type, ShaderStage, Expr, Stmt, Block, BinaryOp, Pattern};
 use std::collections::HashMap;
+use crate::shader_knowledge::ShaderKnowledge;
 
 /// Generate C++ reflection header for UE5 shader parameter binding
 /// Creates a .h file with SHADER_PARAMETER_STRUCT compatible bindings
@@ -574,6 +575,8 @@ struct USFContext {
     packer: Option<InterpolatorPacker>,
     is_vertex_shader: bool,
     is_compute_shader: bool,
+    // Data-driven shader knowledge (intrinsics, includes, permutations)
+    shader_knowledge: Option<ShaderKnowledge>,
 }
 
 /// Tracks interpolator packing allocations for optimal GPU bandwidth usage
@@ -608,7 +611,13 @@ impl USFContext {
             packer: None,
             is_vertex_shader: false,
             is_compute_shader: false,
+            shader_knowledge: None,
         }
+    }
+
+    fn with_knowledge(mut self, sk: ShaderKnowledge) -> Self {
+        self.shader_knowledge = Some(sk);
+        self
     }
     
     fn indent(&self) -> String {
@@ -702,6 +711,20 @@ fn generate_swizzle(start: usize, count: usize) -> String {
 fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
     let mut output = String::new();
     let mut ctx = USFContext::new();
+    
+    // Load shader knowledge for data-driven intrinsic resolution
+    let metadata_dir = std::path::Path::new("unreal/metadata");
+    if metadata_dir.exists() {
+        let sk_path = metadata_dir.join("shader_knowledge.json");
+        if sk_path.exists() {
+            if let Ok(data) = std::fs::read_to_string(&sk_path) {
+                let mut sk = ShaderKnowledge::new();
+                if sk.load(&data).is_ok() {
+                    ctx.shader_knowledge = Some(sk);
+                }
+            }
+        }
+    }
     
     // Seed context with uniform types so emit_expr can resolve them correctly
     // Without this, uniforms like status_color (float3) would fall through to
@@ -1582,14 +1605,37 @@ fn emit_function_call(ctx: &mut USFContext, name: &str, args: &[kain_core::ast::
             Ok((format!("float4({})", arg_codes.join(", ")), "float4".to_string()))
         },
         
-        // Fallback for unknown functions
+        // Data-driven fallback: query ShaderKnowledge for known intrinsics/UE5 functions
         _ => {
             let mut arg_codes = Vec::new();
-            for arg in args {
-                let (code, _) = emit_expr(ctx, &arg.value)?;
+            let mut first_arg_type = "float4".to_string();
+            for (i, arg) in args.iter().enumerate() {
+                let (code, ty) = emit_expr(ctx, &arg.value)?;
+                if i == 0 { first_arg_type = ty; }
                 arg_codes.push(code);
             }
-            Ok((format!("{}({})", name, arg_codes.join(", ")), "float4".to_string()))
+
+            // Infer return type from ShaderKnowledge
+            let return_type = if let Some(ref sk) = ctx.shader_knowledge {
+                let inferred = sk.infer_return_type(name);
+                match inferred {
+                    "passthrough" => first_arg_type.clone(),
+                    "unknown" => {
+                        // Check if it's at least a known function
+                        if sk.is_known_function(name) {
+                            // Known UE5/HLSL function but no type info — use first arg type
+                            first_arg_type.clone()
+                        } else {
+                            "float4".to_string()
+                        }
+                    }
+                    other => other.to_string(),
+                }
+            } else {
+                "float4".to_string()
+            };
+
+            Ok((format!("{}({})", name, arg_codes.join(", ")), return_type))
         },
     }
 }

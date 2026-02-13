@@ -25,6 +25,7 @@ pub mod resolver;
 pub mod templates;
 pub mod oracle;
 pub mod engine_knowledge;
+pub mod widget_registry;
 
 // Re-export commonly used items
 pub use naming::*;

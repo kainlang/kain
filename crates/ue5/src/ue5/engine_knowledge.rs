@@ -220,17 +220,41 @@ impl EngineKnowledge {
                 self.call_templates.insert(key, tmpl.clone());
                 self.function_map.insert(func.name.clone(), tmpl);
             }
-            self.classes.insert(name, class);
+            // Merge strategy: don't overwrite a class that has more detail (functions/properties)
+            if let Some(existing) = self.classes.get(&name) {
+                let existing_detail = existing.functions.len() + existing.properties.len();
+                let new_detail = class.functions.len() + class.properties.len();
+                if new_detail > existing_detail {
+                    self.classes.insert(name, class);
+                }
+                // else: keep existing (it has more detail)
+            } else {
+                self.classes.insert(name, class);
+            }
         }
         for st in meta.structs {
             if !st.header.is_empty() { self.include_map.insert(st.name.clone(), st.header.clone()); }
             if !st.module.is_empty() { self.module_types.entry(st.module.clone()).or_default().insert(st.name.clone()); }
-            self.structs.insert(st.name.clone(), st);
+            // Merge: don't overwrite structs with more fields
+            if let Some(existing) = self.structs.get(&st.name) {
+                if st.fields.len() > existing.fields.len() {
+                    self.structs.insert(st.name.clone(), st);
+                }
+            } else {
+                self.structs.insert(st.name.clone(), st);
+            }
         }
         for en in meta.enums {
             if !en.header.is_empty() { self.include_map.insert(en.name.clone(), en.header.clone()); }
             if !en.module.is_empty() { self.module_types.entry(en.module.clone()).or_default().insert(en.name.clone()); }
-            self.enums.insert(en.name.clone(), en);
+            // Merge: don't overwrite enums with more values
+            if let Some(existing) = self.enums.get(&en.name) {
+                if en.values.len() > existing.values.len() {
+                    self.enums.insert(en.name.clone(), en);
+                }
+            } else {
+                self.enums.insert(en.name.clone(), en);
+            }
         }
         for alias in meta.type_aliases {
             self.type_aliases.insert(alias.kain_name.clone(), alias.ue5_name.clone());

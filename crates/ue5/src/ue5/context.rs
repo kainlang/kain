@@ -9,6 +9,8 @@ use std::cell::RefCell;
 use super::project::BuildFile;
 use crate::ue5::naming::to_module_api;
 use super::engine_knowledge::EngineKnowledge;
+use super::widget_registry::WidgetRegistry;
+use ue5_shaders::ShaderKnowledge;
 
 /// Shared compilation context for UE5 code generation
 /// 
@@ -69,6 +71,12 @@ pub struct Ue5Context {
 
     /// Module dependencies discovered during codegen (for .Build.cs)
     pub needed_modules: RefCell<HashSet<String>>,
+
+    /// Slate widget registry (properties, events, delegate types)
+    pub widget_registry: WidgetRegistry,
+
+    /// Shader knowledge base (intrinsics, includes, permutations, material properties)
+    pub shader_knowledge: ShaderKnowledge,
 }
 
 use super::resolver::StdLibResolver;
@@ -79,6 +87,8 @@ impl Ue5Context {
         let module_api = format!("{}_API", output_name.to_uppercase());
         let mut resolver = StdLibResolver::new();
         let mut knowledge = EngineKnowledge::new();
+        let mut widget_registry = WidgetRegistry::new();
+        let mut shader_knowledge = ShaderKnowledge::new();
         
         // Load all metadata from unreal/metadata/*.json into both systems
         let metadata_dir = std::path::Path::new("unreal/metadata");
@@ -88,10 +98,17 @@ impl Ue5Context {
                     let path = entry.path();
                     if path.extension().map_or(false, |e| e == "json") {
                         if let Ok(data) = std::fs::read_to_string(&path) {
-                            // Feed into new EngineKnowledge system
-                            let _ = knowledge.load_metadata(&data);
-                            // Legacy: also feed into StdLibResolver
-                            let _ = resolver.load_from_metadata(&data);
+                            let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+                            if filename == "widget_registry.json" {
+                                let _ = widget_registry.load(&data);
+                            } else if filename == "shader_knowledge.json" {
+                                let _ = shader_knowledge.load(&data);
+                            } else {
+                                // Feed into EngineKnowledge system
+                                let _ = knowledge.load_metadata(&data);
+                                // Legacy: also feed into StdLibResolver
+                                let _ = resolver.load_from_metadata(&data);
+                            }
                         }
                     }
                 }
@@ -121,6 +138,8 @@ impl Ue5Context {
             needed_headers: RefCell::new(HashSet::new()),
             knowledge,
             needed_modules: RefCell::new(HashSet::new()),
+            widget_registry,
+            shader_knowledge,
         }
     }
 

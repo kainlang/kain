@@ -1166,8 +1166,25 @@ impl SlateGenerator {
     }
 
     /// Get the native UE5 delegate type expected by a Slate property.
-    /// Returns None if the property doesn't have a known native delegate type.
-    fn native_delegate_for_property(&self, property_name: &str) -> Option<&'static str> {
+    /// Queries the widget registry first (data-driven from 2,346 extracted widgets),
+    /// then falls back to hardcoded values for core widgets.
+    fn native_delegate_for_property(&self, property_name: &str) -> Option<&str> {
+        // Query widget registry first — check current widget context
+        if let Some(ctx) = &self.context {
+            // Try to find the current widget from parent_stack
+            let current_widget = self.parent_stack.last().map(|w| w.to_slate_class());
+            if let Some(widget_name) = current_widget {
+                if let Some(delegate) = ctx.widget_registry.get_event_delegate(&widget_name, property_name) {
+                    return Some(delegate);
+                }
+            }
+            // Fall back to global event name lookup across all widgets
+            if let Some(delegate) = ctx.widget_registry.get_event_delegate_any(property_name) {
+                return Some(delegate);
+            }
+        }
+
+        // Hardcoded fallback for core widgets (safety net)
         match property_name {
             "OnClicked" => Some("FOnClicked"),
             "OnPressed" | "OnReleased" | "OnHovered" | "OnUnhovered" => Some("FSimpleDelegate"),
@@ -1350,14 +1367,30 @@ impl SlateGenerator {
         self.push_line("");
     }
     
-    /// Map event field names to proper UE5 delegate types
+    /// Map event field names to proper UE5 delegate types.
+    /// Queries the widget registry first (data-driven), then falls back to hardcoded mappings.
     fn map_event_delegate_type(&self, name: &str, cpp_type: &str) -> String {
         // First check if cpp_type is already a proper delegate type (starts with F)
         if cpp_type.starts_with("F") && cpp_type.len() > 1 {
             return cpp_type.to_string();
         }
+
+        // Query widget registry for the event name (data-driven from 2,346 widgets)
+        if let Some(ref ctx) = self.context {
+            // Normalize name: convert snake_case on_ prefix to PascalCase On prefix
+            let pascal_name = if name.starts_with("on_") {
+                let base = name.strip_prefix("on_").unwrap_or(name);
+                format!("On{}", self.to_pascal_case(base))
+            } else {
+                name.to_string()
+            };
+
+            if let Some(delegate) = ctx.widget_registry.get_event_delegate_any(&pascal_name) {
+                return delegate.to_string();
+            }
+        }
         
-        // Map common Slate event names to their delegate types
+        // Hardcoded fallback for core events
         match name {
             "OnClicked" | "on_clicked" | "on_start_clicked" | "on_stop_clicked" | "on_pause_clicked" => "FOnClicked".to_string(),
             "OnPressed" | "OnReleased" | "OnHovered" | "OnUnhovered" => "FSimpleDelegate".to_string(),
@@ -1374,11 +1407,9 @@ impl SlateGenerator {
             _ => {
                 // Check if it's a custom delegate from the context
                 if let Some(ref ctx) = self.context {
-                    // Extract the base name (remove on_ prefix if present)
                     let base_name = name.strip_prefix("on_").unwrap_or(name);
                     let pascal_name = self.to_pascal_case(base_name);
                     
-                    // Check if this delegate exists in the context
                     if ctx.delegate_names.contains(&pascal_name) {
                         return format!("F{}", pascal_name);
                     }
