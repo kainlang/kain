@@ -537,7 +537,7 @@ mod tests {
 /// Validate actor state fields against UHT property type rules
 fn validate_actor_uht(ctx: &mut ValidationContext, actor: &TypedActor, uht: &UhtRules) {
     for state in &actor.ast.state {
-        validate_property_type_uht(ctx, &state.name, &actor.ast.name, &state.ty, &state.attributes, false, uht);
+        validate_property_type_uht(ctx, &state.name, &actor.ast.name, &state.ty, &[], false, uht);
     }
 }
 
@@ -567,11 +567,11 @@ fn validate_property_type_uht(
 ) {
     // Check for nested container types (UHT rejects these)
     // e.g., TMap<FString, TArray<int>> is invalid
-    if let Type::Generic { name, params, .. } = ty {
+    if let Type::Named { name, generics, .. } = ty {
         let type_name = map_kain_container(name);
         if uht.is_container_type(&type_name) {
-            for param in params {
-                if let Type::Generic { name: inner_name, .. } = param {
+            for param in generics {
+                if let Type::Named { name: inner_name, .. } = param {
                     let inner_type = map_kain_container(inner_name);
                     if uht.is_container_type(&inner_type) {
                         ctx.error(format!(
