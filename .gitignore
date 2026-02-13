@@ -1,0 +1,37 @@
+# Build artifacts
+/target/
+*.exe
+*.pdb
+*.obj
+*.o
+*.d
+*.rlib
+*.rmeta
+*.so
+*.dylib
+*.dll
+/mcp
+# LLVM/Compiler output
+*.ll
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and debug
+*.log
+*.txt
+
+# Backup files
+*.bak
+*.backup*
+backup/
+
+# Local dev scripts
+install-local.ps1

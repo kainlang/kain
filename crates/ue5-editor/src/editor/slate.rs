@@ -1,0 +1,1616 @@
+//! Slate Widget Generation with Smart Slot Awareness
+//!
+//! This module generates production-ready Slate UI code from KAIN structs.
+//! Key features:
+//! - Parent stack tracking for correct slot types
+//! - Automatic list view generation (SListView, STreeView)
+//! - Full declarative syntax support
+//! - Slot configuration (padding, alignment, fill)
+//! - Event handler generation
+
+use kain_core::ast::{Expr, Stmt, Block, Struct, Type, Pattern};
+use kain_core::types::TypedStruct;
+use std::collections::HashMap;
+
+use ue5::ue5::naming;
+use crate::editor::reactive::{LayoutOptimizer, PropertyReactivity};
+
+/// Widget type information for slot generation
+#[derive(Debug, Clone, PartialEq)]
+pub enum WidgetType {
+    // Layout containers
+    VerticalBox,
+    HorizontalBox,
+    GridPanel,
+    UniformGridPanel,
+    ScrollBox,
+    Border,
+    Overlay,
+    Splitter,
+    WrapBox,
+    Canvas,
+    // Interactive widgets
+    Button,
+    CheckBox,
+    ComboBox,
+    EditableTextBox,
+    Slider,
+    SpinBox,
+    ColorBlock,
+    // Display widgets
+    TextBlock,
+    Image,
+    ProgressBar,
+    Separator,
+    ToolTip,
+    // List widgets
+    ListView,
+    TreeView,
+    TileView,
+    TableRow,
+    // Menu widgets
+    MenuAnchor,
+    // Unknown fallback
+    Unknown(String),
+}
+
+impl WidgetType {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "VerticalBox" | "SVerticalBox" => WidgetType::VerticalBox,
+            "HorizontalBox" | "SHorizontalBox" => WidgetType::HorizontalBox,
+            "GridPanel" | "SGridPanel" => WidgetType::GridPanel,
+            "UniformGridPanel" | "SUniformGridPanel" => WidgetType::UniformGridPanel,
+            "ScrollBox" | "SScrollBox" => WidgetType::ScrollBox,
+            "Border" | "SBorder" => WidgetType::Border,
+            "Overlay" | "SOverlay" => WidgetType::Overlay,
+            "Splitter" | "SSplitter" => WidgetType::Splitter,
+            "WrapBox" | "SWrapBox" => WidgetType::WrapBox,
+            "Canvas" | "SCanvas" => WidgetType::Canvas,
+            "Button" | "SButton" => WidgetType::Button,
+            "CheckBox" | "SCheckBox" => WidgetType::CheckBox,
+            "ComboBox" | "SComboBox" => WidgetType::ComboBox,
+            "EditableTextBox" | "SEditableTextBox" => WidgetType::EditableTextBox,
+            "Slider" | "SSlider" => WidgetType::Slider,
+            "SpinBox" | "SSpinBox" => WidgetType::SpinBox,
+            "ColorBlock" | "SColorBlock" => WidgetType::ColorBlock,
+            "TextBlock" | "STextBlock" => WidgetType::TextBlock,
+            "Image" | "SImage" => WidgetType::Image,
+            "ProgressBar" | "SProgressBar" => WidgetType::ProgressBar,
+            "Separator" | "SSeparator" => WidgetType::Separator,
+            "ToolTip" | "SToolTip" => WidgetType::ToolTip,
+            "ListView" | "SListView" => WidgetType::ListView,
+            "TreeView" | "STreeView" => WidgetType::TreeView,
+            "TileView" | "STileView" => WidgetType::TileView,
+            "TableRow" | "STableRow" => WidgetType::TableRow,
+            "MenuAnchor" | "SMenuAnchor" => WidgetType::MenuAnchor,
+            _ => WidgetType::Unknown(name.to_string()),
+        }
+    }
+    
+    pub fn to_slate_class(&self) -> String {
+        match self {
+            WidgetType::VerticalBox => "SVerticalBox".to_string(),
+            WidgetType::HorizontalBox => "SHorizontalBox".to_string(),
+            WidgetType::GridPanel => "SGridPanel".to_string(),
+            WidgetType::UniformGridPanel => "SUniformGridPanel".to_string(),
+            WidgetType::ScrollBox => "SScrollBox".to_string(),
+            WidgetType::Border => "SBorder".to_string(),
+            WidgetType::Overlay => "SOverlay".to_string(),
+            WidgetType::Splitter => "SSplitter".to_string(),
+            WidgetType::WrapBox => "SWrapBox".to_string(),
+            WidgetType::Canvas => "SCanvas".to_string(),
+            WidgetType::Button => "SButton".to_string(),
+            WidgetType::CheckBox => "SCheckBox".to_string(),
+            WidgetType::ComboBox => "SComboBox".to_string(),
+            WidgetType::EditableTextBox => "SEditableTextBox".to_string(),
+            WidgetType::Slider => "SSlider".to_string(),
+            WidgetType::SpinBox => "SSpinBox<float>".to_string(),
+            WidgetType::ColorBlock => "SColorBlock".to_string(),
+            WidgetType::TextBlock => "STextBlock".to_string(),
+            WidgetType::Image => "SImage".to_string(),
+            WidgetType::ProgressBar => "SProgressBar".to_string(),
+            WidgetType::Separator => "SSeparator".to_string(),
+            WidgetType::ToolTip => "SToolTip".to_string(),
+            WidgetType::ListView => "SListView".to_string(),
+            WidgetType::TreeView => "STreeView".to_string(),
+            WidgetType::TileView => "STileView".to_string(),
+            WidgetType::TableRow => "STableRow".to_string(),
+            WidgetType::MenuAnchor => "SMenuAnchor".to_string(),
+            WidgetType::Unknown(name) => format!("S{}", name),
+        }
+    }
+    
+    pub fn has_slots(&self) -> bool {
+        matches!(self, 
+            WidgetType::VerticalBox | 
+            WidgetType::HorizontalBox | 
+            WidgetType::GridPanel | 
+            WidgetType::UniformGridPanel |
+            WidgetType::ScrollBox |
+            WidgetType::Overlay |
+            WidgetType::Splitter |
+            WidgetType::WrapBox |
+            WidgetType::Canvas
+        )
+    }
+    
+    /// Whether this widget is a list-type that needs type parameters
+    pub fn is_list_widget(&self) -> bool {
+        matches!(self,
+            WidgetType::ListView |
+            WidgetType::TreeView |
+            WidgetType::TileView
+        )
+    }
+    
+    /// Whether this widget has content slot (single child)
+    pub fn has_content_slot(&self) -> bool {
+        matches!(self,
+            WidgetType::Border |
+            WidgetType::Button |
+            WidgetType::ToolTip |
+            WidgetType::MenuAnchor
+        )
+    }
+}
+
+/// Slot configuration for layout widgets
+#[derive(Debug, Clone, Default)]
+pub struct SlotConfig {
+    pub padding: Option<String>,
+    pub h_align: Option<String>,
+    pub v_align: Option<String>,
+    pub fill_width: Option<String>,
+    pub fill_height: Option<String>,
+    pub auto_width: bool,
+    pub auto_height: bool,
+    pub max_width: Option<String>,
+    pub max_height: Option<String>,
+    // Grid support
+    pub column: Option<i32>,
+    pub row: Option<i32>,
+    pub column_span: Option<i32>,
+    pub row_span: Option<i32>,
+    // Canvas support
+    pub position: Option<String>,
+    pub size: Option<String>,
+}
+
+/// Shader brush tracked for generation
+struct ShaderBrush {
+    id: usize,
+    material_expr: Expr,
+    size_expr: Expr,
+}
+
+/// Widget information tracked in symbol table
+#[derive(Debug, Clone)]
+struct WidgetInfo {
+    /// The initial widget construction expression (e.g., VerticalBox())
+    construction: Expr,
+    /// All method calls made on this widget variable
+    method_calls: Vec<MethodCallInfo>,
+}
+
+/// Method call information for widget tree reconstruction
+#[derive(Debug, Clone)]
+struct MethodCallInfo {
+    method: String,
+    args: Vec<kain_core::ast::CallArg>,
+}
+
+/// Slate widget generator with hierarchy tracking
+pub struct SlateGenerator {
+    /// Stack of parent widget types for slot generation
+    parent_stack: Vec<WidgetType>,
+    /// Current indentation level
+    indent: usize,
+    /// Generated code lines
+    lines: Vec<String>,
+    /// Slot configurations by widget path
+    slot_configs: HashMap<String, SlotConfig>,
+    /// Counter for shader brushes to generate unique member names
+    shader_brush_counter: usize,
+    /// UE5 context for type mapping (optional, for proper type resolution)
+    context: Option<ue5::ue5::Ue5Context>,
+    /// Struct field names for the current widget being generated
+    /// Used during Construct impl to resolve field references to InArgs._fieldname
+    struct_field_names: std::collections::HashSet<String>,
+    /// Map of field names to their resolved C++ types (populated during generate_slate_args)
+    /// Used to check delegate type compatibility (e.g. FOnClicked vs FOnTestRun)
+    field_type_map: HashMap<String, String>,
+}
+
+impl SlateGenerator {
+    pub fn new() -> Self {
+        Self {
+            parent_stack: Vec::new(),
+            indent: 0,
+            lines: Vec::new(),
+            slot_configs: HashMap::new(),
+            shader_brush_counter: 0,
+            context: None,
+            struct_field_names: std::collections::HashSet::new(),
+            field_type_map: HashMap::new(),
+        }
+    }
+    
+    pub fn with_context(mut self, context: ue5::ue5::Ue5Context) -> Self {
+        self.context = Some(context);
+        self
+    }
+    
+    /// Scan for shader_image() calls in Compose to generate brush members
+    fn scan_for_shader_brushes(&self, st: &TypedStruct) -> Vec<ShaderBrush> {
+        let mut brushes = Vec::new();
+        
+        if let Some(compose_fn) = st.ast.methods.iter().find(|m| m.name == "Compose") {
+            if let Some(last_stmt) = compose_fn.body.stmts.last() {
+                let expr_opt = match last_stmt {
+                    Stmt::Expr(expr) => Some(expr),
+                    Stmt::Return(Some(expr), _) => Some(expr),
+                    _ => None
+                };
+                
+                if let Some(expr) = expr_opt {
+                    self.visit_expr_for_brushes(expr, &mut brushes);
+                }
+            }
+        }
+        
+        brushes
+    }
+    
+    fn visit_expr_for_brushes(&self, expr: &Expr, brushes: &mut Vec<ShaderBrush>) {
+        match expr {
+            Expr::Call { callee, args, .. } => {
+                // Check if it's shader_image(...)
+                if let Expr::Ident(name, _) = &**callee {
+                    if name == "shader_image" {
+                        if args.len() >= 2 {
+                            brushes.push(ShaderBrush {
+                                id: brushes.len(),
+                                material_expr: args[0].value.clone(),
+                                size_expr: args[1].value.clone(),
+                            });
+                            return;
+                        }
+                    }
+                }
+                
+                // Recurse children
+                for arg in args {
+                    self.visit_expr_for_brushes(&arg.value, brushes);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.visit_expr_for_brushes(receiver, brushes);
+                for arg in args {
+                    self.visit_expr_for_brushes(&arg.value, brushes);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn generate_widget(&mut self, st: &TypedStruct) -> String {
+        self.lines.clear();
+        
+        let widget_name = format!("S{}", st.ast.name);
+        
+        // Generate class declaration
+        self.push_line(&format!("class {} : public SCompoundWidget", widget_name));
+        self.push_line("{");
+        self.push_line("public:");
+        self.indent += 1;
+        
+        // Generate SLATE_BEGIN_ARGS
+        self.generate_slate_args(&st.ast, &widget_name);
+        
+        // Generate Construct declaration
+        self.push_line("void Construct(const FArguments& InArgs);");
+        
+        // Generate event handlers if any
+        self.generate_event_handlers(&st.ast);
+        
+        // Generate list view support if needed
+        if self.has_list_data(&st.ast) {
+            self.generate_list_view_support(&st.ast);
+        }
+        
+        // Generate shader brushes members
+        let brushes = self.scan_for_shader_brushes(st);
+        if !brushes.is_empty() {
+            self.push_line("");
+            self.push_line("// Shader Brushes");
+            for brush in brushes {
+                self.push_line(&format!("TSharedPtr<FSlateImageBrush> ShaderBrush_{};", brush.id));
+            }
+        }
+        
+        self.indent -= 1;
+        self.push_line("};");
+        
+        self.lines.join("\n")
+    }
+    
+    pub fn generate_construct_impl(&mut self, st: &TypedStruct, widget_name: &str) -> String {
+        self.lines.clear();
+        
+        // Populate struct field names so format_expr can resolve field references
+        // to InArgs._fieldname during Construct body generation
+        self.struct_field_names.clear();
+        for field in &st.ast.fields {
+            self.struct_field_names.insert(field.name.clone());
+        }
+        
+        self.push_line("BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION");
+        self.push_line(&format!("void {}::Construct(const FArguments& InArgs)", widget_name));
+        self.push_line("{");
+        self.indent += 1;
+        
+        // Initialize shader brushes
+        let brushes = self.scan_for_shader_brushes(st);
+        for brush in &brushes {
+            let mat_code = self.format_expr_in_construct(&brush.material_expr);
+            let size_code = self.format_expr_in_construct(&brush.size_expr);
+            
+            self.push_line(&format!(
+                "ShaderBrush_{} = MakeShareable(new FSlateImageBrush({}, {}));",
+                brush.id, mat_code, size_code
+            ));
+        }
+
+        // Find Compose method and build widget tree
+        if let Some(compose_fn) = st.ast.methods.iter().find(|m| m.name == "Compose") {
+            // Build symbol table from all statements in Compose()
+            let symbol_table = self.build_symbol_table(&compose_fn.body);
+            
+            // Find the return expression
+            if let Some(last_stmt) = compose_fn.body.stmts.last() {
+                let expr_opt = match last_stmt {
+                    Stmt::Expr(expr) => Some(expr),
+                    Stmt::Return(Some(expr), _) => Some(expr),
+                    _ => None
+                };
+
+                if let Some(expr) = expr_opt {
+                    self.push_line("ChildSlot");
+                    self.push_line("[");
+                    self.indent += 1;
+                    // Generate widget tree with symbol table for identifier resolution
+                    self.generate_widget_tree_with_context(expr, st, &symbol_table);
+                    self.indent -= 1;
+                    self.push_line("];");
+                }
+            }
+        } else {
+            self.push_line("// No Compose() method found");
+        }
+        
+        self.indent -= 1;
+        self.push_line("}");
+        self.push_line("END_SLATE_FUNCTION_BUILD_OPTIMIZATION");
+        
+        self.lines.join("\n")
+    }
+    
+    /// Build a symbol table from the Compose() method body
+    /// Maps variable names to their widget construction and method calls
+    fn build_symbol_table(&self, block: &Block) -> HashMap<String, WidgetInfo> {
+        let mut table = HashMap::new();
+        
+        for stmt in &block.stmts {
+            match stmt {
+                Stmt::Let { pattern, value, .. } => {
+                    // Extract variable name from pattern
+                    if let Pattern::Binding { name, .. } = pattern {
+                        // Track the initial widget construction
+                        if let Some(value_expr) = value {
+                            let widget_info = WidgetInfo {
+                                construction: value_expr.clone(),
+                                method_calls: Vec::new(),
+                            };
+                            table.insert(name.clone(), widget_info);
+                        }
+                    }
+                }
+                Stmt::Expr(expr) => {
+                    // Track method calls on variables
+                    self.track_method_calls(expr, &mut table);
+                }
+                _ => {}
+            }
+        }
+        
+        table
+    }
+    
+    /// Track method calls on variables to build complete widget trees
+    fn track_method_calls(&self, expr: &Expr, table: &mut HashMap<String, WidgetInfo>) {
+        match expr {
+            Expr::MethodCall { receiver, method, args, .. } => {
+                // Check if receiver is a variable we're tracking
+                if let Expr::Ident(var_name, _) = &**receiver {
+                    if let Some(widget_info) = table.get_mut(var_name) {
+                        widget_info.method_calls.push(MethodCallInfo {
+                            method: method.clone(),
+                            args: args.clone(),
+                        });
+                    }
+                }
+                // Recursively track nested method calls
+                self.track_method_calls(receiver, table);
+                for arg in args {
+                    self.track_method_calls(&arg.value, table);
+                }
+            }
+            Expr::Call { args, .. } => {
+                for arg in args {
+                    self.track_method_calls(&arg.value, table);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    /// Generate widget tree with symbol table context for identifier resolution
+    fn generate_widget_tree_with_context(&mut self, expr: &Expr, st: &TypedStruct, symbol_table: &HashMap<String, WidgetInfo>) {
+        match expr {
+            Expr::Ident(name, _) => {
+                // Resolve identifier from symbol table
+                if let Some(widget_info) = symbol_table.get(name) {
+                    // Extract widget type from construction
+                    let widget_type = if let Expr::Call { callee, .. } = &widget_info.construction {
+                        self.extract_widget_type(callee)
+                    } else {
+                        WidgetType::Unknown("Unknown".to_string())
+                    };
+                    
+                    // Generate the widget construction (SNew(...))
+                    let slate_class = widget_type.to_slate_class();
+                    self.push_line(&format!("SNew({})", slate_class));
+                    
+                    // Push widget type so generate_widget_property can check it
+                    // (e.g. SSlider::MinValue takes float, SSpinBox takes TOptional<float>)
+                    self.parent_stack.push(widget_type.clone());
+                    
+                    // Apply all method calls that were made on this variable
+                    for method_call in &widget_info.method_calls {
+                        match method_call.method.as_str() {
+                            "Add" => {
+                                // For Add() calls, we need to generate slots with the child widgets
+                                if widget_type.has_slots() {
+                                    let slot_type = widget_type.to_slate_class();
+                                    self.push_line("");
+                                    self.push_line(&format!("+{}::Slot()", slot_type));
+                                    self.push_line("[");
+                                    self.indent += 1;
+                                    
+                                    // Resolve the argument (which might be another variable)
+                                    if let Some(first_arg) = method_call.args.first() {
+                                        self.generate_widget_tree_with_context(&first_arg.value, st, symbol_table);
+                                    }
+                                    
+                                    self.indent -= 1;
+                                    self.push_line("]");
+                                } else if widget_type.has_content_slot() {
+                                    self.push_line("[");
+                                    self.indent += 1;
+                                    if let Some(first_arg) = method_call.args.first() {
+                                        self.generate_widget_tree_with_context(&first_arg.value, st, symbol_table);
+                                    }
+                                    self.indent -= 1;
+                                    self.push_line("]");
+                                }
+                            }
+                            "Content" => {
+                                // Content slot
+                                self.push_line("[");
+                                self.indent += 1;
+                                if let Some(first_arg) = method_call.args.first() {
+                                    self.generate_widget_tree_with_context(&first_arg.value, st, symbol_table);
+                                }
+                                self.indent -= 1;
+                                self.push_line("]");
+                            }
+                            _ => {
+                                // Regular property setter
+                                self.generate_widget_property(&method_call.method, &method_call.args);
+                            }
+                        }
+                    }
+                    
+                    // Pop the widget type now that all its properties are processed
+                    self.parent_stack.pop();
+                } else {
+                    // Check if it's a struct field (custom widget)
+                    if let Some(field) = st.ast.fields.iter().find(|f| &f.name == name) {
+                        let type_name = match &field.ty {
+                            Type::Named { name, .. } => name.clone(),
+                            _ => "Unknown".to_string(),
+                        };
+                        self.push_line(&format!("SNew(S{})", type_name));
+                    } else {
+                        // Fallback - treat as widget type
+                        self.push_line(&format!("SNew(S{})", name));
+                    }
+                }
+            }
+            Expr::Call { callee, args, .. } => {
+                // Check for shader_image
+                if let Expr::Ident(name, _) = &**callee {
+                    if name == "shader_image" {
+                        let id = self.shader_brush_counter;
+                        self.shader_brush_counter += 1;
+                        
+                        self.push_line("SNew(SImage)");
+                        self.push_line(&format!(".Image(ShaderBrush_{}.Get())", id));
+                        self.parent_stack.push(WidgetType::Image);
+                        return;
+                    }
+                }
+
+                // Extract widget type from callee
+                let widget_type = self.extract_widget_type(callee);
+                let slate_class = widget_type.to_slate_class();
+                
+                if widget_type.is_list_widget() {
+                    self.push_line(&format!("SNew({})", slate_class));
+                } else {
+                    self.push_line(&format!("SNew({})", slate_class));
+                }
+                
+                self.parent_stack.push(widget_type.clone());
+            }
+            Expr::MethodCall { receiver, method, args, .. } => {
+                match method.as_str() {
+                    "Padding" | "HAlign" | "VAlign" | "FillWidth" | "FillHeight" |
+                    "AutoWidth" | "AutoHeight" | "MaxWidth" | "MaxHeight" |
+                    "Column" | "Row" | "ColumnSpan" | "RowSpan" => {
+                        self.generate_widget_tree_with_context(receiver, st, symbol_table);
+                        self.generate_slot_property(method, args);
+                    }
+                    "Content" => {
+                        self.generate_widget_tree_with_context(receiver, st, symbol_table);
+                        if let Some(first_arg) = args.first() {
+                            self.push_line("[");
+                            self.indent += 1;
+                            self.generate_widget_tree_with_context(&first_arg.value, st, symbol_table);
+                            self.indent -= 1;
+                            self.push_line("]");
+                        }
+                    }
+                    _ => {
+                        self.generate_widget_tree_with_context(receiver, st, symbol_table);
+                        self.generate_widget_property(method, args);
+                    }
+                }
+            }
+            _ => {
+                self.push_line("/* Unsupported widget expression */");
+            }
+        }
+    }
+    
+    fn format_expr_in_construct(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Ident(name, _) => {
+                if self.struct_field_names.contains(name) {
+                    format!("InArgs._{}", name)
+                } else {
+                    name.clone()
+                }
+            },
+            Expr::Call { callee, args, .. } => {
+                if let Expr::Ident(callee_name, _) = &**callee {
+                    if let Some(resolved) = self.resolve_constructor_call(callee_name, args) {
+                        return resolved;
+                    }
+                }
+                self.format_expr(expr)
+            }
+            Expr::MethodCall { receiver, method, args, .. } => {
+                let recv = self.format_expr_in_construct(receiver);
+                let formatted_args: Vec<String> = args.iter().map(|a| self.format_expr_in_construct(&a.value)).collect();
+                if formatted_args.is_empty() {
+                    format!("{}.{}()", recv, method)
+                } else {
+                    format!("{}.{}({})", recv, method, formatted_args.join(", "))
+                }
+            }
+            _ => self.format_expr(expr)
+        }
+    }
+
+    /// Resolve a KAIN constructor call to its UE5 C++ equivalent.
+    /// Handles: color("sunset"), vec3(x,y,z), vec2(x,y), rotator(p,y,r),
+    ///          margin(uniform), margin(h,v), margin(l,t,r,b), quat(x,y,z,w),
+    ///          transform(), linear_color(r,g,b), linear_color(r,g,b,a)
+    fn resolve_constructor_call(&self, callee_name: &str, args: &[kain_core::ast::CallArg]) -> Option<String> {
+        // Map KAIN constructor names to UE5 type names
+        let ue5_type = match callee_name {
+            "vec2" | "Vec2" | "vector2d" => "FVector2D",
+            "vec3" | "Vec3" | "vector" | "Vector" => "FVector",
+            "vec4" | "Vec4" => "FVector4",
+            "rotator" | "Rotator" | "rot" | "Rot" => "FRotator",
+            "quat" | "Quat" => "FQuat",
+            "transform" | "Transform" => "FTransform",
+            "linear_color" | "LinearColor" | "Color" => "FLinearColor",
+            "margin" | "Margin" | "padding" | "Padding" => "FMargin",
+            "color" => {
+                // Special case: color("name") resolves named colors
+                // color(r, g, b) and color(r, g, b, a) resolve to FLinearColor constructor
+                if args.len() == 1 {
+                    if let Expr::String(color_name, _) = &args[0].value {
+                        if let Some(ctx) = &self.context {
+                            if let Some(resolved) = ctx.knowledge.resolve_named_color(color_name) {
+                                return Some(resolved);
+                            }
+                        }
+                        // Fallback: try as a static color constant
+                        let upper = color_name.to_uppercase();
+                        return match upper.as_str() {
+                            "WHITE" => Some("FLinearColor::White".to_string()),
+                            "BLACK" => Some("FLinearColor::Black".to_string()),
+                            "RED" => Some("FLinearColor::Red".to_string()),
+                            "GREEN" => Some("FLinearColor::Green".to_string()),
+                            "BLUE" => Some("FLinearColor::Blue".to_string()),
+                            "YELLOW" => Some("FLinearColor::Yellow".to_string()),
+                            "TRANSPARENT" => Some("FLinearColor::Transparent".to_string()),
+                            "GRAY" | "GREY" => Some("FLinearColor::Gray".to_string()),
+                            _ => Some(format!("FLinearColor::White /* unknown color: {} */", color_name)),
+                        };
+                    }
+                }
+                "FLinearColor"
+            }
+            _ => return None,
+        };
+
+        // Format the arguments
+        let formatted_args: Vec<String> = args.iter().map(|a| self.format_expr(&a.value)).collect();
+
+        // Try EngineKnowledge constructor resolution first
+        if let Some(ctx) = &self.context {
+            if let Some(resolved) = ctx.knowledge.resolve_constructor(ue5_type, &formatted_args) {
+                return Some(resolved);
+            }
+        }
+
+        // Direct fallback: construct with formatted args
+        if formatted_args.is_empty() {
+            Some(format!("{}()", ue5_type))
+        } else {
+            Some(format!("{}({})", ue5_type, formatted_args.join(", ")))
+        }
+    }
+    
+    fn generate_widget_tree(&mut self, expr: &Expr, st: &TypedStruct) {
+        match expr {
+            Expr::Call { callee, args, .. } => {
+                // Check for shader_image
+                if let Expr::Ident(name, _) = &**callee {
+                    if name == "shader_image" {
+                        // Find ID (reuse scan logic logic - simplistic but robust enough for strictly ordered AST)
+                        // A better way would be dragging a counter, but let's assume strict traversal order matches
+                        // We need a stable ID.
+                        // Let's rely on a global counter passed in or state?
+                        // For now, let's increment a counter in self that resets on generate_construct_impl?
+                        // Actually, I can't easily match the scan ID without exact traversal.
+                        // Hack: use a local counter in this method?
+                        // I'll add `shader_brush_counter` to SlateGenerator.
+                        let id = self.shader_brush_counter;
+                        self.shader_brush_counter += 1;
+                        
+                        self.push_line("SNew(SImage)");
+                        self.push_line(&format!(".Image(ShaderBrush_{}.Get())", id));
+                        
+                        // Push dummy parent so children don't attach weirdly (though SImage has no children)
+                        self.parent_stack.push(WidgetType::Image);
+                        return; // SImage has no children from shader_image args
+                    }
+                }
+
+                // Extract widget type from callee
+                let widget_type = self.extract_widget_type(callee);
+                let slate_class = widget_type.to_slate_class();
+                
+                // List widgets need type parameters
+                if widget_type.is_list_widget() {
+                    // Check if type arg is available from generic
+                    self.push_line(&format!("SNew({})", slate_class));
+                    // TODO: handle list views generically
+                } else {
+                    self.push_line(&format!("SNew({})", slate_class));
+                }
+                
+                // Push to parent stack for children
+                self.parent_stack.push(widget_type.clone());
+            }
+            Expr::MethodCall { receiver, method, args, .. } => {
+                match method.as_str() {
+                    "Add" | "Slot" => {
+                        // Generate receiver first, then slot
+                        self.generate_widget_tree(receiver, st);
+                        self.generate_slot(args, st);
+                    }
+                    // Slot-level properties (applied to the slot, not the widget)
+                    "Padding" | "HAlign" | "VAlign" | "FillWidth" | "FillHeight" |
+                    "AutoWidth" | "AutoHeight" | "MaxWidth" | "MaxHeight" |
+                    "Column" | "Row" | "ColumnSpan" | "RowSpan" => {
+                        self.generate_widget_tree(receiver, st);
+                        self.generate_slot_property(method, args);
+                    }
+                    // Content slot (Border, Button, ToolTip)
+                    "Content" => {
+                        self.generate_widget_tree(receiver, st);
+                        if let Some(first_arg) = args.first() {
+                            self.push_line("[");
+                            self.indent += 1;
+                            self.generate_widget_tree(&first_arg.value, st);
+                            self.indent -= 1;
+                            self.push_line("]");
+                        }
+                    }
+                    // All widget properties - comprehensive coverage
+                    _ => {
+                        self.generate_widget_tree(receiver, st);
+                        self.generate_widget_property(method, args);
+                    }
+                }
+            }
+            Expr::Ident(name, _) => {
+                // Check if Ident matches a field name in the struct
+                if let Some(field) = st.ast.fields.iter().find(|f| &f.name == name) {
+                    // Map KAIN type name to Slate class name
+                    let type_name = match &field.ty {
+                        Type::Named { name, .. } => name.clone(),
+                        _ => "Unknown".to_string(),
+                    };
+                    
+                    // Simple heuristic: if it looks like a custom widget
+                    self.push_line(&format!("SNew(S{})", type_name));
+                } else {
+                    // Fallback to old behavior
+                    self.push_line(&format!("SNew(S{})", name));
+                }
+            }
+            _ => {
+                self.push_line("/* Unsupported widget expression */");
+            }
+        }
+    }
+    
+    fn generate_slot(&mut self, args: &[kain_core::ast::CallArg], st: &TypedStruct) {
+        if let Some(parent) = self.parent_stack.last() {
+            if parent.has_slots() {
+                let slot_type = parent.to_slate_class();
+                self.push_line("");
+                self.push_line(&format!("+{}::Slot()", slot_type));
+                
+                self.push_line("[");
+                self.indent += 1;
+                
+                // Generate child widget
+                if let Some(first_arg) = args.first() {
+                    self.generate_widget_tree(&first_arg.value, st);
+                }
+                
+                self.indent -= 1;
+                self.push_line("]");
+            } else if parent.has_content_slot() {
+                // Single content slot (Border, Button, etc.)
+                self.push_line("[");
+                self.indent += 1;
+                if let Some(first_arg) = args.first() {
+                    self.generate_widget_tree(&first_arg.value, st);
+                }
+                self.indent -= 1;
+                self.push_line("]");
+            }
+        }
+    }
+    
+    fn generate_slot_property(&mut self, method: &str, args: &[kain_core::ast::CallArg]) {
+        let formatted_args = self.format_args(args);
+        match method {
+            "Column" => self.push_line(&format!(".Column({})", formatted_args)),
+            "Row" => self.push_line(&format!(".Row({})", formatted_args)),
+            "ColumnSpan" => self.push_line(&format!(".ColumnSpan({})", formatted_args)),
+            "RowSpan" => self.push_line(&format!(".RowSpan({})", formatted_args)),
+            _ => self.push_line(&format!(".{}({})", method, formatted_args)),
+        }
+    }
+    
+    fn generate_widget_property(&mut self, method: &str, args: &[kain_core::ast::CallArg]) {
+        let formatted_args = self.format_args(args);
+        
+        match method {
+            // === Text properties ===
+            "Text" => {
+                if let Some(arg) = args.first() {
+                    if let Expr::String(s, _) = &arg.value {
+                        self.push_line(&format!(".Text(FText::FromString(TEXT(\"{}\")))", s));
+                        return;
+                    }
+                }
+                // TAttribute<FText> binding
+                self.push_line(&format!(".Text({})", formatted_args));
+            }
+            "HintText" => {
+                if let Some(arg) = args.first() {
+                    if let Expr::String(s, _) = &arg.value {
+                        self.push_line(&format!(".HintText(FText::FromString(TEXT(\"{}\")))", s));
+                        return;
+                    }
+                }
+                self.push_line(&format!(".HintText({})", formatted_args));
+            }
+            "ToolTipText" => {
+                if let Some(arg) = args.first() {
+                    if let Expr::String(s, _) = &arg.value {
+                        self.push_line(&format!(".ToolTipText(FText::FromString(TEXT(\"{}\")))", s));
+                        return;
+                    }
+                }
+                self.push_line(&format!(".ToolTipText({})", formatted_args));
+            }
+            
+            // === Delegate properties (click, value change, text, etc.) ===
+            // Uses the systematic delegate bridge: if the InArgs field's delegate type
+            // doesn't match the native Slate delegate, wrap in a lambda bridge.
+            // Otherwise pass through directly. For non-InArgs (local handlers), use CreateSP.
+            "OnClicked" | "OnPressed" | "OnReleased" | "OnHovered" | "OnUnhovered" |
+            "OnValueChanged" | "OnTextCommitted" | "OnTextChanged" |
+            "OnCheckStateChanged" | "OnSelectionChanged" | "OnColorChanged" => {
+                if self.is_inargs_reference(&formatted_args) {
+                    self.emit_delegate_bridge_or_passthrough(method, &formatted_args);
+                } else {
+                    let native = self.native_delegate_for_property(method)
+                        .unwrap_or("FSimpleDelegate");
+                    self.push_line(&format!(
+                        ".{}({}::CreateSP(this, &{}::Handle{}))",
+                        method, native, self.current_widget_class(), self.handler_name_from_args(args)
+                    ));
+                }
+            }
+            
+            // === List view properties ===
+            "ListItemsSource" => {
+                self.push_line(&format!(".ListItemsSource({})", formatted_args));
+            }
+            "OnGenerateRow" => {
+                self.push_line(&format!(".OnGenerateRow({})", formatted_args));
+            }
+            "OnGetChildren" => {
+                self.push_line(&format!(".OnGetChildren({})", formatted_args));
+            }
+            "SelectionMode" => {
+                self.push_line(&format!(".SelectionMode({})", formatted_args));
+            }
+            "ItemHeight" => {
+                self.push_line(&format!(".ItemHeight({})", formatted_args));
+            }
+            "HeaderRow" => {
+                self.push_line(&format!(".HeaderRow({})", formatted_args));
+            }
+            
+            // === Visual properties ===
+            "ColorAndOpacity" => {
+                // Special case: SColorBlock uses .Color() not .ColorAndOpacity()
+                if self.parent_stack.last() == Some(&WidgetType::ColorBlock) {
+                    self.push_line(&format!(".Color({})", formatted_args));
+                } else {
+                    self.push_line(&format!(".ColorAndOpacity({})", formatted_args));
+                }
+            }
+            "Color" => {
+                // SColorBlock::Color takes FLinearColor, not FVector.
+                // If the argument is a vec3() call, convert to FLinearColor(r, g, b, 1.0f)
+                if let Some(arg) = args.first() {
+                    let expr_str = self.format_expr(&arg.value);
+                    if expr_str.starts_with("FVector(") {
+                        // Extract the inner args and wrap in FLinearColor with alpha=1.0
+                        let inner = &expr_str["FVector(".len()..expr_str.len()-1];
+                        self.push_line(&format!(".Color(FLinearColor({}, 1.0f))", inner));
+                        return;
+                    }
+                }
+                self.push_line(&format!(".Color({})", formatted_args));
+            }
+            "BackgroundColor" => {
+                self.push_line(&format!(".BackgroundColor({})", formatted_args));
+            }
+            "ForegroundColor" => {
+                self.push_line(&format!(".ForegroundColor({})", formatted_args));
+            }
+            "Image" | "Brush" => {
+                self.push_line(&format!(".Image({})", formatted_args));
+            }
+            "BorderImage" => {
+                self.push_line(&format!(".BorderImage({})", formatted_args));
+            }
+            "Style" => {
+                self.push_line(&format!(".Style({})", formatted_args));
+            }
+            "Font" => {
+                self.push_line(&format!(".Font({})", formatted_args));
+            }
+            
+            // === State binding properties (TAttribute) ===
+            "IsEnabled" => {
+                self.push_line(&format!(".IsEnabled({})", formatted_args));
+            }
+            "Visibility" => {
+                self.push_line(&format!(".Visibility({})", formatted_args));
+            }
+            "IsChecked" => {
+                self.push_line(&format!(".IsChecked({})", formatted_args));
+            }
+            "Value" => {
+                self.push_line(&format!(".Value({})", formatted_args));
+            }
+            "Percent" => {
+                self.push_line(&format!(".Percent({})", formatted_args));
+            }
+            
+            // === Numeric properties ===
+            // SSpinBox MinValue/MaxValue expect TOptional<NumericType>
+            // SSlider MinValue/MaxValue expect raw float
+            "MinValue" | "MinSliderValue" => {
+                if self.parent_stack.last() == Some(&WidgetType::Slider) {
+                    self.push_line(&format!(".MinValue({})", formatted_args));
+                } else {
+                    self.push_line(&format!(".MinValue(TOptional<float>({}))", formatted_args));
+                }
+            }
+            "MaxValue" | "MaxSliderValue" => {
+                if self.parent_stack.last() == Some(&WidgetType::Slider) {
+                    self.push_line(&format!(".MaxValue({})", formatted_args));
+                } else {
+                    self.push_line(&format!(".MaxValue(TOptional<float>({}))", formatted_args));
+                }
+            }
+            "MinDesiredWidth" => {
+                self.push_line(&format!(".MinDesiredWidth({})", formatted_args));
+            }
+            "MaxDesiredWidth" => {
+                self.push_line(&format!(".MaxDesiredWidth({})", formatted_args));
+            }
+            "MinDesiredHeight" => {
+                self.push_line(&format!(".MinDesiredHeight({})", formatted_args));
+            }
+            "MaxDesiredHeight" => {
+                self.push_line(&format!(".MaxDesiredHeight({})", formatted_args));
+            }
+            
+            // === Layout properties ===
+            "Orientation" => {
+                self.push_line(&format!(".Orientation({})", formatted_args));
+            }
+            "Justification" => {
+                self.push_line(&format!(".Justification({})", formatted_args));
+            }
+            "AutoWrapText" => {
+                self.push_line(&format!(".AutoWrapText({})", formatted_args));
+            }
+            "WrapTextAt" => {
+                self.push_line(&format!(".WrapTextAt({})", formatted_args));
+            }
+            "RenderTransform" => {
+                self.push_line(&format!(".RenderTransform({})", formatted_args));
+            }
+            "RenderTransformPivot" => {
+                self.push_line(&format!(".RenderTransformPivot({})", formatted_args));
+            }
+            
+            // === ComboBox specific ===
+            "OptionsSource" => {
+                self.push_line(&format!(".OptionsSource({})", formatted_args));
+            }
+            "OnGenerateWidget" => {
+                self.push_line(&format!(".OnGenerateWidget({})", formatted_args));
+            }
+            
+            // === Splitter specific ===
+            "ResizeMode" => {
+                self.push_line(&format!(".ResizeMode({})", formatted_args));
+            }
+            "PhysicalSplitterHandleSize" => {
+                self.push_line(&format!(".PhysicalSplitterHandleSize({})", formatted_args));
+            }
+            
+            // === Fallback for any unrecognized property ===
+            _ => {
+                // If the argument is a string literal, wrap in FText::FromString(TEXT(...))
+                // since custom SLATE_ARGUMENT(FText, ...) properties expect FText, not raw strings.
+                if let Some(arg) = args.first() {
+                    if let Expr::String(s, _) = &arg.value {
+                        self.push_line(&format!(".{}(FText::FromString(TEXT(\"{}\")))", method, s));
+                        return;
+                    }
+                }
+                self.push_line(&format!(".{}({})", method, formatted_args));
+            }
+        }
+    }
+    
+    fn extract_widget_type(&self, expr: &Expr) -> WidgetType {
+        match expr {
+            Expr::Ident(name, _) => WidgetType::from_name(name),
+            _ => WidgetType::Unknown("Unknown".to_string()),
+        }
+    }
+    
+    fn format_args(&self, args: &[kain_core::ast::CallArg]) -> String {
+        args.iter()
+            .map(|arg| self.format_expr(&arg.value))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+    
+    fn format_expr(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::String(s, _) => format!("\"{}\"", s),
+            Expr::Int(n, _) => n.to_string(),
+            Expr::Float(f, _) => {
+                // Ensure float literals always have decimal point for valid C++ syntax
+                if f.fract() == 0.0 {
+                    format!("{:.1}f", f)
+                } else {
+                    format!("{}f", f)
+                }
+            },
+            Expr::Bool(b, _) => b.to_string(),
+            Expr::Ident(name, _) => {
+                // During Construct body generation, resolve struct field references
+                // to InArgs._fieldname (e.g., 'title' -> 'InArgs._title')
+                if self.struct_field_names.contains(name) {
+                    format!("InArgs._{}", name)
+                } else {
+                    name.clone()
+                }
+            },
+            Expr::Call { callee, args, .. } => {
+                if let Expr::Ident(callee_name, _) = &**callee {
+                    // Try constructor resolution (color, vec3, margin, etc.)
+                    if let Some(resolved) = self.resolve_constructor_call(callee_name, args) {
+                        return resolved;
+                    }
+                    // Generic function call
+                    let formatted_args: Vec<String> = args.iter().map(|a| self.format_expr(&a.value)).collect();
+                    return format!("{}({})", callee_name, formatted_args.join(", "));
+                }
+                let callee_str = self.format_expr(callee);
+                let formatted_args: Vec<String> = args.iter().map(|a| self.format_expr(&a.value)).collect();
+                format!("{}({})", callee_str, formatted_args.join(", "))
+            },
+            Expr::MethodCall { receiver, method, args, .. } => {
+                let recv = self.format_expr(receiver);
+                let formatted_args: Vec<String> = args.iter().map(|a| self.format_expr(&a.value)).collect();
+                if formatted_args.is_empty() {
+                    format!("{}.{}()", recv, method)
+                } else {
+                    format!("{}.{}({})", recv, method, formatted_args.join(", "))
+                }
+            },
+            Expr::Field { object, field, .. } => {
+                let obj = self.format_expr(object);
+                format!("{}.{}", obj, field)
+            },
+            Expr::Unary { op, operand, .. } => {
+                let operand_str = self.format_expr(operand);
+                format!("{}{}", match op {
+                    kain_core::ast::UnaryOp::Neg => "-",
+                    kain_core::ast::UnaryOp::Not => "!",
+                    kain_core::ast::UnaryOp::BitNot => "~",
+                    kain_core::ast::UnaryOp::Ref => "&",
+                    kain_core::ast::UnaryOp::RefMut => "&",
+                    kain_core::ast::UnaryOp::Deref => "*",
+                }, operand_str)
+            },
+            Expr::Binary { left, op, right, .. } => {
+                let l = self.format_expr(left);
+                let r = self.format_expr(right);
+                let op_str = match op {
+                    kain_core::ast::BinaryOp::Add => "+",
+                    kain_core::ast::BinaryOp::Sub => "-",
+                    kain_core::ast::BinaryOp::Mul => "*",
+                    kain_core::ast::BinaryOp::Div => "/",
+                    kain_core::ast::BinaryOp::Mod => "%",
+                    kain_core::ast::BinaryOp::Eq => "==",
+                    kain_core::ast::BinaryOp::Ne => "!=",
+                    kain_core::ast::BinaryOp::Lt => "<",
+                    kain_core::ast::BinaryOp::Le => "<=",
+                    kain_core::ast::BinaryOp::Gt => ">",
+                    kain_core::ast::BinaryOp::Ge => ">=",
+                    kain_core::ast::BinaryOp::And => "&&",
+                    kain_core::ast::BinaryOp::Or => "||",
+                    kain_core::ast::BinaryOp::BitAnd => "&",
+                    kain_core::ast::BinaryOp::BitOr => "|",
+                    kain_core::ast::BinaryOp::BitXor => "^",
+                    kain_core::ast::BinaryOp::Shl => "<<",
+                    kain_core::ast::BinaryOp::Shr => ">>",
+                    kain_core::ast::BinaryOp::Pow => "/* pow */",
+                    kain_core::ast::BinaryOp::Assign => "=",
+                    kain_core::ast::BinaryOp::AddAssign => "+=",
+                    kain_core::ast::BinaryOp::SubAssign => "-=",
+                    kain_core::ast::BinaryOp::MulAssign => "*=",
+                    kain_core::ast::BinaryOp::DivAssign => "/=",
+                    kain_core::ast::BinaryOp::Range => "/* range */",
+                    kain_core::ast::BinaryOp::RangeInclusive => "/* range_inclusive */",
+                };
+                format!("({} {} {})", l, op_str, r)
+            },
+            _ => format!("/* unsupported expr: {:?} */", std::mem::discriminant(expr)),
+        }
+    }
+    
+    /// Check if a formatted argument string references an InArgs field (delegate pass-through)
+    /// When true, the delegate value should be passed directly (it's already bound).
+    /// When false, we need to create a binding to a local handler method via CreateSP.
+    fn is_inargs_reference(&self, formatted: &str) -> bool {
+        formatted.contains("InArgs._")
+    }
+
+    /// Extract a handler name from delegate arguments for CreateSP binding
+    fn handler_name_from_args(&self, args: &[kain_core::ast::CallArg]) -> String {
+        if let Some(arg) = args.first() {
+            if let Expr::Ident(name, _) = &arg.value {
+                return name.clone();
+            }
+        }
+        "UnknownHandler".to_string()
+    }
+
+    /// Get the native UE5 delegate type expected by a Slate property.
+    /// Returns None if the property doesn't have a known native delegate type.
+    fn native_delegate_for_property(&self, property_name: &str) -> Option<&'static str> {
+        match property_name {
+            "OnClicked" => Some("FOnClicked"),
+            "OnPressed" | "OnReleased" | "OnHovered" | "OnUnhovered" => Some("FSimpleDelegate"),
+            "OnValueChanged" => Some("FOnFloatValueChanged"),
+            "OnTextCommitted" => Some("FOnTextCommitted"),
+            "OnTextChanged" => Some("FOnTextChanged"),
+            "OnCheckStateChanged" => Some("FOnCheckStateChanged"),
+            "OnSelectionChanged" => Some("FOnSelectionChanged"),
+            "OnColorChanged" => Some("FOnLinearColorValueChanged"),
+            "OnMouseButtonDown" | "OnMouseButtonUp" => Some("FPointerEventHandler"),
+            "OnKeyDown" | "OnKeyUp" => Some("FKeyEventHandler"),
+            _ => None,
+        }
+    }
+
+    /// Check if an InArgs field's delegate type matches the native Slate delegate.
+    /// If not, returns the lambda bridge code to wrap the custom delegate.
+    fn emit_delegate_bridge_or_passthrough(
+        &mut self,
+        property_name: &str,
+        formatted_args: &str,
+    ) {
+        let field_name = formatted_args.trim_start_matches("InArgs._");
+        let native_type = self.native_delegate_for_property(property_name);
+        let field_type = self.field_type_map.get(field_name).cloned();
+
+        // If we know the native type AND the field type, and they differ, bridge it
+        let needs_bridge = match (&native_type, &field_type) {
+            (Some(native), Some(field)) => native != field,
+            _ => false, // Can't determine — pass through directly
+        };
+
+        if !needs_bridge {
+            self.push_line(&format!(".{}({})", property_name, formatted_args));
+            return;
+        }
+
+        let native = native_type.unwrap();
+
+        // Generate the appropriate lambda bridge based on the native delegate signature
+        match native {
+            // FOnClicked: () -> FReply
+            "FOnClicked" => {
+                self.push_line(&format!(
+                    ".OnClicked(FOnClicked::CreateLambda([=]() -> FReply {{ auto D = {}; D.Broadcast(); return FReply::Handled(); }}))",
+                    formatted_args
+                ));
+            }
+            // FOnFloatValueChanged: (float) -> void
+            "FOnFloatValueChanged" => {
+                self.push_line(&format!(
+                    ".OnValueChanged(FOnFloatValueChanged::CreateLambda([=](float Val) {{ auto D = {}; D.Broadcast(Val); }}))",
+                    formatted_args
+                ));
+            }
+            // FSimpleDelegate: () -> void
+            "FSimpleDelegate" => {
+                self.push_line(&format!(
+                    ".{}(FSimpleDelegate::CreateLambda([=]() {{ auto D = {}; D.Broadcast(); }}))",
+                    property_name, formatted_args
+                ));
+            }
+            // FOnTextCommitted: (const FText&, ETextCommit::Type) -> void
+            "FOnTextCommitted" => {
+                self.push_line(&format!(
+                    ".OnTextCommitted(FOnTextCommitted::CreateLambda([=](const FText& Text, ETextCommit::Type Type) {{ auto D = {}; D.Broadcast(Text, Type); }}))",
+                    formatted_args
+                ));
+            }
+            // FOnTextChanged: (const FText&) -> void
+            "FOnTextChanged" => {
+                self.push_line(&format!(
+                    ".OnTextChanged(FOnTextChanged::CreateLambda([=](const FText& Text) {{ auto D = {}; D.Broadcast(Text); }}))",
+                    formatted_args
+                ));
+            }
+            // FOnCheckStateChanged: (ECheckBoxState) -> void
+            "FOnCheckStateChanged" => {
+                self.push_line(&format!(
+                    ".OnCheckStateChanged(FOnCheckStateChanged::CreateLambda([=](ECheckBoxState State) {{ auto D = {}; D.Broadcast(State); }}))",
+                    formatted_args
+                ));
+            }
+            // FOnLinearColorValueChanged: (FLinearColor) -> void
+            "FOnLinearColorValueChanged" => {
+                self.push_line(&format!(
+                    ".OnColorChanged(FOnLinearColorValueChanged::CreateLambda([=](FLinearColor Color) {{ auto D = {}; D.Broadcast(Color); }}))",
+                    formatted_args
+                ));
+            }
+            // Default fallback: pass through directly
+            _ => {
+                self.push_line(&format!(".{}({})", property_name, formatted_args));
+            }
+        }
+    }
+
+    /// Get the current widget class name for CreateSP bindings
+    fn current_widget_class(&self) -> String {
+        // The widget class name is tracked via the lines we've already generated
+        // Fall back to a generic name if we can't determine it
+        "Self".to_string()
+    }
+
+    fn generate_slate_args(&mut self, st: &Struct, widget_name: &str) {
+        // Use LayoutOptimizer for smart ARGUMENT vs ATTRIBUTE classification
+        let mut optimizer = LayoutOptimizer::new();
+        let analyses = optimizer.analyze_widget(st);
+        
+        // Clear and populate field_type_map for delegate type checking during Construct
+        self.field_type_map.clear();
+        
+        // Emit optimization report as comment
+        let report = optimizer.generate_report(&analyses);
+        for line in report.lines() {
+            self.push_line(line);
+        }
+        
+        self.push_line(&format!("SLATE_BEGIN_ARGS({})", widget_name));
+        self.indent += 1;
+        
+        // Constructor initializer list
+        self.push_line(": _Content()");
+        
+        for field in &st.fields {
+            // Check if this field is a delegate/event type
+            let is_delegate = field.attributes.iter().any(|a| a.name == "event") ||
+                             field.name.starts_with("on_") ||
+                             field.name.starts_with("On");
+            
+            if is_delegate {
+                // Delegates need explicit () for value-initialization in the initializer list
+                // Map the field type to the proper UE5 delegate type for construction
+                let cpp_type = self.map_type(&field.ty);
+                let delegate_type = self.map_event_delegate_type(&field.name, &cpp_type);
+                // Record the resolved delegate type for later use in Construct impl
+                self.field_type_map.insert(field.name.clone(), delegate_type.clone());
+                self.push_line(&format!(", _{}({}())", field.name, delegate_type));
+            } else {
+                // For non-delegates, provide explicit default value
+                let cpp_type = self.map_type(&field.ty);
+                self.field_type_map.insert(field.name.clone(), cpp_type);
+                let default_val = self.get_default_value(&field.ty);
+                self.push_line(&format!(", _{}({})", field.name, default_val));
+            }
+        }
+        
+        self.push_line("{}");
+        self.push_line("");
+        
+        // Default slot
+        self.push_line("SLATE_DEFAULT_SLOT(FArguments, Content)");
+        
+        // Use optimizer analysis to pick correct macro for each field
+        for (field, analysis) in st.fields.iter().zip(analyses.iter()) {
+            let cpp_type = self.map_type(&field.ty);
+            
+            match analysis.reactivity {
+                PropertyReactivity::Event => {
+                    let delegate_type = self.map_event_delegate_type(&field.name, &cpp_type);
+                    self.push_line(&format!("SLATE_EVENT({}, {})", delegate_type, field.name));
+                }
+                PropertyReactivity::Static => {
+                    // For event-like fields (on_*, On*), map to proper delegate type
+                    if field.name.starts_with("on_") || field.name.starts_with("On") {
+                        let delegate_type = self.map_event_delegate_type(&field.name, &cpp_type);
+                        self.push_line(&format!("SLATE_ARGUMENT({}, {})", delegate_type, field.name));
+                    } else {
+                        self.push_line(&format!("SLATE_ARGUMENT({}, {})", cpp_type, field.name));
+                    }
+                }
+                PropertyReactivity::Reactive => {
+                    self.push_line(&format!("SLATE_ATTRIBUTE({}, {})", cpp_type, field.name));
+                }
+            }
+        }
+        
+        self.indent -= 1;
+        self.push_line("SLATE_END_ARGS()");
+        self.push_line("");
+    }
+    
+    /// Map event field names to proper UE5 delegate types
+    fn map_event_delegate_type(&self, name: &str, cpp_type: &str) -> String {
+        // First check if cpp_type is already a proper delegate type (starts with F)
+        if cpp_type.starts_with("F") && cpp_type.len() > 1 {
+            return cpp_type.to_string();
+        }
+        
+        // Map common Slate event names to their delegate types
+        match name {
+            "OnClicked" | "on_clicked" | "on_start_clicked" | "on_stop_clicked" | "on_pause_clicked" => "FOnClicked".to_string(),
+            "OnPressed" | "OnReleased" | "OnHovered" | "OnUnhovered" => "FSimpleDelegate".to_string(),
+            "OnTextCommitted" | "on_text_committed" => "FOnTextCommitted".to_string(),
+            "OnTextChanged" | "on_text_changed" => "FOnTextChanged".to_string(),
+            "OnValueChanged" | "on_value_changed" => "FOnFloatValueChanged".to_string(),
+            "OnCheckStateChanged" | "on_check_state_changed" => "FOnCheckStateChanged".to_string(),
+            "OnSelectionChanged" | "on_selection_changed" => "FOnSelectionChanged".to_string(),
+            "OnGenerateRow" | "on_generate_row" => "FOnGenerateRow".to_string(),
+            "OnGetChildren" | "on_get_children" => "FOnGetChildren".to_string(),
+            "OnMouseButtonDown" | "OnMouseButtonUp" => "FPointerEventHandler".to_string(),
+            "OnKeyDown" | "OnKeyUp" => "FKeyEventHandler".to_string(),
+            "OnColorChanged" | "on_color_changed" => "FOnLinearColorValueChanged".to_string(),
+            _ => {
+                // Check if it's a custom delegate from the context
+                if let Some(ref ctx) = self.context {
+                    // Extract the base name (remove on_ prefix if present)
+                    let base_name = name.strip_prefix("on_").unwrap_or(name);
+                    let pascal_name = self.to_pascal_case(base_name);
+                    
+                    // Check if this delegate exists in the context
+                    if ctx.delegate_names.contains(&pascal_name) {
+                        return format!("F{}", pascal_name);
+                    }
+                }
+                
+                // Default fallback
+                if cpp_type == "void" {
+                    "FSimpleDelegate".to_string()
+                } else {
+                    cpp_type.to_string()
+                }
+            }
+        }
+    }
+    
+    /// Convert snake_case to PascalCase
+    fn to_pascal_case(&self, s: &str) -> String {
+        s.split('_')
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                }
+            })
+            .collect()
+    }
+    
+    fn generate_event_handlers(&mut self, st: &Struct) {
+        // Generate properly-typed handler declarations
+        for field in &st.fields {
+            if field.name.starts_with("On") || field.name.starts_with("on_") {
+                self.push_line("");
+                match field.name.as_str() {
+                    "OnClicked" | "on_clicked" => {
+                        self.push_line(&format!("FReply Handle{}();", field.name));
+                    }
+                    "OnTextCommitted" | "on_text_committed" => {
+                        self.push_line(&format!("void Handle{}(const FText& InText, ETextCommit::Type CommitType);", field.name));
+                    }
+                    "OnTextChanged" | "on_text_changed" => {
+                        self.push_line(&format!("void Handle{}(const FText& InText);", field.name));
+                    }
+                    "OnValueChanged" | "on_value_changed" => {
+                        self.push_line(&format!("void Handle{}(float NewValue);", field.name));
+                    }
+                    "OnCheckStateChanged" | "on_check_state_changed" => {
+                        self.push_line(&format!("void Handle{}(ECheckBoxState NewState);", field.name));
+                    }
+                    _ => {
+                        self.push_line(&format!("FReply Handle{}();", field.name));
+                    }
+                }
+            }
+        }
+        
+        // Generate handler methods for explicit @event functions
+        for method in &st.methods {
+            if method.name != "Compose" {
+                let params = method.params.iter()
+                    .map(|p| format!("{} {}", self.map_type(&p.ty), p.name))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let ret_type = if method.name.starts_with("On") || method.name.starts_with("Handle") {
+                    "FReply"
+                } else {
+                    "void"
+                };
+                self.push_line("");
+                self.push_line(&format!("{} {}({});", ret_type, method.name, params));
+            }
+        }
+    }
+    
+    fn has_list_data(&self, st: &Struct) -> bool {
+        st.fields.iter().any(|f| {
+            matches!(&f.ty, Type::Array { .. })
+        })
+    }
+    
+    fn generate_list_view_support(&mut self, st: &Struct) {
+        self.push_line("");
+        self.push_line("// === List View Support ===");
+        
+        for field in &st.fields {
+            if let Type::Array(element, _, _) = &field.ty {
+                let element_type = self.map_type(element);
+                let ptr_type = format!("TSharedPtr<{}>", element_type);
+                
+                // Member variable for the list source
+                self.push_line(&format!("TArray<{}> {};", ptr_type, field.name));
+                self.push_line("");
+                
+                // Selection variable
+                self.push_line(&format!("{} Selected{}Item;", ptr_type, field.name));
+                self.push_line("");
+                
+                // OnGenerateRow delegate with proper signature
+                self.push_line(&format!(
+                    "TSharedRef<ITableRow> OnGenerateRow_{}({} InItem, const TSharedRef<STableViewBase>& OwnerTable);",
+                    field.name, ptr_type
+                ));
+                
+                // OnSelectionChanged delegate
+                self.push_line(&format!(
+                    "void OnSelectionChanged_{}({} InItem, ESelectInfo::Type SelectInfo);",
+                    field.name, ptr_type
+                ));
+                self.push_line("");
+                
+                // ListView widget reference
+                self.push_line(&format!(
+                    "TSharedPtr<SListView<{}>> {}ListView;",
+                    ptr_type, field.name
+                ));
+            }
+        }
+    }
+    
+    fn map_type(&self, ty: &Type) -> String {
+        match ty {
+            Type::Named { name, .. } => match name.as_str() {
+                "Int" | "int" => "int32".to_string(),
+                "Float" | "float" => "float".to_string(),
+                "Bool" | "bool" => "bool".to_string(),
+                "String" | "str" => "FString".to_string(),
+                "Text" => "FText".to_string(),
+                "Color" => "FLinearColor".to_string(),
+                "Vec2" => "FVector2D".to_string(),
+                "Vec3" => "FVector".to_string(),
+                "Vec4" => "FVector4".to_string(),
+                "Brush" => "const FSlateBrush*".to_string(),
+                "Margin" => "FMargin".to_string(),
+                _ => {
+                    // Use context to map custom types (enums, structs, actors, delegates)
+                    if let Some(ref ctx) = self.context {
+                        // Check if it's an enum — use naming utility to avoid double E-prefix
+                        if ctx.enum_names.contains(name) {
+                            return naming::to_enum_name(name);
+                        }
+                        // Check if it's a struct
+                        if ctx.struct_names.contains(name) {
+                            return naming::to_struct_name(name);
+                        }
+                        // Check if it's an actor
+                        if ctx.actor_names.contains(name) {
+                            return format!("{}*", naming::to_actor_name(name));
+                        }
+                        // Check if it's a component
+                        if ctx.component_names.contains(name) {
+                            return format!("{}*", naming::to_uobject_name(name));
+                        }
+                        // Check if it's a delegate
+                        if ctx.delegate_names.contains(name) {
+                            return naming::to_struct_name(name);
+                        }
+                    }
+                    // Fallback: assume it's a custom type with F prefix
+                    naming::to_struct_name(name)
+                }
+            },
+            Type::Array(element, _, _) => {
+                format!("TArray<{}>", self.map_type(element))
+            }
+            Type::Unit(_) => "void".to_string(),
+            _ => "auto".to_string(),
+        }
+    }
+    
+    fn get_default_value(&self, ty: &Type) -> String {
+        match ty {
+            Type::Named { name, .. } => match name.as_str() {
+                "Int" | "int" => "0".to_string(),
+                "Float" | "float" => "0.0f".to_string(),
+                "Bool" | "bool" => "false".to_string(),
+                "String" | "str" => "FString()".to_string(),
+                "Text" => "FText::GetEmpty()".to_string(),
+                "Color" => "FLinearColor::White".to_string(),
+                "Vec2" => "FVector2D::ZeroVector".to_string(),
+                "Vec3" => "FVector::ZeroVector".to_string(),
+                "Vec4" => "FVector4(0, 0, 0, 0)".to_string(),
+                "Margin" => "FMargin(0)".to_string(),
+                "Brush" => "nullptr".to_string(),
+                _ => {
+                    // Check if it's a delegate type (starts with On or on_)
+                    if name.starts_with("On") || name.starts_with("on_") {
+                        let delegate_type = self.map_event_delegate_type(name, "");
+                        format!("{}()", delegate_type)
+                    } else {
+                        // Use map_type() to resolve custom types properly
+                        // This ensures enums get E prefix, structs get F prefix, etc.
+                        let mapped = self.map_type(ty);
+                        if mapped.ends_with('*') {
+                            // Pointer types default to nullptr
+                            "nullptr".to_string()
+                        } else {
+                            format!("{}()", mapped)
+                        }
+                    }
+                },
+            },
+            Type::Array(element, _, _) => {
+                let element_type = self.map_type(element);
+                format!("TArray<{}>()", element_type)
+            },
+            Type::Unit(_) => {
+                "FSimpleDelegate()".to_string()
+            },
+            _ => "{}".to_string(),
+        }
+    }
+    
+    fn push_line(&mut self, line: &str) {
+        let indent_str = "\t".repeat(self.indent);
+        self.lines.push(format!("{}{}", indent_str, line));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_widget_type_detection() {
+        assert!(matches!(WidgetType::from_name("VerticalBox"), WidgetType::VerticalBox));
+        assert!(matches!(WidgetType::from_name("SHorizontalBox"), WidgetType::HorizontalBox));
+    }
+    
+    #[test]
+    fn test_slot_awareness() {
+        let vbox = WidgetType::VerticalBox;
+        assert!(vbox.has_slots());
+        assert_eq!(vbox.to_slate_class(), "SVerticalBox");
+    }
+}

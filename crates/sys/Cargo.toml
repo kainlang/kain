@@ -1,0 +1,12 @@
+[package]
+name = "sys"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+# inkwell = { workspace = true, optional = true } 
+
+[features]
+default = []
+llvm = [] # ["dep:inkwell"] Temporarily disabled to unblock build

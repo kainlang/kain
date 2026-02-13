@@ -1,0 +1,30 @@
+/**
+ * {{ type_name }}: {{ clean_name }}
+ * {{ description }}
+ */
+UCLASS({{ specifiers }})
+class {{ module_api }} {{ prefixed_name }} : public {{ base_class }}
+{
+    GENERATED_BODY()
+
+public:
+    {{ prefixed_name }}();
+
+protected:
+    virtual void BeginPlay() override;
+
+public:
+    virtual void Tick(float DeltaTime) override;
+
+    {% for prop in properties -%}
+    UPROPERTY({{ prop.specifiers }})
+    {{ prop.type }} {{ prop.name }};
+
+    {% endfor %}
+
+    {% for func in functions -%}
+    UFUNCTION({{ func.specifiers }})
+    {{ func.return_type }} {{ func.name }}({{ func.params }});
+
+    {% endfor %}
+};

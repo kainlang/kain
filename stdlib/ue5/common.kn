@@ -1,0 +1,27 @@
+// KAIN Library of Babel - UE5 Common Types
+// Standard definitions for UE5-specific KAIN types.
+
+// TODO: Attribute type definitions (not yet implemented in parser)
+// @attribute
+// type property = {
+//     category: String,
+//     replicated: Bool,
+//     save_game: Bool
+// }
+
+// @attribute
+// type function = {
+//     category: String,
+//     pure: Bool,
+//     reliable: Bool
+// }
+
+/// Map KAIN's world-level utilities
+@extern
+fn GetWorldDeltaSeconds() -> Float
+
+@extern
+fn GetActorLocation(self: ActorRef) -> Vec3
+
+@extern
+fn SetActorLocation(self: ActorRef, new_location: Vec3) -> Unit

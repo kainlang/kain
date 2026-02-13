@@ -1,0 +1,300 @@
+//! UE5 Compilation Context
+//! 
+//! Provides shared state and symbol tables for cross-module intelligence.
+//! This allows the Editor codegen to know what the Runtime codegen created,
+//! enabling automatic registration and type-safe references.
+
+use std::collections::{HashSet, HashMap};
+use std::cell::RefCell;
+use super::project::BuildFile;
+use crate::ue5::naming::to_module_api;
+use super::engine_knowledge::EngineKnowledge;
+
+/// Shared compilation context for UE5 code generation
+/// 
+/// This context is passed between different codegen phases to enable
+/// cross-module intelligence. For example:
+/// - Runtime codegen registers actors/components
+/// - Editor codegen can reference them for UI generation
+/// - Shader codegen can auto-wire to actor state
+#[derive(Debug, Clone)]
+pub struct Ue5Context {
+    /// All enum names defined in the program
+    pub enum_names: HashSet<String>,
+    
+    /// All struct names defined in the program
+    pub struct_names: HashSet<String>,
+    
+    /// All component names (structs with @component attribute)
+    pub component_names: HashSet<String>,
+    
+    /// All delegate names (type aliases to function types)
+    pub delegate_names: HashSet<String>,
+    
+    /// All actor names defined in the program
+    pub actor_names: HashSet<String>,
+    
+    /// Maps KAIN identifiers to UE5 equivalents (e.g. delta_time -> DeltaTime)
+    pub ident_remap: HashMap<String, String>,
+    
+    /// Forward declarations needed in header
+    pub forward_decls: HashSet<String>,
+    
+    /// Module API macro (e.g. "GAME_API", "MYPLUGIN_API")
+    pub module_api: String,
+    
+    /// Output name (used for class names, file names, etc.)
+    pub output_name: String,
+    
+    /// Features enabled via Library of Babel (e.g., "Mograph", "Replication")
+    pub enabled_features: HashSet<String>,
+    
+    /// Build file for automatic dependency management
+    pub build_file: BuildFile,
+    
+    /// StdLib call resolver for UE5 mappings (Babel Layer)
+    pub resolver: StdLibResolver,
+    
+    /// Copyright header for generated files
+    pub copyright: String,
+
+    /// Maps KAIN type names to their generated header files (e.g. MyActor -> MyActor.h)
+    pub type_to_header: HashMap<String, String>,
+
+    /// Headers actually used in the current generation (for #include resolution)
+    pub needed_headers: RefCell<HashSet<String>>,
+
+    /// Rich engine knowledge base (class hierarchy, includes, type validation)
+    pub knowledge: EngineKnowledge,
+
+    /// Module dependencies discovered during codegen (for .Build.cs)
+    pub needed_modules: RefCell<HashSet<String>>,
+}
+
+use super::resolver::StdLibResolver;
+
+impl Ue5Context {
+    /// Create a new context with the given output name
+    pub fn new(output_name: &str, copyright: Option<&str>) -> Self {
+        let module_api = format!("{}_API", output_name.to_uppercase());
+        let mut resolver = StdLibResolver::new();
+        let mut knowledge = EngineKnowledge::new();
+        
+        // Load all metadata from unreal/metadata/*.json into both systems
+        let metadata_dir = std::path::Path::new("unreal/metadata");
+        if metadata_dir.exists() && metadata_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(metadata_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map_or(false, |e| e == "json") {
+                        if let Ok(data) = std::fs::read_to_string(&path) {
+                            // Feed into new EngineKnowledge system
+                            let _ = knowledge.load_metadata(&data);
+                            // Legacy: also feed into StdLibResolver
+                            let _ = resolver.load_from_metadata(&data);
+                        }
+                    }
+                }
+            }
+        }
+
+        let copyright = copyright.map(|s| s.to_string()).unwrap_or_else(|| {
+            format!("Copyright {} Zentako. All Rights Reserved.", 
+                chrono::Local::now().format("%Y"))
+        });
+        
+        Self {
+            enum_names: HashSet::new(),
+            struct_names: HashSet::new(),
+            component_names: HashSet::new(),
+            delegate_names: HashSet::new(),
+            actor_names: HashSet::new(),
+            ident_remap: HashMap::new(),
+            forward_decls: HashSet::new(),
+            module_api: module_api.clone(),
+            output_name: output_name.to_string(),
+            enabled_features: HashSet::new(),
+            build_file: BuildFile::new(output_name),
+            resolver,
+            copyright,
+            type_to_header: HashMap::new(),
+            needed_headers: RefCell::new(HashSet::new()),
+            knowledge,
+            needed_modules: RefCell::new(HashSet::new()),
+        }
+    }
+
+    /// Set the global type map for modular compilation
+    pub fn set_type_to_header(&mut self, map: HashMap<String, String>) {
+        self.type_to_header = map;
+    }
+
+    /// Mark a module dependency as needed (discovered during codegen via EngineKnowledge)
+    pub fn need_module(&self, module: String) {
+        self.needed_modules.borrow_mut().insert(module);
+    }
+
+    /// Flush discovered module dependencies into the build file
+    pub fn flush_modules(&mut self) {
+        let modules: Vec<String> = self.needed_modules.borrow().iter().cloned().collect();
+        for module in modules {
+            self.build_file.public_dependencies.insert(module);
+        }
+    }
+
+    /// Mark a header as needed for current generation
+    pub fn need_header(&self, header: String) {
+        if header != format!("{}.h", self.output_name) {
+            self.needed_headers.borrow_mut().insert(header);
+        }
+    }
+
+    /// Get all headers needed for the current translation unit
+    pub fn get_needed_headers(&self) -> Vec<String> {
+        let mut headers: Vec<_> = self.needed_headers.borrow().iter().cloned().collect();
+        headers.sort();
+        headers
+    }
+    
+    /// Register an enum name and its header
+    pub fn register_enum(&mut self, name: String, header: String) {
+        self.enum_names.insert(name.clone());
+        self.type_to_header.insert(name, header);
+    }
+    
+    /// Register a struct name and its header
+    pub fn register_struct(&mut self, name: String, header: String) {
+        self.struct_names.insert(name.clone());
+        self.type_to_header.insert(name, header);
+    }
+    
+    /// Register a component name and its header
+    pub fn register_component(&mut self, name: String, header: String) {
+        self.component_names.insert(name.clone());
+        self.struct_names.insert(name.clone());
+        self.type_to_header.insert(name, header);
+    }
+    
+    /// Register a delegate name and its header
+    pub fn register_delegate(&mut self, name: String, header: String) {
+        self.delegate_names.insert(name.clone());
+        self.type_to_header.insert(name, header);
+    }
+    
+    /// Register an actor name and its header
+    pub fn register_actor(&mut self, name: String, header: String) {
+        self.actor_names.insert(name.clone());
+        self.type_to_header.insert(name, header);
+    }
+    
+    /// Check if a name is a known enum
+    pub fn is_enum(&self, name: &str) -> bool {
+        self.enum_names.contains(name)
+    }
+    
+    /// Check if a name is a known struct
+    pub fn is_struct(&self, name: &str) -> bool {
+        self.struct_names.contains(name)
+    }
+    
+    /// Check if a name is a known component
+    pub fn is_component(&self, name: &str) -> bool {
+        self.component_names.contains(name)
+    }
+    
+    /// Check if a name is a known delegate
+    pub fn is_delegate(&self, name: &str) -> bool {
+        self.delegate_names.contains(name)
+    }
+    
+    /// Check if a name is a known actor
+    pub fn is_actor(&self, name: &str) -> bool {
+        self.actor_names.contains(name)
+    }
+    
+    /// Add an identifier remapping (e.g. delta_time -> DeltaTime)
+    pub fn add_ident_remap(&mut self, from: String, to: String) {
+        self.ident_remap.insert(from, to);
+    }
+    
+    /// Get remapped identifier, or return original if no mapping exists
+    pub fn remap_ident(&self, name: &str) -> String {
+        self.ident_remap.get(name).cloned().unwrap_or_else(|| name.to_string())
+    }
+    
+    /// Clear identifier remappings (useful after generating a function body)
+    pub fn clear_ident_remaps(&mut self) {
+        self.ident_remap.clear();
+    }
+    
+    /// Add a forward declaration
+    pub fn add_forward_decl(&mut self, decl: String) {
+        self.forward_decls.insert(decl);
+    }
+    
+    /// Add a feature dependency (automatically updates build file)
+    pub fn use_feature(&mut self, feature: &str) {
+        self.build_file.add_dependency_for_feature(feature);
+    }
+    
+    /// Get all forward declarations as a formatted string
+    pub fn get_forward_decls(&self) -> String {
+        if self.forward_decls.is_empty() {
+            return String::new();
+        }
+        
+        let mut decls: Vec<_> = self.forward_decls.iter().collect();
+        decls.sort();
+        
+        let mut result = String::from("// Forward declarations\n");
+        for decl in decls {
+            result.push_str(decl);
+            result.push_str(";\n");
+        }
+        result.push('\n');
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_context_creation() {
+        let ctx = Ue5Context::new("MyPlugin", None);
+        assert_eq!(ctx.module_api, "MYPLUGIN_API");
+        assert_eq!(ctx.output_name, "MyPlugin");
+    }
+    
+    #[test]
+    fn test_type_registration() {
+        let mut ctx = Ue5Context::new("Test", None);
+        
+        ctx.register_enum("Direction".to_string(), "Direction.h".to_string());
+        ctx.register_struct("Point".to_string(), "Point.h".to_string());
+        ctx.register_component("Health".to_string(), "Health.h".to_string());
+        ctx.register_delegate("OnDamage".to_string(), "OnDamage.h".to_string());
+        ctx.register_actor("Player".to_string(), "Player.h".to_string());
+        
+        assert!(ctx.is_enum("Direction"));
+        assert!(ctx.is_struct("Point"));
+        assert!(ctx.is_component("Health"));
+        assert!(ctx.is_struct("Health")); // Components are also structs
+        assert!(ctx.is_delegate("OnDamage"));
+        assert!(ctx.is_actor("Player"));
+    }
+    
+    #[test]
+    fn test_ident_remapping() {
+        let mut ctx = Ue5Context::new("Test", None);
+        
+        ctx.add_ident_remap("delta_time".to_string(), "DeltaTime".to_string());
+        
+        assert_eq!(ctx.remap_ident("delta_time"), "DeltaTime");
+        assert_eq!(ctx.remap_ident("other"), "other");
+        
+        ctx.clear_ident_remaps();
+        assert_eq!(ctx.remap_ident("delta_time"), "delta_time");
+    }
+}

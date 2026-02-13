@@ -1,0 +1,149 @@
+# KAIN UE5 Standard Library - Gameplay Helpers
+# High-level gameplay functions
+
+# Health Management
+@blueprint
+fn apply_damage(current_health: Float, max_health: Float, damage: Float, armor: Float) -> Float:
+    let mitigated_damage = damage * (1.0 - armor / 100.0)
+    let new_health = current_health - mitigated_damage
+    return max(new_health, 0.0)
+
+@blueprint
+fn apply_healing(current_health: Float, max_health: Float, heal_amount: Float) -> Float:
+    let new_health = current_health + heal_amount
+    return min(new_health, max_health)
+
+@blueprint
+fn get_health_percentage(current_health: Float, max_health: Float) -> Float:
+    if max_health <= 0.0:
+        return 0.0
+    return (current_health / max_health) * 100.0
+
+@blueprint
+fn is_low_health(current_health: Float, max_health: Float, threshold: Float) -> Bool:
+    return get_health_percentage(current_health, max_health) < threshold
+
+# Combat Calculations
+@blueprint
+fn calculate_crit_damage(base_damage: Float, crit_multiplier: Float) -> Float:
+    return base_damage * crit_multiplier
+
+@blueprint
+fn should_crit(crit_chance: Float) -> Bool:
+    return random() < (crit_chance / 100.0)
+
+@blueprint
+fn calculate_armor_mitigation(damage: Float, armor: Float) -> Float:
+    # Standard armor formula: damage * (1 - armor / (armor + 100))
+    return damage * (1.0 - armor / (armor + 100.0))
+
+# Level & XP
+@blueprint
+fn calculate_experience_for_level(level: Int) -> Int:
+    # Standard RPG XP curve: level^2 * 100
+    return level * level * 100
+
+@blueprint
+fn add_experience(current_xp: Int, xp_to_add: Int, current_level: Int) -> Int:
+    let new_xp = current_xp + xp_to_add
+    let xp_for_next_level = calculate_experience_for_level(current_level + 1)
+    
+    # Simplified to avoid if-else expression codegen issues
+    if new_xp >= xp_for_next_level:
+        return new_xp - xp_for_next_level
+    return new_xp
+
+@blueprint
+fn get_xp_progress(current_xp: Int, current_level: Int) -> Float:
+    let xp_for_current = calculate_experience_for_level(current_level)
+    let xp_for_next = calculate_experience_for_level(current_level + 1)
+    let xp_needed = xp_for_next - xp_for_current
+    let xp_progress = current_xp - xp_for_current
+    return (xp_progress / xp_needed) * 100.0
+
+# Inventory Management
+@blueprint
+fn can_add_item_to_inventory(current_count: Int, max_capacity: Int, item_stack_size: Int) -> Bool:
+    return current_count + item_stack_size <= max_capacity
+
+@blueprint
+fn calculate_inventory_weight(items: Array<InventorySlot>, item_weights: Array<Float>) -> Float:
+    var total_weight = 0.0
+    var i = 0
+    while i < items.len():
+        let slot = items[i]
+        if slot.item_id >= 0 && slot.item_id < item_weights.len():
+            total_weight = total_weight + item_weights[slot.item_id] * slot.quantity
+        i = i + 1
+    return total_weight
+
+# Cooldown Management
+@blueprint
+fn is_cooldown_ready(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Bool:
+    return current_time - last_use_time >= cooldown_duration
+
+@blueprint
+fn get_cooldown_remaining(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Float:
+    let elapsed = current_time - last_use_time
+    let remaining = cooldown_duration - elapsed
+    return max(remaining, 0.0)
+
+@blueprint
+fn get_cooldown_percentage(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Float:
+    let elapsed = current_time - last_use_time
+    return min((elapsed / cooldown_duration) * 100.0, 100.0)
+
+# Status Effects
+@blueprint
+fn apply_buff(base_value: Float, buff_magnitude: Float, buff_type: BuffType) -> Float:
+    match buff_type:
+        BuffType::Damage => base_value * (1.0 + buff_magnitude / 100.0)
+        BuffType::Defense => base_value * (1.0 + buff_magnitude / 100.0)
+        BuffType::Speed => base_value * (1.0 + buff_magnitude / 100.0)
+        _ => base_value
+
+@blueprint
+fn update_buff_duration(remaining_time: Float, delta_time: Float) -> Float:
+    return max(remaining_time - delta_time, 0.0)
+
+@blueprint
+fn is_buff_active(remaining_time: Float) -> Bool:
+    return remaining_time > 0.0
+
+# Loot Generation
+@blueprint
+fn roll_loot_drop(drop_chance: Float) -> Bool:
+    return random() < (drop_chance / 100.0)
+
+@blueprint
+fn determine_loot_rarity(luck_stat: Float) -> LootRarity:
+    let roll = random() * 100.0 + luck_stat
+    
+    # Simplified to avoid nested if-else codegen issues
+    if roll >= 95.0:
+        return LootRarity::Mythic
+    if roll >= 85.0:
+        return LootRarity::Legendary
+    if roll >= 70.0:
+        return LootRarity::Epic
+    if roll >= 50.0:
+        return LootRarity::Rare
+    if roll >= 25.0:
+        return LootRarity::Uncommon
+    return LootRarity::Common
+
+# Quest Progress
+@blueprint
+fn update_quest_objective(current_progress: Int, increment: Int, required_progress: Int) -> Int:
+    let new_progress = current_progress + increment
+    return min(new_progress, required_progress)
+
+@blueprint
+fn is_quest_objective_complete(current_progress: Int, required_progress: Int) -> Bool:
+    return current_progress >= required_progress
+
+@blueprint
+fn get_quest_progress_percentage(current_progress: Int, required_progress: Int) -> Float:
+    if required_progress <= 0:
+        return 0.0
+    return (current_progress / required_progress) * 100.0

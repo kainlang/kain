@@ -1,0 +1,42 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "kain"
+path = "src/main.rs"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+ue5 = { path = "../ue5", optional = true }
+ue5-editor = { path = "../ue5-editor", optional = true }
+ue5-shaders = { path = "../ue5-shaders", optional = true }
+gpu = { path = "../gpu", optional = true }
+web = { path = "../web", optional = true }
+sys = { path = "../sys", optional = true }
+
+clap = { workspace = true }
+tower-lsp = { workspace = true }
+notify = { workspace = true }
+ctrlc = { workspace = true }
+tokio = { workspace = true }
+flume = { workspace = true }
+
+# Missing dependencies added
+serde = { workspace = true }
+serde_json = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true }
+minijinja = { workspace = true }
+heck = { workspace = true }
+toml = { workspace = true }
+
+[features]
+default = ["ue5", "gpu", "web", "sys"]
+ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders"]
+gpu = ["dep:gpu"]
+web = ["dep:web"]
+sys = ["dep:sys"]

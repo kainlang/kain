@@ -1,0 +1,29 @@
+# Cargo build configuration for faster compilation
+
+[build]
+# Use all CPU cores for parallel compilation
+jobs = 16
+
+# Use faster linker on Windows
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# Incremental compilation (enabled by default in dev, but explicit)
+[profile.dev]
+incremental = true
+
+# Use shared generics for faster compilation
+[profile.dev.build-override]
+opt-level = 2
+
+# Cache settings
+[net]
+git-fetch-with-cli = false
+
+# Custom aliases
+[alias]
+# Build and auto-install to cargo bin (use: cargo bi)
+bi = "build --release"

@@ -1,0 +1,23 @@
+[package]
+name = "kain-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+logos = { workspace = true }
+chumsky = { workspace = true }
+ariadne = { workspace = true }
+thiserror = { workspace = true }
+indexmap = { workspace = true }
+petgraph = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+once_cell = { workspace = true }
+flume = { workspace = true }
+pyo3 = { workspace = true }
+reqwest = { workspace = true }
+
+[features]
+default = ["runtime"]
+runtime = []
