@@ -1,0 +1,38 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.QuantumParticles.cpp.obj": [
+			"AQuantumParticleSystem.gen.cpp.obj",
+			"EBoundsMode.gen.cpp.obj",
+			"EColorMode.gen.cpp.obj",
+			"EModifierType.gen.cpp.obj",
+			"ESimulationMode.gen.cpp.obj",
+			"FAudioReactivity.gen.cpp.obj",
+			"FColorParams.gen.cpp.obj",
+			"FModifierParams.gen.cpp.obj",
+			"FParticleConfig.gen.cpp.obj",
+			"FParticleLifeParams.gen.cpp.obj",
+			"FPostProcessParams.gen.cpp.obj",
+			"FSimulationParams.gen.cpp.obj",
+			"QuantumParticles.init.gen.cpp.obj",
+			"QuantumParticlesBlueprintLibrary.gen.cpp.obj",
+			"AQuantumParticleSystem.cpp.obj",
+			"EBoundsMode.cpp.obj",
+			"EColorMode.cpp.obj",
+			"EModifierType.cpp.obj",
+			"ESimulationMode.cpp.obj",
+			"FAudioReactivity.cpp.obj",
+			"FColorParams.cpp.obj",
+			"FModifierParams.cpp.obj",
+			"FParticleConfig.cpp.obj",
+			"FParticleLifeParams.cpp.obj",
+			"FPostProcessParams.cpp.obj",
+			"FSimulationParams.cpp.obj",
+			"ParticlePosition.cpp.obj",
+			"ParticleRender.cpp.obj",
+			"ParticleVelocity.cpp.obj",
+			"QuantumParticles.cpp.obj",
+			"QuantumParticlesBlueprintLibrary.cpp.obj"
+		]
+	}
+}

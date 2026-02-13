@@ -1,0 +1,18 @@
+[package]
+name = "QuantumParticles"
+version = "1.0.0"
+authors = ["Zentako"]
+description = "GPU-accelerated quantum particle simulator with 100k+ particles - ported from KQuantumEngine"
+
+[build]
+entry = "quantum.kn"
+output = "Generated"
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "QuantumParticles"
+plugin_dir = "."
+sources = ["quantum.kn"]
+shaders = ["ParticleVelocity", "ParticlePosition", "ParticleRender"]
+copyright = "Zentako"
+modular_output = true

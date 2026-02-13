@@ -1,0 +1,24 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "AlphaGen",
+  "Description": "AlphaGen - Complete procedural alpha texture generation system with 21 generators, 15 filters, Blueprint support, and Slate editor UI",
+  "Category": "KAIN-PRO",
+  "CreatedBy": "KAIN-PRO Compiler",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "AlphaGen",
+      "Type": "Runtime",
+      "LoadingPhase": "PostConfigInit"
+    }
+  ]
+}

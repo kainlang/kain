@@ -1,0 +1,8 @@
+{
+	"BuildId": "33043543",
+	"Modules": 
+	{
+		"SketchfabImporter": "UnrealEditor-SketchfabImporter.dll",
+		"SketchfabImporterEditor": "UnrealEditor-SketchfabImporterEditor.dll"
+	}
+}

@@ -1,0 +1,32 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\sketchfab\\source\\sketchfabimportereditor\\private\\sketchfabimportereditormodule.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\intermediate\\build\\win64\\x64\\kainpluginfactoryeditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\sketchfab\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\sketchfabimportereditor\\definitions.sketchfabimportereditor.h",
+            "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\sketchfab\\source\\sketchfabimportereditor\\public\\sketchfabimportereditormodule.h",
+            "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\sketchfab\\source\\sketchfabimportereditor\\public\\ssketchfabbrowser.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\http.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\httpmodule.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\interfaces\\ihttprequest.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\interfaces\\ihttpbase.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\interfaces\\ihttpresponse.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\platformhttp.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\windows\\windowsplatformhttp.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\online\\http\\public\\genericplatform\\genericplatformhttp.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\editor\\leveleditor\\public\\leveleditor.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\editor\\leveleditor\\public\\ileveleditor.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\engine\\public\\elements\\framework\\engineelementslibrary.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\engine\\uht\\engineelementslibrary.generated.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\editor\\leveleditor\\public\\viewporttypedefinition.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\editor\\leveleditor\\public\\leveleditoroutlinersettings.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\developer\\toolwidgets\\public\\filters\\genericfilter.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\developer\\toolwidgets\\public\\filters\\filterbase.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\editor\\mergeactors\\public\\imergeactorsmodule.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

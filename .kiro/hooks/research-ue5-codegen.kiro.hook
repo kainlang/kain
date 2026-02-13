@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "Research UE5 Codegen Context",
+  "description": "Automatically uses context-gatherer to research the codebase when the user asks about implementing new features or improving the UE5 codegen pipeline, ensuring comprehensive understanding before making changes",
+  "version": "1",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before responding to this request about UE5 codegen implementation or pipeline improvements, use the context-gatherer subagent to research relevant files in the codebase. Focus on:\n- crates/ue5/src/codegen_ue5.rs and related codegen files\n- crates/ue5-editor/src/editor/ directory for editor features\n- crates/cli/src/packager.rs for build orchestration\n- testing/Phase3/SlateTest4/ for current test patterns\n- Any files related to the specific feature being discussed\n\nAfter gathering context, provide a comprehensive response that considers the existing architecture and patterns."
+  },
+  "workspaceFolderName": "kain",
+  "shortName": "research-ue5-codegen"
+}

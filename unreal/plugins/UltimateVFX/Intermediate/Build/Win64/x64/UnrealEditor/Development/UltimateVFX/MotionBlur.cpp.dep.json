@@ -1,0 +1,32 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\ultimatevfx\\source\\private\\motionblur.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\intermediate\\build\\win64\\x64\\kainpluginfactoryeditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\ultimatevfx\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\ultimatevfx\\definitions.ultimatevfx.h",
+            "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\ultimatevfx\\source\\public\\motionblur.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\shaderparameterstruct.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphresources.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rhi\\public\\rhitransientresourceallocator.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphparameter.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphtexturesubresource.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphresources.inl",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphbuilder.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphblackboard.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\core\\public\\misc\\generatedtypename.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphevent.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphevent.inl",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphpass.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphparameters.inl",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphtrace.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphvalidation.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\core\\public\\experimental\\containers\\robinhoodhashtable.h",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphbuilder.inl",
+            "f:\\3d and creative work\\apps\\ue_5.4\\engine\\source\\runtime\\rendercore\\public\\rendergraphutils.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

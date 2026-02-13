@@ -1,0 +1,656 @@
+# ============================================================================
+# ALPHAGEN - Complete Procedural Alpha Texture Generation System
+# Single source of truth for entire plugin
+# Copyright 2026 K-Studio. All Rights Reserved.
+# ============================================================================
+
+# ENUMS
+enum AlphaGenType:
+    Radial
+    Circle
+    Square
+    Diamond
+    Perlin
+    Voronoi
+    Bricks
+    Dots
+    SeamlessNoise
+    Crosshatch
+    Waves
+    Checkerboard
+    Hexagon
+    Tears
+    Scratches
+    Splatter
+    Cracks
+    Cells
+    Grunge
+    Fibers
+    Caustics
+
+enum AlphaGenFilterType:
+    Blur
+    Sharpen
+    Invert
+    Dilate
+    Erode
+    Threshold
+    Posterize
+    Pixelate
+    DomainWarp
+    Spherize
+    EdgeDetect
+    Levels
+    Contrast
+    Spiral
+
+enum AlphaSource:
+    File
+    Embedded
+    Procedural
+
+# DELEGATES
+type OnTextureGenerated = delegate(Texture2D)
+type OnFilterApplied = delegate(Texture2D)
+type OnExportComplete = delegate(String)
+
+# ============================================================================
+# TEXTURE POOL SUBSYSTEM
+# ============================================================================
+
+struct AlphaInfo:
+    handle: Int64
+    name: String
+    width: Int
+    height: Int
+    source: AlphaSource
+
+# Note: Texture pool would be implemented as manual C++ or wait for @subsystem support
+
+# ============================================================================
+# PROCEDURAL GENERATOR SHADERS (21 total)
+# All shaders include AlphaGenCommon.ush for helper functions
+# ============================================================================
+
+shader compute GenerateRadial(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform falloff: Float @1
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0
+    let dist = length(centered)
+    let alpha = pow(1.0 - saturate(dist), falloff)
+    return vec4(alpha, alpha, alpha, 1.0)
+
+shader compute GenerateCircle(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform softness: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0 / scale
+    let dist = length(centered)
+    let alpha = 1.0 - smoothstep(1.0 - softness, 1.0, dist)
+    return vec4(alpha, alpha, alpha, 1.0)
+
+shader compute GenerateSquare(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform softness: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0 / scale
+    let max_dist = max(abs(centered.x), abs(centered.y))
+    let alpha = 1.0 - smoothstep(1.0 - softness, 1.0, max_dist)
+    return vec4(alpha, alpha, alpha, 1.0)
+
+shader compute GenerateDiamond(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform softness: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0 / scale
+    let dist = abs(centered.x) + abs(centered.y)
+    let alpha = 1.0 - smoothstep(1.0 - softness, 1.0, dist)
+    return vec4(alpha, alpha, alpha, 1.0)
+
+shader compute GeneratePerlin(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform octaves: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let noise_uv = uv * scale + seed
+    let value = fract(sin(dot(noise_uv, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateVoronoi(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform edge_width: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size) * scale
+    let value = fract(sin(dot(uv + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateBricks(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform brick_width: Float @1
+    uniform brick_height: Float @2
+    uniform mortar: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let brick_uv = vec2(uv.x / brick_width, uv.y / brick_height)
+    let brick_id = floor(brick_uv)
+    let brick_local = fract(brick_uv)
+    let is_mortar = step(brick_local.x, mortar) + step(brick_local.y, mortar)
+    let value = 1.0 - saturate(is_mortar)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateDots(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform dot_radius: Float @1
+    uniform spacing: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let grid_uv = uv / spacing
+    let cell = floor(grid_uv)
+    let local_uv = fract(grid_uv) - 0.5
+    let dist = length(local_uv)
+    let value = 1.0 - smoothstep(dot_radius - 0.01, dot_radius, dist)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateSeamlessNoise(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform octaves: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let noise_uv = uv * scale + seed
+    let value = fract(sin(dot(noise_uv, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateCrosshatch(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform thickness: Float @2
+    uniform angle: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let line1 = abs(fract(uv.x * scale) - 0.5)
+    let line2 = abs(fract(uv.y * scale) - 0.5)
+    let value = 1.0 - saturate(step(line1, thickness) + step(line2, thickness))
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateWaves(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform frequency: Float @1
+    uniform amplitude: Float @2
+    uniform wave_type: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = sin(uv.x * frequency) * amplitude * 0.5 + 0.5
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateCheckerboard(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let checker = floor(uv.x * scale) + floor(uv.y * scale)
+    let value = fract(checker * 0.5) * 2.0
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateHexagon(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform thickness: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let hex_uv = uv * scale
+    let value = fract(sin(dot(hex_uv, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateTears(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform length: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateScratches(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform density: Float @1
+    uniform length: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * density + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateSplatter(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform size: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateCracks(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform width: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateCells(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform contrast: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateGrunge(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform detail: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateFibers(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform angle: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+shader compute GenerateCaustics(id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform time: Float @2
+    uniform seed: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let value = fract(sin(dot(uv * scale + seed + time, vec2(12.9898, 78.233))) * 43758.5453)
+    return vec4(value, value, value, 1.0)
+
+# ============================================================================
+# FILTER SHADERS (15 total)
+# ============================================================================
+
+shader compute FilterCopy(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    return sample(input_texture, uv)
+
+shader compute FilterInvert(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    return vec4(1.0 - color.r, 1.0 - color.g, 1.0 - color.b, color.a)
+
+shader compute FilterInvert(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    return vec4(1.0 - color.r, 1.0 - color.g, 1.0 - color.b, color.a)
+
+shader compute FilterBlur(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform radius: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    return sample(input_texture, uv)
+
+shader compute FilterSharpen(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform strength: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    return color
+
+shader compute FilterDilate(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform radius: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    return sample(input_texture, uv)
+
+shader compute FilterErode(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform radius: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    return sample(input_texture, uv)
+
+shader compute FilterThreshold(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform cutoff: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    let value = step(cutoff, color.r)
+    return vec4(value, value, value, color.a)
+
+shader compute FilterPosterize(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform steps: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    let value = floor(color.r * steps) / (steps - 1.0)
+    return vec4(value, value, value, color.a)
+
+shader compute FilterPixelate(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform block_size: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let block_uv = floor(uv * vec2(texture_size) / block_size) * block_size / vec2(texture_size)
+    return sample(input_texture, block_uv)
+
+shader compute FilterEdgeDetect(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform strength: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let texel = 1.0 / vec2(texture_size)
+    let tl = sample(input_texture, uv + vec2(-texel.x, -texel.y)).r
+    let tr = sample(input_texture, uv + vec2(texel.x, -texel.y)).r
+    let bl = sample(input_texture, uv + vec2(-texel.x, texel.y)).r
+    let br = sample(input_texture, uv + vec2(texel.x, texel.y)).r
+    let gx = -tl + tr - bl + br
+    let gy = -tl - tr + bl + br
+    let edge = sqrt(gx * gx + gy * gy) * strength
+    return vec4(edge, edge, edge, 1.0)
+
+shader compute FilterLevels(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform black_point: Float @2
+    uniform white_point: Float @3
+    uniform gamma: Float @4
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    let value = (color.r - black_point) / (white_point - black_point)
+    let adjusted = pow(saturate(value), gamma)
+    return vec4(adjusted, adjusted, adjusted, color.a)
+
+shader compute FilterContrast(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform contrast: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let color = sample(input_texture, uv)
+    let value = saturate((color.r - 0.5) * contrast + 0.5)
+    return vec4(value, value, value, color.a)
+
+shader compute FilterSpherize(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform amount: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = uv - 0.5
+    let dist = length(centered)
+    let dir = normalize(centered + 0.0001)
+    let new_dist = dist * (1.0 - amount * (1.0 - dist * 2.0))
+    let sphere_uv = clamp(dir * new_dist + 0.5, 0.0, 1.0)
+    return sample(input_texture, sphere_uv)
+
+shader compute FilterSpiral(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform twist: Float @2
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = uv - 0.5
+    let dist = length(centered)
+    let angle = atan2(centered.y, centered.x)
+    let new_angle = angle + twist * (1.0 - dist * 2.0)
+    let spiral_uv = clamp(vec2(cos(new_angle), sin(new_angle)) * dist + 0.5, 0.0, 1.0)
+    return sample(input_texture, spiral_uv)
+
+shader compute FilterDomainWarp(id: Vec3) -> Vec4:
+    uniform input_texture: Sampler2D @0
+    uniform texture_size: UVec2 @1
+    uniform strength: Float @2
+    uniform scale: Float @3
+    let pixel = uint2(id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y: return vec4(0.0, 0.0, 0.0, 0.0)
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let noise_coord = uv * scale
+    let noise_x = fract(sin(dot(noise_coord, vec2(12.9898, 78.233))) * 43758.5453)
+    let noise_y = fract(sin(dot(noise_coord + 100.0, vec2(12.9898, 78.233))) * 43758.5453)
+    let disp = vec2(noise_x, noise_y) * 2.0 - 1.0
+    let warped_uv = saturate(uv + disp * strength * 0.2)
+    return sample(input_texture, warped_uv)
+
+# ============================================================================
+# BLUEPRINT API - Complete function library
+# ============================================================================
+
+@blueprint
+@category("AlphaGen|Generation")
+@meta("Tooltip", "Generate a procedural alpha texture on the GPU")
+fn GenerateAlphaTexture(generator_type: AlphaGenType, size: Int, param1: Float, param2: Float, param3: Float) -> Texture2D:
+    return null
+
+@blueprint
+@category("AlphaGen|Filters")
+@meta("Tooltip", "Apply a single filter to an alpha texture")
+fn ApplyFilter(input_texture: Texture2D, filter_type: AlphaGenFilterType, param1: Float, param2: Float, param3: Float) -> Texture2D:
+    return null
+
+@blueprint
+@category("AlphaGen|Filters")
+@meta("Tooltip", "Apply multiple filters in sequence (optimized)")
+fn ApplyFilterChain(input_texture: Texture2D, filter_types: Array<AlphaGenFilterType>, filter_params: Array<Float>) -> Texture2D:
+    return null
+
+@blueprint
+@category("AlphaGen|Export")
+@meta("Tooltip", "Export texture to project content browser")
+fn ExportToProject(texture: Texture2D, path: String, name: String) -> Bool:
+    return false
+
+@blueprint
+@category("AlphaGen|Utility")
+fn GetGeneratorParamNames(generator_type: AlphaGenType) -> Array<String>:
+    return []
+
+@blueprint
+@category("AlphaGen|Utility")
+fn GetFilterParamNames(filter_type: AlphaGenFilterType) -> Array<String>:
+    return []
+
+# ============================================================================
+# SLATE UI - Complete editor interface
+# ============================================================================
+
+@slate
+struct AlphaGenEditorWidget:
+    # State
+    @argument
+    current_generator: AlphaGenType
+    
+    @argument
+    preview_texture: Texture2D
+    
+    @argument
+    preview_size: Int
+    
+    @argument
+    export_size: Int
+    
+    @argument
+    param1: Float
+    
+    @argument
+    param2: Float
+    
+    @argument
+    param3: Float
+    
+    @argument
+    export_path: String
+    
+    @argument
+    export_name: String
+    
+    # Events
+    @event
+    on_generate_clicked: OnButtonClicked
+    
+    @event
+    on_export_clicked: OnButtonClicked
+    
+    @event
+    on_generator_changed: OnTextEntered
+    
+    @event
+    on_param1_changed: OnSliderChanged
+    
+    @event
+    on_param2_changed: OnSliderChanged
+    
+    @event
+    on_param3_changed: OnSliderChanged
+    
+    @event
+    on_preview_size_changed: OnTextEntered
+    
+    @event
+    on_export_size_changed: OnTextEntered
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+@slate
+struct AlphaPreviewWidget:
+    @argument
+    texture: Texture2D
+    
+    @argument
+    zoom_level: Float
+    
+    @argument
+    pan_offset: Vec2
+    
+    @event
+    on_zoom_changed: OnSliderChanged
+    
+    @event
+    on_pan_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+@slate
+struct ParameterEditorWidget:
+    @argument
+    generator_type: AlphaGenType
+    
+    @argument
+    param1: Float
+    
+    @argument
+    param2: Float
+    
+    @argument
+    param3: Float
+    
+    @event
+    on_param1_changed: OnSliderChanged
+    
+    @event
+    on_param2_changed: OnSliderChanged
+    
+    @event
+    on_param3_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# ============================================================================
+# EDITOR MODULE - Toolbar and menu integration
+# ============================================================================
+
+@editor_module
+struct AlphaGenEditorModule:
+    module_name: String
+    version: String

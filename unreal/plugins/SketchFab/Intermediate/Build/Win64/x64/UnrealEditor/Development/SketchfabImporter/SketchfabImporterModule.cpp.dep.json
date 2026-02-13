@@ -1,0 +1,13 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\sketchfab\\source\\sketchfabimporter\\private\\sketchfabimportermodule.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\intermediate\\build\\win64\\x64\\kainpluginfactoryeditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\kain\\kain-private\\ue5\\kainpluginfactory\\plugins\\sketchfab\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\sketchfabimporter\\definitions.sketchfabimporter.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}
