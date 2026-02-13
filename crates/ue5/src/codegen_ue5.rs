@@ -346,69 +346,48 @@ impl Ue5Gen {
 
     /// Check if a variable name refers to a pointer type by looking up its KAIN type
     /// in var_types and checking whether that type is a UObject-derived pointer in UE5.
+    /// 
+    /// Now data-driven via EngineKnowledge instead of hardcoded type lists!
     fn is_pointer_type_by_name(&self, name: &str) -> bool {
+        let kb = &self.context.knowledge;
+        
         // PRIMARY: Check var_types map (populated from actor state declarations)
         if let Some(type_name) = self.var_types.get(name) {
             // Components and actors are always pointers
             if self.context.is_component(type_name) || self.context.is_actor(type_name) {
                 return true;
             }
+            
             // Check if the mapped C++ type ends with * (already resolved as pointer)
             let cpp_type = self.map_type_from_name(type_name);
             if cpp_type.ends_with('*') {
                 return true;
             }
-            // Check EngineKnowledge: engine components and actors are always pointers
-            let kb = &self.context.knowledge;
-            if kb.is_engine_component(type_name) || kb.is_engine_actor(type_name) {
-                return true;
-            }
-            // Known UObject-derived types that are always pointers in UE5
-            let known_uobject_types = [
-                "MaterialInstanceDynamic", "UMaterialInstanceDynamic",
-                "MaterialInterface", "UMaterialInterface",
-                "MaterialInstance", "UMaterialInstance",
-                "Texture2D", "UTexture2D",
-                "TextureRenderTarget2D", "UTextureRenderTarget2D",
-                "StaticMesh", "UStaticMesh",
-                "SkeletalMesh", "USkeletalMesh",
-                "AnimInstance", "UAnimInstance",
-                "SoundBase", "USoundBase",
-                "SoundWave", "USoundWave",
-                "ParticleSystem", "UParticleSystem",
-                "NiagaraSystem", "UNiagaraSystem",
-                "DataTable", "UDataTable",
-                "CurveFloat", "UCurveFloat",
-                "CurveLinearColor", "UCurveLinearColor",
-                "World", "UWorld",
-                "GameInstance", "UGameInstance",
-            ];
-            if known_uobject_types.contains(&type_name.as_str()) {
+            
+            // Query EngineKnowledge: is this a UObject-derived type?
+            // This replaces the hardcoded array of 20+ types!
+            if kb.is_uobject_derived(type_name) {
                 return true;
             }
         }
+        
         // FALLBACK: Check if the identifier itself IS a known type name
         if self.context.is_component(name) || self.context.is_actor(name) {
             return true;
         }
-        // Check common UE5 pointer type naming patterns
-        let known_pointer_suffixes = ["_comp", "_component", "Component", "Comp"];
-        for suffix in &known_pointer_suffixes {
-            if name.ends_with(suffix) {
-                return true;
-            }
+        
+        // Check EngineKnowledge for the variable name directly
+        if kb.is_uobject_derived(name) {
+            return true;
         }
-        // Check if name matches a known UObject pattern (starts with lowercase, maps to U* type)
-        if name == "material_instance" || name == "material" || name.ends_with("_instance") {
-            if let Some(type_name) = self.var_types.get(name) {
-                // If the KAIN type starts with a capital letter and isn't a struct/enum, it's likely a UObject
-                if type_name.chars().next().map_or(false, |c| c.is_uppercase())
-                    && !self.context.is_struct(type_name)
-                    && !self.context.is_enum(type_name) {
-                    return true;
-                }
-            }
+        
+        // Heuristic: Check common UE5 pointer type naming patterns
+        // (Keep this as a fallback for user-defined types not in EngineKnowledge)
+        if name.ends_with("_comp") || name.ends_with("_component") 
+            || name.ends_with("Component") || name.ends_with("Comp") {
+            return true;
         }
+        
         false
     }
 
@@ -472,15 +451,72 @@ impl Ue5Gen {
             })
             .collect();
         
-        // Initialize standard includes
-        let mut includes = vec![
-            "CoreMinimal.h",
-            "GameFramework/Actor.h",
-            "Components/ActorComponent.h",
-            "Kismet/BlueprintFunctionLibrary.h",
-        ];
-        if needs_replication {
-            includes.push("Net/UnrealNetwork.h");
+        // Determine what kind of item we're generating (for smart includes)
+        let target_item_kind = if let Some(target) = &self.target_item {
+            program.items.iter().find_map(|item| {
+                let name = match item {
+                    TypedItem::Actor(a) => &a.ast.name,
+                    TypedItem::Struct(s) => &s.ast.name,
+                    TypedItem::Enum(e) => &e.ast.name,
+                    TypedItem::Component(c) => &c.ast.name,
+                    TypedItem::TypeAlias(a) => &a.ast.name,
+                    _ => return None,
+                };
+                if name == target {
+                    Some(match item {
+                        TypedItem::Actor(_) => "actor",
+                        TypedItem::Struct(s) => {
+                            if s.ast.attributes.iter().any(|a| a.name == "component") {
+                                "component"
+                            } else if s.ast.attributes.iter().any(|a| a.name == "datatable") {
+                                "datatable"
+                            } else {
+                                "struct"
+                            }
+                        },
+                        TypedItem::Enum(_) => "enum",
+                        TypedItem::Component(_) => "component",
+                        TypedItem::TypeAlias(_) => "delegate",
+                        _ => "unknown",
+                    })
+                } else {
+                    None
+                }
+            }).unwrap_or("unknown")
+        } else {
+            "all" // No target = generating everything
+        };
+        
+        // Initialize includes based on item type (CoreMinimal.h is already in the template)
+        let mut includes: Vec<&str> = Vec::new();
+        match target_item_kind {
+            "actor" => {
+                includes.push("GameFramework/Actor.h");
+                if needs_replication {
+                    includes.push("Net/UnrealNetwork.h");
+                }
+            },
+            "component" => {
+                includes.push("Components/ActorComponent.h");
+                if needs_replication {
+                    includes.push("Net/UnrealNetwork.h");
+                }
+            },
+            "datatable" => {
+                includes.push("Engine/DataTable.h");
+            },
+            "struct" | "enum" | "delegate" => {
+                // Minimal includes — CoreMinimal.h from template is sufficient
+            },
+            _ => {
+                // Full includes for combined/unknown output
+                includes.push("GameFramework/Actor.h");
+                includes.push("Components/ActorComponent.h");
+                includes.push("Kismet/BlueprintFunctionLibrary.h");
+                if needs_replication {
+                    includes.push("Net/UnrealNetwork.h");
+                }
+            },
         }
 
         // DISCOVERY PASS: If we are targeting a specific item, scan it for dependencies first

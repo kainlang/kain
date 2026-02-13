@@ -2,9 +2,12 @@
 //! 
 //! The Source of Truth for how KAIN types map to C++ types.
 //! Handles complex logic for TArray<T>, TMap<K,V>, Smart Pointers, etc.
+//! 
+//! Now data-driven via EngineKnowledge instead of hardcoded type lists!
 
 use kain_core::ast::Type;
 use super::naming::*;
+use super::engine_knowledge::EngineKnowledge;
 use std::collections::HashSet;
 
 /// Configuration for type mapping behavior
@@ -35,9 +38,17 @@ impl Default for TypeMapConfig {
 }
 
 /// Map KAIN type to UE5 C++ type
+/// Now queries EngineKnowledge for engine types instead of hardcoded lists!
 pub fn map_type(ty: &Type, config: &TypeMapConfig) -> String {
+    map_type_with_knowledge(ty, config, None)
+}
+
+/// Map KAIN type to UE5 C++ type with optional EngineKnowledge
+/// This is the new data-driven version that eliminates hardcoded type lists
+pub fn map_type_with_knowledge(ty: &Type, config: &TypeMapConfig, kb: Option<&EngineKnowledge>) -> String {
     match ty {
         Type::Named { name, generics, .. } => {
+            // First, check primitives and built-in types (these are always the same)
             let ue_name = match name.as_str() {
                 // Primitives
                 "Int" => "int64",
@@ -74,32 +85,28 @@ pub fn map_type(ty: &Type, config: &TypeMapConfig) -> String {
                 "SoftObjectPtr" => "TSoftObjectPtr",
                 "SubclassOf" => "TSubclassOf",
                 
-                // Object references
+                // Generic object references (fallback)
                 "Actor" => "AActor*",
                 "Object" => "UObject*",
                 "Component" => "UActorComponent*",
                 "Class" => "TSubclassOf<UObject>",
                 
-                // Common UE5 types
-                "Transform" => "FTransform",
-                "AnimMontage" => "UAnimMontage*",
-                "StaticMesh" => "UStaticMesh*",
-                "SkeletalMesh" => "USkeletalMesh*",
-                "Texture2D" => "UTexture2D*",
-                "Material" => "UMaterial*",
-                "MaterialInstance" => "UMaterialInstance*",
-                "MaterialInstanceDynamic" => "UMaterialInstanceDynamic*",
-                "StaticMeshComponent" => "UStaticMeshComponent*",
-                "SplineComponent" => "USplineComponent*",
-                "InstancedStaticMeshComponent" => "UInstancedStaticMeshComponent*",
-                "SkeletalMeshComponent" => "USkeletalMeshComponent*",
-                "AnimSequence" => "UAnimSequence*",
-                "SoundBase" => "USoundBase*",
-                "ParticleSystem" => "UParticleSystem*",
-                "NiagaraSystem" => "UNiagaraSystem*",
-                
-                // User-defined types
+                // Everything else - query EngineKnowledge or user-defined types
                 _ => {
+                    // Try EngineKnowledge first (data-driven!)
+                    if let Some(knowledge) = kb {
+                        // Check if it's a type alias (Vec3 -> FVector, Transform -> FTransform, etc.)
+                        if let Some(alias) = knowledge.resolve_type_alias(name) {
+                            return alias.to_string();
+                        }
+                        
+                        // Check if it's a known engine type with automatic C++ mapping
+                        if let Some(cpp_type) = knowledge.get_cpp_type(name) {
+                            return cpp_type;
+                        }
+                    }
+                    
+                    // Fallback to user-defined types
                     // Check if it's a known delegate
                     if config.delegate_names.contains(name) {
                         return format!("F{}", name);
@@ -124,30 +131,38 @@ pub fn map_type(ty: &Type, config: &TypeMapConfig) -> String {
             if generics.is_empty() {
                 ue_name.to_string()
             } else {
-                let gen_strs: Vec<String> = generics.iter().map(|g| map_type(g, config)).collect();
+                let gen_strs: Vec<String> = generics.iter()
+                    .map(|g| map_type_with_knowledge(g, config, kb))
+                    .collect();
                 format!("{}<{}>", ue_name, gen_strs.join(", "))
             }
         }
         Type::Tuple(types, _) => {
-            let type_strs: Vec<String> = types.iter().map(|t| map_type(t, config)).collect();
+            let type_strs: Vec<String> = types.iter()
+                .map(|t| map_type_with_knowledge(t, config, kb))
+                .collect();
             format!("TTuple<{}>", type_strs.join(", "))
         }
         Type::Array(inner, size, _) => {
-            format!("TStaticArray<{}, {}>", map_type(inner, config), size)
+            format!("TStaticArray<{}, {}>", map_type_with_knowledge(inner, config, kb), size)
         }
         Type::Ref { mutable, inner, .. } => {
             if *mutable {
-                format!("{}&", map_type(inner, config))
+                format!("{}&", map_type_with_knowledge(inner, config, kb))
             } else {
-                format!("const {}&", map_type(inner, config))
+                format!("const {}&", map_type_with_knowledge(inner, config, kb))
             }
         }
         Type::Function { params, return_type, .. } => {
-            let param_strs: Vec<String> = params.iter().map(|p| map_type(p, config)).collect();
-            format!("TFunction<{}({})>", map_type(return_type, config), param_strs.join(", "))
+            let param_strs: Vec<String> = params.iter()
+                .map(|p| map_type_with_knowledge(p, config, kb))
+                .collect();
+            format!("TFunction<{}({})>", 
+                map_type_with_knowledge(return_type, config, kb), 
+                param_strs.join(", "))
         }
         Type::Option(inner, _) => {
-            format!("TOptional<{}>", map_type(inner, config))
+            format!("TOptional<{}>", map_type_with_knowledge(inner, config, kb))
         }
         Type::Infer(_) => "auto".to_string(),
         Type::Never(_) => "void".to_string(),

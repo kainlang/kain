@@ -9,12 +9,47 @@
             "prefix": "U",
             "is_abstract": false,
             "functions": [
-                {"name": "GetName", "return_type": "FString", "params": [], "is_const": true},
-                {"name": "GetClass", "return_type": "UClass*", "params": [], "is_const": true},
-                {"name": "GetPathName", "return_type": "FString", "params": [], "is_const": true},
-                {"name": "GetOutermost", "return_type": "UPackage*", "params": [], "is_const": true},
-                {"name": "IsA", "return_type": "bool", "params": [{"name": "SomeBase", "type": "const UClass*"}], "is_const": true},
-                {"name": "GetWorld", "return_type": "UWorld*", "params": [], "is_const": true}
+                {
+                    "name": "GetName",
+                    "return_type": "FString",
+                    "params": [],
+                    "is_const": true
+                },
+                {
+                    "name": "GetClass",
+                    "return_type": "UClass*",
+                    "params": [],
+                    "is_const": true
+                },
+                {
+                    "name": "GetPathName",
+                    "return_type": "FString",
+                    "params": [],
+                    "is_const": true
+                },
+                {
+                    "name": "GetOutermost",
+                    "return_type": "UPackage*",
+                    "params": [],
+                    "is_const": true
+                },
+                {
+                    "name": "IsA",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "SomeBase",
+                            "type": "const UClass*"
+                        }
+                    ],
+                    "is_const": true
+                },
+                {
+                    "name": "GetWorld",
+                    "return_type": "UWorld*",
+                    "params": [],
+                    "is_const": true
+                }
             ],
             "properties": []
         },
@@ -26,44 +61,394 @@
             "prefix": "A",
             "is_abstract": false,
             "functions": [
-                {"name": "GetActorLocation", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "SetActorLocation", "return_type": "bool", "params": [{"name": "NewLocation", "type": "const FVector&"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetActorRotation", "return_type": "FRotator", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "SetActorRotation", "return_type": "bool", "params": [{"name": "NewRotation", "type": "FRotator"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetActorScale3D", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "SetActorScale3D", "return_type": "void", "params": [{"name": "NewScale3D", "type": "const FVector&"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetActorTransform", "return_type": "FTransform", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "SetActorTransform", "return_type": "bool", "params": [{"name": "NewTransform", "type": "const FTransform&"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetActorForwardVector", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "GetActorRightVector", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "GetActorUpVector", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "AddActorWorldOffset", "return_type": "void", "params": [{"name": "DeltaLocation", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddActorWorldRotation", "return_type": "void", "params": [{"name": "DeltaRotation", "type": "FRotator"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetVelocity", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetDistanceTo", "return_type": "float", "params": [{"name": "OtherActor", "type": "const AActor*"}], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "GetHorizontalDistanceTo", "return_type": "float", "params": [{"name": "OtherActor", "type": "const AActor*"}], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "Destroy", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetLifeSpan", "return_type": "void", "params": [{"name": "InLifespan", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetLifeSpan", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetActorHiddenInGame", "return_type": "void", "params": [{"name": "bNewHidden", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetActorEnableCollision", "return_type": "void", "params": [{"name": "bNewActorEnableCollision", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetActorTickEnabled", "return_type": "void", "params": [{"name": "bEnabled", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "IsActorTickEnabled", "return_type": "bool", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetComponentByClass", "return_type": "UActorComponent*", "params": [{"name": "ComponentClass", "type": "TSubclassOf<UActorComponent>"}], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetRootComponent", "return_type": "USceneComponent*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetInstigator", "return_type": "APawn*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetOwner", "return_type": "AActor*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetOwner", "return_type": "void", "params": [{"name": "NewOwner", "type": "AActor*"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "HasAuthority", "return_type": "bool", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetLocalRole", "return_type": "ENetRole", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetRemoteRole", "return_type": "ENetRole", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetActorLocation",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "SetActorLocation",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "NewLocation",
+                            "type": "const FVector&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetActorRotation",
+                    "return_type": "FRotator",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "SetActorRotation",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "NewRotation",
+                            "type": "FRotator"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetActorScale3D",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "SetActorScale3D",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewScale3D",
+                            "type": "const FVector&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetActorTransform",
+                    "return_type": "FTransform",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "SetActorTransform",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "NewTransform",
+                            "type": "const FTransform&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetActorForwardVector",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "GetActorRightVector",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "GetActorUpVector",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "AddActorWorldOffset",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DeltaLocation",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddActorWorldRotation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DeltaRotation",
+                            "type": "FRotator"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetVelocity",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetDistanceTo",
+                    "return_type": "float",
+                    "params": [
+                        {
+                            "name": "OtherActor",
+                            "type": "const AActor*"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "GetHorizontalDistanceTo",
+                    "return_type": "float",
+                    "params": [
+                        {
+                            "name": "OtherActor",
+                            "type": "const AActor*"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "Destroy",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetLifeSpan",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InLifespan",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetLifeSpan",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetActorHiddenInGame",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bNewHidden",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetActorEnableCollision",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bNewActorEnableCollision",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetActorTickEnabled",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bEnabled",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "IsActorTickEnabled",
+                    "return_type": "bool",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetComponentByClass",
+                    "return_type": "UActorComponent*",
+                    "params": [
+                        {
+                            "name": "ComponentClass",
+                            "type": "TSubclassOf<UActorComponent>"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetRootComponent",
+                    "return_type": "USceneComponent*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetInstigator",
+                    "return_type": "APawn*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetOwner",
+                    "return_type": "AActor*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetOwner",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewOwner",
+                            "type": "AActor*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "HasAuthority",
+                    "return_type": "bool",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetLocalRole",
+                    "return_type": "ENetRole",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetRemoteRole",
+                    "return_type": "ENetRole",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "RootComponent", "type": "USceneComponent*", "specifiers": ["BlueprintReadOnly", "VisibleAnywhere"], "category": "Actor"},
-                {"name": "bCanEverTick", "type": "bool", "specifiers": ["EditDefaultsOnly"], "category": "Tick"},
-                {"name": "PrimaryActorTick", "type": "FActorTickFunction", "specifiers": [], "category": "Tick"},
-                {"name": "bReplicates", "type": "bool", "specifiers": ["EditDefaultsOnly"], "category": "Replication"},
-                {"name": "Tags", "type": "TArray<FName>", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Actor"}
+                {
+                    "name": "RootComponent",
+                    "type": "USceneComponent*",
+                    "specifiers": [
+                        "BlueprintReadOnly",
+                        "VisibleAnywhere"
+                    ],
+                    "category": "Actor"
+                },
+                {
+                    "name": "bCanEverTick",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditDefaultsOnly"
+                    ],
+                    "category": "Tick"
+                },
+                {
+                    "name": "PrimaryActorTick",
+                    "type": "FActorTickFunction",
+                    "specifiers": [],
+                    "category": "Tick"
+                },
+                {
+                    "name": "bReplicates",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditDefaultsOnly"
+                    ],
+                    "category": "Replication"
+                },
+                {
+                    "name": "Tags",
+                    "type": "TArray<FName>",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Actor"
+                }
             ]
         },
         {
@@ -73,12 +458,77 @@
             "module": "Engine",
             "prefix": "A",
             "functions": [
-                {"name": "GetController", "return_type": "AController*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetMovementComponent", "return_type": "UPawnMovementComponent*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "AddMovementInput", "return_type": "void", "params": [{"name": "WorldDirection", "type": "FVector"}, {"name": "ScaleValue", "type": "float", "default_value": "1.0f"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddControllerYawInput", "return_type": "void", "params": [{"name": "Val", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddControllerPitchInput", "return_type": "void", "params": [{"name": "Val", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetControlRotation", "return_type": "FRotator", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetController",
+                    "return_type": "AController*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetMovementComponent",
+                    "return_type": "UPawnMovementComponent*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddMovementInput",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "WorldDirection",
+                            "type": "FVector"
+                        },
+                        {
+                            "name": "ScaleValue",
+                            "type": "float",
+                            "default_value": "1.0f"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddControllerYawInput",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Val",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddControllerPitchInput",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Val",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetControlRotation",
+                    "return_type": "FRotator",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -89,18 +539,122 @@
             "module": "Engine",
             "prefix": "A",
             "functions": [
-                {"name": "Jump", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "StopJumping", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "LaunchCharacter", "return_type": "void", "params": [{"name": "LaunchVelocity", "type": "FVector"}, {"name": "bXYOverride", "type": "bool"}, {"name": "bZOverride", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetCharacterMovement", "return_type": "UCharacterMovementComponent*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetCapsuleComponent", "return_type": "UCapsuleComponent*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetMesh", "return_type": "USkeletalMeshComponent*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "PlayAnimMontage", "return_type": "float", "params": [{"name": "AnimMontage", "type": "UAnimMontage*"}, {"name": "InPlayRate", "type": "float", "default_value": "1.0f"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "StopAnimMontage", "return_type": "void", "params": [{"name": "AnimMontage", "type": "UAnimMontage*", "default_value": "nullptr"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "Jump",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "StopJumping",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "LaunchCharacter",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "LaunchVelocity",
+                            "type": "FVector"
+                        },
+                        {
+                            "name": "bXYOverride",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "bZOverride",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetCharacterMovement",
+                    "return_type": "UCharacterMovementComponent*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetCapsuleComponent",
+                    "return_type": "UCapsuleComponent*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetMesh",
+                    "return_type": "USkeletalMeshComponent*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "PlayAnimMontage",
+                    "return_type": "float",
+                    "params": [
+                        {
+                            "name": "AnimMontage",
+                            "type": "UAnimMontage*"
+                        },
+                        {
+                            "name": "InPlayRate",
+                            "type": "float",
+                            "default_value": "1.0f"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "StopAnimMontage",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "AnimMontage",
+                            "type": "UAnimMontage*",
+                            "default_value": "nullptr"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "JumpMaxCount", "type": "int32", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character"},
-                {"name": "JumpMaxHoldTime", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character"}
+                {
+                    "name": "JumpMaxCount",
+                    "type": "int32",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character"
+                },
+                {
+                    "name": "JumpMaxHoldTime",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character"
+                }
             ]
         },
         {
@@ -110,10 +664,73 @@
             "module": "Engine",
             "prefix": "A",
             "functions": [
-                {"name": "GetPawn", "return_type": "APawn*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetViewTargetWithBlend", "return_type": "void", "params": [{"name": "NewViewTarget", "type": "AActor*"}, {"name": "BlendTime", "type": "float", "default_value": "0.0f"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetHitResultUnderCursor", "return_type": "bool", "params": [{"name": "TraceChannel", "type": "ECollisionChannel"}, {"name": "bTraceComplex", "type": "bool"}, {"name": "HitResult", "type": "FHitResult&"}], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "ProjectWorldLocationToScreen", "return_type": "bool", "params": [{"name": "WorldLocation", "type": "FVector"}, {"name": "ScreenLocation", "type": "FVector2D&"}], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetPawn",
+                    "return_type": "APawn*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetViewTargetWithBlend",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewViewTarget",
+                            "type": "AActor*"
+                        },
+                        {
+                            "name": "BlendTime",
+                            "type": "float",
+                            "default_value": "0.0f"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetHitResultUnderCursor",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "TraceChannel",
+                            "type": "ECollisionChannel"
+                        },
+                        {
+                            "name": "bTraceComplex",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "HitResult",
+                            "type": "FHitResult&"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "ProjectWorldLocationToScreen",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "WorldLocation",
+                            "type": "FVector"
+                        },
+                        {
+                            "name": "ScreenLocation",
+                            "type": "FVector2D&"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -125,9 +742,37 @@
             "prefix": "A",
             "is_abstract": true,
             "functions": [
-                {"name": "GetPawn", "return_type": "APawn*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetControlRotation", "return_type": "FRotator", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetControlRotation", "return_type": "void", "params": [{"name": "NewRotation", "type": "const FRotator&"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetPawn",
+                    "return_type": "APawn*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetControlRotation",
+                    "return_type": "FRotator",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetControlRotation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewRotation",
+                            "type": "const FRotator&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -138,14 +783,60 @@
             "module": "Engine",
             "prefix": "A",
             "functions": [
-                {"name": "GetGameState", "return_type": "AGameStateBase*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "RestartGame", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "ReturnToMainMenuHost", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetGameState",
+                    "return_type": "AGameStateBase*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "RestartGame",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "ReturnToMainMenuHost",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "DefaultPawnClass", "type": "TSubclassOf<APawn>", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Classes"},
-                {"name": "PlayerControllerClass", "type": "TSubclassOf<APlayerController>", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Classes"},
-                {"name": "GameStateClass", "type": "TSubclassOf<AGameStateBase>", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Classes"}
+                {
+                    "name": "DefaultPawnClass",
+                    "type": "TSubclassOf<APawn>",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Classes"
+                },
+                {
+                    "name": "PlayerControllerClass",
+                    "type": "TSubclassOf<APlayerController>",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Classes"
+                },
+                {
+                    "name": "GameStateClass",
+                    "type": "TSubclassOf<AGameStateBase>",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Classes"
+                }
             ]
         },
         {
@@ -155,8 +846,29 @@
             "module": "Engine",
             "prefix": "A",
             "functions": [
-                {"name": "GetServerWorldTimeSeconds", "return_type": "double", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetPlayerStartTime", "return_type": "float", "params": [{"name": "Controller", "type": "AController*"}], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetServerWorldTimeSeconds",
+                    "return_type": "double",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetPlayerStartTime",
+                    "return_type": "float",
+                    "params": [
+                        {
+                            "name": "Controller",
+                            "type": "AController*"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -167,12 +879,50 @@
             "module": "Engine",
             "prefix": "A",
             "functions": [
-                {"name": "GetPlayerName", "return_type": "FString", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "GetScore", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable", "BlueprintPure"]},
-                {"name": "SetScore", "return_type": "void", "params": [{"name": "NewScore", "type": "float"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetPlayerName",
+                    "return_type": "FString",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "GetScore",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable",
+                        "BlueprintPure"
+                    ]
+                },
+                {
+                    "name": "SetScore",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewScore",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "Score", "type": "float", "specifiers": ["BlueprintReadOnly", "Replicated"], "category": "PlayerState"}
+                {
+                    "name": "Score",
+                    "type": "float",
+                    "specifiers": [
+                        "BlueprintReadOnly",
+                        "Replicated"
+                    ],
+                    "category": "PlayerState"
+                }
             ]
         },
         {
@@ -182,15 +932,78 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "GetOwner", "return_type": "AActor*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "Activate", "return_type": "void", "params": [{"name": "bReset", "type": "bool", "default_value": "false"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "Deactivate", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "IsActive", "return_type": "bool", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetComponentTickEnabled", "return_type": "void", "params": [{"name": "bEnabled", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "DestroyComponent", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetOwner",
+                    "return_type": "AActor*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Activate",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bReset",
+                            "type": "bool",
+                            "default_value": "false"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Deactivate",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "IsActive",
+                    "return_type": "bool",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetComponentTickEnabled",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bEnabled",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "DestroyComponent",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "bAutoActivate", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadOnly"], "category": "Activation"}
+                {
+                    "name": "bAutoActivate",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadOnly"
+                    ],
+                    "category": "Activation"
+                }
             ]
         },
         {
@@ -200,34 +1013,312 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "GetComponentLocation", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetComponentRotation", "return_type": "FRotator", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetComponentScale", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetComponentTransform", "return_type": "FTransform", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetWorldLocation", "return_type": "void", "params": [{"name": "NewLocation", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetWorldRotation", "return_type": "void", "params": [{"name": "NewRotation", "type": "FRotator"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetWorldScale3D", "return_type": "void", "params": [{"name": "NewScale", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetRelativeLocation", "return_type": "void", "params": [{"name": "NewLocation", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetRelativeRotation", "return_type": "void", "params": [{"name": "NewRotation", "type": "FRotator"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetRelativeScale3D", "return_type": "void", "params": [{"name": "NewScale3D", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddWorldOffset", "return_type": "void", "params": [{"name": "DeltaLocation", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddWorldRotation", "return_type": "void", "params": [{"name": "DeltaRotation", "type": "FRotator"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddLocalOffset", "return_type": "void", "params": [{"name": "DeltaLocation", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddLocalRotation", "return_type": "void", "params": [{"name": "DeltaRotation", "type": "FRotator"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetForwardVector", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetRightVector", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetUpVector", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetVisibility", "return_type": "void", "params": [{"name": "bNewVisibility", "type": "bool"}, {"name": "bPropagateToChildren", "type": "bool", "default_value": "false"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetHiddenInGame", "return_type": "void", "params": [{"name": "NewHidden", "type": "bool"}, {"name": "bPropagateToChildren", "type": "bool", "default_value": "false"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AttachToComponent", "return_type": "bool", "params": [{"name": "Parent", "type": "USceneComponent*"}, {"name": "AttachmentRules", "type": "const FAttachmentTransformRules&"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "DetachFromComponent", "return_type": "void", "params": [{"name": "DetachmentRules", "type": "const FDetachmentTransformRules&"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetComponentLocation",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetComponentRotation",
+                    "return_type": "FRotator",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetComponentScale",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetComponentTransform",
+                    "return_type": "FTransform",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetWorldLocation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewLocation",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetWorldRotation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewRotation",
+                            "type": "FRotator"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetWorldScale3D",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewScale",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetRelativeLocation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewLocation",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetRelativeRotation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewRotation",
+                            "type": "FRotator"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetRelativeScale3D",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewScale3D",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddWorldOffset",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DeltaLocation",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddWorldRotation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DeltaRotation",
+                            "type": "FRotator"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddLocalOffset",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DeltaLocation",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddLocalRotation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DeltaRotation",
+                            "type": "FRotator"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetForwardVector",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetRightVector",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetUpVector",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetVisibility",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bNewVisibility",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "bPropagateToChildren",
+                            "type": "bool",
+                            "default_value": "false"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetHiddenInGame",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewHidden",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "bPropagateToChildren",
+                            "type": "bool",
+                            "default_value": "false"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AttachToComponent",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "Parent",
+                            "type": "USceneComponent*"
+                        },
+                        {
+                            "name": "AttachmentRules",
+                            "type": "const FAttachmentTransformRules&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "DetachFromComponent",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "DetachmentRules",
+                            "type": "const FDetachmentTransformRules&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "RelativeLocation", "type": "FVector", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Transform"},
-                {"name": "RelativeRotation", "type": "FRotator", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Transform"},
-                {"name": "RelativeScale3D", "type": "FVector", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Transform"},
-                {"name": "bVisible", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Rendering"},
-                {"name": "bHiddenInGame", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadOnly"], "category": "Rendering"}
+                {
+                    "name": "RelativeLocation",
+                    "type": "FVector",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Transform"
+                },
+                {
+                    "name": "RelativeRotation",
+                    "type": "FRotator",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Transform"
+                },
+                {
+                    "name": "RelativeScale3D",
+                    "type": "FVector",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Transform"
+                },
+                {
+                    "name": "bVisible",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Rendering"
+                },
+                {
+                    "name": "bHiddenInGame",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadOnly"
+                    ],
+                    "category": "Rendering"
+                }
             ]
         },
         {
@@ -237,18 +1328,135 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "SetSimulatePhysics", "return_type": "void", "params": [{"name": "bSimulate", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "IsSimulatingPhysics", "return_type": "bool", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "AddForce", "return_type": "void", "params": [{"name": "Force", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "AddImpulse", "return_type": "void", "params": [{"name": "Impulse", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetCollisionEnabled", "return_type": "void", "params": [{"name": "NewType", "type": "ECollisionEnabled::Type"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetCollisionProfileName", "return_type": "void", "params": [{"name": "InCollisionProfileName", "type": "FName"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetMaterial", "return_type": "void", "params": [{"name": "ElementIndex", "type": "int32"}, {"name": "Material", "type": "UMaterialInterface*"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetMaterial", "return_type": "UMaterialInterface*", "params": [{"name": "ElementIndex", "type": "int32"}], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "CreateDynamicMaterialInstance", "return_type": "UMaterialInstanceDynamic*", "params": [{"name": "ElementIndex", "type": "int32"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "SetSimulatePhysics",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bSimulate",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "IsSimulatingPhysics",
+                    "return_type": "bool",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddForce",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Force",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "AddImpulse",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Impulse",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetCollisionEnabled",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewType",
+                            "type": "ECollisionEnabled::Type"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetCollisionProfileName",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InCollisionProfileName",
+                            "type": "FName"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetMaterial",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "ElementIndex",
+                            "type": "int32"
+                        },
+                        {
+                            "name": "Material",
+                            "type": "UMaterialInterface*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetMaterial",
+                    "return_type": "UMaterialInterface*",
+                    "params": [
+                        {
+                            "name": "ElementIndex",
+                            "type": "int32"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "CreateDynamicMaterialInstance",
+                    "return_type": "UMaterialInstanceDynamic*",
+                    "params": [
+                        {
+                            "name": "ElementIndex",
+                            "type": "int32"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "bGenerateOverlapEvents", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Collision"}
+                {
+                    "name": "bGenerateOverlapEvents",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Collision"
+                }
             ]
         },
         {
@@ -258,8 +1466,28 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "SetStaticMesh", "return_type": "bool", "params": [{"name": "NewMesh", "type": "UStaticMesh*"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetStaticMesh", "return_type": "UStaticMesh*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "SetStaticMesh",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "NewMesh",
+                            "type": "UStaticMesh*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetStaticMesh",
+                    "return_type": "UStaticMesh*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -270,10 +1498,60 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "PlayAnimation", "return_type": "void", "params": [{"name": "NewAnimToPlay", "type": "UAnimationAsset*"}, {"name": "bLooping", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetAnimInstance", "return_type": "UAnimInstance*", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetBoneLocation", "return_type": "FVector", "params": [{"name": "BoneName", "type": "FName"}], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetSocketLocation", "return_type": "FVector", "params": [{"name": "InSocketName", "type": "FName"}], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "PlayAnimation",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewAnimToPlay",
+                            "type": "UAnimationAsset*"
+                        },
+                        {
+                            "name": "bLooping",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetAnimInstance",
+                    "return_type": "UAnimInstance*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetBoneLocation",
+                    "return_type": "FVector",
+                    "params": [
+                        {
+                            "name": "BoneName",
+                            "type": "FName"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetSocketLocation",
+                    "return_type": "FVector",
+                    "params": [
+                        {
+                            "name": "InSocketName",
+                            "type": "FName"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -285,10 +1563,42 @@
             "prefix": "U",
             "functions": [],
             "properties": [
-                {"name": "FieldOfView", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "CameraSettings"},
-                {"name": "AspectRatio", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "CameraSettings"},
-                {"name": "bUsePawnControlRotation", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "CameraSettings"},
-                {"name": "PostProcessSettings", "type": "FPostProcessSettings", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "PostProcess"}
+                {
+                    "name": "FieldOfView",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "CameraSettings"
+                },
+                {
+                    "name": "AspectRatio",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "CameraSettings"
+                },
+                {
+                    "name": "bUsePawnControlRotation",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "CameraSettings"
+                },
+                {
+                    "name": "PostProcessSettings",
+                    "type": "FPostProcessSettings",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "PostProcess"
+                }
             ]
         },
         {
@@ -299,11 +1609,51 @@
             "prefix": "U",
             "functions": [],
             "properties": [
-                {"name": "TargetArmLength", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Camera"},
-                {"name": "bUsePawnControlRotation", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Camera"},
-                {"name": "bDoCollisionTest", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Camera"},
-                {"name": "bEnableCameraLag", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Lag"},
-                {"name": "CameraLagSpeed", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Lag"}
+                {
+                    "name": "TargetArmLength",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Camera"
+                },
+                {
+                    "name": "bUsePawnControlRotation",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Camera"
+                },
+                {
+                    "name": "bDoCollisionTest",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Camera"
+                },
+                {
+                    "name": "bEnableCameraLag",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Lag"
+                },
+                {
+                    "name": "CameraLagSpeed",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Lag"
+                }
             ]
         },
         {
@@ -313,10 +1663,60 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "GetLocationAtDistanceAlongSpline", "return_type": "FVector", "params": [{"name": "Distance", "type": "float"}, {"name": "CoordinateSpace", "type": "ESplineCoordinateSpace::Type"}], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetRotationAtDistanceAlongSpline", "return_type": "FRotator", "params": [{"name": "Distance", "type": "float"}, {"name": "CoordinateSpace", "type": "ESplineCoordinateSpace::Type"}], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetSplineLength", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetNumberOfSplinePoints", "return_type": "int32", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetLocationAtDistanceAlongSpline",
+                    "return_type": "FVector",
+                    "params": [
+                        {
+                            "name": "Distance",
+                            "type": "float"
+                        },
+                        {
+                            "name": "CoordinateSpace",
+                            "type": "ESplineCoordinateSpace::Type"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetRotationAtDistanceAlongSpline",
+                    "return_type": "FRotator",
+                    "params": [
+                        {
+                            "name": "Distance",
+                            "type": "float"
+                        },
+                        {
+                            "name": "CoordinateSpace",
+                            "type": "ESplineCoordinateSpace::Type"
+                        }
+                    ],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetSplineLength",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetNumberOfSplinePoints",
+                    "return_type": "int32",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -327,11 +1727,66 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "AddInstance", "return_type": "int32", "params": [{"name": "InstanceTransform", "type": "const FTransform&"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "RemoveInstance", "return_type": "bool", "params": [{"name": "InstanceIndex", "type": "int32"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetInstanceCount", "return_type": "int32", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "UpdateInstanceTransform", "return_type": "bool", "params": [{"name": "InstanceIndex", "type": "int32"}, {"name": "NewInstanceTransform", "type": "const FTransform&"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "ClearInstances", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "AddInstance",
+                    "return_type": "int32",
+                    "params": [
+                        {
+                            "name": "InstanceTransform",
+                            "type": "const FTransform&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "RemoveInstance",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "InstanceIndex",
+                            "type": "int32"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetInstanceCount",
+                    "return_type": "int32",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "UpdateInstanceTransform",
+                    "return_type": "bool",
+                    "params": [
+                        {
+                            "name": "InstanceIndex",
+                            "type": "int32"
+                        },
+                        {
+                            "name": "NewInstanceTransform",
+                            "type": "const FTransform&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "ClearInstances",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -342,12 +1797,92 @@
             "module": "Niagara",
             "prefix": "U",
             "functions": [
-                {"name": "SetAsset", "return_type": "void", "params": [{"name": "InAsset", "type": "UNiagaraSystem*"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "Activate", "return_type": "void", "params": [{"name": "bReset", "type": "bool", "default_value": "false"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "Deactivate", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetVariableFloat", "return_type": "void", "params": [{"name": "InVariableName", "type": "FName"}, {"name": "InValue", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetVariableVec3", "return_type": "void", "params": [{"name": "InVariableName", "type": "FName"}, {"name": "InValue", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetVariableLinearColor", "return_type": "void", "params": [{"name": "InVariableName", "type": "FName"}, {"name": "InValue", "type": "FLinearColor"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "SetAsset",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InAsset",
+                            "type": "UNiagaraSystem*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Activate",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bReset",
+                            "type": "bool",
+                            "default_value": "false"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Deactivate",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetVariableFloat",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InVariableName",
+                            "type": "FName"
+                        },
+                        {
+                            "name": "InValue",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetVariableVec3",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InVariableName",
+                            "type": "FName"
+                        },
+                        {
+                            "name": "InValue",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetVariableLinearColor",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InVariableName",
+                            "type": "FName"
+                        },
+                        {
+                            "name": "InValue",
+                            "type": "FLinearColor"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -358,15 +1893,87 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "Play", "return_type": "void", "params": [{"name": "StartTime", "type": "float", "default_value": "0.0f"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "Stop", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetPaused", "return_type": "void", "params": [{"name": "bPause", "type": "bool"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "IsPlaying", "return_type": "bool", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "SetVolumeMultiplier", "return_type": "void", "params": [{"name": "NewVolumeMultiplier", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "SetPitchMultiplier", "return_type": "void", "params": [{"name": "NewPitchMultiplier", "type": "float"}], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "Play",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "StartTime",
+                            "type": "float",
+                            "default_value": "0.0f"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Stop",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetPaused",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bPause",
+                            "type": "bool"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "IsPlaying",
+                    "return_type": "bool",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetVolumeMultiplier",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewVolumeMultiplier",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetPitchMultiplier",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewPitchMultiplier",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": [
-                {"name": "Sound", "type": "USoundBase*", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Sound"}
+                {
+                    "name": "Sound",
+                    "type": "USoundBase*",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Sound"
+                }
             ]
         },
         {
@@ -377,14 +1984,78 @@
             "prefix": "U",
             "functions": [],
             "properties": [
-                {"name": "MaxWalkSpeed", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement: Walking"},
-                {"name": "MaxAcceleration", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement: Walking"},
-                {"name": "JumpZVelocity", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement: Jumping"},
-                {"name": "GravityScale", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement"},
-                {"name": "AirControl", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement: Jumping"},
-                {"name": "GroundFriction", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement: Walking"},
-                {"name": "BrakingDecelerationWalking", "type": "float", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement: Walking"},
-                {"name": "bOrientRotationToMovement", "type": "bool", "specifiers": ["EditAnywhere", "BlueprintReadWrite"], "category": "Character Movement"}
+                {
+                    "name": "MaxWalkSpeed",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement: Walking"
+                },
+                {
+                    "name": "MaxAcceleration",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement: Walking"
+                },
+                {
+                    "name": "JumpZVelocity",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement: Jumping"
+                },
+                {
+                    "name": "GravityScale",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement"
+                },
+                {
+                    "name": "AirControl",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement: Jumping"
+                },
+                {
+                    "name": "GroundFriction",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement: Walking"
+                },
+                {
+                    "name": "BrakingDecelerationWalking",
+                    "type": "float",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement: Walking"
+                },
+                {
+                    "name": "bOrientRotationToMovement",
+                    "type": "bool",
+                    "specifiers": [
+                        "EditAnywhere",
+                        "BlueprintReadWrite"
+                    ],
+                    "category": "Character Movement"
+                }
             ]
         },
         {
@@ -412,8 +2083,23 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "GetMaxSpeed", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "StopMovementImmediately", "return_type": "void", "params": [], "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "GetMaxSpeed",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "StopMovementImmediately",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -424,9 +2110,41 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "SetCapsuleSize", "return_type": "void", "params": [{"name": "InRadius", "type": "float"}, {"name": "InHalfHeight", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetScaledCapsuleRadius", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]},
-                {"name": "GetScaledCapsuleHalfHeight", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "SetCapsuleSize",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InRadius",
+                            "type": "float"
+                        },
+                        {
+                            "name": "InHalfHeight",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetScaledCapsuleRadius",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetScaledCapsuleHalfHeight",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -437,8 +2155,28 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "SetSphereRadius", "return_type": "void", "params": [{"name": "InSphereRadius", "type": "float"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetScaledSphereRadius", "return_type": "float", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "SetSphereRadius",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InSphereRadius",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetScaledSphereRadius",
+                    "return_type": "float",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
             "properties": []
         },
@@ -449,61 +2187,662 @@
             "module": "Engine",
             "prefix": "U",
             "functions": [
-                {"name": "SetBoxExtent", "return_type": "void", "params": [{"name": "InBoxExtent", "type": "FVector"}], "specifiers": ["BlueprintCallable"]},
-                {"name": "GetScaledBoxExtent", "return_type": "FVector", "params": [], "is_const": true, "specifiers": ["BlueprintCallable"]}
+                {
+                    "name": "SetBoxExtent",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InBoxExtent",
+                            "type": "FVector"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetScaledBoxExtent",
+                    "return_type": "FVector",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
             ],
+            "properties": []
+        },
+        {
+            "name": "UMaterialInterface",
+            "parent": "UObject",
+            "header": "Materials/MaterialInterface.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UMaterial",
+            "parent": "UMaterialInterface",
+            "header": "Materials/Material.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UMaterialInstance",
+            "parent": "UMaterialInterface",
+            "header": "Materials/MaterialInstance.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UMaterialInstanceDynamic",
+            "parent": "UMaterialInstance",
+            "header": "Materials/MaterialInstanceDynamic.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UTexture",
+            "parent": "UObject",
+            "header": "Engine/Texture.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UTexture2D",
+            "parent": "UTexture",
+            "header": "Engine/Texture2D.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UTextureRenderTarget2D",
+            "parent": "UTexture",
+            "header": "Engine/TextureRenderTarget2D.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UStaticMesh",
+            "parent": "UObject",
+            "header": "Engine/StaticMesh.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "USkeletalMesh",
+            "parent": "UObject",
+            "header": "Engine/SkeletalMesh.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UAnimInstance",
+            "parent": "UObject",
+            "header": "Animation/AnimInstance.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UAnimSequence",
+            "parent": "UObject",
+            "header": "Animation/AnimSequence.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "USoundBase",
+            "parent": "UObject",
+            "header": "Sound/SoundBase.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "USoundWave",
+            "parent": "USoundBase",
+            "header": "Sound/SoundWave.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UParticleSystem",
+            "parent": "UObject",
+            "header": "Particles/ParticleSystem.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UNiagaraSystem",
+            "parent": "UObject",
+            "header": "NiagaraSystem.h",
+            "module": "Niagara",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UDataTable",
+            "parent": "UObject",
+            "header": "Engine/DataTable.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UCurveFloat",
+            "parent": "UObject",
+            "header": "Curves/CurveFloat.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UCurveLinearColor",
+            "parent": "UObject",
+            "header": "Curves/CurveLinearColor.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UWorld",
+            "parent": "UObject",
+            "header": "Engine/World.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UGameInstance",
+            "parent": "UObject",
+            "header": "Engine/GameInstance.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
             "properties": []
         }
     ],
     "structs": [
-        {"name": "FVector", "header": "Math/Vector.h", "module": "Core", "fields": [
-            {"name": "X", "type": "double"}, {"name": "Y", "type": "double"}, {"name": "Z", "type": "double"}
-        ]},
-        {"name": "FVector2D", "header": "Math/Vector2D.h", "module": "Core", "fields": [
-            {"name": "X", "type": "double"}, {"name": "Y", "type": "double"}
-        ]},
-        {"name": "FVector4", "header": "Math/Vector4.h", "module": "Core", "fields": [
-            {"name": "X", "type": "double"}, {"name": "Y", "type": "double"}, {"name": "Z", "type": "double"}, {"name": "W", "type": "double"}
-        ]},
-        {"name": "FRotator", "header": "Math/Rotator.h", "module": "Core", "fields": [
-            {"name": "Pitch", "type": "double"}, {"name": "Yaw", "type": "double"}, {"name": "Roll", "type": "double"}
-        ]},
-        {"name": "FTransform", "header": "Math/Transform.h", "module": "Core", "fields": [
-            {"name": "Rotation", "type": "FQuat"}, {"name": "Translation", "type": "FVector"}, {"name": "Scale3D", "type": "FVector"}
-        ]},
-        {"name": "FQuat", "header": "Math/Quat.h", "module": "Core", "fields": [
-            {"name": "X", "type": "double"}, {"name": "Y", "type": "double"}, {"name": "Z", "type": "double"}, {"name": "W", "type": "double"}
-        ]},
-        {"name": "FLinearColor", "header": "Math/Color.h", "module": "Core", "fields": [
-            {"name": "R", "type": "float"}, {"name": "G", "type": "float"}, {"name": "B", "type": "float"}, {"name": "A", "type": "float"}
-        ]},
-        {"name": "FColor", "header": "Math/Color.h", "module": "Core", "fields": [
-            {"name": "R", "type": "uint8"}, {"name": "G", "type": "uint8"}, {"name": "B", "type": "uint8"}, {"name": "A", "type": "uint8"}
-        ]},
-        {"name": "FHitResult", "header": "Engine/HitResult.h", "module": "Engine", "fields": [
-            {"name": "bBlockingHit", "type": "bool"}, {"name": "ImpactPoint", "type": "FVector"}, {"name": "ImpactNormal", "type": "FVector"},
-            {"name": "Location", "type": "FVector"}, {"name": "Normal", "type": "FVector"}, {"name": "Distance", "type": "float"}
-        ]},
-        {"name": "FTimerHandle", "header": "Engine/EngineTypes.h", "module": "Engine", "fields": []},
-        {"name": "FTableRowBase", "header": "Engine/DataTable.h", "module": "Engine", "fields": [], "is_table_row": true},
-        {"name": "FActorSpawnParameters", "header": "Engine/World.h", "module": "Engine", "fields": []},
-        {"name": "FAttachmentTransformRules", "header": "Engine/EngineTypes.h", "module": "Engine", "fields": []},
-        {"name": "FDetachmentTransformRules", "header": "Engine/EngineTypes.h", "module": "Engine", "fields": []},
-        {"name": "FPostProcessSettings", "header": "Scene/PostProcessVolume.h", "module": "Engine", "fields": []}
+        {
+            "name": "FVector",
+            "header": "Math/Vector.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "double"
+                },
+                {
+                    "name": "Y",
+                    "type": "double"
+                },
+                {
+                    "name": "Z",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FVector2D",
+            "header": "Math/Vector2D.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "double"
+                },
+                {
+                    "name": "Y",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FVector4",
+            "header": "Math/Vector4.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "double"
+                },
+                {
+                    "name": "Y",
+                    "type": "double"
+                },
+                {
+                    "name": "Z",
+                    "type": "double"
+                },
+                {
+                    "name": "W",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FRotator",
+            "header": "Math/Rotator.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "Pitch",
+                    "type": "double"
+                },
+                {
+                    "name": "Yaw",
+                    "type": "double"
+                },
+                {
+                    "name": "Roll",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FTransform",
+            "header": "Math/Transform.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "Rotation",
+                    "type": "FQuat"
+                },
+                {
+                    "name": "Translation",
+                    "type": "FVector"
+                },
+                {
+                    "name": "Scale3D",
+                    "type": "FVector"
+                }
+            ]
+        },
+        {
+            "name": "FQuat",
+            "header": "Math/Quat.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "double"
+                },
+                {
+                    "name": "Y",
+                    "type": "double"
+                },
+                {
+                    "name": "Z",
+                    "type": "double"
+                },
+                {
+                    "name": "W",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FLinearColor",
+            "header": "Math/Color.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "R",
+                    "type": "float"
+                },
+                {
+                    "name": "G",
+                    "type": "float"
+                },
+                {
+                    "name": "B",
+                    "type": "float"
+                },
+                {
+                    "name": "A",
+                    "type": "float"
+                }
+            ]
+        },
+        {
+            "name": "FColor",
+            "header": "Math/Color.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "R",
+                    "type": "uint8"
+                },
+                {
+                    "name": "G",
+                    "type": "uint8"
+                },
+                {
+                    "name": "B",
+                    "type": "uint8"
+                },
+                {
+                    "name": "A",
+                    "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "FHitResult",
+            "header": "Engine/HitResult.h",
+            "module": "Engine",
+            "fields": [
+                {
+                    "name": "bBlockingHit",
+                    "type": "bool"
+                },
+                {
+                    "name": "ImpactPoint",
+                    "type": "FVector"
+                },
+                {
+                    "name": "ImpactNormal",
+                    "type": "FVector"
+                },
+                {
+                    "name": "Location",
+                    "type": "FVector"
+                },
+                {
+                    "name": "Normal",
+                    "type": "FVector"
+                },
+                {
+                    "name": "Distance",
+                    "type": "float"
+                }
+            ]
+        },
+        {
+            "name": "FTimerHandle",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FTableRowBase",
+            "header": "Engine/DataTable.h",
+            "module": "Engine",
+            "fields": [],
+            "is_table_row": true
+        },
+        {
+            "name": "FActorSpawnParameters",
+            "header": "Engine/World.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FAttachmentTransformRules",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FDetachmentTransformRules",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FPostProcessSettings",
+            "header": "Scene/PostProcessVolume.h",
+            "module": "Engine",
+            "fields": []
+        }
     ],
     "enums": [
-        {"name": "ECollisionChannel", "header": "Engine/EngineTypes.h", "module": "Engine", "values": ["ECC_WorldStatic", "ECC_WorldDynamic", "ECC_Pawn", "ECC_Visibility", "ECC_Camera", "ECC_PhysicsBody", "ECC_Vehicle", "ECC_Destructible"]},
-        {"name": "ECollisionEnabled", "header": "Engine/EngineTypes.h", "module": "Engine", "values": ["NoCollision", "QueryOnly", "PhysicsOnly", "QueryAndPhysics"]},
-        {"name": "ENetRole", "header": "Engine/EngineTypes.h", "module": "Engine", "values": ["ROLE_None", "ROLE_SimulatedProxy", "ROLE_AutonomousProxy", "ROLE_Authority"]},
-        {"name": "ESplineCoordinateSpace", "header": "Components/SplineComponent.h", "module": "Engine", "values": ["Local", "World"]},
-        {"name": "EBlendMode", "header": "Engine/EngineTypes.h", "module": "Engine", "values": ["BLEND_Opaque", "BLEND_Masked", "BLEND_Translucent", "BLEND_Additive", "BLEND_Modulate"]},
-        {"name": "ETextureRenderTargetFormat", "header": "Engine/TextureRenderTarget2D.h", "module": "Engine", "values": ["RTF_R8", "RTF_RG8", "RTF_RGBA8", "RTF_R16f", "RTF_RG16f", "RTF_RGBA16f", "RTF_R32f", "RTF_RG32f", "RTF_RGBA32f"]},
-        {"name": "EMovementMode", "header": "GameFramework/CharacterMovementComponent.h", "module": "Engine", "values": ["MOVE_None", "MOVE_Walking", "MOVE_NavWalking", "MOVE_Falling", "MOVE_Swimming", "MOVE_Flying", "MOVE_Custom"]},
-        {"name": "EInputEvent", "header": "Engine/EngineBaseTypes.h", "module": "Engine", "values": ["IE_Pressed", "IE_Released", "IE_Repeat", "IE_DoubleClick", "IE_Axis"]},
-        {"name": "EObjectTypeQuery", "header": "Engine/EngineTypes.h", "module": "Engine", "values": []},
-        {"name": "ETraceTypeQuery", "header": "Engine/EngineTypes.h", "module": "Engine", "values": []}
+        {
+            "name": "ECollisionChannel",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "ECC_WorldStatic",
+                "ECC_WorldDynamic",
+                "ECC_Pawn",
+                "ECC_Visibility",
+                "ECC_Camera",
+                "ECC_PhysicsBody",
+                "ECC_Vehicle",
+                "ECC_Destructible"
+            ]
+        },
+        {
+            "name": "ECollisionEnabled",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "NoCollision",
+                "QueryOnly",
+                "PhysicsOnly",
+                "QueryAndPhysics"
+            ]
+        },
+        {
+            "name": "ENetRole",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "ROLE_None",
+                "ROLE_SimulatedProxy",
+                "ROLE_AutonomousProxy",
+                "ROLE_Authority"
+            ]
+        },
+        {
+            "name": "ESplineCoordinateSpace",
+            "header": "Components/SplineComponent.h",
+            "module": "Engine",
+            "values": [
+                "Local",
+                "World"
+            ]
+        },
+        {
+            "name": "EBlendMode",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "BLEND_Opaque",
+                "BLEND_Masked",
+                "BLEND_Translucent",
+                "BLEND_Additive",
+                "BLEND_Modulate"
+            ]
+        },
+        {
+            "name": "ETextureRenderTargetFormat",
+            "header": "Engine/TextureRenderTarget2D.h",
+            "module": "Engine",
+            "values": [
+                "RTF_R8",
+                "RTF_RG8",
+                "RTF_RGBA8",
+                "RTF_R16f",
+                "RTF_RG16f",
+                "RTF_RGBA16f",
+                "RTF_R32f",
+                "RTF_RG32f",
+                "RTF_RGBA32f"
+            ]
+        },
+        {
+            "name": "EMovementMode",
+            "header": "GameFramework/CharacterMovementComponent.h",
+            "module": "Engine",
+            "values": [
+                "MOVE_None",
+                "MOVE_Walking",
+                "MOVE_NavWalking",
+                "MOVE_Falling",
+                "MOVE_Swimming",
+                "MOVE_Flying",
+                "MOVE_Custom"
+            ]
+        },
+        {
+            "name": "EInputEvent",
+            "header": "Engine/EngineBaseTypes.h",
+            "module": "Engine",
+            "values": [
+                "IE_Pressed",
+                "IE_Released",
+                "IE_Repeat",
+                "IE_DoubleClick",
+                "IE_Axis"
+            ]
+        },
+        {
+            "name": "EObjectTypeQuery",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": []
+        },
+        {
+            "name": "ETraceTypeQuery",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": []
+        }
     ],
-    "type_aliases": [],
+    "type_aliases": [
+        {
+            "kain_name": "Transform",
+            "ue5_name": "FTransform",
+            "header": "Math/Transform.h"
+        },
+        {
+            "kain_name": "AnimMontage",
+            "ue5_name": "UAnimMontage",
+            "header": "Animation/AnimMontage.h"
+        },
+        {
+            "kain_name": "StaticMesh",
+            "ue5_name": "UStaticMesh",
+            "header": "Engine/StaticMesh.h"
+        },
+        {
+            "kain_name": "SkeletalMesh",
+            "ue5_name": "USkeletalMesh",
+            "header": "Engine/SkeletalMesh.h"
+        },
+        {
+            "kain_name": "Texture2D",
+            "ue5_name": "UTexture2D",
+            "header": "Engine/Texture2D.h"
+        },
+        {
+            "kain_name": "Material",
+            "ue5_name": "UMaterial",
+            "header": "Materials/Material.h"
+        },
+        {
+            "kain_name": "MaterialInstance",
+            "ue5_name": "UMaterialInstance",
+            "header": "Materials/MaterialInstance.h"
+        },
+        {
+            "kain_name": "MaterialInstanceDynamic",
+            "ue5_name": "UMaterialInstanceDynamic",
+            "header": "Materials/MaterialInstanceDynamic.h"
+        },
+        {
+            "kain_name": "StaticMeshComponent",
+            "ue5_name": "UStaticMeshComponent",
+            "header": "Components/StaticMeshComponent.h"
+        },
+        {
+            "kain_name": "SplineComponent",
+            "ue5_name": "USplineComponent",
+            "header": "Components/SplineComponent.h"
+        },
+        {
+            "kain_name": "InstancedStaticMeshComponent",
+            "ue5_name": "UInstancedStaticMeshComponent",
+            "header": "Components/InstancedStaticMeshComponent.h"
+        },
+        {
+            "kain_name": "SkeletalMeshComponent",
+            "ue5_name": "USkeletalMeshComponent",
+            "header": "Components/SkeletalMeshComponent.h"
+        },
+        {
+            "kain_name": "AnimSequence",
+            "ue5_name": "UAnimSequence",
+            "header": "Animation/AnimSequence.h"
+        },
+        {
+            "kain_name": "SoundBase",
+            "ue5_name": "USoundBase",
+            "header": "Sound/SoundBase.h"
+        },
+        {
+            "kain_name": "ParticleSystem",
+            "ue5_name": "UParticleSystem",
+            "header": "Particles/ParticleSystem.h"
+        },
+        {
+            "kain_name": "NiagaraSystem",
+            "ue5_name": "UNiagaraSystem",
+            "header": "NiagaraSystem.h"
+        }
+    ],
     "include_map": {
         "UWorld": "Engine/World.h",
         "UGameplayStatics": "Kismet/GameplayStatics.h",

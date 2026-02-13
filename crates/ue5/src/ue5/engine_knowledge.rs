@@ -347,6 +347,75 @@ impl EngineKnowledge {
             || self.actor_class_names.contains(&format!("A{}", name))
     }
 
+    /// Check if a type is a UObject-derived class (requires pointer semantics in C++)
+    pub fn is_uobject_derived(&self, name: &str) -> bool {
+        // Check with and without prefix
+        let names_to_check = [
+            name,
+            &format!("U{}", name),
+            &format!("A{}", name),
+        ];
+        
+        for check_name in &names_to_check {
+            // Direct class lookup
+            if let Some(class) = self.classes.get(*check_name) {
+                // All UObject-derived classes need pointers
+                // Check if it inherits from UObject (or is UObject itself)
+                if *check_name == "UObject" || self.is_child_of(check_name, "UObject") {
+                    return true;
+                }
+                // Also check prefix - U* and A* are always UObject-derived
+                if class.prefix == "U" || class.prefix == "A" {
+                    return true;
+                }
+            }
+        }
+        
+        // Check if it's a component or actor (already UObject-derived)
+        if self.is_engine_component(name) || self.is_engine_actor(name) {
+            return true;
+        }
+        
+        false
+    }
+    
+    /// Get the C++ type name for a KAIN type, including pointer suffix if needed
+    pub fn get_cpp_type(&self, kain_name: &str) -> Option<String> {
+        // Check type aliases first (Vec3 -> FVector, etc.)
+        if let Some(ue_type) = self.resolve_type_alias(kain_name) {
+            return Some(ue_type.to_string());
+        }
+        
+        // Check if it's a known class
+        if let Some(class) = self.classes.get(kain_name) {
+            let cpp_name = &class.name;
+            // UObject-derived types need pointer suffix
+            if self.is_uobject_derived(cpp_name) {
+                return Some(format!("{}*", cpp_name));
+            }
+            return Some(cpp_name.clone());
+        }
+        
+        // Try with prefixes
+        for prefix in &["U", "A", "F", "E"] {
+            let prefixed = format!("{}{}", prefix, kain_name);
+            if let Some(class) = self.classes.get(&prefixed) {
+                if self.is_uobject_derived(&prefixed) {
+                    return Some(format!("{}*", prefixed));
+                }
+                return Some(prefixed);
+            }
+            if let Some(st) = self.structs.get(&prefixed) {
+                return Some(st.name.clone());
+            }
+            if let Some(en) = self.enums.get(&prefixed) {
+                return Some(en.name.clone());
+            }
+        }
+        
+        None
+    }
+
     pub fn is_engine_enum(&self, name: &str) -> bool {
         self.enums.contains_key(name)
             || self.enums.contains_key(&format!("E{}", name))

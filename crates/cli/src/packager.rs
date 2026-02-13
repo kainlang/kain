@@ -575,12 +575,88 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         cwd.join(&ue5_config.plugin_dir).join(&ue5_config.plugin_name)
     };
     let source_dir = plugin_root.join("Source");
-    let public_dir = source_dir.join("Public");
-    let private_dir = source_dir.join("Private");
     let shaders_dir = plugin_root.join("Shaders");
     
-    fs::create_dir_all(&public_dir).map_err(|e| KainError::Io(e))?;
-    fs::create_dir_all(&private_dir).map_err(|e| KainError::Io(e))?;
+    // Detect runtime vs editor items EARLY for two-module split decision
+    let has_editor_items = typed_program.items.iter().any(|item| {
+        match item {
+            kain_core::types::TypedItem::Struct(s) => {
+                s.ast.attributes.iter().any(|a| 
+                    ue5_editor::is_editor_attribute(&a.name)
+                )
+            }
+            _ => false
+        }
+    });
+    
+    let has_runtime_items = typed_program.items.iter().any(|item| {
+        match item {
+            kain_core::types::TypedItem::Actor(_) |
+            kain_core::types::TypedItem::Component(_) |
+            kain_core::types::TypedItem::Enum(_) |
+            kain_core::types::TypedItem::Function(_) |
+            kain_core::types::TypedItem::TypeAlias(_) => true,
+            kain_core::types::TypedItem::Struct(s) => {
+                // Non-editor structs are runtime
+                !s.ast.attributes.iter().any(|a| 
+                    ue5_editor::is_editor_attribute(&a.name)
+                )
+            }
+            _ => false,
+        }
+    }) || !all_shader_names.is_empty();
+    
+    // Two-module split: when BOTH runtime and editor items exist
+    let needs_split = has_runtime_items && has_editor_items;
+    
+    // Directory layout depends on split mode:
+    //   Split:  Source/Plugin/Public, Source/PluginEditor/Public
+    //   Single: Source/Public (flat, legacy)
+    let (public_dir, private_dir, editor_public_dir, editor_private_dir) = if needs_split {
+        let rt_dir = source_dir.join(&ue5_config.plugin_name);
+        let ed_dir = source_dir.join(format!("{}Editor", ue5_config.plugin_name));
+        let rt_pub = rt_dir.join("Public");
+        let rt_priv = rt_dir.join("Private");
+        let ed_pub = ed_dir.join("Public");
+        let ed_priv = ed_dir.join("Private");
+        fs::create_dir_all(&rt_pub).map_err(|e| KainError::Io(e))?;
+        fs::create_dir_all(&rt_priv).map_err(|e| KainError::Io(e))?;
+        fs::create_dir_all(&ed_pub).map_err(|e| KainError::Io(e))?;
+        fs::create_dir_all(&ed_priv).map_err(|e| KainError::Io(e))?;
+        println!("📦 Two-module split: {} (Runtime) + {}Editor (Editor)", ue5_config.plugin_name, ue5_config.plugin_name);
+        
+        // Clean stale single-module layout files if they exist
+        let stale_pub = source_dir.join("Public");
+        let stale_priv = source_dir.join("Private");
+        let stale_build_cs = source_dir.join(format!("{}.Build.cs", ue5_config.plugin_name));
+        if stale_pub.exists() {
+            let _ = fs::remove_dir_all(&stale_pub);
+            println!("   🧹 Removed stale Source/Public (old single-module layout)");
+        }
+        if stale_priv.exists() {
+            let _ = fs::remove_dir_all(&stale_priv);
+            println!("   🧹 Removed stale Source/Private (old single-module layout)");
+        }
+        if stale_build_cs.exists() {
+            let _ = fs::remove_file(&stale_build_cs);
+            println!("   🧹 Removed stale Source/{}.Build.cs (old single-module layout)", ue5_config.plugin_name);
+        }
+        
+        (rt_pub, rt_priv, Some(ed_pub), Some(ed_priv))
+    } else {
+        let pub_dir = source_dir.join("Public");
+        let priv_dir = source_dir.join("Private");
+        fs::create_dir_all(&pub_dir).map_err(|e| KainError::Io(e))?;
+        fs::create_dir_all(&priv_dir).map_err(|e| KainError::Io(e))?;
+        if has_editor_items {
+            // Editor-only plugin (no runtime items) — create Editor subdirs
+            let ed_pub = pub_dir.join("Editor");
+            let ed_priv = priv_dir.join("Editor");
+            fs::create_dir_all(&ed_pub).map_err(|e| KainError::Io(e))?;
+            fs::create_dir_all(&ed_priv).map_err(|e| KainError::Io(e))?;
+        }
+        (pub_dir, priv_dir, None, None)
+    };
     fs::create_dir_all(&shaders_dir).map_err(|e| KainError::Io(e))?;
     
     // Use shader names from config or auto-detected
@@ -1059,25 +1135,45 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         }
         
         // STEP 5: Generate editor tools if any editor attributes exist
-        let has_editor_items = typed_program.items.iter().any(|item| {
-            match item {
-                kain_core::types::TypedItem::Struct(s) => {
-                    s.ast.attributes.iter().any(|a| 
-                        ue5_editor::is_editor_attribute(&a.name)
-                    )
-                }
-                _ => false
-            }
-        });
-        
         if has_editor_items {
             println!("   🎨 Generating editor tools (Slate UI, Details, Viewport, Toolbar...)...");
             
-            // Create Editor subdirectory
-            let editor_public_dir = public_dir.join("Editor");
-            let editor_private_dir = private_dir.join("Editor");
-            fs::create_dir_all(&editor_public_dir).map_err(|e| KainError::Io(e))?;
-            fs::create_dir_all(&editor_private_dir).map_err(|e| KainError::Io(e))?;
+            // Determine where editor files go based on split mode
+            let (ed_pub_dir, ed_priv_dir, include_prefix) = if needs_split {
+                // Split mode: editor files go to separate module directory
+                (editor_public_dir.as_ref().unwrap().clone(), 
+                 editor_private_dir.as_ref().unwrap().clone(),
+                 String::new()) // No prefix — files are at root of editor module
+            } else {
+                // Single module: editor files go to Editor/ subdirectory
+                let ed_pub = public_dir.join("Editor");
+                let ed_priv = private_dir.join("Editor");
+                fs::create_dir_all(&ed_pub).map_err(|e| KainError::Io(e))?;
+                fs::create_dir_all(&ed_priv).map_err(|e| KainError::Io(e))?;
+                (ed_pub, ed_priv, "Editor/".to_string())
+            };
+            
+            // In split mode, generate a master header for the editor module
+            let editor_master_header_path = if needs_split {
+                let ed_pub = editor_public_dir.as_ref().unwrap();
+                let editor_module_name = format!("{}Editor", ue5_config.plugin_name);
+                let mut ed_master = String::new();
+                ed_master.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
+                    chrono::Utc::now().year(),
+                    ue5_config.copyright.as_deref().unwrap_or("Epic Games, Inc.")));
+                ed_master.push_str("// Generated by KAIN-PRO - Editor Module Master Header\n");
+                ed_master.push_str("#pragma once\n\n");
+                ed_master.push_str("#include \"CoreMinimal.h\"\n");
+                // Include the runtime module's master header for type access
+                ed_master.push_str(&format!("#include \"{}.h\"\n\n", ue5_config.plugin_name));
+                ed_master.push_str("// Editor module includes\n");
+                let path = ed_pub.join(format!("{}.h", editor_module_name));
+                fs::write(&path, &ed_master).map_err(|e| KainError::Io(e))?;
+                println!("      ✓ {}.h (editor module master header)", editor_module_name);
+                Some(path)
+            } else {
+                None
+            };
             
             // Generate per-item editor files (modular output)
             match ue5_editor::generate_per_item(&typed_program, &ue5_config.plugin_name, ue5_config.copyright.as_deref()) {
@@ -1086,7 +1182,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                         println!("   📄 Editor item: {} [{}] → {}.h/cpp", editor_item.name, editor_item.kind, editor_item.name);
                         
                         // Write header
-                        let header_path = editor_public_dir.join(format!("{}.h", editor_item.name));
+                        let header_path = ed_pub_dir.join(format!("{}.h", editor_item.name));
                         fs::write(&header_path, &editor_item.header).map_err(|e| KainError::Io(e))?;
                         println!("      ✓ {}.h", editor_item.name);
                         
@@ -1109,17 +1205,25 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                             });
                         
                         if has_implementation {
-                            let cpp_path = editor_private_dir.join(format!("{}.cpp", editor_item.name));
+                            let cpp_path = ed_priv_dir.join(format!("{}.cpp", editor_item.name));
                             fs::write(&cpp_path, &editor_item.source).map_err(|e| KainError::Io(e))?;
                             println!("      ✓ {}.cpp", editor_item.name);
                         } else {
                             println!("      ⊘ {}.cpp (skipped - no implementation needed)", editor_item.name);
                         }
                         
-                        // Add include to master header
-                        let mut master = fs::read_to_string(&master_header_path).map_err(|e| KainError::Io(e))?;
-                        master.push_str(&format!("#include \"Editor/{}.h\"\n", editor_item.name));
-                        fs::write(&master_header_path, master).map_err(|e| KainError::Io(e))?;
+                        // Add include to appropriate master header
+                        if let Some(ref ed_master_path) = editor_master_header_path {
+                            // Split mode: add to editor module master header (no prefix)
+                            let mut master = fs::read_to_string(ed_master_path).map_err(|e| KainError::Io(e))?;
+                            master.push_str(&format!("#include \"{}.h\"\n", editor_item.name));
+                            fs::write(ed_master_path, master).map_err(|e| KainError::Io(e))?;
+                        } else {
+                            // Single module: add to runtime master header with Editor/ prefix
+                            let mut master = fs::read_to_string(&master_header_path).map_err(|e| KainError::Io(e))?;
+                            master.push_str(&format!("#include \"{}{}.h\"\n", include_prefix, editor_item.name));
+                            fs::write(&master_header_path, master).map_err(|e| KainError::Io(e))?;
+                        }
                     }
                     println!("   ✅ {} editor items generated", editor_items.len());
                 }
@@ -1140,7 +1244,6 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         // own .generated.h includes where needed (alongside UCLASS/USTRUCT/UENUM macros).
         
         // Detect if an @editor_module exists in the program.
-        // If so, it already provides IMPLEMENT_MODULE — we must NOT generate a duplicate.
         let has_editor_module = typed_program.items.iter().any(|item| {
             if let kain_core::types::TypedItem::Struct(s) = item {
                 s.ast.attributes.iter().any(|a| a.name == "editor_module")
@@ -1149,13 +1252,73 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             }
         });
         
-        if has_editor_module {
+        if needs_split {
+            // SPLIT MODE: Runtime module ALWAYS needs its own IMPLEMENT_MODULE
+            eprintln!("📦 [PACKAGER] Split mode — generating runtime module registration");
+            let module_cpp = format!(r#"// Generated by KAIN-PRO - Runtime Module Registration
+#include "{}.h"
+#include "Modules/ModuleManager.h"
+
+class F{}Module : public IModuleInterface
+{{
+public:
+    virtual void StartupModule() override
+    {{
+        // Runtime module startup
+    }}
+
+    virtual void ShutdownModule() override
+    {{
+        // Runtime module shutdown
+    }}
+}};
+
+IMPLEMENT_MODULE(F{}Module, {})
+"#, ue5_config.plugin_name, ue5_config.plugin_name, ue5_config.plugin_name, ue5_config.plugin_name);
+            
+            let module_cpp_path = private_dir.join(format!("{}.cpp", ue5_config.plugin_name));
+            fs::write(&module_cpp_path, module_cpp).map_err(|e| KainError::Io(e))?;
+            println!("      ✓ {}.cpp (runtime module registration)", ue5_config.plugin_name);
+            
+            // Editor module's IMPLEMENT_MODULE comes from @editor_module codegen
+            if has_editor_module {
+                println!("      ✓ @editor_module provides IMPLEMENT_MODULE for {}Editor", ue5_config.plugin_name);
+            } else {
+                // Generate a default editor module registration if no @editor_module exists
+                let editor_module_name = format!("{}Editor", ue5_config.plugin_name);
+                let ed_module_cpp = format!(r#"// Generated by KAIN-PRO - Editor Module Registration
+#include "{}.h"
+#include "Modules/ModuleManager.h"
+
+class F{}Module : public IModuleInterface
+{{
+public:
+    virtual void StartupModule() override
+    {{
+        // Editor module startup
+    }}
+
+    virtual void ShutdownModule() override
+    {{
+        // Editor module shutdown
+    }}
+}};
+
+IMPLEMENT_MODULE(F{}Module, {})
+"#, editor_module_name, editor_module_name, editor_module_name, editor_module_name);
+                
+                let ed_priv = editor_private_dir.as_ref().unwrap();
+                let ed_module_cpp_path = ed_priv.join(format!("{}.cpp", editor_module_name));
+                fs::write(&ed_module_cpp_path, ed_module_cpp).map_err(|e| KainError::Io(e))?;
+                println!("      ✓ {}.cpp (editor module registration)", editor_module_name);
+            }
+        } else if has_editor_module {
+            // SINGLE MODULE: @editor_module provides IMPLEMENT_MODULE
             eprintln!("📦 [PACKAGER] @editor_module detected — skipping default module registration");
-            eprintln!("   (Editor module provides its own IMPLEMENT_MODULE)");
             println!("   ℹ️  @editor_module provides IMPLEMENT_MODULE — skipping default {}.cpp", ue5_config.plugin_name);
         } else {
+            // SINGLE MODULE: Generate default IMPLEMENT_MODULE
             eprintln!("📦 [PACKAGER] Generating module registration file...");
-            // Generate minimal module registration .cpp (only when no @editor_module exists)
             let module_cpp = format!(r#"// Generated by KAIN-PRO - Module Registration
 #include "{}.h"
 #include "Modules/ModuleManager.h"
@@ -1179,7 +1342,6 @@ IMPLEMENT_MODULE(F{}Module, {})
             
             let module_cpp_path = private_dir.join(format!("{}.cpp", ue5_config.plugin_name));
             fs::write(&module_cpp_path, module_cpp).map_err(|e| KainError::Io(e))?;
-            eprintln!("   ✓ [PACKAGER] {}.cpp (IMPLEMENT_MODULE)", ue5_config.plugin_name);
             println!("      ✓ {}.cpp (module registration)", ue5_config.plugin_name);
         }
         
@@ -1205,34 +1367,37 @@ IMPLEMENT_MODULE(F{}Module, {})
         }
     }
     
-    // Check if we have editor items (needed for both .uplugin and .Build.cs)
-    let has_editor_items = typed_program.items.iter().any(|item| {
-        match item {
-            kain_core::types::TypedItem::Struct(s) => {
-                s.ast.attributes.iter().any(|a| 
-                    ue5_editor::is_editor_attribute(&a.name)
-                )
-            }
-            _ => false
-        }
-    });
-    
     // Generate .uplugin file (ALWAYS regenerate to ensure it's up-to-date)
     let uplugin_path = plugin_root.join(format!("{}.uplugin", ue5_config.plugin_name));
     println!();
     println!("📦 Generating .uplugin file...");
-    let uplugin_content = generate_uplugin_file(&ue5_config.plugin_name, &manifest.package.description, has_editor_items);
+    let uplugin_content = generate_uplugin_file(&ue5_config.plugin_name, &manifest.package.description, has_editor_items, needs_split);
     fs::write(&uplugin_path, uplugin_content).map_err(|e| KainError::Io(e))?;
     println!("   ✓ {}.uplugin", ue5_config.plugin_name);
     
-    // Generate .Build.cs file (ALWAYS regenerate to ensure dependencies are up-to-date)
-    let build_cs_path = source_dir.join(format!("{}.Build.cs", ue5_config.plugin_name));
+    // Generate .Build.cs file(s)
     println!();
-    println!("🔨 Generating .Build.cs file...");
+    println!("🔨 Generating .Build.cs file(s)...");
     
-    let build_cs_content = generate_build_cs(&ue5_config.plugin_name, has_editor_items);
-    fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;
-    println!("   ✓ {}.Build.cs", ue5_config.plugin_name);
+    if needs_split {
+        // SPLIT MODE: Two separate .Build.cs files
+        let rt_build_cs_path = source_dir.join(&ue5_config.plugin_name).join(format!("{}.Build.cs", ue5_config.plugin_name));
+        let rt_build_cs = generate_build_cs_runtime(&ue5_config.plugin_name);
+        fs::write(&rt_build_cs_path, rt_build_cs).map_err(|e| KainError::Io(e))?;
+        println!("   ✓ {}.Build.cs (runtime module)", ue5_config.plugin_name);
+        
+        let editor_module_name = format!("{}Editor", ue5_config.plugin_name);
+        let ed_build_cs_path = source_dir.join(&editor_module_name).join(format!("{}.Build.cs", editor_module_name));
+        let ed_build_cs = generate_build_cs_editor(&ue5_config.plugin_name);
+        fs::write(&ed_build_cs_path, ed_build_cs).map_err(|e| KainError::Io(e))?;
+        println!("   ✓ {}.Build.cs (editor module)", editor_module_name);
+    } else {
+        // SINGLE MODULE: One .Build.cs
+        let build_cs_path = source_dir.join(format!("{}.Build.cs", ue5_config.plugin_name));
+        let build_cs_content = generate_build_cs(&ue5_config.plugin_name, has_editor_items);
+        fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;
+        println!("   ✓ {}.Build.cs", ue5_config.plugin_name);
+    }
     
     // PYTHON POST-PROCESSING - Auto-fix edge cases
     println!();
@@ -1348,16 +1513,36 @@ fn extract_shader_names(source: &str) -> KainResult<Vec<String>> {
     }
 }
 
-/// Generate a .uplugin file with correct module type and loading phase
-fn generate_uplugin_file(plugin_name: &str, description: &Option<String>, has_editor_items: bool) -> String {
+/// Generate a .uplugin file with correct module type(s) and loading phase(s)
+fn generate_uplugin_file(plugin_name: &str, description: &Option<String>, has_editor_items: bool, needs_split: bool) -> String {
     let desc = description.as_ref()
         .map(|s| s.as_str())
         .unwrap_or("Generated by KAIN-PRO");
     
-    let (module_type, loading_phase) = if has_editor_items {
-        ("Editor", "PostEngineInit")
+    let modules_json = if needs_split {
+        // Two modules: Runtime + Editor
+        format!(r#"    {{
+      "Name": "{}",
+      "Type": "Runtime",
+      "LoadingPhase": "PostConfigInit"
+    }},
+    {{
+      "Name": "{}Editor",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit"
+    }}"#, plugin_name, plugin_name)
     } else {
-        ("Runtime", "PostConfigInit")
+        // Single module
+        let (module_type, loading_phase) = if has_editor_items {
+            ("Editor", "PostEngineInit")
+        } else {
+            ("Runtime", "PostConfigInit")
+        };
+        format!(r#"    {{
+      "Name": "{}",
+      "Type": "{}",
+      "LoadingPhase": "{}"
+    }}"#, plugin_name, module_type, loading_phase)
     };
     
     format!(r#"{{
@@ -1377,14 +1562,10 @@ fn generate_uplugin_file(plugin_name: &str, description: &Option<String>, has_ed
   "IsExperimentalVersion": false,
   "Installed": false,
   "Modules": [
-    {{
-      "Name": "{}",
-      "Type": "{}",
-      "LoadingPhase": "{}"
-    }}
+{}
   ]
 }}
-"#, plugin_name, desc, plugin_name, module_type, loading_phase)
+"#, plugin_name, desc, modules_json)
 }
 
 /// Generate a .Build.cs file for the UE5 plugin module
@@ -1479,6 +1660,76 @@ public class {0} : ModuleRules
 "#, plugin_name, editor_deps, editor_include_paths)
 }
 
+
+/// Generate a .Build.cs for the RUNTIME module in split mode
+fn generate_build_cs_runtime(plugin_name: &str) -> String {
+    format!(r#"// Generated by KAIN-PRO Compiler — Runtime Module
+using UnrealBuildTool;
+using System.IO;
+
+public class {0} : ModuleRules
+{{
+	public {0}(ReadOnlyTargetRules Target) : base(Target)
+	{{
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{{
+				"Core",
+				"CoreUObject",
+				"Engine",
+				"RenderCore",
+				"RHI",
+				"Renderer",
+				"Projects"
+			}}
+		);
+	}}
+}}
+"#, plugin_name)
+}
+
+/// Generate a .Build.cs for the EDITOR module in split mode
+fn generate_build_cs_editor(plugin_name: &str) -> String {
+    let editor_module_name = format!("{}Editor", plugin_name);
+    format!(r#"// Generated by KAIN-PRO Compiler — Editor Module
+using UnrealBuildTool;
+using System.IO;
+
+public class {0} : ModuleRules
+{{
+	public {0}(ReadOnlyTargetRules Target) : base(Target)
+	{{
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{{
+				"Core",
+				"CoreUObject",
+				"Engine",
+				"{1}"
+			}}
+		);
+
+		PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{{
+				"Slate",
+				"SlateCore",
+				"UnrealEd",
+				"AssetTools",
+				"EditorStyle",
+				"PropertyEditor",
+				"InputCore",
+				"Projects"
+			}}
+		);
+	}}
+}}
+"#, editor_module_name, plugin_name)
+}
 
 /// Run Python post-processor to auto-fix edge cases
 fn run_python_post_processor(plugin_path: &PathBuf, plugin_name: &str) -> KainResult<()> {
