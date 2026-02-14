@@ -29,6 +29,7 @@ pub mod widget_registry;
 pub mod editor_attributes;
 pub mod uht_rules;
 pub mod module_graph;
+pub mod virtual_obligations;
 
 // Re-export commonly used items
 pub use naming::*;
@@ -45,3 +46,4 @@ pub use engine_knowledge::EngineKnowledge;
 pub use editor_attributes::EditorAttributesRegistry;
 pub use uht_rules::UhtRules;
 pub use module_graph::ModuleGraph;
+pub use virtual_obligations::VirtualObligations;

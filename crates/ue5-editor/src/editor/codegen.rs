@@ -43,11 +43,19 @@ pub struct EditorItem {
     pub source: String,
 }
 
-/// Check if an attribute name is an editor attribute
-/// Now queries the EditorAttributesRegistry from Ue5Context
+/// Check if an attribute name is an editor attribute.
+/// Uses EditorAttributesRegistry when available, with a hardcoded fallback
+/// to ensure detection works regardless of CWD (e.g., running from testing/CorpusTest/).
 pub fn is_editor_attribute(name: &str) -> bool {
-    // Create a temporary context to access the registry
-    // This is lightweight since the registry is loaded once at startup
+    // Hardcoded fallback — these MUST always be recognized as editor attributes
+    const BUILTIN_EDITOR_ATTRS: &[&str] = &[
+        "slate", "details", "property_customization", "viewport",
+        "asset_editor", "editor_module", "commands", "toolbar", "menu",
+    ];
+    if BUILTIN_EDITOR_ATTRS.contains(&name) {
+        return true;
+    }
+    // Also check the data-driven registry for any additional attributes
     let ctx = Ue5Context::new("temp", None);
     ctx.editor_attributes.is_editor_attribute(name)
 }
@@ -760,17 +768,46 @@ impl Ue5EditorGen {
         self.write_header("void InitEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset);");
         self.write_header("");
         
-        // FAssetEditorToolkit interface
+        // Methods we provide custom implementations for (use editor_name)
+        let custom_methods: std::collections::HashSet<&str> = [
+            "GetToolkitFName", "GetBaseToolkitName", "GetWorldCentricTabPrefix",
+        ].iter().copied().collect();
+        
+        // FAssetEditorToolkit interface — data-driven from virtual obligations
+        self.write_header("// FAssetEditorToolkit pure virtual overrides");
         self.write_header("virtual FName GetToolkitFName() const override;");
         self.write_header("virtual FText GetBaseToolkitName() const override;");
         self.write_header("virtual FString GetWorldCentricTabPrefix() const override;");
-        self.write_header("virtual FLinearColor GetWorldCentricTabColorScale() const override;");
+        
+        // Auto-generate declarations for remaining obligations from data
+        // (collect first to avoid borrow conflict with self.write_header)
+        let extra_decls: Vec<String> = if self.context.virtual_obligations.has_obligations("FAssetEditorToolkit") {
+            self.context.virtual_obligations.required_method_names("FAssetEditorToolkit")
+                .into_iter()
+                .filter(|m| !custom_methods.contains(m))
+                .filter_map(|m| self.context.virtual_obligations.generate_override_declaration("FAssetEditorToolkit", m))
+                .collect()
+        } else {
+            vec!["virtual FLinearColor GetWorldCentricTabColorScale() const override;".to_string()]
+        };
+        for decl in &extra_decls {
+            self.write_header(decl);
+        }
+        
+        // OnClose is not a pure virtual but we always override it to call Super
         self.write_header("virtual void OnClose() override;");
         self.write_header("");
         
-        // Custom methods from struct
+        // Custom methods from struct (skip any that collide with auto-generated overrides)
+        let auto_generated: std::collections::HashSet<&str> = {
+            let mut set: std::collections::HashSet<&str> = custom_methods.iter().copied().collect();
+            set.insert("OnClose");
+            set
+        };
         for method in &st.ast.methods {
-            self.write_header(&format!("void {}();", method.name));
+            if !auto_generated.contains(method.name.as_str()) {
+                self.write_header(&format!("void {}();", method.name));
+            }
         }
         
         self.pop_indent();
@@ -806,6 +843,7 @@ impl Ue5EditorGen {
         self.write_source(&format!("{}::~{}() {{}}", class_name, class_name));
         self.write_blank_source();
         
+        // Custom implementations that use editor_name
         self.write_source(&format!("FName {}::GetToolkitFName() const", class_name));
         self.write_source("{");
         self.push_indent();
@@ -830,14 +868,23 @@ impl Ue5EditorGen {
         self.write_source("}");
         self.write_blank_source();
         
-        self.write_source(&format!("FLinearColor {}::GetWorldCentricTabColorScale() const", class_name));
-        self.write_source("{");
-        self.push_indent();
-        self.write_source("return FLinearColor::White;");
-        self.pop_indent();
-        self.write_source("}");
-        self.write_blank_source();
+        // Auto-generate definitions for remaining obligations from data
+        // (collect first to avoid borrow conflict with self.write_source)
+        let extra_defs: Vec<String> = if self.context.virtual_obligations.has_obligations("FAssetEditorToolkit") {
+            self.context.virtual_obligations.required_method_names("FAssetEditorToolkit")
+                .into_iter()
+                .filter(|m| !custom_methods.contains(m))
+                .filter_map(|m| self.context.virtual_obligations.generate_override_definition("FAssetEditorToolkit", &class_name, m))
+                .collect()
+        } else {
+            vec![format!("FLinearColor {}::GetWorldCentricTabColorScale() const\n{{\n\treturn FLinearColor::White;\n}}", class_name)]
+        };
+        for def in &extra_defs {
+            self.write_source(def);
+            self.write_blank_source();
+        }
         
+        // OnClose: always override to call Super (not a pure virtual, just good practice)
         self.write_source(&format!("void {}::OnClose()", class_name));
         self.write_source("{");
         self.push_indent();

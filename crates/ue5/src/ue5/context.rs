@@ -14,6 +14,7 @@ use super::editor_attributes::EditorAttributesRegistry;
 use ue5_shaders::ShaderKnowledge;
 use super::uht_rules::UhtRules;
 use super::module_graph::ModuleGraph;
+use super::virtual_obligations::VirtualObligations;
 
 /// Shared compilation context for UE5 code generation
 /// 
@@ -89,6 +90,9 @@ pub struct Ue5Context {
 
     /// Module dependency graph (type→module, header→module, API→module)
     pub module_graph: ModuleGraph,
+
+    /// Virtual method obligations (pure virtual overrides required by base classes)
+    pub virtual_obligations: VirtualObligations,
 }
 
 use super::resolver::StdLibResolver;
@@ -104,6 +108,7 @@ impl Ue5Context {
         let mut shader_knowledge = ShaderKnowledge::new();
         let mut uht_rules = UhtRules::new();
         let mut module_graph = ModuleGraph::new();
+        let mut virtual_obligations = VirtualObligations::new();
         
         // Load all metadata from unreal/metadata/*.json into both systems
         let metadata_dir = std::path::Path::new("unreal/metadata");
@@ -124,6 +129,8 @@ impl Ue5Context {
                                 let _ = uht_rules.load(&data);
                             } else if filename == "module_graph.json" {
                                 let _ = module_graph.load(&data);
+                            } else if filename == "virtual_obligations.json" {
+                                let _ = virtual_obligations.load(&data);
                             } else {
                                 // Feed into EngineKnowledge system
                                 let _ = knowledge.load_metadata(&data);
@@ -164,6 +171,7 @@ impl Ue5Context {
             shader_knowledge,
             uht_rules,
             module_graph,
+            virtual_obligations,
         }
     }
 

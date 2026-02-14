@@ -56,6 +56,7 @@ pub fn map_type_with_knowledge(ty: &Type, config: &TypeMapConfig, kb: Option<&En
                 "Bool" => "bool",
                 "String" => "FString",
                 "Name" => "FName",
+                "Text" => "FText",
                 "Unit" | "()" => "void",
                 
                 // Vectors - configurable precision
