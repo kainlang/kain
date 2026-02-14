@@ -196,11 +196,12 @@ kain build --ue5
 # Run all tests
 cd kain
 cargo test
-# Expected: 61 tests, all passing
+# Expected: 68 tests, all passing (includes 7 new editor_attributes tests)
 
 # Re-extract metadata (if engine version changes)
 python unreal/scripts/corpus_extractor.py "M:\Utility\Unreal-Corpus" --output unreal/metadata
 python unreal/scripts/shader_extractor.py "D:\Unreal\UE_5.7\Engine\Shaders" --output unreal/metadata
+python unreal/scripts/editor_attributes_extractor.py "D:\Unreal\UE_5.7\Engine\Source" --output unreal/metadata
 cargo build --release  # Compiler auto-loads new JSON
 ```
 

@@ -72,8 +72,16 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         super::codegen::generate_monolithic(&layout, ue5_config, &typed_program)?;
     }
     
-    // STEP 5: Write .uplugin and .Build.cs
-    super::codegen::write_plugin_files(&layout, ue5_config, &manifest.package.description)?;
+    // STEP 5: Write .uplugin and .Build.cs (with data-driven module dependency resolution)
+    let has_shaders = !shader_names.is_empty();
+    let mut module_graph = ue5::ue5::module_graph::ModuleGraph::new();
+    let module_graph_path = std::path::Path::new("unreal/metadata/module_graph.json");
+    if module_graph_path.exists() {
+        if let Ok(data) = fs::read_to_string(module_graph_path) {
+            let _ = module_graph.load(&data);
+        }
+    }
+    super::codegen::write_plugin_files(&layout, ue5_config, &manifest.package.description, has_shaders, &module_graph)?;
     
     // STEP 6: Python post-processing
     println!();

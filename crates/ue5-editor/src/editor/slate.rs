@@ -102,7 +102,7 @@ impl WidgetType {
             WidgetType::Canvas => "SCanvas".to_string(),
             WidgetType::Button => "SButton".to_string(),
             WidgetType::CheckBox => "SCheckBox".to_string(),
-            WidgetType::ComboBox => "SComboBox".to_string(),
+            WidgetType::ComboBox => "SComboBox<TSharedPtr<FString>>".to_string(),
             WidgetType::EditableTextBox => "SEditableTextBox".to_string(),
             WidgetType::Slider => "SSlider".to_string(),
             WidgetType::SpinBox => "SSpinBox<float>".to_string(),
@@ -220,6 +220,10 @@ pub struct SlateGenerator {
     /// Map of field names to their resolved C++ types (populated during generate_slate_args)
     /// Used to check delegate type compatibility (e.g. FOnClicked vs FOnTestRun)
     field_type_map: HashMap<String, String>,
+    /// Map of delegate field names to their parameter C++ types
+    /// e.g. "on_category_changed" -> vec!["EEToolCategory"]
+    /// Used by emit_delegate_bridge_or_passthrough to generate correct Broadcast() args
+    delegate_param_map: HashMap<String, Vec<String>>,
 }
 
 impl SlateGenerator {
@@ -233,12 +237,21 @@ impl SlateGenerator {
             context: None,
             struct_field_names: std::collections::HashSet::new(),
             field_type_map: HashMap::new(),
+            delegate_param_map: HashMap::new(),
         }
     }
     
     pub fn with_context(mut self, context: ue5::ue5::Ue5Context) -> Self {
         self.context = Some(context);
         self
+    }
+    
+    /// Register delegate parameter types from the program's type aliases.
+    /// This allows the delegate bridge to generate correct Broadcast() calls
+    /// with default-constructed parameter values when bridging from parameterless
+    /// native delegates (e.g. FOnClicked) to parameterized custom delegates.
+    pub fn register_delegate_params(&mut self, field_name: &str, param_cpp_types: Vec<String>) {
+        self.delegate_param_map.insert(field_name.to_string(), param_cpp_types);
     }
     
     /// Scan for shader_image() calls in Compose to generate brush members
@@ -1144,6 +1157,19 @@ impl SlateGenerator {
                 };
                 format!("({} {} {})", l, op_str, r)
             },
+            Expr::EnumVariant { enum_name, variant, .. } => {
+                // Map KAIN enum name to UE5 C++ enum name (E-prefix)
+                let cpp_enum = if let Some(ref ctx) = self.context {
+                    if ctx.enum_names.contains(enum_name) {
+                        naming::to_enum_name(enum_name)
+                    } else {
+                        enum_name.clone()
+                    }
+                } else {
+                    naming::to_enum_name(enum_name)
+                };
+                format!("{}::{}", cpp_enum, variant)
+            },
             _ => format!("/* unsupported expr: {:?} */", std::mem::discriminant(expr)),
         }
     }
@@ -1228,9 +1254,11 @@ impl SlateGenerator {
         match native {
             // FOnClicked: () -> FReply
             "FOnClicked" => {
+                // Check if the custom delegate has parameters that FOnClicked doesn't provide
+                let broadcast_args = self.get_default_broadcast_args(field_name);
                 self.push_line(&format!(
-                    ".OnClicked(FOnClicked::CreateLambda([=]() -> FReply {{ auto D = {}; D.Broadcast(); return FReply::Handled(); }}))",
-                    formatted_args
+                    ".OnClicked(FOnClicked::CreateLambda([=]() -> FReply {{ auto D = {}; D.Broadcast({}); return FReply::Handled(); }}))",
+                    formatted_args, broadcast_args
                 ));
             }
             // FOnFloatValueChanged: (float) -> void
@@ -1242,9 +1270,11 @@ impl SlateGenerator {
             }
             // FSimpleDelegate: () -> void
             "FSimpleDelegate" => {
+                // Check if the custom delegate has parameters that FSimpleDelegate doesn't provide
+                let broadcast_args = self.get_default_broadcast_args(field_name);
                 self.push_line(&format!(
-                    ".{}(FSimpleDelegate::CreateLambda([=]() {{ auto D = {}; D.Broadcast(); }}))",
-                    property_name, formatted_args
+                    ".{}(FSimpleDelegate::CreateLambda([=]() {{ auto D = {}; D.Broadcast({}); }}))",
+                    property_name, formatted_args, broadcast_args
                 ));
             }
             // FOnTextCommitted: (const FText&, ETextCommit::Type) -> void
@@ -1279,6 +1309,44 @@ impl SlateGenerator {
             _ => {
                 self.push_line(&format!(".{}({})", property_name, formatted_args));
             }
+        }
+    }
+
+    /// Get default-constructed Broadcast() arguments for a delegate field.
+    /// When bridging from a parameterless native delegate (FOnClicked) to a
+    /// parameterized custom delegate (FOnToolExecuted(EToolCategory)), we need
+    /// to call Broadcast with default values for each parameter.
+    fn get_default_broadcast_args(&self, field_name: &str) -> String {
+        if let Some(param_types) = self.delegate_param_map.get(field_name) {
+            if param_types.is_empty() {
+                return String::new();
+            }
+            param_types.iter().map(|t| {
+                // Generate default-constructed value for each C++ type
+                match t.as_str() {
+                    "int32" | "int" => "0".to_string(),
+                    "float" => "0.0f".to_string(),
+                    "double" => "0.0".to_string(),
+                    "bool" => "false".to_string(),
+                    "FString" => "FString()".to_string(),
+                    "FText" => "FText::GetEmpty()".to_string(),
+                    "FName" => "FName()".to_string(),
+                    "FVector" => "FVector::ZeroVector".to_string(),
+                    "FVector2D" => "FVector2D::ZeroVector".to_string(),
+                    "FLinearColor" => "FLinearColor::White".to_string(),
+                    _ => {
+                        // For enum types (E-prefixed) use static_cast from 0
+                        if t.starts_with("E") {
+                            format!("{}(0)", t)
+                        } else {
+                            // Default-construct any other type
+                            format!("{}()", t)
+                        }
+                    }
+                }
+            }).collect::<Vec<_>>().join(", ")
+        } else {
+            String::new()
         }
     }
 

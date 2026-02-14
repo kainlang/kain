@@ -10,8 +10,10 @@ use super::project::BuildFile;
 use crate::ue5::naming::to_module_api;
 use super::engine_knowledge::EngineKnowledge;
 use super::widget_registry::WidgetRegistry;
+use super::editor_attributes::EditorAttributesRegistry;
 use ue5_shaders::ShaderKnowledge;
 use super::uht_rules::UhtRules;
+use super::module_graph::ModuleGraph;
 
 /// Shared compilation context for UE5 code generation
 /// 
@@ -76,11 +78,17 @@ pub struct Ue5Context {
     /// Slate widget registry (properties, events, delegate types)
     pub widget_registry: WidgetRegistry,
 
+    /// Editor attributes registry (attribute definitions, naming conventions, boilerplate)
+    pub editor_attributes: EditorAttributesRegistry,
+
     /// Shader knowledge base (intrinsics, includes, permutations, material properties)
     pub shader_knowledge: ShaderKnowledge,
 
     /// UHT validation rules (specifiers, property types, incompatible combos)
     pub uht_rules: UhtRules,
+
+    /// Module dependency graph (type→module, header→module, API→module)
+    pub module_graph: ModuleGraph,
 }
 
 use super::resolver::StdLibResolver;
@@ -92,8 +100,10 @@ impl Ue5Context {
         let mut resolver = StdLibResolver::new();
         let mut knowledge = EngineKnowledge::new();
         let mut widget_registry = WidgetRegistry::new();
+        let mut editor_attributes = EditorAttributesRegistry::new();
         let mut shader_knowledge = ShaderKnowledge::new();
         let mut uht_rules = UhtRules::new();
+        let mut module_graph = ModuleGraph::new();
         
         // Load all metadata from unreal/metadata/*.json into both systems
         let metadata_dir = std::path::Path::new("unreal/metadata");
@@ -106,10 +116,14 @@ impl Ue5Context {
                             let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
                             if filename == "widget_registry.json" {
                                 let _ = widget_registry.load(&data);
+                            } else if filename == "editor_attributes.json" {
+                                let _ = editor_attributes.load(&data);
                             } else if filename == "shader_knowledge.json" {
                                 let _ = shader_knowledge.load(&data);
                             } else if filename == "uht_rules.json" {
                                 let _ = uht_rules.load(&data);
+                            } else if filename == "module_graph.json" {
+                                let _ = module_graph.load(&data);
                             } else {
                                 // Feed into EngineKnowledge system
                                 let _ = knowledge.load_metadata(&data);
@@ -146,8 +160,10 @@ impl Ue5Context {
             knowledge,
             needed_modules: RefCell::new(HashSet::new()),
             widget_registry,
+            editor_attributes,
             shader_knowledge,
             uht_rules,
+            module_graph,
         }
     }
 

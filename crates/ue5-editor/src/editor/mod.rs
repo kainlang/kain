@@ -27,4 +27,4 @@ pub mod assets;
 pub mod style;
 pub mod reactive;
 
-pub use codegen::{generate, generate_with_context, generate_per_item, Ue5EditorOutput, EditorItem, is_editor_attribute, EDITOR_ATTRIBUTES};
+pub use codegen::{generate, generate_with_context, generate_per_item, Ue5EditorOutput, EditorItem, is_editor_attribute, get_editor_attributes};

@@ -774,11 +774,68 @@ pub fn generate_monolithic(
     Ok(())
 }
 
+/// Compute the extra module dependencies needed for runtime code.
+/// Uses the module graph when available, falls back to feature-based detection.
+fn compute_runtime_deps(has_shaders: bool, module_graph: &ue5::ue5::module_graph::ModuleGraph) -> Vec<String> {
+    let base_modules = ["Core", "CoreUObject", "Engine", "Projects"];
+    
+    if module_graph.is_loaded() {
+        // Data-driven: resolve from module graph based on what the runtime code references
+        let mut apis: Vec<&str> = Vec::new();
+        let mut types: Vec<&str> = Vec::new();
+        
+        if has_shaders {
+            apis.push("AddShaderSourceDirectoryMapping");
+            apis.push("AllShaderSourceDirectoryMappings");
+            apis.push("IMPLEMENT_GLOBAL_SHADER");
+            types.push("FGlobalShader");
+        }
+        
+        module_graph.resolve_deps_for_types(&types, &[], &apis, &base_modules)
+    } else {
+        // Fallback: feature-based (legacy behavior)
+        let mut deps = Vec::new();
+        if has_shaders {
+            deps.extend(["RenderCore", "RHI", "Renderer"].iter().map(|s| s.to_string()));
+        }
+        deps
+    }
+}
+
+/// Compute the extra module dependencies needed for editor code.
+/// Uses the module graph when available, falls back to feature-based detection.
+fn compute_editor_deps(has_shaders: bool, module_graph: &ue5::ue5::module_graph::ModuleGraph) -> (Vec<String>, Vec<String>) {
+    let base_modules = ["Core", "CoreUObject", "Engine"];
+    
+    if module_graph.is_loaded() {
+        // Data-driven: resolve from module graph
+        let mut apis: Vec<&str> = Vec::new();
+        
+        if has_shaders {
+            // Editor module registers shader directories in StartupModule
+            apis.push("AddShaderSourceDirectoryMapping");
+            apis.push("AllShaderSourceDirectoryMappings");
+        }
+        
+        let public_extra = module_graph.resolve_deps_for_types(&[], &[], &apis, &base_modules);
+        (public_extra, Vec::new())
+    } else {
+        // Fallback: feature-based
+        let mut public_extra = Vec::new();
+        if has_shaders {
+            public_extra.extend(["RenderCore", "RHI", "Renderer"].iter().map(|s| s.to_string()));
+        }
+        (public_extra, Vec::new())
+    }
+}
+
 /// Write .uplugin and .Build.cs files.
 pub fn write_plugin_files(
     layout: &PluginLayout,
     config: &Ue5Config,
     description: &Option<String>,
+    has_shaders: bool,
+    module_graph: &ue5::ue5::module_graph::ModuleGraph,
 ) -> KainResult<()> {
     // Generate .uplugin file (ALWAYS regenerate to ensure it's up-to-date)
     let uplugin_path = layout.plugin_root.join(format!("{}.uplugin", config.plugin_name));
@@ -788,28 +845,48 @@ pub fn write_plugin_files(
     fs::write(&uplugin_path, uplugin_content).map_err(|e| KainError::Io(e))?;
     println!("   ✓ {}.uplugin", config.plugin_name);
     
+    if module_graph.is_loaded() {
+        let (mods, types, headers) = module_graph.stats();
+        println!("   📊 Module graph: {} modules, {} types, {} headers", mods, types, headers);
+    }
+    
     // Generate .Build.cs file(s)
     println!();
     println!("🔨 Generating .Build.cs file(s)...");
     
     if layout.needs_split {
         // SPLIT MODE: Two separate .Build.cs files
+        let rt_extra = compute_runtime_deps(has_shaders, module_graph);
         let rt_build_cs_path = layout.source_dir.join(&config.plugin_name).join(format!("{}.Build.cs", config.plugin_name));
-        let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(&config.plugin_name);
+        let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(&config.plugin_name, &rt_extra);
         fs::write(&rt_build_cs_path, rt_build_cs).map_err(|e| KainError::Io(e))?;
-        println!("   ✓ {}.Build.cs (runtime module)", config.plugin_name);
+        if !rt_extra.is_empty() {
+            println!("   ✓ {}.Build.cs (runtime) + auto-resolved: {}", config.plugin_name, rt_extra.join(", "));
+        } else {
+            println!("   ✓ {}.Build.cs (runtime module)", config.plugin_name);
+        }
         
+        let (ed_pub_extra, ed_priv_extra) = compute_editor_deps(has_shaders, module_graph);
         let editor_module_name = format!("{}Editor", config.plugin_name);
         let ed_build_cs_path = layout.source_dir.join(&editor_module_name).join(format!("{}.Build.cs", editor_module_name));
-        let ed_build_cs = super::build_cs_gen::generate_build_cs_editor(&config.plugin_name);
+        let ed_build_cs = super::build_cs_gen::generate_build_cs_editor(&config.plugin_name, &ed_pub_extra, &ed_priv_extra);
         fs::write(&ed_build_cs_path, ed_build_cs).map_err(|e| KainError::Io(e))?;
-        println!("   ✓ {}.Build.cs (editor module)", editor_module_name);
+        if !ed_pub_extra.is_empty() {
+            println!("   ✓ {}.Build.cs (editor) + auto-resolved: {}", editor_module_name, ed_pub_extra.join(", "));
+        } else {
+            println!("   ✓ {}.Build.cs (editor module)", editor_module_name);
+        }
     } else {
         // SINGLE MODULE: One .Build.cs
+        let rt_extra = compute_runtime_deps(has_shaders, module_graph);
         let build_cs_path = layout.source_dir.join(format!("{}.Build.cs", config.plugin_name));
-        let build_cs_content = super::build_cs_gen::generate_build_cs(&config.plugin_name, layout.has_editor_items);
+        let build_cs_content = super::build_cs_gen::generate_build_cs(&config.plugin_name, layout.has_editor_items, &rt_extra, &[]);
         fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;
-        println!("   ✓ {}.Build.cs", config.plugin_name);
+        if !rt_extra.is_empty() {
+            println!("   ✓ {}.Build.cs + auto-resolved: {}", config.plugin_name, rt_extra.join(", "));
+        } else {
+            println!("   ✓ {}.Build.cs", config.plugin_name);
+        }
     }
     
     Ok(())
