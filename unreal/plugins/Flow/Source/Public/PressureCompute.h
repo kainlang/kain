@@ -19,8 +19,6 @@ class FPressureComputeShader : public FGlobalShader
     DECLARE_GLOBAL_SHADER(FPressureComputeShader);
     SHADER_USE_PARAMETER_STRUCT(FPressureComputeShader, FGlobalShader);
 
-    using FPermutationDomain = TShaderPermutationDomain<>;
-
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(float, res)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, pressure_tex)
@@ -34,8 +32,6 @@ class FPressureComputeShader : public FGlobalShader
     static void Exec(FRDGBuilder& GraphBuilder, const FParameters& Parameters, FIntVector GroupCount)
     {
         TShaderMapRef<FPressureComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
-        FPermutationDomain PermutationVector;
 
         FParameters* PassParameters = GraphBuilder.AllocParameters<FParameters>();
         *PassParameters = Parameters;
@@ -51,7 +47,7 @@ class FPressureComputeShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FPressureComputeShader, "/Plugin/YourPlugin/Shaders/PressureCompute.usf", "PressureComputeCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FPressureComputeShader, "/Plugin/YourPlugin/PressureCompute.usf", "PressureComputeCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_PressureCompute(
@@ -60,4 +56,5 @@ void AddPass_PressureCompute(
     FRDGTextureRef pressure_tex,
     FRDGTextureRef divergence_tex,
     FRDGTextureRef OutputTexture,
-    FIntVector GroupCount = FIntVector(32, 32, 1));
+    FIntVector GroupCount = FIntVector(32, 32, 1)
+);

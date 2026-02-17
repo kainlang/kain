@@ -22,7 +22,7 @@ void AdvectionComputeCS(uint3 ThreadId : SV_DispatchThreadID)
 {
     // Safe Texture Load Pattern
     int3 TexCoord = int3(ThreadId.xy, 0);
-    float3 uvw = float3((id.x / res), (id.y / res), (id.z / res));
+    float3 uvw = float3((ThreadId.x / res), (ThreadId.y / res), (ThreadId.z / res));
     float3 velocity = velocity_tex.Sample(velocity_texSampler, uvw).xyz;
     float3 back_uvw = (uvw - (((velocity * dt) / res)));
     float4 advected = target_tex.Sample(target_texSampler, back_uvw);

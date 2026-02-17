@@ -19,8 +19,6 @@ class FVorticityComputeShader : public FGlobalShader
     DECLARE_GLOBAL_SHADER(FVorticityComputeShader);
     SHADER_USE_PARAMETER_STRUCT(FVorticityComputeShader, FGlobalShader);
 
-    using FPermutationDomain = TShaderPermutationDomain<>;
-
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(float, curl_strength)
         SHADER_PARAMETER(float, res)
@@ -33,8 +31,6 @@ class FVorticityComputeShader : public FGlobalShader
     static void Exec(FRDGBuilder& GraphBuilder, const FParameters& Parameters, FIntVector GroupCount)
     {
         TShaderMapRef<FVorticityComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
-        FPermutationDomain PermutationVector;
 
         FParameters* PassParameters = GraphBuilder.AllocParameters<FParameters>();
         *PassParameters = Parameters;
@@ -50,7 +46,7 @@ class FVorticityComputeShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FVorticityComputeShader, "/Plugin/YourPlugin/Shaders/VorticityCompute.usf", "VorticityComputeCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FVorticityComputeShader, "/Plugin/YourPlugin/VorticityCompute.usf", "VorticityComputeCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_VorticityCompute(
@@ -59,4 +55,5 @@ void AddPass_VorticityCompute(
     float res,
     FRDGTextureRef velocity_tex,
     FRDGTextureRef OutputTexture,
-    FIntVector GroupCount = FIntVector(32, 32, 1));
+    FIntVector GroupCount = FIntVector(32, 32, 1)
+);

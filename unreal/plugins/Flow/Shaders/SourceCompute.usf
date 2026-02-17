@@ -22,12 +22,12 @@ void SourceComputeCS(uint3 ThreadId : SV_DispatchThreadID)
 {
     // Safe Texture Load Pattern
     int3 TexCoord = int3(ThreadId.xy, 0);
-    float3 uvw = float3((id.x / res), (id.y / res), (id.z / res));
+    float3 uvw = float3((ThreadId.x / res), (ThreadId.y / res), (ThreadId.z / res));
     float dist = length((uvw - source_pos));
     float4 current = target_tex.Sample(target_texSampler, uvw);
     if ((dist < radius))
     {
-        float4 influence = smoothstep(radius, 0.000000, dist);
+        float influence = smoothstep(radius, 0.000000, dist);
         if ((is_velocity > 0.500000))
         {
             current = (current + float4((source_val * influence), 0.000000));

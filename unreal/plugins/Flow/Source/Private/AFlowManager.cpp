@@ -69,12 +69,12 @@ void AFlowManager::Tick(float DeltaTime)
 			FRDGTextureRef VelocityInput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_A : VelocityRT_B, TEXT("VelIn")));
 			FRDGTextureRef VelocityOutput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_B : VelocityRT_A, TEXT("VelOut")));
 
-			AddPass_AdvectionCompute(GraphBuilder, this->time_step, this->resolution, 0.0f, VelocityInput, nullptr, nullptr);
-			AddPass_VorticityCompute(GraphBuilder, 0.0f, this->resolution, VelocityInput, nullptr);
-			AddPass_DivergenceCompute(GraphBuilder, this->resolution, VelocityInput, nullptr);
-			AddPass_PressureCompute(GraphBuilder, this->resolution, nullptr, nullptr, nullptr);
-			AddPass_GradientCompute(GraphBuilder, this->resolution, VelocityInput, nullptr, nullptr);
-			AddPass_SourceCompute(GraphBuilder, FVector3f(0.0f, 0.0f, 0.0f), FVector3f(0.0f, 0.0f, 0.0f), 0.0f, this->resolution, 0.0f, nullptr, nullptr);
+			AddPass_AdvectionCompute(GraphBuilder, this->time_step, this->resolution, 0.0f, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_VorticityCompute(GraphBuilder, 0.0f, this->resolution, VelocityInput, LightsRT, FIntVector(32, 32, 1));
+			AddPass_DivergenceCompute(GraphBuilder, this->resolution, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_PressureCompute(GraphBuilder, this->resolution, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_GradientCompute(GraphBuilder, this->resolution, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_SourceCompute(GraphBuilder, FVector3f(0.0f, 0.0f, 0.0f), FVector3f(0.0f, 0.0f, 0.0f), 0.0f, this->resolution, 0.0f, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
 
 			GraphBuilder.Execute();
 		}
@@ -127,23 +127,3 @@ void AFlowManager::Tick(float DeltaTime)
 		vorticity_confinement = profile.vorticity_strength;
 	}
 
-
-	// Module implementation
-	// Shader directory registration is handled by static initializers in shader .cpp files
-
-	class FAFlowManagerModule : public IModuleInterface
-	{
-	public:
-		virtual void StartupModule() override
-		{
-			// Shader directory mapping is registered by static initializers
-			// in each shader .cpp file before IMPLEMENT_GLOBAL_SHADER runs
-		}
-
-		virtual void ShutdownModule() override
-		{
-			// Cleanup if needed
-		}
-	};
-
-	IMPLEMENT_MODULE(FAFlowManagerModule, AFlowManager)

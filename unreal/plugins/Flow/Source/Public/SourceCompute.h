@@ -19,8 +19,6 @@ class FSourceComputeShader : public FGlobalShader
     DECLARE_GLOBAL_SHADER(FSourceComputeShader);
     SHADER_USE_PARAMETER_STRUCT(FSourceComputeShader, FGlobalShader);
 
-    using FPermutationDomain = TShaderPermutationDomain<>;
-
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector3f, source_pos)
         SHADER_PARAMETER(FVector3f, source_val)
@@ -37,8 +35,6 @@ class FSourceComputeShader : public FGlobalShader
     {
         TShaderMapRef<FSourceComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-        FPermutationDomain PermutationVector;
-
         FParameters* PassParameters = GraphBuilder.AllocParameters<FParameters>();
         *PassParameters = Parameters;
 
@@ -53,7 +49,7 @@ class FSourceComputeShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FSourceComputeShader, "/Plugin/YourPlugin/Shaders/SourceCompute.usf", "SourceComputeCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FSourceComputeShader, "/Plugin/YourPlugin/SourceCompute.usf", "SourceComputeCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_SourceCompute(
@@ -65,4 +61,5 @@ void AddPass_SourceCompute(
     float is_velocity,
     FRDGTextureRef target_tex,
     FRDGTextureRef OutputTexture,
-    FIntVector GroupCount = FIntVector(32, 32, 1));
+    FIntVector GroupCount = FIntVector(32, 32, 1)
+);

@@ -19,8 +19,6 @@ class FGradientComputeShader : public FGlobalShader
     DECLARE_GLOBAL_SHADER(FGradientComputeShader);
     SHADER_USE_PARAMETER_STRUCT(FGradientComputeShader, FGlobalShader);
 
-    using FPermutationDomain = TShaderPermutationDomain<>;
-
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(float, res)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_tex)
@@ -34,8 +32,6 @@ class FGradientComputeShader : public FGlobalShader
     static void Exec(FRDGBuilder& GraphBuilder, const FParameters& Parameters, FIntVector GroupCount)
     {
         TShaderMapRef<FGradientComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
-        FPermutationDomain PermutationVector;
 
         FParameters* PassParameters = GraphBuilder.AllocParameters<FParameters>();
         *PassParameters = Parameters;
@@ -51,7 +47,7 @@ class FGradientComputeShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FGradientComputeShader, "/Plugin/YourPlugin/Shaders/GradientCompute.usf", "GradientComputeCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FGradientComputeShader, "/Plugin/YourPlugin/GradientCompute.usf", "GradientComputeCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_GradientCompute(
@@ -60,4 +56,5 @@ void AddPass_GradientCompute(
     FRDGTextureRef velocity_tex,
     FRDGTextureRef pressure_tex,
     FRDGTextureRef OutputTexture,
-    FIntVector GroupCount = FIntVector(32, 32, 1));
+    FIntVector GroupCount = FIntVector(32, 32, 1)
+);

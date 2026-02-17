@@ -20,7 +20,7 @@ void VorticityComputeCS(uint3 ThreadId : SV_DispatchThreadID)
     // Safe Texture Load Pattern
     int3 TexCoord = int3(ThreadId.xy, 0);
     float step = (1.000000 / res);
-    float3 uvw = float3((id.x / res), (id.y / res), (id.z / res));
+    float3 uvw = float3((ThreadId.x / res), (ThreadId.y / res), (ThreadId.z / res));
     float3 vL = velocity_tex.Sample(velocity_texSampler, (uvw - float3(step, 0, 0))).xyz;
     float3 vR = velocity_tex.Sample(velocity_texSampler, (uvw + float3(step, 0, 0))).xyz;
     float3 vB = velocity_tex.Sample(velocity_texSampler, (uvw - float3(0, step, 0))).xyz;

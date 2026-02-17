@@ -19,8 +19,6 @@ class FAdvectionComputeShader : public FGlobalShader
     DECLARE_GLOBAL_SHADER(FAdvectionComputeShader);
     SHADER_USE_PARAMETER_STRUCT(FAdvectionComputeShader, FGlobalShader);
 
-    using FPermutationDomain = TShaderPermutationDomain<>;
-
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(float, dt)
         SHADER_PARAMETER(float, res)
@@ -37,8 +35,6 @@ class FAdvectionComputeShader : public FGlobalShader
     {
         TShaderMapRef<FAdvectionComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-        FPermutationDomain PermutationVector;
-
         FParameters* PassParameters = GraphBuilder.AllocParameters<FParameters>();
         *PassParameters = Parameters;
 
@@ -53,7 +49,7 @@ class FAdvectionComputeShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FAdvectionComputeShader, "/Plugin/YourPlugin/Shaders/AdvectionCompute.usf", "AdvectionComputeCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FAdvectionComputeShader, "/Plugin/YourPlugin/AdvectionCompute.usf", "AdvectionComputeCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_AdvectionCompute(
@@ -64,4 +60,5 @@ void AddPass_AdvectionCompute(
     FRDGTextureRef velocity_tex,
     FRDGTextureRef target_tex,
     FRDGTextureRef OutputTexture,
-    FIntVector GroupCount = FIntVector(32, 32, 1));
+    FIntVector GroupCount = FIntVector(32, 32, 1)
+);

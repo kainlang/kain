@@ -8,12 +8,6 @@
 #include "RenderGraphUtils.h"
 #include "RenderTargetPool.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "AdvectionCompute.h"
-#include "VorticityCompute.h"
-#include "DivergenceCompute.h"
-#include "PressureCompute.h"
-#include "GradientCompute.h"
-#include "SourceCompute.h"
 
 		FFluidSimulationProfile UKainFlowBlueprintLibraryFunctionLibrary::create_default_profile()
 		{
@@ -26,23 +20,3 @@
 			return p;
 		}
 
-
-// Module implementation
-// Shader directory registration is handled by static initializers in shader .cpp files
-
-class FKainFlowBlueprintLibraryModule : public IModuleInterface
-{
-public:
-	virtual void StartupModule() override
-	{
-		// Shader directory mapping is registered by static initializers
-		// in each shader .cpp file before IMPLEMENT_GLOBAL_SHADER runs
-	}
-
-	virtual void ShutdownModule() override
-	{
-		// Cleanup if needed
-	}
-};
-
-IMPLEMENT_MODULE(FKainFlowBlueprintLibraryModule, KainFlowBlueprintLibrary)
