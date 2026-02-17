@@ -1,0 +1,232 @@
+// ============================================================================
+// COMPLEX RENDERING TEST - Edge Cases & Stress Test
+// ============================================================================
+// Tests: Multiple actors, multiple shaders, partial matches, type conversions
+// ============================================================================
+
+// Enums for configuration
+enum RenderQuality:
+    Low
+    Medium
+    High
+    Ultra
+
+enum BlendMode:
+    Opaque
+    Masked
+    Translucent
+    Additive
+
+// ============================================================================
+// ACTOR 1: Perfect Match - All parameters match shader
+// ============================================================================
+actor WaterSurfaceActor:
+    // These match the WaterSurface shader uniforms exactly
+    state wave_amplitude: Float = 0.5
+    state wave_frequency: Float = 2.0
+    state wave_speed: Float = 1.0
+    state water_color: Vec3 = vec3(0.0, 0.3, 0.6)
+    state foam_color: Vec3 = vec3(1.0, 1.0, 1.0)
+    state time_scale: Float = 1.0
+    
+    on BeginPlay():
+        println("Water surface initialized")
+
+// ============================================================================
+// ACTOR 2: Partial Match - Some parameters match, some don't
+// ============================================================================
+actor FireEffectActor:
+    // These match FireEffect shader
+    state fire_intensity: Float = 1.0
+    state fire_color: Vec3 = vec3(1.0, 0.5, 0.0)
+    
+    // These DON'T match any shader uniform (should be ignored)
+    state particle_count: Int = 100
+    state emitter_radius: Float = 5.0
+    state quality: RenderQuality = RenderQuality::High
+    
+    // This matches but different naming style
+    state NoiseScale: Float = 0.1  // Should match noise_scale
+    
+    on BeginPlay():
+        println("Fire effect started")
+    
+    on Server_SetIntensity(new_intensity: Float):
+        fire_intensity = new_intensity
+
+// ============================================================================
+// ACTOR 3: Type Conversion Test - Vec2, Vec3, Vec4
+// ============================================================================
+actor HologramActor:
+    // Different vector types
+    state uv_offset: Vec2 = vec2(0.0, 0.0)
+    state hologram_color: Vec3 = vec3(0.0, 1.0, 1.0)
+    state color_modulation: Vec4 = vec4(1.0, 1.0, 1.0, 0.5)
+    
+    // Scalar types
+    state glitch_intensity: Float = 0.2
+    state scan_line_count: Int = 50
+    state flicker_speed: Float = 5.0
+    
+    on Tick():
+        // Custom tick logic
+        glitch_intensity = glitch_intensity + 0.01
+
+// ============================================================================
+// ACTOR 4: No Matching Shader - Should work normally without shader dispatch
+// ============================================================================
+actor GameManagerActor:
+    state player_count: Int = 0
+    state game_time: Float = 0.0
+    state is_paused: Bool = false
+    
+    on BeginPlay():
+        println("Game manager initialized")
+    
+    on Server_PauseGame():
+        is_paused = true
+        Multicast_BroadcastPause()
+    
+    on Multicast_BroadcastPause():
+        println("Game paused")
+
+// ============================================================================
+// ACTOR 5: Naming Variations - Test underscore/camelCase matching
+// ============================================================================
+actor ParticleSystemActor:
+    // Various naming styles that should match shader uniforms
+    state ParticleSize: Float = 1.0        // Should match particle_size
+    state particle_velocity: Float = 10.0  // Should match particle_velocity
+    state LifeTime: Float = 5.0            // Should match life_time
+    state fadeDistance: Float = 100.0      // Should match fade_distance
+    state ColorTint: Vec3 = vec3(1.0, 1.0, 1.0)  // Should match color_tint
+
+// ============================================================================
+// SHADER 1: Water Surface - Matches WaterSurfaceActor perfectly
+// ============================================================================
+shader fragment WaterSurface(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform wave_amplitude: Float @0
+    uniform wave_frequency: Float @1
+    uniform wave_speed: Float @2
+    uniform water_color: Vec3 @3
+    uniform foam_color: Vec3 @4
+    uniform time_scale: Float @5
+    
+    // Animated water waves
+    let time = 0.0  // Would come from game time
+    let wave1 = sin(uv.x * wave_frequency + time * wave_speed) * wave_amplitude
+    let wave2 = cos(uv.y * wave_frequency * 0.7 + time * wave_speed * 0.8) * wave_amplitude * 0.5
+    let wave_height = wave1 + wave2
+    
+    // Foam at wave peaks
+    let foam_factor = max(0.0, wave_height - 0.3) * 2.0
+    let final_color = water_color * (1.0 - foam_factor) + foam_color * foam_factor
+    
+    return vec4(final_color, 1.0)
+
+// ============================================================================
+// SHADER 2: Fire Effect - Partial match with FireEffectActor
+// ============================================================================
+shader fragment FireEffect(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform fire_intensity: Float @0
+    uniform fire_color: Vec3 @1
+    uniform noise_scale: Float @2
+    uniform turbulence: Float @3  // No matching actor state - should use default
+    uniform time: Float @4         // No matching actor state - should use default
+    
+    // Procedural fire using noise
+    let noise_coord = world_pos * noise_scale + vec3(0.0, time, 0.0)
+    let noise1 = sin(noise_coord.x) * cos(noise_coord.y)
+    let noise2 = sin(noise_coord.y * 2.0) * cos(noise_coord.z * 2.0)
+    let fire_noise = (noise1 + noise2) * 0.5 + 0.5
+    
+    // Apply turbulence
+    let turbulent_noise = pow(fire_noise, 1.0 + turbulence)
+    
+    // Fire gradient
+    let fire_gradient = fire_color * turbulent_noise * fire_intensity
+    let alpha = turbulent_noise * fire_intensity
+    
+    return vec4(fire_gradient, alpha)
+
+// ============================================================================
+// SHADER 3: Hologram - Tests Vec2, Vec3, Vec4 conversions
+// ============================================================================
+shader fragment Hologram(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform uv_offset: Vec2 @0
+    uniform hologram_color: Vec3 @1
+    uniform color_modulation: Vec4 @2
+    uniform glitch_intensity: Float @3
+    uniform scan_line_count: Float @4  // Int -> Float conversion
+    uniform flicker_speed: Float @5
+    
+    // Offset UVs
+    let offset_uv = uv + uv_offset
+    
+    // Scan lines
+    let scan_line = sin(offset_uv.y * scan_line_count * 3.14159) * 0.5 + 0.5
+    
+    // Glitch effect
+    let glitch = sin(offset_uv.x * 100.0) * glitch_intensity
+    let glitched_uv = vec2(offset_uv.x + glitch, offset_uv.y)
+    
+    // Flicker
+    let flicker = sin(0.0 * flicker_speed) * 0.1 + 0.9  // time would be passed
+    
+    // Combine effects
+    let base_color = vec4(hologram_color, 1.0) * color_modulation
+    let final_color = base_color * scan_line * flicker
+    
+    return final_color
+
+// ============================================================================
+// SHADER 4: Particle System - Tests naming variation matching
+// ============================================================================
+shader fragment ParticleSystem(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform particle_size: Float @0
+    uniform particle_velocity: Float @1
+    uniform life_time: Float @2
+    uniform fade_distance: Float @3
+    uniform color_tint: Vec3 @4
+    
+    // Simple particle rendering
+    let center_dist = length(uv - vec2(0.5, 0.5))
+    let particle_alpha = 1.0 - (center_dist / particle_size)
+    
+    // Fade based on distance
+    let distance_fade = 1.0 - min(1.0, length(world_pos) / fade_distance)
+    
+    let final_alpha = particle_alpha * distance_fade
+    let final_color = vec4(color_tint, final_alpha)
+    
+    return final_color
+
+// ============================================================================
+// SHADER 5: Orphan Shader - No matching actor (should still compile)
+// ============================================================================
+shader fragment OrphanShader(uv: Vec2) -> Vec4:
+    uniform orphan_param1: Float @0
+    uniform orphan_param2: Vec3 @1
+    uniform orphan_param3: Vec4 @2
+    
+    return vec4(orphan_param2, 1.0)
+
+// ============================================================================
+// Blueprint Utilities
+// ============================================================================
+@blueprint
+fn calculate_wave_height(amplitude: Float, frequency: Float, time: Float) -> Float:
+    return amplitude * sin(frequency * time)
+
+@blueprint
+fn blend_colors(color1: Vec3, color2: Vec3, factor: Float) -> Vec3:
+    return color1 * (1.0 - factor) + color2 * factor
+
+@blueprint
+fn get_quality_multiplier(quality: RenderQuality) -> Float:
+    match quality:
+        RenderQuality::Low => 0.5
+        RenderQuality::Medium => 1.0
+        RenderQuality::High => 1.5
+        RenderQuality::Ultra => 2.0
+        _ => 1.0

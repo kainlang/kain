@@ -1,0 +1,226 @@
+// KClonerPro - Main Actor
+// The core cloning system actor
+
+@uclass("Blueprintable", "BlueprintType", "Category=KClonerPro")
+actor KClonerActor:
+    // === STATE ===
+    
+    @category("KCloner|Source")
+    @display_name("Source Mesh")
+    state source_mesh: StaticMesh = null
+    
+    @category("KCloner|Source")
+    @display_name("Source Skeletal Mesh")
+    state source_skeletal_mesh: SkeletalMesh = null
+    
+    @category("KCloner|Distribution")
+    state distribution: DistributionParams = DistributionParams()
+    
+    @category("KCloner|Mode")
+    state current_mode: ClonerMode = ClonerMode::Grid
+    
+    @category("KCloner|State")
+    state instance_count: Int = 100
+    
+    @category("KCloner|State")
+    state is_animating: Bool = false
+    
+    @category("KCloner|Runtime")
+    @transient
+    state cached_instances: Array<InstanceCache> = []
+    
+    @category("KCloner|Runtime")
+    @transient
+    state base_transforms: Array<CloneTransform> = []
+    
+    @category("KCloner|Events")
+    @blueprint_assignable
+    state on_cloner_rebuilt: OnClonerRebuilt = OnClonerRebuilt()
+    
+    @category("KCloner|Events")
+    @blueprint_assignable
+    state on_cloner_updated: OnClonerUpdated = OnClonerUpdated()
+    
+    @category("KCloner|Events")
+    @blueprint_assignable
+    state on_clone_interacted: OnCloneInteracted = OnCloneInteracted()
+    
+    // === INLINE GETTERS (Zero overhead) ===
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    @inline
+    fn GetInstanceCount() -> Int:
+        return instance_count
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    @inline
+    fn IsAnimating() -> Bool:
+        return is_animating
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    @inline
+    fn GetCurrentMode() -> ClonerMode:
+        return current_mode
+    
+    // === CORE METHODS ===
+    
+    @blueprint_callable
+    @category("KCloner|Control")
+    fn ForceRebuild():
+        println("Rebuilding cloner with {instance_count} instances")
+        is_animating = false
+    
+    @blueprint_callable
+    @category("KCloner|Control")
+    fn SetInstanceCount(count: Int):
+        if count > 0:
+            instance_count = count
+            println("Instance count set to {count}")
+    
+    @blueprint_callable
+    @category("KCloner|Control")
+    fn SetClonerMode(mode: ClonerMode):
+        current_mode = mode
+        println("Cloner mode changed")
+    
+    // === ANIMATION METHODS ===
+    
+    @blueprint_callable
+    @category("KCloner|Animation")
+    fn PlayClonerMontage(montage: AnimMontage, play_rate: Float = 1.0, start_section: Name = "None"):
+        if source_skeletal_mesh != null:
+            is_animating = true
+            println("Playing montage at rate {play_rate}")
+    
+    @blueprint_callable
+    @category("KCloner|Animation")
+    fn StopClonerAnimation(immediate: Bool = false):
+        is_animating = false
+        if immediate:
+            println("Animation stopped immediately")
+        else:
+            println("Animation stopped with blend")
+    
+    @blueprint_callable
+    @category("KCloner|Animation")
+    fn SetAnimationSpeed(speed: Float = 1.0):
+        println("Animation speed set to {speed}")
+    
+    // === QUERY METHODS ===
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    fn GetCloneTransform(index: Int) -> Transform:
+        println("Getting transform for clone {index}")
+        return Transform()
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    fn GetCloneLocation(index: Int) -> Vec3:
+        println("Getting location for clone {index}")
+        return Vec3()
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    fn GetNearestCloneIndex(world_location: Vec3) -> Int:
+        println("Finding nearest clone to location")
+        return 0
+    
+    @blueprint_callable
+    @category("KCloner|Query")
+    fn GetAllCloneTransforms() -> Array<Transform>:
+        println("Getting all clone transforms")
+        return []
+    
+    @blueprint_pure
+    @category("KCloner|Query")
+    fn GetEffectorInfluenceAtLocation(world_location: Vec3) -> Float:
+        return 0.0
+    
+    // === MODIFIER MANAGEMENT ===
+    
+    @blueprint_callable
+    @category("KCloner|Modifiers")
+    @meta("DeterminesOutputType=ModifierClass")
+    fn AddModifierOfClass(modifier_class: Class) -> Object:
+        println("Adding modifier of class")
+        return null
+    
+    @blueprint_callable
+    @category("KCloner|Modifiers")
+    fn RemoveModifier(modifier: Object) -> Bool:
+        println("Removing modifier")
+        return true
+    
+    @blueprint_callable
+    @category("KCloner|Modifiers")
+    fn ClearAllModifiers():
+        println("Clearing all modifiers")
+    
+    @blueprint_callable
+    @category("KCloner|Modifiers")
+    fn SetModifierEnabled(index: Int, enabled: Bool):
+        println("Setting modifier {index} enabled: {enabled}")
+    
+    @blueprint_pure
+    @category("KCloner|Modifiers")
+    @inline
+    fn GetModifierCount() -> Int:
+        return 0
+    
+    // === CLONE VISIBILITY CONTROL ===
+    
+    @blueprint_callable
+    @category("KCloner|Control")
+    fn SetCloneVisible(index: Int, visible: Bool):
+        println("Setting clone {index} visible: {visible}")
+    
+    @blueprint_callable
+    @category("KCloner|Control")
+    fn HideAllClones():
+        println("Hiding all clones")
+    
+    @blueprint_callable
+    @category("KCloner|Control")
+    fn ShowAllClones():
+        println("Showing all clones")
+    
+    // === PRESET MANAGEMENT ===
+    
+    @blueprint_callable
+    @category("KCloner|Presets")
+    fn ApplyPreset(preset: Object):
+        println("Applying preset")
+    
+    @blueprint_callable
+    @category("KCloner|Presets")
+    fn SaveAsPreset(preset_name: String) -> Object:
+        println("Saving preset: {preset_name}")
+        return null
+    
+    // === RPC METHODS ===
+    
+    on Server_RequestRebuild():
+        if instance_count > 0:
+            Multicast_AnnounceRebuild()
+    
+    on Multicast_AnnounceRebuild():
+        println("Cloner rebuilding on all clients")
+    
+    on Client_UpdateInstanceCount(count: Int):
+        instance_count = count
+        println("Instance count updated to {count}")
+    
+    // === LIFECYCLE ===
+    
+    on BeginPlay():
+        println("KClonerActor initialized")
+        instance_count = 100
+        is_animating = false
+    
+    on Tick(delta_time: Float):
+        if is_animating:
+            println("Updating animation")

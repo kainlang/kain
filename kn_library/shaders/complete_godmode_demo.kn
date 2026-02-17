@@ -1,0 +1,80 @@
+// COMPLETE GODMODE DEMO - All 4 Phases in Action!
+// Phase 1: Surface Interface (use surface stage for materials)
+// Phase 2: Permutation Engine (CFG_ variables)
+// Phase 3: C++ Reflection Header (auto-generated .h file)
+// Phase 4: Resource Packer (optimal interpolator packing)
+
+// Vertex Shader - Demonstrates Phase 4 (Packing)
+shader vertex CompleteVert(position: Vec3, uv: Vec2, normal: Vec3, tangent: Vec3, color: Vec4) -> Vec4:
+    uniform mvp: Mat4 @0
+    uniform model: Mat4 @1
+    
+    // Transform position
+    let world_pos = model * vec4(position, 1.0)
+    let clip_pos = mvp * world_pos
+    
+    // These will be PACKED into minimal registers automatically!
+    // position (vec3) + uv (vec2) + normal (vec3) + tangent (vec3) + color (vec4)
+    // = 15 components total
+    // Naive: 5 registers (20 components, 5 wasted)
+    // Packed: 4 registers (16 components, 1 wasted) - 80% efficiency!
+    
+    return clip_pos
+
+// Fragment Shader - Demonstrates ALL Phases
+shader fragment CompleteFrag(position: Vec3, uv: Vec2, normal: Vec3, tangent: Vec3, color: Vec4) -> Vec4:
+    // Phase 3: All these uniforms will generate perfect C++ bindings
+    uniform time: Float @2
+    uniform roughness: Float @3
+    uniform metallic: Float @4
+    
+    // Textures
+    uniform albedo_map: Sampler2D @5
+    uniform normal_map: Sampler2D @6
+    
+    // Phase 2: Permutation variables (compile-time switches)
+    uniform CFG_USE_TEXTURES: Float @7
+    uniform CFG_USE_NORMAL_MAPPING: Float @8
+    uniform ENABLE_ANIMATION: Float @9
+    uniform USE_VERTEX_COLORS: Float @10
+    
+    // Phase 4: These inputs are automatically unpacked from packed registers
+    var base_color = vec3(0.5, 0.5, 0.5)
+    
+    // Phase 2: Permutation - Texture sampling (becomes #ifdef)
+    if CFG_USE_TEXTURES:
+        base_color = sample(albedo_map, uv).rgb
+    
+    // Phase 2: Permutation - Vertex colors (becomes #ifdef)
+    if USE_VERTEX_COLORS:
+        base_color = base_color * color.rgb
+    
+    // Phase 2: Permutation - Animation (becomes #ifdef with #else)
+    if ENABLE_ANIMATION:
+        let wave = sin(time + uv.x * 10.0) * 0.5 + 0.5
+        base_color = base_color * wave
+    else:
+        base_color = base_color * 0.9
+    
+    // Phase 2: Permutation - Normal mapping (becomes #ifdef)
+    var final_normal = normal
+    if CFG_USE_NORMAL_MAPPING:
+        let normal_sample = sample(normal_map, uv).rgb
+        let unpacked = normal_sample * 2.0 - 1.0
+        
+        // Build TBN matrix
+        let N = normalize(normal)
+        let T = normalize(tangent)
+        let B = cross(N, T)
+        
+        final_normal = normalize(unpacked.x * T + unpacked.y * B + unpacked.z * N)
+    
+    // Simple lighting
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let ndotl = max(dot(final_normal, light_dir), 0.0)
+    
+    // Apply material properties
+    let lit_color = base_color * ndotl
+    let final_color = lit_color * (1.0 - roughness * 0.5)
+    
+    return vec4(final_color, 1.0)

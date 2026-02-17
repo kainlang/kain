@@ -1,0 +1,68 @@
+// Phase 3: Default Parameters & NAME_None Test
+
+enum AnimationMode:
+    Loop
+    Once
+    PingPong
+
+actor AnimationController:
+    state current_anim: String = "Idle"
+    state is_playing: Bool = false
+    
+    // Default parameter: play_rate = 1.0
+    @blueprint_callable
+    @category("Animation|Playback")
+    fn PlayAnimation(anim_name: String, play_rate: Float = 1.0):
+        current_anim = anim_name
+        is_playing = true
+        println("Playing {anim_name} at rate {play_rate}")
+    
+    // Default parameter: start_section = "None" (becomes NAME_None)
+    @blueprint_callable
+    @category("Animation|Montage")
+    fn PlayMontage(montage: AnimMontage, play_rate: Float = 1.0, start_section: Name = "None"):
+        println("Playing montage at rate {play_rate}")
+    
+    // Multiple default parameters
+    @blueprint_callable
+    @category("Animation|Control")
+    fn SetAnimationMode(mode: AnimationMode = AnimationMode::Loop, speed: Float = 1.0, blend_time: Float = 0.25):
+        println("Setting animation mode")
+    
+    // Default bool parameter
+    @blueprint_callable
+    @category("Animation|Control")
+    fn StopAnimation(immediate: Bool = false):
+        is_playing = false
+        if immediate:
+            println("Stopped immediately")
+        else:
+            println("Stopped with blend")
+    
+    // Default null parameter
+    @blueprint_callable
+    @category("Animation|Advanced")
+    fn PlayWithCallback(anim_name: String, callback: Object = null):
+        println("Playing with callback")
+    
+    // Pure method with inline body
+    @blueprint_pure
+    @category("Animation|Query")
+    @inline
+    fn IsPlaying() -> Bool:
+        return is_playing
+    
+    @blueprint_pure
+    @category("Animation|Query")
+    @inline
+    fn GetCurrentAnimation() -> String:
+        return current_anim
+
+// Test NAME_None constant in different contexts
+@blueprint
+fn test_name_none(section_name: Name = "None") -> Name:
+    return section_name
+
+@blueprint
+fn create_animation_params(anim: String, section: Name = "None", rate: Float = 1.0):
+    println("Animation: {anim}, Section: {section}, Rate: {rate}")

@@ -1,0 +1,290 @@
+# ============================================================================
+# VOLUMETRIC EFFECTS - Shader Test Suite
+# ============================================================================
+# Separate shader tests for volumetric fog and clouds
+# Spawns as actors in the world with tweakable parameters
+# Tests corpus-driven shader intrinsic resolution (7,271 functions)
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# I. ENUMS
+# ----------------------------------------------------------------------------
+
+enum EFogDensityMode:
+    Uniform
+    HeightBased
+    Distance
+    Exponential
+
+enum ECloudType:
+    Cumulus
+    Stratus
+    Cirrus
+    Nimbus
+
+# ----------------------------------------------------------------------------
+# II. SHADERS - Volumetric rendering
+# ----------------------------------------------------------------------------
+
+# --- Volumetric Fog Shader ---
+shader fragment VolumetricFog(uv: Vec2) -> Vec4:
+    uniform density: Float @0
+    uniform height_falloff: Float @1
+    uniform fog_color: Vec3 @2
+    uniform scatter_intensity: Float @3
+    uniform absorption: Float @4
+    uniform phase_g: Float @5
+    uniform noise_scale: Float @6
+    uniform noise_speed: Float @7
+    uniform time: Float @8
+    
+    # Permutations for quality levels
+    uniform CFG_HIGH_QUALITY: Float @9
+    uniform ENABLE_SHADOWS: Float @10
+    uniform USE_NOISE: Float @11
+    
+    # Sample position in 3D space
+    let world_pos = vec3(uv.x * 1000.0, uv.y * 1000.0, 0.0)
+    
+    # Base density calculation
+    var fog_density = density
+    
+    # Height-based falloff
+    let height_factor = exp(-world_pos.z * height_falloff)
+    fog_density = fog_density * height_factor
+    
+    # Add noise if enabled
+    if USE_NOISE:
+        let noise_uv = world_pos.xy * noise_scale + time * noise_speed
+        let noise_val = frac(sin(dot(noise_uv, vec2(12.9898, 78.233))) * 43758.5453)
+        fog_density = fog_density * (0.5 + noise_val * 0.5)
+    
+    # Distance-based density
+    let view_distance = length(world_pos)
+    let distance_density = 1.0 - exp(-view_distance * 0.001)
+    fog_density = fog_density * distance_density
+
+    # Scattering calculation
+    var scatter = scatter_intensity
+    
+    if CFG_HIGH_QUALITY:
+        # Henyey-Greenstein phase function
+        let cos_theta = 0.7
+        let g2 = phase_g * phase_g
+        let phase = (1.0 - g2) / pow(1.0 + g2 - 2.0 * phase_g * cos_theta, 1.5)
+        scatter = scatter * phase
+    
+    # Shadow attenuation
+    var shadow_factor = 1.0
+    if ENABLE_SHADOWS:
+        shadow_factor = 0.5 + 0.5 * cos(world_pos.x * 0.01 + time)
+    
+    # Final color with absorption
+    let scattered_light = fog_color * scatter * shadow_factor
+    let transmittance = exp(-fog_density * absorption)
+    let final_color = scattered_light * (1.0 - transmittance)
+    
+    return vec4(final_color, 1.0 - transmittance)
+
+# --- Volumetric Clouds Shader ---
+shader fragment VolumetricClouds(uv: Vec2) -> Vec4:
+    uniform cloud_coverage: Float @0
+    uniform cloud_density: Float @1
+    uniform cloud_height: Float @2
+    uniform wind_speed: Vec2 @3
+    uniform sun_direction: Vec3 @4
+    uniform cloud_color: Vec3 @5
+    uniform ambient_color: Vec3 @6
+    uniform detail_scale: Float @7
+    uniform time: Float @8
+    
+    # Permutations
+    uniform CFG_VOLUMETRIC: Float @9
+    uniform ENABLE_LIGHTING: Float @10
+    uniform USE_DETAIL_NOISE: Float @11
+    
+    # Cloud position with wind
+    let cloud_uv = uv + wind_speed * time
+    
+    # Base cloud noise (using simple hash for now)
+    let base_noise = frac(sin(dot(cloud_uv, vec2(12.9898, 78.233))) * 43758.5453)
+    
+    # Coverage mask
+    let coverage_mask = smoothstep(1.0 - cloud_coverage, 1.0, base_noise)
+    
+    # Detail noise
+    var detail = 1.0
+    if USE_DETAIL_NOISE:
+        let detail_uv = cloud_uv * detail_scale
+        detail = frac(sin(dot(detail_uv, vec2(41.234, 67.891))) * 23456.789)
+        detail = 0.5 + detail * 0.5
+    
+    # Combine base and detail
+    var cloud_alpha = coverage_mask * detail * cloud_density
+    cloud_alpha = clamp(cloud_alpha, 0.0, 1.0)
+
+    # Lighting
+    var final_color = cloud_color
+    
+    if ENABLE_LIGHTING:
+        # Simple directional lighting
+        let light_factor = dot(normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0)), sun_direction)
+        light_factor = max(light_factor, 0.0)
+        
+        # Ambient + directional
+        final_color = ambient_color + cloud_color * light_factor
+    
+    # Volumetric depth fade
+    if CFG_VOLUMETRIC:
+        let depth_fade = 1.0 - abs(uv.y - 0.5) * 2.0
+        cloud_alpha = cloud_alpha * depth_fade
+    
+    return vec4(final_color, cloud_alpha)
+
+# ----------------------------------------------------------------------------
+# III. ACTORS - Spawnable volumetric effects
+# ----------------------------------------------------------------------------
+
+actor VolumetricFogActor:
+    @replicated
+    state density: Float = 0.5
+
+    @replicated
+    state height_falloff: Float = 0.001
+
+    @replicated
+    state fog_color: Vec3 = vec3(0.7, 0.8, 0.9)
+
+    @replicated
+    state scatter_intensity: Float = 1.0
+
+    @replicated
+    state absorption: Float = 0.5
+
+    @replicated
+    state phase_g: Float = 0.3
+
+    @replicated
+    state noise_scale: Float = 0.01
+
+    @replicated
+    state noise_speed: Float = 0.1
+
+    @replicated
+    state high_quality: Bool = true
+
+    @replicated
+    state enable_shadows: Bool = true
+
+    @replicated
+    state use_noise: Bool = true
+
+    state time_accumulator: Float = 0.0
+
+    on BeginPlay():
+        println("Volumetric fog actor spawned")
+
+    on Tick(delta: Float):
+        time_accumulator = time_accumulator + delta
+
+    @blueprint_callable
+    @category("Fog Settings")
+    fn SetDensity(value: Float):
+        density = value
+
+    @blueprint_callable
+    @category("Fog Settings")
+    fn SetFogColor(color: Vec3):
+        fog_color = color
+
+    @blueprint_callable
+    @category("Fog Settings")
+    fn SetScatterIntensity(value: Float):
+        scatter_intensity = value
+
+    @blueprint_callable
+    @category("Quality")
+    fn SetHighQuality(enabled: Bool):
+        high_quality = enabled
+
+    @blueprint_callable
+    @category("Quality")
+    fn SetShadows(enabled: Bool):
+        enable_shadows = enabled
+
+actor VolumetricCloudsActor:
+    @replicated
+    state cloud_coverage: Float = 0.5
+
+    @replicated
+    state cloud_density: Float = 0.8
+
+    @replicated
+    state cloud_height: Float = 1000.0
+
+    @replicated
+    state wind_speed: Vec2 = vec2(0.1, 0.05)
+
+    @replicated
+    state sun_direction: Vec3 = vec3(0.5, 0.5, 1.0)
+
+    @replicated
+    state cloud_color: Vec3 = vec3(1.0, 1.0, 1.0)
+
+    @replicated
+    state ambient_color: Vec3 = vec3(0.3, 0.3, 0.4)
+
+    @replicated
+    state detail_scale: Float = 5.0
+
+    @replicated
+    state volumetric_mode: Bool = true
+
+    @replicated
+    state enable_lighting: Bool = true
+
+    @replicated
+    state use_detail_noise: Bool = true
+
+    state time_accumulator: Float = 0.0
+
+    on BeginPlay():
+        println("Volumetric clouds actor spawned")
+
+    on Tick(delta: Float):
+        time_accumulator = time_accumulator + delta
+
+    @blueprint_callable
+    @category("Cloud Settings")
+    fn SetCoverage(value: Float):
+        cloud_coverage = value
+
+    @blueprint_callable
+    @category("Cloud Settings")
+    fn SetDensity(value: Float):
+        cloud_density = value
+
+    @blueprint_callable
+    @category("Cloud Settings")
+    fn SetCloudColor(color: Vec3):
+        cloud_color = color
+
+    @blueprint_callable
+    @category("Cloud Settings")
+    fn SetWindSpeed(speed: Vec2):
+        wind_speed = speed
+
+    @blueprint_callable
+    @category("Lighting")
+    fn SetSunDirection(direction: Vec3):
+        sun_direction = direction
+
+    @blueprint_callable
+    @category("Quality")
+    fn SetVolumetricMode(enabled: Bool):
+        volumetric_mode = enabled
+
+    @blueprint_callable
+    @category("Quality")
+    fn SetLighting(enabled: Bool):
+        enable_lighting = enabled

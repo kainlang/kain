@@ -1,0 +1,557 @@
+# ============================================================================
+# ULTIMATE KAIN UE5 DEMONSTRATION - COMPLETE FEATURE SHOWCASE
+# ============================================================================
+# ONE FILE demonstrating EVERY feature KAIN supports for UE5 codegen
+# Perfect reference for LLMs and AI agents
+# ============================================================================
+
+# ============================================================================
+# 1. ENUMS - Type-safe constants → UENUM(BlueprintType)
+# ============================================================================
+enum ItemRarity:
+    Common
+    Uncommon
+    Rare
+    Epic
+    Legendary
+    Mythic
+    _MAX
+enum ItemType:
+    Weapon
+    Armor
+    Consumable
+    Material
+    Quest
+    Currency
+    _MAX
+enum EquipSlot:
+    Head
+    Chest
+    Legs
+    Feet
+    Hands
+    MainHand
+    OffHand
+    Ring1
+    Ring2
+    _MAX
+enum DamageType:
+    Physical
+    Fire
+    Ice
+    Lightning
+    Poison
+    Holy
+    Shadow
+    Arcane
+    _MAX
+enum AIState:
+    Idle
+    Patrol
+    Chase
+    Attack
+    Flee
+    Dead
+    _MAX
+enum QuestStatus:
+    NotStarted
+    InProgress
+    Completed
+    Failed
+    Abandoned
+    _MAX
+
+# ============================================================================
+# 2. DELEGATES - Function pointers (NO parameter names!)
+# ============================================================================
+type OnHealthChanged = delegate(Float, Float)
+type OnDeath = delegate(Actor)
+type OnItemAdded = delegate(Int, Int)
+type OnDamageDealt = delegate(Actor, Float, DamageType)
+type OnQuestCompleted = delegate(Int, Int)
+type OnButtonClicked = delegate(String)
+type OnSliderChanged = delegate(Float)
+type OnTextEntered = delegate(String)
+
+# ============================================================================
+# 3. BASIC STRUCTS → USTRUCT(BlueprintType)
+# ============================================================================
+struct ItemStack:
+    item_id: Int
+    quantity: Int
+    durability: Float
+
+struct DamageResult:
+    base_damage: Float
+    final_damage: Float
+    was_critical: Bool
+    damage_type: DamageType
+
+struct FloatRange:
+    min: Float
+    max: Float
+
+struct Transform2D:
+    position: Vec2
+    rotation: Float
+    scale: Vec2
+
+# ============================================================================
+# 4. DATATABLES - CSV import → FTableRowBase
+# ============================================================================
+@datatable
+struct ItemDefinition:
+    id: Int
+    name: String
+    description: String
+    icon_path: String
+    item_type: ItemType
+    rarity: ItemRarity
+    max_stack: Int
+    base_value: Int
+    weight: Float
+    is_tradeable: Bool
+    is_droppable: Bool
+
+@datatable
+struct WeaponData:
+    weapon_id: Int
+    weapon_name: String
+    base_damage: Float
+    damage_type: DamageType
+    attack_speed: Float
+    critical_chance: Float
+    critical_multiplier: Float
+    required_level: Int
+    max_durability: Int
+
+@datatable
+struct EnemyDefinition:
+    enemy_id: Int
+    enemy_name: String
+    base_health: Float
+    base_damage: Float
+    armor: Float
+    move_speed: Float
+    aggro_range: Float
+    loot_table_id: Int
+    experience_reward: Int
+
+@datatable
+struct QuestDefinition:
+    quest_id: Int
+    quest_name: String
+    quest_description: String
+    required_level: Int
+    objective_type: String
+    objective_count: Int
+    experience_reward: Int
+    gold_reward: Int
+    item_reward_id: Int
+
+# ============================================================================
+# 5. COMPONENTS - Reusable systems → UActorComponent
+# CRITICAL: Components CANNOT have default values!
+# ============================================================================
+@component
+struct HealthComponent:
+    current_health: Float
+    max_health: Float
+    @transient
+    health_regen_rate: Float
+    @transient
+    last_damage_time: Float
+    is_invulnerable: Bool
+    @savegame
+    is_dead: Bool
+    @blueprint_assignable
+    on_health_changed: OnHealthChanged
+    @blueprint_assignable
+    on_death: OnDeath
+
+@component
+struct InventoryComponent:
+    @savegame
+    items: Array<ItemStack>
+    capacity: Int
+    @savegame
+    gold: Int
+    @transient
+    current_weight: Float
+    max_weight: Float
+    @blueprint_assignable
+    on_item_added: OnItemAdded
+
+@component
+struct CombatComponent:
+    current_target: Actor
+    is_in_combat: Bool
+    @transient
+    last_attack_time: Float
+    @transient
+    combo_count: Int
+    @transient
+    attack_power: Float
+    @transient
+    critical_chance: Float
+    @blueprint_assignable
+    on_damage_dealt: OnDamageDealt
+
+@component
+struct QuestComponent:
+    @savegame
+    active_quest_ids: Array<Int>
+    @savegame
+    completed_quest_ids: Array<Int>
+    @savegame
+    quest_progress: Array<Int>
+    @blueprint_assignable
+    on_quest_completed: OnQuestCompleted
+
+@component
+struct AIComponent:
+    current_state: AIState
+    @transient
+    state_timer: Float
+    @transient
+    patrol_target: Vec3
+    @transient
+    aggro_target: Actor
+    @transient
+    patrol_waypoints: Array<Vec3>
+    aggro_range: Float
+    chase_range: Float
+    attack_range: Float
+
+# ============================================================================
+# 6. ACTORS - Main entities with networking → AActor
+# CRITICAL: Actors CAN have default values!
+# ============================================================================
+@uclass("Blueprintable", "BlueprintType")
+actor RPGPlayer:
+    # Components (with defaults!)
+    state health: HealthComponent = HealthComponent()
+    state inventory: InventoryComponent = InventoryComponent()
+    state combat: CombatComponent = CombatComponent()
+    state quests: QuestComponent = QuestComponent()
+    
+    # Replicated state
+    @replicated
+    state player_name: String = "Player"
+    @replicated
+    state player_level: Int = 1
+    state respawn_location: Vec3 = vec3(0.0, 0.0, 100.0)
+    
+    # Lifecycle handlers
+    on BeginPlay():
+        health.max_health = 100.0
+        health.current_health = 100.0
+        inventory.capacity = 20
+        println("Player initialized: {player_name}")
+    
+    on Tick(delta_time: Float):
+        if health.current_health < health.max_health:
+            if health.current_health > 0.0:
+                health.current_health = health.current_health + (health.health_regen_rate * delta_time)
+    
+    # SERVER RPCs - Client calls, server executes
+    on Server_TakeDamage(damage: Float, attacker: Actor, dmg_type: DamageType):
+        if health.is_invulnerable == false:
+            health.current_health = health.current_health - damage
+            if health.current_health <= 0.0:
+                health.is_dead = true
+                Server_HandleDeath(attacker)
+            Multicast_DamageEffect(damage, dmg_type)
+    
+    on Server_UseItem(item_id: Int):
+        Client_ItemUsed(item_id)
+    
+    on Server_HandleDeath(killer: Actor):
+        health.is_dead = true
+        Multicast_OnPlayerDeath(killer)
+    
+    on Server_Respawn():
+        health.current_health = health.max_health
+        health.is_dead = false
+        Multicast_OnPlayerRespawn(respawn_location)
+    
+    # CLIENT RPCs - Server calls, owning client executes
+    on Client_ItemUsed(item_id: Int):
+        println("Item used: {item_id}")
+    
+    on Client_LevelUp(new_level: Int):
+        println("Level up! New level: {new_level}")
+    
+    # MULTICAST RPCs - Server calls, all clients execute
+    on Multicast_DamageEffect(damage: Float, dmg_type: DamageType):
+        println("Took {damage} damage of type {dmg_type}")
+    
+    on Multicast_OnPlayerDeath(killer: Actor):
+        println("Player died!")
+    
+    on Multicast_OnPlayerRespawn(location: Vec3):
+        println("Player respawned at {location}")
+    
+    # BLUEPRINT-CALLABLE METHODS
+    @blueprint_callable
+    @category("RPG|Combat")
+    fn Attack(target: Actor):
+        Server_TakeDamage(combat.attack_power, target, DamageType::Physical)
+    
+    @blueprint_callable
+    @category("RPG|Inventory")
+    fn AddItem(item_id: Int, quantity: Int) -> Bool:
+        return true
+    
+    @blueprint_callable
+    @category("RPG|Stats")
+    fn GainExperience(amount: Int):
+        player_level = player_level + 1
+        Client_LevelUp(player_level)
+
+@uclass("Blueprintable", "BlueprintType")
+actor Enemy:
+    state health: HealthComponent = HealthComponent()
+    state ai: AIComponent = AIComponent()
+    @replicated
+    state enemy_type: String = "Goblin"
+    state loot_table_id: Int = 1
+    
+    on BeginPlay():
+        health.max_health = 50.0
+        health.current_health = 50.0
+        ai.current_state = AIState::Patrol
+    
+    on Server_TakeDamage(damage: Float, attacker: Actor):
+        health.current_health = health.current_health - damage
+        if health.current_health <= 0.0:
+            Server_Die(attacker)
+        else:
+            ai.current_state = AIState::Chase
+            ai.current_target = attacker
+    
+    on Server_Die(killer: Actor):
+        health.is_dead = true
+        Multicast_OnEnemyDeath()
+    
+    on Multicast_OnEnemyDeath():
+        println("Enemy died!")
+
+# ============================================================================
+# 7. BLUEPRINT UTILITIES - Static helpers → UBlueprintFunctionLibrary
+# ============================================================================
+@blueprint
+fn CalculateDamage(base: Float, armor: Float, is_crit: Bool) -> Float:
+    let armor_reduction = armor / (armor + 100.0)
+    var final_damage = base * (1.0 - armor_reduction)
+    if is_crit:
+        final_damage = final_damage * 2.0
+    return final_damage
+
+@blueprint
+fn CalculateDistance3D(a: Vec3, b: Vec3) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    let dz = b.z - a.z
+    return sqrt(dx * dx + dy * dy + dz * dz)
+
+@blueprint
+fn GetRarityColor(rarity: ItemRarity) -> Vec3:
+    if rarity == ItemRarity::Common:
+        return vec3(1.0, 1.0, 1.0)
+    else:
+        if rarity == ItemRarity::Rare:
+            return vec3(0.0, 0.5, 1.0)
+        else:
+            if rarity == ItemRarity::Epic:
+                return vec3(0.6, 0.0, 1.0)
+            else:
+                return vec3(1.0, 0.5, 0.0)
+
+@blueprint
+fn LerpFloat(a: Float, b: Float, alpha: Float) -> Float:
+    return a + (b - a) * alpha
+
+@blueprint
+fn ClampFloat(value: Float, min_val: Float, max_val: Float) -> Float:
+    if value < min_val:
+        return min_val
+    else:
+        if value > max_val:
+            return max_val
+        else:
+            return value
+
+# ============================================================================
+# 8. SHADERS - GPU processing
+# CRITICAL: Shaders MUST have return types!
+# ============================================================================
+
+# COMPUTE SHADER - Parallel processing
+shader compute SimpleCompute(thread_id: Vec3) -> Vec4:
+    uniform seed: Float @0
+    uniform scale: Float @1
+    let uv = vec2(thread_id.x * scale, thread_id.y * scale)
+    let noise = fract(sin(dot(uv, vec2(12.9898, 78.233)) + seed) * 43758.5453)
+    return vec4(noise, noise, noise, 1.0)
+
+# COMPUTE SHADER WITH PERMUTATIONS - Compile-time branches (zero runtime cost!)
+shader compute AdvancedCompute(thread_id: Vec3) -> Vec4:
+    # Permutation uniforms (CFG_* or ENABLE_* prefix)
+    uniform CFG_HIGH_QUALITY: Float @0
+    uniform ENABLE_SHADOWS: Float @1
+    uniform ENABLE_REFLECTIONS: Float @2
+    # Regular uniforms
+    uniform time: Float @3
+    uniform color_tint: Vec3 @4
+    uniform intensity: Float @5
+    uniform input_texture: Sampler2D @6
+    
+    let uv = vec2(thread_id.x, thread_id.y)
+    var color = sample(input_texture, uv).rgb * color_tint
+    
+    if CFG_HIGH_QUALITY:
+        let noise = fract(sin(dot(uv, vec2(12.9898, 78.233)) + time) * 43758.5453)
+        color = color + vec3(noise * 0.1, noise * 0.1, noise * 0.1)
+    
+    if ENABLE_SHADOWS:
+        color = color * 0.8
+    
+    if ENABLE_REFLECTIONS:
+        color = color + vec3(0.1, 0.1, 0.1)
+    
+    return vec4(color * intensity, 1.0)
+
+# FRAGMENT SHADER - Post-processing
+shader fragment PostProcess(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform distortion: Float @1
+    uniform scene_texture: Sampler2D @2
+    
+    let distorted_uv = vec2(
+        uv.x + sin(uv.y * 10.0 + time) * distortion,
+        uv.y + cos(uv.x * 10.0 + time) * distortion
+    )
+    var color = sample(scene_texture, distorted_uv).rgb
+    let vignette = 1.0 - (length(uv - vec2(0.5, 0.5)) * 0.5)
+    color = color * vignette
+    return vec4(color, 1.0)
+
+# SURFACE SHADER - Material system
+shader fragment PBRMaterial(uv: Vec2) -> Vec4:
+    uniform roughness: Float @0
+    uniform metallic: Float @1
+    uniform emissive_strength: Float @2
+    uniform albedo_map: Sampler2D @3
+    uniform normal_map: Sampler2D @4
+    uniform roughness_map: Sampler2D @5
+    
+    let albedo = sample(albedo_map, uv).rgb
+    let normal = sample(normal_map, uv).rgb
+    let roughness_tex = sample(roughness_map, uv).r
+    
+    var final_color = albedo
+    
+    return vec4(final_color, 1.0)
+
+# ============================================================================
+# 9. SLATE UI - Editor widgets
+# ============================================================================
+@slate
+struct ItemEditor:
+    @argument
+    item_name: Text
+    @argument
+    item_rarity: ItemRarity
+    @event
+    on_save_clicked: OnButtonClicked
+    @event
+    on_cancel_clicked: OnButtonClicked
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+@slate
+struct QuestEditor:
+    @argument
+    quest_id: Int
+    @argument
+    quest_name: Text
+    @event
+    on_add_objective: OnButtonClicked
+    @event
+    on_save_quest: OnButtonClicked
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+@slate
+struct StatsPreview:
+    @argument
+    health: Float
+    @argument
+    damage: Float
+    @argument
+    armor: Float
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# ============================================================================
+# 10. EDITOR MODULE - Editor integration
+# ============================================================================
+@editor_module
+struct UltimateDemoModule:
+    module_name: String
+    version: String
+
+# ============================================================================
+# 11. ADVANCED FEATURES - All @ attributes and UE5 metadata
+# ============================================================================
+actor AdvancedFeatures:
+    # Field attributes
+    @replicated
+    state replicated_value: Float = 0.0
+    @savegame
+    state saved_value: Int = 0
+    @transient
+    state transient_value: Float = 0.0
+    @editdefaults
+    state editable_default: Float = 1.0
+    @visibleonly
+    state visible_value: Int = 0
+    
+    # UE5 Metadata
+    @meta("DisplayName", "Custom Name")
+    @meta("Tooltip", "Helpful tooltip")
+    @meta("ClampMin", "0.0")
+    @meta("ClampMax", "100.0")
+    @meta("Units", "Meters")
+    state clamped_value: Float = 50.0
+    
+    @meta("Category", "Advanced|Settings")
+    state categorized_value: Int = 0
+    
+    # Blueprint-callable with category
+    @blueprint_callable
+    @category("Advanced|Methods")
+    fn AdvancedMethod(param: Float) -> Float:
+        return param * 2.0
+
+# ============================================================================
+# COMPLETE! This file demonstrates EVERY feature:
+# ✅ Enums → UENUM(BlueprintType)
+# ✅ Delegates (NO parameter names!)
+# ✅ Basic Structs → USTRUCT(BlueprintType)
+# ✅ DataTables → FTableRowBase (CSV import)
+# ✅ Components → UActorComponent (NO defaults!)
+# ✅ Actors → AActor (CAN have defaults!)
+# ✅ Lifecycle handlers (BeginPlay, Tick)
+# ✅ RPCs (Server_*, Client_*, Multicast_*)
+# ✅ Blueprint utilities → UBlueprintFunctionLibrary
+# ✅ Compute shaders (with permutations)
+# ✅ Fragment shaders (post-processing)
+# ✅ Surface shaders (material system)
+# ✅ Slate UI → Editor widgets
+# ✅ Editor module → Editor integration
+# ✅ All field attributes (@replicated, @savegame, @transient, etc.)
+# ✅ UE5 metadata (@meta)
+# ✅ Blueprint categories (@category)
+# ============================================================================

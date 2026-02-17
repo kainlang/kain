@@ -1,0 +1,33 @@
+// === SlateTest Plugin: Blueprint Utilities ===
+
+@blueprint
+fn CalculateDamage(base: Float, multiplier: Float, armor: Float) -> Float:
+    let raw = base * multiplier
+    let mitigated = raw * (1.0 - armor / 100.0)
+    return max(mitigated, 0.0)
+
+@blueprint
+fn GetRarityDisplayName(rarity: ItemRarity) -> String:
+    match rarity:
+        ItemRarity::Common => "Common"
+        ItemRarity::Uncommon => "Uncommon"
+        ItemRarity::Rare => "Rare"
+        ItemRarity::Epic => "Epic"
+        ItemRarity::Legendary => "Legendary"
+        _ => "Unknown"
+
+@blueprint
+fn CanStackItems(stack: ItemStack, item_id: Int, max_stack: Int) -> Bool:
+    if stack.item_id != item_id:
+        return false
+    return stack.quantity < max_stack
+
+@blueprint
+fn CalculateItemValue(base_value: Int, rarity: ItemRarity) -> Int:
+    match rarity:
+        ItemRarity::Common => base_value
+        ItemRarity::Uncommon => base_value * 2
+        ItemRarity::Rare => base_value * 5
+        ItemRarity::Epic => base_value * 15
+        ItemRarity::Legendary => base_value * 50
+        _ => base_value

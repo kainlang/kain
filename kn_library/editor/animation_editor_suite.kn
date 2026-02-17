@@ -1,0 +1,745 @@
+// KAIN UE5 Editor Tool: Complete Animation Blueprint Editor Suite
+// Showcases full Slate UI hierarchies, custom assets, and editor modules
+
+// ============================================================================
+// CUSTOM ASSET TYPES
+// ============================================================================
+
+@asset_type
+struct AnimationBlueprint:
+    BlueprintName: String
+    SkeletonAsset: String
+    PreviewMesh: String
+    AnimationMode: String
+    RootMotionMode: String
+    OptimizationLevel: Int
+    EnableIK: Bool
+    EnablePhysics: Bool
+    LODCount: Int
+    CompressionScheme: String
+    TargetFrameRate: Float
+    MaxBoneInfluences: Int
+    Tags: String
+    Description: String
+    Author: String
+    Version: String
+    CreatedDate: String
+    LastModified: String
+
+@asset_type
+struct AnimationSequence:
+    SequenceName: String
+    Duration: Float
+    FrameRate: Float
+    BoneCount: Int
+    TrackCount: Int
+    CompressionRatio: Float
+    IsLooping: Bool
+    IsAdditive: Bool
+    AdditiveType: String
+    RootMotionEnabled: Bool
+    EnableRootLock: Bool
+    NotifyCount: Int
+    CurveCount: Int
+    FileSize: Float
+    ImportPath: String
+    SourceFile: String
+
+@asset_type
+struct BlendSpace:
+    BlendSpaceName: String
+    BlendType: String
+    AxisCount: Int
+    SampleCount: Int
+    GridDivisions: Int
+    InterpolationType: String
+    TargetWeightSpeed: Float
+    EnableSnapping: Bool
+    SnapValue: Float
+    PreviewPose: String
+    Description: String
+
+// ============================================================================
+// SLATE WIDGETS WITH FULL UI HIERARCHIES
+// ============================================================================
+
+@slate
+struct AnimationTimelineWidget:
+    @argument
+    TimelineWidth: Float
+    @argument
+    TimelineHeight: Float
+    CurrentTime: Float
+    TotalDuration: Float
+    ZoomLevel: Float
+    ShowFrameNumbers: Bool
+    ShowNotifies: Bool
+    ShowCurves: Bool
+    SnapToFrames: Bool
+    PlaybackSpeed: Float
+    OnTimeChanged: void
+    OnPlayClicked: void
+    OnPauseClicked: void
+    OnStopClicked: void
+    OnScrubbed: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        Button()
+                            .Text("Play")
+                            .OnClicked(OnPlayClicked)
+                    )
+                    .Add(
+                        Button()
+                            .Text("Pause")
+                            .OnClicked(OnPauseClicked)
+                    )
+                    .Add(
+                        Button()
+                            .Text("Stop")
+                            .OnClicked(OnStopClicked)
+                    )
+                    .Add(
+                        TextBlock()
+                            .Text("Timeline Controls")
+                    )
+            )
+            .Add(
+                Box()
+                    .WidthOverride(TimelineWidth)
+                    .HeightOverride(TimelineHeight)
+                    .Content(
+                        Canvas()
+                            .Content(
+                                TextBlock()
+                                    .Text("Timeline Canvas")
+                            )
+                    )
+            )
+
+@slate
+struct BoneHierarchyTree:
+    @argument
+    TreeWidth: Float
+    @argument
+    TreeHeight: Float
+    RootBone: String
+    SelectedBone: String
+    ShowBoneNames: Bool
+    ShowBoneIndices: Bool
+    ShowSocketsOnly: Bool
+    FilterText: String
+    HighlightIKBones: Bool
+    OnBoneSelected: void
+    OnBoneRenamed: void
+    OnSocketAdded: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("Bone Hierarchy")
+                    )
+                    .Add(
+                        EditableTextBox()
+                            .HintText("Filter bones...")
+                    )
+            )
+            .Add(
+                ScrollBox()
+                    .Content(
+                        TreeView()
+                            .TreeItemsSource(RootBone)
+                            .OnSelectionChanged(OnBoneSelected)
+                    )
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowBoneNames)
+                            .Content(
+                                TextBlock()
+                                    .Text("Show Names")
+                            )
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowBoneIndices)
+                            .Content(
+                                TextBlock()
+                                    .Text("Show Indices")
+                            )
+                    )
+            )
+
+@slate
+struct AnimationViewport:
+    @argument
+    ViewportWidth: Float
+    @argument
+    ViewportHeight: Float
+    CameraMode: String
+    ShowGrid: Bool
+    ShowBones: Bool
+    ShowSockets: Bool
+    ShowFloor: Bool
+    BackgroundColor: Color
+    LightingRig: String
+    FOV: Float
+    NearClip: Float
+    FarClip: Float
+    OnCameraChanged: void
+    OnResetCamera: void
+    OnTogglePlayback: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        ComboBox()
+                            .Content(
+                                TextBlock()
+                                    .Text(CameraMode)
+                            )
+                    )
+                    .Add(
+                        Button()
+                            .Text("Reset Camera")
+                            .OnClicked(OnResetCamera)
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowGrid)
+                            .Content(
+                                TextBlock()
+                                    .Text("Grid")
+                            )
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowBones)
+                            .Content(
+                                TextBlock()
+                                    .Text("Bones")
+                            )
+                    )
+            )
+            .Add(
+                Overlay()
+                    .Content(
+                        Box()
+                            .WidthOverride(ViewportWidth)
+                            .HeightOverride(ViewportHeight)
+                            .Content(
+                                TextBlock()
+                                    .Text("3D Viewport")
+                            )
+                    )
+            )
+
+@slate
+struct AnimationCurveEditor:
+    @argument
+    EditorWidth: Float
+    @argument
+    EditorHeight: Float
+    SelectedCurve: String
+    CurveType: String
+    KeyCount: Int
+    ShowTangents: Bool
+    ShowGrid: Bool
+    SnapToGrid: Bool
+    GridSize: Float
+    TimeRange: Float
+    ValueRange: Float
+    OnKeyAdded: void
+    OnKeyRemoved: void
+    OnKeyMoved: void
+    OnCurveChanged: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("Curve Editor")
+                    )
+                    .Add(
+                        ComboBox()
+                            .Content(
+                                TextBlock()
+                                    .Text(SelectedCurve)
+                            )
+                    )
+                    .Add(
+                        Button()
+                            .Text("Add Key")
+                            .OnClicked(OnKeyAdded)
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowTangents)
+                            .Content(
+                                TextBlock()
+                                    .Text("Tangents")
+                            )
+                    )
+            )
+            .Add(
+                Border()
+                    .BorderBackgroundColor(BackgroundColor)
+                    .Content(
+                        Canvas()
+                            .Content(
+                                Box()
+                                    .WidthOverride(EditorWidth)
+                                    .HeightOverride(EditorHeight)
+                            )
+                    )
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        Slider()
+                            .Value(TimeRange)
+                    )
+                    .Add(
+                        TextBlock()
+                            .Text("Time Range")
+                    )
+            )
+
+@slate
+struct NotifyTrackEditor:
+    @argument
+    TrackHeight: Float
+    TrackCount: Int
+    ShowLabels: Bool
+    ShowIcons: Bool
+    EnableDragDrop: Bool
+    SnapToFrames: Bool
+    OnNotifyAdded: void
+    OnNotifyRemoved: void
+    OnNotifyMoved: void
+    OnNotifyEdited: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("Animation Notifies")
+                    )
+                    .Add(
+                        Button()
+                            .Text("Add Notify")
+                            .OnClicked(OnNotifyAdded)
+                    )
+                    .Add(
+                        Button()
+                            .Text("Add Notify State")
+                            .OnClicked(OnNotifyAdded)
+                    )
+            )
+            .Add(
+                ScrollBox()
+                    .Orientation("Vertical")
+                    .Content(
+                        VerticalBox()
+                            .Content(
+                                TextBlock()
+                                    .Text("Notify Tracks")
+                            )
+                    )
+            )
+
+@slate
+struct BlendSpaceEditor:
+    @argument
+    GridWidth: Float
+    @argument
+    GridHeight: Float
+    AxisXLabel: Text
+    AxisYLabel: Text
+    SampleCount: Int
+    ShowGrid: Bool
+    ShowSamples: Bool
+    ShowTriangulation: Bool
+    EnableSnapping: Bool
+    OnSampleAdded: void
+    OnSampleRemoved: void
+    OnSampleMoved: void
+    OnAxisChanged: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("Blend Space Editor")
+                    )
+                    .Add(
+                        Button()
+                            .Text("Add Sample")
+                            .OnClicked(OnSampleAdded)
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowTriangulation)
+                            .Content(
+                                TextBlock()
+                                    .Text("Triangulation")
+                            )
+                    )
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        VerticalBox()
+                            .Add(
+                                TextBlock()
+                                    .Text(AxisYLabel)
+                            )
+                            .Add(
+                                Slider()
+                                    .Orientation("Vertical")
+                            )
+                    )
+                    .Add(
+                        VerticalBox()
+                            .Add(
+                                Canvas()
+                                    .Content(
+                                        Box()
+                                            .WidthOverride(GridWidth)
+                                            .HeightOverride(GridHeight)
+                                    )
+                            )
+                            .Add(
+                                HorizontalBox()
+                                    .Add(
+                                        TextBlock()
+                                            .Text(AxisXLabel)
+                                    )
+                                    .Add(
+                                        Slider()
+                                            .Orientation("Horizontal")
+                                    )
+                            )
+                    )
+            )
+
+@slate
+struct AnimationDetailsPanel:
+    @argument
+    PanelWidth: Float
+    AnimationName: Text
+    Duration: Float
+    FrameRate: Float
+    IsLooping: Bool
+    EnableRootMotion: Bool
+    CompressionScheme: String
+    OnPropertyChanged: void
+    OnApplyClicked: void
+    OnRevertClicked: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                TextBlock()
+                    .Text("Animation Properties")
+            )
+            .Add(
+                ScrollBox()
+                    .Content(
+                        VerticalBox()
+                            .Add(
+                                HorizontalBox()
+                                    .Add(
+                                        TextBlock()
+                                            .Text("Name:")
+                                    )
+                                    .Add(
+                                        EditableTextBox()
+                                            .Text(AnimationName)
+                                    )
+                            )
+                            .Add(
+                                HorizontalBox()
+                                    .Add(
+                                        TextBlock()
+                                            .Text("Duration:")
+                                    )
+                                    .Add(
+                                        SpinBox()
+                                            .Value(Duration)
+                                    )
+                            )
+                            .Add(
+                                HorizontalBox()
+                                    .Add(
+                                        TextBlock()
+                                            .Text("Frame Rate:")
+                                    )
+                                    .Add(
+                                        SpinBox()
+                                            .Value(FrameRate)
+                                    )
+                            )
+                            .Add(
+                                CheckBox()
+                                    .IsChecked(IsLooping)
+                                    .Content(
+                                        TextBlock()
+                                            .Text("Looping")
+                                    )
+                            )
+                            .Add(
+                                CheckBox()
+                                    .IsChecked(EnableRootMotion)
+                                    .Content(
+                                        TextBlock()
+                                            .Text("Root Motion")
+                                    )
+                            )
+                    )
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        Button()
+                            .Text("Apply")
+                            .OnClicked(OnApplyClicked)
+                    )
+                    .Add(
+                        Button()
+                            .Text("Revert")
+                            .OnClicked(OnRevertClicked)
+                    )
+            )
+
+@slate
+struct IKRigEditor:
+    @argument
+    EditorWidth: Float
+    @argument
+    EditorHeight: Float
+    SelectedChain: String
+    ChainCount: Int
+    SolverType: String
+    ShowGoals: Bool
+    ShowEffectors: Bool
+    OnChainAdded: void
+    OnChainRemoved: void
+    OnSolverChanged: void
+    OnGoalMoved: void
+    
+    fn Compose():
+        HorizontalBox()
+            .Add(
+                VerticalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("IK Chains")
+                    )
+                    .Add(
+                        ListBox()
+                            .Content(
+                                TextBlock()
+                                    .Text(SelectedChain)
+                            )
+                    )
+                    .Add(
+                        Button()
+                            .Text("Add Chain")
+                            .OnClicked(OnChainAdded)
+                    )
+            )
+            .Add(
+                VerticalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("IK Viewport")
+                    )
+                    .Add(
+                        Box()
+                            .WidthOverride(EditorWidth)
+                            .HeightOverride(EditorHeight)
+                    )
+            )
+            .Add(
+                VerticalBox()
+                    .Add(
+                        TextBlock()
+                            .Text("Solver Settings")
+                    )
+                    .Add(
+                        ComboBox()
+                            .Content(
+                                TextBlock()
+                                    .Text(SolverType)
+                            )
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(ShowGoals)
+                            .Content(
+                                TextBlock()
+                                    .Text("Show Goals")
+                            )
+                    )
+            )
+
+@slate
+struct AnimationAssetBrowser:
+    @argument
+    BrowserWidth: Float
+    @argument
+    BrowserHeight: Float
+    SearchQuery: String
+    SelectedFolder: String
+    ViewMode: String
+    SortMode: String
+    ShowThumbnails: Bool
+    ThumbnailSize: Float
+    OnAssetSelected: void
+    OnAssetDoubleClicked: void
+    OnFolderChanged: void
+    OnSearchChanged: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        EditableTextBox()
+                            .HintText("Search animations...")
+                            .Text(SearchQuery)
+                    )
+                    .Add(
+                        ComboBox()
+                            .Content(
+                                TextBlock()
+                                    .Text(ViewMode)
+                            )
+                    )
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        TreeView()
+                            .TreeItemsSource(SelectedFolder)
+                            .OnSelectionChanged(OnFolderChanged)
+                    )
+                    .Add(
+                        ScrollBox()
+                            .Content(
+                                TileView()
+                                    .ItemWidth(ThumbnailSize)
+                                    .ItemHeight(ThumbnailSize)
+                            )
+                    )
+            )
+
+@slate
+struct RetargetingManager:
+    @argument
+    ManagerWidth: Float
+    SourceSkeleton: String
+    TargetSkeleton: String
+    RetargetMode: String
+    ShowBoneMapping: Bool
+    AutoMapBones: Bool
+    OnSourceChanged: void
+    OnTargetChanged: void
+    OnRetargetClicked: void
+    OnAutoMapClicked: void
+    
+    fn Compose():
+        VerticalBox()
+            .Add(
+                TextBlock()
+                    .Text("Animation Retargeting")
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        VerticalBox()
+                            .Add(
+                                TextBlock()
+                                    .Text("Source Skeleton")
+                            )
+                            .Add(
+                                ComboBox()
+                                    .Content(
+                                        TextBlock()
+                                            .Text(SourceSkeleton)
+                                    )
+                            )
+                    )
+                    .Add(
+                        TextBlock()
+                            .Text("→")
+                    )
+                    .Add(
+                        VerticalBox()
+                            .Add(
+                                TextBlock()
+                                    .Text("Target Skeleton")
+                            )
+                            .Add(
+                                ComboBox()
+                                    .Content(
+                                        TextBlock()
+                                            .Text(TargetSkeleton)
+                                    )
+                            )
+                    )
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        Button()
+                            .Text("Auto Map")
+                            .OnClicked(OnAutoMapClicked)
+                    )
+                    .Add(
+                        Button()
+                            .Text("Retarget")
+                            .OnClicked(OnRetargetClicked)
+                    )
+            )
+            .Add(
+                ScrollBox()
+                    .Content(
+                        TextBlock()
+                            .Text("Bone Mapping Table")
+                    )
+            )
+
+// ============================================================================
+// EDITOR MODULE
+// ============================================================================
+
+@editor_module
+struct AnimationEditorSuite:
+    ModuleVersion: String
+    EnableAutoSave: Bool
+    AutoSaveInterval: Int
+    DefaultFrameRate: Float
+    DefaultCompressionScheme: String
+    EnableRealTimePreview: Bool
+    MaxUndoHistory: Int
+    CachePath: String
+    TempPath: String
+    EnableDebugMode: Bool

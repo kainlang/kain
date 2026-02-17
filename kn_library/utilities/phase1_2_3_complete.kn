@@ -1,0 +1,254 @@
+// COMPREHENSIVE TEST: Phase 1 + 2 + 3 Features
+// This test validates ALL implemented features work together
+
+// === PHASE 1: TYPE ALIASES & DELEGATES ===
+type OnScoreChanged = fn(Int, String)
+type OnPlayerDied = fn()
+type OnEffectorChanged = fn(Float)
+type CustomCallback = fn(Bool)
+
+// === PHASE 1: ENUMS ===
+enum GameMode:
+    Deathmatch
+    TeamDeathmatch
+    CaptureTheFlag
+    KingOfTheHill
+
+enum PlayerState:
+    Idle
+    Running
+    Jumping
+    Attacking
+    Dead
+
+// === PHASE 1: DATATABLES WITH ADVANCED META ===
+@datatable
+struct WeaponStats:
+    @category("Weapon|Basic")
+    @tooltip("Unique weapon identifier")
+    @clamp_min(1)
+    weapon_id: Int
+    
+    @category("Weapon|Basic")
+    @display_name("Weapon Name")
+    weapon_name: String
+    
+    @category("Weapon|Combat")
+    @tooltip("Base damage per shot")
+    @clamp_min(1)
+    @clamp_max(1000)
+    @ui_min(1)
+    @ui_max(500)
+    base_damage: Float
+    
+    @category("Weapon|Combat")
+    @units("rounds/min")
+    @clamp_min(1)
+    @clamp_max(1200)
+    fire_rate: Float
+    
+    @category("Weapon|Ammo")
+    @edit_condition("fire_rate > 0")
+    @clamp_min(1)
+    magazine_size: Int
+
+// === PHASE 1: COMPONENTS WITH REPLICATION & DELEGATES ===
+@component
+struct HealthComponent:
+    @replicated("condition=COND_OwnerOnly")
+    @category("Health|Core")
+    @clamp_min(0)
+    @clamp_max(1000)
+    current_health: Float
+    
+    @replicated("condition=COND_OwnerOnly")
+    @category("Health|Core")
+    @clamp_min(0)
+    @clamp_max(1000)
+    max_health: Float
+    
+    @replicated("condition=COND_SimulatedOnly")
+    @category("Health|State")
+    is_invulnerable: Bool
+    
+    @category("Health|Events")
+    @blueprint_assignable
+    on_health_changed: OnScoreChanged
+    
+    @category("Health|Events")
+    @blueprint_assignable
+    on_death: OnPlayerDied
+    
+    @transient
+    @category("Health|Runtime")
+    last_damage_time: Float
+    
+    @savegame
+    @category("Health|Persistence")
+    total_damage_taken: Float
+
+// === PHASE 2: ACTOR WITH METHODS & PHASE 3: INLINE + UCLASS ===
+@uclass("Blueprintable", "BlueprintType", "Category=GameFramework")
+actor GameManager:
+    state current_mode: GameMode = GameMode::Deathmatch
+    state player_count: Int = 0
+    state match_time: Float = 0.0
+    state is_match_active: Bool = false
+    
+    // PHASE 3: Inline pure methods (getters)
+    @blueprint_pure
+    @category("Game|State")
+    @inline
+    fn GetPlayerCount() -> Int:
+        return player_count
+    
+    @blueprint_pure
+    @category("Game|State")
+    @inline
+    fn GetMatchTime() -> Float:
+        return match_time
+    
+    @blueprint_pure
+    @category("Game|State")
+    @inline
+    fn IsMatchActive() -> Bool:
+        return is_match_active
+    
+    @blueprint_pure
+    @category("Game|Query")
+    @inline
+    fn GetCurrentMode() -> GameMode:
+        return current_mode
+    
+    // PHASE 2: Non-inline pure methods
+    @blueprint_pure
+    @category("Game|Query")
+    fn CanStartMatch() -> Bool:
+        if player_count < 2:
+            return false
+        if is_match_active:
+            return false
+        return true
+    
+    // PHASE 2: Callable methods
+    @blueprint_callable
+    @category("Game|Control")
+    fn StartMatch():
+        if player_count >= 2:
+            is_match_active = true
+            match_time = 0.0
+            println("Match started with {player_count} players!")
+    
+    @blueprint_callable
+    @category("Game|Control")
+    fn EndMatch():
+        is_match_active = false
+        println("Match ended! Duration: {match_time} seconds")
+    
+    @blueprint_callable
+    @category("Game|Players")
+    fn AddPlayer():
+        player_count = player_count + 1
+        println("Player joined. Total: {player_count}")
+    
+    @blueprint_callable
+    @category("Game|Players")
+    fn RemovePlayer():
+        if player_count > 0:
+            player_count = player_count - 1
+            println("Player left. Total: {player_count}")
+    
+    @blueprint_callable
+    @category("Game|Mode")
+    fn SetGameMode(mode: GameMode):
+        current_mode = mode
+        println("Game mode changed")
+    
+    // PHASE 3: Method with meta specifier
+    @blueprint_callable
+    @category("Game|Advanced")
+    @meta("DeterminesOutputType=PlayerClass")
+    fn SpawnPlayerOfClass(player_class: Class) -> Object:
+        println("Spawning player of custom class")
+        return null
+    
+    // PHASE 1: RPC Message Handlers
+    on Server_RequestStartMatch():
+        if player_count >= 2:
+            is_match_active = true
+            Multicast_AnnounceMatchStart()
+    
+    on Multicast_AnnounceMatchStart():
+        println("Match is starting!")
+    
+    on Client_UpdateScore(score: Int):
+        println("Score updated: {score}")
+    
+    // Lifecycle methods
+    on BeginPlay():
+        println("GameManager initialized")
+        player_count = 0
+        is_match_active = false
+    
+    on Tick(delta_time: Float):
+        if is_match_active:
+            match_time = match_time + delta_time
+
+// === PHASE 2: BLUEPRINT FUNCTION LIBRARY ===
+@blueprint
+@pure
+fn calculate_damage_with_armor(base_damage: Float, armor: Float) -> Float:
+    let reduction = armor / (armor + 100.0)
+    return base_damage * (1.0 - reduction)
+
+@blueprint
+@pure
+fn is_critical_hit(chance: Float) -> Bool:
+    return chance > 0.8
+
+@blueprint
+fn apply_healing(current: Float, amount: Float, max: Float) -> Float:
+    let new_health = current + amount
+    if new_health > max:
+        return max
+    return new_health
+
+@blueprint
+fn log_game_event(event_name: String, severity: Int):
+    println("Game Event: {event_name} (Severity: {severity})")
+
+// === NESTED CATEGORIES TEST ===
+@datatable
+struct AdvancedSettings:
+    @category("Graphics|Quality")
+    @clamp_min(0)
+    @clamp_max(3)
+    quality_level: Int
+    
+    @category("Graphics|Resolution")
+    @clamp_min(640)
+    @clamp_max(7680)
+    screen_width: Int
+    
+    @category("Graphics|Resolution")
+    @clamp_min(480)
+    @clamp_max(4320)
+    screen_height: Int
+    
+    @category("Audio|Volume")
+    @clamp_min(0)
+    @clamp_max(100)
+    @units("%")
+    master_volume: Float
+    
+    @category("Audio|Volume")
+    @clamp_min(0)
+    @clamp_max(100)
+    @units("%")
+    music_volume: Float
+    
+    @category("Network|Connection")
+    @clamp_min(1)
+    @clamp_max(120)
+    @units("Hz")
+    tick_rate: Int

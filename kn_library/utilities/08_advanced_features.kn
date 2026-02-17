@@ -1,0 +1,383 @@
+# ============================================================================
+# FILE 8: ADVANCED FEATURES AND UE5 METADATA
+# Demonstrates: All @ attributes, UE5 metadata, advanced patterns
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# COMPLETE ATTRIBUTE REFERENCE
+# All @ attributes supported by KAIN for UE5 codegen
+# ----------------------------------------------------------------------------
+
+# @uclass - Actor class specifiers
+@uclass("Blueprintable", "BlueprintType", "Placeable")
+actor AdvancedActor:
+    state dummy: Int = 0
+
+# @datatable - CSV import support
+@datatable
+struct AdvancedDataTable:
+    id: Int
+    name: String
+
+# @component - Actor component
+@component
+struct AdvancedComponent:
+    value: Float
+
+# @blueprint - Blueprint function library
+@blueprint
+fn AdvancedUtility() -> Bool:
+    return true
+
+# @slate - Slate widget
+@slate
+struct AdvancedWidget:
+    @argument
+    text: Text
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# @editor_module - Editor module
+@editor_module
+struct AdvancedEditorModule:
+    module_name: String
+    version: String
+
+# ----------------------------------------------------------------------------
+# FIELD ATTRIBUTES - Property specifiers
+# ----------------------------------------------------------------------------
+
+actor FieldAttributesDemo:
+    # @replicated - Network replication
+    @replicated
+    state replicated_value: Float = 0.0
+    
+    # @savegame - Save game support
+    @savegame
+    state saved_value: Int = 0
+    
+    # @transient - Not saved or replicated
+    @transient
+    state transient_value: Float = 0.0
+    
+    # @editdefaults - Editable in class defaults
+    @editdefaults
+    state editable_default: Float = 1.0
+    
+    # @visibleonly - Visible but not editable
+    @visibleonly
+    state visible_value: Int = 0
+    
+    # @blueprint_assignable - Delegate that can be assigned in BP
+    @blueprint_assignable
+    on_event: OnButtonClicked
+
+# ----------------------------------------------------------------------------
+# FUNCTION ATTRIBUTES - Method specifiers
+# ----------------------------------------------------------------------------
+
+actor FunctionAttributesDemo:
+    state dummy: Int = 0
+    
+    # @blueprint_callable - Callable from Blueprints
+    @blueprint_callable
+    @category("Demo|Basic")
+    fn CallableFunction():
+        println("Called from Blueprint")
+    
+    # @blueprint_pure - Pure function (no side effects)
+    @blueprint_callable
+    @category("Demo|Math")
+    fn PureFunction(a: Int, b: Int) -> Int:
+        return a + b
+    
+    # @blueprint_implementable_event - Can be implemented in BP
+    @blueprint_callable
+    @category("Demo|Events")
+    fn ImplementableEvent():
+        println("Default implementation")
+
+# ----------------------------------------------------------------------------
+# UE5 METADATA - Direct UE5 property metadata
+# These are passed directly to UPROPERTY() macros
+# ----------------------------------------------------------------------------
+
+actor MetadataDemo:
+    # Display name in editor
+    @meta("DisplayName", "Custom Display Name")
+    state custom_name: String = "Value"
+    
+    # Tooltip in editor
+    @meta("Tooltip", "This is a helpful tooltip")
+    state tooltip_value: Float = 0.0
+    
+    # Clamp range
+    @meta("ClampMin", "0.0")
+    @meta("ClampMax", "100.0")
+    state clamped_value: Float = 50.0
+    
+    # UI range (slider)
+    @meta("UIMin", "0.0")
+    @meta("UIMax", "1.0")
+    state slider_value: Float = 0.5
+    
+    # Units
+    @meta("Units", "Meters")
+    state distance: Float = 100.0
+    
+    # Category
+    @meta("Category", "Advanced|Settings")
+    state categorized_value: Int = 0
+    
+    # Edit condition (only editable if flag is true)
+    @meta("EditCondition", "bEnableAdvanced")
+    state conditional_value: Float = 0.0
+    
+    state bEnableAdvanced: Bool = false
+
+# ----------------------------------------------------------------------------
+# ADVANCED NETWORKING PATTERNS
+# ----------------------------------------------------------------------------
+
+actor AdvancedNetworking:
+    @replicated
+    state health: Float = 100.0
+    
+    @replicated
+    state team_id: Int = 0
+    
+    # Server RPC with validation
+    on Server_SetHealth(new_health: Float):
+        # Validation happens automatically
+        health = new_health
+        Multicast_HealthChanged(new_health)
+    
+    # Client RPC - only to owning client
+    on Client_ShowNotification(message: String):
+        println("Notification: {message}")
+    
+    # Multicast RPC - to all clients
+    on Multicast_HealthChanged(new_health: Float):
+        println("Health changed to: {new_health}")
+    
+    # Unreliable RPC (for frequent updates)
+    on Server_UpdatePosition(position: Vec3):
+        # Position updates don't need reliability
+        println("Position: {position}")
+
+# ----------------------------------------------------------------------------
+# ADVANCED COMPONENT PATTERNS
+# ----------------------------------------------------------------------------
+
+# Component with complex state
+@component
+struct AdvancedStateMachine:
+    @replicated
+    current_state: AIState
+    
+    @transient
+    state_timer: Float
+    
+    @transient
+    previous_state: AIState
+    
+    # State history for debugging
+    @transient
+    state_history: Array<AIState>
+
+# Component with callbacks
+@component
+struct CallbackComponent:
+    @blueprint_assignable
+    on_state_changed: OnButtonClicked
+    
+    @blueprint_assignable
+    on_value_updated: OnSliderChanged
+    
+    @blueprint_assignable
+    on_error: OnTextEntered
+
+# ----------------------------------------------------------------------------
+# ADVANCED SHADER PATTERNS
+# ----------------------------------------------------------------------------
+
+# Shader with many permutations
+shader compute PermutationShader(thread_id: Vec3) -> Vec4:
+    # Quality settings
+    uniform CFG_ULTRA_QUALITY: Float @0
+    uniform CFG_HIGH_QUALITY: Float @1
+    uniform CFG_MEDIUM_QUALITY: Float @2
+    uniform CFG_LOW_QUALITY: Float @3
+    
+    # Feature toggles
+    uniform ENABLE_SHADOWS: Float @4
+    uniform ENABLE_REFLECTIONS: Float @5
+    uniform ENABLE_AMBIENT_OCCLUSION: Float @6
+    uniform ENABLE_GLOBAL_ILLUMINATION: Float @7
+    
+    # Platform-specific
+    uniform CFG_MOBILE: Float @8
+    uniform CFG_CONSOLE: Float @9
+    uniform CFG_PC: Float @10
+    
+    # Regular uniforms
+    uniform time: Float @11
+    uniform input_texture: Sampler2D @12
+    
+    let uv = vec2(thread_id.x, thread_id.y)
+    var color = sample(input_texture, uv).rgb
+    
+    # Quality-based processing
+    if CFG_ULTRA_QUALITY:
+        # Maximum quality path
+        color = color * 1.2
+    else:
+        if CFG_HIGH_QUALITY:
+            # High quality path
+            color = color * 1.1
+        else:
+            if CFG_MEDIUM_QUALITY:
+                # Medium quality path
+                color = color * 1.0
+            else:
+                # Low quality path (mobile)
+                color = color * 0.9
+    
+    # Feature-based processing
+    if ENABLE_SHADOWS:
+        color = color * 0.8
+    
+    if ENABLE_REFLECTIONS:
+        color = color + vec3(0.1, 0.1, 0.1)
+    
+    return vec4(color, 1.0)
+
+# ----------------------------------------------------------------------------
+# ADVANCED BLUEPRINT PATTERNS
+# ----------------------------------------------------------------------------
+
+# Complex math utility
+@blueprint
+fn CalculateTrajectory(start: Vec3, target: Vec3, gravity: Float, speed: Float) -> Vec3:
+    # Calculate projectile trajectory
+    let direction = target - start
+    let distance = length(direction)
+    let time = distance / speed
+    let drop = 0.5 * gravity * time * time
+    
+    return vec3(direction.x, direction.y, direction.z + drop)
+
+# State machine utility
+@blueprint
+fn GetNextAIState(current: AIState, has_target: Bool, health_percent: Float) -> AIState:
+    if current == AIState::Idle:
+        if has_target:
+            return AIState::Chase
+        else:
+            return AIState::Patrol
+    else:
+        if current == AIState::Chase:
+            if health_percent < 0.2:
+                return AIState::Flee
+            else:
+                return AIState::Attack
+        else:
+            if current == AIState::Attack:
+                if has_target == false:
+                    return AIState::Idle
+                else:
+                    return AIState::Attack
+            else:
+                return AIState::Idle
+
+# Inventory management utility
+@blueprint
+fn FindItemInInventory(items: Array<ItemStack>, item_id: Int) -> Int:
+    # Returns index of item, or -1 if not found
+    var index = 0
+    # Note: Array iteration would be implemented in real system
+    return -1
+
+# ----------------------------------------------------------------------------
+# COMPLETE EXAMPLE: FULL-FEATURED ACTOR
+# Demonstrates everything together
+# ----------------------------------------------------------------------------
+
+@uclass("Blueprintable", "BlueprintType", "Placeable")
+actor UltimateExampleActor:
+    # Components
+    state health: HealthComponent = HealthComponent()
+    state inventory: InventoryComponent = InventoryComponent()
+    state combat: CombatComponent = CombatComponent()
+    state ai: AIComponent = AIComponent()
+    
+    # Replicated state
+    @replicated
+    @savegame
+    state actor_name: String = "Ultimate Actor"
+    
+    @replicated
+    state team_id: Int = 0
+    
+    # Editable properties
+    @editdefaults
+    @meta("ClampMin", "0.0")
+    @meta("ClampMax", "1000.0")
+    @meta("Tooltip", "Maximum health for this actor")
+    state max_health: Float = 100.0
+    
+    @editdefaults
+    @meta("Category", "Combat")
+    state base_damage: Float = 10.0
+    
+    # Transient state
+    @transient
+    state last_update_time: Float = 0.0
+    
+    # Lifecycle
+    on BeginPlay():
+        health.max_health = max_health
+        health.current_health = max_health
+        println("Ultimate actor initialized")
+    
+    on Tick(delta_time: Float):
+        last_update_time = last_update_time + delta_time
+    
+    # Server RPCs
+    on Server_TakeDamage(damage: Float, attacker: Actor):
+        health.current_health = health.current_health - damage
+        if health.current_health <= 0.0:
+            Server_Die(attacker)
+        Multicast_DamageEffect(damage)
+    
+    on Server_Die(killer: Actor):
+        health.is_dead = true
+        Multicast_DeathEffect()
+    
+    # Client RPCs
+    on Client_ShowMessage(message: String):
+        println("Message: {message}")
+    
+    # Multicast RPCs
+    on Multicast_DamageEffect(damage: Float):
+        println("Damage effect: {damage}")
+    
+    on Multicast_DeathEffect():
+        println("Death effect")
+    
+    # Blueprint-callable methods
+    @blueprint_callable
+    @category("Ultimate|Combat")
+    fn Attack(target: Actor):
+        Server_TakeDamage(base_damage, target)
+    
+    @blueprint_callable
+    @category("Ultimate|Inventory")
+    fn AddItem(item_id: Int, quantity: Int) -> Bool:
+        return true
+    
+    @blueprint_callable
+    @category("Ultimate|Info")
+    fn GetActorInfo() -> String:
+        return "Name: {actor_name}, Health: {health.current_health}/{health.max_health}"

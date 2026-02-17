@@ -1,0 +1,134 @@
+# ============================================================================
+# FILE 1: TYPES AND ENUMS
+# Demonstrates: Enums, Type Aliases, Delegates
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# ENUMS - Type-safe constants with automatic UE5 UENUM generation
+# ----------------------------------------------------------------------------
+
+# Simple enum - becomes UENUM(BlueprintType)
+enum ItemRarity:
+    Common
+    Uncommon
+    Rare
+    Epic
+    Legendary
+    Mythic
+
+# Enum with display names (UE5 metadata)
+enum ItemType:
+    Weapon
+    Armor
+    Consumable
+    Material
+    QuestItem
+    Currency
+    Cosmetic
+
+# Enum for equipment slots
+enum EquipSlot:
+    Head
+    Chest
+    Legs
+    Feet
+    Hands
+    MainHand
+    OffHand
+    Ring1
+    Ring2
+    Amulet
+    Back
+
+# Enum for damage types
+enum DamageType:
+    Physical
+    Fire
+    Ice
+    Lightning
+    Poison
+    Holy
+    Shadow
+    Arcane
+
+# Enum for AI states
+enum AIState:
+    Idle
+    Patrol
+    Chase
+    Attack
+    Flee
+    Dead
+
+# Enum for quest status
+enum QuestStatus:
+    NotStarted
+    InProgress
+    Completed
+    Failed
+    Abandoned
+
+# ----------------------------------------------------------------------------
+# TYPE ALIASES (DELEGATES) - Function pointer types for callbacks
+# CRITICAL: Delegates use simple syntax - NO parameter names!
+# ----------------------------------------------------------------------------
+
+# Health system delegates
+type OnHealthChanged = delegate(Float, Float)  # (old_health, new_health)
+type OnDeath = delegate(Actor)  # (killer)
+type OnRespawn = delegate(Vec3)  # (spawn_location)
+
+# Inventory system delegates
+type OnItemAdded = delegate(Int, Int)  # (item_id, quantity)
+type OnItemRemoved = delegate(Int, Int)  # (item_id, quantity)
+type OnInventoryFull = delegate()  # No parameters
+
+# Combat system delegates
+type OnDamageDealt = delegate(Actor, Float, DamageType)  # (target, amount, type)
+type OnDamageTaken = delegate(Actor, Float, DamageType)  # (attacker, amount, type)
+type OnCriticalHit = delegate(Float)  # (damage_multiplier)
+
+# Quest system delegates
+type OnQuestStarted = delegate(Int)  # (quest_id)
+type OnQuestCompleted = delegate(Int, Int)  # (quest_id, reward_xp)
+type OnQuestFailed = delegate(Int, String)  # (quest_id, reason)
+
+# UI delegates
+type OnButtonClicked = delegate(String)  # (button_name)
+type OnSliderChanged = delegate(Float)  # (new_value)
+type OnTextEntered = delegate(String)  # (text)
+
+# Multiplayer delegates
+type OnPlayerJoined = delegate(Actor, String)  # (player, player_name)
+type OnPlayerLeft = delegate(Actor, String)  # (player, reason)
+type OnChatMessage = delegate(String, String)  # (sender, message)
+
+# ----------------------------------------------------------------------------
+# BASIC STRUCTS - Plain data structures (no @datatable, no @component)
+# These become USTRUCT(BlueprintType) in UE5
+# ----------------------------------------------------------------------------
+
+# Vector math struct
+struct Transform2D:
+    position: Vec2
+    rotation: Float
+    scale: Vec2
+
+# Color with alpha
+struct ColorRGBA:
+    r: Float
+    g: Float
+    b: Float
+    a: Float
+
+# Range struct for min/max values
+struct FloatRange:
+    min: Float
+    max: Float
+
+# Damage calculation result
+struct DamageResult:
+    base_damage: Float
+    final_damage: Float
+    was_critical: Bool
+    damage_type: DamageType

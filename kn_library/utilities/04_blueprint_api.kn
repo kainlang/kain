@@ -1,0 +1,60 @@
+# ============================================================================
+# ALPHAGEN - BLUEPRINT API
+# Blueprint-callable functions for texture generation and filtering
+# ============================================================================
+
+# Generate a procedural alpha texture
+@blueprint
+fn GenerateAlphaTexture(
+    generator_type: AlphaGenType,
+    size: Int,
+    param1: Float,
+    param2: Float,
+    param3: Float
+) -> Texture2D:
+    # Calls into C++ compute engine
+    return null
+
+# Apply a single filter to a texture
+@blueprint
+fn ApplyFilter(
+    input_texture: Texture2D,
+    filter_type: AlphaGenFilterType,
+    param1: Float,
+    param2: Float,
+    param3: Float
+) -> Texture2D:
+    # Calls into C++ filter chain
+    return null
+
+# Apply multiple filters in sequence
+@blueprint
+fn ApplyFilterChain(
+    input_texture: Texture2D,
+    filter_types: Array<AlphaGenFilterType>,
+    filter_params: Array<Float>
+) -> Texture2D:
+    # Calls into C++ optimized filter chain
+    return null
+
+# Export texture to project content
+@blueprint
+fn ExportToProject(
+    texture: Texture2D,
+    path: String,
+    name: String
+) -> Bool:
+    # Saves texture as asset
+    return false
+
+# Get generator parameter info
+@blueprint
+fn GetGeneratorParamNames(generator_type: AlphaGenType) -> Array<String>:
+    # Returns parameter names for UI
+    return []
+
+# Get filter parameter info
+@blueprint
+fn GetFilterParamNames(filter_type: AlphaGenFilterType) -> Array<String>:
+    # Returns parameter names for UI
+    return []

@@ -1,0 +1,20 @@
+// === SlateTest Plugin: Components ===
+// Note: @replicated goes on actor state, not component fields directly
+// Components replicate as a whole unit via the owning actor
+
+@component
+struct InventoryComponent:
+    items: Array<ItemStack>
+    capacity: Int
+    gold: Int
+
+@component
+struct HealthComponent:
+    current: Float
+    max: Float
+    
+    @transient
+    regen_rate: Float
+    
+    @blueprint_assignable
+    on_health_changed: OnHealthChanged

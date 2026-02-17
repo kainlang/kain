@@ -1,0 +1,280 @@
+# ============================================================================
+# FILE 4: ACTORS AND NETWORKING
+# Demonstrates: Actors, RPCs (Server_*, Client_*, Multicast_*), state, handlers
+# CRITICAL: Actors CAN have default values, Components CANNOT
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# ACTORS - Main game entities with networking support
+# Naming convention triggers automatic RPC generation:
+# - Server_* → Server RPC (Reliable)
+# - Client_* → Client RPC (Reliable)
+# - Multicast_* → Multicast RPC (Reliable)
+# ----------------------------------------------------------------------------
+
+# Player character actor - full RPG system
+@uclass("Blueprintable", "BlueprintType")
+actor RPGPlayer:
+    # Component instantiation (actors CAN have defaults!)
+    state health: HealthComponent = HealthComponent()
+    state inventory: InventoryComponent = InventoryComponent()
+    state equipment: EquipmentComponent = EquipmentComponent()
+    state combat: CombatComponent = CombatComponent()
+    state quests: QuestComponent = QuestComponent()
+    state stats: StatsComponent = StatsComponent()
+    state status_effects: StatusEffectComponent = StatusEffectComponent()
+    
+    # Player-specific state
+    @replicated
+    state player_name: String = "Player"
+    
+    @replicated
+    state player_class: String = "Warrior"
+    
+    state respawn_location: Vec3 = vec3(0.0, 0.0, 100.0)
+    
+    # Lifecycle handlers
+    on BeginPlay():
+        # Initialize components
+        health.max_health = 100.0
+        health.current_health = 100.0
+        health.health_regen_rate = 1.0
+        
+        inventory.capacity = 20
+        inventory.max_weight = 100.0
+        
+        stats.level = 1
+        stats.experience = 0
+        stats.experience_to_next_level = 100
+        
+        println("RPG Player initialized: {player_name}")
+    
+    on Tick(delta_time: Float):
+        # Health regeneration
+        if health.current_health < health.max_health:
+            if health.current_health > 0.0:
+                health.current_health = health.current_health + (health.health_regen_rate * delta_time)
+                if health.current_health > health.max_health:
+                    health.current_health = health.max_health
+    
+    # SERVER RPCs - Called by client, executed on server
+    on Server_TakeDamage(damage: Float, attacker: Actor, damage_type: DamageType):
+        if health.is_invulnerable:
+            return
+        
+        # Calculate final damage (armor, resistances, etc.)
+        var final_damage = damage
+        
+        # Apply damage
+        health.current_health = health.current_health - final_damage
+        
+        # Check for death
+        if health.current_health <= 0.0:
+            health.current_health = 0.0
+            health.is_dead = true
+            Server_HandleDeath(attacker)
+        
+        # Notify all clients
+        Multicast_OnDamageReceived(final_damage, damage_type)
+    
+    on Server_UseItem(item_id: Int):
+        # Validate item exists in inventory
+        # Apply item effects
+        # Remove from inventory if consumable
+        Client_ItemUsed(item_id)
+    
+    on Server_EquipItem(item_id: Int, slot: EquipSlot):
+        # Validate item
+        # Update equipment component
+        # Recalculate stats
+        Multicast_EquipmentChanged(slot, item_id)
+    
+    on Server_StartQuest(quest_id: Int):
+        # Validate quest requirements
+        # Add to active quests
+        Client_QuestStarted(quest_id)
+    
+    on Server_HandleDeath(killer: Actor):
+        health.is_dead = true
+        Multicast_OnPlayerDeath(killer)
+    
+    on Server_Respawn():
+        health.current_health = health.max_health
+        health.is_dead = false
+        Multicast_OnPlayerRespawn(respawn_location)
+    
+    # CLIENT RPCs - Called by server, executed on owning client
+    on Client_ItemUsed(item_id: Int):
+        println("Item used: {item_id}")
+        # Play UI feedback
+    
+    on Client_QuestStarted(quest_id: Int):
+        println("Quest started: {quest_id}")
+        # Show quest notification
+    
+    on Client_LevelUp(new_level: Int):
+        println("Level up! New level: {new_level}")
+        # Play level up effects
+    
+    on Client_ShowDamageNumber(damage: Float, was_critical: Bool):
+        # Spawn floating damage number
+        println("Damage: {damage}")
+    
+    # MULTICAST RPCs - Called by server, executed on all clients
+    on Multicast_OnDamageReceived(damage: Float, damage_type: DamageType):
+        # Play hit effects, sounds, etc.
+        println("Took {damage} damage of type {damage_type}")
+    
+    on Multicast_EquipmentChanged(slot: EquipSlot, item_id: Int):
+        # Update visual equipment
+        println("Equipment changed: slot {slot}, item {item_id}")
+    
+    on Multicast_OnPlayerDeath(killer: Actor):
+        # Play death animation
+        # Ragdoll physics
+        println("Player died!")
+    
+    on Multicast_OnPlayerRespawn(location: Vec3):
+        # Teleport to spawn
+        # Play respawn effects
+        println("Player respawned at {location}")
+    
+    # BLUEPRINT-CALLABLE METHODS
+    @blueprint_callable
+    @category("RPG|Combat")
+    fn Attack(target: Actor):
+        if combat.is_in_combat:
+            Server_TakeDamage(combat.attack_power, target, DamageType::Physical)
+    
+    @blueprint_callable
+    @category("RPG|Inventory")
+    fn AddItem(item_id: Int, quantity: Int) -> Bool:
+        # Check inventory space
+        # Add item
+        return true
+    
+    @blueprint_callable
+    @category("RPG|Stats")
+    fn GainExperience(amount: Int):
+        stats.experience = stats.experience + amount
+        if stats.experience >= stats.experience_to_next_level:
+            stats.level = stats.level + 1
+            Client_LevelUp(stats.level)
+
+# Enemy actor - AI-controlled
+@uclass("Blueprintable", "BlueprintType")
+actor Enemy:
+    state health: HealthComponent = HealthComponent()
+    state combat: CombatComponent = CombatComponent()
+    state ai: AIComponent = AIComponent()
+    
+    @replicated
+    state enemy_type: String = "Goblin"
+    
+    state loot_table_id: Int = 1
+    state experience_reward: Int = 50
+    
+    on BeginPlay():
+        health.max_health = 50.0
+        health.current_health = 50.0
+        ai.current_state = AIState::Patrol
+    
+    on Tick(delta_time: Float):
+        # AI behavior based on state
+        if ai.current_state == AIState::Patrol:
+            # Patrol logic
+            println("Patrolling...")
+        else:
+            if ai.current_state == AIState::Chase:
+                # Chase logic
+                println("Chasing player!")
+    
+    on Server_TakeDamage(damage: Float, attacker: Actor):
+        health.current_health = health.current_health - damage
+        
+        if health.current_health <= 0.0:
+            Server_Die(attacker)
+        else:
+            ai.current_state = AIState::Chase
+            ai.current_target = attacker
+    
+    on Server_Die(killer: Actor):
+        health.is_dead = true
+        ai.current_state = AIState::Dead
+        Multicast_OnEnemyDeath()
+        # Drop loot
+        # Give experience to killer
+    
+    on Multicast_OnEnemyDeath():
+        # Play death effects
+        println("Enemy died!")
+
+# Interactable object - chests, doors, NPCs
+@uclass("Blueprintable", "BlueprintType")
+actor InteractableObject:
+    state interaction: InteractionComponent = InteractionComponent()
+    
+    @replicated
+    state object_type: String = "Chest"
+    
+    @replicated
+    state is_locked: Bool = false
+    
+    state required_key_id: Int = 0
+    
+    on BeginPlay():
+        interaction.interaction_range = 200.0
+        interaction.interaction_prompt = "Press E to interact"
+        interaction.is_interactable = true
+    
+    on Server_Interact(player: Actor):
+        if is_locked:
+            Client_ShowMessage(player, "This is locked!")
+            return
+        
+        # Perform interaction
+        Multicast_OnInteracted(player)
+    
+    on Client_ShowMessage(player: Actor, message: String):
+        println("Message: {message}")
+    
+    on Multicast_OnInteracted(player: Actor):
+        println("Object interacted by player")
+
+# Projectile actor - arrows, fireballs, etc.
+@uclass("Blueprintable", "BlueprintType")
+actor Projectile:
+    @replicated
+    state damage: Float = 10.0
+    
+    @replicated
+    state damage_type: DamageType = DamageType::Physical
+    
+    @replicated
+    state owner_actor: Actor = Actor()
+    
+    state velocity: Vec3 = vec3(1000.0, 0.0, 0.0)
+    state lifetime: Float = 5.0
+    
+    on BeginPlay():
+        # Set up collision
+        # Start movement
+        println("Projectile spawned")
+    
+    on Tick(delta_time: Float):
+        lifetime = lifetime - delta_time
+        if lifetime <= 0.0:
+            Server_Destroy()
+    
+    on Server_OnHit(hit_actor: Actor):
+        # Apply damage to hit actor
+        Multicast_OnImpact(hit_actor)
+        Server_Destroy()
+    
+    on Multicast_OnImpact(hit_actor: Actor):
+        # Play impact effects
+        println("Projectile hit!")
+    
+    on Server_Destroy():
+        # Destroy projectile
+        println("Projectile destroyed")

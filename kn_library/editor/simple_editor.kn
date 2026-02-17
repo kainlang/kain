@@ -1,0 +1,41 @@
+// Simple Editor Tool Test
+// Testing the UE5 Editor codegen
+
+// === DELEGATES ===
+
+type OnPresetChanged = delegate()
+
+// === ASSET TYPE ===
+
+@asset_type
+struct MaterialPreset:
+    @category("Material")
+    base_color: Color
+    
+    @category("Material")
+    roughness: Float
+    
+    @category("Material")
+    metallic: Float
+    
+    @category("Material")
+    emissive: Color
+
+// === SLATE WIDGET ===
+
+@slate
+struct MaterialPresetEditor:
+    @argument
+    preset: MaterialPreset
+    
+    @event
+    on_preset_changed: OnPresetChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+// === EDITOR MODULE ===
+
+@editor_module
+struct MaterialPresetEditorModule:
+    name: String

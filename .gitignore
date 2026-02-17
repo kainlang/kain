@@ -12,6 +12,8 @@
 *.dll
 /mcp
 /testing
+/projects
+/kain/Final5_7
 # LLVM/Compiler output
 *.ll
 

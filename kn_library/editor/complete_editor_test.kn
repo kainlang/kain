@@ -1,0 +1,465 @@
+# KAIN UE5 Editor Tool: Complete Editor Suite Test
+# Comprehensive test of @asset_type, @slate, and @editor_module
+
+# ============================================================================
+# CUSTOM ASSET TYPES - Data-driven editor content
+# ============================================================================
+
+@asset_type
+struct GameplayAbility:
+    AbilityName: String
+    Description: String
+    Icon: String
+    CooldownDuration: Float
+    ManaCost: Float
+    HealthCost: Float
+    Damage: Float
+    Range: Float
+    AreaOfEffect: Float
+    CastTime: Float
+    ChannelTime: Float
+    MaxCharges: Int
+    RequiredLevel: Int
+    AbilityTags: String
+    BlockedTags: String
+    ActivationTags: String
+    IsPassive: Bool
+    IsToggleable: Bool
+    CanCastWhileMoving: Bool
+    InterruptsMovement: Bool
+    RequiresTarget: Bool
+    TargetType: String
+    AnimationMontage: String
+    ParticleEffect: String
+    SoundEffect: String
+    CameraShake: String
+
+@asset_type
+struct DialogueTree:
+    TreeName: String
+    Description: String
+    Speaker: String
+    Listener: String
+    RootNodeID: Int
+    NodeCount: Int
+    BranchCount: Int
+    ConditionCount: Int
+    IsRepeatable: Bool
+    RequiredQuestID: Int
+    RequiredItemID: Int
+    RequiredLevel: Int
+    RewardExperience: Int
+    RewardGold: Int
+    RewardItemID: Int
+    RewardItemCount: Int
+    UnlocksQuestID: Int
+    SetsFlagID: Int
+    VoiceOverAsset: String
+    SubtitleKey: String
+    EmotionalTone: String
+    CameraAngle: String
+
+@asset_type
+struct QuestDefinition:
+    QuestID: Int
+    QuestName: String
+    QuestDescription: String
+    QuestGiver: String
+    QuestCategory: String
+    RequiredLevel: Int
+    RecommendedLevel: Int
+    IsMainQuest: Bool
+    IsSideQuest: Bool
+    IsRepeatable: Bool
+    MaxRepeatCount: Int
+    CooldownHours: Float
+    ObjectiveCount: Int
+    ObjectiveDescription: String
+    RequiredKillCount: Int
+    RequiredCollectCount: Int
+    RequiredLocationID: Int
+    RequiredDialogueID: Int
+    PrerequisiteQuestID: Int
+    RewardExperience: Int
+    RewardGold: Int
+    RewardItemID: Int
+    RewardItemCount: Int
+    RewardAbilityID: Int
+    FailureCondition: String
+    TimeLimit: Float
+    TrackedInJournal: Bool
+
+@asset_type
+struct WeaponDefinition:
+    WeaponID: Int
+    WeaponName: String
+    WeaponType: String
+    WeaponClass: String
+    Rarity: String
+    RequiredLevel: Int
+    RequiredStrength: Int
+    RequiredDexterity: Int
+    RequiredIntelligence: Int
+    BaseDamage: Float
+    AttackSpeed: Float
+    CriticalChance: Float
+    CriticalDamage: Float
+    Range: Float
+    Durability: Float
+    MaxDurability: Float
+    Weight: Float
+    Value: Int
+    SocketCount: Int
+    EnchantmentSlots: Int
+    UpgradeLevel: Int
+    MaxUpgradeLevel: Int
+    MeshAsset: String
+    IconAsset: String
+    MaterialAsset: String
+    ParticleEffect: String
+    TrailEffect: String
+    ImpactEffect: String
+    SwingSound: String
+    HitSound: String
+    EquipSound: String
+
+@asset_type
+struct CharacterClass:
+    ClassName: String
+    Description: String
+    IconPath: String
+    StartingHealth: Float
+    StartingMana: Float
+    StartingStamina: Float
+    HealthPerLevel: Float
+    ManaPerLevel: Float
+    StaminaPerLevel: Float
+    StrengthPerLevel: Float
+    DexterityPerLevel: Float
+    IntelligencePerLevel: Float
+    VitalityPerLevel: Float
+    LuckPerLevel: Float
+    BaseMovementSpeed: Float
+    BaseDodgeChance: Float
+    BaseBlockChance: Float
+    BaseCritChance: Float
+    StartingWeaponID: Int
+    StartingArmorID: Int
+    StartingAbilityID: Int
+    AllowedWeaponTypes: String
+    AllowedArmorTypes: String
+    PrimaryAttribute: String
+    SecondaryAttribute: String
+    PlayableInMultiplayer: Bool
+
+# ============================================================================
+# SLATE WIDGETS - Editor UI Components
+# ============================================================================
+
+@slate
+struct AbilityEditorWindow:
+    WindowTitle: Text
+    @argument
+    WindowWidth: Float
+    @argument
+    WindowHeight: Float
+    SelectedAbility: String
+    ShowAdvancedProperties: Bool
+    EnableRealTimePreview: Bool
+    PreviewCharacter: String
+    PreviewAnimation: String
+    OnAbilitySelected: void
+    OnPropertyChanged: void
+    OnSaveClicked: void
+    OnTestAbility: void
+    OnDuplicateAbility: void
+    OnDeleteAbility: void
+    OnImportAbility: void
+    OnExportAbility: void
+
+@slate
+struct DialogueGraphEditor:
+    @argument
+    EditorWidth: Float
+    @argument
+    EditorHeight: Float
+    GraphZoomLevel: Float
+    ShowNodeIDs: Bool
+    ShowConnections: Bool
+    ShowConditions: Bool
+    SnapToGrid: Bool
+    GridSize: Float
+    SelectedNodeID: Int
+    NodeCount: Int
+    ConnectionCount: Int
+    OnNodeAdded: void
+    OnNodeRemoved: void
+    OnNodeMoved: void
+    OnConnectionCreated: void
+    OnConnectionRemoved: void
+    OnNodeDoubleClicked: void
+    OnGraphZoomChanged: void
+    OnGridToggled: void
+
+@slate
+struct QuestDesigner:
+    @argument
+    DesignerWidth: Float
+    @argument
+    DesignerHeight: Float
+    QuestName: Text
+    QuestCategory: String
+    ObjectiveCount: Int
+    RewardCount: Int
+    ShowObjectiveEditor: Bool
+    ShowRewardEditor: Bool
+    ShowConditionEditor: Bool
+    EnableValidation: Bool
+    OnObjectiveAdded: void
+    OnObjectiveRemoved: void
+    OnRewardAdded: void
+    OnRewardRemoved: void
+    OnValidateQuest: void
+    OnSaveQuest: void
+    OnTestQuest: void
+
+@slate
+struct WeaponForge:
+    @argument
+    ForgeWidth: Float
+    @argument
+    ForgeHeight: Float
+    WeaponName: Text
+    WeaponType: String
+    BaseDamage: Float
+    AttackSpeed: Float
+    CritChance: Float
+    ShowStatsPanel: Bool
+    ShowMeshPreview: Bool
+    ShowMaterialEditor: Bool
+    PreviewMesh: String
+    PreviewMaterial: String
+    OnStatChanged: void
+    OnMeshChanged: void
+    OnMaterialChanged: void
+    OnForgeWeapon: void
+    OnTestWeapon: void
+    OnExportWeapon: void
+
+@slate
+struct ClassBuilder:
+    @argument
+    BuilderWidth: Float
+    @argument
+    BuilderHeight: Float
+    ClassName: Text
+    ClassIcon: String
+    StartingHealth: Float
+    StartingMana: Float
+    ShowAttributeEditor: Bool
+    ShowAbilityTree: Bool
+    ShowEquipmentSlots: Bool
+    AttributePointsAvailable: Int
+    OnAttributeChanged: void
+    OnAbilityAdded: void
+    OnAbilityRemoved: void
+    OnEquipmentChanged: void
+    OnSaveClass: void
+    OnTestClass: void
+
+@slate
+struct AssetBrowser:
+    @argument
+    BrowserWidth: Float
+    @argument
+    BrowserHeight: Float
+    SearchQuery: String
+    SelectedFolder: String
+    AssetType: String
+    SortMode: String
+    FilterTags: String
+    ShowThumbnails: Bool
+    ThumbnailSize: Float
+    ShowDetails: Bool
+    ShowPreview: Bool
+    OnAssetSelected: void
+    OnAssetDoubleClicked: void
+    OnAssetDragged: void
+    OnFolderChanged: void
+    OnSearchChanged: void
+    OnFilterChanged: void
+    OnRefreshClicked: void
+
+@slate
+struct PropertyInspector:
+    @argument
+    InspectorWidth: Float
+    @argument
+    InspectorHeight: Float
+    SelectedObject: String
+    PropertyCount: Int
+    ShowAdvanced: Bool
+    ShowInherited: Bool
+    ShowCategories: Bool
+    EnableSearch: Bool
+    SearchText: String
+    OnPropertyChanged: void
+    OnResetProperty: void
+    OnCopyProperty: void
+    OnPasteProperty: void
+
+@slate
+struct ValidationPanel:
+    @argument
+    PanelWidth: Float
+    @argument
+    PanelHeight: Float
+    ErrorCount: Int
+    WarningCount: Int
+    InfoCount: Int
+    ShowErrors: Bool
+    ShowWarnings: Bool
+    ShowInfo: Bool
+    AutoValidate: Bool
+    OnValidateClicked: void
+    OnFixAllClicked: void
+    OnClearClicked: void
+    OnErrorClicked: void
+
+@slate
+struct BatchProcessor:
+    @argument
+    ProcessorWidth: Float
+    @argument
+    ProcessorHeight: Float
+    SelectedAssets: Int
+    ProcessingMode: String
+    TargetFolder: String
+    OverwriteExisting: Bool
+    CreateBackup: Bool
+    ShowProgress: Bool
+    ProgressPercent: Float
+    OnProcessClicked: void
+    OnCancelClicked: void
+    OnSelectAll: void
+    OnDeselectAll: void
+
+@slate
+struct PerformanceProfiler:
+    @argument
+    ProfilerWidth: Float
+    @argument
+    ProfilerHeight: Float
+    CurrentFPS: Float
+    AverageFrameTime: Float
+    PeakMemoryUsage: Float
+    DrawCallCount: Int
+    TriangleCount: Int
+    ShowGraph: Bool
+    ShowStats: Bool
+    ShowHotspots: Bool
+    RecordingEnabled: Bool
+    OnStartRecording: void
+    OnStopRecording: void
+    OnClearData: void
+    OnExportReport: void
+
+@slate
+struct VersionControl:
+    @argument
+    VCWidth: Float
+    @argument
+    VCHeight: Float
+    CurrentBranch: String
+    ModifiedFiles: Int
+    StagedFiles: Int
+    CommitMessage: Text
+    ShowDiff: Bool
+    ShowHistory: Bool
+    OnCommitClicked: void
+    OnPushClicked: void
+    OnPullClicked: void
+    OnRevertClicked: void
+    OnBranchChanged: void
+
+@slate
+struct CollaborationHub:
+    @argument
+    HubWidth: Float
+    @argument
+    HubHeight: Float
+    OnlineUsers: Int
+    ActiveSessions: Int
+    ChatEnabled: Bool
+    VoiceEnabled: Bool
+    ScreenShareEnabled: Bool
+    ShowUserList: Bool
+    ShowChat: Bool
+    ShowActivity: Bool
+    OnJoinSession: void
+    OnLeaveSession: void
+    OnInviteUser: void
+    OnSendMessage: void
+
+# ============================================================================
+# EDITOR MODULES - Plugin initialization and management
+# ============================================================================
+
+@editor_module
+struct GameplayEditorSuite:
+    ModuleVersion: String
+    EnableAutoSave: Bool
+    AutoSaveInterval: Int
+    MaxUndoHistory: Int
+    EnableCloudSync: Bool
+    CloudSyncInterval: Int
+    EnableCollaboration: Bool
+    EnableVersionControl: Bool
+    DefaultAssetPath: String
+    TempPath: String
+    CachePath: String
+    BackupPath: String
+    EnableDebugMode: Bool
+    EnableProfiling: Bool
+    EnableValidation: Bool
+    ValidationLevel: Int
+    EnableHotReload: Bool
+    EnableLivePreview: Bool
+
+@editor_module
+struct ContentPipeline:
+    PipelineVersion: String
+    EnableAutoImport: Bool
+    WatchedFolders: String
+    ImportRules: String
+    EnableTextureOptimization: Bool
+    EnableMeshOptimization: Bool
+    EnableAudioOptimization: Bool
+    MaxTextureSize: Int
+    CompressionQuality: Int
+    GenerateLODs: Bool
+    LODCount: Int
+    EnableBatching: Bool
+    BatchSize: Int
+    EnableCaching: Bool
+    CacheSize: Int
+
+@editor_module
+struct AssetManagement:
+    ManagerVersion: String
+    EnableAssetTracking: Bool
+    EnableDependencyAnalysis: Bool
+    EnableUnusedAssetDetection: Bool
+    EnableDuplicateDetection: Bool
+    EnableAssetValidation: Bool
+    EnableAutoTagging: Bool
+    EnableSmartSearch: Bool
+    IndexingEnabled: Bool
+    IndexUpdateInterval: Int
+    MaxSearchResults: Int
+    EnableThumbnailGeneration: Bool
+    ThumbnailSize: Int
+    EnablePreviewGeneration: Bool
+
+fn main():
+    println("Complete Editor Suite Loaded")

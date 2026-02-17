@@ -1,0 +1,97 @@
+// Phase 3 Advanced UE5 Features Test
+
+// === FORWARD DECLARATIONS (via attributes) ===
+// We'll use @forward attribute to generate forward declarations
+
+// === CUSTOM STRUCTS (non-datatable) ===
+struct InstanceCache:
+    r: Float
+    g: Float
+    b: Float
+    time: Float
+    visible: Bool
+
+// === ENUMS ===
+enum ClonerMode:
+    Linear
+    Grid
+    Radial
+    Spline
+
+// === ACTOR WITH ADVANCED FEATURES ===
+@uclass("Blueprintable", "BlueprintType", "Category=K-Studio")
+actor ClonerActor:
+    // State with TObjectPtr (we'll map certain types automatically)
+    @forward("UStaticMesh")
+    state source_mesh: StaticMesh = null
+    
+    @forward("USkeletalMesh")
+    state source_skeletal_mesh: SkeletalMesh = null
+    
+    state mode: ClonerMode = ClonerMode::Linear
+    state instance_count: Int = 100
+    
+    // Array of custom struct
+    state cached_instances: Array<InstanceCache> = []
+    
+    // Inline getter (body in header)
+    @blueprint_pure
+    @inline
+    fn GetInstanceCount() -> Int:
+        return instance_count
+    
+    // Inline getter with array access
+    @blueprint_pure
+    @inline
+    fn GetModifierCount() -> Int:
+        return cached_instances.len()
+    
+    // Method with default parameters
+    @blueprint_callable
+    @category("Cloner|Animation")
+    fn PlayAnimation(anim_name: String, play_rate: Float = 1.0, start_section: String = "None"):
+        println("Playing animation {anim_name} at rate {play_rate}")
+    
+    // Method with TSubclassOf parameter (we'll handle this specially)
+    @blueprint_callable
+    @category("Cloner|Modifiers")
+    @meta("DeterminesOutputType=ModifierClass")
+    fn AddModifierOfClass(modifier_class: Class) -> Object:
+        println("Adding modifier of class")
+        return null
+    
+    // Pure method with inline body
+    @blueprint_pure
+    @category("Cloner|Query")
+    @inline
+    fn IsAnimating() -> Bool:
+        return instance_count > 0
+    
+    // Callable method
+    @blueprint_callable
+    @category("Cloner")
+    fn ForceRebuild():
+        println("Rebuilding cloner")
+        instance_count = 100
+    
+    // Callable with array manipulation
+    @blueprint_callable
+    @category("Cloner|Control")
+    fn HideAllClones():
+        println("Hiding all clones")
+    
+    // Override virtual methods
+    on BeginPlay():
+        println("Cloner actor started")
+    
+    on Tick(delta_time: Float):
+        println("Ticking with delta {delta_time}")
+
+// === BLUEPRINT FUNCTION WITH ADVANCED FEATURES ===
+@blueprint
+@pure
+fn calculate_distance(a: Vec3, b: Vec3) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    let dz = b.z - a.z
+    return sqrt(dx * dx + dy * dy + dz * dz)

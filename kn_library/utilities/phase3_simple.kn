@@ -1,0 +1,23 @@
+// Phase 3 Simple Test - Inline methods and UCLASS specifiers
+
+@uclass("Blueprintable", "BlueprintType", "Category=Test")
+actor SimpleActor:
+    state count: Int = 0
+    state is_active: Bool = false
+    
+    // Inline getter
+    @blueprint_pure
+    @inline
+    fn GetCount() -> Int:
+        return count
+    
+    // Inline boolean getter
+    @blueprint_pure
+    @inline
+    fn IsActive() -> Bool:
+        return is_active
+    
+    // Non-inline method
+    @blueprint_callable
+    fn Increment():
+        count = count + 1

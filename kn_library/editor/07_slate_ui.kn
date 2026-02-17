@@ -1,0 +1,203 @@
+# ============================================================================
+# FILE 7: SLATE UI AND EDITOR TOOLS
+# Demonstrates: @slate widgets, @editor_module, editor integration
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# SLATE WIDGETS - UE5 Editor UI components
+# @slate generates Slate widget classes for editor tools
+# ----------------------------------------------------------------------------
+
+# Main dashboard widget - shows plugin overview
+@slate
+struct MainDashboard:
+    # Arguments (passed from parent)
+    @argument
+    plugin_name: Text
+    
+    @argument
+    plugin_version: Text
+    
+    # Events (callbacks to parent)
+    @event
+    on_refresh_clicked: OnButtonClicked
+    
+    @event
+    on_settings_clicked: OnButtonClicked
+    
+    # Compose the widget tree
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Item editor widget - edit item properties
+@slate
+struct ItemEditor:
+    @argument
+    item_id: Int
+    
+    @argument
+    item_name: Text
+    
+    @argument
+    item_rarity: ItemRarity
+    
+    @event
+    on_save_clicked: OnButtonClicked
+    
+    @event
+    on_cancel_clicked: OnButtonClicked
+    
+    @event
+    on_rarity_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Quest editor widget - visual quest designer
+@slate
+struct QuestEditor:
+    @argument
+    quest_id: Int
+    
+    @argument
+    quest_name: Text
+    
+    @event
+    on_add_objective_clicked: OnButtonClicked
+    
+    @event
+    on_remove_objective_clicked: OnButtonClicked
+    
+    @event
+    on_save_quest_clicked: OnButtonClicked
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Loot table editor widget
+@slate
+struct LootTableEditor:
+    @argument
+    loot_table_id: Int
+    
+    @argument
+    loot_table_name: Text
+    
+    @event
+    on_add_item_clicked: OnButtonClicked
+    
+    @event
+    on_remove_item_clicked: OnButtonClicked
+    
+    @event
+    on_drop_chance_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Stats preview widget - shows calculated stats
+@slate
+struct StatsPreview:
+    @argument
+    health: Float
+    
+    @argument
+    damage: Float
+    
+    @argument
+    armor: Float
+    
+    @argument
+    attack_speed: Float
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Inventory preview widget - shows item grid
+@slate
+struct InventoryPreview:
+    @argument
+    capacity: Int
+    
+    @argument
+    current_weight: Float
+    
+    @argument
+    max_weight: Float
+    
+    @event
+    on_item_clicked: OnButtonClicked
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Details panel widget - property inspector
+@slate
+struct DetailsPanel:
+    @argument
+    selected_object_name: Text
+    
+    @argument
+    property_count: Int
+    
+    @event
+    on_property_changed: OnTextEntered
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Toolbar widget - main editor toolbar
+@slate
+struct EditorToolbar:
+    @event
+    on_new_clicked: OnButtonClicked
+    
+    @event
+    on_open_clicked: OnButtonClicked
+    
+    @event
+    on_save_clicked: OnButtonClicked
+    
+    @event
+    on_build_clicked: OnButtonClicked
+    
+    @event
+    on_test_clicked: OnButtonClicked
+    
+    fn Compose() -> Widget:
+        return HorizontalBox()
+
+# Asset browser widget - browse plugin assets
+@slate
+struct AssetBrowser:
+    @argument
+    current_folder: Text
+    
+    @argument
+    asset_count: Int
+    
+    @event
+    on_asset_selected: OnButtonClicked
+    
+    @event
+    on_folder_changed: OnTextEntered
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# ----------------------------------------------------------------------------
+# EDITOR MODULE - Plugin editor integration
+# @editor_module generates editor module registration
+# ----------------------------------------------------------------------------
+
+@editor_module
+struct UltimateKainDemoModule:
+    module_name: String
+    version: String
+    
+    # Editor module automatically registers:
+    # - Menu extensions
+    # - Toolbar buttons
+    # - Asset editors
+    # - Details customizations
+    # - Slate widgets

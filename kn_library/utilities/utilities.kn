@@ -1,0 +1,143 @@
+// KClonerPro - Blueprint Utility Functions
+// Helper functions for Blueprint usage
+
+// === MATH UTILITIES ===
+
+@blueprint
+@pure
+fn CalculateGridPosition(index: Int, grid_x: Int, grid_y: Int, spacing: Vec3) -> Vec3:
+    let x = index % grid_x
+    let y = (index / grid_x) % grid_y
+    let z = index / (grid_x * grid_y)
+    return Vec3()
+
+@blueprint
+@pure
+fn CalculateRadialPosition(index: Int, count: Int, radius: Float) -> Vec3:
+    let angle = (index * 360) / count
+    return Vec3()
+
+@blueprint
+@pure
+fn CalculateSplinePosition(spline: SplineComponent, index: Int, count: Int) -> Vec3:
+    let distance = index / count
+    return Vec3()
+
+// === TRANSFORM UTILITIES ===
+
+@blueprint
+@pure
+fn BlendTransforms(a: Transform, b: Transform, alpha: Float) -> Transform:
+    return Transform()
+
+@blueprint
+@pure
+fn ApplyEffectorInfluence(base_transform: Transform, effector_location: Vec3, strength: Float, radius: Float) -> Transform:
+    return Transform()
+
+@blueprint
+@pure
+fn CalculateDistanceAttenuation(distance: Float, radius: Float, falloff: Float) -> Float:
+    if distance > radius:
+        return 0.0
+    let normalized = distance / radius
+    return 1.0 - normalized
+
+// === COLOR UTILITIES ===
+
+@blueprint
+@pure
+fn BlendColors(color_a: Vec3, color_b: Vec3, alpha: Float) -> Vec3:
+    return Vec3()
+
+@blueprint
+@pure
+fn ApplyColorGradient(index: Int, count: Int, start_color: Vec3, end_color: Vec3) -> Vec3:
+    let t = index / count
+    return Vec3()
+
+@blueprint
+@pure
+fn HSVToRGB(h: Float, s: Float, v: Float) -> Vec3:
+    return Vec3()
+
+// === NOISE UTILITIES ===
+
+@blueprint
+@pure
+fn PerlinNoise3D(x: Float, y: Float, z: Float) -> Float:
+    return 0.0
+
+@blueprint
+@pure
+fn SimplexNoise3D(x: Float, y: Float, z: Float) -> Float:
+    return 0.0
+
+@blueprint
+fn GenerateNoiseField(size: Int, scale: Float, seed: Int) -> Array<Float>:
+    return []
+
+// === VALIDATION UTILITIES ===
+
+@blueprint
+@pure
+fn IsValidCloneIndex(index: Int, count: Int) -> Bool:
+    return index >= 0 && index < count
+
+@blueprint
+@pure
+fn ClampCloneIndex(index: Int, count: Int) -> Int:
+    if index < 0:
+        return 0
+    if index >= count:
+        return count - 1
+    return index
+
+@blueprint
+@pure
+fn IsInEffectorRadius(location: Vec3, effector_location: Vec3, radius: Float) -> Bool:
+    return true
+
+// === ARRAY UTILITIES ===
+
+@blueprint
+fn GenerateLinearArray(count: Int, spacing: Float) -> Array<Vec3>:
+    return []
+
+@blueprint
+fn GenerateGridArray(grid_x: Int, grid_y: Int, grid_z: Int, spacing: Vec3) -> Array<Vec3>:
+    return []
+
+@blueprint
+fn GenerateRadialArray(count: Int, radius: Float) -> Array<Vec3>:
+    return []
+
+// === PERFORMANCE UTILITIES ===
+
+@blueprint
+@pure
+fn CalculateLODLevel(distance: Float, lod_distances: Array<Float>) -> Int:
+    return 0
+
+@blueprint
+@pure
+fn ShouldUpdateClone(index: Int, frame_count: Int, update_frequency: Int) -> Bool:
+    return (index + frame_count) % update_frequency == 0
+
+@blueprint
+fn BatchUpdateClones(start_index: Int, end_index: Int, delta_time: Float):
+    println("Batch updating clones {start_index} to {end_index}")
+
+// === DEBUG UTILITIES ===
+
+@blueprint
+fn DebugDrawCloneTransforms(transforms: Array<Transform>, duration: Float = 1.0):
+    println("Drawing {transforms.len()} clone transforms")
+
+@blueprint
+fn DebugDrawEffectorRadius(location: Vec3, radius: Float, color: Vec3 = Vec3()):
+    println("Drawing effector radius at location")
+
+@blueprint
+fn LogClonerStats(instance_count: Int, mode: ClonerMode, is_animating: Bool):
+    println("Cloner Stats - Count: {instance_count}, Animating: {is_animating}")

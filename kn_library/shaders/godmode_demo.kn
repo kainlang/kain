@@ -1,0 +1,50 @@
+// GODMODE Demo Shader - Demonstrates all USF pipeline enhancements
+// Phase 1: Surface Interface (if using surface stage)
+// Phase 2: Permutation Engine (compile-time branching)
+// Phase 3: C++ Reflection Header (automatic generation)
+
+shader fragment GodmodeDemo(position: Vec4, uv: Vec2, normal: Vec3) -> Vec4:
+    // Standard uniforms
+    uniform time: Float @0
+    uniform base_color: Vec3 @1
+    uniform roughness: Float @2
+    
+    // Texture uniforms
+    uniform albedo_map: Sampler2D @3
+    uniform normal_map: Sampler2D @4
+    
+    // Permutation variables (compile-time switches)
+    // These will generate #ifdef directives in the output
+    uniform CFG_USE_TEXTURES: Float @5
+    uniform ENABLE_ANIMATION: Float @6
+    uniform USE_NORMAL_MAPPING: Float @7
+    
+    // Base color calculation
+    var final_color = base_color
+    
+    // Permutation: Texture sampling (compile-time branch)
+    if CFG_USE_TEXTURES:
+        let sampled_color = sample(albedo_map, uv).rgb
+        final_color = sampled_color
+    
+    // Permutation: Animation (compile-time branch)
+    if ENABLE_ANIMATION:
+        let wave = sin(time + uv.x * 10.0) * 0.5 + 0.5
+        final_color = final_color * wave
+    else:
+        // Static color when animation is disabled
+        final_color = final_color * 0.8
+    
+    // Permutation: Normal mapping (compile-time branch)
+    if USE_NORMAL_MAPPING:
+        let normal_sample = sample(normal_map, uv).rgb
+        let unpacked_normal = normal_sample * 2.0 - 1.0
+        // Use the normal for lighting calculations
+        let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+        let ndotl = max(dot(unpacked_normal, light_dir), 0.0)
+        final_color = final_color * ndotl
+    
+    // Apply roughness
+    final_color = final_color * (1.0 - roughness * 0.5)
+    
+    return vec4(final_color, 1.0)

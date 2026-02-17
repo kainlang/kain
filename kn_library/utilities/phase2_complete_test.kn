@@ -1,0 +1,135 @@
+// Phase 2 Complete Feature Test
+// Tests: Type aliases, Delegates, Meta specifiers, Actor methods
+
+// === TYPE ALIASES ===
+type OnScoreChanged = fn(Int)
+type OnPlayerDied = fn()
+
+// === ENUMS ===
+enum GameState:
+    Menu
+    Playing
+    Paused
+    GameOver
+
+// === STRUCTS WITH ADVANCED META ===
+@datatable
+struct PlayerStats:
+    @category("Stats|Core")
+    @clamp_min(0)
+    @clamp_max(100)
+    health: Float
+    
+    @category("Stats|Core")
+    @clamp_min(0)
+    @clamp_max(100)
+    stamina: Float
+    
+    @category("Stats|Movement")
+    @ui_min(0)
+    @ui_max(1000)
+    @units("cm/s")
+    speed: Float
+    
+    @category("Stats|Combat")
+    @edit_condition("health > 0")
+    can_attack: Bool
+
+// === COMPONENT WITH DELEGATES ===
+@component
+struct HealthComponent:
+    @replicated
+    @category("Health")
+    current_health: Float
+    
+    @replicated
+    @category("Health")
+    max_health: Float
+    
+    @category("Events")
+    @blueprint_assignable
+    on_health_changed: OnScoreChanged
+    
+    @category("Events")
+    @blueprint_assignable
+    on_death: OnPlayerDied
+
+// === ACTOR WITH METHODS ===
+actor GameManager:
+    state current_state: GameState = GameState::Menu
+    state player_count: Int = 0
+    state match_time: Float = 0.0
+    
+    // Pure methods (const, return values)
+    @blueprint_pure
+    @category("Game State")
+    fn GetCurrentState() -> GameState:
+        return current_state
+    
+    @blueprint_pure
+    @category("Game State")
+    fn GetPlayerCount() -> Int:
+        return player_count
+    
+    @blueprint_pure
+    @category("Game State")
+    fn GetMatchTime() -> Float:
+        return match_time
+    
+    @blueprint_pure
+    @category("Game State")
+    fn IsPlaying() -> Bool:
+        return current_state == GameState::Playing
+    
+    // Callable methods (can modify state)
+    @blueprint_callable
+    @category("Game State")
+    fn StartMatch():
+        current_state = GameState::Playing
+        match_time = 0.0
+        println("Match started!")
+    
+    @blueprint_callable
+    @category("Game State")
+    fn EndMatch():
+        current_state = GameState::GameOver
+        println("Match ended!")
+    
+    @blueprint_callable
+    @category("Game State")
+    fn AddPlayer():
+        player_count = player_count + 1
+    
+    @blueprint_callable
+    @category("Game State")
+    fn RemovePlayer():
+        if player_count > 0:
+            player_count = player_count - 1
+    
+    // Message handler (RPC)
+    on Server_RequestStartMatch():
+        if current_state == GameState::Menu:
+            current_state = GameState::Playing
+            Multicast_AnnounceMatchStart()
+    
+    on Multicast_AnnounceMatchStart():
+        println("Match is starting!")
+
+// === BLUEPRINT FUNCTION LIBRARY ===
+@blueprint
+@pure
+fn calculate_damage_reduction(armor: Float, damage: Float) -> Float:
+    let reduction = armor / (armor + 100.0)
+    return damage * (1.0 - reduction)
+
+@blueprint
+@pure
+fn is_critical_health(current: Float, max: Float) -> Bool:
+    return current < (max * 0.25)
+
+@blueprint
+fn apply_healing(target_health: Float, heal_amount: Float, max_health: Float) -> Float:
+    let new_health = target_health + heal_amount
+    if new_health > max_health:
+        return max_health
+    return new_health

@@ -1,0 +1,218 @@
+# ============================================================================
+# FILE 2: DATATABLES
+# Demonstrates: @datatable attribute for CSV import, complex data structures
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# DATATABLES - Structs with @datatable become FTableRowBase
+# These can be imported from CSV files in UE5 Editor
+# ----------------------------------------------------------------------------
+
+# Item definition - the core data for all items
+@datatable
+struct ItemDefinition:
+    # Primary key (must be unique)
+    id: Int
+    
+    # Basic info
+    name: String
+    description: String
+    icon_path: String
+    
+    # Classification
+    item_type: ItemType
+    rarity: ItemRarity
+    
+    # Stack and value
+    max_stack: Int
+    base_value: Int
+    weight: Float
+    
+    # Flags
+    is_tradeable: Bool
+    is_droppable: Bool
+    is_consumable: Bool
+    is_quest_item: Bool
+
+# Weapon stats datatable
+@datatable
+struct WeaponData:
+    weapon_id: Int
+    weapon_name: String
+    
+    # Damage stats
+    base_damage: Float
+    damage_type: DamageType
+    attack_speed: Float
+    critical_chance: Float
+    critical_multiplier: Float
+    
+    # Requirements
+    required_level: Int
+    required_strength: Int
+    required_dexterity: Int
+    
+    # Durability
+    max_durability: Int
+    repair_cost: Int
+
+# Armor stats datatable
+@datatable
+struct ArmorData:
+    armor_id: Int
+    armor_name: String
+    
+    # Defense stats
+    physical_defense: Float
+    fire_resistance: Float
+    ice_resistance: Float
+    lightning_resistance: Float
+    poison_resistance: Float
+    
+    # Slot and requirements
+    slot: EquipSlot
+    required_level: Int
+    
+    # Weight class
+    weight_class: String  # "Light", "Medium", "Heavy"
+    movement_penalty: Float
+
+# Enemy/NPC datatable
+@datatable
+struct EnemyDefinition:
+    enemy_id: Int
+    enemy_name: String
+    enemy_type: String
+    
+    # Stats
+    base_health: Float
+    base_damage: Float
+    armor: Float
+    move_speed: Float
+    
+    # AI behavior
+    aggro_range: Float
+    chase_range: Float
+    attack_range: Float
+    
+    # Loot
+    loot_table_id: Int
+    experience_reward: Int
+    gold_reward: Int
+    
+    # Spawn info
+    spawn_weight: Float
+    min_level: Int
+    max_level: Int
+
+# Quest definition datatable
+@datatable
+struct QuestDefinition:
+    quest_id: Int
+    quest_name: String
+    quest_description: String
+    
+    # Requirements
+    required_level: Int
+    required_quest_id: Int  # Prerequisite quest
+    
+    # Objectives (simplified - in real game would be more complex)
+    objective_type: String  # "Kill", "Collect", "Talk", "Explore"
+    objective_target: String
+    objective_count: Int
+    
+    # Rewards
+    experience_reward: Int
+    gold_reward: Int
+    item_reward_id: Int
+    item_reward_quantity: Int
+    
+    # Quest chain
+    next_quest_id: Int
+
+# Crafting recipe datatable
+@datatable
+struct CraftingRecipe:
+    recipe_id: Int
+    recipe_name: String
+    
+    # Result
+    result_item_id: Int
+    result_quantity: Int
+    
+    # Requirements (simplified - real system would use arrays)
+    ingredient1_id: Int
+    ingredient1_quantity: Int
+    ingredient2_id: Int
+    ingredient2_quantity: Int
+    ingredient3_id: Int
+    ingredient3_quantity: Int
+    
+    # Crafting info
+    required_skill_level: Int
+    crafting_time: Float
+    experience_gained: Int
+
+# Skill/Ability datatable
+@datatable
+struct AbilityDefinition:
+    ability_id: Int
+    ability_name: String
+    ability_description: String
+    icon_path: String
+    
+    # Costs
+    mana_cost: Float
+    stamina_cost: Float
+    cooldown: Float
+    
+    # Effects
+    damage: Float
+    damage_type: DamageType
+    healing: Float
+    duration: Float
+    range: Float
+    
+    # Requirements
+    required_level: Int
+    required_class: String
+
+# Merchant/Shop datatable
+@datatable
+struct ShopInventory:
+    shop_id: Int
+    shop_name: String
+    shop_type: String  # "General", "Weapons", "Armor", "Potions"
+    
+    # Stock (simplified)
+    item1_id: Int
+    item1_stock: Int
+    item1_price_multiplier: Float
+    
+    item2_id: Int
+    item2_stock: Int
+    item2_price_multiplier: Float
+    
+    # Refresh
+    stock_refresh_hours: Int
+    
+    # Reputation
+    required_reputation: Int
+
+# Loot table datatable
+@datatable
+struct LootTableEntry:
+    loot_table_id: Int
+    entry_index: Int
+    
+    # Item
+    item_id: Int
+    min_quantity: Int
+    max_quantity: Int
+    
+    # Drop chance (0.0 to 1.0)
+    drop_chance: Float
+    
+    # Conditions
+    min_player_level: Int
+    rarity_weight: Float

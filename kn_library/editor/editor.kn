@@ -1,0 +1,48 @@
+// === SlateTest Plugin: Editor UI ===
+// Tests @slate, @details editor pipeline
+
+// Slate widget: Actor Browser panel
+// Has filter text box, actor list, and spawn controls
+@slate
+struct ActorBrowser:
+    filter_text: String
+    actors: Array<String>
+    selected_index: Int
+    OnFilterChanged: delegate(String)
+    OnActorSelected: delegate(Int)
+
+// Details customization: Level Tool settings panel
+// Has buttons, sliders, and color picker
+@details
+struct LevelToolSettings:
+    @category("Spawn")
+    @button("Spawn Actor")
+    spawn_actor: Bool
+    
+    @category("Spawn")
+    @slider(1.0, 10.0)
+    spawn_count: Float
+    
+    @category("Sort")
+    @button("Sort By Name")
+    sort_by_name: Bool
+    
+    @category("Sort")
+    @button("Sort By Distance")
+    sort_by_distance: Bool
+    
+    @category("Transform")
+    @slider(0.0, 360.0)
+    rotation_offset: Float
+    
+    @category("Transform")
+    @slider(0.1, 10.0)
+    scale_multiplier: Float
+    
+    @category("Visual")
+    @color_picker
+    highlight_color: Vec3
+    
+    @category("Visual")
+    @slider(0.0, 1.0)
+    opacity: Float

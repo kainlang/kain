@@ -1,0 +1,81 @@
+# ============================================================================
+# ALPHAGEN - SLATE UI
+# Editor widget for procedural alpha generation
+# ============================================================================
+
+# Main AlphaGen editor widget
+@slate
+struct AlphaGenEditorWidget:
+    # Current generator type
+    @argument
+    current_generator: AlphaGenType
+    
+    # Preview texture
+    @argument
+    preview_texture: Texture2D
+    
+    # Preview size
+    @argument
+    preview_size: Int
+    
+    # Export size
+    @argument
+    export_size: Int
+    
+    # Events
+    @event
+    on_generate_clicked: OnButtonClicked
+    
+    @event
+    on_export_clicked: OnButtonClicked
+    
+    @event
+    on_generator_changed: OnTextEntered
+    
+    @event
+    on_param_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return HorizontalBox()
+
+# Preview widget for texture display
+@slate
+struct AlphaPreviewWidget:
+    @argument
+    texture: Texture2D
+    
+    @argument
+    zoom_level: Float
+    
+    @event
+    on_zoom_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# Parameter editor widget
+@slate
+struct ParameterEditorWidget:
+    @argument
+    generator_type: AlphaGenType
+    
+    @argument
+    param1: Float
+    
+    @argument
+    param2: Float
+    
+    @argument
+    param3: Float
+    
+    @event
+    on_param1_changed: OnSliderChanged
+    
+    @event
+    on_param2_changed: OnSliderChanged
+    
+    @event
+    on_param3_changed: OnSliderChanged
+    
+    fn Compose() -> Widget:
+        return VerticalBox()

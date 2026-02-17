@@ -1,0 +1,287 @@
+# ============================================================================
+# FILE 6: SHADERS
+# Demonstrates: Compute shaders, fragment shaders, surface shaders, permutations
+# CRITICAL: Shaders MUST have return types!
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# COMPUTE SHADERS - GPU compute for parallel processing
+# shader compute Name(thread_id: Vec3) -> ReturnType:
+# ----------------------------------------------------------------------------
+
+# Simple compute shader - basic noise generation
+shader compute SimpleCompute(thread_id: Vec3) -> Vec4:
+    # Uniforms (parameters passed from C++)
+    uniform seed: Float @0
+    uniform scale: Float @1
+    
+    # Calculate UV from thread ID
+    let uv = vec2(thread_id.x * scale, thread_id.y * scale)
+    
+    # Simple noise function
+    let noise = fract(sin(dot(uv, vec2(12.9898, 78.233)) + seed) * 43758.5453)
+    
+    # Return as grayscale
+    return vec4(noise, noise, noise, 1.0)
+
+# Advanced compute shader - with permutations and multiple uniforms
+shader compute AdvancedCompute(thread_id: Vec3) -> Vec4:
+    # PERMUTATION UNIFORMS - Compile-time branches (zero runtime cost!)
+    # Prefix with CFG_ or ENABLE_ for automatic permutation detection
+    uniform CFG_HIGH_QUALITY: Float @0
+    uniform ENABLE_SHADOWS: Float @1
+    uniform ENABLE_REFLECTIONS: Float @2
+    
+    # Regular uniforms
+    uniform time: Float @3
+    uniform color_tint: Vec3 @4
+    uniform intensity: Float @5
+    uniform noise_scale: Float @6
+    
+    # Texture inputs
+    uniform input_texture: Sampler2D @7
+    
+    # Calculate UV
+    let uv = vec2(thread_id.x, thread_id.y)
+    
+    # Sample input texture
+    var base_color = sample(input_texture, uv).rgb
+    
+    # Apply color tint
+    base_color = base_color * color_tint
+    
+    # Permutation: High quality path
+    if CFG_HIGH_QUALITY:
+        # Expensive calculations only in high quality mode
+        let noise = fract(sin(dot(uv * noise_scale, vec2(12.9898, 78.233)) + time) * 43758.5453)
+        base_color = base_color + vec3(noise * 0.1, noise * 0.1, noise * 0.1)
+    
+    # Permutation: Shadows
+    if ENABLE_SHADOWS:
+        # Shadow calculations
+        let shadow = 0.8
+        base_color = base_color * shadow
+    
+    # Permutation: Reflections
+    if ENABLE_REFLECTIONS:
+        # Reflection calculations
+        let reflection = vec3(0.1, 0.1, 0.1)
+        base_color = base_color + reflection
+    
+    # Apply intensity
+    base_color = base_color * intensity
+    
+    return vec4(base_color, 1.0)
+
+# ----------------------------------------------------------------------------
+# FRAGMENT SHADERS - Pixel shaders for post-processing
+# shader fragment Name(uv: Vec2) -> Vec4:
+# ----------------------------------------------------------------------------
+
+# Fragment shader - post-processing effect
+shader fragment FragmentShader(uv: Vec2) -> Vec4:
+    # Uniforms
+    uniform time: Float @0
+    uniform distortion_strength: Float @1
+    uniform color_shift: Vec3 @2
+    
+    # Texture inputs
+    uniform scene_texture: Sampler2D @3
+    
+    # Distortion effect
+    let distorted_uv = vec2(
+        uv.x + sin(uv.y * 10.0 + time) * distortion_strength,
+        uv.y + cos(uv.x * 10.0 + time) * distortion_strength
+    )
+    
+    # Sample scene with distortion
+    var color = sample(scene_texture, distorted_uv).rgb
+    
+    # Apply color shift
+    color = color + color_shift
+    
+    # Vignette effect
+    let center_dist = length(uv - vec2(0.5, 0.5))
+    let vignette = 1.0 - (center_dist * 0.5)
+    color = color * vignette
+    
+    return vec4(color, 1.0)
+
+# ----------------------------------------------------------------------------
+# SURFACE SHADERS - Material system integration
+# shader surface Name(uv: Vec2) -> SurfaceOutput:
+# ----------------------------------------------------------------------------
+
+# Surface shader - PBR material
+shader surface SurfaceShader(uv: Vec2) -> SurfaceOutput:
+    # Material parameters
+    uniform roughness: Float @0
+    uniform metallic: Float @1
+    uniform emissive_strength: Float @2
+    
+    # Texture maps
+    uniform albedo_map: Sampler2D @3
+    uniform normal_map: Sampler2D @4
+    uniform roughness_map: Sampler2D @5
+    uniform metallic_map: Sampler2D @6
+    uniform emissive_map: Sampler2D @7
+    
+    # Sample textures
+    let albedo = sample(albedo_map, uv).rgb
+    let normal = sample(normal_map, uv).rgb
+    let roughness_tex = sample(roughness_map, uv).r
+    let metallic_tex = sample(metallic_map, uv).r
+    let emissive = sample(emissive_map, uv).rgb
+    
+    # Create surface output
+    var output: SurfaceOutput
+    output.base_color = albedo
+    output.normal = normal
+    output.roughness = roughness * roughness_tex
+    output.metallic = metallic * metallic_tex
+    output.emissive = emissive * emissive_strength
+    output.opacity = 1.0
+    
+    return output
+
+# ----------------------------------------------------------------------------
+# ADVANCED SHADER EXAMPLES
+# ----------------------------------------------------------------------------
+
+# Procedural noise shader - generates textures on GPU
+shader compute ProceduralNoise(thread_id: Vec3) -> Vec4:
+    uniform octaves: Float @0
+    uniform persistence: Float @1
+    uniform lacunarity: Float @2
+    uniform seed: Float @3
+    
+    let uv = vec2(thread_id.x, thread_id.y)
+    
+    var noise_value = 0.0
+    var amplitude = 1.0
+    var frequency = 1.0
+    var max_value = 0.0
+    
+    # Fractal Brownian Motion (FBM)
+    var i = 0.0
+    while i < octaves:
+        let sample_uv = uv * frequency
+        let noise = fract(sin(dot(sample_uv, vec2(12.9898, 78.233)) + seed) * 43758.5453)
+        
+        noise_value = noise_value + (noise * amplitude)
+        max_value = max_value + amplitude
+        
+        amplitude = amplitude * persistence
+        frequency = frequency * lacunarity
+        i = i + 1.0
+    
+    # Normalize
+    noise_value = noise_value / max_value
+    
+    return vec4(noise_value, noise_value, noise_value, 1.0)
+
+# Blur shader - Gaussian blur
+shader compute BlurShader(thread_id: Vec3) -> Vec4:
+    uniform blur_radius: Float @0
+    uniform blur_strength: Float @1
+    uniform input_texture: Sampler2D @2
+    
+    let uv = vec2(thread_id.x, thread_id.y)
+    
+    var color_sum = vec3(0.0, 0.0, 0.0)
+    var weight_sum = 0.0
+    
+    # Gaussian blur kernel
+    var y = -blur_radius
+    while y <= blur_radius:
+        var x = -blur_radius
+        while x <= blur_radius:
+            let offset = vec2(x, y) * blur_strength
+            let sample_uv = uv + offset
+            
+            # Gaussian weight
+            let distance = sqrt(x * x + y * y)
+            let weight = exp(-(distance * distance) / (2.0 * blur_radius * blur_radius))
+            
+            let sample_color = sample(input_texture, sample_uv).rgb
+            color_sum = color_sum + (sample_color * weight)
+            weight_sum = weight_sum + weight
+            
+            x = x + 1.0
+        y = y + 1.0
+    
+    # Normalize
+    let final_color = color_sum / weight_sum
+    
+    return vec4(final_color, 1.0)
+
+# Edge detection shader - Sobel operator
+shader compute EdgeDetection(thread_id: Vec3) -> Vec4:
+    uniform edge_threshold: Float @0
+    uniform edge_color: Vec3 @1
+    uniform input_texture: Sampler2D @2
+    
+    let uv = vec2(thread_id.x, thread_id.y)
+    let texel_size = 0.001  # 1/texture_size
+    
+    # Sobel kernels
+    # Gx: [-1  0  1]    Gy: [-1 -2 -1]
+    #     [-2  0  2]         [ 0  0  0]
+    #     [-1  0  1]         [ 1  2  1]
+    
+    # Sample 3x3 neighborhood
+    let tl = sample(input_texture, uv + vec2(-texel_size, -texel_size)).r
+    let t  = sample(input_texture, uv + vec2(0.0, -texel_size)).r
+    let tr = sample(input_texture, uv + vec2(texel_size, -texel_size)).r
+    let l  = sample(input_texture, uv + vec2(-texel_size, 0.0)).r
+    let r  = sample(input_texture, uv + vec2(texel_size, 0.0)).r
+    let bl = sample(input_texture, uv + vec2(-texel_size, texel_size)).r
+    let b  = sample(input_texture, uv + vec2(0.0, texel_size)).r
+    let br = sample(input_texture, uv + vec2(texel_size, texel_size)).r
+    
+    # Apply Sobel operator
+    let gx = -tl + tr - (2.0 * l) + (2.0 * r) - bl + br
+    let gy = -tl - (2.0 * t) - tr + bl + (2.0 * b) + br
+    
+    # Calculate edge magnitude
+    let edge_magnitude = sqrt(gx * gx + gy * gy)
+    
+    # Threshold
+    var final_color = vec3(0.0, 0.0, 0.0)
+    if edge_magnitude > edge_threshold:
+        final_color = edge_color
+    
+    return vec4(final_color, 1.0)
+
+# Color grading shader - cinematic look
+shader fragment ColorGrading(uv: Vec2) -> Vec4:
+    uniform exposure: Float @0
+    uniform contrast: Float @1
+    uniform saturation: Float @2
+    uniform temperature: Float @3
+    uniform tint: Float @4
+    uniform scene_texture: Sampler2D @5
+    
+    var color = sample(scene_texture, uv).rgb
+    
+    # Exposure
+    color = color * exposure
+    
+    # Contrast
+    color = (color - 0.5) * contrast + 0.5
+    
+    # Saturation
+    let luminance = dot(color, vec3(0.299, 0.587, 0.114))
+    color = mix(vec3(luminance, luminance, luminance), color, saturation)
+    
+    # Temperature (warm/cool)
+    color.r = color.r + temperature
+    color.b = color.b - temperature
+    
+    # Tint (green/magenta)
+    color.g = color.g + tint
+    
+    # Clamp to valid range
+    color = clamp(color, 0.0, 1.0)
+    
+    return vec4(color, 1.0)

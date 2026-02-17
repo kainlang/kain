@@ -1,0 +1,20 @@
+
+shader fragment AdvancedEffect(uv: Vec2) -> Vec4:
+    uniform CFG_HIGH_QUALITY: Float @0
+    uniform ENABLE_SHADOWS: Float @1
+    uniform base_color: Vec3 @2
+    uniform roughness: Float @3
+    uniform metallic: Float @4
+    uniform albedo_map: Sampler2D @5
+    uniform normal_map: Sampler2D @6
+    
+    var color = sample(albedo_map, uv).rgb * base_color
+    
+    if CFG_HIGH_QUALITY:
+        let normal = sample(normal_map, uv).rgb
+        color = color * (1.0 + normal.r * 0.2)
+    
+    if ENABLE_SHADOWS:
+        color = color * 0.8
+    
+    return vec4(color, 1.0)

@@ -1,0 +1,74 @@
+# ============================================================================
+# ALPHAGEN - PROCEDURAL GENERATOR SHADERS
+# 21 GPU-accelerated procedural alpha generators
+# ============================================================================
+
+# Radial falloff - soft brush
+shader compute GenerateRadial(thread_id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform falloff: Float @1
+    uniform scale: Float @2
+    
+    let pixel = uint2(thread_id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0
+    let dist = length(centered) / scale
+    let alpha = pow(1.0 - saturate(dist), falloff)
+    
+    return vec4(alpha, alpha, alpha, 1.0)
+
+# Circle - hard edge with optional softness
+shader compute GenerateCircle(thread_id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform edge_softness: Float @2
+    
+    let pixel = uint2(thread_id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0
+    let dist = length(centered) / scale
+    let alpha = 1.0 - smoothstep(1.0 - edge_softness, 1.0, dist)
+    
+    return vec4(alpha, alpha, alpha, 1.0)
+
+# Square - hard edge
+shader compute GenerateSquare(thread_id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform edge_softness: Float @2
+    
+    let pixel = uint2(thread_id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0 / scale
+    let dist_x = abs(centered.x)
+    let dist_y = abs(centered.y)
+    let max_dist = max(dist_x, dist_y)
+    let alpha = 1.0 - smoothstep(1.0 - edge_softness, 1.0, max_dist)
+    
+    return vec4(alpha, alpha, alpha, 1.0)
+
+# Diamond - rotated square
+shader compute GenerateDiamond(thread_id: Vec3) -> Vec4:
+    uniform texture_size: UVec2 @0
+    uniform scale: Float @1
+    uniform edge_softness: Float @2
+    
+    let pixel = uint2(thread_id.xy)
+    if pixel.x >= texture_size.x || pixel.y >= texture_size.y:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    let uv = (vec2(pixel) + 0.5) / vec2(texture_size)
+    let centered = (uv - 0.5) * 2.0 / scale
+    let dist = abs(centered.x) + abs(centered.y)
+    let alpha = 1.0 - smoothstep(1.0 - edge_softness, 1.0, dist)
+    
+    return vec4(alpha, alpha, alpha, 1.0)

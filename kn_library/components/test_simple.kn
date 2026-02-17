@@ -1,0 +1,15 @@
+@datatable
+struct ItemData:
+    id: Int
+    name: String
+    value: Int
+
+@component
+struct HealthComponent:
+    @replicated
+    current: Float
+    max: Float
+
+@blueprint
+fn calculate_damage(base: Float, armor: Float) -> Float:
+    return base * (1.0 - armor / 100.0)
