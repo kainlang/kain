@@ -245,6 +245,10 @@ struct Ue5Gen {
     var_types: std::collections::HashMap<String, String>,
     /// Shader file names from toml (without underscores, correct casing)
     shader_file_names: Vec<String>,
+    /// POD mirror structs for @component types used in shader uniforms.
+    /// Populated during the program pre-pass so the dispatch code can generate
+    /// POD population lines without needing access to the full TypedProgram.
+    component_mirrors: std::collections::HashMap<String, ue5_shaders::PodMirrorStruct>,
 }
 
 impl Ue5Gen {
@@ -264,6 +268,7 @@ impl Ue5Gen {
             target_item,
             var_types: std::collections::HashMap::new(),
             shader_file_names: Vec::new(),
+            component_mirrors: std::collections::HashMap::new(),
         }
     }
 
@@ -658,6 +663,16 @@ impl Ue5Gen {
                 _ => {}
             }
         }
+
+        // Pre-compute POD mirrors so the actor dispatch code can reference them
+        // without needing the full TypedProgram.
+        self.component_mirrors = match ue5_shaders::pod_mirror::collect_component_mirrors(program) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("[KAIN ue5 codegen] POD mirror error: {}", e);
+                std::collections::HashMap::new()
+            }
+        };
         
         // Separate items by type for proper ordering
         let mut delegates = Vec::new();
@@ -1104,7 +1119,9 @@ impl Ue5Gen {
                 
                 // Classify uniforms to split Scalars vs Textures params
                 let mut texture_args = Vec::new();
-                let mut scalar_args = Vec::new(); 
+                let mut scalar_args = Vec::new();
+                // POD population lines emitted just before the AddPass_ call.
+                let mut pod_prep_lines: Vec<String> = Vec::new();
                 
                 for uniform in &shader.ast.uniforms {
                     let name_lower = uniform.name.to_lowercase();
@@ -1155,6 +1172,31 @@ impl Ue5Gen {
                              texture_args.push("PositionOutput".to_string());
                          }
                     } else {
+                        // Check first if this uniform is a @component type that needs a POD mirror.
+                        let component_type_name = if let Type::Named { name, generics, .. } = &uniform.ty {
+                            if generics.is_empty() && self.component_mirrors.contains_key(name.as_str()) {
+                                Some(name.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
+                        if let Some(comp_name) = component_type_name {
+                            // Component uniform: generate POD population code and pass the POD var.
+                            let mirror = &self.component_mirrors[&comp_name];
+                            let pod_var = format!("{}_pod", uniform.name);
+                            // Find the matching actor state field (same name, case-insensitive).
+                            let state_var = actor.state.iter()
+                                .find(|s| s.name.eq_ignore_ascii_case(&uniform.name))
+                                .map(|s| format!("this->{}", s.name))
+                                .unwrap_or_else(|| "nullptr".to_string());
+                            pod_prep_lines.push(
+                                mirror.generate_population_code(&state_var, &pod_var, "\t\t\t")
+                            );
+                            scalar_args.push(pod_var);
+                        } else {
                         // Scalar Param - Modular exact name matching with common aliases
                         let mut found_match = false;
                         for state in &actor.state {
@@ -1204,6 +1246,7 @@ impl Ue5Gen {
                              };
                              scalar_args.push(fallback);
                         }
+                        } // end scalar (non-component) branch
                     }
                 }
                 
@@ -1239,6 +1282,12 @@ impl Ue5Gen {
                 
                 // Don't add nullptr for output textures - the shader functions don't expect them
                 // The USF codegen handles output textures internally
+
+                // Emit POD population code for any component uniforms before the dispatch call.
+                for prep in &pod_prep_lines {
+                    // generate_population_code already includes the indent prefix.
+                    self.source.push_line(prep.trim_end());
+                }
                 
                 // Use shader_file_name (from toml) instead of AST name to preserve correct casing
                 self.source.push_line(&format!("\t\t\tAddPass_{}(GraphBuilder, {});", shader_file_name, [scalar_args, texture_args].concat().join(", ")));
