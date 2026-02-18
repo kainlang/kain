@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FViscoelasticStressShader, "/Plugin/FluidFlow/Viscoelast
 // Helper function to add pass to render graph
 void AddPass_ViscoelasticStress(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

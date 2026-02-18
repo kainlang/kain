@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FTurbulenceSpalartAllmarasShader, "/Plugin/FluidFlow/Tur
 // Helper function to add pass to render graph
 void AddPass_TurbulenceSpalartAllmaras(
     FRDGBuilder& GraphBuilder,
-    TurbulenceAdvancedComponent turbulence_advanced,
+    FTurbulenceAdvancedComponentData turbulence_advanced,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

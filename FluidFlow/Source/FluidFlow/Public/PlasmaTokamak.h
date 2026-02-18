@@ -14,13 +14,24 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for ElectroMagneticComponent (GPU-compatible)
+struct FElectroMagneticComponentData {
+    float charge_density;
+    FVector3f electric_field;
+    FVector3f magnetic_field;
+    float lorentz_force_gain;
+    float resistivity;
+    float hall_parameter;
+    float ambipolar_diffusion;
+};
+
 class FPlasmaTokamakShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FPlasmaTokamakShader);
     SHADER_USE_PARAMETER_STRUCT(FPlasmaTokamakShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(ElectroMagneticComponent, em)
+        SHADER_PARAMETER(FElectroMagneticComponentData, em)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +59,7 @@ class FPlasmaTokamakShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_PlasmaTokamak(
     FRDGBuilder& GraphBuilder,
-    ElectroMagneticComponent em,
+    FElectroMagneticComponentData em,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

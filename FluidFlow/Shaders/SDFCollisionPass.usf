@@ -3,9 +3,47 @@
 
 #include "/Engine/Public/Platform.ush"
 
+// POD mirror for PhysicalPropertiesComponent
+struct FPhysicalPropertiesComponentData {
+    int fluid_class;
+    int solver_family;
+    int hybrid_solver;
+    int pressure_solver;
+    int advection_scheme;
+    int turbulence_model;
+    int boundary_type;
+    int quality;
+    int backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
+// POD mirror for CollisionComponent
+struct FCollisionComponentData {
+    bool enabled;
+    float restitution;
+    float friction;
+    float sdf_threshold;
+    bool use_global_distance_field;
+};
+
 // Scalar Parameters - Bind via SHADER_PARAMETER_STRUCT
-PhysicalPropertiesComponent physics;
-CollisionComponent collision;
+FPhysicalPropertiesComponentData physics;
+FCollisionComponentData collision;
 
 // Texture Inputs
 Texture3D<float4> velocity_texture : register(t2);

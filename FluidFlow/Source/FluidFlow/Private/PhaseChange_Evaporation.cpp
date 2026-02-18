@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FPhaseChange_EvaporationShader, "/Plugin/FluidFlow/Phase
 // Helper function to add pass to render graph
 void AddPass_PhaseChange_Evaporation(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
-    ThermalComponent thermal,
+    FMultiphaseComponentData multiphase,
+    FThermalComponentData thermal,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

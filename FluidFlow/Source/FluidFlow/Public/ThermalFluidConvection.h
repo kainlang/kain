@@ -14,13 +14,23 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for ThermalComponent (GPU-compatible)
+struct FThermalComponentData {
+    float temperature;
+    float thermal_diffusivity;
+    float buoyancy_alpha;
+    float buoyancy_beta;
+    float radiation_gain;
+    ERadiationModel radiation_model;
+};
+
 class FThermalFluidConvectionShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FThermalFluidConvectionShader);
     SHADER_USE_PARAMETER_STRUCT(FThermalFluidConvectionShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(ThermalComponent, thermal)
+        SHADER_PARAMETER(FThermalComponentData, thermal)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +58,7 @@ class FThermalFluidConvectionShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_ThermalFluidConvection(
     FRDGBuilder& GraphBuilder,
-    ThermalComponent thermal,
+    FThermalComponentData thermal,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

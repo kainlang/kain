@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FPlasmaFusionShader, "/Plugin/FluidFlow/PlasmaFusion.usf
 // Helper function to add pass to render graph
 void AddPass_PlasmaFusion(
     FRDGBuilder& GraphBuilder,
-    ElectroMagneticComponent em,
+    FElectroMagneticComponentData em,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

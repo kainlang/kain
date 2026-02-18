@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FAdvectVelocityShader, "/Plugin/FluidFlow/AdvectVelocity
 // Helper function to add pass to render graph
 void AddPass_AdvectVelocity(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TimeIntegrationComponent time,
+    FPhysicalPropertiesComponentData physics,
+    FTimeIntegrationComponentData time,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount

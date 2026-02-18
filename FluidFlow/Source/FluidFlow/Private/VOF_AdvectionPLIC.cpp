@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FVOF_AdvectionPLICShader, "/Plugin/FluidFlow/VOF_Advecti
 // Helper function to add pass to render graph
 void AddPass_VOF_AdvectionPLIC(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

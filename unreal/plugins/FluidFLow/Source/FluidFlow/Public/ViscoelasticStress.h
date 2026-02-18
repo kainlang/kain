@@ -14,13 +14,39 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
+struct FPhysicalPropertiesComponentData {
+    EFluidClass fluid_class;
+    ESolverFamily solver_family;
+    ETurbulenceModel turbulence_model;
+    EBoundaryType boundary_type;
+    EQualityTier quality;
+    EGPUBackend backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
 class FViscoelasticStressShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FViscoelasticStressShader);
     SHADER_USE_PARAMETER_STRUCT(FViscoelasticStressShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(PhysicalPropertiesComponent, physics)
+        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +74,7 @@ class FViscoelasticStressShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_ViscoelasticStress(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

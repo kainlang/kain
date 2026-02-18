@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FMultiphaseSurfaceTensionShader, "/Plugin/FluidFlow/Mult
 // Helper function to add pass to render graph
 void AddPass_MultiphaseSurfaceTension(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

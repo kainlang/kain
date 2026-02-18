@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FVortexMethodAdvectionShader, "/Plugin/FluidFlow/VortexM
 // Helper function to add pass to render graph
 void AddPass_VortexMethodAdvection(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

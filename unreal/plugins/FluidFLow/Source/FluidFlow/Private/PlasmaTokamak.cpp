@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FPlasmaTokamakShader, "/Plugin/FluidFlow/PlasmaTokamak.u
 // Helper function to add pass to render graph
 void AddPass_PlasmaTokamak(
     FRDGBuilder& GraphBuilder,
-    ElectroMagneticComponent em,
+    FElectroMagneticComponentData em,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

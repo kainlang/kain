@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FReactiveFluidCombustionShader, "/Plugin/FluidFlow/React
 // Helper function to add pass to render graph
 void AddPass_ReactiveFluidCombustion(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

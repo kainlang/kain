@@ -435,7 +435,7 @@ impl<'a> Parser<'a> {
                     let ty = self.parse_type()?;
                     self.expect(TokenKind::Eq)?;
                     let initial = self.parse_expr()?;
-                    state.push(StateDecl { name, ty, initial, weak: false, span: self.current_span() });
+                    state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
                 } else if s == "weak" {
                      self.advance();
                      if self.check(TokenKind::Ident("state".to_string())) { // Check specifically for state
@@ -446,7 +446,7 @@ impl<'a> Parser<'a> {
                          let ty = self.parse_type()?;
                          self.expect(TokenKind::Eq)?;
                          let initial = self.parse_expr()?;
-                         state.push(StateDecl { name, ty, initial, weak: true, span: self.current_span() });
+                         state.push(StateDecl { name, ty, initial, weak: true, attributes: vec![], span: self.current_span() });
                      } else {
                          return Err(KainError::parser("Expected 'state' after 'weak' in component", self.current_span()));
                      }
@@ -529,7 +529,7 @@ impl<'a> Parser<'a> {
                     let ty = self.parse_type()?;
                     self.expect(TokenKind::Eq)?;
                     let initial = self.parse_expr()?;
-                    state.push(StateDecl { name, ty, initial, weak: false, span: self.current_span() });
+                    state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
                 } else if s == "render" {
                     self.advance();
                     if self.check(TokenKind::Colon) {
@@ -836,7 +836,7 @@ impl<'a> Parser<'a> {
                 let ty = self.parse_type()?;
                 self.expect(TokenKind::Eq)?;
                 let initial = self.parse_expr()?;
-                state.push(StateDecl { name, ty, initial, weak: false, span: self.current_span() });
+                state.push(StateDecl { name, ty, initial, weak: false, attributes: method_attributes, span: self.current_span() });
             } else if self.check(TokenKind::Var) {
                 // Support 'var' as alias for 'state' in actors
                 self.advance();
@@ -845,7 +845,7 @@ impl<'a> Parser<'a> {
                 let ty = self.parse_type()?;
                 self.expect(TokenKind::Eq)?;
                 let initial = self.parse_expr()?;
-                state.push(StateDecl { name, ty, initial, weak: false, span: self.current_span() });
+                state.push(StateDecl { name, ty, initial, weak: false, attributes: method_attributes, span: self.current_span() });
             } else if self.check(TokenKind::Fn) {
                 // Parse method function with pre-parsed attributes
                 if let Item::Function(func) = self.parse_function_with_attrs(Visibility::Public, method_attributes)? {
@@ -860,7 +860,7 @@ impl<'a> Parser<'a> {
                     let ty = self.parse_type()?;
                     self.expect(TokenKind::Eq)?;
                     let initial = self.parse_expr()?;
-                    state.push(StateDecl { name, ty, initial, weak: true, span: self.current_span() });
+                    state.push(StateDecl { name, ty, initial, weak: true, attributes: method_attributes, span: self.current_span() });
                 } else if s == "on" {
                     self.advance();
                     let message_type = self.parse_ident()?;

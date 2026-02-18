@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFiniteVolumeFluxShader, "/Plugin/FluidFlow/FiniteVolume
 // Helper function to add pass to render graph
 void AddPass_FiniteVolumeFlux(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

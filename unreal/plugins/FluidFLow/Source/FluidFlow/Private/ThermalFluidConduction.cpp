@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FThermalFluidConductionShader, "/Plugin/FluidFlow/Therma
 // Helper function to add pass to render graph
 void AddPass_ThermalFluidConduction(
     FRDGBuilder& GraphBuilder,
-    ThermalComponent thermal,
+    FThermalComponentData thermal,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

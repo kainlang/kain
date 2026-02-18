@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFluidHolographyShader, "/Plugin/FluidFlow/FluidHolograp
 // Helper function to add pass to render graph
 void AddPass_FluidHolography(
     FRDGBuilder& GraphBuilder,
-    VisualizationComponent viz,
+    FVisualizationComponentData viz,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

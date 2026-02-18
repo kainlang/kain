@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FSubtractGradientShader, "/Plugin/FluidFlow/SubtractGrad
 // Helper function to add pass to render graph
 void AddPass_SubtractGradient(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef pressure_texture,
     FRDGTextureRef OutputTexture,

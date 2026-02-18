@@ -13,9 +13,9 @@ IMPLEMENT_GLOBAL_SHADER(FApplyExternalForcesShader, "/Plugin/FluidFlow/ApplyExte
 // Helper function to add pass to render graph
 void AddPass_ApplyExternalForces(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    ThermalComponent thermal,
-    TimeIntegrationComponent time,
+    FPhysicalPropertiesComponentData physics,
+    FThermalComponentData thermal,
+    FTimeIntegrationComponentData time,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef density_texture,
     FRDGTextureRef temperature_texture,

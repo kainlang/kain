@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFreeSurface_VOFShader, "/Plugin/FluidFlow/FreeSurface_V
 // Helper function to add pass to render graph
 void AddPass_FreeSurface_VOF(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

@@ -130,79 +130,311 @@ void AHyperFluidEmitter::Tick(float DeltaTime)
 			FRDGTextureRef VelocityInput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_A : VelocityRT_B, TEXT("VelIn")));
 			FRDGTextureRef VelocityOutput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_B : VelocityRT_A, TEXT("VelOut")));
 
-			AddPass_LatticeBoltzmannCollision(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_LatticeBoltzmannStreaming(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SmoothedParticleHydrodynamics(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_MagnetohydrodynamicsInduction(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_MagnetohydrodynamicsLorentz(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_QuantumFluidGrossPitaevskii(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_QuantumFluidVortices(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_MultiphasePhaseField(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_MultiphaseSurfaceTension(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ThermalFluidConduction(GraphBuilder, 0.0f, ThermalRT, FIntVector(32, 32, 1));
-			AddPass_ThermalFluidConvection(GraphBuilder, 0.0f, ThermalRT, FIntVector(32, 32, 1));
-			AddPass_ReactiveFluidChemistry(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ReactiveFluidCombustion(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_GranularFlowCollision(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_GranularFlowFriction(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_CosmicDustAccretion(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_CosmicDustRadiation(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SuperfluidHelium4(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SuperfluidVortexLattice(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_PlasmaTokamak(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_PlasmaFusion(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ViscoelasticStress(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ViscoelasticRelaxation(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ImmersedBoundaryForce(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ImmersedBoundaryVelocity(GraphBuilder, 0.0f, VelocityOutput, FIntVector(32, 32, 1));
-			AddPass_SpectralFourierTransform(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SpectralTurbulence(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_VortexMethodCore(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_VortexMethodAdvection(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FiniteVolumeFlux(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FiniteVolumeGradient(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FiniteElementStiffness(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FiniteElementMass(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidRaymarching(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidSchlieren(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidInterferometry(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidHolography(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidQuantumVisualization(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_AdvectVelocity(GraphBuilder, 0.0f, 0.0f, VelocityInput, VelocityOutput, FIntVector(32, 32, 1));
-			AddPass_AdvectDensity(GraphBuilder, 0.0f, 0.0f, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_AdvectTemperature(GraphBuilder, 0.0f, 0.0f, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ApplyExternalForces(GraphBuilder, 0.0f, 0.0f, 0.0f, VelocityInput, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ComputeDivergence(GraphBuilder, 0.0f, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_JacobiPressure(GraphBuilder, 0.0f, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SubtractGradient(GraphBuilder, 0.0f, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_VOF_AdvectionPLIC(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_LevelSet_Reinitialization(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_PhaseChange_Evaporation(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_PhaseChange_Condensation(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_TurbulenceKEpsilon(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_TurbulenceKOmegaSST(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_TurbulenceSpalartAllmaras(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_LES_DynamicSmagorinsky(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ParticleDrag(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ParticleCollision(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ParticleBreakup(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_ParticleEvaporation(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_AcousticWaveEquation(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_AcousticSourceTerm(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_DarcyFlow(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_Forchheimer(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_PoroElastic(GraphBuilder, 0.0f, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FreeSurface_VOF(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FreeSurface_LevelSet(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SurfaceTension_CSF(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_AdvectionWENO5(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_SDFCollisionPass(GraphBuilder, 0.0f, 0.0f, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTurbulenceComponentData turbulence_pod {};
+			AddPass_LatticeBoltzmannCollision(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTurbulenceComponentData turbulence_pod {};
+			AddPass_LatticeBoltzmannStreaming(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTurbulenceComponentData turbulence_pod {};
+			AddPass_SmoothedParticleHydrodynamics(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FElectroMagneticComponentData em_pod {};
+			AddPass_MagnetohydrodynamicsInduction(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FElectroMagneticComponentData em_pod {};
+			AddPass_MagnetohydrodynamicsLorentz(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FQuantumComponentData quantum_pod {};
+			AddPass_QuantumFluidGrossPitaevskii(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FQuantumComponentData quantum_pod {};
+			AddPass_QuantumFluidVortices(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_MultiphasePhaseField(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_MultiphaseSurfaceTension(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FThermalComponentData thermal_pod {};
+			AddPass_ThermalFluidConduction(GraphBuilder, thermal_pod, ThermalRT, FIntVector(32, 32, 1));
+			}
+			{
+			FThermalComponentData thermal_pod {};
+			AddPass_ThermalFluidConvection(GraphBuilder, thermal_pod, ThermalRT, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ReactiveFluidChemistry(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ReactiveFluidCombustion(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FParticulateComponentData particles_pod {};
+			AddPass_GranularFlowCollision(GraphBuilder, particles_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FParticulateComponentData particles_pod {};
+			AddPass_GranularFlowFriction(GraphBuilder, particles_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_CosmicDustAccretion(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_CosmicDustRadiation(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FQuantumComponentData quantum_pod {};
+			AddPass_SuperfluidHelium4(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FQuantumComponentData quantum_pod {};
+			AddPass_SuperfluidVortexLattice(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FElectroMagneticComponentData em_pod {};
+			AddPass_PlasmaTokamak(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FElectroMagneticComponentData em_pod {};
+			AddPass_PlasmaFusion(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ViscoelasticStress(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ViscoelasticRelaxation(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ImmersedBoundaryForce(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ImmersedBoundaryVelocity(GraphBuilder, physics_pod, VelocityOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_SpectralFourierTransform(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTurbulenceComponentData turbulence_pod {};
+			AddPass_SpectralTurbulence(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_VortexMethodCore(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_VortexMethodAdvection(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_FiniteVolumeFlux(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_FiniteVolumeGradient(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_FiniteElementStiffness(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_FiniteElementMass(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidRaymarching(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidSchlieren(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidInterferometry(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidHolography(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidQuantumVisualization(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTimeIntegrationComponentData time_pod {};
+			AddPass_AdvectVelocity(GraphBuilder, physics_pod, time_pod, VelocityInput, VelocityOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTimeIntegrationComponentData time_pod {};
+			AddPass_AdvectDensity(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FTimeIntegrationComponentData time_pod {};
+			AddPass_AdvectTemperature(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FThermalComponentData thermal_pod {};
+			FTimeIntegrationComponentData time_pod {};
+			AddPass_ApplyExternalForces(GraphBuilder, physics_pod, thermal_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ComputeDivergence(GraphBuilder, physics_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_JacobiPressure(GraphBuilder, physics_pod, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_SubtractGradient(GraphBuilder, physics_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_VOF_AdvectionPLIC(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_LevelSet_Reinitialization(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			FThermalComponentData thermal_pod {};
+			AddPass_PhaseChange_Evaporation(GraphBuilder, multiphase_pod, thermal_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			FThermalComponentData thermal_pod {};
+			AddPass_PhaseChange_Condensation(GraphBuilder, multiphase_pod, thermal_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			AddPass_TurbulenceKEpsilon(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			AddPass_TurbulenceKOmegaSST(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			AddPass_TurbulenceSpalartAllmaras(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			AddPass_LES_DynamicSmagorinsky(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_ParticleDrag(GraphBuilder, particle_system_pod, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			AddPass_ParticleCollision(GraphBuilder, particle_system_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			AddPass_ParticleBreakup(GraphBuilder, particle_system_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			AddPass_ParticleEvaporation(GraphBuilder, particle_system_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FCouplingComponentData coupling_pod {};
+			AddPass_AcousticWaveEquation(GraphBuilder, coupling_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FCouplingComponentData coupling_pod {};
+			AddPass_AcousticSourceTerm(GraphBuilder, coupling_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FBoundaryConditionComponentData boundary_pod {};
+			AddPass_DarcyFlow(GraphBuilder, physics_pod, boundary_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FBoundaryConditionComponentData boundary_pod {};
+			AddPass_Forchheimer(GraphBuilder, physics_pod, boundary_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FBoundaryConditionComponentData boundary_pod {};
+			AddPass_PoroElastic(GraphBuilder, physics_pod, boundary_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_FreeSurface_VOF(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_FreeSurface_LevelSet(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			AddPass_SurfaceTension_CSF(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			AddPass_AdvectionWENO5(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			FCollisionComponentData collision_pod {};
+			AddPass_SDFCollisionPass(GraphBuilder, physics_pod, collision_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
 			AddPass_ClearTexture(GraphBuilder, FVector3f(this->color), PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidRaymarching(GraphBuilder, 0.0f, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidSchlieren(GraphBuilder, 0.0f, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidInterferometry(GraphBuilder, 0.0f, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidHolography(GraphBuilder, 0.0f, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_FluidQuantumVisualization(GraphBuilder, 0.0f, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidRaymarching(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidSchlieren(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidInterferometry(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidHolography(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			AddPass_FluidQuantumVisualization(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
 
 			GraphBuilder.Execute();
 		}

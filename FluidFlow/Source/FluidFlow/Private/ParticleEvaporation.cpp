@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FParticleEvaporationShader, "/Plugin/FluidFlow/ParticleE
 // Helper function to add pass to render graph
 void AddPass_ParticleEvaporation(
     FRDGBuilder& GraphBuilder,
-    HyperFluidParticleSystemComponent particle_system,
+    FHyperFluidParticleSystemComponentData particle_system,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

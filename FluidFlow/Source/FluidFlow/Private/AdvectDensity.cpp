@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FAdvectDensityShader, "/Plugin/FluidFlow/AdvectDensity.u
 // Helper function to add pass to render graph
 void AddPass_AdvectDensity(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TimeIntegrationComponent time,
+    FPhysicalPropertiesComponentData physics,
+    FTimeIntegrationComponentData time,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef density_texture,
     FRDGTextureRef OutputTexture,

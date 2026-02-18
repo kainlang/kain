@@ -14,13 +14,24 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for MultiphaseComponent (GPU-compatible)
+struct FMultiphaseComponentData {
+    int32 phases;
+    float phase_field_mobility;
+    float interface_thickness;
+    float surface_tension_coupling;
+    float contact_angle;
+    float bubble_spawn_rate;
+    float droplet_spawn_rate;
+};
+
 class FLevelSet_ReinitializationShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FLevelSet_ReinitializationShader);
     SHADER_USE_PARAMETER_STRUCT(FLevelSet_ReinitializationShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(MultiphaseComponent, multiphase)
+        SHADER_PARAMETER(FMultiphaseComponentData, multiphase)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +59,7 @@ class FLevelSet_ReinitializationShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_LevelSet_Reinitialization(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

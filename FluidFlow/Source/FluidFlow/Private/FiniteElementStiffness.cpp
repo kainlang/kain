@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFiniteElementStiffnessShader, "/Plugin/FluidFlow/Finite
 // Helper function to add pass to render graph
 void AddPass_FiniteElementStiffness(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

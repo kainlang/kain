@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FAcousticWaveEquationShader, "/Plugin/FluidFlow/Acoustic
 // Helper function to add pass to render graph
 void AddPass_AcousticWaveEquation(
     FRDGBuilder& GraphBuilder,
-    CouplingComponent coupling,
+    FCouplingComponentData coupling,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

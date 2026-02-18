@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FJacobiPressureShader, "/Plugin/FluidFlow/JacobiPressure
 // Helper function to add pass to render graph
 void AddPass_JacobiPressure(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef pressure_texture,
     FRDGTextureRef divergence_texture,
     FRDGTextureRef OutputTexture,

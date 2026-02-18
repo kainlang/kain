@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FCosmicDustAccretionShader, "/Plugin/FluidFlow/CosmicDus
 // Helper function to add pass to render graph
 void AddPass_CosmicDustAccretion(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

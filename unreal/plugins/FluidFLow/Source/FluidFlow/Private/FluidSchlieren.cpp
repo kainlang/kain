@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFluidSchlierenShader, "/Plugin/FluidFlow/FluidSchlieren
 // Helper function to add pass to render graph
 void AddPass_FluidSchlieren(
     FRDGBuilder& GraphBuilder,
-    VisualizationComponent viz,
+    FVisualizationComponentData viz,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

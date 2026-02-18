@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFluidInterferometryShader, "/Plugin/FluidFlow/FluidInte
 // Helper function to add pass to render graph
 void AddPass_FluidInterferometry(
     FRDGBuilder& GraphBuilder,
-    VisualizationComponent viz,
+    FVisualizationComponentData viz,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

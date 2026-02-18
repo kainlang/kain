@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FSmoothedParticleHydrodynamicsShader, "/Plugin/FluidFlow
 // Helper function to add pass to render graph
 void AddPass_SmoothedParticleHydrodynamics(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TurbulenceComponent turbulence,
+    FPhysicalPropertiesComponentData physics,
+    FTurbulenceComponentData turbulence,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FViscoelasticRelaxationShader, "/Plugin/FluidFlow/Viscoe
 // Helper function to add pass to render graph
 void AddPass_ViscoelasticRelaxation(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

@@ -3,8 +3,33 @@
 
 #include "/Engine/Public/Platform.ush"
 
+// POD mirror for HyperFluidParticleSystemComponent
+struct FHyperFluidParticleSystemComponentData {
+    int particle_type;
+    int particle_count;
+    float particle_diameter;
+    float particle_density;
+    float particle_shape_factor;
+    int drag_model;
+    float drag_coefficient;
+    int collision_model;
+    float restitution_coefficient;
+    float friction_coefficient;
+    float cohesion_energy;
+    int breakup_model;
+    int coalescence_model;
+    float weber_number_critical;
+    int evaporation_model;
+    float latent_heat;
+    float vapor_pressure;
+    int tracking_scheme;
+    int interpolation_order;
+    bool two_way_coupling;
+    bool four_way_coupling;
+};
+
 // Scalar Parameters - Bind via SHADER_PARAMETER_STRUCT
-HyperFluidParticleSystemComponent particle_system;
+FHyperFluidParticleSystemComponentData particle_system;
 
 // UAV Outputs
 RWTexture2D<float4> OutputTexture : register(u0);

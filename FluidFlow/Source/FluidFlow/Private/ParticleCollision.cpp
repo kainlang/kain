@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FParticleCollisionShader, "/Plugin/FluidFlow/ParticleCol
 // Helper function to add pass to render graph
 void AddPass_ParticleCollision(
     FRDGBuilder& GraphBuilder,
-    HyperFluidParticleSystemComponent particle_system,
+    FHyperFluidParticleSystemComponentData particle_system,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

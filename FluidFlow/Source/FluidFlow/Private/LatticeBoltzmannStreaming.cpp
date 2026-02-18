@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FLatticeBoltzmannStreamingShader, "/Plugin/FluidFlow/Lat
 // Helper function to add pass to render graph
 void AddPass_LatticeBoltzmannStreaming(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TurbulenceComponent turbulence,
+    FPhysicalPropertiesComponentData physics,
+    FTurbulenceComponentData turbulence,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

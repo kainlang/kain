@@ -140,6 +140,7 @@ pub struct StateDecl {
     pub ty: Type,
     pub initial: Expr,
     pub weak: bool,
+    pub attributes: Vec<Attribute>,
     pub span: Span,
 }
 

@@ -92,23 +92,27 @@ impl PodMirrorStruct {
         indent: &str,
     ) -> String {
         let mut out = String::new();
-        // Zero-initialise the POD struct.
+        // Zero-initialise the POD struct (zero-init fallback policy).
         out.push_str(&format!(
             "{}{} {} {{}};\n",
             indent, self.pod_struct_name, pod_var
         ));
-        // Guard: only copy when the component pointer is valid.
-        out.push_str(&format!(
-            "{}if ({} != nullptr) {{\n",
-            indent, component_var
-        ));
-        for field in &self.fields {
+        // Only emit the field-copy block when we have an actual component pointer.
+        // When component_var is "nullptr" (no matching actor state found) we skip
+        // the block entirely — accessing nullptr->field is a compile error.
+        if component_var != "nullptr" {
             out.push_str(&format!(
-                "{}    {}.{} = static_cast<{}>({}->{});\n",
-                indent, pod_var, field.name, field.cpp_type, component_var, field.name
+                "{}if ({} != nullptr) {{\n",
+                indent, component_var
             ));
+            for field in &self.fields {
+                out.push_str(&format!(
+                    "{}    {}.{} = static_cast<{}>({}->{});\n",
+                    indent, pod_var, field.name, field.cpp_type, component_var, field.name
+                ));
+            }
+            out.push_str(&format!("{}}}\n", indent));
         }
-        out.push_str(&format!("{}}}\n", indent));
         out
     }
 }

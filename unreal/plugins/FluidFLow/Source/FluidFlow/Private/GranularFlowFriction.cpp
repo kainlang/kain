@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FGranularFlowFrictionShader, "/Plugin/FluidFlow/Granular
 // Helper function to add pass to render graph
 void AddPass_GranularFlowFriction(
     FRDGBuilder& GraphBuilder,
-    ParticulateComponent particles,
+    FParticulateComponentData particles,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FAdvectTemperatureShader, "/Plugin/FluidFlow/AdvectTempe
 // Helper function to add pass to render graph
 void AddPass_AdvectTemperature(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TimeIntegrationComponent time,
+    FPhysicalPropertiesComponentData physics,
+    FTimeIntegrationComponentData time,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef temperature_texture,
     FRDGTextureRef OutputTexture,

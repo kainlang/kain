@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FMagnetohydrodynamicsLorentzShader, "/Plugin/FluidFlow/M
 // Helper function to add pass to render graph
 void AddPass_MagnetohydrodynamicsLorentz(
     FRDGBuilder& GraphBuilder,
-    ElectroMagneticComponent em,
+    FElectroMagneticComponentData em,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

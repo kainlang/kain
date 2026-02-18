@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FMultiphasePhaseFieldShader, "/Plugin/FluidFlow/Multipha
 // Helper function to add pass to render graph
 void AddPass_MultiphasePhaseField(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

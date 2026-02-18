@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FSuperfluidVortexLatticeShader, "/Plugin/FluidFlow/Super
 // Helper function to add pass to render graph
 void AddPass_SuperfluidVortexLattice(
     FRDGBuilder& GraphBuilder,
-    QuantumComponent quantum,
+    FQuantumComponentData quantum,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FTurbulenceKEpsilonShader, "/Plugin/FluidFlow/Turbulence
 // Helper function to add pass to render graph
 void AddPass_TurbulenceKEpsilon(
     FRDGBuilder& GraphBuilder,
-    TurbulenceAdvancedComponent turbulence_advanced,
+    FTurbulenceAdvancedComponentData turbulence_advanced,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

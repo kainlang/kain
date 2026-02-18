@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FParticleBreakupShader, "/Plugin/FluidFlow/ParticleBreak
 // Helper function to add pass to render graph
 void AddPass_ParticleBreakup(
     FRDGBuilder& GraphBuilder,
-    HyperFluidParticleSystemComponent particle_system,
+    FHyperFluidParticleSystemComponentData particle_system,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

@@ -14,13 +14,25 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for ParticulateComponent (GPU-compatible)
+struct FParticulateComponentData {
+    int32 particle_count;
+    float particle_radius;
+    float drag_coefficient;
+    float cohesion;
+    float restitution;
+    float friction;
+    float adhesion;
+    float granular_compaction;
+};
+
 class FGranularFlowCollisionShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FGranularFlowCollisionShader);
     SHADER_USE_PARAMETER_STRUCT(FGranularFlowCollisionShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(ParticulateComponent, particles)
+        SHADER_PARAMETER(FParticulateComponentData, particles)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +60,7 @@ class FGranularFlowCollisionShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_GranularFlowCollision(
     FRDGBuilder& GraphBuilder,
-    ParticulateComponent particles,
+    FParticulateComponentData particles,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

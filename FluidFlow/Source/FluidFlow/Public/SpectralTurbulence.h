@@ -14,14 +14,53 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
+struct FPhysicalPropertiesComponentData {
+    EFluidClass fluid_class;
+    ESolverFamily solver_family;
+    EHybridSolver hybrid_solver;
+    EPressureSolver pressure_solver;
+    EAdvectionScheme advection_scheme;
+    ETurbulenceModel turbulence_model;
+    EBoundaryType boundary_type;
+    EQualityTier quality;
+    EGPUBackend backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
+// POD mirror for TurbulenceComponent (GPU-compatible)
+struct FTurbulenceComponentData {
+    float intensity;
+    float vortex_confinement;
+    float energy_injection;
+    float dissipation;
+    float length_scale;
+    int32 noise_seed;
+};
+
 class FSpectralTurbulenceShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FSpectralTurbulenceShader);
     SHADER_USE_PARAMETER_STRUCT(FSpectralTurbulenceShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(PhysicalPropertiesComponent, physics)
-        SHADER_PARAMETER(TurbulenceComponent, turbulence)
+        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER(FTurbulenceComponentData, turbulence)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -49,8 +88,8 @@ class FSpectralTurbulenceShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_SpectralTurbulence(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TurbulenceComponent turbulence,
+    FPhysicalPropertiesComponentData physics,
+    FTurbulenceComponentData turbulence,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

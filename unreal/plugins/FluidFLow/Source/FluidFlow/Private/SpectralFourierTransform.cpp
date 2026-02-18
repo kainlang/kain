@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FSpectralFourierTransformShader, "/Plugin/FluidFlow/Spec
 // Helper function to add pass to render graph
 void AddPass_SpectralFourierTransform(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

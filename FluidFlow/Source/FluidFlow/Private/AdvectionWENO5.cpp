@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FAdvectionWENO5Shader, "/Plugin/FluidFlow/AdvectionWENO5
 // Helper function to add pass to render graph
 void AddPass_AdvectionWENO5(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

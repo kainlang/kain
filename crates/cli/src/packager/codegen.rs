@@ -33,30 +33,26 @@ pub fn compile_shaders(
             eprintln!("🔨 [PACKAGER] Compiling shader: {}", shader_name);
             println!("🔨 Compiling shader: {}", shader_name);
             
-            // Generate USF shader file (single shader only) from merged program
-            match ue5_shaders::generate_single_usf_from_program(program, shader_name) {
-                Ok(usf_code) => {
+            // Generate all three shader artifacts in one pass (mirrors computed once).
+            match ue5_shaders::compile_shader_artifacts(program, shader_name, &config.plugin_name) {
+                Ok(artifacts) => {
                     let usf_path = layout.shaders_dir.join(format!("{}.usf", shader_name));
-                    fs::write(&usf_path, usf_code).map_err(|e| KainError::Io(e))?;
+                    fs::write(&usf_path, artifacts.usf).map_err(|e| KainError::Io(e))?;
                     println!("   ✓ {}.usf", shader_name);
+
+                    let header_path = layout.public_dir.join(format!("{}.h", shader_name));
+                    fs::write(&header_path, artifacts.header).map_err(|e| KainError::Io(e))?;
+                    println!("   ✓ {}.h", shader_name);
+
+                    let cpp_path = layout.private_dir.join(format!("{}.cpp", shader_name));
+                    fs::write(&cpp_path, artifacts.cpp).map_err(|e| KainError::Io(e))?;
+                    println!("   ✓ {}.cpp", shader_name);
                 }
                 Err(e) => {
-                    eprintln!("   ✗ Failed to generate USF: {}", e);
+                    eprintln!("   ✗ Failed to compile shader artifacts for {}: {}", shader_name, e);
                     continue;
                 }
             }
-            
-            // Generate C++ header from merged program
-            let header_code = ue5_shaders::generate_cpp_header(program, shader_name);
-            let header_path = layout.public_dir.join(format!("{}.h", shader_name));
-            fs::write(&header_path, header_code).map_err(|e| KainError::Io(e))?;
-            println!("   ✓ {}.h", shader_name);
-            
-            // Generate C++ implementation from merged program
-            let cpp_code = ue5_shaders::generate_cpp_implementation(program, shader_name, &config.plugin_name);
-            let cpp_path = layout.private_dir.join(format!("{}.cpp", shader_name));
-            fs::write(&cpp_path, cpp_code).map_err(|e| KainError::Io(e))?;
-            println!("   ✓ {}.cpp", shader_name);
         }
     } else {
         println!("ℹ️  No shaders detected - skipping shader compilation");

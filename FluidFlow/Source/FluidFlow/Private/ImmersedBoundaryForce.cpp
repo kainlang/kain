@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FImmersedBoundaryForceShader, "/Plugin/FluidFlow/Immerse
 // Helper function to add pass to render graph
 void AddPass_ImmersedBoundaryForce(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

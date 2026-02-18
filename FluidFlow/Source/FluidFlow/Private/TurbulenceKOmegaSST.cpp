@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FTurbulenceKOmegaSSTShader, "/Plugin/FluidFlow/Turbulenc
 // Helper function to add pass to render graph
 void AddPass_TurbulenceKOmegaSST(
     FRDGBuilder& GraphBuilder,
-    TurbulenceAdvancedComponent turbulence_advanced,
+    FTurbulenceAdvancedComponentData turbulence_advanced,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

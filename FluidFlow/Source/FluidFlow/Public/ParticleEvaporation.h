@@ -14,13 +14,38 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for HyperFluidParticleSystemComponent (GPU-compatible)
+struct FHyperFluidParticleSystemComponentData {
+    EParticleType particle_type;
+    int32 particle_count;
+    float particle_diameter;
+    float particle_density;
+    float particle_shape_factor;
+    EDragModel drag_model;
+    float drag_coefficient;
+    ECollisionModel collision_model;
+    float restitution_coefficient;
+    float friction_coefficient;
+    float cohesion_energy;
+    EBreakupModel breakup_model;
+    ECoalescenceModel coalescence_model;
+    float weber_number_critical;
+    EEvaporationModel evaporation_model;
+    float latent_heat;
+    float vapor_pressure;
+    ETrackingScheme tracking_scheme;
+    int32 interpolation_order;
+    bool two_way_coupling;
+    bool four_way_coupling;
+};
+
 class FParticleEvaporationShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FParticleEvaporationShader);
     SHADER_USE_PARAMETER_STRUCT(FParticleEvaporationShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(HyperFluidParticleSystemComponent, particle_system)
+        SHADER_PARAMETER(FHyperFluidParticleSystemComponentData, particle_system)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +73,7 @@ class FParticleEvaporationShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_ParticleEvaporation(
     FRDGBuilder& GraphBuilder,
-    HyperFluidParticleSystemComponent particle_system,
+    FHyperFluidParticleSystemComponentData particle_system,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

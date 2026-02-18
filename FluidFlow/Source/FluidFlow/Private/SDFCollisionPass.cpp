@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FSDFCollisionPassShader, "/Plugin/FluidFlow/SDFCollision
 // Helper function to add pass to render graph
 void AddPass_SDFCollisionPass(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    CollisionComponent collision,
+    FPhysicalPropertiesComponentData physics,
+    FCollisionComponentData collision,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef sdf_texture,
     FRDGTextureRef OutputTexture,

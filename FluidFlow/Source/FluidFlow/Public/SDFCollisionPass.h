@@ -14,14 +14,52 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
+struct FPhysicalPropertiesComponentData {
+    EFluidClass fluid_class;
+    ESolverFamily solver_family;
+    EHybridSolver hybrid_solver;
+    EPressureSolver pressure_solver;
+    EAdvectionScheme advection_scheme;
+    ETurbulenceModel turbulence_model;
+    EBoundaryType boundary_type;
+    EQualityTier quality;
+    EGPUBackend backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
+// POD mirror for CollisionComponent (GPU-compatible)
+struct FCollisionComponentData {
+    bool enabled;
+    float restitution;
+    float friction;
+    float sdf_threshold;
+    bool use_global_distance_field;
+};
+
 class FSDFCollisionPassShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FSDFCollisionPassShader);
     SHADER_USE_PARAMETER_STRUCT(FSDFCollisionPassShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(PhysicalPropertiesComponent, physics)
-        SHADER_PARAMETER(CollisionComponent, collision)
+        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER(FCollisionComponentData, collision)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_texture)
         SHADER_PARAMETER_SAMPLER(SamplerState, velocity_textureSampler)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, sdf_texture)
@@ -53,8 +91,8 @@ class FSDFCollisionPassShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_SDFCollisionPass(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    CollisionComponent collision,
+    FPhysicalPropertiesComponentData physics,
+    FCollisionComponentData collision,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef sdf_texture,
     FRDGTextureRef OutputTexture,

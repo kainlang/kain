@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FSurfaceTension_CSFShader, "/Plugin/FluidFlow/SurfaceTen
 // Helper function to add pass to render graph
 void AddPass_SurfaceTension_CSF(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

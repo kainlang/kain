@@ -3,9 +3,63 @@
 
 #include "/Engine/Public/Platform.ush"
 
+// POD mirror for PhysicalPropertiesComponent
+struct FPhysicalPropertiesComponentData {
+    int fluid_class;
+    int solver_family;
+    int hybrid_solver;
+    int pressure_solver;
+    int advection_scheme;
+    int turbulence_model;
+    int boundary_type;
+    int quality;
+    int backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
+// POD mirror for BoundaryConditionComponent
+struct FBoundaryConditionComponentData {
+    int primary_type;
+    int velocity_profile;
+    int temperature_profile;
+    int pressure_profile;
+    float turbulence_intensity_inlet;
+    float turbulence_length_scale_inlet;
+    float wall_roughness;
+    float wall_temperature;
+    float wall_heat_flux;
+    float slip_length;
+    float contact_angle_advancing;
+    float contact_angle_receding;
+    float contact_angle_hysteresis;
+    float porous_permeability;
+    float porous_porosity;
+    float sponge_layer_thickness;
+    float sponge_damping_coefficient;
+    float3 moving_wall_velocity;
+    float3 moving_wall_angular_velocity;
+    int inflow_turbulence_seed;
+    float outflow_convective_velocity;
+};
+
 // Scalar Parameters - Bind via SHADER_PARAMETER_STRUCT
-PhysicalPropertiesComponent physics;
-BoundaryConditionComponent boundary;
+FPhysicalPropertiesComponentData physics;
+FBoundaryConditionComponentData boundary;
 
 // UAV Outputs
 RWTexture2D<float4> OutputTexture : register(u0);

@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FLES_DynamicSmagorinskyShader, "/Plugin/FluidFlow/LES_Dy
 // Helper function to add pass to render graph
 void AddPass_LES_DynamicSmagorinsky(
     FRDGBuilder& GraphBuilder,
-    TurbulenceAdvancedComponent turbulence_advanced,
+    FTurbulenceAdvancedComponentData turbulence_advanced,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

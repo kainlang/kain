@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FReactiveFluidChemistryShader, "/Plugin/FluidFlow/Reacti
 // Helper function to add pass to render graph
 void AddPass_ReactiveFluidChemistry(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

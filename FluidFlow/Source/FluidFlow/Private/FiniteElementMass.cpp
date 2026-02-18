@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFiniteElementMassShader, "/Plugin/FluidFlow/FiniteEleme
 // Helper function to add pass to render graph
 void AddPass_FiniteElementMass(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

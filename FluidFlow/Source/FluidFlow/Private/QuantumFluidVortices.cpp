@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FQuantumFluidVorticesShader, "/Plugin/FluidFlow/QuantumF
 // Helper function to add pass to render graph
 void AddPass_QuantumFluidVortices(
     FRDGBuilder& GraphBuilder,
-    QuantumComponent quantum,
+    FQuantumComponentData quantum,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

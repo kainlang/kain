@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FLevelSet_ReinitializationShader, "/Plugin/FluidFlow/Lev
 // Helper function to add pass to render graph
 void AddPass_LevelSet_Reinitialization(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

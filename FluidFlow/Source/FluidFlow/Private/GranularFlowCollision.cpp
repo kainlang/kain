@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FGranularFlowCollisionShader, "/Plugin/FluidFlow/Granula
 // Helper function to add pass to render graph
 void AddPass_GranularFlowCollision(
     FRDGBuilder& GraphBuilder,
-    ParticulateComponent particles,
+    FParticulateComponentData particles,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

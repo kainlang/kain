@@ -14,14 +14,68 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
+struct FPhysicalPropertiesComponentData {
+    EFluidClass fluid_class;
+    ESolverFamily solver_family;
+    EHybridSolver hybrid_solver;
+    EPressureSolver pressure_solver;
+    EAdvectionScheme advection_scheme;
+    ETurbulenceModel turbulence_model;
+    EBoundaryType boundary_type;
+    EQualityTier quality;
+    EGPUBackend backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
+// POD mirror for BoundaryConditionComponent (GPU-compatible)
+struct FBoundaryConditionComponentData {
+    EBoundaryType primary_type;
+    EVelocityProfile velocity_profile;
+    ETemperatureProfile temperature_profile;
+    EPressureProfile pressure_profile;
+    float turbulence_intensity_inlet;
+    float turbulence_length_scale_inlet;
+    float wall_roughness;
+    float wall_temperature;
+    float wall_heat_flux;
+    float slip_length;
+    float contact_angle_advancing;
+    float contact_angle_receding;
+    float contact_angle_hysteresis;
+    float porous_permeability;
+    float porous_porosity;
+    float sponge_layer_thickness;
+    float sponge_damping_coefficient;
+    FVector3f moving_wall_velocity;
+    FVector3f moving_wall_angular_velocity;
+    int32 inflow_turbulence_seed;
+    float outflow_convective_velocity;
+};
+
 class FDarcyFlowShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FDarcyFlowShader);
     SHADER_USE_PARAMETER_STRUCT(FDarcyFlowShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(PhysicalPropertiesComponent, physics)
-        SHADER_PARAMETER(BoundaryConditionComponent, boundary)
+        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER(FBoundaryConditionComponentData, boundary)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -49,8 +103,8 @@ class FDarcyFlowShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_DarcyFlow(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    BoundaryConditionComponent boundary,
+    FPhysicalPropertiesComponentData physics,
+    FBoundaryConditionComponentData boundary,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

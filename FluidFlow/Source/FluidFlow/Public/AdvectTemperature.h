@@ -14,14 +14,55 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
+struct FPhysicalPropertiesComponentData {
+    EFluidClass fluid_class;
+    ESolverFamily solver_family;
+    EHybridSolver hybrid_solver;
+    EPressureSolver pressure_solver;
+    EAdvectionScheme advection_scheme;
+    ETurbulenceModel turbulence_model;
+    EBoundaryType boundary_type;
+    EQualityTier quality;
+    EGPUBackend backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
+// POD mirror for TimeIntegrationComponent (GPU-compatible)
+struct FTimeIntegrationComponentData {
+    float dt;
+    ETimeIntegrator time_integrator;
+    float cfl;
+    int32 substeps;
+    bool real_time_sync;
+    bool clamp_dt;
+    float max_dt;
+    float min_dt;
+};
+
 class FAdvectTemperatureShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FAdvectTemperatureShader);
     SHADER_USE_PARAMETER_STRUCT(FAdvectTemperatureShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(PhysicalPropertiesComponent, physics)
-        SHADER_PARAMETER(TimeIntegrationComponent, time)
+        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER(FTimeIntegrationComponentData, time)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_texture)
         SHADER_PARAMETER_SAMPLER(SamplerState, velocity_textureSampler)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, temperature_texture)
@@ -53,8 +94,8 @@ class FAdvectTemperatureShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_AdvectTemperature(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TimeIntegrationComponent time,
+    FPhysicalPropertiesComponentData physics,
+    FTimeIntegrationComponentData time,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef temperature_texture,
     FRDGTextureRef OutputTexture,

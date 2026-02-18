@@ -14,13 +14,27 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for VisualizationComponent (GPU-compatible)
+struct FVisualizationComponentData {
+    EVisualizationMode visualization;
+    float exposure;
+    float contrast;
+    float saturation;
+    float line_thickness;
+    int32 sample_count;
+    float step_size;
+    FVector3f color_a;
+    FVector3f color_b;
+    FVector3f color_c;
+};
+
 class FFluidQuantumVisualizationShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FFluidQuantumVisualizationShader);
     SHADER_USE_PARAMETER_STRUCT(FFluidQuantumVisualizationShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(VisualizationComponent, viz)
+        SHADER_PARAMETER(FVisualizationComponentData, viz)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +62,7 @@ class FFluidQuantumVisualizationShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_FluidQuantumVisualization(
     FRDGBuilder& GraphBuilder,
-    VisualizationComponent viz,
+    FVisualizationComponentData viz,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

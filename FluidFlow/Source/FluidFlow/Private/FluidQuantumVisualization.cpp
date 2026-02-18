@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFluidQuantumVisualizationShader, "/Plugin/FluidFlow/Flu
 // Helper function to add pass to render graph
 void AddPass_FluidQuantumVisualization(
     FRDGBuilder& GraphBuilder,
-    VisualizationComponent viz,
+    FVisualizationComponentData viz,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

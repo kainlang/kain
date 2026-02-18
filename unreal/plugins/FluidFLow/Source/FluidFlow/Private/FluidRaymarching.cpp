@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFluidRaymarchingShader, "/Plugin/FluidFlow/FluidRaymarc
 // Helper function to add pass to render graph
 void AddPass_FluidRaymarching(
     FRDGBuilder& GraphBuilder,
-    VisualizationComponent viz,
+    FVisualizationComponentData viz,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

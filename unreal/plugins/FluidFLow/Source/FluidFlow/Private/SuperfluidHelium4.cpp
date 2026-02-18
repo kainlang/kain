@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FSuperfluidHelium4Shader, "/Plugin/FluidFlow/SuperfluidH
 // Helper function to add pass to render graph
 void AddPass_SuperfluidHelium4(
     FRDGBuilder& GraphBuilder,
-    QuantumComponent quantum,
+    FQuantumComponentData quantum,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

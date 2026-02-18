@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FDarcyFlowShader, "/Plugin/FluidFlow/DarcyFlow.usf", "Da
 // Helper function to add pass to render graph
 void AddPass_DarcyFlow(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    BoundaryConditionComponent boundary,
+    FPhysicalPropertiesComponentData physics,
+    FBoundaryConditionComponentData boundary,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

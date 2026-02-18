@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FMagnetohydrodynamicsInductionShader, "/Plugin/FluidFlow
 // Helper function to add pass to render graph
 void AddPass_MagnetohydrodynamicsInduction(
     FRDGBuilder& GraphBuilder,
-    ElectroMagneticComponent em,
+    FElectroMagneticComponentData em,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

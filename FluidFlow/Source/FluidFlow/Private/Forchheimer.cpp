@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FForchheimerShader, "/Plugin/FluidFlow/Forchheimer.usf",
 // Helper function to add pass to render graph
 void AddPass_Forchheimer(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    BoundaryConditionComponent boundary,
+    FPhysicalPropertiesComponentData physics,
+    FBoundaryConditionComponentData boundary,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

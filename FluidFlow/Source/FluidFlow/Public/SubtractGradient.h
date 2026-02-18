@@ -14,13 +14,42 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
+struct FPhysicalPropertiesComponentData {
+    EFluidClass fluid_class;
+    ESolverFamily solver_family;
+    EHybridSolver hybrid_solver;
+    EPressureSolver pressure_solver;
+    EAdvectionScheme advection_scheme;
+    ETurbulenceModel turbulence_model;
+    EBoundaryType boundary_type;
+    EQualityTier quality;
+    EGPUBackend backend;
+    float viscosity;
+    float density;
+    float surface_tension;
+    float compressibility;
+    float conductivity;
+    float permittivity;
+    float permeability;
+    float reactivity;
+    float radiation_absorption;
+    float gravity_scale;
+    float anisotropy;
+    float cavitation_threshold;
+    float yield_stress;
+    float foam_threshold;
+    float spray_threshold;
+    float bubble_coalescence;
+};
+
 class FSubtractGradientShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FSubtractGradientShader);
     SHADER_USE_PARAMETER_STRUCT(FSubtractGradientShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(PhysicalPropertiesComponent, physics)
+        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_texture)
         SHADER_PARAMETER_SAMPLER(SamplerState, velocity_textureSampler)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, pressure_texture)
@@ -52,7 +81,7 @@ class FSubtractGradientShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_SubtractGradient(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef pressure_texture,
     FRDGTextureRef OutputTexture,

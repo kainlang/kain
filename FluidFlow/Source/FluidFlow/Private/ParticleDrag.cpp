@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FParticleDragShader, "/Plugin/FluidFlow/ParticleDrag.usf
 // Helper function to add pass to render graph
 void AddPass_ParticleDrag(
     FRDGBuilder& GraphBuilder,
-    HyperFluidParticleSystemComponent particle_system,
-    PhysicalPropertiesComponent physics,
+    FHyperFluidParticleSystemComponentData particle_system,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

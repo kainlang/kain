@@ -14,13 +14,24 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
+// POD mirror for MultiphaseComponent (GPU-compatible)
+struct FMultiphaseComponentData {
+    int32 phases;
+    float phase_field_mobility;
+    float interface_thickness;
+    float surface_tension_coupling;
+    float contact_angle;
+    float bubble_spawn_rate;
+    float droplet_spawn_rate;
+};
+
 class FFreeSurface_VOFShader : public FGlobalShader
 {
     DECLARE_GLOBAL_SHADER(FFreeSurface_VOFShader);
     SHADER_USE_PARAMETER_STRUCT(FFreeSurface_VOFShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(MultiphaseComponent, multiphase)
+        SHADER_PARAMETER(FMultiphaseComponentData, multiphase)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -48,7 +59,7 @@ class FFreeSurface_VOFShader : public FGlobalShader
 // Helper function to add pass to render graph
 void AddPass_FreeSurface_VOF(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount = FIntVector(32, 32, 1)
 );

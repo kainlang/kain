@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FComputeDivergenceShader, "/Plugin/FluidFlow/ComputeDive
 // Helper function to add pass to render graph
 void AddPass_ComputeDivergence(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
+    FPhysicalPropertiesComponentData physics,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount

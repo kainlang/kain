@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FQuantumFluidGrossPitaevskiiShader, "/Plugin/FluidFlow/Q
 // Helper function to add pass to render graph
 void AddPass_QuantumFluidGrossPitaevskii(
     FRDGBuilder& GraphBuilder,
-    QuantumComponent quantum,
+    FQuantumComponentData quantum,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

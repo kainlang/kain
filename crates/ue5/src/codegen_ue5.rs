@@ -249,6 +249,16 @@ struct Ue5Gen {
     /// Populated during the program pre-pass so the dispatch code can generate
     /// POD population lines without needing access to the full TypedProgram.
     component_mirrors: std::collections::HashMap<String, ue5_shaders::PodMirrorStruct>,
+    /// Maps every named type (struct, actor) to its field list: (field_name, field_type).
+    /// Used for depth-1 path resolution during shader dispatch: when a component uniform
+    /// (e.g. `physics: PhysicalPropertiesComponent`) is not a direct actor state field,
+    /// we walk the actor's state fields and check if any sub-type contains the uniform
+    /// field, generating `this->world->physics` instead of a null fallback.
+    type_fields_map: std::collections::HashMap<String, Vec<(String, Type)>>,
+    /// Names of all @blueprint fns in the program, used to qualify calls in actor methods.
+    blueprint_fn_names: std::collections::HashSet<String>,
+    /// Raw plugin/module name for deriving FunctionLibrary class names.
+    module_name: String,
 }
 
 impl Ue5Gen {
@@ -269,6 +279,9 @@ impl Ue5Gen {
             var_types: std::collections::HashMap::new(),
             shader_file_names: Vec::new(),
             component_mirrors: std::collections::HashMap::new(),
+            type_fields_map: std::collections::HashMap::new(),
+            blueprint_fn_names: std::collections::HashSet::new(),
+            module_name: module_name.to_string(),
         }
     }
 
@@ -673,6 +686,33 @@ impl Ue5Gen {
                 std::collections::HashMap::new()
             }
         };
+
+        // Build a map from every named type to its field/state list for depth-1
+        // uniform path resolution (e.g. HyperFluidSimulationCore → [(physics, ...), ...]).
+        for item in &program.items {
+            match item {
+                TypedItem::Struct(st) => {
+                    let fields: Vec<(String, Type)> = st.ast.fields
+                        .iter()
+                        .map(|f| (f.name.clone(), f.ty.clone()))
+                        .collect();
+                    self.type_fields_map.insert(st.ast.name.clone(), fields);
+                }
+                TypedItem::Actor(a) => {
+                    let fields: Vec<(String, Type)> = a.ast.state
+                        .iter()
+                        .map(|s| (s.name.clone(), s.ty.clone()))
+                        .collect();
+                    self.type_fields_map.insert(a.ast.name.clone(), fields);
+                }
+                TypedItem::Function(f) => {
+                    if f.ast.attributes.iter().any(|a| a.name == "blueprint") {
+                        self.blueprint_fn_names.insert(f.ast.name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
         
         // Separate items by type for proper ordering
         let mut delegates = Vec::new();
@@ -924,17 +964,51 @@ impl Ue5Gen {
         self.write_header("virtual void Tick(float DeltaTime) override;");
         self.write_blank_header();
 
-        // State variables
+        // State variables — BUG-005/006 fix: read @replicated, @category etc. from attributes
+        let has_replicated_state = actor.state.iter().any(|s| {
+            s.attributes.iter().any(|a| a.name == "replicated")
+        });
+
         for state_decl in &actor.state {
-            self.write_header("UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = \"Simulation Settings\")");
-            // Map types (e.g. float -> float, float3 -> FVector)
-            let cpp_type = self.map_type(&state_decl.ty); 
+            let mut props: Vec<&str> = vec!["EditAnywhere", "BlueprintReadWrite"];
+            let mut category = "Simulation Settings".to_string();
+            for attr in &state_decl.attributes {
+                match attr.name.as_str() {
+                    "replicated" => props.push("Replicated"),
+                    "savegame"   => props.push("SaveGame"),
+                    "transient"  => props.push("Transient"),
+                    "editdefaults" => {
+                        props.retain(|&p| p != "EditAnywhere");
+                        props.push("EditDefaultsOnly");
+                    }
+                    "visibleonly" => {
+                        props.retain(|&p| p != "EditAnywhere");
+                        props.push("VisibleAnywhere");
+                    }
+                    "category" => {
+                        if let Some(Expr::String(cat, _)) = attr.args.first() {
+                            category = cat.clone();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            self.write_header(&format!(
+                "UPROPERTY({}, Category = \"{}\")",
+                props.join(", "),
+                category
+            ));
+            let cpp_type = self.map_type(&state_decl.ty);
             self.write_header(&format!("{} {};", cpp_type, state_decl.name));
-            
-            // Track for variable resolution
             if let Type::Named { name, .. } = &state_decl.ty {
                 self.var_types.insert(state_decl.name.clone(), name.clone());
             }
+        }
+
+        // Declare GetLifetimeReplicatedProps if any state is @replicated
+        if has_replicated_state {
+            self.write_blank_header();
+            self.write_header("virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;");
         }
         
         // Double-Buffering Resources
@@ -1001,7 +1075,22 @@ impl Ue5Gen {
         
         self.source.push_line("}");
         self.write_blank_source();
-        
+
+        // GetLifetimeReplicatedProps implementation for @replicated state fields
+        if has_replicated_state {
+            self.source.push_line(&format!("void {}::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const", class_name));
+            self.source.push_line("{");
+            self.source.push_line("\tSuper::GetLifetimeReplicatedProps(OutLifetimeProps);");
+            self.source.push_line("");
+            for s in &actor.state {
+                if s.attributes.iter().any(|a| a.name == "replicated") {
+                    self.source.push_line(&format!("\tDOREPLIFETIME({}, {});", class_name, s.name));
+                }
+            }
+            self.source.push_line("}");
+            self.write_blank_source();
+        }
+
         // BeginPlay
         self.source.push_line(&format!("void {}::BeginPlay()", class_name));
         self.source.push_line("{");
@@ -1187,11 +1276,32 @@ impl Ue5Gen {
                             // Component uniform: generate POD population code and pass the POD var.
                             let mirror = &self.component_mirrors[&comp_name];
                             let pod_var = format!("{}_pod", uniform.name);
-                            // Find the matching actor state field (same name, case-insensitive).
-                            let state_var = actor.state.iter()
+
+                            // Level 1: direct actor state field with matching name.
+                            let mut state_var = actor.state.iter()
                                 .find(|s| s.name.eq_ignore_ascii_case(&uniform.name))
-                                .map(|s| format!("this->{}", s.name))
-                                .unwrap_or_else(|| "nullptr".to_string());
+                                .map(|s| format!("this->{}", s.name));
+
+                            // Level 2: depth-1 path — walk each actor state field whose type
+                            // has a sub-field matching the uniform name.
+                            // e.g. HyperFluidController.world (HyperFluidSimulationCore)
+                            //        └── world.physics  (PhysicalPropertiesComponent) ✓
+                            if state_var.is_none() {
+                                 'outer: for st in &actor.state {
+                                    if let Type::Named { name: type_name, .. } = &st.ty {
+                                        if let Some(sub_fields) = self.type_fields_map.get(type_name.as_str()) {
+                                            for (field_name, _) in sub_fields {
+                                                if field_name.eq_ignore_ascii_case(&uniform.name) {
+                                                    state_var = Some(format!("this->{}->{}" , st.name, uniform.name));
+                                                    break 'outer;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            let state_var = state_var.unwrap_or_else(|| "nullptr".to_string());
                             pod_prep_lines.push(
                                 mirror.generate_population_code(&state_var, &pod_var, "\t\t\t")
                             );
@@ -1283,6 +1393,14 @@ impl Ue5Gen {
                 // Don't add nullptr for output textures - the shader functions don't expect them
                 // The USF codegen handles output textures internally
 
+                // Open a nested block scope so each shader's POD variables are isolated.
+                // This prevents redeclaration errors when multiple shaders share the same
+                // uniform name (e.g. "physics_pod") inside the same render lambda.
+                let needs_scope = !pod_prep_lines.is_empty();
+                if needs_scope {
+                    self.source.push_line("\t\t\t{");
+                }
+
                 // Emit POD population code for any component uniforms before the dispatch call.
                 for prep in &pod_prep_lines {
                     // generate_population_code already includes the indent prefix.
@@ -1291,6 +1409,10 @@ impl Ue5Gen {
                 
                 // Use shader_file_name (from toml) instead of AST name to preserve correct casing
                 self.source.push_line(&format!("\t\t\tAddPass_{}(GraphBuilder, {});", shader_file_name, [scalar_args, texture_args].concat().join(", ")));
+
+                if needs_scope {
+                    self.source.push_line("\t\t\t}");
+                }
             }
 
             self.source.push_line("");
@@ -2614,6 +2736,12 @@ impl Ue5Gen {
                     return format!("FMath::SmoothStep({}, {}, {})", arg_strs[0], arg_strs[1], arg_strs[2]);
                 }
                 
+                // BUG-008: qualify @blueprint fn calls with U{Plugin}FunctionLibrary::
+                if self.blueprint_fn_names.contains(ue5_fn_name) {
+                    let lib_class = format!("U{}FunctionLibrary", to_pascal_case(&self.module_name));
+                    return format!("{}::{}({})", lib_class, ue5_fn_name, arg_strs.join(", "));
+                }
+
                 format!("{}({})", ue5_fn_name, arg_strs.join(", "))
             }
 

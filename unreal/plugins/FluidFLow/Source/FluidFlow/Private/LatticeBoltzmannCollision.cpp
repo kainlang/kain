@@ -13,8 +13,8 @@ IMPLEMENT_GLOBAL_SHADER(FLatticeBoltzmannCollisionShader, "/Plugin/FluidFlow/Lat
 // Helper function to add pass to render graph
 void AddPass_LatticeBoltzmannCollision(
     FRDGBuilder& GraphBuilder,
-    PhysicalPropertiesComponent physics,
-    TurbulenceComponent turbulence,
+    FPhysicalPropertiesComponentData physics,
+    FTurbulenceComponentData turbulence,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )

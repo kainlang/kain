@@ -13,7 +13,7 @@ IMPLEMENT_GLOBAL_SHADER(FFreeSurface_LevelSetShader, "/Plugin/FluidFlow/FreeSurf
 // Helper function to add pass to render graph
 void AddPass_FreeSurface_LevelSet(
     FRDGBuilder& GraphBuilder,
-    MultiphaseComponent multiphase,
+    FMultiphaseComponentData multiphase,
     FRDGTextureRef OutputTexture,
     FIntVector GroupCount
 )
