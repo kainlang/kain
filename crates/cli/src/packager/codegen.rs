@@ -28,6 +28,15 @@ pub fn compile_shaders(
         }
         println!();
         
+        // Bug-1 fix: generate the shared POD types header once before individual shaders.
+        // Individual shader headers now #include "{Plugin}ShaderTypes.h" instead of
+        // inlining struct definitions, preventing C2011 redefinition errors.
+        if let Some(types_content) = ue5_shaders::generate_shared_types_header(program, &config.plugin_name) {
+            let types_path = layout.public_dir.join(format!("{}ShaderTypes.h", config.plugin_name));
+            fs::write(&types_path, types_content).map_err(|e| KainError::Io(e))?;
+            println!("   ✓ {}ShaderTypes.h (shared POD mirror types)", config.plugin_name);
+        }
+
         // Compile each shader using the merged typed program
         for shader_name in shader_names {
             eprintln!("🔨 [PACKAGER] Compiling shader: {}", shader_name);
@@ -172,18 +181,30 @@ fn generate_delegate_header(
                                 "Vec4" => "FVector4".to_string(),
                                 // Check if it's an enum (starts with capital letter)
                                 _ if name.chars().next().unwrap().is_uppercase() => {
-                                    // Check if it's an enum in the program
+                                    // Bug-4 fix: use ue5::naming for correct A/E/U/F prefixes.
                                     let is_enum = program.items.iter().any(|item| {
-                                        if let kain_core::types::TypedItem::Enum(e) = item {
-                                            e.ast.name == *name
-                                        } else {
-                                            false
-                                        }
+                                        matches!(item, kain_core::types::TypedItem::Enum(e) if e.ast.name == *name)
+                                    });
+                                    let is_actor = program.items.iter().any(|item| {
+                                        matches!(item, kain_core::types::TypedItem::Actor(a) if a.ast.name == *name)
+                                    });
+                                    let is_component = program.items.iter().any(|item| {
+                                        matches!(item, kain_core::types::TypedItem::Component(c) if c.ast.name == *name)
+                                        || matches!(item, kain_core::types::TypedItem::Struct(s)
+                                            if s.ast.name == *name && s.ast.attributes.iter().any(|a| a.name == "component"))
                                     });
                                     if is_enum {
                                         let ue_name = ue5::ue5::naming::to_enum_name(name);
                                         delegate_type_dependencies.insert(format!("{}.h", ue_name));
                                         ue_name
+                                    } else if is_actor {
+                                        let ue_name = ue5::ue5::naming::to_actor_name(name);
+                                        delegate_type_dependencies.insert(format!("{}.h", ue_name));
+                                        format!("{}*", ue_name)
+                                    } else if is_component {
+                                        let ue_name = ue5::ue5::naming::to_component_name(name);
+                                        delegate_type_dependencies.insert(format!("{}.h", ue_name));
+                                        format!("{}*", ue_name)
                                     } else {
                                         let ue_name = ue5::ue5::naming::to_struct_name(name);
                                         delegate_type_dependencies.insert(format!("{}.h", ue_name));

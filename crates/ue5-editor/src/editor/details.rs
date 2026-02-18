@@ -153,7 +153,7 @@ impl DetailsGenerator {
         for category in &categories {
             self.push_line(&format!(
                 "IDetailCategoryBuilder& {}Cat = DetailBuilder.EditCategory(TEXT(\"{}\"));",
-                category.name.replace(" ", ""), category.name
+                Self::sanitize_identifier(&category.name), category.name
             ));
             self.push_line("");
             
@@ -292,7 +292,7 @@ impl DetailsGenerator {
     }
     
     fn generate_field_customization(&mut self, field: &DetailField, category_name: &str, class_name: &str) {
-        let cat_var = category_name.replace(" ", "");
+        let cat_var = Self::sanitize_identifier(category_name);
         
         match &field.widget_override {
             Some(WidgetOverride::Slider { min, max }) => {
@@ -483,6 +483,25 @@ impl DetailsGenerator {
     fn push_line(&mut self, line: &str) {
         let indent_str = "\t".repeat(self.indent);
         self.lines.push(format!("{}{}", indent_str, line));
+    }
+
+    /// Convert a category display name into a valid C++ identifier.
+    /// Strips namespace prefix ("ToonShaderz|Colors" → "Colors"), then replaces
+    /// spaces and any non-alphanumeric character with `_`.
+    fn sanitize_identifier(s: &str) -> String {
+        let base = s.rsplit('|').next().unwrap_or(s).trim();
+        let ident: String = base
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+            .collect();
+        if ident.is_empty() {
+            return "Category".to_string();
+        }
+        if ident.starts_with(|c: char| c.is_ascii_digit()) {
+            format!("_{}", ident)
+        } else {
+            ident
+        }
     }
 }
 

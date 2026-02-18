@@ -83,11 +83,6 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     }
     super::codegen::write_plugin_files(&layout, ue5_config, &manifest.package.description, has_shaders, &module_graph)?;
     
-    // STEP 6: Python post-processing
-    println!();
-    println!("🐍 Running Python post-processor...");
-    post_process::run_python_post_processor(&layout.plugin_root, &ue5_config.plugin_name)?;
-    
     // Summary
     println!();
     println!("✅ Plugin build complete!");

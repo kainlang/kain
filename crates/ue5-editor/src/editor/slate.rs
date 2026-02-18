@@ -224,6 +224,9 @@ pub struct SlateGenerator {
     /// e.g. "on_category_changed" -> vec!["EEToolCategory"]
     /// Used by emit_delegate_bridge_or_passthrough to generate correct Broadcast() args
     delegate_param_map: HashMap<String, Vec<String>>,
+    /// Bug-2 fix: maps array field name -> element C++ type for SListView<T> template args.
+    /// Populated in generate_list_view_support() before generate_compose_body() runs.
+    list_item_types: HashMap<String, String>,
 }
 
 impl SlateGenerator {
@@ -238,6 +241,7 @@ impl SlateGenerator {
             struct_field_names: std::collections::HashSet::new(),
             field_type_map: HashMap::new(),
             delegate_param_map: HashMap::new(),
+            list_item_types: HashMap::new(),
         }
     }
     
@@ -483,7 +487,11 @@ impl SlateGenerator {
                     
                     // Generate the widget construction (SNew(...))
                     let slate_class = widget_type.to_slate_class();
-                    self.push_line(&format!("SNew({})", slate_class));
+                    if widget_type.is_list_widget() {
+                        self.push_line(&self.list_widget_stype(&slate_class));
+                    } else {
+                        self.push_line(&format!("SNew({})", slate_class));
+                    }
                     
                     // Push widget type so generate_widget_property can check it
                     // (e.g. SSlider::MinValue takes float, SSpinBox takes TOptional<float>)
@@ -570,7 +578,7 @@ impl SlateGenerator {
                 let slate_class = widget_type.to_slate_class();
                 
                 if widget_type.is_list_widget() {
-                    self.push_line(&format!("SNew({})", slate_class));
+                    self.push_line(&self.list_widget_stype(&slate_class));
                 } else {
                     self.push_line(&format!("SNew({})", slate_class));
                 }
@@ -730,11 +738,9 @@ impl SlateGenerator {
                 let widget_type = self.extract_widget_type(callee);
                 let slate_class = widget_type.to_slate_class();
                 
-                // List widgets need type parameters
+                // List widgets need the item-pointer type argument.
                 if widget_type.is_list_widget() {
-                    // Check if type arg is available from generic
-                    self.push_line(&format!("SNew({})", slate_class));
-                    // TODO: handle list views generically
+                    self.push_line(&self.list_widget_stype(&slate_class));
                 } else {
                     self.push_line(&format!("SNew({})", slate_class));
                 }
@@ -1567,6 +1573,9 @@ impl SlateGenerator {
                 let element_type = self.map_type(element);
                 let ptr_type = format!("TSharedPtr<{}>", element_type);
                 
+                // Bug-2 fix: record element type so SNew(SListView<T>) can use it.
+                self.list_item_types.insert(field.name.clone(), element_type.clone());
+
                 // Member variable for the list source
                 self.push_line(&format!("TArray<{}> {};", ptr_type, field.name));
                 self.push_line("");
@@ -1588,12 +1597,22 @@ impl SlateGenerator {
                 ));
                 self.push_line("");
                 
-                // ListView widget reference
+                // ListView widget reference — correctly typed
                 self.push_line(&format!(
                     "TSharedPtr<SListView<{}>> {}ListView;",
                     ptr_type, field.name
                 ));
             }
+        }
+    }
+
+    /// Return the SNew type string for a list widget, including the `<ItemPtr>` template arg
+    /// when an item type is known from a previous `generate_list_view_support()` call.
+    fn list_widget_stype(&self, slate_class: &str) -> String {
+        if let Some(elem) = self.list_item_types.values().next() {
+            format!("SNew({}<TSharedPtr<{}>>)", slate_class, elem)
+        } else {
+            format!("SNew({}<FTableRowBase>)", slate_class)
         }
     }
     

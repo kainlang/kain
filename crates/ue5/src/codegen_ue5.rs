@@ -257,6 +257,10 @@ struct Ue5Gen {
     type_fields_map: std::collections::HashMap<String, Vec<(String, Type)>>,
     /// Names of all @blueprint fns in the program, used to qualify calls in actor methods.
     blueprint_fn_names: std::collections::HashSet<String>,
+    /// Raw KAIN type names referenced in @blueprint function parameter/return types.
+    /// Used in the blueprint-library-only preamble to emit only the headers that are
+    /// actually needed (Bug-4 fix: avoids including Slate/editor widget headers).
+    blueprint_used_types: std::collections::HashSet<String>,
     /// Raw plugin/module name for deriving FunctionLibrary class names.
     module_name: String,
 }
@@ -281,6 +285,7 @@ impl Ue5Gen {
             component_mirrors: std::collections::HashMap::new(),
             type_fields_map: std::collections::HashMap::new(),
             blueprint_fn_names: std::collections::HashSet::new(),
+            blueprint_used_types: std::collections::HashSet::new(),
             module_name: module_name.to_string(),
         }
     }
@@ -441,8 +446,7 @@ impl Ue5Gen {
         let needs_replication = program.items.iter().any(|item| {
             match item {
                 TypedItem::Actor(a) => a.ast.state.iter().any(|s| {
-                    // Would need to check state attributes when we add them
-                    false
+                    s.attributes.iter().any(|a| a.name == "replicated")
                 }),
                 TypedItem::Struct(s) => s.ast.fields.iter().any(|f| {
                     f.attributes.iter().any(|a| a.name == "replicated")
@@ -565,38 +569,25 @@ impl Ue5Gen {
             }
         }
 
-        // If we're in blueprint-library-only mode, add ALL type headers as includes
-        // EXCEPT Slate widgets (they use S prefix and shouldn't be in blueprint library)
-        // EXCEPT editor modules (they're structs, not separate headers)
-        let blueprint_library_only = self.target_item.as_ref().map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
+        // Bug-4 fix: if we're in blueprint-library-only mode, only include headers for
+        // types that are actually referenced in @blueprint function signatures.
+        // This replaces the old hardcoded skip list (plugin-specific names like
+        // "FCosmosDashboard", "FSovereignDetailsPanel", etc.).
+        let blueprint_library_only = self.target_item.as_ref()
+            .map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
         if blueprint_library_only {
-            // Get all type headers and add them to includes, but skip Slate widgets and editor modules
-            let mut type_headers: Vec<String> = self.context.type_to_header.values().cloned().collect();
-            type_headers.sort();
-            type_headers.dedup();
-            for type_header in type_headers {
-                // Skip Slate widget headers (they start with S, not F)
-                // Slate widgets have @slate attribute and shouldn't be in blueprint library
-                if type_header.starts_with("FCosmosDashboard") || type_header.starts_with("FSovereignDetailsPanel") {
-                    // These are Slate widgets, skip them
-                    continue;
-                }
-                // Skip editor module headers (they're structs with @editor_module, not separate headers)
-                if type_header.starts_with("FKainCosmosModule") || type_header.contains("Module") {
-                    continue;
-                }
-                // More generic: skip any header that looks like a Slate widget or editor module
-                // Slate widgets typically have "Dashboard", "Panel", "Widget" in the name
-                if type_header.contains("Dashboard") || type_header.contains("DetailsPanel") {
-                    continue;
-                }
-                
-                let header_ref: &str = &type_header;
-                if !includes.iter().any(|h| *h == header_ref) {
-                    includes.push(Box::leak(type_header.into_boxed_str()));
+            // type_to_header keys are raw KAIN type names; collect only those used.
+            let used = &self.blueprint_used_types;
+            for (type_name, type_header) in &self.context.type_to_header {
+                if used.is_empty() || used.contains(type_name.as_str()) {
+                    let header_ref: &str = type_header;
+                    if !includes.iter().any(|h| *h == header_ref) {
+                        includes.push(Box::leak(type_header.clone().into_boxed_str()));
+                    }
                 }
             }
         }
+        // ── old blueprint_library_only block replaced above ──
 
         // Check if this is a delegate-only file (delegates don't need .generated.h)
         let is_delegate_only = if let Some(target) = &self.target_item {
@@ -716,6 +707,14 @@ impl Ue5Gen {
                 TypedItem::Function(f) => {
                     if f.ast.attributes.iter().any(|a| a.name == "blueprint") {
                         self.blueprint_fn_names.insert(f.ast.name.clone());
+                        // Bug-4 fix: record every named type appearing in this fn's signature
+                        // so the blueprint-library preamble can emit only the needed headers.
+                        for param in &f.ast.params {
+                            collect_type_names(&param.ty, &mut self.blueprint_used_types);
+                        }
+                        if let Some(ret) = &f.ast.return_type {
+                            collect_type_names(ret, &mut self.blueprint_used_types);
+                        }
                     }
                 }
                 _ => {}
@@ -1105,8 +1104,19 @@ impl Ue5Gen {
         self.source.push_line("\tSuper::BeginPlay();");
         
         if !shaders.is_empty() {
-             self.source.push_line("\t// Initialize Render Targets here (omitted for brevity, user must implemented or we gen helper)");
-             self.source.push_line("\t// Helper: KismetRenderingLibrary::CreateRenderTarget2D(this, 1024, 1024, RTF_RGBA32f);");
+            // Bug-14 fix: Transient UTextureRenderTarget2D* members are null by default.
+            // Without explicit init in BeginPlay(), the Bug-13 null guard fires every frame
+            // and the simulation never runs.
+            for rt_name in &["PositionRT_A", "PositionRT_B", "VelocityRT_A", "VelocityRT_B"] {
+                self.source.push_line(&format!("\tif (!{})", rt_name));
+                self.source.push_line("\t{");
+                self.source.push_line(&format!("\t\t{} = NewObject<UTextureRenderTarget2D>(this);", rt_name));
+                self.source.push_line(&format!("\t\t{}->bAutoGenerateMips = false;", rt_name));
+                self.source.push_line(&format!("\t\t{}->RenderTargetFormat = RTF_RGBA32f;", rt_name));
+                self.source.push_line(&format!("\t\t{}->InitAutoFormat(512, 512);", rt_name));
+                self.source.push_line(&format!("\t\t{}->UpdateResourceImmediate(true);", rt_name));
+                self.source.push_line("\t}");
+            }
         }
         
         // User defined begin_play logic
@@ -1138,15 +1148,17 @@ impl Ue5Gen {
             self.source.push_line("\t// Enqueue Simulation on Render Thread");
             self.source.push_line("\tENQUEUE_RENDER_COMMAND(SimulationTick)(");
             self.source.push_line("\t\t[this, DeltaTime](FRHICommandListImmediate& RHICmdList) {");
+            // Bug-13 fix: null checks MUST come before FRDGBuilder construction.
+            // Creating the builder and then returning early without calling Execute()
+            // triggers ensure(bHasExecuted) in RenderGraphValidation.cpp.
+            self.source.push_line("\t\t\tif (!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) { return; }");
+            self.source.push_line("");
             self.source.push_line("\t\t\tFRDGBuilder GraphBuilder(RHICmdList);");
             self.source.push_line("");
             
             // Resource Registration Logic
             self.source.push_line("\t\t\t// 1. Register External Textures (Ping-Pong Logic)");
             self.source.push_line("\t\t\tbool bOddFrame = GFrameNumberRenderThread % 2 != 0;");
-            
-            // Safety check for null render targets
-            self.source.push_line("\t\t\tif(!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) return;");
 
             // Static helper for RT to RDG conversion
             self.source.push_line("\t\t\tauto CreateRenderTarget = [&](FRHICommandListImmediate& RHICmdList, UTextureRenderTarget2D* RT, const TCHAR* Name) -> TRefCountPtr<IPooledRenderTarget> {");
@@ -1373,28 +1385,34 @@ impl Ue5Gen {
                 let is_compute = matches!(shader.ast.stage, ShaderStage::Compute);
                 
                 if is_compute {
-                    // For compute shaders, determine the output texture based on shader name
-                    // This allows proper pipeline chaining
-                    let shader_name_lower = shader_name.to_lowercase();
-                    
-                    if shader_name_lower.contains("position") {
-                        texture_args.push("PositionOutput".to_string());
-                    } else if shader_name_lower.contains("velocity") {
-                        texture_args.push("VelocityOutput".to_string());
-                    } else if shader_name_lower.contains("thermal") {
-                        texture_args.push("ThermalRT".to_string());
-                    } else if shader_name_lower.contains("moisture") {
-                        texture_args.push("MoistureRT".to_string());
-                    } else if shader_name_lower.contains("albedo") {
-                        texture_args.push("AlbedoRT".to_string());
-                    } else if shader_name_lower.contains("lights") || shader_name_lower.contains("city") {
-                        texture_args.push("LightsRT".to_string());
-                    } else {
-                        // Generic compute shader - use PositionOutput as fallback
-                        texture_args.push("PositionOutput".to_string());
+                    // Bug-5 fix: the uniforms loop above may have already added the output
+                    // texture when the shader declares it explicitly (e.g. `position_output:
+                    // Sampler2D`). Only apply the name-heuristic fallback when the loop
+                    // didn't already add ANY output/RT texture — prevents duplicate args that
+                    // cause a C++ "too many arguments" error on the AddPass_ call site.
+                    let already_has_output = texture_args.iter()
+                        .any(|a| a.contains("Output") || a.ends_with("RT"));
+
+                    if !already_has_output {
+                        let shader_name_lower = shader_name.to_lowercase();
+                        if shader_name_lower.contains("position") {
+                            texture_args.push("PositionOutput".to_string());
+                        } else if shader_name_lower.contains("velocity") {
+                            texture_args.push("VelocityOutput".to_string());
+                        } else if shader_name_lower.contains("thermal") {
+                            texture_args.push("ThermalRT".to_string());
+                        } else if shader_name_lower.contains("moisture") {
+                            texture_args.push("MoistureRT".to_string());
+                        } else if shader_name_lower.contains("albedo") {
+                            texture_args.push("AlbedoRT".to_string());
+                        } else if shader_name_lower.contains("lights") || shader_name_lower.contains("city") {
+                            texture_args.push("LightsRT".to_string());
+                        } else {
+                            texture_args.push("PositionOutput".to_string());
+                        }
                     }
                     
-                    // Add GroupCount parameter for compute shaders
+                    // GroupCount is always the final arg for compute shaders
                     texture_args.push("FIntVector(32, 32, 1)".to_string());
                 }
                 
@@ -2060,7 +2078,23 @@ impl Ue5Gen {
         
         self.write_header(&format!("UPROPERTY({})", uproperty_parts.join(", ")));
         let ty_str = self.map_type(&field.ty);
-        self.write_header(&format!("{} {};", ty_str, field.name));
+        // Bug-12 fix: UE5.4 requires UPROPERTY fields in USTRUCTs to be explicitly
+        // initialised or a LogClass error is emitted. Use C++11 member initializers.
+        // Only applied to struct fields (parent_struct_name.is_some()); component
+        // fields are zero-initialised inside the generated constructor.
+        if parent_struct_name.is_some() {
+            // Bug-15: prefer explicit field default from KAIN source over type-based default.
+            if let Some(default_expr) = &field.default {
+                let default_str = self.gen_default_value(default_expr, &ty_str);
+                self.write_header(&format!("{} {} = {};", ty_str, field.name, default_str));
+            } else if let Some(init) = default_cpp_value(&ty_str) {
+                self.write_header(&format!("{} {} = {};", ty_str, field.name, init));
+            } else {
+                self.write_header(&format!("{} {};", ty_str, field.name));
+            }
+        } else {
+            self.write_header(&format!("{} {};", ty_str, field.name));
+        }
         self.write_blank_header();
     }
 
@@ -2231,11 +2265,20 @@ impl Ue5Gen {
                 }
             }
             Expr::Ident(name, _) => {
-                // Handle special constants
                 match name.as_str() {
                     "null" => "nullptr".to_string(),
                     "None" => "NAME_None".to_string(),
-                    _ => name.clone(),
+                    _ => {
+                        // Bug-15 fix: enum variant identifiers must be qualified.
+                        // e.g. `CelClassic` with type `EToonStyle` -> `EToonStyle::CelClassic`
+                        // Detected by UENUM naming convention: type starts with `E` + uppercase.
+                        let chars: Vec<char> = ty_str.chars().collect();
+                        if chars.len() > 1 && chars[0] == 'E' && chars[1].is_uppercase() {
+                            format!("{}::{}", ty_str, name)
+                        } else {
+                            name.clone()
+                        }
+                    }
                 }
             }
             Expr::Field { object, field, .. } => {
@@ -3463,5 +3506,54 @@ impl Ue5Gen {
             },
             _ => {}
         }
+    }
+}
+
+/// Recursively extract all named KAIN type identifiers from a `Type` node.
+/// Used during the `@blueprint` function pre-pass to build `blueprint_used_types`.
+fn collect_type_names(ty: &Type, out: &mut std::collections::HashSet<String>) {
+    match ty {
+        Type::Named { name, generics, .. } => {
+            out.insert(name.clone());
+            for g in generics { collect_type_names(g, out); }
+        }
+        Type::Array(inner, _, _) | Type::Slice(inner, _) => collect_type_names(inner, out),
+        Type::Option(inner, _) => collect_type_names(inner, out),
+        Type::Result(ok, err, _) => { collect_type_names(ok, out); collect_type_names(err, out); }
+        Type::Ref { inner, .. } => collect_type_names(inner, out),
+        Type::Tuple(items, _) => { for t in items { collect_type_names(t, out); } }
+        Type::Function { params, return_type, .. } => {
+            for p in params { collect_type_names(p, out); }
+            collect_type_names(return_type, out);
+        }
+        _ => {}
+    }
+}
+
+/// Return a C++11 member initializer value for common UE5 C++ types.
+/// Used in USTRUCT field declarations to satisfy UE5.4 `LogClass` strictness
+/// (`Property ... is not initialized properly`).
+/// Returns `None` for self-initializing types (FString, TArray, etc.) where
+/// an explicit initializer is unnecessary.
+fn default_cpp_value(ty_str: &str) -> Option<&'static str> {
+    match ty_str {
+        "int8" | "int16" | "int32" | "int64"
+        | "uint8" | "uint16" | "uint32" | "uint64" => Some("0"),
+        "float"  => Some("0.0f"),
+        "double" => Some("0.0"),
+        "bool"   => Some("false"),
+        "FName"  => Some("NAME_None"),
+        "FVector"  | "FVector3f"  => Some("FVector::ZeroVector"),
+        "FVector2D" | "FVector2f" => Some("FVector2D::ZeroVector"),
+        "FVector4"  | "FVector4f" => Some("FVector4(ForceInitToZero)"),
+        "FRotator"  => Some("FRotator::ZeroRotator"),
+        "FQuat" | "FQuat4f" => Some("FQuat::Identity"),
+        "FTransform" => Some("FTransform::Identity"),
+        "FLinearColor" => Some("FLinearColor::White"),
+        "FColor"  => Some("FColor::White"),
+        // Pointer types must always be nullptr
+        ty if ty.ends_with('*') => Some("nullptr"),
+        // FString, FText, TArray, TMap, TSet — default-construct to empty, no initializer needed.
+        _ => None,
     }
 }

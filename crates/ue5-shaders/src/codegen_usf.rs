@@ -1104,6 +1104,35 @@ fn emit_block(ctx: &mut USFContext, block: &Block) -> KainResult<String> {
     Ok(output)
 }
 
+/// HLSL / SM6 keywords that are illegal as local variable identifiers.
+/// Using these as names causes cryptic compile errors (e.g. `modifiers must appear
+/// before type` for `line`, `compile` etc.).
+const HLSL_RESERVED: &[&str] = &[
+    "line", "compile", "pass", "technique", "register", "packoffset",
+    "typedef", "sampler", "texture", "vs", "ps", "gs", "hs", "ds", "cs",
+    "row_major", "column_major", "in", "out", "inout", "inline",
+    "cbuffer", "tbuffer", "uniform", "precise", "volatile", "extern",
+    "shared", "groupshared", "half", "min16float", "min10float",
+    "min16int", "min12int", "min16uint", "interface", "namespace",
+];
+
+/// Rename a variable that collides with an HLSL reserved keyword by prefixing `v_`.
+/// All other names are returned unchanged (as owned String).
+fn sanitize_hlsl_identifier(name: &str) -> String {
+    if HLSL_RESERVED.contains(&name) {
+        format!("v_{}", name)
+    } else {
+        name.to_string()
+    }
+}
+
+/// Returns `true` for single-component HLSL numeric types (float, int, uint, bool, double, half).
+/// Used to decide whether a single-arg vector constructor can be elided (Bug-10).
+fn is_scalar_type(ty: &str) -> bool {
+    matches!(ty, "float" | "int" | "uint" | "bool" | "double" | "half"
+                 | "min16float" | "min10float" | "min16int" | "min12int" | "min16uint")
+}
+
 fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
     let mut output = String::new();
     
@@ -1112,11 +1141,12 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
             if let Some(value) = value {
                 if let Pattern::Binding { name, mutable, .. } = pattern {
                     let (expr_code, expr_type) = emit_expr(ctx, value)?;
-                    // Both let and var use same declaration in HLSL/USF
-                    output.push_str(&format!("{}{} {} = {};\n", ctx.indent(), expr_type, name, expr_code));
-                    // Store both the code and the type for proper type propagation
-                    ctx.vars.insert(name.clone(), (name.clone(), expr_type.clone()));
-                    // Mark mutable vars so we know they can be reassigned
+                    // Bug-9 fix: rename HLSL/SM6 reserved keywords to avoid compile errors.
+                    // e.g. `let line = ...` → `float v_line = ...`
+                    let safe_name = sanitize_hlsl_identifier(name);
+                    output.push_str(&format!("{}{} {} = {};\n", ctx.indent(), expr_type, safe_name, expr_code));
+                    // Map original name → safe name so all downstream references resolve correctly.
+                    ctx.vars.insert(name.clone(), (safe_name.clone(), expr_type.clone()));
                     if *mutable {
                         ctx.vars.insert(format!("__mutable_{}", name), ("true".to_string(), "bool".to_string()));
                     }
@@ -1495,28 +1525,33 @@ fn emit_function_call(ctx: &mut USFContext, name: &str, args: &[kain_core::ast::
     match name {
         // Vector constructors
         "vec2" | "Vec2" => {
-            let mut arg_codes = Vec::new();
-            for arg in args {
-                let (code, _) = emit_expr(ctx, &arg.value)?;
-                arg_codes.push(code);
+            let mut typed_args: Vec<(String, String)> = Vec::new();
+            for arg in args { typed_args.push(emit_expr(ctx, &arg.value)?); }
+            // Bug-10 fix: float2(scalar) triggers SM6 "too few elements" on strict compilers.
+            // When called with a single scalar, skip the constructor and rely on implicit broadcast.
+            if typed_args.len() == 1 && is_scalar_type(&typed_args[0].1) {
+                Ok((typed_args.remove(0).0, "float2".to_string()))
+            } else {
+                Ok((format!("float2({})", typed_args.iter().map(|(c,_)| c.as_str()).collect::<Vec<_>>().join(", ")), "float2".to_string()))
             }
-            Ok((format!("float2({})", arg_codes.join(", ")), "float2".to_string()))
         },
         "vec3" | "Vec3" => {
-            let mut arg_codes = Vec::new();
-            for arg in args {
-                let (code, _) = emit_expr(ctx, &arg.value)?;
-                arg_codes.push(code);
+            let mut typed_args: Vec<(String, String)> = Vec::new();
+            for arg in args { typed_args.push(emit_expr(ctx, &arg.value)?); }
+            if typed_args.len() == 1 && is_scalar_type(&typed_args[0].1) {
+                Ok((typed_args.remove(0).0, "float3".to_string()))
+            } else {
+                Ok((format!("float3({})", typed_args.iter().map(|(c,_)| c.as_str()).collect::<Vec<_>>().join(", ")), "float3".to_string()))
             }
-            Ok((format!("float3({})", arg_codes.join(", ")), "float3".to_string()))
         },
         "vec4" | "Vec4" => {
-            let mut arg_codes = Vec::new();
-            for arg in args {
-                let (code, _) = emit_expr(ctx, &arg.value)?;
-                arg_codes.push(code);
+            let mut typed_args: Vec<(String, String)> = Vec::new();
+            for arg in args { typed_args.push(emit_expr(ctx, &arg.value)?); }
+            if typed_args.len() == 1 && is_scalar_type(&typed_args[0].1) {
+                Ok((typed_args.remove(0).0, "float4".to_string()))
+            } else {
+                Ok((format!("float4({})", typed_args.iter().map(|(c,_)| c.as_str()).collect::<Vec<_>>().join(", ")), "float4".to_string()))
             }
-            Ok((format!("float4({})", arg_codes.join(", ")), "float4".to_string()))
         },
         
         // Math intrinsics - direct pass-through
