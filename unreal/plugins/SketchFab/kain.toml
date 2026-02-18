@@ -1,0 +1,15 @@
+[package]
+name = "KainToolkit"
+version = "1.0.0"
+authors = ["Zentako"]
+description = "All-in-one UE5 utility toolkit with instant visual feedback - Corpus validation test"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "SketchFab"
+plugin_dir = "."
+sources = ["sketchfabimporter.kn"]
+shaders = []
+modular_output = true

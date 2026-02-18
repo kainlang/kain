@@ -6,31 +6,9 @@
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"
 #include "GlobalShader.h"
-#include "Interfaces/IPluginManager.h"
-#include "Misc/Paths.h"
-#include "ShaderCore.h"
-
-namespace {
-    struct FShaderDirectoryRegistration {
-        FShaderDirectoryRegistration() {
-            static bool bRegistered = false;
-            if (!bRegistered) {
-                TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("QuantumParticles"));
-                if (Plugin.IsValid()) {
-                    FString PluginShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
-                    AddShaderSourceDirectoryMapping(TEXT("/Plugin/QuantumParticles"), PluginShaderDir);
-                    bRegistered = true;
-                } else {
-                    UE_LOG(LogShaders, Error, TEXT("Failed to find plugin 'QuantumParticles' for shader directory mapping"));
-                }
-            }
-        }
-    };
-    static FShaderDirectoryRegistration GShaderDirReg_ParticleRender;
-}
 
 // Register shader with UE5
-IMPLEMENT_GLOBAL_SHADER(FParticleRenderShader, "/Plugin/QuantumParticles/Shaders/ParticleRender.usf", "ParticleRenderCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FParticleRenderShader, "/Plugin/QuantumParticles/ParticleRender.usf", "ParticleRenderCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ParticleRender(

@@ -19,8 +19,6 @@ class FParticleRenderShader : public FGlobalShader
     DECLARE_GLOBAL_SHADER(FParticleRenderShader);
     SHADER_USE_PARAMETER_STRUCT(FParticleRenderShader, FGlobalShader);
 
-    using FPermutationDomain = TShaderPermutationDomain<>;
-
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector3f, primary_color)
         SHADER_PARAMETER(FVector3f, secondary_color)
@@ -39,8 +37,6 @@ class FParticleRenderShader : public FGlobalShader
     {
         TShaderMapRef<FParticleRenderShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-        FPermutationDomain PermutationVector;
-
         FParameters* PassParameters = GraphBuilder.AllocParameters<FParameters>();
         *PassParameters = Parameters;
 
@@ -55,7 +51,7 @@ class FParticleRenderShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FParticleRenderShader, "/Plugin/YourPlugin/Shaders/ParticleRender.usf", "ParticleRenderCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FParticleRenderShader, "/Plugin/YourPlugin/ParticleRender.usf", "ParticleRenderCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ParticleRender(
@@ -68,4 +64,5 @@ void AddPass_ParticleRender(
     FRDGTextureRef position_texture,
     FRDGTextureRef velocity_texture,
     FRDGTextureRef OutputTexture,
-    FIntVector GroupCount = FIntVector(32, 32, 1));
+    FIntVector GroupCount = FIntVector(32, 32, 1)
+);

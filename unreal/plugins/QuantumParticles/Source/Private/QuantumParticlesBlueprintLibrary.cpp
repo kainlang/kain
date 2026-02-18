@@ -8,11 +8,8 @@
 #include "RenderGraphUtils.h"
 #include "RenderTargetPool.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "ParticleVelocity.h"
-#include "ParticlePosition.h"
-#include "ParticleRender.h"
 
-		FParticleConfig UQuantumParticlesBlueprintLibraryFunctionLibrary::create_particle_config(const int64 resolution, const float size, const float opacity)
+		FParticleConfig UQuantumParticlesBlueprintLibraryFunctionLibrary::create_particle_config(const int32 resolution, const float size, const float opacity)
 		{
 			const auto count = (resolution * resolution);
 			return FParticleConfig();
@@ -32,7 +29,7 @@
 			return FVector(r, g, b_val);
 		}
 
-		int64 UQuantumParticlesBlueprintLibraryFunctionLibrary::calculate_particle_count(const int64 resolution)
+		int32 UQuantumParticlesBlueprintLibraryFunctionLibrary::calculate_particle_count(const int32 resolution)
 		{
 			return (resolution * resolution);
 		}
@@ -42,23 +39,3 @@
 			return ((mode == ESimulationMode::ZeroPoint) ? TEXT("Zero-Point Field") : (mode == ESimulationMode::GalacticSpiral) ? TEXT("Galactic Spiral") : (mode == ESimulationMode::KerrBlackHole) ? TEXT("Kerr Black Hole") : (mode == ESimulationMode::LorenzAttractor) ? TEXT("Lorenz Attractor") : (mode == ESimulationMode::SuperVortex) ? TEXT("Super Vortex") : TEXT("Unknown Mode"));
 		}
 
-
-// Module implementation
-// Shader directory registration is handled by static initializers in shader .cpp files
-
-class FQuantumParticlesBlueprintLibraryModule : public IModuleInterface
-{
-public:
-	virtual void StartupModule() override
-	{
-		// Shader directory mapping is registered by static initializers
-		// in each shader .cpp file before IMPLEMENT_GLOBAL_SHADER runs
-	}
-
-	virtual void ShutdownModule() override
-	{
-		// Cleanup if needed
-	}
-};
-
-IMPLEMENT_MODULE(FQuantumParticlesBlueprintLibraryModule, QuantumParticlesBlueprintLibrary)

@@ -12,7 +12,6 @@
 #include "ParticlePosition.h"
 #include "ParticleRender.h"
 
-
 // Module implementation
 // Shader directory registration is handled by static initializers in shader .cpp files
 

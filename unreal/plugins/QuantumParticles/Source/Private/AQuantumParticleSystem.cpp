@@ -54,7 +54,10 @@ void AQuantumParticleSystem::Tick(float DeltaTime)
 					false
 				);
 				TRefCountPtr<IPooledRenderTarget> PooledRT;
-				GRenderTargetPool.CreateUntrackedElement(Desc, PooledRT, FSceneRenderTargetItem(TextureRHI));
+				FSceneRenderTargetItem Item;
+				Item.TargetableTexture = (FTextureRHIRef)TextureRHI;
+				Item.ShaderResourceTexture = (FTextureRHIRef)TextureRHI;
+				GRenderTargetPool.CreateUntrackedElement(Desc, PooledRT, Item);
 				return PooledRT;
 			};
 
@@ -63,9 +66,21 @@ void AQuantumParticleSystem::Tick(float DeltaTime)
 			FRDGTextureRef VelocityInput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_A : VelocityRT_B, TEXT("VelIn")));
 			FRDGTextureRef VelocityOutput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_B : VelocityRT_A, TEXT("VelOut")));
 
-			AddPass_ParticleVelocity(GraphBuilder, 0.0f, this->speed, this->chaos, this->damping, 0.0f, this->force_multiplier, this->curl_strength, this->center_pull, this->max_velocity, this->heartbeat_active, this->vortex_active, this->gravity_active, this->explosion_active, this->heartbeat_bpm, this->heartbeat_intensity, this->vortex_strength, this->vortex_lift, this->gravity_force, this->gravity_radius, this->explosion_force, this->audio_bass, this->audio_high, this->audio_level, PositionInput, VelocityInput, nullptr, VelocityOutput);
-			AddPass_ParticlePosition(GraphBuilder, 0.0f, 0.0f, 0.0f, 0.0f, this->life_decay_rate, this->respawn_bounds, PositionInput, VelocityInput, nullptr, PositionOutput);
-			AddPass_ParticleRender(GraphBuilder, FVector3f(this->primary_color), FVector3f(this->secondary_color), static_cast<int32>(this->color_mode), this->opacity, this->point_size, PositionInput, VelocityInput, VelocityOutput);
+			// Create intermediate render targets for shader pipeline
+			FRDGTextureDesc IntermediateDesc = FRDGTextureDesc::Create2D(
+				FIntPoint(1024, 1024),
+				PF_FloatRGBA,
+				FClearValueBinding::Black,
+				TexCreate_ShaderResource | TexCreate_UAV | TexCreate_RenderTargetable
+			);
+
+			FRDGTextureRef Velocity_textureRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("velocity_texture"));
+			FRDGTextureRef Origin_textureRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("origin_texture"));
+			FRDGTextureRef Position_textureRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("position_texture"));
+
+			AddPass_ParticleVelocity(GraphBuilder, 0.0f, this->speed, this->chaos, this->damping, 0.0f, this->force_multiplier, this->curl_strength, this->center_pull, this->max_velocity, this->heartbeat_active, this->gravity_active, this->explosion_active, this->heartbeat_bpm, this->heartbeat_intensity, this->gravity_force, this->gravity_radius, this->explosion_force, this->audio_bass, this->audio_high, this->audio_level, PositionInput, VelocityInput, Origin_textureRT, PositionOutput, PositionOutput, PositionOutput, VelocityOutput, FIntVector(32, 32, 1));
+			AddPass_ParticlePosition(GraphBuilder, 0.0f, 0.0f, 0.0f, 0.0f, this->life_decay_rate, this->respawn_bounds, PositionInput, VelocityInput, Origin_textureRT, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_ParticleRender(GraphBuilder, FVector3f(this->primary_color), FVector3f(this->secondary_color), static_cast<int32>(this->color_mode), this->opacity, this->point_size, PositionInput, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
 
 			GraphBuilder.Execute();
 		}
@@ -199,23 +214,3 @@ void AQuantumParticleSystem::Tick(float DeltaTime)
 		audio_enabled = false;
 	}
 
-
-	// Module implementation
-	// Shader directory registration is handled by static initializers in shader .cpp files
-
-	class FAQuantumParticleSystemModule : public IModuleInterface
-	{
-	public:
-		virtual void StartupModule() override
-		{
-			// Shader directory mapping is registered by static initializers
-			// in each shader .cpp file before IMPLEMENT_GLOBAL_SHADER runs
-		}
-
-		virtual void ShutdownModule() override
-		{
-			// Cleanup if needed
-		}
-	};
-
-	IMPLEMENT_MODULE(FAQuantumParticleSystemModule, AQuantumParticleSystem)
