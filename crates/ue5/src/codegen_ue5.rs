@@ -673,6 +673,14 @@ impl Ue5Gen {
                         self.context.register_component(st.ast.name.clone(), item_header);
                     }
                 },
+                TypedItem::Component(c) => {
+                    let h = self.context.type_to_header.get(&c.ast.name).cloned().unwrap_or(default_header.clone());
+                    self.context.register_component(c.ast.name.clone(), h);
+                },
+                TypedItem::Actor(a) => {
+                    let h = self.context.type_to_header.get(&a.ast.name).cloned().unwrap_or(default_header.clone());
+                    self.context.register_actor(a.ast.name.clone(), h);
+                },
                 _ => {}
             }
         }
