@@ -75,13 +75,66 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     // STEP 5: Write .uplugin and .Build.cs (with data-driven module dependency resolution)
     let has_shaders = !shader_names.is_empty();
     let mut module_graph = ue5::ue5::module_graph::ModuleGraph::new();
-    let module_graph_path = std::path::Path::new("unreal/metadata/module_graph.json");
+
+    // Resolve module_graph.json using a data-driven search order:
+    //   1. KAIN_ROOT env var (explicit override — set once, works everywhere)
+    //   2. Walk up from CWD (finds kain/unreal/metadata/ from any plugin subdir)
+    //   3. CWD-relative fallback (works if run directly from kain/ root)
+    let module_graph_path = {
+        let relative = std::path::Path::new("unreal").join("metadata").join("module_graph.json");
+        
+        // 1. Explicit env var — highest priority
+        let from_env = std::env::var("KAIN_ROOT").ok()
+            .map(|root| std::path::PathBuf::from(root).join(&relative))
+            .filter(|p| p.exists());
+        
+        // 2. Walk up from CWD — works when running `kain build --ue5` from any plugin dir.
+        //    Looks for an ancestor directory that contains unreal/metadata/module_graph.json.
+        //    This correctly finds the KAIN root (e.g. M:\Kain-Lang\kain-private\kain\) even
+        //    when CWD is M:\Kain-Lang\kain-private\kain\testing\Phase3\SlateTest4\.
+        let from_cwd_walk = {
+            let mut dir = cwd.clone();
+            let mut found = None;
+            for _ in 0..10 {  // walk up at most 10 levels
+                let candidate = dir.join(&relative);
+                if candidate.exists() {
+                    found = Some(candidate);
+                    break;
+                }
+                match dir.parent() {
+                    Some(p) => dir = p.to_path_buf(),
+                    None => break,
+                }
+            }
+            found
+        };
+        
+        from_env
+            .or(from_cwd_walk)
+            .unwrap_or_else(|| cwd.join(&relative))
+    };
+
+
     if module_graph_path.exists() {
-        if let Ok(data) = fs::read_to_string(module_graph_path) {
-            let _ = module_graph.load(&data);
+        match fs::read_to_string(&module_graph_path) {
+            Ok(data) => {
+                match module_graph.load(&data) {
+                    Ok(()) => {
+                        let (mods, types, headers) = module_graph.stats();
+                        println!("📊 Module graph loaded: {} modules, {} types, {} headers",
+                            mods, types, headers);
+                        println!("   📍 From: {}", module_graph_path.display());
+                    }
+                    Err(e) => eprintln!("⚠️  module_graph.json parse error: {}", e),
+                }
+            }
+            Err(e) => eprintln!("⚠️  Could not read module_graph.json: {}", e),
         }
+    } else {
+        println!("ℹ️  module_graph.json not found — Build.cs will use feature-based fallback");
+        println!("   Run: python unreal/scripts/module_graph_extractor.py <UE_SOURCE_DIR>");
     }
-    super::codegen::write_plugin_files(&layout, ue5_config, &manifest.package.description, has_shaders, &module_graph)?;
+    super::codegen::write_plugin_files(&layout, ue5_config, &manifest.package.description, has_shaders, &module_graph, &typed_program)?;
     
     // Summary
     println!();

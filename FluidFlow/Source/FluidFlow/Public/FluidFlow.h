@@ -78,18 +78,7 @@ class AHyperFluidEmitter;
 enum class EEmissionShape : uint8;
 class AHyperFluidProbe;
 class AHyperFluidController;
-struct FHyperFluidEditorModule;
-struct FHyperFluidDetails;
-struct FHyperFluidViewport;
 struct FRenderTargetConfig;
-struct FSFluidSimulationDashboard;
-struct FSSimulationControls;
-struct FSVisualizationControls;
-struct FFluidSimulationViewport;
-struct FFluidWorldDetails;
-struct FFluidSimulationToolbar;
-struct FFluidSimulationEditor;
-struct FFluidFlowEditorModule;
 
 // Stdlib functions
 #include "KainStdlib.h"

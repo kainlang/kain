@@ -21,7 +21,7 @@
 
 		TArray<float> UFluidFlowBlueprintLibraryFunctionLibrary::sample_field(const UHyperFluidSimulationCore* world, const FVector position, const float radius)
 		{
-			return hyperfluid_sample_field(world, position, radius);
+			return UFluidFlowFunctionLibrary::hyperfluid_sample_field(world, position, radius);
 		}
 
 		TArray<float> UFluidFlowBlueprintLibraryFunctionLibrary::hyperfluid_sample_field(const UHyperFluidSimulationCore* world, const FVector position, const float radius)

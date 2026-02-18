@@ -14,46 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
-struct FPhysicalPropertiesComponentData {
-    EFluidClass fluid_class;
-    ESolverFamily solver_family;
-    EHybridSolver hybrid_solver;
-    EPressureSolver pressure_solver;
-    EAdvectionScheme advection_scheme;
-    ETurbulenceModel turbulence_model;
-    EBoundaryType boundary_type;
-    EQualityTier quality;
-    EGPUBackend backend;
-    float viscosity;
-    float density;
-    float surface_tension;
-    float compressibility;
-    float conductivity;
-    float permittivity;
-    float permeability;
-    float reactivity;
-    float radiation_absorption;
-    float gravity_scale;
-    float anisotropy;
-    float cavitation_threshold;
-    float yield_stress;
-    float foam_threshold;
-    float spray_threshold;
-    float bubble_coalescence;
-};
-
-// POD mirror for TimeIntegrationComponent (GPU-compatible)
-struct FTimeIntegrationComponentData {
-    float dt;
-    ETimeIntegrator time_integrator;
-    float cfl;
-    int32 substeps;
-    bool real_time_sync;
-    bool clamp_dt;
-    float max_dt;
-    float min_dt;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FAdvectDensityShader : public FGlobalShader
 {
@@ -61,8 +22,8 @@ class FAdvectDensityShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FAdvectDensityShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
-        SHADER_PARAMETER(FTimeIntegrationComponentData, time)
+        SHADER_PARAMETER_STRUCT(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER_STRUCT(FTimeIntegrationComponentData, time)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_texture)
         SHADER_PARAMETER_SAMPLER(SamplerState, velocity_textureSampler)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, density_texture)
@@ -89,7 +50,7 @@ class FAdvectDensityShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FAdvectDensityShader, "/Plugin/YourPlugin/AdvectDensity.usf", "AdvectDensityCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FAdvectDensityShader, "/Plugin/FluidFlow/AdvectDensity.usf", "AdvectDensityCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_AdvectDensity(

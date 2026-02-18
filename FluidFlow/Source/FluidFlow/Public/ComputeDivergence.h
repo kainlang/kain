@@ -14,34 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
-struct FPhysicalPropertiesComponentData {
-    EFluidClass fluid_class;
-    ESolverFamily solver_family;
-    EHybridSolver hybrid_solver;
-    EPressureSolver pressure_solver;
-    EAdvectionScheme advection_scheme;
-    ETurbulenceModel turbulence_model;
-    EBoundaryType boundary_type;
-    EQualityTier quality;
-    EGPUBackend backend;
-    float viscosity;
-    float density;
-    float surface_tension;
-    float compressibility;
-    float conductivity;
-    float permittivity;
-    float permeability;
-    float reactivity;
-    float radiation_absorption;
-    float gravity_scale;
-    float anisotropy;
-    float cavitation_threshold;
-    float yield_stress;
-    float foam_threshold;
-    float spray_threshold;
-    float bubble_coalescence;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FComputeDivergenceShader : public FGlobalShader
 {
@@ -49,7 +22,7 @@ class FComputeDivergenceShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FComputeDivergenceShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER_STRUCT(FPhysicalPropertiesComponentData, physics)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_texture)
         SHADER_PARAMETER_SAMPLER(SamplerState, velocity_textureSampler)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
@@ -74,7 +47,7 @@ class FComputeDivergenceShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FComputeDivergenceShader, "/Plugin/YourPlugin/ComputeDivergence.usf", "ComputeDivergenceCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FComputeDivergenceShader, "/Plugin/FluidFlow/ComputeDivergence.usf", "ComputeDivergenceCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ComputeDivergence(

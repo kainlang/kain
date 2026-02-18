@@ -15,15 +15,14 @@ public class FluidFlowEditor : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"FluidFlow",
-				"RHI",
-				"RenderCore",
-				"Renderer"
+				"RenderCore"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AdvancedPreviewScene",
 				"AssetTools",
 				"EditorStyle",
 				"InputCore",
@@ -31,6 +30,7 @@ public class FluidFlowEditor : ModuleRules
 				"PropertyEditor",
 				"Slate",
 				"SlateCore",
+				"ToolMenus",
 				"UnrealEd"
 			}
 		);

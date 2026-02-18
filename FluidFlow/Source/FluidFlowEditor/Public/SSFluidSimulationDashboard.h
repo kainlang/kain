@@ -4,19 +4,8 @@
 #include "FluidFlowEditorTypes.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Widgets/Views/SListView.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Input/SComboBox.h"
-#include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Input/SSlider.h"
-#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Widgets/Images/SImage.h"
-#include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Layout/SSplitter.h"
-#include "Widgets/Layout/SBorder.h"
-#include "Widgets/Colors/SColorBlock.h"
 
 class SSFluidSimulationDashboard : public SCompoundWidget
 {

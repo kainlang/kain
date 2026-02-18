@@ -14,59 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for HyperFluidParticleSystemComponent (GPU-compatible)
-struct FHyperFluidParticleSystemComponentData {
-    EParticleType particle_type;
-    int32 particle_count;
-    float particle_diameter;
-    float particle_density;
-    float particle_shape_factor;
-    EDragModel drag_model;
-    float drag_coefficient;
-    ECollisionModel collision_model;
-    float restitution_coefficient;
-    float friction_coefficient;
-    float cohesion_energy;
-    EBreakupModel breakup_model;
-    ECoalescenceModel coalescence_model;
-    float weber_number_critical;
-    EEvaporationModel evaporation_model;
-    float latent_heat;
-    float vapor_pressure;
-    ETrackingScheme tracking_scheme;
-    int32 interpolation_order;
-    bool two_way_coupling;
-    bool four_way_coupling;
-};
-
-// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
-struct FPhysicalPropertiesComponentData {
-    EFluidClass fluid_class;
-    ESolverFamily solver_family;
-    EHybridSolver hybrid_solver;
-    EPressureSolver pressure_solver;
-    EAdvectionScheme advection_scheme;
-    ETurbulenceModel turbulence_model;
-    EBoundaryType boundary_type;
-    EQualityTier quality;
-    EGPUBackend backend;
-    float viscosity;
-    float density;
-    float surface_tension;
-    float compressibility;
-    float conductivity;
-    float permittivity;
-    float permeability;
-    float reactivity;
-    float radiation_absorption;
-    float gravity_scale;
-    float anisotropy;
-    float cavitation_threshold;
-    float yield_stress;
-    float foam_threshold;
-    float spray_threshold;
-    float bubble_coalescence;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FParticleDragShader : public FGlobalShader
 {
@@ -74,8 +22,8 @@ class FParticleDragShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FParticleDragShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FHyperFluidParticleSystemComponentData, particle_system)
-        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER_STRUCT(FHyperFluidParticleSystemComponentData, particle_system)
+        SHADER_PARAMETER_STRUCT(FPhysicalPropertiesComponentData, physics)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -98,7 +46,7 @@ class FParticleDragShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FParticleDragShader, "/Plugin/YourPlugin/ParticleDrag.usf", "ParticleDragCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FParticleDragShader, "/Plugin/FluidFlow/ParticleDrag.usf", "ParticleDragCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ParticleDrag(

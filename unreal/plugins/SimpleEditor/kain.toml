@@ -1,0 +1,13 @@
+[package]
+name = "SimpleEditor"
+version = "1.0.0"
+authors = ["User"]
+description = "A simple editor plugin with a toolbar button and spawner functionality."
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "SimpleEditor"
+plugin_dir = "."
+sources = ["SimpleEditor.kn"]

@@ -14,31 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for CouplingComponent (GPU-compatible)
-struct FCouplingComponentData {
-    ECouplingStrategy coupling_strategy;
-    int32 coupling_timestep_ratio;
-    float coupling_tolerance;
-    int32 coupling_max_iterations;
-    bool boussinesq_approximation;
-    float natural_convection_gain;
-    float forced_convection_gain;
-    ERadiationModel radiation_model;
-    EFSIMethod fsi_method;
-    float structural_damping;
-    bool added_mass_effect;
-    float electrokinetic_mobility;
-    float zeta_potential;
-    float debye_length;
-    float magnetic_reynolds_number;
-    float hartmann_number;
-    float interaction_parameter;
-    EReactionMechanism reaction_mechanism;
-    int32 species_count;
-    bool acoustic_coupling;
-    float speed_of_sound;
-    float acoustic_impedance;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FAcousticSourceTermShader : public FGlobalShader
 {
@@ -46,7 +22,7 @@ class FAcousticSourceTermShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FAcousticSourceTermShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FCouplingComponentData, coupling)
+        SHADER_PARAMETER_STRUCT(FCouplingComponentData, coupling)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -69,7 +45,7 @@ class FAcousticSourceTermShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FAcousticSourceTermShader, "/Plugin/YourPlugin/AcousticSourceTerm.usf", "AcousticSourceTermCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FAcousticSourceTermShader, "/Plugin/FluidFlow/AcousticSourceTerm.usf", "AcousticSourceTermCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_AcousticSourceTerm(

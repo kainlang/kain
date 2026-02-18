@@ -43,7 +43,7 @@ class FClearTextureShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FClearTextureShader, "/Plugin/YourPlugin/ClearTexture.usf", "ClearTextureCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FClearTextureShader, "/Plugin/FluidFlow/ClearTexture.usf", "ClearTextureCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ClearTexture(

@@ -1,5 +1,38 @@
 use std::collections::BTreeSet;
 
+/// Detect whether the program has @datatable structs (requires DataTable module for FTableRowBase).
+pub fn has_datatable_structs(program: &kain_core::types::TypedProgram) -> bool {
+    program.items.iter().any(|item| {
+        if let kain_core::types::TypedItem::Struct(s) = item {
+            s.ast.attributes.iter().any(|a| a.name == "datatable")
+        } else {
+            false
+        }
+    })
+}
+
+/// Detect whether the program has @viewport items (requires AdvancedPreviewScene for SEditorViewport.h).
+pub fn has_viewport_items(program: &kain_core::types::TypedProgram) -> bool {
+    program.items.iter().any(|item| {
+        if let kain_core::types::TypedItem::Struct(s) = item {
+            s.ast.attributes.iter().any(|a| a.name == "viewport")
+        } else {
+            false
+        }
+    })
+}
+
+/// Detect whether the program has @toolbar items (requires ToolMenus module).
+pub fn has_toolbar_items(program: &kain_core::types::TypedProgram) -> bool {
+    program.items.iter().any(|item| {
+        if let kain_core::types::TypedItem::Struct(s) = item {
+            s.ast.attributes.iter().any(|a| a.name == "toolbar")
+        } else {
+            false
+        }
+    })
+}
+
 /// Format a sorted set of module names as C# string array entries (indented with tabs).
 fn format_dep_list(deps: &BTreeSet<String>, indent: &str) -> String {
     deps.iter()
@@ -87,9 +120,15 @@ public class {name} : ModuleRules
 
 /// Generate a .Build.cs for the RUNTIME module in split mode.
 /// `extra_public_deps` are resolved from the module graph based on referenced types/APIs.
-pub fn generate_build_cs_runtime(plugin_name: &str, extra_public_deps: &[String]) -> String {
+/// `has_datatable` adds the DataTable module required for FTableRowBase in non-editor targets.
+pub fn generate_build_cs_runtime(plugin_name: &str, extra_public_deps: &[String], has_datatable: bool) -> String {
     let mut public_deps: BTreeSet<String> = ["Core", "CoreUObject", "Engine", "Projects"]
         .iter().map(|s| s.to_string()).collect();
+    // DataTable module is required for FTableRowBase (used by @datatable structs).
+    // Without it, UnrealGame (non-editor) targets fail with C2504: 'FTableRowBase' base class undefined.
+    if has_datatable {
+        public_deps.insert("DataTable".to_string());
+    }
     for dep in extra_public_deps {
         public_deps.insert(dep.clone());
     }
@@ -119,10 +158,14 @@ public class {name} : ModuleRules
 
 /// Generate a .Build.cs for the EDITOR module in split mode.
 /// `extra_public_deps` and `extra_private_deps` are resolved from the module graph.
+/// `has_viewport` adds AdvancedPreviewScene required for SEditorViewport.h.
+/// `has_toolbar` adds ToolMenus required for toolbar extensions.
 pub fn generate_build_cs_editor(
     plugin_name: &str,
     extra_public_deps: &[String],
     extra_private_deps: &[String],
+    has_viewport: bool,
+    has_toolbar: bool,
 ) -> String {
     let editor_module_name = format!("{}Editor", plugin_name);
 
@@ -139,6 +182,15 @@ pub fn generate_build_cs_editor(
         "Slate", "SlateCore", "UnrealEd", "AssetTools",
         "EditorStyle", "PropertyEditor", "InputCore", "Projects",
     ].iter().map(|s| s.to_string()).collect();
+    // AdvancedPreviewScene is required for SEditorViewport.h / FEditorViewportClient.
+    // Without it, UnrealGame targets fail with C1083: Cannot open include file: 'SEditorViewport.h'.
+    if has_viewport {
+        private_deps.insert("AdvancedPreviewScene".to_string());
+    }
+    // ToolMenus is required for FToolBarBuilder used in toolbar extensions.
+    if has_toolbar {
+        private_deps.insert("ToolMenus".to_string());
+    }
     for dep in extra_private_deps {
         private_deps.insert(dep.clone());
     }

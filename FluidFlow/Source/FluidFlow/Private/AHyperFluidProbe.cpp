@@ -90,8 +90,38 @@ AHyperFluidProbe::AHyperFluidProbe()
 void AHyperFluidProbe::BeginPlay()
 {
 	Super::BeginPlay();
-	// Initialize Render Targets here (omitted for brevity, user must implemented or we gen helper)
-	// Helper: KismetRenderingLibrary::CreateRenderTarget2D(this, 1024, 1024, RTF_RGBA32f);
+	if (!PositionRT_A)
+	{
+		PositionRT_A = NewObject<UTextureRenderTarget2D>(this);
+		PositionRT_A->bAutoGenerateMips = false;
+		PositionRT_A->RenderTargetFormat = RTF_RGBA32f;
+		PositionRT_A->InitAutoFormat(512, 512);
+		PositionRT_A->UpdateResourceImmediate(true);
+	}
+	if (!PositionRT_B)
+	{
+		PositionRT_B = NewObject<UTextureRenderTarget2D>(this);
+		PositionRT_B->bAutoGenerateMips = false;
+		PositionRT_B->RenderTargetFormat = RTF_RGBA32f;
+		PositionRT_B->InitAutoFormat(512, 512);
+		PositionRT_B->UpdateResourceImmediate(true);
+	}
+	if (!VelocityRT_A)
+	{
+		VelocityRT_A = NewObject<UTextureRenderTarget2D>(this);
+		VelocityRT_A->bAutoGenerateMips = false;
+		VelocityRT_A->RenderTargetFormat = RTF_RGBA32f;
+		VelocityRT_A->InitAutoFormat(512, 512);
+		VelocityRT_A->UpdateResourceImmediate(true);
+	}
+	if (!VelocityRT_B)
+	{
+		VelocityRT_B = NewObject<UTextureRenderTarget2D>(this);
+		VelocityRT_B->bAutoGenerateMips = false;
+		VelocityRT_B->RenderTargetFormat = RTF_RGBA32f;
+		VelocityRT_B->InitAutoFormat(512, 512);
+		VelocityRT_B->UpdateResourceImmediate(true);
+	}
 }
 
 void AHyperFluidProbe::Tick(float DeltaTime)
@@ -101,11 +131,12 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 	// Enqueue Simulation on Render Thread
 	ENQUEUE_RENDER_COMMAND(SimulationTick)(
 		[this, DeltaTime](FRHICommandListImmediate& RHICmdList) {
+			if (!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) { return; }
+
 			FRDGBuilder GraphBuilder(RHICmdList);
 
 			// 1. Register External Textures (Ping-Pong Logic)
 			bool bOddFrame = GFrameNumberRenderThread % 2 != 0;
-			if(!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) return;
 			auto CreateRenderTarget = [&](FRHICommandListImmediate& RHICmdList, UTextureRenderTarget2D* RT, const TCHAR* Name) -> TRefCountPtr<IPooledRenderTarget> {
 				if (!RT || !RT->GetResource()) return nullptr;
 				FTexture2DRHIRef TextureRHI = RT->GetResource()->GetTexture2DRHI();
@@ -294,18 +325,18 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
 			FTimeIntegrationComponentData time_pod {};
-			AddPass_AdvectDensity(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_AdvectDensity(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
 			FTimeIntegrationComponentData time_pod {};
-			AddPass_AdvectTemperature(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_AdvectTemperature(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
 			FThermalComponentData thermal_pod {};
 			FTimeIntegrationComponentData time_pod {};
-			AddPass_ApplyExternalForces(GraphBuilder, physics_pod, thermal_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_ApplyExternalForces(GraphBuilder, physics_pod, thermal_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
@@ -313,11 +344,11 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 			}
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			AddPass_JacobiPressure(GraphBuilder, physics_pod, PositionOutput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_JacobiPressure(GraphBuilder, physics_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			AddPass_SubtractGradient(GraphBuilder, physics_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_SubtractGradient(GraphBuilder, physics_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FMultiphaseComponentData multiphase_pod {};
@@ -412,28 +443,28 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 			{
 			FPhysicalPropertiesComponentData physics_pod {};
 			FCollisionComponentData collision_pod {};
-			AddPass_SDFCollisionPass(GraphBuilder, physics_pod, collision_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_SDFCollisionPass(GraphBuilder, physics_pod, collision_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
 			}
 			AddPass_ClearTexture(GraphBuilder, FVector4f(0.0f, 0.0f, 0.0f, 0.0f), PositionOutput, FIntVector(32, 32, 1));
 			{
 			FVisualizationComponentData viz_pod {};
-			AddPass_FluidRaymarching(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_FluidRaymarching(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FVisualizationComponentData viz_pod {};
-			AddPass_FluidSchlieren(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_FluidSchlieren(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FVisualizationComponentData viz_pod {};
-			AddPass_FluidInterferometry(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_FluidInterferometry(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FVisualizationComponentData viz_pod {};
-			AddPass_FluidHolography(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_FluidHolography(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
 			}
 			{
 			FVisualizationComponentData viz_pod {};
-			AddPass_FluidQuantumVisualization(GraphBuilder, viz_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_FluidQuantumVisualization(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
 			}
 
 			GraphBuilder.Execute();
@@ -443,7 +474,7 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 
 	void AHyperFluidProbe::Server_Sample_Implementation(const UHyperFluidSimulationCore* world)
 	{
-		buffer = hyperfluid_sample_field(world, sample_position, radius);
+		buffer = UFluidFlowFunctionLibrary::hyperfluid_sample_field(world, sample_position, radius);
 		Client_ReceiveSample(buffer);
 	}
 
@@ -459,7 +490,7 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 
 	void AHyperFluidProbe::Server_SampleVelocity_Implementation(const UHyperFluidSimulationCore* world)
 	{
-		const auto vel = hyperfluid_sample_velocity(world, sample_position);
+		const auto vel = UFluidFlowFunctionLibrary::hyperfluid_sample_velocity(world, sample_position);
 		Client_ReceiveSample({vel.X, vel.Y, vel.Z});
 	}
 
@@ -470,7 +501,7 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 
 	void AHyperFluidProbe::Server_SamplePressure_Implementation(const UHyperFluidSimulationCore* world)
 	{
-		const auto p = hyperfluid_sample_pressure(world, sample_position);
+		const auto p = UFluidFlowFunctionLibrary::hyperfluid_sample_pressure(world, sample_position);
 		Client_ReceiveSample({p});
 	}
 
@@ -481,7 +512,7 @@ void AHyperFluidProbe::Tick(float DeltaTime)
 
 	void AHyperFluidProbe::Server_SampleTemperature_Implementation(const UHyperFluidSimulationCore* world)
 	{
-		const auto t = hyperfluid_sample_temperature(world, sample_position);
+		const auto t = UFluidFlowFunctionLibrary::hyperfluid_sample_temperature(world, sample_position);
 		Client_ReceiveSample({t});
 	}
 

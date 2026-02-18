@@ -14,26 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for MultiphaseComponent (GPU-compatible)
-struct FMultiphaseComponentData {
-    int32 phases;
-    float phase_field_mobility;
-    float interface_thickness;
-    float surface_tension_coupling;
-    float contact_angle;
-    float bubble_spawn_rate;
-    float droplet_spawn_rate;
-};
-
-// POD mirror for ThermalComponent (GPU-compatible)
-struct FThermalComponentData {
-    float temperature;
-    float thermal_diffusivity;
-    float buoyancy_alpha;
-    float buoyancy_beta;
-    float radiation_gain;
-    ERadiationModel radiation_model;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FPhaseChange_EvaporationShader : public FGlobalShader
 {
@@ -41,8 +22,8 @@ class FPhaseChange_EvaporationShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FPhaseChange_EvaporationShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FMultiphaseComponentData, multiphase)
-        SHADER_PARAMETER(FThermalComponentData, thermal)
+        SHADER_PARAMETER_STRUCT(FMultiphaseComponentData, multiphase)
+        SHADER_PARAMETER_STRUCT(FThermalComponentData, thermal)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -65,7 +46,7 @@ class FPhaseChange_EvaporationShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FPhaseChange_EvaporationShader, "/Plugin/YourPlugin/PhaseChange_Evaporation.usf", "PhaseChange_EvaporationCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FPhaseChange_EvaporationShader, "/Plugin/FluidFlow/PhaseChange_Evaporation.usf", "PhaseChange_EvaporationCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_PhaseChange_Evaporation(

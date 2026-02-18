@@ -7,7 +7,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "ShaderCore.h"
 
-class FHyperFluidEditorModuleModule : public IModuleInterface
+class FHyperFluidEditorModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override;

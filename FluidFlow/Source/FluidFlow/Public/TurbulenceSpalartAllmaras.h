@@ -14,30 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for TurbulenceAdvancedComponent (GPU-compatible)
-struct FTurbulenceAdvancedComponentData {
-    ELESModel les_model;
-    ERANSModel rans_model;
-    EWallFunction wall_function;
-    float smagorinsky_constant;
-    float wale_constant;
-    float vreman_constant;
-    float k_epsilon_c_mu;
-    float k_epsilon_c1;
-    float k_epsilon_c2;
-    float k_omega_beta_star;
-    float k_omega_sigma_k;
-    float k_omega_sigma_omega;
-    float y_plus_target;
-    bool wall_damping;
-    ETransitionModel transition_model;
-    float intermittency;
-    float transition_onset_reynolds;
-    ESyntheticTurbulence synthetic_method;
-    int32 eddy_count;
-    float eddy_lifetime;
-    EReynoldsStressModel reynolds_stress_model;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FTurbulenceSpalartAllmarasShader : public FGlobalShader
 {
@@ -45,7 +22,7 @@ class FTurbulenceSpalartAllmarasShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FTurbulenceSpalartAllmarasShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FTurbulenceAdvancedComponentData, turbulence_advanced)
+        SHADER_PARAMETER_STRUCT(FTurbulenceAdvancedComponentData, turbulence_advanced)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -68,7 +45,7 @@ class FTurbulenceSpalartAllmarasShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FTurbulenceSpalartAllmarasShader, "/Plugin/YourPlugin/TurbulenceSpalartAllmaras.usf", "TurbulenceSpalartAllmarasCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FTurbulenceSpalartAllmarasShader, "/Plugin/FluidFlow/TurbulenceSpalartAllmaras.usf", "TurbulenceSpalartAllmarasCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_TurbulenceSpalartAllmaras(

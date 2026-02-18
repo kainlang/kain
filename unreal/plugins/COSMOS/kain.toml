@@ -12,17 +12,5 @@ plugin_name = "KainCosmos"
 plugin_dir = "."
 sources = ["KainCosmosGod.kn"]
 shaders = [
-    "K1Tectonics",
-    "K2Continental",
-    "K3Thermal",
-    "K4Moisture",
-    "K5Resources",
-    "K6Normals",
-    "K7Ocean",
-    "K8Atmosphere",
-    "K9Biomes",
-    "K10Flora",
-    "K11CityLights",
-    "K12SovereignPBR"
 ]
 modular_output = true

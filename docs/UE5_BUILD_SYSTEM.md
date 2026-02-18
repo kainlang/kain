@@ -106,9 +106,8 @@ targets = ["wasm", "js"]    # Optional: multi-target builds
 [ue5]
 plugin_name = "MyPlugin"    # REQUIRED: Plugin name (used in shader paths)
 plugin_dir = "."            # Plugin output directory (relative to KAIN.toml)
-shaders = [                 # List of shader names to compile
-    "ShaderName1",
-    "ShaderName2"
+shaders = [                 # List of shader names to compile (if manual implementation is used, however it has an auto discover feature)
+    
 ]
 ```
 

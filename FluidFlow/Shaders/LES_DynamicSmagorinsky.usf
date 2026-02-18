@@ -39,7 +39,7 @@ void LES_DynamicSmagorinskyCS(uint3 ThreadId : SV_DispatchThreadID)
 {
     // Safe Texture Load Pattern
     int3 TexCoord = int3(ThreadId.xy, 0);
-    float cs = (turbulence_advanced.smagorinsky_constant * 0.500000);
-    OutputTexture[ThreadId.xy] = float4(cs, cs, cs, 1.000000);
+    float v_cs = (turbulence_advanced.smagorinsky_constant * 0.500000);
+    OutputTexture[ThreadId.xy] = float4(v_cs, v_cs, v_cs, 1.000000);
     return;
 }

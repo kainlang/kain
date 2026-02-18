@@ -164,7 +164,10 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
             } else if attrs.contains(&"asset_editor") {
                 ("AssetEditor", format!("F{}Toolkit", st.ast.name))
             } else if attrs.contains(&"editor_module") {
-                ("EditorModule", format!("F{}Module", st.ast.name))
+                // Strip trailing "Module" suffix to avoid double-Module file names.
+                // e.g. KAIN struct "UltaModule" → "FUltaModule" (not "FUltaModuleModule")
+                let base_name = st.ast.name.strip_suffix("Module").unwrap_or(&st.ast.name);
+                ("EditorModule", format!("F{}Module", base_name))
             } else if attrs.contains(&"asset_type") {
                 ("AssetType", format!("U{}", st.ast.name))
             } else {
@@ -1034,7 +1037,11 @@ impl Ue5EditorGen {
     
     fn gen_editor_module(&mut self, st: &kain_core::types::TypedStruct) {
         let module_name = &st.ast.name;
-        let class_name = format!("F{}Module", module_name);
+        // Strip trailing "Module" suffix to avoid double-Module class names.
+        // e.g. KAIN struct "UltaModule" → class "FUltaModule" (not "FUltaModuleModule")
+        // e.g. KAIN struct "UltaDashboardModule" → class "FUltaDashboardModule"
+        let base_name = module_name.strip_suffix("Module").unwrap_or(module_name);
+        let class_name = format!("F{}Module", base_name);
 
         // Header
         self.write_header(&format!("class {} : public IModuleInterface", class_name));

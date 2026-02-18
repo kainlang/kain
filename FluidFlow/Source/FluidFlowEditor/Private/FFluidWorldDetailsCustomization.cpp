@@ -11,10 +11,10 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		CachedObject = Objects[0];
 	}
 	
-	IDetailCategoryBuilder& GridSettingsCat = DetailBuilder.EditCategory(TEXT("Grid Settings"));
+	IDetailCategoryBuilder& Grid_SettingsCat = DetailBuilder.EditCategory(TEXT("Grid Settings"));
 	
 	// Custom slider for grid_resolution_x
-	GridSettingsCat.AddCustomRow(FText::FromString(TEXT("grid_resolution_x")))
+	Grid_SettingsCat.AddCustomRow(FText::FromString(TEXT("grid_resolution_x")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("grid_resolution_x")))
@@ -27,7 +27,7 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	];
 	
 	// Custom slider for grid_resolution_y
-	GridSettingsCat.AddCustomRow(FText::FromString(TEXT("grid_resolution_y")))
+	Grid_SettingsCat.AddCustomRow(FText::FromString(TEXT("grid_resolution_y")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("grid_resolution_y")))
@@ -40,7 +40,7 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	];
 	
 	// Custom slider for grid_resolution_z
-	GridSettingsCat.AddCustomRow(FText::FromString(TEXT("grid_resolution_z")))
+	Grid_SettingsCat.AddCustomRow(FText::FromString(TEXT("grid_resolution_z")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("grid_resolution_z")))
@@ -52,10 +52,10 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		.MaxValue(512.0f)
 	];
 	
-	IDetailCategoryBuilder& TimeIntegrationCat = DetailBuilder.EditCategory(TEXT("Time Integration"));
+	IDetailCategoryBuilder& Time_IntegrationCat = DetailBuilder.EditCategory(TEXT("Time Integration"));
 	
 	// Custom slider for time_step
-	TimeIntegrationCat.AddCustomRow(FText::FromString(TEXT("time_step")))
+	Time_IntegrationCat.AddCustomRow(FText::FromString(TEXT("time_step")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("time_step")))
@@ -68,7 +68,7 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	];
 	
 	// Custom slider for substeps
-	TimeIntegrationCat.AddCustomRow(FText::FromString(TEXT("substeps")))
+	Time_IntegrationCat.AddCustomRow(FText::FromString(TEXT("substeps")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("substeps")))
@@ -80,10 +80,10 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		.MaxValue(10.0f)
 	];
 	
-	IDetailCategoryBuilder& PhysicsPropertiesCat = DetailBuilder.EditCategory(TEXT("Physics Properties"));
+	IDetailCategoryBuilder& Physics_PropertiesCat = DetailBuilder.EditCategory(TEXT("Physics Properties"));
 	
 	// Custom slider for viscosity
-	PhysicsPropertiesCat.AddCustomRow(FText::FromString(TEXT("viscosity")))
+	Physics_PropertiesCat.AddCustomRow(FText::FromString(TEXT("viscosity")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("viscosity")))
@@ -96,7 +96,7 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	];
 	
 	// Custom slider for density
-	PhysicsPropertiesCat.AddCustomRow(FText::FromString(TEXT("density")))
+	Physics_PropertiesCat.AddCustomRow(FText::FromString(TEXT("density")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("density")))
@@ -109,7 +109,7 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	];
 	
 	// Custom slider for gravity_scale
-	PhysicsPropertiesCat.AddCustomRow(FText::FromString(TEXT("gravity_scale")))
+	Physics_PropertiesCat.AddCustomRow(FText::FromString(TEXT("gravity_scale")))
 	.NameContent()
 	[
 		SNew(STextBlock).Text(FText::FromString(TEXT("gravity_scale")))
@@ -230,4 +230,5 @@ void FFluidWorldDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	IDetailCategoryBuilder& DiagnosticsCat = DetailBuilder.EditCategory(TEXT("Diagnostics"));
 	
 }
+
 

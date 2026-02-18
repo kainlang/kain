@@ -88,13 +88,26 @@ pub fn generate_headers(
     master_header.push_str("#pragma once\n\n");
     master_header.push_str("#include \"CoreMinimal.h\"\n\n");
     
-    // Add forward declarations for all types
+    // Add forward declarations for all types.
+    // In split mode (runtime + editor modules), skip editor-only items from the runtime master header.
+    // Editor items belong in the editor module and should not pollute the runtime module.
     master_header.push_str("// Forward declarations\n");
     for item in &program.items {
         match item {
             kain_core::types::TypedItem::Struct(s) => {
-                let struct_name = ue5::naming::to_struct_name(&s.ast.name);
-                master_header.push_str(&format!("struct {};\n", struct_name));
+                // Skip editor-only structs in split mode — they go in the editor module
+                let is_editor = s.ast.attributes.iter().any(|a| ue5_editor::is_editor_attribute(&a.name));
+                if is_editor && layout.needs_split {
+                    continue;
+                }
+                // Slate widgets use class S{name}, not struct F{name}
+                if s.ast.attributes.iter().any(|a| a.name == "slate") {
+                    let widget_name = format!("S{}", s.ast.name);
+                    master_header.push_str(&format!("class {};\n", widget_name));
+                } else {
+                    let struct_name = ue5::naming::to_struct_name(&s.ast.name);
+                    master_header.push_str(&format!("struct {};\n", struct_name));
+                }
             }
             kain_core::types::TypedItem::Enum(e) => {
                 let enum_name = ue5::naming::to_enum_name(&e.ast.name);
@@ -593,9 +606,46 @@ pub fn generate_editor_items(
         None
     };
     
-    // Generate per-item editor files (modular output)
+    // Generate per-item editor files (modular output).
+    // First, collect what will be generated so we can clean up stale files.
     match ue5_editor::generate_per_item(program, &config.plugin_name, config.copyright.as_deref()) {
         Ok(editor_items) => {
+            // Collect the set of expected output file names (without extension)
+            let expected_names: std::collections::HashSet<String> = editor_items.iter()
+                .map(|item| item.name.clone())
+                .collect();
+            
+            // Clean up stale .h files in editor public dir
+            if let Ok(entries) = fs::read_dir(&ed_pub_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map_or(false, |e| e == "h") {
+                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            // Keep the editor master header and any non-generated files
+                            let is_master = stem == format!("{}Editor", config.plugin_name);
+                            if !is_master && !expected_names.contains(stem) {
+                                let _ = fs::remove_file(&path);
+                                println!("   🧹 Removed stale {}", path.file_name().unwrap_or_default().to_string_lossy());
+                            }
+                        }
+                    }
+                }
+            }
+            // Clean up stale .cpp files in editor private dir
+            if let Ok(entries) = fs::read_dir(&ed_priv_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map_or(false, |e| e == "cpp") {
+                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            if !expected_names.contains(stem) {
+                                let _ = fs::remove_file(&path);
+                                println!("   🧹 Removed stale {}", path.file_name().unwrap_or_default().to_string_lossy());
+                            }
+                        }
+                    }
+                }
+            }
+
             for editor_item in &editor_items {
                 println!("   📄 Editor item: {} [{}] → {}.h/cpp", editor_item.name, editor_item.kind, editor_item.name);
                 
@@ -791,24 +841,120 @@ pub fn generate_monolithic(
     Ok(())
 }
 
+/// Extract all UE5 type names referenced in a KAIN program (base classes, field types, etc.).
+/// These are used to resolve module dependencies via the module graph.
+fn extract_referenced_types(program: &kain_core::types::TypedProgram) -> Vec<String> {
+    let mut types: std::collections::HashSet<String> = std::collections::HashSet::new();
+    
+    // Built-in KAIN types that don't map to UE5 modules — skip these
+    let builtins: std::collections::HashSet<&str> = [
+        "Int", "Float", "Bool", "String", "Char",
+        "Vec2", "Vec3", "Vec4", "Array", "Map", "Option", "Result",
+        "Actor", "Component",
+    ].iter().copied().collect();
+    
+    for item in &program.items {
+        match item {
+            kain_core::types::TypedItem::Struct(s) => {
+                // Collect field types from struct
+                for field in &s.ast.fields {
+                    collect_ast_type_names(&field.ty, &builtins, &mut types);
+                }
+            }
+            kain_core::types::TypedItem::Actor(a) => {
+                // Collect state field types
+                for state in &a.ast.state {
+                    collect_ast_type_names(&state.ty, &builtins, &mut types);
+                }
+                // Collect method param/return types
+                for method in &a.ast.methods {
+                    for param in &method.params {
+                        collect_ast_type_names(&param.ty, &builtins, &mut types);
+                    }
+                    if let Some(ref ret) = method.return_type {
+                        collect_ast_type_names(ret, &builtins, &mut types);
+                    }
+                }
+                // Collect handler param types
+                for handler in &a.ast.handlers {
+                    for param in &handler.params {
+                        collect_ast_type_names(&param.ty, &builtins, &mut types);
+                    }
+                }
+            }
+            kain_core::types::TypedItem::Component(c) => {
+                // Collect prop types (Component.props is Vec<Param>)
+                for prop in &c.ast.props {
+                    collect_ast_type_names(&prop.ty, &builtins, &mut types);
+                }
+            }
+            kain_core::types::TypedItem::Function(f) => {
+                for param in &f.ast.params {
+                    collect_ast_type_names(&param.ty, &builtins, &mut types);
+                }
+                if let Some(ref ret) = f.ast.return_type {
+                    collect_ast_type_names(ret, &builtins, &mut types);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    types.into_iter().collect()
+}
+
+/// Recursively collect named type strings from a KAIN AST `Type`, skipping builtins.
+fn collect_ast_type_names(
+    ty: &kain_core::ast::Type,
+    builtins: &std::collections::HashSet<&str>,
+    out: &mut std::collections::HashSet<String>,
+) {
+    match ty {
+        kain_core::ast::Type::Named { name, generics, .. } => {
+            if !builtins.contains(name.as_str()) {
+                out.insert(name.clone());
+            }
+            for g in generics {
+                collect_ast_type_names(g, builtins, out);
+            }
+        }
+        kain_core::ast::Type::Tuple(inner, _) => {
+            for t in inner { collect_ast_type_names(t, builtins, out); }
+        }
+        kain_core::ast::Type::Array(inner, _, _) => collect_ast_type_names(inner, builtins, out),
+        kain_core::ast::Type::Slice(inner, _) => collect_ast_type_names(inner, builtins, out),
+        kain_core::ast::Type::Option(inner, _) => collect_ast_type_names(inner, builtins, out),
+        kain_core::ast::Type::Result(ok, err, _) => {
+            collect_ast_type_names(ok, builtins, out);
+            collect_ast_type_names(err, builtins, out);
+        }
+        kain_core::ast::Type::Ref { inner, .. } => collect_ast_type_names(inner, builtins, out),
+        _ => {}
+    }
+}
+
 /// Compute the extra module dependencies needed for runtime code.
 /// Uses the module graph when available, falls back to feature-based detection.
-fn compute_runtime_deps(has_shaders: bool, module_graph: &ue5::ue5::module_graph::ModuleGraph) -> Vec<String> {
+fn compute_runtime_deps(
+    has_shaders: bool,
+    module_graph: &ue5::ue5::module_graph::ModuleGraph,
+    program: &kain_core::types::TypedProgram,
+) -> Vec<String> {
     let base_modules = ["Core", "CoreUObject", "Engine", "Projects"];
     
     if module_graph.is_loaded() {
-        // Data-driven: resolve from module graph based on what the runtime code references
-        let mut apis: Vec<&str> = Vec::new();
-        let mut types: Vec<&str> = Vec::new();
+        // Data-driven: extract all types referenced in the program and resolve via graph
+        let referenced = extract_referenced_types(program);
+        let type_refs: Vec<&str> = referenced.iter().map(|s| s.as_str()).collect();
         
+        let mut apis: Vec<&str> = Vec::new();
         if has_shaders {
             apis.push("AddShaderSourceDirectoryMapping");
             apis.push("AllShaderSourceDirectoryMappings");
             apis.push("IMPLEMENT_GLOBAL_SHADER");
-            types.push("FGlobalShader");
         }
         
-        module_graph.resolve_deps_for_types(&types, &[], &apis, &base_modules)
+        module_graph.resolve_deps_for_types(&type_refs, &[], &apis, &base_modules)
     } else {
         // Fallback: feature-based (legacy behavior)
         let mut deps = Vec::new();
@@ -821,20 +967,26 @@ fn compute_runtime_deps(has_shaders: bool, module_graph: &ue5::ue5::module_graph
 
 /// Compute the extra module dependencies needed for editor code.
 /// Uses the module graph when available, falls back to feature-based detection.
-fn compute_editor_deps(has_shaders: bool, module_graph: &ue5::ue5::module_graph::ModuleGraph) -> (Vec<String>, Vec<String>) {
+fn compute_editor_deps(
+    has_shaders: bool,
+    module_graph: &ue5::ue5::module_graph::ModuleGraph,
+    program: &kain_core::types::TypedProgram,
+) -> (Vec<String>, Vec<String>) {
     let base_modules = ["Core", "CoreUObject", "Engine"];
     
     if module_graph.is_loaded() {
-        // Data-driven: resolve from module graph
-        let mut apis: Vec<&str> = Vec::new();
+        // Data-driven: extract all types referenced in the program and resolve via graph
+        let referenced = extract_referenced_types(program);
+        let type_refs: Vec<&str> = referenced.iter().map(|s| s.as_str()).collect();
         
+        let mut apis: Vec<&str> = Vec::new();
         if has_shaders {
-            // Editor module registers shader directories in StartupModule
             apis.push("AddShaderSourceDirectoryMapping");
             apis.push("AllShaderSourceDirectoryMappings");
         }
         
-        let public_extra = module_graph.resolve_deps_for_types(&[], &[], &apis, &base_modules);
+        // Editor module gets the same type resolution — editor items reference runtime types too
+        let public_extra = module_graph.resolve_deps_for_types(&type_refs, &[], &apis, &base_modules);
         (public_extra, Vec::new())
     } else {
         // Fallback: feature-based
@@ -853,7 +1005,12 @@ pub fn write_plugin_files(
     description: &Option<String>,
     has_shaders: bool,
     module_graph: &ue5::ue5::module_graph::ModuleGraph,
+    program: &kain_core::types::TypedProgram,
 ) -> KainResult<()> {
+    // Detect program features needed for correct Build.cs generation
+    let has_datatable = super::build_cs_gen::has_datatable_structs(program);
+    let has_viewport = super::build_cs_gen::has_viewport_items(program);
+    let has_toolbar = super::build_cs_gen::has_toolbar_items(program);
     // Generate .uplugin file (ALWAYS regenerate to ensure it's up-to-date)
     let uplugin_path = layout.plugin_root.join(format!("{}.uplugin", config.plugin_name));
     println!();
@@ -873,9 +1030,9 @@ pub fn write_plugin_files(
     
     if layout.needs_split {
         // SPLIT MODE: Two separate .Build.cs files
-        let rt_extra = compute_runtime_deps(has_shaders, module_graph);
+        let rt_extra = compute_runtime_deps(has_shaders, module_graph, program);
         let rt_build_cs_path = layout.source_dir.join(&config.plugin_name).join(format!("{}.Build.cs", config.plugin_name));
-        let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(&config.plugin_name, &rt_extra);
+        let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(&config.plugin_name, &rt_extra, has_datatable);
         fs::write(&rt_build_cs_path, rt_build_cs).map_err(|e| KainError::Io(e))?;
         if !rt_extra.is_empty() {
             println!("   ✓ {}.Build.cs (runtime) + auto-resolved: {}", config.plugin_name, rt_extra.join(", "));
@@ -883,10 +1040,10 @@ pub fn write_plugin_files(
             println!("   ✓ {}.Build.cs (runtime module)", config.plugin_name);
         }
         
-        let (ed_pub_extra, ed_priv_extra) = compute_editor_deps(has_shaders, module_graph);
+        let (ed_pub_extra, ed_priv_extra) = compute_editor_deps(has_shaders, module_graph, program);
         let editor_module_name = format!("{}Editor", config.plugin_name);
         let ed_build_cs_path = layout.source_dir.join(&editor_module_name).join(format!("{}.Build.cs", editor_module_name));
-        let ed_build_cs = super::build_cs_gen::generate_build_cs_editor(&config.plugin_name, &ed_pub_extra, &ed_priv_extra);
+        let ed_build_cs = super::build_cs_gen::generate_build_cs_editor(&config.plugin_name, &ed_pub_extra, &ed_priv_extra, has_viewport, has_toolbar);
         fs::write(&ed_build_cs_path, ed_build_cs).map_err(|e| KainError::Io(e))?;
         if !ed_pub_extra.is_empty() {
             println!("   ✓ {}.Build.cs (editor) + auto-resolved: {}", editor_module_name, ed_pub_extra.join(", "));
@@ -895,7 +1052,7 @@ pub fn write_plugin_files(
         }
     } else {
         // SINGLE MODULE: One .Build.cs
-        let rt_extra = compute_runtime_deps(has_shaders, module_graph);
+        let rt_extra = compute_runtime_deps(has_shaders, module_graph, program);
         let build_cs_path = layout.source_dir.join(format!("{}.Build.cs", config.plugin_name));
         let build_cs_content = super::build_cs_gen::generate_build_cs(&config.plugin_name, layout.has_editor_items, &rt_extra, &[]);
         fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;

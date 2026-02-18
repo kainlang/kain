@@ -14,30 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for HyperFluidParticleSystemComponent (GPU-compatible)
-struct FHyperFluidParticleSystemComponentData {
-    EParticleType particle_type;
-    int32 particle_count;
-    float particle_diameter;
-    float particle_density;
-    float particle_shape_factor;
-    EDragModel drag_model;
-    float drag_coefficient;
-    ECollisionModel collision_model;
-    float restitution_coefficient;
-    float friction_coefficient;
-    float cohesion_energy;
-    EBreakupModel breakup_model;
-    ECoalescenceModel coalescence_model;
-    float weber_number_critical;
-    EEvaporationModel evaporation_model;
-    float latent_heat;
-    float vapor_pressure;
-    ETrackingScheme tracking_scheme;
-    int32 interpolation_order;
-    bool two_way_coupling;
-    bool four_way_coupling;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FParticleEvaporationShader : public FGlobalShader
 {
@@ -45,7 +22,7 @@ class FParticleEvaporationShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FParticleEvaporationShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FHyperFluidParticleSystemComponentData, particle_system)
+        SHADER_PARAMETER_STRUCT(FHyperFluidParticleSystemComponentData, particle_system)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -68,7 +45,7 @@ class FParticleEvaporationShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FParticleEvaporationShader, "/Plugin/YourPlugin/ParticleEvaporation.usf", "ParticleEvaporationCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FParticleEvaporationShader, "/Plugin/FluidFlow/ParticleEvaporation.usf", "ParticleEvaporationCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ParticleEvaporation(

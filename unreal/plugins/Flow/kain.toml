@@ -15,12 +15,7 @@ sources = ["KainFlowGod.kn"]
 
 # These shader kernels will be extracted and compiled to .usf
 shaders = [
-    "AdvectionCompute",
-    "VorticityCompute", 
-    "DivergenceCompute",
-    "PressureCompute",
-    "GradientCompute",
-    "SourceCompute"
+
 ]
 
 # Ensure we generate clean, modular C++ headers

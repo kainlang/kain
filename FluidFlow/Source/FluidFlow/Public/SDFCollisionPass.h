@@ -14,43 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for PhysicalPropertiesComponent (GPU-compatible)
-struct FPhysicalPropertiesComponentData {
-    EFluidClass fluid_class;
-    ESolverFamily solver_family;
-    EHybridSolver hybrid_solver;
-    EPressureSolver pressure_solver;
-    EAdvectionScheme advection_scheme;
-    ETurbulenceModel turbulence_model;
-    EBoundaryType boundary_type;
-    EQualityTier quality;
-    EGPUBackend backend;
-    float viscosity;
-    float density;
-    float surface_tension;
-    float compressibility;
-    float conductivity;
-    float permittivity;
-    float permeability;
-    float reactivity;
-    float radiation_absorption;
-    float gravity_scale;
-    float anisotropy;
-    float cavitation_threshold;
-    float yield_stress;
-    float foam_threshold;
-    float spray_threshold;
-    float bubble_coalescence;
-};
-
-// POD mirror for CollisionComponent (GPU-compatible)
-struct FCollisionComponentData {
-    bool enabled;
-    float restitution;
-    float friction;
-    float sdf_threshold;
-    bool use_global_distance_field;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FSDFCollisionPassShader : public FGlobalShader
 {
@@ -58,8 +22,8 @@ class FSDFCollisionPassShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FSDFCollisionPassShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FPhysicalPropertiesComponentData, physics)
-        SHADER_PARAMETER(FCollisionComponentData, collision)
+        SHADER_PARAMETER_STRUCT(FPhysicalPropertiesComponentData, physics)
+        SHADER_PARAMETER_STRUCT(FCollisionComponentData, collision)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, velocity_texture)
         SHADER_PARAMETER_SAMPLER(SamplerState, velocity_textureSampler)
         SHADER_PARAMETER_RDG_TEXTURE(Texture3D, sdf_texture)
@@ -86,7 +50,7 @@ class FSDFCollisionPassShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FSDFCollisionPassShader, "/Plugin/YourPlugin/SDFCollisionPass.usf", "SDFCollisionPassCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FSDFCollisionPassShader, "/Plugin/FluidFlow/SDFCollisionPass.usf", "SDFCollisionPassCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_SDFCollisionPass(
