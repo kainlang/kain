@@ -137,3 +137,65 @@ pub fn setup(
         has_runtime_items,
     })
 }
+
+/// Detect existing plugin layout without modifying it
+pub fn detect_existing(plugin_root: &Path, plugin_name: &str) -> KainResult<PluginLayout> {
+    let source_dir = plugin_root.join("Source");
+    let shaders_dir = plugin_root.join("Shaders");
+    
+    if !source_dir.exists() {
+        return Err(KainError::runtime(format!(
+            "Plugin Source directory not found: {}",
+            source_dir.display()
+        )));
+    }
+    
+    // Detect if this is a split-module layout
+    let runtime_module_dir = source_dir.join(plugin_name);
+    let editor_module_dir = source_dir.join(format!("{}Editor", plugin_name));
+    
+    let needs_split = runtime_module_dir.exists() && editor_module_dir.exists();
+    
+    let (public_dir, private_dir, editor_public_dir, editor_private_dir) = if needs_split {
+        // Split layout
+        let rt_pub = runtime_module_dir.join("Public");
+        let rt_priv = runtime_module_dir.join("Private");
+        let ed_pub = editor_module_dir.join("Public");
+        let ed_priv = editor_module_dir.join("Private");
+        
+        (rt_pub, rt_priv, Some(ed_pub), Some(ed_priv))
+    } else {
+        // Single module layout
+        let pub_dir = source_dir.join("Public");
+        let priv_dir = source_dir.join("Private");
+        
+        if !pub_dir.exists() || !priv_dir.exists() {
+            return Err(KainError::runtime(format!(
+                "Invalid plugin layout. Expected Public and Private directories in {}",
+                source_dir.display()
+            )));
+        }
+        
+        (pub_dir, priv_dir, None, None)
+    };
+    
+    // Detect if editor items exist
+    let has_editor_items = editor_public_dir.is_some() || 
+        public_dir.join("Editor").exists();
+    
+    // Assume runtime items exist (we're injecting into an existing plugin)
+    let has_runtime_items = true;
+    
+    Ok(PluginLayout {
+        plugin_root: plugin_root.to_path_buf(),
+        source_dir,
+        shaders_dir,
+        public_dir,
+        private_dir,
+        editor_public_dir,
+        editor_private_dir,
+        needs_split,
+        has_editor_items,
+        has_runtime_items,
+    })
+}

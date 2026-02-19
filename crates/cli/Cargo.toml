@@ -12,6 +12,7 @@ kain-core = { path = "../kain-core" }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }
+ue5-materials = { path = "../ue5-materials", optional = true }
 gpu = { path = "../gpu", optional = true }
 web = { path = "../web", optional = true }
 sys = { path = "../sys", optional = true }
@@ -36,7 +37,7 @@ toml = { workspace = true }
 
 [features]
 default = ["ue5", "gpu", "web", "sys"]
-ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders"]
+ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders", "dep:ue5-materials"]
 gpu = ["dep:gpu"]
 web = ["dep:web"]
 sys = ["dep:sys"]

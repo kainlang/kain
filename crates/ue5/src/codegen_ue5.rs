@@ -47,6 +47,66 @@ pub fn generate(program: &TypedProgram, output_name: Option<&str>, copyright: Op
     generate_filtered(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
 }
 
+/// Generate UE5 C++ code with a pre-configured context (includes metadata)
+/// This is used by the CLI when compiling with `-t ue5` to enable full pipeline features
+pub fn generate_with_context(
+    program: &TypedProgram, 
+    output_name: Option<&str>, 
+    copyright: Option<&str>,
+    context: &Ue5Context
+) -> KainResult<Ue5Output> {
+    let module_name = output_name.unwrap_or("Kain");
+    let mut gen = Ue5Gen::new(module_name, output_name, copyright, None, std::collections::HashMap::new());
+    
+    // Use the provided context instead of creating a new one
+    gen.context = context.clone();
+    
+    // PRE-PASS: Register all types
+    for item in &program.items {
+        match item {
+            kain_core::types::TypedItem::Enum(en) => {
+                let prefixed_name = to_enum_name(&en.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_enum(en.ast.name.clone(), header);
+                gen.type_mapper.register_enum(en.ast.name.clone());
+            },
+            kain_core::types::TypedItem::Struct(st) => {
+                let prefixed_name = to_struct_name(&st.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_struct(st.ast.name.clone(), header.clone());
+                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                    gen.context.register_component(st.ast.name.clone(), header);
+                    gen.type_mapper.register_component(st.ast.name.clone());
+                } else {
+                    gen.type_mapper.register_struct(st.ast.name.clone());
+                }
+            },
+            kain_core::types::TypedItem::Actor(a) => {
+                let prefixed_name = to_actor_name(&a.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_actor(a.ast.name.clone(), header);
+                gen.type_mapper.register_actor(a.ast.name.clone());
+            },
+            kain_core::types::TypedItem::Component(c) => {
+                let prefixed_name = to_component_name(&c.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_component(c.ast.name.clone(), header);
+                gen.type_mapper.register_component(c.ast.name.clone());
+            },
+            kain_core::types::TypedItem::TypeAlias(a) => {
+                // Delegates use F prefix like structs
+                let prefixed_name = to_struct_name(&a.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_delegate(a.ast.name.clone(), header);
+                gen.type_mapper.register_delegate(a.ast.name.clone());
+            },
+            _ => {}
+        }
+    }
+    
+    Ok(gen.gen_program(program))
+}
+
 /// Generate UE5 C++ code limited to a specific item
 pub fn generate_filtered(
     program: &TypedProgram, 

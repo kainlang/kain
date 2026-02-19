@@ -330,6 +330,7 @@ dependencies = [
  "tower-lsp",
  "ue5",
  "ue5-editor",
+ "ue5-materials",
  "ue5-shaders",
  "web",
 ]
@@ -2622,6 +2623,16 @@ dependencies = [
  "serde",
  "serde_json",
  "ue5",
+]
+
+[[package]]
+name = "ue5-materials"
+version = "0.1.0"
+dependencies = [
+ "indoc",
+ "kain-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

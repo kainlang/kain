@@ -104,7 +104,33 @@ enum Commands {
     /// Run a file (explicit command)
     Run {
         input: PathBuf,
-    }
+    },
+    
+    /// Inject KAIN file into existing plugin (non-destructive)
+    Inject {
+        /// Input .kn file(s)
+        inputs: Vec<PathBuf>,
+        
+        /// Target plugin directory (auto-detected if omitted)
+        #[arg(long)]
+        plugin_dir: Option<PathBuf>,
+        
+        /// Plugin name (auto-detected if omitted)
+        #[arg(long)]
+        plugin: Option<String>,
+        
+        /// Force overwrite existing files
+        #[arg(long)]
+        force: bool,
+        
+        /// Dry run (show what would be generated)
+        #[arg(long)]
+        dry_run: bool,
+        
+        /// Use UE5 codegen
+        #[arg(long)]
+        ue5: bool,
+    },
 }
 
 fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>, _emit_ast: bool, _emit_typed: bool, verbose: bool, _analyze: bool, plugin_name: Option<&str>) -> bool {
@@ -533,6 +559,17 @@ fn main() {
             }
             Some(Commands::Run { input }) => {
                 run_compile(&input, CompileTarget::Interpret, None, args.emit_ast, args.emit_typed, args.verbose, args.analyze, args.plugin.as_deref());
+            }
+            Some(Commands::Inject { inputs, plugin_dir, plugin, force, dry_run, ue5 }) => {
+                if ue5 {
+                    if let Err(e) = packager::inject_into_plugin(&inputs, plugin_dir.as_ref(), plugin.as_deref(), force, dry_run) {
+                        eprintln!(" Injection failed: {}", e);
+                        std::process::exit(1);
+                    }
+                } else {
+                    eprintln!(" Only --ue5 target is supported for inject command");
+                    std::process::exit(1);
+                }
             }
             None => {
                 // Legacy behavior

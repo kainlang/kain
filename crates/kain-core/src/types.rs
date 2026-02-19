@@ -44,6 +44,7 @@ pub enum TypedItem {
     Impl(TypedImpl),
     Test(TypedTest),
     TypeAlias(TypedTypeAlias),
+    MaterialGraph(crate::ast::MaterialGraphDef),
 }
 
 #[derive(Debug, Clone)]
@@ -203,6 +204,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Impl(i) => Ok(TypedItem::Impl(TypedImpl { ast: i.clone() })),
         Item::Test(t) => Ok(TypedItem::Test(TypedTest { ast: t.clone() })),
         Item::TypeAlias(ta) => Ok(TypedItem::TypeAlias(TypedTypeAlias { ast: ta.clone() })),
+        Item::MaterialGraph(mg) => Ok(TypedItem::MaterialGraph(mg.clone())),
         _ => {
             // For now, ignore other items or provide dummy implementation
             // Since we are running in interpreter mode mostly, types are just for checking.

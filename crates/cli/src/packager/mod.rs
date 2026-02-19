@@ -4,16 +4,19 @@ pub mod build;
 pub mod ue5_pipeline;
 pub mod plugin_layout;
 pub mod codegen;
+pub mod material_gen;
 pub mod uplugin_gen;
 pub mod build_cs_gen;
 pub mod post_process;
 pub mod dependencies;
+pub mod inject;
 
 // Re-export public API to maintain backward compatibility
 pub use config::*;
 pub use build::build_project;
 pub use ue5_pipeline::build_ue5_plugin;
 pub use registry::{add_dependency, install_all};
+pub use inject::inject_into_plugin;
 
 use std::fs;
 use std::path::PathBuf;

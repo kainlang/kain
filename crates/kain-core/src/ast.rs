@@ -12,14 +12,14 @@ use crate::span::Span;
 use crate::effects::Effect;
 
 /// A complete KAIN program/module
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub items: Vec<Item>,
     pub span: Span,
 }
 
 /// Top-level items in a module
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     /// `fn name(args) -> Type with Effects: body`
     Function(Function),
@@ -65,9 +65,12 @@ pub enum Item {
 
     /// `test "name": body`
     Test(TestDef),
+
+    /// `@material_graph Name: inputs, body, outputs`
+    MaterialGraph(MaterialGraphDef),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TestDef {
     pub name: String,
     pub body: Block,
@@ -77,14 +80,14 @@ pub struct TestDef {
 // === FUNCTIONS ===
 
 /// Function attribute/decorator (e.g., @wasm, @js, @inline)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Attribute {
     pub name: String,
     pub args: Vec<Expr>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     pub name: String,
     pub generics: Vec<Generic>,
@@ -97,7 +100,7 @@ pub struct Function {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Param {
     pub name: String,
     pub ty: Type,
@@ -106,14 +109,14 @@ pub struct Param {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Generic {
     pub name: String,
     pub bounds: Vec<TypeBound>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeBound {
     pub trait_name: String,
     pub span: Span,
@@ -121,7 +124,7 @@ pub struct TypeBound {
 
 // === COMPONENTS (React-like UI) ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Component {
     pub name: String,
     pub props: Vec<Param>,
@@ -134,7 +137,7 @@ pub struct Component {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StateDecl {
     pub name: String,
     pub ty: Type,
@@ -144,7 +147,7 @@ pub struct StateDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JSXNode {
     /// `<tag attr="value">children</tag>`
     Element {
@@ -182,14 +185,14 @@ pub enum JSXNode {
     Fragment(Vec<JSXNode>, Span),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JSXAttribute {
     pub name: String,
     pub value: JSXAttrValue,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JSXAttrValue {
     String(String),
     Expr(Expr),
@@ -198,7 +201,7 @@ pub enum JSXAttrValue {
 
 // === SHADERS (GPU Programs) ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Shader {
     pub name: String,
     pub stage: ShaderStage,
@@ -217,7 +220,7 @@ pub enum ShaderStage {
     Surface,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Uniform {
     pub name: String,
     pub ty: Type,
@@ -227,7 +230,7 @@ pub struct Uniform {
 
 // === ACTORS (Erlang-style Concurrency) ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Actor {
     pub name: String,
     pub state: Vec<StateDecl>,
@@ -237,7 +240,7 @@ pub struct Actor {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MessageHandler {
     pub message_type: String,
     pub params: Vec<Param>,
@@ -247,7 +250,7 @@ pub struct MessageHandler {
 
 // === DATA STRUCTURES ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Struct {
     pub name: String,
     pub generics: Vec<Generic>,
@@ -258,7 +261,7 @@ pub struct Struct {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Field {
     pub name: String,
     pub ty: Type,
@@ -269,7 +272,7 @@ pub struct Field {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Enum {
     pub name: String,
     pub generics: Vec<Generic>,
@@ -278,14 +281,14 @@ pub struct Enum {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Variant {
     pub name: String,
     pub fields: VariantFields,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VariantFields {
     Unit,
     Tuple(Vec<Type>),
@@ -294,7 +297,7 @@ pub enum VariantFields {
 
 // === TRAITS AND IMPLS ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Trait {
     pub name: String,
     pub generics: Vec<Generic>,
@@ -303,7 +306,7 @@ pub struct Trait {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TraitMethod {
     pub name: String,
     pub params: Vec<Param>,
@@ -313,7 +316,7 @@ pub struct TraitMethod {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Impl {
     pub generics: Vec<Generic>,
     pub trait_name: Option<String>,
@@ -391,7 +394,7 @@ impl Type {
 
 // === OTHER TOP-LEVEL ITEMS ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeAlias {
     pub name: String,
     pub generics: Vec<Generic>,
@@ -400,7 +403,7 @@ pub struct TypeAlias {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Use {
     pub path: Vec<String>,
     pub alias: Option<String>,
@@ -408,7 +411,7 @@ pub struct Use {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Mod {
     pub name: String,
     pub inline: Option<Vec<Item>>,
@@ -416,7 +419,7 @@ pub struct Mod {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Const {
     pub name: String,
     pub ty: Type,
@@ -425,13 +428,13 @@ pub struct Const {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ComptimeBlock {
     pub body: Block,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroDef {
     pub name: String,
     pub params: Vec<MacroParam>,
@@ -439,14 +442,14 @@ pub struct MacroDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroParam {
     pub name: String,
     pub kind: MacroParamKind,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MacroParamKind {
     Expr,
     Type,
@@ -456,13 +459,13 @@ pub enum MacroParamKind {
     Repetition(Box<MacroParamKind>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MacroBody {
     Tokens(Vec<MacroToken>),
     Block(Block),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroToken {
     pub content: String,
     pub span: Span,
@@ -470,13 +473,13 @@ pub struct MacroToken {
 
 // === EXPRESSIONS ===
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     /// `let pattern [: Type] = value`
     Let {
@@ -515,7 +518,7 @@ pub enum Stmt {
     Item(Box<Item>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     /// Literals
     Int(i64, Span),
@@ -744,27 +747,27 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EnumVariantFields {
     Unit,
     Tuple(Vec<Expr>),
     Struct(Vec<(String, Expr)>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CallArg {
     pub name: Option<String>,
     pub value: Expr,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ElseBranch {
     Else(Block),
     ElseIf(Box<Expr>, Block, Option<Box<ElseBranch>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
     pub pattern: Pattern,
     pub guard: Option<Expr>,
@@ -772,7 +775,7 @@ pub struct MatchArm {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     /// Wildcard: `_`
     Wildcard(Span),
@@ -817,7 +820,7 @@ pub enum Pattern {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VariantPatternFields {
     Unit,
     Tuple(Vec<Pattern>),
@@ -888,3 +891,44 @@ pub enum Visibility {
     Super,
 }
 
+
+// === MATERIAL GRAPHS (UE5 Material System) ===
+
+/// Material graph definition: `@material_graph Name: inputs, body, outputs`
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialGraphDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub inputs: Vec<MaterialInput>,
+    pub body: Vec<MaterialStatement>,
+    pub outputs: Vec<MaterialOutput>,
+    pub span: Span,
+}
+
+/// Material input parameter with optional default value
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialInput {
+    pub name: String,
+    pub ty: Type,
+    pub default: Option<Expr>,
+    pub span: Span,
+}
+
+/// Statement within a material graph body
+#[derive(Debug, Clone, PartialEq)]
+pub enum MaterialStatement {
+    Let {
+        name: String,
+        value: Expr,
+        span: Span,
+    },
+    // Future: if statements, loops, etc.
+}
+
+/// Material output pin (base_color, emissive, roughness, etc.)
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialOutput {
+    pub name: String,  // base_color, emissive, roughness, metallic, normal, opacity, etc.
+    pub value: Expr,
+    pub span: Span,
+}

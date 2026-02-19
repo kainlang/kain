@@ -95,6 +95,12 @@ impl<'a> Parser<'a> {
     fn parse_item(&mut self) -> KainResult<Item> {
         // Collect any @attr decorators first
         let attributes = self.parse_attributes()?;
+        
+        // Check for @material_graph attribute
+        if attributes.iter().any(|a| a.name == "material_graph") {
+            return self.parse_material_graph(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -922,6 +928,117 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
         Ok(Item::Comptime(ComptimeBlock { body, span: start.merge(self.current_span()) }))
+    }
+
+    fn parse_material_graph(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'material' keyword
+        if let TokenKind::Ident(ref s) = self.peek_kind() {
+            if s != "material" {
+                return Err(KainError::parser("Expected 'material' keyword after @material_graph", self.current_span()));
+            }
+            self.advance(); // consume 'material'
+        } else {
+            return Err(KainError::parser("Expected 'material' keyword after @material_graph", self.current_span()));
+        }
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        let mut inputs = Vec::new();
+        let mut body = Vec::new();
+        let mut outputs = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for "input", "let", or "output"
+            if let TokenKind::Ident(ref s) = self.peek_kind() {
+                match s.as_str() {
+                    "input" => {
+                        self.advance(); // consume 'input'
+                        
+                        let input_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let ty = self.parse_type()?;
+                        
+                        let default = if self.check(TokenKind::Eq) {
+                            self.advance();
+                            Some(self.parse_expr()?)
+                        } else {
+                            None
+                        };
+                        
+                        inputs.push(MaterialInput {
+                            name: input_name,
+                            ty,
+                            default,
+                            span: self.current_span(),
+                        });
+                    }
+                    "output" => {
+                        self.advance(); // consume 'output'
+                        
+                        let output_name = self.parse_ident()?;
+                        self.expect(TokenKind::Eq)?;
+                        let value = self.parse_expr()?;
+                        
+                        outputs.push(MaterialOutput {
+                            name: output_name,
+                            value,
+                            span: self.current_span(),
+                        });
+                    }
+                    _ => {
+                        return Err(KainError::parser(
+                            format!("Unexpected identifier in material graph: {}. Expected 'input', 'let', or 'output'", s),
+                            self.current_span()
+                        ));
+                    }
+                }
+            } else if self.check(TokenKind::Let) {
+                self.advance(); // consume 'let'
+                
+                let var_name = self.parse_ident()?;
+                self.expect(TokenKind::Eq)?;
+                let value = self.parse_expr()?;
+                
+                body.push(MaterialStatement::Let {
+                    name: var_name,
+                    value,
+                    span: self.current_span(),
+                });
+            } else {
+                return Err(KainError::parser(
+                    "Expected 'input', 'let', or 'output' in material graph body",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::MaterialGraph(MaterialGraphDef {
+            name,
+            attributes,
+            inputs,
+            body,
+            outputs,
+            span: start.merge(self.current_span()),
+        }))
     }
 
     fn parse_params(&mut self) -> KainResult<Vec<Param>> {

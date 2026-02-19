@@ -133,13 +133,115 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
 
 #[cfg(feature = "ue5")]
 pub fn compile_ue5(source: &str, output_name: Option<&str>, copyright: Option<&str>) -> Result<ue5::Ue5Output, KainError> {
+    compile_ue5_with_context(source, output_name, copyright, None)
+}
+
+#[cfg(feature = "ue5")]
+pub fn compile_ue5_with_context(
+    source: &str, 
+    output_name: Option<&str>, 
+    copyright: Option<&str>,
+    metadata_dir: Option<std::path::PathBuf>
+) -> Result<ue5::Ue5Output, KainError> {
+    // Load stdlib
     let stdlib = stdlib::load_stdlib();
     let full_source = format!("{}\n{}", stdlib, source);
+    
+    // Parse and type-check
     let tokens = Lexer::new(&full_source).tokenize()?;
     let mut ast = Parser::new(&tokens).parse()?;
     comptime::eval_program(&mut ast)?;
     let typed_ast = types::check(&ast)?;
-    ue5::generate(&typed_ast, output_name, copyright)
+    
+    // Find metadata directory
+    let metadata_path = metadata_dir.unwrap_or_else(|| find_metadata_dir());
+    
+    // Create Ue5Context with metadata
+    let mut context = ue5::Ue5Context::new(
+        output_name.unwrap_or("Kain"),
+        copyright
+    );
+    
+    // Load metadata if directory exists
+    if metadata_path.exists() && metadata_path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&metadata_path) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |e| e == "json") {
+                    if let Ok(data) = std::fs::read_to_string(&path) {
+                        let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+                        match filename {
+                            "widget_registry.json" => {
+                                let _ = context.widget_registry.load(&data);
+                            }
+                            "editor_attributes.json" => {
+                                let _ = context.editor_attributes.load(&data);
+                            }
+                            "shader_knowledge.json" => {
+                                let _ = context.shader_knowledge.load(&data);
+                            }
+                            "uht_rules.json" => {
+                                let _ = context.uht_rules.load(&data);
+                            }
+                            "module_graph.json" => {
+                                let _ = context.module_graph.load(&data);
+                            }
+                            "virtual_obligations.json" => {
+                                let _ = context.virtual_obligations.load(&data);
+                            }
+                            _ => {
+                                // Feed into EngineKnowledge
+                                let _ = context.knowledge.load_metadata(&data);
+                                let _ = context.resolver.load_from_metadata(&data);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Run Oracle validation
+    ue5::oracle::validate_program_full(&typed_ast, &context.knowledge, &context.uht_rules)?;
+    
+    // Generate with context
+    ue5::generate_with_context(&typed_ast, output_name, copyright, &context)
+}
+
+/// Find metadata directory by searching in order:
+/// 1. KAIN_ROOT env var
+/// 2. Walk up from CWD looking for unreal/metadata/
+/// 3. Fallback to unreal/metadata relative to CWD
+#[cfg(feature = "ue5")]
+fn find_metadata_dir() -> std::path::PathBuf {
+    let relative = std::path::Path::new("unreal").join("metadata");
+    
+    // 1. Check KAIN_ROOT env var
+    if let Ok(root) = std::env::var("KAIN_ROOT") {
+        let candidate = std::path::PathBuf::from(root).join(&relative);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+    
+    // 2. Walk up from CWD
+    if let Ok(mut dir) = std::env::current_dir() {
+        for _ in 0..10 {
+            let candidate = dir.join(&relative);
+            if candidate.exists() {
+                return candidate;
+            }
+            match dir.parent() {
+                Some(p) => dir = p.to_path_buf(),
+                None => break,
+            }
+        }
+    }
+    
+    // 3. Fallback to CWD-relative
+    std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join(&relative)
 }
 
 #[cfg(feature = "ue5")]

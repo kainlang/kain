@@ -3,6 +3,7 @@ members = [
     "crates/kain-core",
     "crates/ue5",
     "crates/ue5-shaders",
+    "crates/ue5-materials",
     "crates/gpu",
     "crates/web",
     "crates/sys",
