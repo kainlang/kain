@@ -28,6 +28,12 @@ pub struct UhtRulesData {
     pub incompatible_combos: Vec<UhtIncompatibleCombo>,
     #[serde(default)]
     pub kain_rules: HashMap<String, Vec<UhtValidationRule>>,
+    #[serde(default)]
+    pub replication_rules: Option<ReplicationRules>,
+    #[serde(default)]
+    pub attribute_compatibility_matrix: Option<AttributeCompatibilityMatrix>,
+    #[serde(default)]
+    pub kain_specific_rules: Option<KainSpecificRules>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -118,6 +124,82 @@ pub struct UhtIncompatibleCombo {
     pub constraint: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplicationRules {
+    #[serde(default)]
+    pub property_replication: PropertyReplication,
+    #[serde(default)]
+    pub rpc_validation: RpcValidation,
+    #[serde(default)]
+    pub lifetime_replication: LifetimeReplication,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PropertyReplication {
+    #[serde(default)]
+    pub allowed_types: Vec<String>,
+    #[serde(default)]
+    pub disallowed_types: Vec<String>,
+    #[serde(default)]
+    pub constraints: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RpcValidation {
+    #[serde(default)]
+    pub naming_conventions: HashMap<String, String>,
+    #[serde(default)]
+    pub required_specifiers: Vec<String>,
+    #[serde(default)]
+    pub constraints: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LifetimeReplication {
+    #[serde(default)]
+    pub required_includes: Vec<String>,
+    #[serde(default)]
+    pub required_macros: Vec<String>,
+    #[serde(default)]
+    pub function_signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttributeCompatibilityMatrix {
+    #[serde(default)]
+    pub property_attributes: HashMap<String, AttributeCompatibility>,
+    #[serde(default)]
+    pub function_attributes: HashMap<String, AttributeCompatibility>,
+    #[serde(default)]
+    pub class_attributes: HashMap<String, AttributeCompatibility>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AttributeCompatibility {
+    #[serde(default)]
+    pub compatible_with: Vec<String>,
+    #[serde(default)]
+    pub incompatible_with: Vec<String>,
+    #[serde(default)]
+    pub requires_one_of: Option<Vec<String>>,
+    #[serde(default)]
+    pub implies: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KainSpecificRules {
+    #[serde(default)]
+    pub actor_rules: Vec<String>,
+    #[serde(default)]
+    pub struct_rules: Vec<String>,
+    #[serde(default)]
+    pub enum_rules: Vec<String>,
+    #[serde(default)]
+    pub component_rules: Vec<String>,
+    #[serde(default)]
+    pub delegate_rules: Vec<String>,
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // UhtRules — Query API
 // ═══════════════════════════════════════════════════════════════════
@@ -146,6 +228,15 @@ pub struct UhtRules {
     
     /// KAIN-relevant rules grouped by KAIN construct
     kain_rules: HashMap<String, Vec<UhtValidationRule>>,
+    
+    /// Replication rules (property types, RPC validation, lifetime replication)
+    replication_rules: Option<ReplicationRules>,
+    
+    /// Attribute compatibility matrix (property, function, class attributes)
+    attribute_compatibility: Option<AttributeCompatibilityMatrix>,
+    
+    /// KAIN-specific rules (actor, struct, enum, component, delegate)
+    kain_specific_rules: Option<KainSpecificRules>,
     
     /// Total counts for diagnostics
     total_rules: usize,
@@ -195,6 +286,11 @@ impl UhtRules {
         
         // Store KAIN-relevant rules
         self.kain_rules = data.kain_rules;
+        
+        // Store new sections
+        self.replication_rules = data.replication_rules;
+        self.attribute_compatibility = data.attribute_compatibility_matrix;
+        self.kain_specific_rules = data.kain_specific_rules;
         
         self.total_rules = data.validation_rules.len();
         self.total_specifiers = data.specifiers.len();
@@ -299,6 +395,161 @@ impl UhtRules {
     /// Check if any data has been loaded
     pub fn is_loaded(&self) -> bool {
         self.total_rules > 0
+    }
+    
+    // ─── Replication Rules API ───────────────────────────────────────
+    
+    /// Check if a type is allowed for replication
+    pub fn is_replicable_type(&self, type_name: &str) -> bool {
+        if let Some(rules) = &self.replication_rules {
+            rules.property_replication.allowed_types.iter()
+                .any(|t| t.eq_ignore_ascii_case(type_name))
+        } else {
+            false
+        }
+    }
+    
+    /// Check if a type is explicitly disallowed for replication
+    pub fn is_non_replicable_type(&self, type_name: &str) -> bool {
+        if let Some(rules) = &self.replication_rules {
+            rules.property_replication.disallowed_types.iter()
+                .any(|t| t.eq_ignore_ascii_case(type_name))
+        } else {
+            false
+        }
+    }
+    
+    /// Get replication constraints for properties
+    pub fn replication_constraints(&self) -> &[String] {
+        if let Some(rules) = &self.replication_rules {
+            &rules.property_replication.constraints
+        } else {
+            &[]
+        }
+    }
+    
+    /// Get RPC naming convention for a given RPC type (Server, Client, Multicast)
+    pub fn rpc_naming_convention(&self, rpc_type: &str) -> Option<&str> {
+        self.replication_rules.as_ref()
+            .and_then(|r| r.rpc_validation.naming_conventions.get(rpc_type))
+            .map(|s| s.as_str())
+    }
+    
+    /// Get RPC validation constraints
+    pub fn rpc_constraints(&self) -> &[String] {
+        if let Some(rules) = &self.replication_rules {
+            &rules.rpc_validation.constraints
+        } else {
+            &[]
+        }
+    }
+    
+    /// Get GetLifetimeReplicatedProps function signature
+    pub fn lifetime_replication_signature(&self) -> Option<&str> {
+        self.replication_rules.as_ref()
+            .map(|r| r.lifetime_replication.function_signature.as_str())
+    }
+    
+    /// Get required includes for replication
+    pub fn replication_includes(&self) -> &[String] {
+        if let Some(rules) = &self.replication_rules {
+            &rules.lifetime_replication.required_includes
+        } else {
+            &[]
+        }
+    }
+    
+    // ─── Attribute Compatibility API ─────────────────────────────────
+    
+    /// Check if two property attributes are compatible
+    pub fn are_property_attributes_compatible(&self, attr1: &str, attr2: &str) -> bool {
+        if let Some(matrix) = &self.attribute_compatibility {
+            if let Some(compat) = matrix.property_attributes.get(attr1) {
+                !compat.incompatible_with.iter().any(|a| a.eq_ignore_ascii_case(attr2))
+            } else {
+                true // Unknown attributes are assumed compatible
+            }
+        } else {
+            true
+        }
+    }
+    
+    /// Check if two function attributes are compatible
+    pub fn are_function_attributes_compatible(&self, attr1: &str, attr2: &str) -> bool {
+        if let Some(matrix) = &self.attribute_compatibility {
+            if let Some(compat) = matrix.function_attributes.get(attr1) {
+                !compat.incompatible_with.iter().any(|a| a.eq_ignore_ascii_case(attr2))
+            } else {
+                true
+            }
+        } else {
+            true
+        }
+    }
+    
+    /// Get required attributes for a given attribute (e.g., Server RPC requires Reliable or Unreliable)
+    pub fn required_attributes_for(&self, attr: &str, attr_type: &str) -> Option<&[String]> {
+        let matrix = self.attribute_compatibility.as_ref()?;
+        
+        let compat = match attr_type {
+            "property" => matrix.property_attributes.get(attr)?,
+            "function" => matrix.function_attributes.get(attr)?,
+            "class" => matrix.class_attributes.get(attr)?,
+            _ => return None,
+        };
+        
+        compat.requires_one_of.as_ref().map(|v| v.as_slice())
+    }
+    
+    /// Get attributes implied by a given attribute (e.g., Abstract implies NotPlaceable)
+    pub fn implied_attributes(&self, attr: &str, attr_type: &str) -> Option<&[String]> {
+        let matrix = self.attribute_compatibility.as_ref()?;
+        
+        let compat = match attr_type {
+            "property" => matrix.property_attributes.get(attr)?,
+            "function" => matrix.function_attributes.get(attr)?,
+            "class" => matrix.class_attributes.get(attr)?,
+            _ => return None,
+        };
+        
+        compat.implies.as_ref().map(|v| v.as_slice())
+    }
+    
+    // ─── KAIN-Specific Rules API ─────────────────────────────────────
+    
+    /// Get KAIN-specific rules for actors
+    pub fn kain_actor_rules(&self) -> &[String] {
+        self.kain_specific_rules.as_ref()
+            .map(|r| r.actor_rules.as_slice())
+            .unwrap_or(&[])
+    }
+    
+    /// Get KAIN-specific rules for structs
+    pub fn kain_struct_rules(&self) -> &[String] {
+        self.kain_specific_rules.as_ref()
+            .map(|r| r.struct_rules.as_slice())
+            .unwrap_or(&[])
+    }
+    
+    /// Get KAIN-specific rules for enums
+    pub fn kain_enum_rules(&self) -> &[String] {
+        self.kain_specific_rules.as_ref()
+            .map(|r| r.enum_rules.as_slice())
+            .unwrap_or(&[])
+    }
+    
+    /// Get KAIN-specific rules for components
+    pub fn kain_component_rules(&self) -> &[String] {
+        self.kain_specific_rules.as_ref()
+            .map(|r| r.component_rules.as_slice())
+            .unwrap_or(&[])
+    }
+    
+    /// Get KAIN-specific rules for delegates
+    pub fn kain_delegate_rules(&self) -> &[String] {
+        self.kain_specific_rules.as_ref()
+            .map(|r| r.delegate_rules.as_slice())
+            .unwrap_or(&[])
     }
 }
 

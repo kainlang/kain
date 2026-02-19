@@ -521,3 +521,166 @@ fn calculate_value(base: Int, rarity: ItemRarity) -> Int: ...
 ```
 
 This structure ensures clean, organized, production-ready plugins.
+
+---
+
+## Editor UI Patterns (NEW)
+
+### Slate Widget Pattern
+```kn
+@slate
+struct HealthBar:
+    @property
+    current_health: Float
+    
+    @property
+    max_health: Float
+    
+    fn construct() -> Widget:
+        return VBox(
+            Text("Health: {current_health}/{max_health}"),
+            ProgressBar(
+                percent: current_health / max_health,
+                fill_color: color("red")
+            )
+        )
+```
+**Generates:** `SHealthBar : public SCompoundWidget` with SLATE_BEGIN_ARGS  
+**Use:** Custom editor UI, tool windows, HUD elements
+
+### Details Panel Pattern
+```kn
+@details
+struct WeaponDetails:
+    @slider(min: 0.0, max: 100.0)
+    damage: Float
+    
+    @color_picker
+    glow_color: Vec3
+    
+    @button(label: "Test Fire")
+    fn on_test_fire():
+        println("Weapon fired!")
+```
+**Generates:** `FWeaponDetailsCustomization : public IDetailCustomization`  
+**Use:** Custom property panels, inspector customization
+
+### Viewport Pattern
+```kn
+@viewport
+struct WeaponPreview:
+    @scene_actor
+    weapon_mesh: StaticMeshComponent
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    fn on_viewport_tick(delta: Float):
+        // Rotate weapon for preview
+        weapon_mesh.AddLocalRotation(vec3(0, delta * 45, 0))
+```
+**Generates:** `SWeaponPreviewViewport : public SEditorViewport` + `FWeaponPreviewViewportClient`  
+**Use:** 3D preview windows, asset editors, custom viewports
+
+### Toolbar Pattern
+```kn
+@toolbar
+struct WeaponTools:
+    @button(icon: "Icons.Weapon", tooltip: "Create Weapon")
+    fn on_create_weapon():
+        println("Creating weapon...")
+    
+    @toggle(label: "Show Grid")
+    fn on_toggle_grid(enabled: Bool):
+        println("Grid: {enabled}")
+    
+    @separator
+    
+    @dropdown(label: "Quality")
+    fn on_quality_changed(value: String):
+        println("Quality: {value}")
+```
+**Generates:** `FToolBarBuilder` extension with commands  
+**Use:** Editor toolbars, context menus, quick actions
+
+### Asset Editor Pattern
+```kn
+@asset_editor
+struct WeaponEditor:
+    @viewport
+    preview: WeaponPreview
+    
+    @details
+    properties: WeaponDetails
+    
+    @toolbar
+    tools: WeaponTools
+    
+    fn on_asset_opened(asset: WeaponAsset):
+        preview.weapon_mesh.SetStaticMesh(asset.mesh)
+        properties.damage = asset.damage
+```
+**Generates:** `FWeaponEditorToolkit : public FAssetEditorToolkit`  
+**Use:** Full asset editors with viewport + details + toolbar
+
+### Editor Module Pattern
+```kn
+@editor_module
+struct WeaponEditorModule:
+    @menu_entry(path: "Tools/Weapons", label: "Open Weapon Editor")
+    fn on_open_editor():
+        // Open weapon editor window
+        println("Opening weapon editor...")
+    
+    @toolbar_button(section: "Content", icon: "Icons.Weapon")
+    fn on_quick_create():
+        // Quick create weapon
+        println("Quick creating weapon...")
+```
+**Generates:** `FWeaponEditorModule : public IModuleInterface` with IMPLEMENT_MODULE  
+**Use:** Editor extensions, menu entries, toolbar buttons
+
+## Editor UI Quick Reference
+
+```kn
+// Slate widget
+@slate
+struct MyWidget:
+    fn construct() -> Widget: ...
+
+// Details panel
+@details
+struct MyDetails:
+    @slider(min: 0, max: 100)
+    value: Float
+
+// Viewport
+@viewport
+struct MyViewport:
+    @scene_actor
+    mesh: StaticMeshComponent
+    @camera
+    cam: CameraComponent
+
+// Toolbar
+@toolbar
+struct MyToolbar:
+    @button(icon: "...")
+    fn action(): ...
+
+// Asset editor (combines all)
+@asset_editor
+struct MyEditor:
+    @viewport
+    view: MyViewport
+    @details
+    props: MyDetails
+    @toolbar
+    tools: MyToolbar
+
+// Editor module
+@editor_module
+struct MyModule:
+    @menu_entry(path: "...")
+    fn menu_action(): ...
+```

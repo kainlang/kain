@@ -1,0 +1,137 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "id": "no_nested_containers",
+      "category": "TypeCompatibility",
+      "severity": "Error",
+      "condition": {
+        "type": "NestedContainer",
+        "outer": ["TArray", "TMap", "TSet"],
+        "inner": ["TArray", "TMap", "TSet"]
+      },
+      "message": "Nested containers are not supported by UHT",
+      "suggestion": "Use a wrapper struct instead. For example: struct ItemList { items: Array<Item> }"
+    },
+    {
+      "id": "rpc_naming_convention",
+      "category": "Replication",
+      "severity": "Error",
+      "condition": {
+        "type": "InvalidRpcNaming",
+        "pattern": "^(Server_|Client_|Multicast_)"
+      },
+      "message": "RPC functions must start with Server_, Client_, or Multicast_",
+      "suggestion": "Rename function to follow RPC naming convention. Example: Server_ProcessAction, Client_UpdateUI, Multicast_BroadcastEvent"
+    },
+    {
+      "id": "replicated_blueprint_incompatible",
+      "category": "AttributeCombination",
+      "severity": "Error",
+      "condition": {
+        "type": "IncompatibleAttributes",
+        "attributes": [
+          ["replicated", "blueprint_implementable_event"]
+        ]
+      },
+      "message": "Properties cannot be both @replicated and @blueprint_implementable_event",
+      "suggestion": "Remove one of the attributes. Replicated properties should use @replicated only."
+    },
+    {
+      "id": "no_pointers_in_datatables",
+      "category": "TypeCompatibility",
+      "severity": "Error",
+      "condition": {
+        "type": "ForbiddenType",
+        "forbidden_types": ["Actor", "Component", "Object"],
+        "context": "datatable"
+      },
+      "message": "DataTable structs cannot contain pointer types (actors, components, objects)",
+      "suggestion": "Use primitive types, structs, or asset references (TSoftObjectPtr) instead"
+    },
+    {
+      "id": "no_delegates_in_rpcs",
+      "category": "Replication",
+      "severity": "Error",
+      "condition": {
+        "type": "ForbiddenType",
+        "forbidden_types": ["delegate"],
+        "context": "rpc_parameter"
+      },
+      "message": "RPC parameters cannot be delegate types",
+      "suggestion": "Use primitive types or structs for RPC parameters"
+    },
+    {
+      "id": "cpp_keyword_collision",
+      "category": "Naming",
+      "severity": "Error",
+      "condition": {
+        "type": "TypeCollision",
+        "type_names": [
+          "class", "struct", "enum", "union", "namespace",
+          "public", "private", "protected", "virtual", "override",
+          "const", "static", "extern", "inline", "volatile",
+          "template", "typename", "typedef", "using",
+          "if", "else", "switch", "case", "default",
+          "for", "while", "do", "break", "continue", "return",
+          "try", "catch", "throw", "new", "delete",
+          "true", "false", "nullptr", "this", "operator"
+        ]
+      },
+      "message": "Type name collides with C++ keyword",
+      "suggestion": "Choose a different name that doesn't conflict with C++ keywords"
+    },
+    {
+      "id": "ue5_macro_collision",
+      "category": "Naming",
+      "severity": "Error",
+      "condition": {
+        "type": "TypeCollision",
+        "type_names": [
+          "UPROPERTY", "UFUNCTION", "UCLASS", "USTRUCT", "UENUM",
+          "GENERATED_BODY", "GENERATED_UCLASS_BODY", "GENERATED_USTRUCT_BODY",
+          "UPARAM", "UMETA", "UINTERFACE",
+          "DOREPLIFETIME", "DOREPLIFETIME_CONDITION"
+        ]
+      },
+      "message": "Type name collides with UE5 macro name",
+      "suggestion": "Choose a different name that doesn't conflict with UE5 macros"
+    },
+    {
+      "id": "invalid_identifier_start",
+      "category": "Naming",
+      "severity": "Error",
+      "condition": {
+        "type": "InvalidNaming",
+        "pattern": "^[0-9]",
+        "applies_to": ["actor", "struct", "enum", "component", "function", "property"]
+      },
+      "message": "Identifiers cannot start with a number",
+      "suggestion": "Start the name with a letter or underscore"
+    },
+    {
+      "id": "invalid_special_characters",
+      "category": "Naming",
+      "severity": "Error",
+      "condition": {
+        "type": "InvalidNaming",
+        "pattern": "[^a-zA-Z0-9_]",
+        "applies_to": ["actor", "struct", "enum", "component", "function", "property"]
+      },
+      "message": "Identifiers can only contain letters, numbers, and underscores",
+      "suggestion": "Remove special characters from the name"
+    },
+    {
+      "id": "slider_requires_min_max",
+      "category": "Editor",
+      "severity": "Error",
+      "condition": {
+        "type": "MissingAttribute",
+        "required_attribute": "min_max_values",
+        "when_attribute": "slider"
+      },
+      "message": "Details panel @slider requires min and max values",
+      "suggestion": "Add min and max parameters: @slider(min: 0.0, max: 100.0)"
+    }
+  ]
+}

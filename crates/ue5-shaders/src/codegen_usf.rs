@@ -12,6 +12,7 @@ use kain_core::error::{KainResult, KainError};
 use kain_core::ast::{Type, ShaderStage, Expr, Stmt, Block, BinaryOp, Pattern};
 use std::collections::HashMap;
 use crate::shader_knowledge::ShaderKnowledge;
+use crate::validation::ShaderValidator;
 
 /// Pre-computed component mirror structs.
 /// Compute once from a [`TypedProgram`] and reuse across the `_cached` generation
@@ -1900,6 +1901,45 @@ fn capitalize_first(s: &str) -> String {
     }
 }
 
+/// Format validation errors with file:line:col context and suggestions
+/// Converts a list of validation error messages into a formatted error string
+/// with helpful suggestions for common errors
+fn format_validation_errors(shader_name: &str, errors: &[String]) -> String {
+    let mut formatted = format!("❌ Shader validation failed for '{}'\n\n", shader_name);
+    
+    for (i, error) in errors.iter().enumerate() {
+        formatted.push_str(&format!("{}. {}\n", i + 1, error));
+        
+        // Add suggestions for common errors
+        if error.contains("binding @0") && error.contains("reserved for UE5 View") {
+            formatted.push_str("   💡 Suggestion: Use @1 or higher for your shader parameters. UE5 reserves b0 for the View uniform buffer.\n");
+        } else if error.contains("conflicts with HLSL reserved keyword") {
+            formatted.push_str("   💡 Suggestion: Rename the identifier to avoid HLSL keyword conflicts (e.g., add '_param' suffix).\n");
+        } else if error.contains("conflicts with C++ keyword") {
+            formatted.push_str("   💡 Suggestion: Rename to avoid C++ keyword conflicts in generated code (e.g., add '_shader' suffix).\n");
+        } else if error.contains("exceeds maximum") {
+            formatted.push_str("   💡 Suggestion: Use a lower binding number within the valid range for this resource type.\n");
+        } else if error.contains("not 16-byte aligned") {
+            formatted.push_str("   💡 Suggestion: Add padding fields to align the struct to 16 bytes (required for constant buffers).\n");
+        } else if error.contains("permutation") && error.contains("naming convention") {
+            formatted.push_str("   💡 Suggestion: Use CFG_* or ENABLE_* prefix for permutation uniforms (e.g., CFG_HIGH_QUALITY).\n");
+        } else if error.contains("String type") {
+            formatted.push_str("   💡 Suggestion: Strings are not supported in shaders. Use numeric types or texture indices instead.\n");
+        } else if error.contains("array type") {
+            formatted.push_str("   💡 Suggestion: Use StructuredBuffer or explicit array size for shader arrays.\n");
+        } else if error.contains("multiple resource types") {
+            formatted.push_str("   💡 Suggestion: Use different binding numbers for different resource types to avoid confusion.\n");
+        }
+        
+        formatted.push('\n');
+    }
+    
+    formatted.push_str("Shader validation catches errors before UE5 compilation, saving time.\n");
+    formatted.push_str("Fix these issues and rebuild.\n");
+    
+    formatted
+}
+
 /// Generate a single USF string from a program (public API).
 /// This generates ONLY the shader specified by shader_name, not all shaders.
 pub fn generate_single_usf_from_program(program: &TypedProgram, shader_name: &str) -> KainResult<String> {
@@ -1907,6 +1947,9 @@ pub fn generate_single_usf_from_program(program: &TypedProgram, shader_name: &st
 }
 
 fn generate_single_usf_cached(program: &TypedProgram, shader_name: &str, mirrors: &CachedMirrors) -> KainResult<String> {
+    // Validate shader before generating USF
+    let mut validator = ShaderValidator::new();
+    
     // Filter to only the shader we want
     let mut filtered_program = TypedProgram {
         items: Vec::new(),
@@ -1924,6 +1967,7 @@ fn generate_single_usf_cached(program: &TypedProgram, shader_name: &str, mirrors
     }
 
     // Then find and append only the matching shader.
+    let mut shader_to_validate: Option<&TypedShader> = None;
     for item in &program.items {
         if let TypedItem::Shader(shader) = item {
             // Normalize both names for comparison (case-insensitive, ignore underscores)
@@ -1932,6 +1976,7 @@ fn generate_single_usf_cached(program: &TypedProgram, shader_name: &str, mirrors
             
             if normalized_ast_name == normalized_shader_name {
                 filtered_program.items.push(item.clone());
+                shader_to_validate = Some(shader);
                 break; // Found it, stop looking
             }
         }
@@ -1944,12 +1989,21 @@ fn generate_single_usf_cached(program: &TypedProgram, shader_name: &str, mirrors
         ));
     }
     
+    // Validate the shader before generating code
+    if let Some(shader) = shader_to_validate {
+        if let Err(validation_errors) = validator.validate_shader(shader, Some(program)) {
+            let error_message = format_validation_errors(shader_name, &validation_errors);
+            return Err(KainError::codegen(&error_message, shader.ast.span));
+        }
+    }
+    
     let type_db = build_struct_map(program);
     generate_cached(&filtered_program, mirrors)
 }
 
 /// All three shader artifacts (header, implementation, USF) generated in a single
 /// pass — mirrors are computed once from the program and reused across all three.
+#[derive(Debug)]
 pub struct ShaderArtifacts {
     pub header: String,
     pub cpp: String,
@@ -1965,6 +2019,36 @@ pub fn compile_shader_artifacts(
     shader_name: &str,
     plugin_name: &str,
 ) -> KainResult<ShaderArtifacts> {
+    // Validate shader before generating code
+    let mut validator = ShaderValidator::new();
+    
+    // Find the shader to validate
+    let shader_to_validate = program.items.iter()
+        .find_map(|item| {
+            if let TypedItem::Shader(shader) = item {
+                let normalized_ast_name = shader.ast.name.replace("_", "").to_lowercase();
+                let normalized_shader_name = shader_name.replace("_", "").to_lowercase();
+                if normalized_ast_name == normalized_shader_name {
+                    return Some(shader);
+                }
+            }
+            None
+        });
+    
+    if let Some(shader) = shader_to_validate {
+        // Run validation with program context for POD struct validation
+        if let Err(validation_errors) = validator.validate_shader(shader, Some(program)) {
+            // Convert validation errors to KainError with proper context
+            let error_message = format_validation_errors(shader_name, &validation_errors);
+            return Err(KainError::codegen(&error_message, shader.ast.span));
+        }
+    } else {
+        return Err(KainError::codegen(
+            &format!("Shader '{}' not found in program", shader_name),
+            kain_core::span::Span::default()
+        ));
+    }
+    
     let mirrors = CachedMirrors::from_program(program);
     Ok(ShaderArtifacts {
         header: generate_cpp_header_cached(program, shader_name, plugin_name, &mirrors),
@@ -2275,6 +2359,144 @@ mod tests {
             "Regular uniform 'color' must be in SHADER_PARAMETER_STRUCT");
         assert!(header.contains("SHADER_PARAMETER(float, time)"),
             "Regular uniform 'time' must be in SHADER_PARAMETER_STRUCT");
+    }
+
+    // ========================================================================
+    // VALIDATION INTEGRATION TESTS
+    // Verify that ShaderValidator is called during codegen
+    // ========================================================================
+    
+    #[test]
+    fn test_validation_rejects_reserved_binding_b0() {
+        // Shader using b0 (reserved for View) should fail validation
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("my_param", "Float", 0), // b0 is reserved!
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_err(), "Should reject b0 binding");
+        
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("reserved for UE5 View"), 
+            "Error should mention b0 is reserved, got: {}", err_msg);
+        assert!(err_msg.contains("💡 Suggestion"), 
+            "Error should include suggestion, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_validation_rejects_hlsl_keyword() {
+        // Shader using HLSL keyword as uniform name should fail
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("static", "Float", 1), // HLSL keyword!
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_err(), "Should reject HLSL keyword");
+        
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("conflicts with HLSL reserved keyword"), 
+            "Error should mention HLSL keyword conflict, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_validation_rejects_cpp_keyword() {
+        // Shader using C++ keyword as uniform name should fail
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("class", "Float", 1), // C++ keyword!
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_err(), "Should reject C++ keyword");
+        
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("conflicts with C++ keyword"), 
+            "Error should mention C++ keyword conflict, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_validation_rejects_binding_conflict() {
+        // Two textures using same binding should fail
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("albedo", "Texture2D", 0),
+            make_uniform("normal", "Texture2D", 0), // Same binding!
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_err(), "Should reject binding conflict");
+        
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("already used"), 
+            "Error should mention binding conflict, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_validation_rejects_binding_out_of_range() {
+        // Texture binding > 127 should fail
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("albedo", "Texture2D", 200), // Exceeds t127!
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_err(), "Should reject out-of-range binding");
+        
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("exceeds maximum"), 
+            "Error should mention binding range, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_validation_passes_valid_shader() {
+        // Valid shader should pass validation and generate code
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("color", "Vec3", 1),
+            make_uniform("time", "Float", 2),
+            make_uniform("albedo", "Texture2D", 0),
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_ok(), "Valid shader should pass validation");
+        
+        let artifacts = result.unwrap();
+        assert!(!artifacts.header.is_empty(), "Should generate header");
+        assert!(!artifacts.cpp.is_empty(), "Should generate cpp");
+        assert!(!artifacts.usf.is_empty(), "Should generate usf");
+    }
+
+    #[test]
+    fn test_validation_error_formatting() {
+        // Test that error messages are well-formatted with suggestions
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("my_param", "Float", 0), // b0 reserved
+            make_uniform("static", "Float", 1),   // HLSL keyword
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = compile_shader_artifacts(&program, "TestShader", "TestPlugin");
+        assert!(result.is_err());
+        
+        let err_msg = result.unwrap_err().to_string();
+        // Should have formatted error with multiple issues
+        assert!(err_msg.contains("❌ Shader validation failed"), 
+            "Should have formatted header");
+        assert!(err_msg.contains("1."), "Should number errors");
+        assert!(err_msg.contains("2."), "Should have multiple errors");
+        assert!(err_msg.contains("💡 Suggestion"), "Should include suggestions");
+        assert!(err_msg.contains("Fix these issues and rebuild"), 
+            "Should include helpful footer");
+    }
+
+    #[test]
+    fn test_validation_single_usf_generation() {
+        // Test that generate_single_usf_from_program also validates
+        let program = make_fragment_shader("TestShader", vec![
+            make_uniform("my_param", "Float", 0), // b0 reserved!
+        ], vec![make_param("uv", "Vec2")]);
+
+        let result = generate_single_usf_from_program(&program, "TestShader");
+        assert!(result.is_err(), "Should reject invalid shader in single USF generation");
+        
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("reserved for UE5 View"), 
+            "Error should mention b0 is reserved");
     }
 }
 

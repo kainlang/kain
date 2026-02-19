@@ -64,8 +64,11 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         // Individual type headers (EHealthStatus.h, ADiagnosticPreviewActor.h, etc.) already have their
         // own .generated.h includes where needed (alongside UCLASS/USTRUCT/UENUM macros).
         
+        // Detect if program has shaders (needed for module registration)
+        let has_shaders = !shader_names.is_empty();
+        
         // Generate module registration
-        super::codegen::generate_module_registration(&layout, ue5_config, &typed_program)?;
+        super::codegen::generate_module_registration(&layout, ue5_config, &typed_program, has_shaders)?;
         
     } else {
         // MONOLITHIC MODE: Generate single .h/.cpp with all types merged

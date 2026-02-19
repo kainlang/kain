@@ -26,34 +26,34 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - Test with UE5 5.4, 5.5, 5.6, 5.7 installations
     - _Requirements: 13.11, 13.12_
   
-  - [ ] 0.4 Expand engine_knowledge.json
+  - [x] 0.4 Expand engine_knowledge.json
     - Add missing UObject-derived types
     - Add missing constructor signatures
     - Add missing include paths
     - Validate against UE5 5.4-5.7 headers
     - _Requirements: 13.13, 13.18_
   
-  - [ ] 0.5 Expand module_graph.json
+  - [x] 0.5 Expand module_graph.json
     - Add missing include-to-module mappings
     - Add module dependency chains
     - Validate against UE5 .Build.cs files
     - _Requirements: 13.14, 13.18_
   
-  - [ ] 0.6 Expand uht_rules.json
+  - [x] 0.6 Expand uht_rules.json
     - Add missing UHT validation rules
     - Add attribute compatibility rules
     - Add replication rules
     - Validate against UHT source code
     - _Requirements: 13.15, 13.18_
   
-  - [ ] 0.7 Expand shader_knowledge.json
+  - [x] 0.7 Expand shader_knowledge.json
     - Add missing HLSL types
     - Add HLSL keyword list
     - Add binding slot rules
     - Validate against HLSL documentation
     - _Requirements: 13.16, 13.18_
   
-  - [ ] 0.8 Expand widget_registry.json
+  - [x] 0.8 Expand widget_registry.json
     - Add missing Slate widget types
     - Add property type mappings
     - Add widget composition rules
@@ -94,7 +94,7 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - Document refresh workflow
     - _Requirements: 13.11, 13.12_
 
-- [ ] 0.14 Checkpoint - Verify metadata system
+- [x] 0.14 Checkpoint - Verify metadata system
   - Run metadata validation on all files
   - Test metadata queries in Ue5Context
   - Verify extraction scripts work with multi-drive installations
@@ -183,7 +183,7 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - **Property 6: Recursive Type Mapping**
     - **Validates: Requirements 2.7, 2.8**
 
-- [x] 3. Checkpoint - Verify type mapping refactor
+- [ ] 3. Checkpoint - Verify type mapping refactor
   - Ensure all existing tests pass
   - Run snapshot tests to verify output equivalence
   - Ask user if questions arise
@@ -196,34 +196,34 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - Validate replicated types are serializable
     - _Requirements: 3.1, 3.2_
   
-  - [ ] 4.2 Implement RPC validation
+  - [x] 4.2 Implement RPC validation
     - Add validate_rpcs() method to Oracle
     - Verify Server_*, Client_*, Multicast_* naming
     - Check no delegate parameters in RPCs
     - Validate RPC parameter types are serializable
     - _Requirements: 3.2_
   
-  - [ ] 4.3 Implement datatable validation
+  - [x] 4.3 Implement datatable validation
     - Add validate_datatables() method to Oracle
     - Verify all fields are UE5-serializable
     - Check no pointers in datatable structs
     - Validate inheritance from FTableRowBase
     - _Requirements: 3.3_
   
-  - [ ] 4.4 Implement component validation
+  - [x] 4.4 Implement component validation
     - Add validate_components() method to Oracle
     - Verify no actor-only features
     - Check proper component lifecycle
     - _Requirements: 3.4_
   
-  - [ ] 4.5 Implement name collision detection
+  - [x] 4.5 Implement name collision detection
     - Add validate_name_collisions() method to Oracle
     - Check against EngineKnowledge for engine types
     - Check for C++ keywords
     - Check for UE5 macro names
     - _Requirements: 3.10, 3.11_
   
-  - [ ] 4.6 Implement circular dependency detection
+  - [x] 4.6 Implement circular dependency detection
     - Add validate_circular_dependencies() method to Oracle
     - Build dependency graph from type references
     - Detect cycles using depth-first search
@@ -250,53 +250,53 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - **Validates: Requirements 3.10, 3.11**
 
 - [ ] 5. Phase 4: Shader Pipeline Validation
-  - [ ] 5.1 Create ShaderValidator struct in ue5-shaders/src/validation.rs
+  - [x] 5.1 Create ShaderValidator struct in ue5-shaders/src/validation.rs
     - Define ShaderValidator with hlsl_keywords, reserved_bindings fields
     - Implement new() with HLSL keyword list
     - Add validate_shader() orchestrator method
     - _Requirements: 4.1, 4.5_
   
-  - [ ] 5.2 Implement uniform validation
+  - [x] 5.2 Implement uniform validation
     - Add validate_uniforms() method
     - Check unique binding slots within shader
     - Verify types are HLSL-compatible
     - Validate permutation naming (CFG_*, ENABLE_*)
     - _Requirements: 3.5, 3.6, 4.1, 4.2_
   
-  - [ ] 5.3 Implement POD struct validation
+  - [x] 5.3 Implement POD struct validation
     - Add validate_pod_structs() method
     - Check for redefinitions
     - Verify field types are HLSL-compatible
     - Validate alignment requirements
     - _Requirements: 4.3, 4.4_
   
-  - [ ] 5.4 Implement HLSL syntax validation
+  - [x] 5.4 Implement HLSL syntax validation
     - Add validate_hlsl_syntax() method
     - Check for C++ keywords used as HLSL identifiers
     - Validate function signatures
     - Check return types
     - _Requirements: 4.5_
   
-  - [ ] 5.5 Implement binding conflict detection
+  - [x] 5.5 Implement binding conflict detection
     - Add validate_bindings() method
     - Check texture sampler slots don't conflict with uniforms
     - Verify all slots are within UE5 limits
     - _Requirements: 4.6_
   
-  - [ ] 5.6 Integrate ShaderValidator into shader codegen
+  - [x] 5.6 Integrate ShaderValidator into shader codegen
     - Call validate_shader() before generating .usf files
     - Return validation errors with file:line:col context
     - Add suggestions for common errors
     - _Requirements: 4.1, 4.5_
   
-  - [ ] 5.7 Implement shader virtual path resolution
+  - [x] 5.7 Implement shader virtual path resolution
     - Add FShaderSourceFilePathMapping registration to module init
     - Use /Plugin/PluginName as virtual path prefix
     - Map to physical Shaders/ directory
     - Ensure registration happens before shader usage
     - _Requirements: 11.4, 11.5, 11.6, 11.9_
   
-  - [ ] 5.8 Update .uplugin generation for shaders
+  - [x] 5.8 Update .uplugin generation for shaders
     - Add CanContainContent: true when shaders are present
     - Ensure Shaders/ directory is created
     - Write .usf files to correct location
@@ -321,38 +321,38 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - **Property 41: Virtual Path Consistency**
     - **Validates: Requirements 11.5, 11.6, 11.7**
 
-- [ ] 6. Checkpoint - Verify shader validation
+- [x] 6. Checkpoint - Verify shader validation
   - Build ultimate.kn test plugin
   - Verify shader compilation succeeds
   - Check for "could not find virtual shader path" errors
   - Ask user if questions arise
 
-- [ ] 7. Phase 5: Editor Codegen Completion
-  - [ ] 7.1 Complete asset editor generation (remove TODOs)
+- [x] 7. Phase 5: Editor Codegen Completion
+  - [x] 7.1 Complete asset editor generation (remove TODOs)
     - Implement complete FAssetEditorToolkit generation
     - Add asset type registration
     - Generate toolbar, menu, and docking layout
     - _Requirements: 5.1_
   
-  - [ ] 7.2 Complete viewport generation (remove TODOs)
+  - [x] 7.2 Complete viewport generation (remove TODOs)
     - Implement @scene_actor actor spawning and management
     - Implement @camera setup and control code
     - Add viewport client initialization
     - _Requirements: 5.2, 5.3_
   
-  - [ ] 7.3 Complete toolbar generation (remove TODOs)
+  - [x] 7.3 Complete toolbar generation (remove TODOs)
     - Implement all button handlers
     - Add toggle state management
     - Generate shortcut registration
     - _Requirements: 5.4_
   
-  - [ ] 7.4 Complete Details panel generation (remove TODOs)
+  - [x] 7.4 Complete Details panel generation (remove TODOs)
     - Implement @color_picker with FLinearColor handling
     - Implement @button with click handler delegation
     - Add property change notifications
     - _Requirements: 5.5, 5.6_
   
-  - [ ] 7.5 Implement editor feature integration
+  - [x] 7.5 Implement editor feature integration
     - Generate correct initialization order
     - Wire dependencies between features
     - Add proper cleanup in shutdown
@@ -372,20 +372,20 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - **Property 28: Slate Composition Correctness**
     - **Validates: Requirements 5.7**
 
-- [ ] 8. Phase 6: Module Dependency Resolution
-  - [ ] 8.1 Create DependencyResolver struct in cli/src/packager/dependencies.rs
+- [x] 8. Phase 6: Module Dependency Resolution
+  - [x] 8.1 Create DependencyResolver struct in cli/src/packager/dependencies.rs
     - Define DependencyResolver with knowledge, module_map fields
     - Load module mappings from engine_modules.json or use defaults
     - Implement analyze() method
     - _Requirements: 6.1, 6.8_
   
-  - [ ] 8.2 Implement include-based dependency detection
+  - [x] 8.2 Implement include-based dependency detection
     - Parse #include statements from generated files
     - Map includes to UE5 modules using module_map
     - Detect circular dependencies
     - _Requirements: 6.1, 6.10_
   
-  - [ ] 8.3 Implement automatic module addition
+  - [x] 8.3 Implement automatic module addition
     - Add RenderCore, RHI for shaders
     - Add Slate, SlateCore for Slate widgets
     - Add PropertyEditor for Details panels
@@ -393,13 +393,13 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - Add Engine, NetCore for networking
     - _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6_
   
-  - [ ] 8.4 Implement .Build.cs generation
+  - [x] 8.4 Implement .Build.cs generation
     - Generate PublicDependencyModuleNames from detected modules
     - Add PrivateDependencyModuleNames for internal modules
     - Include all manually specified modules
     - _Requirements: 6.7_
   
-  - [ ] 8.5 Implement dependency validation
+  - [x] 8.5 Implement dependency validation
     - Check for circular module dependencies
     - Verify all modules exist in UE5
     - Warn about missing optional modules
@@ -419,40 +419,40 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - **Property 31: Build.cs Completeness**
     - **Validates: Requirements 6.7**
 
-- [ ] 9. Phase 7: Naming & Post-Processing
-  - [ ] 9.1 Harden naming edge cases
+- [x] 9. Phase 7: Naming & Post-Processing
+  - [x] 9.1 Harden naming edge cases
     - Handle names starting with numbers (return error)
     - Handle special characters (return error)
     - Handle consecutive capitals (HTTPServer → http_server)
     - Preserve numbers in correct position
     - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.8_
   
-  - [ ] 9.2 Implement ReplicationFix for post-processor
+  - [x] 9.2 Implement ReplicationFix for post-processor
     - Detect replicated properties in generated code
     - Add GetLifetimeReplicatedProps implementation
     - Include proper DOREPLIFETIME macros
     - _Requirements: 8.1_
   
-  - [ ] 9.3 Implement ShaderInitFix for post-processor
+  - [x] 9.3 Implement ShaderInitFix for post-processor
     - Detect shader usage in actors
     - Add shader initialization in BeginPlay
     - Include proper shader parameter setup
     - _Requirements: 8.2_
   
-  - [ ] 9.4 Implement ForwardDeclFix for post-processor
+  - [x] 9.4 Implement ForwardDeclFix for post-processor
     - Detect missing forward declarations
     - Add them in correct order (classes before structs)
     - Handle circular dependencies
     - _Requirements: 8.3_
   
-  - [ ] 9.5 Implement formatting fixes for post-processor
+  - [x] 9.5 Implement formatting fixes for post-processor
     - Normalize blank lines to single
     - Normalize indentation to tabs
     - Normalize line endings to LF
     - Remove trailing whitespace
     - _Requirements: 8.4, 8.5, 8.8, 8.9_
   
-  - [ ] 9.6 Implement IncludeOrderFix for post-processor
+  - [x] 9.6 Implement IncludeOrderFix for post-processor
     - Reorder includes to UE5 conventions
     - CoreMinimal first, then engine, then project
     - Add include guards if missing
@@ -557,34 +557,34 @@ This implementation plan systematically hardens the KAIN UE5 codegen pipeline th
     - Add tests for gaps
     - _Requirements: 9.1_
 
-- [ ] 12. Phase 9: Data-Driven Validation Rules
-  - [ ] 12.1 Create validation_rules.json schema
+- [x] 12. Phase 9: Data-Driven Validation Rules
+  - [x] 12.1 Create validation_rules.json schema
     - Define JSON schema for validation rules
     - Include rule categories, severities, conditions
     - Add example rules for common cases
     - _Requirements: 10.1, 10.5_
   
-  - [ ] 12.2 Implement rule loading system
+  - [x] 12.2 Implement rule loading system
     - Add load_rules() method to Oracle
     - Parse validation_rules.json
     - Validate schema before using
     - Fall back to built-in rules if missing
     - _Requirements: 10.1, 10.5, 10.6_
   
-  - [ ] 12.3 Implement data-driven rule enforcement
+  - [x] 12.3 Implement data-driven rule enforcement
     - Add enforce_custom_rules() method to Oracle
     - Check type collisions from JSON rules
     - Check naming conventions from JSON rules
     - Check semantic constraints from JSON rules
     - _Requirements: 10.2, 10.3, 10.4_
   
-  - [ ] 12.4 Implement rule disabling and custom messages
+  - [x] 12.4 Implement rule disabling and custom messages
     - Support disabled: true in JSON rules
     - Use custom error messages from JSON
     - Support custom suggestions
     - _Requirements: 10.7, 10.8_
   
-  - [ ] 12.5 Implement rule conflict detection
+  - [x] 12.5 Implement rule conflict detection
     - Check for conflicting rules on load
     - Return error with conflicting rule IDs
     - Suggest resolution

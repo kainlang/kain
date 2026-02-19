@@ -62,11 +62,77 @@ pub struct DelegateInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlotRequirement {
+    #[serde(default)]
+    pub required_slots: Vec<String>,
+    pub max_children: i32,
+    pub slot_type: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PropertyDependency {
+    #[serde(default)]
+    pub requires: Vec<String>,
+    #[serde(default)]
+    pub validation: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PropertyExclusion {
+    #[serde(default)]
+    pub mutually_exclusive: Vec<Vec<String>>,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParentChildCompatibility {
+    #[serde(default)]
+    pub can_contain: Vec<String>,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompositionRules {
+    #[serde(default)]
+    pub slot_requirements: HashMap<String, SlotRequirement>,
+    #[serde(default)]
+    pub property_dependencies: HashMap<String, HashMap<String, PropertyDependency>>,
+    #[serde(default)]
+    pub property_exclusions: HashMap<String, PropertyExclusion>,
+    #[serde(default)]
+    pub parent_child_compatibility: HashMap<String, ParentChildCompatibility>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PropertyConstraint {
+    #[serde(default)]
+    pub validation: String,
+    #[serde(default)]
+    pub default_range: Option<serde_json::Value>,
+    #[serde(default)]
+    pub components: Vec<String>,
+    #[serde(default)]
+    pub component_range: Option<serde_json::Value>,
+    #[serde(default)]
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WidgetRegistryData {
     #[serde(default)]
     pub widgets: HashMap<String, WidgetInfo>,
     #[serde(default)]
     pub delegates: HashMap<String, DelegateInfo>,
+    #[serde(default)]
+    pub composition_rules: Option<CompositionRules>,
+    #[serde(default)]
+    pub property_constraints: HashMap<String, PropertyConstraint>,
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -77,6 +143,8 @@ pub struct WidgetRegistryData {
 pub struct WidgetRegistry {
     pub widgets: HashMap<String, WidgetInfo>,
     pub delegates: HashMap<String, DelegateInfo>,
+    pub composition_rules: Option<CompositionRules>,
+    pub property_constraints: HashMap<String, PropertyConstraint>,
     /// Reverse map: event name -> native delegate type (across all widgets)
     /// Built from scanning all widget events to find the most common delegate
     /// type for each event name (e.g. "OnClicked" -> "FOnClicked")
@@ -94,6 +162,8 @@ impl WidgetRegistry {
         Self {
             widgets: HashMap::new(),
             delegates: HashMap::new(),
+            composition_rules: None,
+            property_constraints: HashMap::new(),
             event_delegate_map: HashMap::new(),
         }
     }
@@ -105,6 +175,8 @@ impl WidgetRegistry {
 
         self.widgets = data.widgets;
         self.delegates = data.delegates;
+        self.composition_rules = data.composition_rules;
+        self.property_constraints = data.property_constraints;
         self.rebuild_event_map();
         Ok(())
     }
@@ -219,6 +291,80 @@ impl WidgetRegistry {
     pub fn stats(&self) -> (usize, usize, usize) {
         let total_events: usize = self.widgets.values().map(|w| w.events.len()).sum();
         (self.widgets.len(), total_events, self.delegates.len())
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Composition Rules Query API
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Get slot requirements for a widget
+    pub fn get_slot_requirements(&self, widget_name: &str) -> Option<&SlotRequirement> {
+        self.composition_rules.as_ref()?
+            .slot_requirements.get(widget_name)
+    }
+
+    /// Get property dependencies for a widget property
+    pub fn get_property_dependencies(&self, widget_name: &str, property_name: &str) -> Option<&PropertyDependency> {
+        self.composition_rules.as_ref()?
+            .property_dependencies.get(widget_name)?
+            .get(property_name)
+    }
+
+    /// Get property exclusions for a widget
+    pub fn get_property_exclusions(&self, widget_name: &str) -> Option<&PropertyExclusion> {
+        self.composition_rules.as_ref()?
+            .property_exclusions.get(widget_name)
+    }
+
+    /// Get parent-child compatibility rules for a widget class
+    pub fn get_parent_child_compatibility(&self, widget_class: &str) -> Option<&ParentChildCompatibility> {
+        self.composition_rules.as_ref()?
+            .parent_child_compatibility.get(widget_class)
+    }
+
+    /// Get property constraint for a type
+    pub fn get_property_constraint(&self, type_name: &str) -> Option<&PropertyConstraint> {
+        self.property_constraints.get(type_name)
+    }
+
+    /// Check if a widget can contain children based on composition rules
+    pub fn can_contain_children(&self, widget_name: &str) -> bool {
+        // Check slot requirements first
+        if let Some(req) = self.get_slot_requirements(widget_name) {
+            return req.max_children != 0;
+        }
+
+        // Fall back to checking if widget has slots
+        self.widgets.get(widget_name)
+            .map_or(false, |w| !w.slots.is_empty())
+    }
+
+    /// Validate that a property value satisfies constraints
+    pub fn validate_property_value(&self, type_name: &str, value: &str) -> Result<(), String> {
+        if let Some(constraint) = self.get_property_constraint(type_name) {
+            // Basic validation based on constraint type
+            match constraint.validation.as_str() {
+                "is_finite" => {
+                    if let Ok(f) = value.parse::<f64>() {
+                        if !f.is_finite() {
+                            return Err(format!("{} must be a finite number", type_name));
+                        }
+                    }
+                }
+                "is_integer" => {
+                    if value.parse::<i32>().is_err() {
+                        return Err(format!("{} must be an integer", type_name));
+                    }
+                }
+                "is_enum" => {
+                    if !constraint.values.contains(&value.to_string()) {
+                        return Err(format!("{} must be one of: {}", type_name, constraint.values.join(", ")));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }
 
@@ -348,5 +494,61 @@ mod tests {
 
         assert_eq!(reg.get_parent("SButton"), Some("SBorder"));
         assert_eq!(reg.get_parent("SSlider"), Some("SLeafWidget"));
+    }
+
+    #[test]
+    fn test_composition_rules_loading() {
+        let json_with_rules = r#"{
+            "widgets": {
+                "SButton": {
+                    "name": "SButton",
+                    "parent": "SBorder",
+                    "header": "Widgets/Input/SButton.h",
+                    "properties": {},
+                    "events": {},
+                    "slots": [{ "name": "Content", "kind": "default" }]
+                }
+            },
+            "delegates": {},
+            "composition_rules": {
+                "slot_requirements": {
+                    "SButton": {
+                        "required_slots": ["Content"],
+                        "max_children": 1,
+                        "slot_type": "single",
+                        "description": "SButton can only contain a single child widget"
+                    }
+                },
+                "property_dependencies": {},
+                "property_exclusions": {},
+                "parent_child_compatibility": {}
+            },
+            "property_constraints": {
+                "float": {
+                    "validation": "is_finite",
+                    "default_range": { "min": 0.0, "max": 1.0 }
+                }
+            }
+        }"#;
+
+        let mut reg = WidgetRegistry::new();
+        reg.load(json_with_rules).unwrap();
+
+        // Verify composition rules loaded
+        assert!(reg.composition_rules.is_some());
+        let comp_rules = reg.composition_rules.as_ref().unwrap();
+        assert!(comp_rules.slot_requirements.contains_key("SButton"));
+
+        // Verify property constraints loaded
+        assert!(reg.property_constraints.contains_key("float"));
+
+        // Test query methods
+        let button_slots = reg.get_slot_requirements("SButton");
+        assert!(button_slots.is_some());
+        assert_eq!(button_slots.unwrap().max_children, 1);
+
+        let float_constraint = reg.get_property_constraint("float");
+        assert!(float_constraint.is_some());
+        assert_eq!(float_constraint.unwrap().validation, "is_finite");
     }
 }

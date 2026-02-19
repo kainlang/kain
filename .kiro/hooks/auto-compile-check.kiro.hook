@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Auto Compile & Test",
+  "description": "Automatically runs cargo check and relevant tests after any Rust file modification to catch compilation errors immediately",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "crates/**/*.rs"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cargo check --all-targets && cargo test --package kain-core --package ue5 --package ue5-editor --package ue5-shaders --lib",
+    "timeout": 120
+  }
+}

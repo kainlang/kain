@@ -1,0 +1,216 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "KAIN Validation Rules Schema",
+  "description": "Schema for data-driven validation rules in the KAIN compiler",
+  "type": "object",
+  "required": ["version", "rules"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version for compatibility tracking",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "rules": {
+      "type": "array",
+      "description": "Array of validation rules",
+      "items": {
+        "$ref": "#/definitions/ValidationRule"
+      }
+    }
+  },
+  "definitions": {
+    "ValidationRule": {
+      "type": "object",
+      "required": ["id", "category", "severity", "condition", "message"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the rule",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the validation rule",
+          "enum": [
+            "Naming",
+            "TypeCompatibility",
+            "AttributeCombination",
+            "Replication",
+            "Blueprint",
+            "Shader",
+            "Editor"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level of the rule violation",
+          "enum": ["Error", "Warning", "Info"]
+        },
+        "condition": {
+          "type": "object",
+          "description": "Condition that triggers the rule",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Type of condition to check",
+              "enum": [
+                "TypeCollision",
+                "IncompatibleAttributes",
+                "InvalidRpcNaming",
+                "NestedContainer",
+                "InvalidNaming",
+                "MissingAttribute",
+                "ForbiddenType"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "type": { "const": "TypeCollision" } }
+              },
+              "then": {
+                "required": ["type_names"],
+                "properties": {
+                  "type_names": {
+                    "type": "array",
+                    "description": "List of type names that cause collisions",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "type": { "const": "IncompatibleAttributes" } }
+              },
+              "then": {
+                "required": ["attributes"],
+                "properties": {
+                  "attributes": {
+                    "type": "array",
+                    "description": "List of incompatible attribute pairs",
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "type": { "const": "InvalidRpcNaming" } }
+              },
+              "then": {
+                "required": ["pattern"],
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern for valid RPC names"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "type": { "const": "NestedContainer" } }
+              },
+              "then": {
+                "required": ["outer", "inner"],
+                "properties": {
+                  "outer": {
+                    "type": "array",
+                    "description": "List of outer container types",
+                    "items": { "type": "string" }
+                  },
+                  "inner": {
+                    "type": "array",
+                    "description": "List of inner container types that are forbidden",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "type": { "const": "InvalidNaming" } }
+              },
+              "then": {
+                "required": ["pattern"],
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern for invalid names"
+                  },
+                  "applies_to": {
+                    "type": "array",
+                    "description": "Types this naming rule applies to",
+                    "items": {
+                      "type": "string",
+                      "enum": ["actor", "struct", "enum", "component", "function", "property"]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "type": { "const": "MissingAttribute" } }
+              },
+              "then": {
+                "required": ["required_attribute", "when_attribute"],
+                "properties": {
+                  "required_attribute": {
+                    "type": "string",
+                    "description": "Attribute that must be present"
+                  },
+                  "when_attribute": {
+                    "type": "string",
+                    "description": "Attribute that triggers the requirement"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "type": { "const": "ForbiddenType" } }
+              },
+              "then": {
+                "required": ["forbidden_types", "context"],
+                "properties": {
+                  "forbidden_types": {
+                    "type": "array",
+                    "description": "List of forbidden type names",
+                    "items": { "type": "string" }
+                  },
+                  "context": {
+                    "type": "string",
+                    "description": "Context where types are forbidden",
+                    "enum": ["datatable", "rpc_parameter", "replicated_property", "blueprint_parameter"]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message to display when rule is violated"
+        },
+        "suggestion": {
+          "type": "string",
+          "description": "Optional suggestion for fixing the violation"
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Whether this rule is disabled",
+          "default": false
+        }
+      }
+    }
+  }
+}

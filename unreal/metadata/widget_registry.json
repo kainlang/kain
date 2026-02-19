@@ -41119,6 +41119,33 @@
         }
       },
       "slots": []
+    },
+    "STableRow": {
+      "name": "STableRow",
+      "parent": "SCompoundWidget",
+      "header": "STableRow.h",
+      "properties": {},
+      "events": {},
+      "slots": [],
+      "note": "Placeholder - needs verification against UE5 headers"
+    },
+    "SColorPicker": {
+      "name": "SColorPicker",
+      "parent": "SCompoundWidget",
+      "header": "SColorPicker.h",
+      "properties": {},
+      "events": {},
+      "slots": [],
+      "note": "Placeholder - needs verification against UE5 headers"
+    },
+    "SEditorViewport": {
+      "name": "SEditorViewport",
+      "parent": "SCompoundWidget",
+      "header": "SEditorViewport.h",
+      "properties": {},
+      "events": {},
+      "slots": [],
+      "note": "Placeholder - needs verification against UE5 headers"
     }
   },
   "delegates": {
@@ -44430,6 +44457,287 @@
       "return_type": "void",
       "params": [
         "TObjectPtr<UWorkspace>"
+      ]
+    }
+  },
+  "composition_rules": {
+    "slot_requirements": {
+      "SBorder": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SBorder can only contain a single child widget"
+      },
+      "SBox": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SBox can only contain a single child widget"
+      },
+      "SOverlay": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "multi",
+        "description": "SOverlay can contain multiple overlapping children"
+      },
+      "SVerticalBox": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "multi",
+        "description": "SVerticalBox arranges children vertically"
+      },
+      "SHorizontalBox": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "multi",
+        "description": "SHorizontalBox arranges children horizontally"
+      },
+      "SScrollBox": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "multi",
+        "description": "SScrollBox provides scrolling for its children"
+      },
+      "SGridPanel": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "grid",
+        "description": "SGridPanel arranges children in a grid with row/column indices"
+      },
+      "SCanvas": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "canvas",
+        "description": "SCanvas allows absolute positioning of children"
+      },
+      "SSplitter": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "multi",
+        "description": "SSplitter divides space between children with resizable dividers"
+      },
+      "SWidgetSwitcher": {
+        "required_slots": [],
+        "max_children": -1,
+        "slot_type": "switcher",
+        "description": "SWidgetSwitcher shows one child at a time based on active index"
+      },
+      "SButton": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SButton can contain a single child widget as its content"
+      },
+      "SCheckBox": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SCheckBox can contain a single child widget as its label"
+      },
+      "SComboButton": {
+        "required_slots": [
+          "ButtonContent",
+          "MenuContent"
+        ],
+        "max_children": 2,
+        "slot_type": "named",
+        "description": "SComboButton requires ButtonContent and MenuContent slots"
+      },
+      "SDockTab": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SDockTab can contain a single child widget as its content"
+      },
+      "SWindow": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SWindow can contain a single child widget as its content"
+      },
+      "SViewport": {
+        "required_slots": [
+          "Content"
+        ],
+        "max_children": 1,
+        "slot_type": "single",
+        "description": "SViewport can optionally contain overlay content"
+      }
+    },
+    "property_dependencies": {
+      "SSlider": {
+        "Value": {
+          "requires": [
+            "MinValue",
+            "MaxValue"
+          ],
+          "validation": "Value >= MinValue && Value <= MaxValue",
+          "description": "Slider value must be between min and max"
+        }
+      },
+      "SSpinBox": {
+        "Value": {
+          "requires": [
+            "MinValue",
+            "MaxValue"
+          ],
+          "validation": "Value >= MinValue && Value <= MaxValue",
+          "description": "SpinBox value must be between min and max"
+        }
+      },
+      "SProgressBar": {
+        "Percent": {
+          "requires": [],
+          "validation": "Percent >= 0.0 && Percent <= 1.0",
+          "description": "Progress percent must be between 0.0 and 1.0"
+        }
+      },
+      "SGridPanel": {
+        "Slot": {
+          "requires": [
+            "Row",
+            "Column"
+          ],
+          "validation": "Row >= 0 && Column >= 0",
+          "description": "Grid slots require non-negative row and column indices"
+        }
+      },
+      "SWidgetSwitcher": {
+        "WidgetIndex": {
+          "requires": [],
+          "validation": "WidgetIndex >= 0 && WidgetIndex < NumChildren",
+          "description": "Active widget index must be valid"
+        }
+      }
+    },
+    "property_exclusions": {
+      "SButton": {
+        "mutually_exclusive": [
+          [
+            "Text",
+            "Content"
+          ]
+        ],
+        "description": "Button can have either Text or Content, not both"
+      },
+      "STextBlock": {
+        "mutually_exclusive": [
+          [
+            "Text",
+            "Content"
+          ]
+        ],
+        "description": "TextBlock can have either Text or Content, not both"
+      }
+    },
+    "parent_child_compatibility": {
+      "SPanel": {
+        "can_contain": [
+          "*"
+        ],
+        "description": "Panels can contain any widget"
+      },
+      "SLeafWidget": {
+        "can_contain": [],
+        "description": "Leaf widgets cannot contain children"
+      },
+      "SCompoundWidget": {
+        "can_contain": [
+          "*"
+        ],
+        "description": "Compound widgets can contain children based on their slots"
+      }
+    }
+  },
+  "property_constraints": {
+    "float": {
+      "validation": "is_finite",
+      "default_range": {
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    "int32": {
+      "validation": "is_integer",
+      "default_range": {
+        "min": 0,
+        "max": 100
+      }
+    },
+    "FLinearColor": {
+      "validation": "is_color",
+      "components": [
+        "R",
+        "G",
+        "B",
+        "A"
+      ],
+      "component_range": {
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    "FVector2D": {
+      "validation": "is_vector2d",
+      "components": [
+        "X",
+        "Y"
+      ]
+    },
+    "FMargin": {
+      "validation": "is_margin",
+      "components": [
+        "Left",
+        "Top",
+        "Right",
+        "Bottom"
+      ]
+    },
+    "EHorizontalAlignment": {
+      "validation": "is_enum",
+      "values": [
+        "HAlign_Fill",
+        "HAlign_Left",
+        "HAlign_Center",
+        "HAlign_Right"
+      ]
+    },
+    "EVerticalAlignment": {
+      "validation": "is_enum",
+      "values": [
+        "VAlign_Fill",
+        "VAlign_Top",
+        "VAlign_Center",
+        "VAlign_Bottom"
+      ]
+    },
+    "EOrientation": {
+      "validation": "is_enum",
+      "values": [
+        "Orient_Horizontal",
+        "Orient_Vertical"
+      ]
+    },
+    "EVisibility": {
+      "validation": "is_enum",
+      "values": [
+        "Visible",
+        "Collapsed",
+        "Hidden",
+        "HitTestInvisible",
+        "SelfHitTestInvisible"
       ]
     }
   }

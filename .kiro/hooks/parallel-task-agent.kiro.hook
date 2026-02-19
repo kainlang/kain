@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "Parallel Task Executor",
+  "description": "Automatically detects when tasks can be parallelized and delegates independent subtasks to general-task-execution subagents for concurrent execution",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before starting work, analyze if this task: (1) involves multiple independent operations (file edits, tests, validations, etc.), AND (2) would benefit from parallel execution (estimated >2 min sequential). If BOTH true, use invokeSubAgent with general-task-execution for each independent subtask simultaneously (MAX 5 parallel agents - if more, batch them). Examples: updating 3+ files in different crates, running multiple test suites, parallel validation scripts, multi-component codegen. SKIP for: single file edits, explanations, status checks, simple queries. Only split if subtasks are truly independent (no shared state/dependencies). Coordinate results after all subagents complete."
+  },
+  "workspaceFolderName": "kain",
+  "shortName": "parallel-task-agent"
+}

@@ -1,0 +1,156 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UE5 Module Dependency Graph Schema",
+  "description": "Schema for module_graph.json - UE5 module dependencies and include mappings for KAIN codegen",
+  "type": "object",
+  "required": ["_meta", "modules", "transitive_public_deps", "type_to_module", "header_to_module", "api_to_module"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "description": "Metadata about the module graph extraction",
+      "required": ["generator", "source", "total_modules", "total_types_mapped", "total_headers_mapped", "total_api_symbols", "description"],
+      "properties": {
+        "generator": {
+          "type": "string",
+          "description": "Name of the script that generated this file",
+          "const": "module_graph_extractor.py"
+        },
+        "source": {
+          "type": "string",
+          "description": "Path to the UE5 Engine/Source directory that was scanned"
+        },
+        "engine_scan": {
+          "type": "string",
+          "description": "Path to the engine_scanned.json file used for cross-reference"
+        },
+        "total_modules": {
+          "type": "integer",
+          "description": "Total number of modules extracted",
+          "minimum": 0
+        },
+        "total_types_mapped": {
+          "type": "integer",
+          "description": "Total number of types mapped to modules",
+          "minimum": 0
+        },
+        "total_headers_mapped": {
+          "type": "integer",
+          "description": "Total number of headers mapped to modules",
+          "minimum": 0
+        },
+        "total_api_symbols": {
+          "type": "integer",
+          "description": "Total number of API symbols mapped to modules",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this file's purpose"
+        }
+      }
+    },
+    "modules": {
+      "type": "object",
+      "description": "Map of module name to module information",
+      "patternProperties": {
+        "^[A-Za-z0-9_]+$": {
+          "type": "object",
+          "required": ["name", "category", "path", "public_deps", "private_deps", "dynamic_deps", "private_include_path_modules", "public_include_path_modules"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Module name (must match the key)"
+            },
+            "category": {
+              "type": "string",
+              "description": "Module category",
+              "enum": ["Runtime", "Editor", "Developer", "Program", "ThirdParty", "Unknown"]
+            },
+            "path": {
+              "type": "string",
+              "description": "Relative path to the .Build.cs file from Engine/Source"
+            },
+            "public_deps": {
+              "type": "array",
+              "description": "Public dependency module names (propagate to dependents)",
+              "items": {
+                "type": "string"
+              }
+            },
+            "private_deps": {
+              "type": "array",
+              "description": "Private dependency module names (internal only)",
+              "items": {
+                "type": "string"
+              }
+            },
+            "dynamic_deps": {
+              "type": "array",
+              "description": "Dynamically loaded module names",
+              "items": {
+                "type": "string"
+              }
+            },
+            "private_include_path_modules": {
+              "type": "array",
+              "description": "Modules whose headers can be included but not linked",
+              "items": {
+                "type": "string"
+              }
+            },
+            "public_include_path_modules": {
+              "type": "array",
+              "description": "Modules whose public headers can be included",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "transitive_public_deps": {
+      "type": "object",
+      "description": "Map of module name to its transitive public dependency closure",
+      "patternProperties": {
+        "^[A-Za-z0-9_]+$": {
+          "type": "array",
+          "description": "List of all transitive public dependencies for this module",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "type_to_module": {
+      "type": "object",
+      "description": "Map of UE5 type name (class/struct/enum) to module name",
+      "patternProperties": {
+        "^[A-Za-z0-9_]+$": {
+          "type": "string",
+          "description": "Module name that defines this type"
+        }
+      }
+    },
+    "header_to_module": {
+      "type": "object",
+      "description": "Map of header file path to module name",
+      "patternProperties": {
+        ".*\\.h$": {
+          "type": "string",
+          "description": "Module name that provides this header"
+        }
+      }
+    },
+    "api_to_module": {
+      "type": "object",
+      "description": "Map of known API symbol to module name",
+      "patternProperties": {
+        "^[A-Za-z0-9_]+$": {
+          "type": "string",
+          "description": "Module name that provides this API symbol"
+        }
+      }
+    }
+  }
+}

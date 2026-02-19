@@ -32,6 +32,7 @@ pub mod module_graph;
 pub mod virtual_obligations;
 pub mod metadata_validation;
 pub mod metadata_hotreload;
+pub mod validation_rules;
 
 // Re-export commonly used items
 pub use naming::*;
@@ -51,3 +52,4 @@ pub use module_graph::ModuleGraph;
 pub use virtual_obligations::VirtualObligations;
 pub use metadata_validation::{MetadataValidator, ValidationError, ValidationResult};
 pub use metadata_hotreload::{MetadataWatcher, HotReloadManager};
+pub use validation_rules::{ValidationRules, ValidationRule, RuleCategory, Severity, RuleCondition};

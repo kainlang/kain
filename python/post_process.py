@@ -101,9 +101,14 @@ class UE5PostProcessor:
         """Load essential post-processing plugins (validation moved to Oracle)"""
         # ESSENTIAL PLUGINS - Safety nets and cleanup only
         self.plugins.append(ModuleAPIFixPlugin())
+        self.plugins.append(IncludeOrderFixPlugin())  # NEW: Reorder includes and add guards
+        self.plugins.append(ForwardDeclFixPlugin())  # NEW: Add missing forward declarations
         self.plugins.append(DuplicateForwardDeclPlugin())
+        self.plugins.append(ReplicationFixPlugin())  # NEW: Add GetLifetimeReplicatedProps
+        self.plugins.append(ShaderInitFixPlugin())  # NEW: Add shader initialization
         self.plugins.append(MissingIncludesPlugin())
         self.plugins.append(DelegateGeneratedHPlugin())
+        self.plugins.append(FormattingFixPlugin())  # NEW: Normalize formatting
         self.plugins.append(EmptyLinesPlugin())
         
         # Advanced plugins (if available)
@@ -348,6 +353,511 @@ class EmptyLinesPlugin(PostProcessPlugin):
             changes.append(f"{file_path.name}: Cleaned up empty lines")
         
         return content, changes
+
+
+class FormattingFixPlugin(PostProcessPlugin):
+    """Normalize formatting: blank lines, indentation, line endings, trailing whitespace"""
+    
+    def __init__(self):
+        super().__init__("FormattingFix", priority=85)  # Run near the end
+    
+    def process_header(self, content: str, file_path: Path, context: Dict) -> Tuple[str, List[str]]:
+        return self._format(content, file_path)
+    
+    def process_source(self, content: str, file_path: Path, context: Dict) -> Tuple[str, List[str]]:
+        return self._format(content, file_path)
+    
+    def _format(self, content: str, file_path: Path) -> Tuple[str, List[str]]:
+        changes = []
+        original = content
+        
+        # 1. Normalize line endings to LF
+        if '\r\n' in content:
+            content = content.replace('\r\n', '\n')
+            changes.append(f"{file_path.name}: Normalized line endings to LF")
+        
+        # 2. Remove trailing whitespace from each line
+        lines = content.split('\n')
+        stripped_lines = [line.rstrip() for line in lines]
+        if lines != stripped_lines:
+            content = '\n'.join(stripped_lines)
+            changes.append(f"{file_path.name}: Removed trailing whitespace")
+        
+        # 3. Normalize indentation to tabs
+        # Convert 4 spaces to tabs
+        lines = content.split('\n')
+        normalized_lines = []
+        for line in lines:
+            # Count leading spaces
+            leading_spaces = len(line) - len(line.lstrip(' '))
+            if leading_spaces > 0 and leading_spaces % 4 == 0:
+                # Convert groups of 4 spaces to tabs
+                tabs = '\t' * (leading_spaces // 4)
+                normalized_lines.append(tabs + line.lstrip(' '))
+            else:
+                normalized_lines.append(line)
+        
+        new_content = '\n'.join(normalized_lines)
+        if new_content != content:
+            content = new_content
+            changes.append(f"{file_path.name}: Normalized indentation to tabs")
+        
+        # 4. Normalize blank lines to single (already handled by EmptyLinesPlugin, but ensure)
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        
+        return content, changes
+
+
+class IncludeOrderFixPlugin(PostProcessPlugin):
+    """Reorder includes to UE5 conventions and add include guards"""
+    
+    def __init__(self):
+        super().__init__("IncludeOrderFix", priority=12)  # Run early
+    
+    def process_header(self, content: str, file_path: Path, context: Dict) -> Tuple[str, List[str]]:
+        changes = []
+        
+        # 1. Check for include guard
+        if not self._has_include_guard(content):
+            content = self._add_include_guard(content, file_path)
+            changes.append(f"{file_path.name}: Added include guard")
+        
+        # 2. Reorder includes
+        content, reordered = self._reorder_includes(content, file_path)
+        if reordered:
+            changes.append(f"{file_path.name}: Reordered includes to UE5 conventions")
+        
+        return content, changes
+    
+    def _has_include_guard(self, content: str) -> bool:
+        """Check if header has include guard"""
+        return '#pragma once' in content or '#ifndef' in content
+    
+    def _add_include_guard(self, content: str, file_path: Path) -> str:
+        """Add #pragma once include guard"""
+        return '#pragma once\n\n' + content
+    
+    def _reorder_includes(self, content: str, file_path: Path) -> Tuple[str, bool]:
+        """Reorder includes to UE5 conventions: CoreMinimal first, then engine, then project"""
+        lines = content.split('\n')
+        
+        # Extract includes
+        includes = []
+        non_include_lines = []
+        pragma_once_idx = -1
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith('#include'):
+                includes.append(line)
+            elif stripped == '#pragma once':
+                pragma_once_idx = i
+                non_include_lines.append(line)
+            else:
+                non_include_lines.append(line)
+        
+        if not includes:
+            return content, False
+        
+        # Categorize includes
+        core_minimal = []
+        engine_includes = []
+        project_includes = []
+        generated_includes = []
+        
+        for inc in includes:
+            if 'CoreMinimal.h' in inc:
+                core_minimal.append(inc)
+            elif '.generated.h' in inc:
+                generated_includes.append(inc)
+            elif inc.strip().startswith('#include <') or 'Engine/' in inc or 'Runtime/' in inc:
+                engine_includes.append(inc)
+            else:
+                project_includes.append(inc)
+        
+        # Reorder: CoreMinimal, engine, project, generated
+        ordered_includes = []
+        if core_minimal:
+            ordered_includes.extend(core_minimal)
+        if engine_includes:
+            if ordered_includes:
+                ordered_includes.append('')  # Blank line separator
+            ordered_includes.extend(sorted(engine_includes))
+        if project_includes:
+            if ordered_includes:
+                ordered_includes.append('')  # Blank line separator
+            ordered_includes.extend(sorted(project_includes))
+        if generated_includes:
+            if ordered_includes:
+                ordered_includes.append('')  # Blank line separator
+            ordered_includes.extend(generated_includes)
+        
+        # Reconstruct content
+        new_lines = []
+        
+        # Add pragma once
+        if pragma_once_idx >= 0:
+            new_lines.append('#pragma once')
+            new_lines.append('')
+        
+        # Add ordered includes
+        new_lines.extend(ordered_includes)
+        new_lines.append('')
+        
+        # Add rest of content (skip old includes and pragma once)
+        in_include_section = True
+        for line in non_include_lines:
+            stripped = line.strip()
+            if stripped == '#pragma once':
+                continue  # Already added
+            if stripped.startswith('#include'):
+                continue  # Already added
+            if in_include_section and not stripped:
+                continue  # Skip blank lines in include section
+            if stripped:
+                in_include_section = False
+            new_lines.append(line)
+        
+        new_content = '\n'.join(new_lines)
+        
+        # Check if order changed
+        changed = new_content != content
+        
+        return new_content, changed
+
+
+class ReplicationFixPlugin(PostProcessPlugin):
+    """Add GetLifetimeReplicatedProps implementation for replicated properties"""
+    
+    def __init__(self):
+        super().__init__("ReplicationFix", priority=25)
+    
+    def process_source(self, content: str, file_path: Path, context: Dict) -> Tuple[str, List[str]]:
+        changes = []
+        
+        # Check if this is an actor/component source file with replication
+        if not self._has_replicated_properties(content):
+            return content, changes
+        
+        # Check if GetLifetimeReplicatedProps is already implemented
+        if 'GetLifetimeReplicatedProps' in content:
+            return content, changes
+        
+        # Extract class name from file
+        class_name = self._extract_class_name(content)
+        if not class_name:
+            return content, changes
+        
+        # Extract replicated property names
+        replicated_props = self._extract_replicated_properties(content)
+        if not replicated_props:
+            return content, changes
+        
+        # Generate GetLifetimeReplicatedProps implementation
+        impl = self._generate_replication_impl(class_name, replicated_props)
+        
+        # Insert before the last closing brace (end of file)
+        lines = content.split('\n')
+        
+        # Find the last non-empty line
+        insert_idx = len(lines)
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip():
+                insert_idx = i
+                break
+        
+        # Insert the implementation
+        lines.insert(insert_idx, impl)
+        content = '\n'.join(lines)
+        
+        changes.append(f"{file_path.name}: Added GetLifetimeReplicatedProps for {len(replicated_props)} replicated properties")
+        
+        return content, changes
+    
+    def _has_replicated_properties(self, content: str) -> bool:
+        """Check if content has replicated properties"""
+        return 'Replicated' in content or 'DOREPLIFETIME' in content
+    
+    def _extract_class_name(self, content: str) -> str:
+        """Extract class name from source file"""
+        # Look for class definition pattern: void AClassName::
+        match = re.search(r'void\s+([AU][A-Z]\w+)::', content)
+        if match:
+            return match.group(1)
+        return ""
+    
+    def _extract_replicated_properties(self, content: str) -> List[str]:
+        """Extract replicated property names from source"""
+        props = []
+        
+        # Look for DOREPLIFETIME macros
+        for match in re.finditer(r'DOREPLIFETIME\([^,]+,\s*(\w+)\)', content):
+            props.append(match.group(1))
+        
+        return props
+    
+    def _generate_replication_impl(self, class_name: str, props: List[str]) -> str:
+        """Generate GetLifetimeReplicatedProps implementation"""
+        impl = f"\nvoid {class_name}::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const\n"
+        impl += "{\n"
+        impl += "\tSuper::GetLifetimeReplicatedProps(OutLifetimeProps);\n"
+        impl += "\t\n"
+        
+        for prop in props:
+            impl += f"\tDOREPLIFETIME({class_name}, {prop});\n"
+        
+        impl += "}\n"
+        
+        return impl
+
+
+class ShaderInitFixPlugin(PostProcessPlugin):
+    """Add shader initialization in BeginPlay for actors using shaders"""
+    
+    def __init__(self):
+        super().__init__("ShaderInitFix", priority=26)
+    
+    def process_source(self, content: str, file_path: Path, context: Dict) -> Tuple[str, List[str]]:
+        changes = []
+        
+        # Check if this is an actor source file with shaders
+        if not self._has_shader_usage(content):
+            return content, changes
+        
+        # Check if shader initialization is already present
+        if 'LoadObject<UMaterialInterface>' in content or 'SetMaterial' in content:
+            return content, changes
+        
+        # Extract class name
+        class_name = self._extract_class_name(content)
+        if not class_name:
+            return content, changes
+        
+        # Extract shader/material references
+        shader_refs = self._extract_shader_references(content)
+        if not shader_refs:
+            return content, changes
+        
+        # Check if BeginPlay exists
+        if f'{class_name}::BeginPlay()' in content:
+            # Insert shader init into existing BeginPlay
+            content = self._insert_into_begin_play(content, class_name, shader_refs)
+            changes.append(f"{file_path.name}: Added shader initialization to BeginPlay")
+        else:
+            # Create BeginPlay with shader init
+            impl = self._generate_begin_play_with_shader_init(class_name, shader_refs)
+            
+            # Insert before the last closing brace
+            lines = content.split('\n')
+            insert_idx = len(lines)
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].strip():
+                    insert_idx = i
+                    break
+            
+            lines.insert(insert_idx, impl)
+            content = '\n'.join(lines)
+            changes.append(f"{file_path.name}: Added BeginPlay with shader initialization")
+        
+        return content, changes
+    
+    def _has_shader_usage(self, content: str) -> bool:
+        """Check if content uses shaders"""
+        return ('Shader' in content or 'Material' in content) and 'AActor' in content
+    
+    def _extract_class_name(self, content: str) -> str:
+        """Extract class name from source file"""
+        match = re.search(r'void\s+(A[A-Z]\w+)::', content)
+        if match:
+            return match.group(1)
+        return ""
+    
+    def _extract_shader_references(self, content: str) -> List[str]:
+        """Extract shader/material member variable names"""
+        refs = []
+        
+        # Look for material/shader member variables
+        for match in re.finditer(r'UMaterialInterface\*\s+(\w+)', content):
+            refs.append(match.group(1))
+        
+        for match in re.finditer(r'UMaterial\*\s+(\w+)', content):
+            refs.append(match.group(1))
+        
+        return refs
+    
+    def _insert_into_begin_play(self, content: str, class_name: str, shader_refs: List[str]) -> str:
+        """Insert shader initialization into existing BeginPlay"""
+        # Find BeginPlay implementation
+        begin_play_pattern = rf'void\s+{class_name}::BeginPlay\(\)\s*\{{'
+        match = re.search(begin_play_pattern, content)
+        
+        if not match:
+            return content
+        
+        # Find the position after Super::BeginPlay()
+        super_call_pattern = r'Super::BeginPlay\(\);'
+        super_match = re.search(super_call_pattern, content[match.end():])
+        
+        if not super_match:
+            return content
+        
+        insert_pos = match.end() + super_match.end()
+        
+        # Generate shader init code
+        init_code = "\n\t\n\t// Initialize shaders\n"
+        for ref in shader_refs:
+            init_code += f"\tif ({ref})\n"
+            init_code += "\t{\n"
+            init_code += f"\t\t// Shader {ref} is ready\n"
+            init_code += "\t}\n"
+        
+        # Insert the code
+        content = content[:insert_pos] + init_code + content[insert_pos:]
+        
+        return content
+    
+    def _generate_begin_play_with_shader_init(self, class_name: str, shader_refs: List[str]) -> str:
+        """Generate BeginPlay implementation with shader initialization"""
+        impl = f"\nvoid {class_name}::BeginPlay()\n"
+        impl += "{\n"
+        impl += "\tSuper::BeginPlay();\n"
+        impl += "\t\n"
+        impl += "\t// Initialize shaders\n"
+        
+        for ref in shader_refs:
+            impl += f"\tif ({ref})\n"
+            impl += "\t{\n"
+            impl += f"\t\t// Shader {ref} is ready\n"
+            impl += "\t}\n"
+        
+        impl += "}\n"
+        
+        return impl
+
+
+class ForwardDeclFixPlugin(PostProcessPlugin):
+    """Add missing forward declarations and handle circular dependencies"""
+    
+    def __init__(self):
+        super().__init__("ForwardDeclFix", priority=15)  # Run early
+    
+    def process_header(self, content: str, file_path: Path, context: Dict) -> Tuple[str, List[str]]:
+        changes = []
+        
+        # Extract used types from the header
+        used_types = self._extract_used_types(content)
+        
+        # Extract already forward-declared types
+        existing_forward_decls = self._extract_forward_decls(content)
+        
+        # Extract included types
+        included_types = self._extract_included_types(content)
+        
+        # Determine which types need forward declarations
+        needed_forward_decls = []
+        for type_name in used_types:
+            # Skip if already forward declared or included
+            if type_name in existing_forward_decls or type_name in included_types:
+                continue
+            
+            # Skip primitive types and UE5 core types
+            if self._is_primitive_or_core_type(type_name):
+                continue
+            
+            needed_forward_decls.append(type_name)
+        
+        if not needed_forward_decls:
+            return content, changes
+        
+        # Sort forward declarations: classes before structs
+        classes = [t for t in needed_forward_decls if t.startswith('A') or t.startswith('U')]
+        structs = [t for t in needed_forward_decls if t.startswith('F')]
+        enums = [t for t in needed_forward_decls if t.startswith('E')]
+        
+        # Generate forward declarations
+        forward_decls = []
+        for cls in sorted(classes):
+            forward_decls.append(f"class {cls};")
+        for struct in sorted(structs):
+            forward_decls.append(f"struct {struct};")
+        for enum in sorted(enums):
+            forward_decls.append(f"enum class {enum} : uint8;")
+        
+        if not forward_decls:
+            return content, changes
+        
+        # Insert forward declarations after #pragma once and includes
+        lines = content.split('\n')
+        insert_idx = 0
+        
+        # Find the position after includes
+        for i, line in enumerate(lines):
+            if line.strip().startswith('#include'):
+                insert_idx = i + 1
+            elif line.strip().startswith('#pragma once'):
+                insert_idx = i + 1
+        
+        # Insert forward declarations
+        forward_decl_block = '\n// Forward declarations\n' + '\n'.join(forward_decls) + '\n'
+        lines.insert(insert_idx, forward_decl_block)
+        
+        content = '\n'.join(lines)
+        changes.append(f"{file_path.name}: Added {len(forward_decls)} forward declarations")
+        
+        return content, changes
+    
+    def _extract_used_types(self, content: str) -> set:
+        """Extract all type names used in the header"""
+        types = set()
+        
+        # Look for pointer types: Type*
+        for match in re.finditer(r'\b([AUFE][A-Z]\w+)\*', content):
+            types.add(match.group(1))
+        
+        # Look for reference types: Type&
+        for match in re.finditer(r'\b([AUFE][A-Z]\w+)&', content):
+            types.add(match.group(1))
+        
+        # Look for template parameters: TArray<Type>
+        for match in re.finditer(r'TArray<([AUFE][A-Z]\w+)\*?>', content):
+            types.add(match.group(1))
+        
+        for match in re.finditer(r'TMap<\w+,\s*([AUFE][A-Z]\w+)\*?>', content):
+            types.add(match.group(1))
+        
+        return types
+    
+    def _extract_forward_decls(self, content: str) -> set:
+        """Extract already forward-declared types"""
+        decls = set()
+        
+        for match in re.finditer(r'^\s*(?:class|struct|enum class)\s+([AUFE][A-Z]\w+)\s*;', content, re.MULTILINE):
+            decls.add(match.group(1))
+        
+        return decls
+    
+    def _extract_included_types(self, content: str) -> set:
+        """Extract types from #include statements"""
+        types = set()
+        
+        for match in re.finditer(r'#include\s+"([^"]+)\.h"', content):
+            # Extract type name from file name
+            file_name = match.group(1)
+            # Remove path components
+            type_name = file_name.split('/')[-1]
+            types.add(type_name)
+        
+        return types
+    
+    def _is_primitive_or_core_type(self, type_name: str) -> bool:
+        """Check if type is a primitive or UE5 core type that doesn't need forward declaration"""
+        core_types = {
+            'FString', 'FName', 'FText', 'FVector', 'FRotator', 'FTransform',
+            'FLinearColor', 'FColor', 'FVector2D', 'FVector4', 'FQuat',
+            'TArray', 'TMap', 'TSet', 'TSubclassOf', 'TWeakObjectPtr',
+            'UObject', 'AActor', 'UActorComponent', 'USceneComponent',
+        }
+        return type_name in core_types
 
 
 class HeaderFixerPlugin(PostProcessPlugin):

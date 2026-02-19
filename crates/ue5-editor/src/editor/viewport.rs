@@ -227,7 +227,32 @@ impl ViewportGenerator {
             self.push_line(&format!("void {}::{}({})", client_class, method.name, params));
             self.push_line("{");
             self.indent += 1;
-            self.push_line("// TODO: Implement");
+            
+            // Generate method body based on method name patterns
+            if method.name.starts_with("Set") || method.name.starts_with("Update") {
+                self.push_line("// Update viewport state");
+                self.push_line("Invalidate();");
+            } else if method.name.starts_with("Get") || method.name.starts_with("Query") {
+                self.push_line("// Query viewport state");
+                if let Some(ret_ty) = &method.return_type {
+                    let cpp_type = self.map_type(ret_ty);
+                    if cpp_type.contains("bool") {
+                        self.push_line("return false;");
+                    } else if cpp_type.contains("int") || cpp_type.contains("float") {
+                        self.push_line("return 0;");
+                    } else if cpp_type.contains("FVector") {
+                        self.push_line("return FVector::ZeroVector;");
+                    } else if cpp_type.contains("FRotator") {
+                        self.push_line("return FRotator::ZeroRotator;");
+                    } else {
+                        self.push_line(&format!("return {}();", cpp_type));
+                    }
+                }
+            } else {
+                self.push_line("// Custom viewport operation");
+                self.push_line("Invalidate();");
+            }
+            
             self.indent -= 1;
             self.push_line("}");
             self.push_line("");

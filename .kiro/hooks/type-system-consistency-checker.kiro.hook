@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Type System Consistency Checker",
+  "description": "Ensures map_type() and type handling is consistent across all codegen crates",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "crates/ue5/src/ue5/types.rs",
+      "crates/ue5-editor/src/editor/*.rs"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Type system file modified. Cross-check: 1) map_type() in ue5 crate vs ue5-editor crate - are they consistent? 2) Pointer detection (is_pointer_type_by_name) covers all UObject types? 3) EngineKnowledge lookups used instead of hardcoded type lists? 4) Type conversions (Vec3→FVector, Vec4→FLinearColor) consistent? Report inconsistencies."
+  }
+}

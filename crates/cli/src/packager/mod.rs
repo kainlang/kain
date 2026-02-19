@@ -7,6 +7,7 @@ pub mod codegen;
 pub mod uplugin_gen;
 pub mod build_cs_gen;
 pub mod post_process;
+pub mod dependencies;
 
 // Re-export public API to maintain backward compatibility
 pub use config::*;

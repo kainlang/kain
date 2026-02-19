@@ -14,6 +14,8 @@ use kain_core::ast::{Type, Attribute};
 use kain_core::ast::Visibility;
 use super::engine_knowledge::EngineKnowledge;
 use super::uht_rules::UhtRules;
+use super::validation_rules::{ValidationRules, ValidationRule, RuleCondition, Severity};
+use std::collections::{HashMap, HashSet};
 
 /// Validation context for tracking state during validation
 pub struct ValidationContext {
@@ -76,7 +78,36 @@ pub fn validate_program_with_knowledge(program: &TypedProgram, kb: &EngineKnowle
 
 /// Full validation with EngineKnowledge + UHT rules (used when Ue5Context is available)
 pub fn validate_program_full(program: &TypedProgram, kb: &EngineKnowledge, uht: &UhtRules) -> KainResult<()> {
+    // Load custom validation rules (if available)
+    let custom_rules = ValidationRules::load("unreal/metadata/validation_rules.json")
+        .unwrap_or_else(|_| ValidationRules {
+            version: "1.0.0".to_string(),
+            rules: Vec::new(),
+        });
+    
+    validate_program_with_custom_rules(program, kb, uht, &custom_rules)
+}
+
+/// Full validation with custom rules support
+pub fn validate_program_with_custom_rules(
+    program: &TypedProgram,
+    kb: &EngineKnowledge,
+    uht: &UhtRules,
+    custom_rules: &ValidationRules,
+) -> KainResult<()> {
     let mut ctx = ValidationContext::new();
+    
+    // Check for rule conflicts before validation
+    let conflicts = custom_rules.detect_conflicts();
+    if !conflicts.is_empty() {
+        for (rule1, rule2, reason) in conflicts {
+            ctx.error(format!(
+                "Conflicting validation rules '{}' and '{}': {}",
+                rule1, rule2, reason
+            ));
+        }
+        return Err(KainError::runtime(ctx.report()));
+    }
     
     // Phase 1: Per-item validation (existing hardcoded rules)
     for item in &program.items {
@@ -109,6 +140,9 @@ pub fn validate_program_full(program: &TypedProgram, kb: &EngineKnowledge, uht: 
     validate_components_enhanced(&mut ctx, program);
     validate_name_collisions(&mut ctx, program, kb);
     validate_circular_dependencies(&mut ctx, program);
+    
+    // Phase 4: Custom rules validation (data-driven from validation_rules.json)
+    enforce_custom_rules(&mut ctx, program, custom_rules, kb);
     
     // If we have errors, return them
     if ctx.has_errors() {
@@ -1147,3 +1181,437 @@ fn is_pointer_type(ty: &Type) -> bool {
  *    - Cause: UE5.4 signature requires 3 arguments (Desc, PooledRT, Item).
  *    - Fix: Ensure the `ue5.rs` template provides all 3 arguments in the render target creation lambda.
  */
+
+
+/// Enforce custom validation rules from validation_rules.json
+fn enforce_custom_rules(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rules: &ValidationRules,
+    kb: &EngineKnowledge,
+) {
+    for rule in rules.enabled_rules() {
+        match &rule.condition {
+            RuleCondition::TypeCollision { type_names } => {
+                enforce_type_collision_rule(ctx, program, rule, type_names);
+            }
+            RuleCondition::IncompatibleAttributes { attributes } => {
+                enforce_incompatible_attributes_rule(ctx, program, rule, attributes);
+            }
+            RuleCondition::InvalidRpcNaming { pattern } => {
+                enforce_rpc_naming_rule(ctx, program, rule, pattern);
+            }
+            RuleCondition::NestedContainer { outer, inner } => {
+                enforce_nested_container_rule(ctx, program, rule, outer, inner);
+            }
+            RuleCondition::InvalidNaming { pattern, applies_to } => {
+                enforce_invalid_naming_rule(ctx, program, rule, pattern, applies_to);
+            }
+            RuleCondition::MissingAttribute { required_attribute, when_attribute } => {
+                enforce_missing_attribute_rule(ctx, program, rule, required_attribute, when_attribute);
+            }
+            RuleCondition::ForbiddenType { forbidden_types, context: type_context } => {
+                enforce_forbidden_type_rule(ctx, program, rule, forbidden_types, type_context);
+            }
+        }
+    }
+}
+
+/// Enforce type collision rule
+fn enforce_type_collision_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    type_names: &[String],
+) {
+    for item in &program.items {
+        let item_name = match item {
+            TypedItem::Actor(a) => Some(&a.ast.name),
+            TypedItem::Struct(s) => Some(&s.ast.name),
+            TypedItem::Enum(e) => Some(&e.ast.name),
+            TypedItem::Component(c) => Some(&c.ast.name),
+            _ => None,
+        };
+        
+        if let Some(name) = item_name {
+            if type_names.contains(name) {
+                let msg = format!("{}: {}", rule.message, name);
+                match rule.severity {
+                    Severity::Error => {
+                        ctx.error(msg);
+                        if let Some(suggestion) = &rule.suggestion {
+                            ctx.error(format!("  Suggestion: {}", suggestion));
+                        }
+                    }
+                    Severity::Warning => {
+                        ctx.warning(msg);
+                        if let Some(suggestion) = &rule.suggestion {
+                            ctx.warning(format!("  Suggestion: {}", suggestion));
+                        }
+                    }
+                    Severity::Info => {
+                        ctx.warning(format!("Info: {}", msg));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Enforce incompatible attributes rule
+fn enforce_incompatible_attributes_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    attribute_pairs: &[(String, String)],
+) {
+    for item in &program.items {
+        match item {
+            TypedItem::Actor(actor) => {
+                for field in &actor.ast.state {
+                    check_incompatible_attrs(ctx, rule, &field.attributes, &field.name, attribute_pairs);
+                }
+            }
+            TypedItem::Struct(struct_def) => {
+                for field in &struct_def.ast.fields {
+                    check_incompatible_attrs(ctx, rule, &field.attributes, &field.name, attribute_pairs);
+                }
+            }
+            TypedItem::Component(comp) => {
+                for field in &comp.ast.state {
+                    check_incompatible_attrs(ctx, rule, &field.attributes, &field.name, attribute_pairs);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn check_incompatible_attrs(
+    ctx: &mut ValidationContext,
+    rule: &ValidationRule,
+    attributes: &[Attribute],
+    field_name: &str,
+    attribute_pairs: &[(String, String)],
+) {
+    let attr_names: Vec<String> = attributes.iter().map(|a| a.name.clone()).collect();
+    
+    for (attr1, attr2) in attribute_pairs {
+        if attr_names.contains(attr1) && attr_names.contains(attr2) {
+            let msg = format!("{} (field: {})", rule.message, field_name);
+            match rule.severity {
+                Severity::Error => {
+                    ctx.error(msg);
+                    if let Some(suggestion) = &rule.suggestion {
+                        ctx.error(format!("  Suggestion: {}", suggestion));
+                    }
+                }
+                Severity::Warning => {
+                    ctx.warning(msg);
+                }
+                Severity::Info => {
+                    ctx.warning(format!("Info: {}", msg));
+                }
+            }
+        }
+    }
+}
+
+/// Enforce RPC naming rule
+fn enforce_rpc_naming_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    pattern: &str,
+) {
+    let re = match regex::Regex::new(pattern) {
+        Ok(r) => r,
+        Err(_) => return, // Invalid regex, skip
+    };
+    
+    for item in &program.items {
+        if let TypedItem::Actor(actor) = item {
+            for method in &actor.ast.methods {
+                // Check if method has RPC attributes
+                let has_rpc_attr = method.attributes.iter().any(|a| {
+                    matches!(a.name.as_str(), "server" | "client" | "multicast")
+                });
+                
+                if has_rpc_attr && !re.is_match(&method.name) {
+                    let msg = format!("{}: {}", rule.message, method.name);
+                    match rule.severity {
+                        Severity::Error => {
+                            ctx.error(msg);
+                            if let Some(suggestion) = &rule.suggestion {
+                                ctx.error(format!("  Suggestion: {}", suggestion));
+                            }
+                        }
+                        Severity::Warning => {
+                            ctx.warning(msg);
+                        }
+                        Severity::Info => {
+                            ctx.warning(format!("Info: {}", msg));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Enforce nested container rule
+fn enforce_nested_container_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    outer: &[String],
+    inner: &[String],
+) {
+    for item in &program.items {
+        match item {
+            TypedItem::Actor(actor) => {
+                for field in &actor.ast.state {
+                    check_nested_container(ctx, rule, &field.ty, &field.name, outer, inner);
+                }
+            }
+            TypedItem::Struct(struct_def) => {
+                for field in &struct_def.ast.fields {
+                    check_nested_container(ctx, rule, &field.ty, &field.name, outer, inner);
+                }
+            }
+            TypedItem::Component(comp) => {
+                for field in &comp.ast.state {
+                    check_nested_container(ctx, rule, &field.ty, &field.name, outer, inner);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn check_nested_container(
+    ctx: &mut ValidationContext,
+    rule: &ValidationRule,
+    ty: &Type,
+    field_name: &str,
+    outer: &[String],
+    inner: &[String],
+) {
+    if let Type::Named { name: outer_name, generics: inner_types, .. } = ty {
+        if outer.contains(outer_name) {
+            for inner_ty in inner_types {
+                if let Type::Named { name: inner_name, .. } = inner_ty {
+                    if inner.contains(inner_name) {
+                        let msg = format!("{} (field: {}, type: {})", rule.message, field_name, outer_name);
+                        match rule.severity {
+                            Severity::Error => {
+                                ctx.error(msg);
+                                if let Some(suggestion) = &rule.suggestion {
+                                    ctx.error(format!("  Suggestion: {}", suggestion));
+                                }
+                            }
+                            Severity::Warning => {
+                                ctx.warning(msg);
+                            }
+                            Severity::Info => {
+                                ctx.warning(format!("Info: {}", msg));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Enforce invalid naming rule
+fn enforce_invalid_naming_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    pattern: &str,
+    applies_to: &[String],
+) {
+    let re = match regex::Regex::new(pattern) {
+        Ok(r) => r,
+        Err(_) => return, // Invalid regex, skip
+    };
+    
+    for item in &program.items {
+        match item {
+            TypedItem::Actor(actor) if applies_to.contains(&"actor".to_string()) => {
+                if re.is_match(&actor.ast.name) {
+                    report_naming_violation(ctx, rule, &actor.ast.name, "actor");
+                }
+            }
+            TypedItem::Struct(struct_def) if applies_to.contains(&"struct".to_string()) => {
+                if re.is_match(&struct_def.ast.name) {
+                    report_naming_violation(ctx, rule, &struct_def.ast.name, "struct");
+                }
+            }
+            TypedItem::Enum(enum_def) if applies_to.contains(&"enum".to_string()) => {
+                if re.is_match(&enum_def.ast.name) {
+                    report_naming_violation(ctx, rule, &enum_def.ast.name, "enum");
+                }
+            }
+            TypedItem::Component(comp) if applies_to.contains(&"component".to_string()) => {
+                if re.is_match(&comp.ast.name) {
+                    report_naming_violation(ctx, rule, &comp.ast.name, "component");
+                }
+            }
+            TypedItem::Function(func) if applies_to.contains(&"function".to_string()) => {
+                if re.is_match(&func.ast.name) {
+                    report_naming_violation(ctx, rule, &func.ast.name, "function");
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn report_naming_violation(
+    ctx: &mut ValidationContext,
+    rule: &ValidationRule,
+    name: &str,
+    kind: &str,
+) {
+    let msg = format!("{} ({} '{}')", rule.message, kind, name);
+    match rule.severity {
+        Severity::Error => {
+            ctx.error(msg);
+            if let Some(suggestion) = &rule.suggestion {
+                ctx.error(format!("  Suggestion: {}", suggestion));
+            }
+        }
+        Severity::Warning => {
+            ctx.warning(msg);
+        }
+        Severity::Info => {
+            ctx.warning(format!("Info: {}", msg));
+        }
+    }
+}
+
+/// Enforce missing attribute rule
+fn enforce_missing_attribute_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    _required_attribute: &str,
+    _when_attribute: &str,
+) {
+    // This rule is more complex and context-dependent
+    // For now, we'll implement a basic version
+    // Full implementation would check editor attributes, etc.
+    
+    // TODO: Implement full missing attribute checking
+    // This would require access to editor attribute definitions
+}
+
+/// Enforce forbidden type rule
+fn enforce_forbidden_type_rule(
+    ctx: &mut ValidationContext,
+    program: &TypedProgram,
+    rule: &ValidationRule,
+    forbidden_types: &[String],
+    type_context: &str,
+) {
+    match type_context {
+        "datatable" => {
+            for item in &program.items {
+                if let TypedItem::Struct(struct_def) = item {
+                    // Check if this is a datatable struct
+                    let is_datatable = struct_def.ast.attributes.iter().any(|a| a.name == "datatable");
+                    if is_datatable {
+                        for field in &struct_def.ast.fields {
+                            if contains_forbidden_type(&field.ty, forbidden_types) {
+                                let msg = format!(
+                                    "{} (struct: {}, field: {})",
+                                    rule.message, struct_def.ast.name, field.name
+                                );
+                                match rule.severity {
+                                    Severity::Error => {
+                                        ctx.error(msg);
+                                        if let Some(suggestion) = &rule.suggestion {
+                                            ctx.error(format!("  Suggestion: {}", suggestion));
+                                        }
+                                    }
+                                    Severity::Warning => {
+                                        ctx.warning(msg);
+                                    }
+                                    Severity::Info => {
+                                        ctx.warning(format!("Info: {}", msg));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "rpc_parameter" => {
+            for item in &program.items {
+                if let TypedItem::Actor(actor) = item {
+                    for method in &actor.ast.methods {
+                        let has_rpc_attr = method.attributes.iter().any(|a| {
+                            matches!(a.name.as_str(), "server" | "client" | "multicast")
+                        });
+                        if has_rpc_attr {
+                            for param in &method.params {
+                                if contains_forbidden_type(&param.ty, forbidden_types) {
+                                    let msg = format!(
+                                        "{} (RPC: {}, parameter: {})",
+                                        rule.message, method.name, param.name
+                                    );
+                                    match rule.severity {
+                                        Severity::Error => {
+                                            ctx.error(msg);
+                                            if let Some(suggestion) = &rule.suggestion {
+                                                ctx.error(format!("  Suggestion: {}", suggestion));
+                                            }
+                                        }
+                                        Severity::Warning => {
+                                            ctx.warning(msg);
+                                        }
+                                        Severity::Info => {
+                                            ctx.warning(format!("Info: {}", msg));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            // Unknown context, skip
+        }
+    }
+}
+
+fn contains_forbidden_type(ty: &Type, forbidden_types: &[String]) -> bool {
+    match ty {
+        Type::Named { name, generics, .. } => {
+            if forbidden_types.iter().any(|ft| name.contains(ft)) {
+                return true;
+            }
+            generics.iter().any(|t| contains_forbidden_type(t, forbidden_types))
+        }
+        Type::Tuple(types, _) => {
+            types.iter().any(|t| contains_forbidden_type(t, forbidden_types))
+        }
+        Type::Array(inner, _, _) | Type::Slice(inner, _) | Type::Option(inner, _) => {
+            contains_forbidden_type(inner, forbidden_types)
+        }
+        Type::Result(ok, err, _) => {
+            contains_forbidden_type(ok, forbidden_types) || contains_forbidden_type(err, forbidden_types)
+        }
+        Type::Ref { inner, .. } => contains_forbidden_type(inner, forbidden_types),
+        Type::Function { params, return_type, .. } => {
+            params.iter().any(|t| contains_forbidden_type(t, forbidden_types))
+                || contains_forbidden_type(return_type, forbidden_types)
+        }
+        _ => false,
+    }
+}

@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Documentation Sync Enforcer",
+  "description": "Ensures documentation stays in sync with code changes",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "crates/ue5/src/codegen_ue5.rs",
+      "crates/ue5-editor/src/editor/*.rs",
+      "crates/cli/src/packager.rs"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Code was just modified. Check if any documentation needs updating: 1) docs/AGENT_HANDOFF.md - if architecture changed, 2) .agent/rules/*.md - if patterns changed, 3) Inline Rust doc comments - if public APIs changed, 4) README files in crates - if features added/removed. Update relevant docs immediately."
+  }
+}

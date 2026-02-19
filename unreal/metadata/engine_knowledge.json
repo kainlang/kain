@@ -2411,6 +2411,570 @@
             "is_abstract": false,
             "functions": [],
             "properties": []
+        },
+        {
+            "name": "UAnimMontage",
+            "parent": "UObject",
+            "header": "Animation/AnimMontage.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UAnimationAsset",
+            "parent": "UObject",
+            "header": "Animation/AnimationAsset.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": true,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "USoundCue",
+            "parent": "USoundBase",
+            "header": "Sound/SoundCue.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UParticleSystemComponent",
+            "parent": "UPrimitiveComponent",
+            "header": "Particles/ParticleSystemComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetTemplate",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewTemplate",
+                            "type": "UParticleSystem*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "ActivateSystem",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bReset",
+                            "type": "bool",
+                            "default_value": "false"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "DeactivateSystem",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UNiagaraComponent",
+            "parent": "UPrimitiveComponent",
+            "header": "NiagaraComponent.h",
+            "module": "Niagara",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetAsset",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InAsset",
+                            "type": "UNiagaraSystem*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Activate",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "bReset",
+                            "type": "bool",
+                            "default_value": "false"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Deactivate",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UWidgetComponent",
+            "parent": "UPrimitiveComponent",
+            "header": "Components/WidgetComponent.h",
+            "module": "UMG",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetWidget",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Widget",
+                            "type": "UUserWidget*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "GetWidget",
+                    "return_type": "UUserWidget*",
+                    "params": [],
+                    "is_const": true,
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetWidgetClass",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InWidgetClass",
+                            "type": "TSubclassOf<UUserWidget>"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UUserWidget",
+            "parent": "UObject",
+            "header": "Blueprint/UserWidget.h",
+            "module": "UMG",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [
+                {
+                    "name": "AddToViewport",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "ZOrder",
+                            "type": "int32",
+                            "default_value": "0"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "RemoveFromParent",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetVisibility",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "InVisibility",
+                            "type": "ESlateVisibility"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UBlueprintFunctionLibrary",
+            "parent": "UObject",
+            "header": "Kismet/BlueprintFunctionLibrary.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": true,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UGameplayStatics",
+            "parent": "UBlueprintFunctionLibrary",
+            "header": "Kismet/GameplayStatics.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UKismetMathLibrary",
+            "parent": "UBlueprintFunctionLibrary",
+            "header": "Kismet/KismetMathLibrary.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UKismetSystemLibrary",
+            "parent": "UBlueprintFunctionLibrary",
+            "header": "Kismet/KismetSystemLibrary.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "ULightComponent",
+            "parent": "USceneComponent",
+            "header": "Components/LightComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": true,
+            "functions": [
+                {
+                    "name": "SetIntensity",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewIntensity",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetLightColor",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewLightColor",
+                            "type": "FLinearColor"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UPointLightComponent",
+            "parent": "ULightComponent",
+            "header": "Components/PointLightComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetRadius",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewRadius",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "USpotLightComponent",
+            "parent": "UPointLightComponent",
+            "header": "Components/SpotLightComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetInnerConeAngle",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewInnerConeAngle",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetOuterConeAngle",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewOuterConeAngle",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UDirectionalLightComponent",
+            "parent": "ULightComponent",
+            "header": "Components/DirectionalLightComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UTextRenderComponent",
+            "parent": "UPrimitiveComponent",
+            "header": "Components/TextRenderComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetText",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Value",
+                            "type": "const FString&"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetTextRenderColor",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "Value",
+                            "type": "FColor"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UArrowComponent",
+            "parent": "UPrimitiveComponent",
+            "header": "Components/ArrowComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UBillboardComponent",
+            "parent": "UPrimitiveComponent",
+            "header": "Components/BillboardComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UDecalComponent",
+            "parent": "USceneComponent",
+            "header": "Components/DecalComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "SetDecalMaterial",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewDecalMaterial",
+                            "type": "UMaterialInterface*"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "CreateDynamicMaterialInstance",
+                    "return_type": "UMaterialInstanceDynamic*",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UTimelineComponent",
+            "parent": "UActorComponent",
+            "header": "Components/TimelineComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "functions": [
+                {
+                    "name": "Play",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "PlayFromStart",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Stop",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "Reverse",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "ReverseFromEnd",
+                    "return_type": "void",
+                    "params": [],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                },
+                {
+                    "name": "SetPlayRate",
+                    "return_type": "void",
+                    "params": [
+                        {
+                            "name": "NewRate",
+                            "type": "float"
+                        }
+                    ],
+                    "specifiers": [
+                        "BlueprintCallable"
+                    ]
+                }
+            ],
+            "properties": []
+        },
+        {
+            "name": "UInputComponent",
+            "parent": "UActorComponent",
+            "header": "Components/InputComponent.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UEnhancedInputComponent",
+            "parent": "UInputComponent",
+            "header": "EnhancedInputComponent.h",
+            "module": "EnhancedInput",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UInputAction",
+            "parent": "UObject",
+            "header": "InputAction.h",
+            "module": "EnhancedInput",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UInputMappingContext",
+            "parent": "UObject",
+            "header": "InputMappingContext.h",
+            "module": "EnhancedInput",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UCurveVector",
+            "parent": "UObject",
+            "header": "Curves/CurveVector.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
+        },
+        {
+            "name": "UMaterialInstanceConstant",
+            "parent": "UMaterialInstance",
+            "header": "Materials/MaterialInstanceConstant.h",
+            "module": "Engine",
+            "prefix": "U",
+            "is_abstract": false,
+            "functions": [],
+            "properties": []
         }
     ],
     "structs": [
@@ -2645,6 +3209,224 @@
             "header": "Scene/PostProcessVolume.h",
             "module": "Engine",
             "fields": []
+        },
+        {
+            "name": "FName",
+            "header": "UObject/NameTypes.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FString",
+            "header": "Containers/UnrealString.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FText",
+            "header": "Internationalization/Text.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FGuid",
+            "header": "Misc/Guid.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FDateTime",
+            "header": "Misc/DateTime.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FTimespan",
+            "header": "Misc/Timespan.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FBox",
+            "header": "Math/Box.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "Min",
+                    "type": "FVector"
+                },
+                {
+                    "name": "Max",
+                    "type": "FVector"
+                },
+                {
+                    "name": "IsValid",
+                    "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "FBox2D",
+            "header": "Math/Box2D.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "Min",
+                    "type": "FVector2D"
+                },
+                {
+                    "name": "Max",
+                    "type": "FVector2D"
+                },
+                {
+                    "name": "bIsValid",
+                    "type": "bool"
+                }
+            ]
+        },
+        {
+            "name": "FSphere",
+            "header": "Math/Sphere.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "Center",
+                    "type": "FVector"
+                },
+                {
+                    "name": "W",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FPlane",
+            "header": "Math/Plane.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "double"
+                },
+                {
+                    "name": "Y",
+                    "type": "double"
+                },
+                {
+                    "name": "Z",
+                    "type": "double"
+                },
+                {
+                    "name": "W",
+                    "type": "double"
+                }
+            ]
+        },
+        {
+            "name": "FMatrix",
+            "header": "Math/Matrix.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FIntPoint",
+            "header": "Math/IntPoint.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "int32"
+                },
+                {
+                    "name": "Y",
+                    "type": "int32"
+                }
+            ]
+        },
+        {
+            "name": "FIntVector",
+            "header": "Math/IntVector.h",
+            "module": "Core",
+            "fields": [
+                {
+                    "name": "X",
+                    "type": "int32"
+                },
+                {
+                    "name": "Y",
+                    "type": "int32"
+                },
+                {
+                    "name": "Z",
+                    "type": "int32"
+                }
+            ]
+        },
+        {
+            "name": "FRandomStream",
+            "header": "Math/RandomStream.h",
+            "module": "Core",
+            "fields": []
+        },
+        {
+            "name": "FActorTickFunction",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FComponentTickFunction",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FOverlapResult",
+            "header": "Engine/OverlapResult.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FCollisionQueryParams",
+            "header": "Engine/CollisionQueryParams.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FCollisionResponseParams",
+            "header": "Engine/CollisionQueryParams.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FCollisionObjectQueryParams",
+            "header": "Engine/CollisionQueryParams.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FCollisionShape",
+            "header": "PhysicsEngine/CollisionShape.h",
+            "module": "Engine",
+            "fields": []
+        },
+        {
+            "name": "FInputActionValue",
+            "header": "InputActionValue.h",
+            "module": "EnhancedInput",
+            "fields": []
+        },
+        {
+            "name": "FGameplayTag",
+            "header": "GameplayTagContainer.h",
+            "module": "GameplayTags",
+            "fields": []
+        },
+        {
+            "name": "FGameplayTagContainer",
+            "header": "GameplayTagContainer.h",
+            "module": "GameplayTags",
+            "fields": []
         }
     ],
     "enums": [
@@ -2759,6 +3541,202 @@
             "header": "Engine/EngineTypes.h",
             "module": "Engine",
             "values": []
+        },
+        {
+            "name": "EAttachmentRule",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "KeepRelative",
+                "KeepWorld",
+                "SnapToTarget"
+            ]
+        },
+        {
+            "name": "EDetachmentRule",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "KeepRelative",
+                "KeepWorld"
+            ]
+        },
+        {
+            "name": "EComponentMobility",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "Static",
+                "Stationary",
+                "Movable"
+            ]
+        },
+        {
+            "name": "ECollisionResponse",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": [
+                "ECR_Ignore",
+                "ECR_Overlap",
+                "ECR_Block"
+            ]
+        },
+        {
+            "name": "EPhysicalSurface",
+            "header": "PhysicalMaterials/PhysicalMaterial.h",
+            "module": "Engine",
+            "values": [
+                "SurfaceType_Default",
+                "SurfaceType1",
+                "SurfaceType2",
+                "SurfaceType3",
+                "SurfaceType4",
+                "SurfaceType5"
+            ]
+        },
+        {
+            "name": "EAutoReceiveInput",
+            "header": "GameFramework/Actor.h",
+            "module": "Engine",
+            "values": [
+                "Disabled",
+                "Player0",
+                "Player1",
+                "Player2",
+                "Player3"
+            ]
+        },
+        {
+            "name": "EEndPlayReason",
+            "header": "GameFramework/Actor.h",
+            "module": "Engine",
+            "values": [
+                "Destroyed",
+                "LevelTransition",
+                "EndPlayInEditor",
+                "RemovedFromWorld",
+                "Quit"
+            ]
+        },
+        {
+            "name": "ESlateVisibility",
+            "header": "Components/SlateWrapperTypes.h",
+            "module": "UMG",
+            "values": [
+                "Visible",
+                "Collapsed",
+                "Hidden",
+                "HitTestInvisible",
+                "SelfHitTestInvisible"
+            ]
+        },
+        {
+            "name": "EHorizTextAligment",
+            "header": "Slate/SlateEnums.h",
+            "module": "SlateCore",
+            "values": [
+                "HAlign_Left",
+                "HAlign_Center",
+                "HAlign_Right",
+                "HAlign_Fill"
+            ]
+        },
+        {
+            "name": "EVerticalAlignment",
+            "header": "Slate/SlateEnums.h",
+            "module": "SlateCore",
+            "values": [
+                "VAlign_Top",
+                "VAlign_Center",
+                "VAlign_Bottom",
+                "VAlign_Fill"
+            ]
+        },
+        {
+            "name": "ETextJustify",
+            "header": "Slate/SlateEnums.h",
+            "module": "SlateCore",
+            "values": [
+                "Left",
+                "Center",
+                "Right"
+            ]
+        },
+        {
+            "name": "EOrientation",
+            "header": "Slate/SlateEnums.h",
+            "module": "SlateCore",
+            "values": [
+                "Orient_Horizontal",
+                "Orient_Vertical"
+            ]
+        },
+        {
+            "name": "ECheckBoxState",
+            "header": "Slate/SlateEnums.h",
+            "module": "SlateCore",
+            "values": [
+                "Unchecked",
+                "Checked",
+                "Undetermined"
+            ]
+        },
+        {
+            "name": "ESelectInfo",
+            "header": "Widgets/Views/STableViewBase.h",
+            "module": "Slate",
+            "values": [
+                "OnKeyPress",
+                "OnNavigation",
+                "OnMouseClick",
+                "Direct"
+            ]
+        },
+        {
+            "name": "ETextCommit",
+            "header": "Widgets/Input/IVirtualKeyboardEntry.h",
+            "module": "Slate",
+            "values": [
+                "Default",
+                "OnEnter",
+                "OnUserMovedFocus",
+                "OnCleared"
+            ]
+        },
+        {
+            "name": "ETimeline Direction",
+            "header": "Components/TimelineComponent.h",
+            "module": "Engine",
+            "values": [
+                "Forward",
+                "Backward"
+            ]
+        },
+        {
+            "name": "ETimelineLength",
+            "header": "Components/TimelineComponent.h",
+            "module": "Engine",
+            "values": [
+                "TL_TimelineLength",
+                "TL_LastKeyFrame"
+            ]
+        },
+        {
+            "name": "EDrawDebugTrace",
+            "header": "Kismet/KismetSystemLibrary.h",
+            "module": "Engine",
+            "values": [
+                "None",
+                "ForOneFrame",
+                "ForDuration",
+                "Persistent"
+            ]
+        },
+        {
+            "name": "ETraceTypeQuery",
+            "header": "Engine/EngineTypes.h",
+            "module": "Engine",
+            "values": []
         }
     ],
     "type_aliases": [
@@ -2841,8 +3819,152 @@
             "kain_name": "NiagaraSystem",
             "ue5_name": "UNiagaraSystem",
             "header": "NiagaraSystem.h"
+        },
+        {
+            "kain_name": "DataTable",
+            "ue5_name": "UDataTable",
+            "header": "Engine/DataTable.h"
+        },
+        {
+            "kain_name": "CurveFloat",
+            "ue5_name": "UCurveFloat",
+            "header": "Curves/CurveFloat.h"
+        },
+        {
+            "kain_name": "World",
+            "ue5_name": "UWorld",
+            "header": "Engine/World.h"
+        },
+        {
+            "kain_name": "GameInstance",
+            "ue5_name": "UGameInstance",
+            "header": "Engine/GameInstance.h"
         }
     ],
+    "constructors": {
+        "FVector": [
+            {
+                "params": [],
+                "initializer": "FVector()"
+            },
+            {
+                "params": ["double", "double", "double"],
+                "initializer": "FVector({0}, {1}, {2})"
+            },
+            {
+                "params": ["double"],
+                "initializer": "FVector({0})"
+            }
+        ],
+        "FVector2D": [
+            {
+                "params": [],
+                "initializer": "FVector2D()"
+            },
+            {
+                "params": ["double", "double"],
+                "initializer": "FVector2D({0}, {1})"
+            },
+            {
+                "params": ["double"],
+                "initializer": "FVector2D({0})"
+            }
+        ],
+        "FVector4": [
+            {
+                "params": [],
+                "initializer": "FVector4()"
+            },
+            {
+                "params": ["double", "double", "double", "double"],
+                "initializer": "FVector4({0}, {1}, {2}, {3})"
+            }
+        ],
+        "FRotator": [
+            {
+                "params": [],
+                "initializer": "FRotator()"
+            },
+            {
+                "params": ["double", "double", "double"],
+                "initializer": "FRotator({0}, {1}, {2})"
+            }
+        ],
+        "FTransform": [
+            {
+                "params": [],
+                "initializer": "FTransform()"
+            },
+            {
+                "params": ["FQuat", "FVector", "FVector"],
+                "initializer": "FTransform({0}, {1}, {2})"
+            },
+            {
+                "params": ["FRotator", "FVector", "FVector"],
+                "initializer": "FTransform({0}, {1}, {2})"
+            }
+        ],
+        "FQuat": [
+            {
+                "params": [],
+                "initializer": "FQuat()"
+            },
+            {
+                "params": ["double", "double", "double", "double"],
+                "initializer": "FQuat({0}, {1}, {2}, {3})"
+            }
+        ],
+        "FLinearColor": [
+            {
+                "params": [],
+                "initializer": "FLinearColor()"
+            },
+            {
+                "params": ["float", "float", "float"],
+                "initializer": "FLinearColor({0}, {1}, {2})"
+            },
+            {
+                "params": ["float", "float", "float", "float"],
+                "initializer": "FLinearColor({0}, {1}, {2}, {3})"
+            }
+        ],
+        "FColor": [
+            {
+                "params": [],
+                "initializer": "FColor()"
+            },
+            {
+                "params": ["uint8", "uint8", "uint8"],
+                "initializer": "FColor({0}, {1}, {2})"
+            },
+            {
+                "params": ["uint8", "uint8", "uint8", "uint8"],
+                "initializer": "FColor({0}, {1}, {2}, {3})"
+            }
+        ]
+    },
+    "named_colors": {
+        "white": "FLinearColor(1.0f, 1.0f, 1.0f, 1.0f)",
+        "black": "FLinearColor(0.0f, 0.0f, 0.0f, 1.0f)",
+        "red": "FLinearColor(1.0f, 0.0f, 0.0f, 1.0f)",
+        "green": "FLinearColor(0.0f, 1.0f, 0.0f, 1.0f)",
+        "blue": "FLinearColor(0.0f, 0.0f, 1.0f, 1.0f)",
+        "yellow": "FLinearColor(1.0f, 1.0f, 0.0f, 1.0f)",
+        "cyan": "FLinearColor(0.0f, 1.0f, 1.0f, 1.0f)",
+        "magenta": "FLinearColor(1.0f, 0.0f, 1.0f, 1.0f)",
+        "orange": "FLinearColor(1.0f, 0.5f, 0.0f, 1.0f)",
+        "purple": "FLinearColor(0.5f, 0.0f, 1.0f, 1.0f)",
+        "pink": "FLinearColor(1.0f, 0.5f, 0.5f, 1.0f)",
+        "brown": "FLinearColor(0.6f, 0.3f, 0.0f, 1.0f)",
+        "gray": "FLinearColor(0.5f, 0.5f, 0.5f, 1.0f)",
+        "grey": "FLinearColor(0.5f, 0.5f, 0.5f, 1.0f)",
+        "transparent": "FLinearColor(0.0f, 0.0f, 0.0f, 0.0f)",
+        "sunset": "FLinearColor(1.0f, 0.5f, 0.0f, 1.0f)",
+        "sky": "FLinearColor(0.5f, 0.7f, 1.0f, 1.0f)",
+        "grass": "FLinearColor(0.2f, 0.8f, 0.2f, 1.0f)",
+        "gold": "FLinearColor(1.0f, 0.84f, 0.0f, 1.0f)",
+        "silver": "FLinearColor(0.75f, 0.75f, 0.75f, 1.0f)"
+    },
     "include_map": {
         "UWorld": "Engine/World.h",
         "UGameplayStatics": "Kismet/GameplayStatics.h",
@@ -2877,6 +3999,50 @@
         "UEnhancedInputLocalPlayerSubsystem": "EnhancedInputSubsystems.h",
         "UWidgetComponent": "Components/WidgetComponent.h",
         "UUserWidget": "Blueprint/UserWidget.h",
-        "UBlueprintFunctionLibrary": "Kismet/BlueprintFunctionLibrary.h"
+        "UBlueprintFunctionLibrary": "Kismet/BlueprintFunctionLibrary.h",
+        "UParticleSystemComponent": "Particles/ParticleSystemComponent.h",
+        "UNiagaraComponent": "NiagaraComponent.h",
+        "ULightComponent": "Components/LightComponent.h",
+        "UPointLightComponent": "Components/PointLightComponent.h",
+        "USpotLightComponent": "Components/SpotLightComponent.h",
+        "UDirectionalLightComponent": "Components/DirectionalLightComponent.h",
+        "UTextRenderComponent": "Components/TextRenderComponent.h",
+        "UArrowComponent": "Components/ArrowComponent.h",
+        "UBillboardComponent": "Components/BillboardComponent.h",
+        "UDecalComponent": "Components/DecalComponent.h",
+        "UTimelineComponent": "Components/TimelineComponent.h",
+        "UInputComponent": "Components/InputComponent.h",
+        "UAnimationAsset": "Animation/AnimationAsset.h",
+        "FName": "UObject/NameTypes.h",
+        "FString": "Containers/UnrealString.h",
+        "FText": "Internationalization/Text.h",
+        "FGuid": "Misc/Guid.h",
+        "FDateTime": "Misc/DateTime.h",
+        "FTimespan": "Misc/Timespan.h",
+        "FBox": "Math/Box.h",
+        "FBox2D": "Math/Box2D.h",
+        "FSphere": "Math/Sphere.h",
+        "FPlane": "Math/Plane.h",
+        "FMatrix": "Math/Matrix.h",
+        "FIntPoint": "Math/IntPoint.h",
+        "FIntVector": "Math/IntVector.h",
+        "FRandomStream": "Math/RandomStream.h",
+        "FInputActionValue": "InputActionValue.h",
+        "FGameplayTag": "GameplayTagContainer.h",
+        "FGameplayTagContainer": "GameplayTagContainer.h",
+        "EAttachmentRule": "Engine/EngineTypes.h",
+        "EDetachmentRule": "Engine/EngineTypes.h",
+        "EComponentMobility": "Engine/EngineTypes.h",
+        "ECollisionResponse": "Engine/EngineTypes.h",
+        "EPhysicalSurface": "PhysicalMaterials/PhysicalMaterial.h",
+        "EAutoReceiveInput": "GameFramework/Actor.h",
+        "EEndPlayReason": "GameFramework/Actor.h",
+        "ESlateVisibility": "Components/SlateWrapperTypes.h",
+        "EHorizTextAligment": "Slate/SlateEnums.h",
+        "EVerticalAlignment": "Slate/SlateEnums.h",
+        "ETextJustify": "Slate/SlateEnums.h",
+        "EOrientation": "Slate/SlateEnums.h",
+        "ECheckBoxState": "Slate/SlateEnums.h",
+        "EDrawDebugTrace": "Kismet/KismetSystemLibrary.h"
     }
 }

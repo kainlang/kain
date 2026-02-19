@@ -2605,6 +2605,7 @@ dependencies = [
  "kain-core",
  "minijinja",
  "once_cell",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

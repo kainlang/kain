@@ -284,3 +284,6 @@ Extracted 21,134 types + 2,346 widgets + 7,271 shader functions from UE5 engine 
 
 ### Feb 13, 2026 — Auto Two-Module Split
 Packager auto-detects runtime vs editor items and generates `Plugin/` (Runtime) + `PluginEditor/` (Editor) module split with correct Build.cs dependencies and `.uplugin` entries.
+
+### Feb 19, 2026 — Viewport Method Body Generation
+Viewport codegen now generates smart method bodies instead of TODO stubs. Methods starting with Set/Update invalidate the viewport, Get/Query methods return appropriate defaults (false for bool, 0 for numeric, ZeroVector/ZeroRotator for UE5 types), and other methods invalidate the viewport.

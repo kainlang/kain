@@ -2,10 +2,12 @@
   "_meta": {
     "generator": "uht_extractor.py",
     "source": "D:\\Unreal\\UE_5.7\\Engine\\Source\\Programs\\Shared\\EpicGames.UHT",
-    "total_rules": 337,
+    "total_rules": 352,
     "total_specifiers": 154,
     "total_property_types": 41,
-    "total_incompatible_combos": 25
+    "total_incompatible_combos": 38,
+    "expanded": true,
+    "expansion_version": "1.0.0"
   },
   "validation_rules": [
     {
@@ -4388,6 +4390,216 @@
         "specifier_type": ""
       },
       "category": "other"
+    },
+    {
+      "severity": "error",
+      "message": "Actor with replicated properties must have GetLifetimeReplicatedProps implementation",
+      "message_raw": "Actor with replicated properties must have GetLifetimeReplicatedProps implementation",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_replication",
+        "class": "Oracle",
+        "specifier_type": "actor"
+      },
+      "category": "replication",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "RPC function must follow naming convention: Server_*, Client_*, or Multicast_*",
+      "message_raw": "RPC function must follow naming convention: Server_*, Client_*, or Multicast_*",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_rpcs",
+        "class": "Oracle",
+        "specifier_type": "function"
+      },
+      "category": "rpc_naming",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Server RPC must be marked as reliable or unreliable",
+      "message_raw": "Server RPC must be marked as reliable or unreliable",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_rpcs",
+        "class": "Oracle",
+        "specifier_type": "function"
+      },
+      "category": "rpc_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Client RPC must be marked as reliable or unreliable",
+      "message_raw": "Client RPC must be marked as reliable or unreliable",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_rpcs",
+        "class": "Oracle",
+        "specifier_type": "function"
+      },
+      "category": "rpc_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Multicast RPC must be marked as reliable or unreliable",
+      "message_raw": "Multicast RPC must be marked as reliable or unreliable",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_rpcs",
+        "class": "Oracle",
+        "specifier_type": "function"
+      },
+      "category": "rpc_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "DataTable struct field must be UE5-serializable type",
+      "message_raw": "DataTable struct field must be UE5-serializable type",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_datatables",
+        "class": "Oracle",
+        "specifier_type": "struct"
+      },
+      "category": "datatable_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "DataTable struct cannot contain pointer types",
+      "message_raw": "DataTable struct cannot contain pointer types",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_datatables",
+        "class": "Oracle",
+        "specifier_type": "struct"
+      },
+      "category": "datatable_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "DataTable struct must inherit from FTableRowBase",
+      "message_raw": "DataTable struct must inherit from FTableRowBase",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_datatables",
+        "class": "Oracle",
+        "specifier_type": "struct"
+      },
+      "category": "datatable_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Component cannot contain actor-only features",
+      "message_raw": "Component cannot contain actor-only features",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_components",
+        "class": "Oracle",
+        "specifier_type": "component"
+      },
+      "category": "component_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Component cannot have Tick function (use TickComponent instead)",
+      "message_raw": "Component cannot have Tick function (use TickComponent instead)",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_components",
+        "class": "Oracle",
+        "specifier_type": "component"
+      },
+      "category": "component_validation",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Type name collides with UE5 engine type",
+      "message_raw": "Type name collides with UE5 engine type",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_name_collisions",
+        "class": "Oracle",
+        "specifier_type": "type"
+      },
+      "category": "name_collision",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Type name is a C++ reserved keyword",
+      "message_raw": "Type name is a C++ reserved keyword",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_name_collisions",
+        "class": "Oracle",
+        "specifier_type": "type"
+      },
+      "category": "name_collision",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Type name is a UE5 macro name",
+      "message_raw": "Type name is a UE5 macro name",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_name_collisions",
+        "class": "Oracle",
+        "specifier_type": "type"
+      },
+      "category": "name_collision",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Circular dependency detected in type definitions",
+      "message_raw": "Circular dependency detected in type definitions",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_circular_dependencies",
+        "class": "Oracle",
+        "specifier_type": "type"
+      },
+      "category": "circular_dependency",
+      "kain_specific": true
+    },
+    {
+      "severity": "error",
+      "message": "Nested container types are not supported by UHT",
+      "message_raw": "Nested container types are not supported by UHT",
+      "source_file": "KAIN Oracle",
+      "line": 0,
+      "context": {
+        "method": "validate_property_type",
+        "class": "Oracle",
+        "specifier_type": "property"
+      },
+      "category": "type_validation",
+      "kain_specific": true
     }
   ],
   "specifiers": [
@@ -5892,6 +6104,105 @@
       "message": "Interface functions cannot be declared 'final'",
       "category": "type_definition",
       "severity": "error"
+    },
+    {
+      "specifier_a": "Replicated",
+      "specifier_b": "Transient",
+      "message": "Replicated properties cannot be marked as Transient",
+      "category": "property_specifier",
+      "severity": "error",
+      "kain_specific": true
+    },
+    {
+      "specifier_a": "Replicated",
+      "specifier_b": "Config",
+      "message": "Replicated properties cannot be marked as Config",
+      "category": "property_specifier",
+      "severity": "error",
+      "kain_specific": true
+    },
+    {
+      "specifier_a": "EditAnywhere",
+      "specifier_b": "EditInstanceOnly",
+      "message": "Cannot specify both EditAnywhere and EditInstanceOnly",
+      "category": "property_specifier",
+      "severity": "error",
+      "constraint": "only_one_allowed"
+    },
+    {
+      "specifier_a": "EditAnywhere",
+      "specifier_b": "EditDefaultsOnly",
+      "message": "Cannot specify both EditAnywhere and EditDefaultsOnly",
+      "category": "property_specifier",
+      "severity": "error",
+      "constraint": "only_one_allowed"
+    },
+    {
+      "specifier_a": "EditInstanceOnly",
+      "specifier_b": "EditDefaultsOnly",
+      "message": "Cannot specify both EditInstanceOnly and EditDefaultsOnly",
+      "category": "property_specifier",
+      "severity": "error",
+      "constraint": "only_one_allowed"
+    },
+    {
+      "specifier_a": "VisibleAnywhere",
+      "specifier_b": "VisibleInstanceOnly",
+      "message": "Cannot specify both VisibleAnywhere and VisibleInstanceOnly",
+      "category": "property_specifier",
+      "severity": "error",
+      "constraint": "only_one_allowed"
+    },
+    {
+      "specifier_a": "VisibleAnywhere",
+      "specifier_b": "VisibleDefaultsOnly",
+      "message": "Cannot specify both VisibleAnywhere and VisibleDefaultsOnly",
+      "category": "property_specifier",
+      "severity": "error",
+      "constraint": "only_one_allowed"
+    },
+    {
+      "specifier_a": "VisibleInstanceOnly",
+      "specifier_b": "VisibleDefaultsOnly",
+      "message": "Cannot specify both VisibleInstanceOnly and VisibleDefaultsOnly",
+      "category": "property_specifier",
+      "severity": "error",
+      "constraint": "only_one_allowed"
+    },
+    {
+      "specifier_a": "SaveGame",
+      "specifier_b": "Transient",
+      "message": "SaveGame properties cannot be marked as Transient",
+      "category": "property_specifier",
+      "severity": "error"
+    },
+    {
+      "specifier_a": "BlueprintCallable",
+      "specifier_b": "BlueprintPure",
+      "message": "Cannot specify both BlueprintCallable and BlueprintPure",
+      "category": "function_specifier",
+      "severity": "error"
+    },
+    {
+      "specifier_a": "Const",
+      "specifier_b": "Exec",
+      "message": "Exec functions cannot be const",
+      "category": "function_specifier",
+      "severity": "error"
+    },
+    {
+      "specifier_a": "Static",
+      "specifier_b": "Virtual",
+      "message": "Static functions cannot be virtual",
+      "category": "function_specifier",
+      "severity": "error"
+    },
+    {
+      "specifier_a": "Abstract",
+      "specifier_b": "NotPlaceable",
+      "message": "Abstract classes are implicitly NotPlaceable",
+      "category": "class_specifier",
+      "severity": "warning"
     }
   ],
   "kain_rules": {
@@ -10291,6 +10602,312 @@
         },
         "category": "other"
       }
+    ]
+  },
+  "replication_rules": {
+    "property_replication": {
+      "allowed_types": [
+        "bool",
+        "uint8",
+        "int32",
+        "int64",
+        "float",
+        "double",
+        "FString",
+        "FName",
+        "FText",
+        "FVector",
+        "FRotator",
+        "FTransform",
+        "FLinearColor",
+        "FColor",
+        "TArray",
+        "TObjectPtr",
+        "UObject*",
+        "AActor*",
+        "UActorComponent*",
+        "enum",
+        "struct"
+      ],
+      "disallowed_types": [
+        "TMap",
+        "TSet",
+        "TWeakObjectPtr",
+        "TSoftObjectPtr",
+        "TLazyObjectPtr",
+        "TFunction",
+        "TDelegate",
+        "TMulticastDelegate"
+      ],
+      "constraints": [
+        "Replicated properties must be marked with UPROPERTY(Replicated)",
+        "Actor must implement GetLifetimeReplicatedProps",
+        "Replicated arrays must use const reference in RPC parameters",
+        "Replicated structs must be serializable",
+        "Replicated pointers must be UObject-derived types"
+      ]
+    },
+    "rpc_validation": {
+      "naming_conventions": {
+        "Server": "Server_FunctionName",
+        "Client": "Client_FunctionName",
+        "Multicast": "Multicast_FunctionName"
+      },
+      "required_specifiers": [
+        "Reliable or Unreliable"
+      ],
+      "constraints": [
+        "RPCs cannot have return values",
+        "RPCs cannot be BlueprintImplementableEvent",
+        "RPCs cannot be BlueprintNativeEvent",
+        "RPCs cannot be Exec functions",
+        "RPCs cannot be static",
+        "RPCs cannot contain delegate parameters",
+        "RPCs cannot contain out parameters",
+        "RPC parameters must be passed by value or const reference"
+      ]
+    },
+    "lifetime_replication": {
+      "required_includes": [
+        "Net/UnrealNetwork.h"
+      ],
+      "required_macros": [
+        "DOREPLIFETIME",
+        "DOREPLIFETIME_CONDITION"
+      ],
+      "function_signature": "void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override"
+    }
+  },
+  "attribute_compatibility_matrix": {
+    "property_attributes": {
+      "Replicated": {
+        "compatible_with": [
+          "EditAnywhere",
+          "EditInstanceOnly",
+          "EditDefaultsOnly",
+          "VisibleAnywhere",
+          "VisibleInstanceOnly",
+          "VisibleDefaultsOnly",
+          "BlueprintReadOnly",
+          "BlueprintReadWrite",
+          "Category"
+        ],
+        "incompatible_with": [
+          "Transient",
+          "Config",
+          "GlobalConfig",
+          "DuplicateTransient"
+        ]
+      },
+      "SaveGame": {
+        "compatible_with": [
+          "EditAnywhere",
+          "EditInstanceOnly",
+          "EditDefaultsOnly",
+          "VisibleAnywhere",
+          "BlueprintReadOnly",
+          "BlueprintReadWrite",
+          "Category"
+        ],
+        "incompatible_with": [
+          "Transient",
+          "DuplicateTransient"
+        ]
+      },
+      "Transient": {
+        "compatible_with": [
+          "EditAnywhere",
+          "VisibleAnywhere",
+          "BlueprintReadOnly",
+          "Category"
+        ],
+        "incompatible_with": [
+          "Replicated",
+          "SaveGame",
+          "Config",
+          "GlobalConfig"
+        ]
+      },
+      "Config": {
+        "compatible_with": [
+          "EditAnywhere",
+          "EditDefaultsOnly",
+          "VisibleAnywhere",
+          "BlueprintReadOnly",
+          "Category"
+        ],
+        "incompatible_with": [
+          "Replicated",
+          "Transient",
+          "EditInstanceOnly"
+        ]
+      }
+    },
+    "function_attributes": {
+      "BlueprintCallable": {
+        "compatible_with": [
+          "Category",
+          "Meta"
+        ],
+        "incompatible_with": [
+          "BlueprintPure"
+        ]
+      },
+      "BlueprintPure": {
+        "compatible_with": [
+          "Category",
+          "Meta"
+        ],
+        "incompatible_with": [
+          "BlueprintCallable",
+          "Exec"
+        ]
+      },
+      "BlueprintImplementableEvent": {
+        "compatible_with": [
+          "Category",
+          "Meta"
+        ],
+        "incompatible_with": [
+          "BlueprintNativeEvent",
+          "Reliable",
+          "Unreliable",
+          "Server",
+          "Client",
+          "Multicast"
+        ]
+      },
+      "BlueprintNativeEvent": {
+        "compatible_with": [
+          "Category",
+          "Meta"
+        ],
+        "incompatible_with": [
+          "BlueprintImplementableEvent",
+          "Reliable",
+          "Unreliable",
+          "Server",
+          "Client",
+          "Multicast"
+        ]
+      },
+      "Server": {
+        "compatible_with": [
+          "Reliable",
+          "Unreliable",
+          "WithValidation"
+        ],
+        "incompatible_with": [
+          "BlueprintImplementableEvent",
+          "BlueprintNativeEvent",
+          "Client",
+          "Multicast",
+          "Exec"
+        ],
+        "requires_one_of": [
+          "Reliable",
+          "Unreliable"
+        ]
+      },
+      "Client": {
+        "compatible_with": [
+          "Reliable",
+          "Unreliable"
+        ],
+        "incompatible_with": [
+          "BlueprintImplementableEvent",
+          "BlueprintNativeEvent",
+          "Server",
+          "Multicast",
+          "Exec"
+        ],
+        "requires_one_of": [
+          "Reliable",
+          "Unreliable"
+        ]
+      },
+      "Multicast": {
+        "compatible_with": [
+          "Reliable",
+          "Unreliable"
+        ],
+        "incompatible_with": [
+          "BlueprintImplementableEvent",
+          "BlueprintNativeEvent",
+          "Server",
+          "Client",
+          "Exec"
+        ],
+        "requires_one_of": [
+          "Reliable",
+          "Unreliable"
+        ]
+      }
+    },
+    "class_attributes": {
+      "Abstract": {
+        "compatible_with": [
+          "Blueprintable",
+          "BlueprintType",
+          "Category"
+        ],
+        "incompatible_with": [
+          "NotPlaceable"
+        ],
+        "implies": [
+          "NotPlaceable"
+        ]
+      },
+      "Blueprintable": {
+        "compatible_with": [
+          "BlueprintType",
+          "Category",
+          "Meta"
+        ],
+        "incompatible_with": [
+          "NotBlueprintable"
+        ]
+      },
+      "NotBlueprintable": {
+        "compatible_with": [
+          "Category"
+        ],
+        "incompatible_with": [
+          "Blueprintable",
+          "BlueprintType"
+        ]
+      }
+    }
+  },
+  "kain_specific_rules": {
+    "actor_rules": [
+      "Actors must use A-prefix (AMyActor)",
+      "Actor state fields are automatically replicated if marked @replicated",
+      "Actor RPC functions must follow Server_/Client_/Multicast_ naming",
+      "Actors with replicated state must have GetLifetimeReplicatedProps generated"
+    ],
+    "struct_rules": [
+      "Structs must use F-prefix (FMyStruct)",
+      "@datatable structs must inherit from FTableRowBase",
+      "@datatable structs cannot contain pointers",
+      "Struct members cannot be replicated"
+    ],
+    "enum_rules": [
+      "Enums must use E-prefix (EMyEnum)",
+      "Enum values cannot be named 'true' or 'false'",
+      "Enums should have a 0 entry for default initialization",
+      "BlueprintType enums must use uint8 as base type"
+    ],
+    "component_rules": [
+      "Components must use U-prefix and Component suffix (UMyComponent)",
+      "@component structs generate UActorComponent subclasses",
+      "Components cannot contain actor-only features",
+      "Components use TickComponent instead of Tick"
+    ],
+    "delegate_rules": [
+      "Delegates must use F-prefix (FMyDelegate)",
+      "Delegate parameters cannot be in RPCs",
+      "Delegates cannot be replicated"
     ]
   }
 }
