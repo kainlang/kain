@@ -17,3 +17,4 @@ unreal_asset_base       = { workspace = true }
 unreal_asset_exports    = { workspace = true }
 unreal_asset_properties = { workspace = true }
 unreal_asset_kismet     = { workspace = true }
+ordered-float           = "3.7.0"

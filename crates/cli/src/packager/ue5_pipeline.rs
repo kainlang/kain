@@ -47,37 +47,113 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     // STEP 3: Compile shaders (optional)
     super::codegen::compile_shaders(&layout, &ue5_config, &typed_program, &shader_names)?;
 
-    // STEP 3.5: Extract and generate material graphs
+    // STEP 3.5: Generate Materials (Binary .uasset + C++ Factory fallback)
+    #[cfg(feature = "ue5")]
     if !material_graphs.is_empty() {
         println!();
-        println!("🎨 Found {} material graphs:", material_graphs.len());
-        for mat in &material_graphs {
-            println!("   - {}", mat.name);
+        println!("🎨 Generating {} materials...", material_graphs.len());
+
+        // Ensure Content/Materials exists for binary output
+        let mat_content_dir = layout.plugin_root.join("Content").join("Materials");
+        if let Err(e) = fs::create_dir_all(&mat_content_dir) {
+            eprintln!("   ⚠️  Failed to create materials content dir: {}", e);
         }
 
-        #[cfg(feature = "ue5")]
-        {
-            use ue5_materials::MaterialGraph;
+        let mut converted_graphs = Vec::new();
+        for mat_def in &material_graphs {
+            match convert_material_graph(mat_def) {
+                Ok(graph) => {
+                    // Attempt binary .uasset generation first
+                    match ue5_materials::material_serializer::serialize_material_graph(&graph) {
+                        Ok(bytes) => {
+                            let path = mat_content_dir.join(format!("{}.uasset", graph.name));
+                            if let Err(e) = fs::write(&path, &bytes) {
+                                eprintln!("   ⚠️  Failed to write .uasset for {}: {}", graph.name, e);
+                            } else {
+                                println!("   ✓ Binary material asset: {} ({} bytes)", graph.name, bytes.len());
+                            }
+                        }
+                        Err(e) => {
+                            println!("   ℹ️  Binary generation failed for {}: {}", graph.name, e);
+                            println!("       Falling back to C++ factory...");
+                        }
+                    }
+                    converted_graphs.push(graph);
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to convert material {}: {}", mat_def.name, e);
+                }
+            }
+        }
 
-            let mut converted_graphs = Vec::new();
-            for mat_def in &material_graphs {
-                // Convert AST MaterialGraphDef to IR MaterialGraph
-                match convert_material_graph(mat_def) {
-                    Ok(graph) => {
-                        println!("   ✓ Converted material: {}", graph.name);
-                        converted_graphs.push(graph);
+        // Always generate C++ factories as a safety net (editor can re-import)
+        if !converted_graphs.is_empty() {
+            super::material_gen::generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &cwd)?;
+        }
+        println!();
+    }
+
+    // STEP 3.6: Generate Blueprints (Binary .uasset + C++ Factory fallback)
+    #[cfg(feature = "ue5")]
+    {
+        let actors: Vec<&kain_core::ast::Actor> = typed_program.items.iter()
+            .filter_map(|item| {
+                if let kain_core::types::TypedItem::Actor(typed_actor) = item {
+                    Some(&typed_actor.ast)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !actors.is_empty() {
+            println!("📐 Generating Blueprints for {} actors...", actors.len());
+
+            // Ensure Content/Blueprints exists
+            let bp_content_dir = layout.plugin_root.join("Content").join("Blueprints");
+            if let Err(e) = fs::create_dir_all(&bp_content_dir) {
+                 eprintln!("   ⚠️  Failed to create blueprints content dir: {}", e);
+            }
+
+            // Ensure Generated/Factories exists for fallback
+            let factory_dir = layout.private_dir.join("Generated").join("Factories");
+            if let Err(e) = fs::create_dir_all(&factory_dir) {
+                 eprintln!("   ⚠️  Failed to create factory dir: {}", e);
+            }
+
+            for actor in actors {
+                match ue5_blueprints::conversion::from_ast(actor) {
+                    Ok(bp_ir) => {
+                        // Attempt binary .uasset generation
+                        match ue5_blueprints::generate_uasset(&bp_ir) {
+                             Ok(Some(bytes)) => {
+                                 let path = bp_content_dir.join(format!("{}.uasset", bp_ir.name));
+                                 match fs::write(&path, &bytes) {
+                                     Ok(_) => println!("   ✓ Binary blueprint: {} ({} bytes)", bp_ir.name, bytes.len()),
+                                     Err(e) => eprintln!("   ⚠️  Failed to write .uasset for {}: {}", bp_ir.name, e),
+                                 }
+                             }
+                             // Fallback to C++ Factory
+                             Ok(None) => {
+                                 println!("   ℹ️  {} has event graph, using C++ factory fallback.", bp_ir.name);
+                                 let (header, source) = ue5_blueprints::generate_factory(&bp_ir);
+                                 let h_path = factory_dir.join(format!("{}Factory.h", bp_ir.name));
+                                 let cpp_path = factory_dir.join(format!("{}Factory.cpp", bp_ir.name));
+                                 let _ = fs::write(&h_path, header);
+                                 let _ = fs::write(&cpp_path, source);
+                             }
+                             Err(e) => {
+                                 eprintln!("   ❌ Blueprint generation error for {}: {}", bp_ir.name, e);
+                             }
+                        }
                     }
                     Err(e) => {
-                        eprintln!("   ⚠️  Failed to convert material {}: {}", mat_def.name, e);
+                         eprintln!("   ❌ Failed to convert actor {} to blueprint IR: {}", actor.name, e);
                     }
                 }
             }
-
-            if !converted_graphs.is_empty() {
-                super::material_gen::generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &cwd)?;
-            }
+            println!();
         }
-        println!();
     }
 
     // STEP 4: Generate main plugin files
@@ -551,6 +627,7 @@ fn convert_material_graph(def: &kain_core::ast::MaterialGraphDef) -> KainResult<
         outputs,
         properties,
         nodes,
+        is_dynamic: false,
     })
 }
 

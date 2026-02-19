@@ -14,11 +14,13 @@ use unreal_asset_properties::{
     str_property::StrProperty,
     struct_property::StructProperty,
     array_property::ArrayProperty,
+    color_property::LinearColorProperty,
     material_input_property::{
         ColorMaterialInputProperty, ExpressionInputProperty, MaterialExpression,
     },
     Property,
 };
+use unreal_asset_base::types::vector::Color;
 use ordered_float::OrderedFloat;
 
 use crate::material_graph::*;
@@ -349,66 +351,6 @@ impl MaterialAssetBuilder {
 
     pub fn add_constant3_node(&mut self, r: f32, g: f32, b: f32) -> usize {
         let name = self.asset.add_fname("Constant");
-        // Constant3Vector uses a LinearColor struct
-        let r_name = self.asset.add_fname("R");
-        let g_name = self.asset.add_fname("G");
-        let b_name = self.asset.add_fname("B");
-        let a_name = self.asset.add_fname("A");
-        let struct_type = self.asset.add_fname("LinearColor");
-
-        let color_struct = StructProperty {
-            name: name.clone(),
-            ancestry: Default::default(),
-            property_guid: None,
-            duplication_index: 0,
-            struct_type: Some(struct_type),
-            struct_guid: None,
-            serialize_none: true,
-            value: vec![
-                FloatProperty {
-                    name: r_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(r),
-                }
-                .into(),
-                FloatProperty {
-                    name: g_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(g),
-                }
-                .into(),
-                FloatProperty {
-                    name: b_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(b),
-                }
-                .into(),
-                FloatProperty {
-                    name: a_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(1.0),
-                }
-                .into(),
-            ],
-        };
-
-        self.add_expression_export("MaterialExpressionConstant3Vector", vec![color_struct.into()])
-    }
-
-    pub fn add_constant4_node(&mut self, r: f32, g: f32, b: f32, a: f32) -> usize {
-        let name = self.asset.add_fname("Constant");
-        let r_name = self.asset.add_fname("R");
-        let g_name = self.asset.add_fname("G");
-        let b_name = self.asset.add_fname("B");
-        let a_name = self.asset.add_fname("A");
         let struct_type = self.asset.add_fname("LinearColor");
 
         let color_struct = StructProperty {
@@ -417,42 +359,51 @@ impl MaterialAssetBuilder {
             property_guid: None,
             duplication_index: 0,
             struct_type: Some(struct_type),
-            struct_guid: None,
+            struct_guid: Some(Default::default()),
             serialize_none: true,
-            value: vec![
-                FloatProperty {
-                    name: r_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(r),
-                }
-                .into(),
-                FloatProperty {
-                    name: g_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(g),
-                }
-                .into(),
-                FloatProperty {
-                    name: b_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(b),
-                }
-                .into(),
-                FloatProperty {
-                    name: a_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(a),
-                }
-                .into(),
-            ],
+            value: vec![LinearColorProperty {
+                name: Default::default(),
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                color: Color::new(
+                    OrderedFloat(r),
+                    OrderedFloat(g),
+                    OrderedFloat(b),
+                    OrderedFloat(1.0),
+                ),
+            }
+            .into()],
+        };
+
+        self.add_expression_export("MaterialExpressionConstant3Vector", vec![color_struct.into()])
+    }
+
+    pub fn add_constant4_node(&mut self, r: f32, g: f32, b: f32, a: f32) -> usize {
+        let name = self.asset.add_fname("Constant");
+        let struct_type = self.asset.add_fname("LinearColor");
+
+        let color_struct = StructProperty {
+            name,
+            ancestry: Default::default(),
+            property_guid: None,
+            duplication_index: 0,
+            struct_type: Some(struct_type),
+            struct_guid: Some(Default::default()),
+            serialize_none: true,
+            value: vec![LinearColorProperty {
+                name: Default::default(),
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                color: Color::new(
+                    OrderedFloat(r),
+                    OrderedFloat(g),
+                    OrderedFloat(b),
+                    OrderedFloat(a),
+                ),
+            }
+            .into()],
         };
 
         self.add_expression_export("MaterialExpressionConstant4Vector", vec![color_struct.into()])
@@ -706,10 +657,6 @@ impl MaterialAssetBuilder {
     pub fn add_vector_parameter_node(&mut self, param_name: &str, default: [f32; 3]) -> usize {
         let pname = self.asset.add_fname("ParameterName");
         let default_name = self.asset.add_fname("DefaultValue");
-        let r_name = self.asset.add_fname("R");
-        let g_name = self.asset.add_fname("G");
-        let b_name = self.asset.add_fname("B");
-        let a_name = self.asset.add_fname("A");
         let struct_type = self.asset.add_fname("LinearColor");
 
         let color_struct = StructProperty {
@@ -718,42 +665,21 @@ impl MaterialAssetBuilder {
             property_guid: None,
             duplication_index: 0,
             struct_type: Some(struct_type),
-            struct_guid: None,
+            struct_guid: Some(Default::default()),
             serialize_none: true,
-            value: vec![
-                FloatProperty {
-                    name: r_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(default[0]),
-                }
-                .into(),
-                FloatProperty {
-                    name: g_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(default[1]),
-                }
-                .into(),
-                FloatProperty {
-                    name: b_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(default[2]),
-                }
-                .into(),
-                FloatProperty {
-                    name: a_name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: OrderedFloat(1.0),
-                }
-                .into(),
-            ],
+            value: vec![LinearColorProperty {
+                name: Default::default(),
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                color: Color::new(
+                    OrderedFloat(default[0]),
+                    OrderedFloat(default[1]),
+                    OrderedFloat(default[2]),
+                    OrderedFloat(1.0),
+                ),
+            }
+            .into()],
         };
 
         let props = vec![
@@ -1000,7 +926,9 @@ impl MaterialAssetBuilder {
     fn finalize_material_export(&mut self) {
         let mut mat_props: Vec<Property> = Vec::new();
 
-        // Add material output connections
+        // Add material output connections as StructProperty wrapping ColorMaterialInput
+        // UE5 serializes material outputs as StructProperty with struct_type = "ColorMaterialInput"
+        // The StructProperty custom serialization path then delegates to ColorMaterialInputProperty
         let connections: Vec<(String, usize)> =
             self.output_connections.iter().map(|(k, v)| (k.clone(), *v)).collect();
 
@@ -1008,15 +936,28 @@ impl MaterialAssetBuilder {
             let expr = self.make_expression_ref(*node_id, 0);
 
             let prop_name = self.asset.add_fname(output_name);
-            let input_prop = ColorMaterialInputProperty {
-                name: prop_name,
+            let struct_type = self.asset.add_fname("ColorMaterialInput");
+
+            let inner = ColorMaterialInputProperty {
+                name: prop_name.clone(),
                 ancestry: Default::default(),
                 property_guid: None,
                 duplication_index: 0,
                 material_expression: expr,
                 value: Default::default(),
             };
-            mat_props.push(input_prop.into());
+
+            let wrapper = StructProperty {
+                name: prop_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                struct_type: Some(struct_type),
+                struct_guid: Some(Default::default()),
+                serialize_none: true,
+                value: vec![inner.into()],
+            };
+            mat_props.push(wrapper.into());
         }
 
         // Build Expressions array (references to all expression exports)

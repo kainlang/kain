@@ -385,6 +385,7 @@ dependencies = [
  "toml",
  "tower-lsp",
  "ue5",
+ "ue5-blueprints",
  "ue5-editor",
  "ue5-materials",
  "ue5-shaders",
@@ -2778,6 +2779,7 @@ version = "0.1.0"
 dependencies = [
  "indoc",
  "kain-core",
+ "ordered-float",
  "serde",
  "serde_json",
  "thiserror",

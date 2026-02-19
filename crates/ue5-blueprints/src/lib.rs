@@ -46,6 +46,8 @@ pub mod error;
 pub mod ir;
 pub mod factory;
 pub mod writer;
+pub mod conversion;
+pub mod kismet;
 
 // Re-export the most common types at crate root
 pub use ir::{
@@ -167,10 +169,10 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_writer_falls_back_gracefully() {
-        let bp = sample_blueprint(); // has event graph → not yet supported
+    fn test_binary_writer_handles_event_graph() {
+        let bp = sample_blueprint(); // has event graph → now fully supported
         let result = generate_uasset(&bp);
         assert!(result.is_ok());
-        assert!(result.unwrap().is_none()); // graceful fallback
+        assert!(result.unwrap().is_some()); // binary generation succeeds!
     }
 }

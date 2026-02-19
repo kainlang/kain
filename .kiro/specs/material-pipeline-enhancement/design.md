@@ -891,33 +891,32 @@ These phases can be implemented in parallel by different agents:
 
 ## Future Enhancements
 
-### Phase 12: Material Instances (Future)
+### Phase 12: Material Instances
 - Generate material instances at compile time
 - Override parameters without duplicating materials
 - Reduce memory usage for material variations
 - Support for material instance constants (MIC)
 
-### Phase 13: Visual Material Editor (Future)
-- VS Code extension for visual material editing
+### Phase 13: Visual Material Editor    
 - Drag-and-drop node graph editor
 - Live preview of materials
 - Bidirectional sync between visual editor and KAIN code
 
-### Phase 14: Material Optimization (Future)
+### Phase 14: Material Optimization         
 - Dead code elimination (remove unused nodes)
 - Constant folding (evaluate constant expressions at compile time)
 - Node fusion (combine multiple operations into single nodes)
 - Instruction count analysis and warnings
 - Automatic LOD generation (simplified materials for distance)
 
-### Phase 15: Advanced Shading Models (Future)
+### Phase 15: Advanced Shading Models 
 - Custom shading models (beyond UE5 built-ins)
 - Physically-based subsurface scattering
 - Anisotropic reflections
 - Iridescence and thin-film interference
 - Custom lighting models
 
-### Phase 16: Material Debugging (Future)
+### Phase 16: Material Debugging 
 - Visual debugging of material graphs
 - Node value inspection at runtime
 - Performance profiling per-node
