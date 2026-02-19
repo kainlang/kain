@@ -285,6 +285,15 @@ fn diagnostic_from_error(text: &str, err: &KainError) -> Vec<Diagnostic> {
         KainError::Codegen { message, span } => (message.clone(), *span),
         KainError::Runtime { message } => (message.clone(), Span::default()),
         KainError::Io(_) => return vec![],
+        KainError::Enhanced { message, location, .. } => {
+            // Convert location to span if available
+            let span = if let Some((line, col)) = location {
+                Span::new(*line, *col)
+            } else {
+                Span::default()
+            };
+            (message.clone(), span)
+        }
     };
 
     let range = span_to_range(text, span);

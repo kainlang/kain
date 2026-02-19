@@ -30,6 +30,8 @@ pub mod editor_attributes;
 pub mod uht_rules;
 pub mod module_graph;
 pub mod virtual_obligations;
+pub mod metadata_validation;
+pub mod metadata_hotreload;
 
 // Re-export commonly used items
 pub use naming::*;
@@ -47,3 +49,5 @@ pub use editor_attributes::EditorAttributesRegistry;
 pub use uht_rules::UhtRules;
 pub use module_graph::ModuleGraph;
 pub use virtual_obligations::VirtualObligations;
+pub use metadata_validation::{MetadataValidator, ValidationError, ValidationResult};
+pub use metadata_hotreload::{MetadataWatcher, HotReloadManager};

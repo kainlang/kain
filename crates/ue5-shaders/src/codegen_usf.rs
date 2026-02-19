@@ -7,7 +7,7 @@
 //! - [numthreads] compute dispatch
 //! - SHADER_PARAMETER_STRUCT compatible parameter layout
 
-use kain_core::types::{TypedProgram, TypedItem, TypedShader};
+use kain_core::types::{TypedProgram, TypedItem, TypedShader, TypedStruct, TypedComponent, TypedActor};
 use kain_core::error::{KainResult, KainError};
 use kain_core::ast::{Type, ShaderStage, Expr, Stmt, Block, BinaryOp, Pattern};
 use std::collections::HashMap;
@@ -108,16 +108,22 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
                 }
             }
             
-            // For compute shaders, allow explicitly named "OutputTexture" if referenced in logic but not in inputs
             if is_compute && all_uav_outputs.is_empty() {
                 // We'll inject a default output UAV called "OutputTexture"
-                 all_uav_outputs.push(("OutputTexture".to_string(), "RWTexture2D<float4>".to_string(), 0));
+                 let is_3d = if let Some(p) = shader.ast.inputs.get(0) {
+                     is_3d_id_type(&p.ty)
+                 } else {
+                     false
+                 };
+                 let uav_ty = if is_3d { "RWTexture3D<float4>" } else { "RWTexture2D<float4>" };
+                 all_uav_outputs.push(("OutputTexture".to_string(), uav_ty.to_string(), 0));
             }
             
             break; // Found our shader, stop looking
         }
     }
     
+    let type_db = build_struct_map(program);
     let component_mirrors = &mirrors.0;
 
     // Determine which mirrors are actually referenced by THIS shader's scalar params.
@@ -442,7 +448,13 @@ fn generate_cpp_implementation_cached(program: &TypedProgram, shader_name: &str,
             
             // Inject default OutputTexture if needed for compute
             if is_compute && all_uav_outputs.is_empty() {
-                 all_uav_outputs.push(("OutputTexture".to_string(), "RWTexture2D<float4>".to_string(), 0));
+                 let is_3d = if let Some(p) = shader.ast.inputs.get(0) {
+                     is_3d_id_type(&p.ty)
+                 } else {
+                     false
+                 };
+                 let uav_ty = if is_3d { "RWTexture3D<float4>" } else { "RWTexture2D<float4>" };
+                 all_uav_outputs.push(("OutputTexture".to_string(), uav_ty.to_string(), 0));
             }
             break; 
         }
@@ -577,6 +589,7 @@ pub fn generate(program: &TypedProgram) -> KainResult<String> {
 
 fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResult<String> {
     let mut output = String::new();
+    let type_db = build_struct_map(program);
     
     // Pass 1: Collect all uniforms from all shaders to deduplicate
     let mut all_texture_inputs: Vec<(String, String, u32)> = Vec::new();
@@ -618,7 +631,20 @@ fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResul
     
     // For compute shaders, check if we need to inject the OutputTexture UAV
     if has_compute && all_uav_outputs.is_empty() {
-        all_uav_outputs.push(("OutputTexture".to_string(), "RWTexture2D<float4>".to_string(), 0));
+        let is_3d = program.items.iter().find_map(|item| {
+            if let TypedItem::Shader(s) = item {
+                if matches!(s.ast.stage, ShaderStage::Compute) {
+                    return Some(s.ast.inputs.get(0).map_or(false, |p| is_3d_id_type(&p.ty)));
+                }
+            }
+            None
+        }).unwrap_or(false);
+
+        if is_3d {
+            all_uav_outputs.push(("OutputTexture".to_string(), "RWTexture3D<float4>".to_string(), 0));
+        } else {
+            all_uav_outputs.push(("OutputTexture".to_string(), "RWTexture2D<float4>".to_string(), 0));
+        }
     }
     
     // UE5 header
@@ -677,7 +703,7 @@ fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResul
     // Pass 2: Emit each shader's entry point (no declarations, just the function)
     for item in &program.items {
         if let TypedItem::Shader(shader) = item {
-            output.push_str(&emit_shader_body(shader)?);
+            output.push_str(&emit_shader_body(shader, mirrors, type_db.clone())?);
         }
     }
     
@@ -692,6 +718,8 @@ struct USFContext {
     packer: Option<InterpolatorPacker>,
     is_vertex_shader: bool,
     is_compute_shader: bool,
+    is_compute_3d: bool,
+    struct_map: HashMap<String, HashMap<String, String>>,
     // Data-driven shader knowledge (intrinsics, includes, permutations)
     shader_knowledge: Option<ShaderKnowledge>,
 }
@@ -728,6 +756,8 @@ impl USFContext {
             packer: None,
             is_vertex_shader: false,
             is_compute_shader: false,
+            is_compute_3d: false,
+            struct_map: HashMap::new(),
             shader_knowledge: None,
         }
     }
@@ -825,9 +855,14 @@ fn generate_swizzle(start: usize, count: usize) -> String {
 }
 
 /// Emit just the shader entry point function (no declarations - those are now global)
-fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
+pub fn emit_shader_body(shader: &TypedShader, mirrors: &CachedMirrors, type_db: HashMap<String, HashMap<String, String>>) -> KainResult<String> {
     let mut output = String::new();
     let mut ctx = USFContext::new();
+    
+    // Load type database for field resolution
+    ctx.struct_map = type_db;
+    // Note: ideally we build from program, but we'll use a local helper for now
+    // or pass it in. For single-shader artifacts, build_struct_map(full_program) is better.
     
     // Load shader knowledge for data-driven intrinsic resolution
     let metadata_dir = std::path::Path::new("unreal/metadata");
@@ -856,8 +891,12 @@ fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
     
     match shader.ast.stage {
         ShaderStage::Compute => {
+            // Check dimensionality
+            let is_3d = shader.ast.inputs.get(0).map_or(false, |p| is_3d_id_type(&p.ty));
+            ctx.is_compute_3d = is_3d;
+
             // Check for @compute(x,y,z) attribute
-            let mut threads = (32, 32, 1); // Default to decent 2D workgroup size
+            let mut threads = if is_3d { (8, 8, 8) } else { (32, 32, 1) };
             /* 
             // Attributes not yet supported on Shader AST node
             for attr in &shader.ast.attributes {
@@ -878,10 +917,17 @@ fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
             // UE5 convention: early-out for out-of-bounds threads
             // For texture loads, we don't strictly need this if we clamp, but good practice
             output.push_str(&format!("{}// Safe Texture Load Pattern\n", ctx.indent()));
-            output.push_str(&format!("{}int3 TexCoord = int3(ThreadId.xy, 0);\n", ctx.indent()));
+            if is_3d {
+                output.push_str(&format!("{}int3 TexCoord = int3(ThreadId.xyz);\n", ctx.indent()));
+            } else {
+                output.push_str(&format!("{}int3 TexCoord = int3(ThreadId.xy, 0);\n", ctx.indent()));
+            }
             
             // Add compute builtins to context with proper types
             // Map all common parameter names to ThreadId
+            if let Some(param) = shader.ast.inputs.get(0) {
+                ctx.vars.insert(param.name.clone(), ("ThreadId".to_string(), "uint3".to_string()));
+            }
             ctx.vars.insert("thread_id".to_string(), ("ThreadId".to_string(), "uint3".to_string()));
             ctx.vars.insert("dispatch_thread_id".to_string(), ("ThreadId".to_string(), "uint3".to_string()));
             ctx.vars.insert("id".to_string(), ("ThreadId".to_string(), "uint3".to_string())); // FIX: Map 'id' parameter to ThreadId
@@ -1162,8 +1208,8 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
             } else if ctx.is_compute_shader {
                 // For compute shaders, write to UAV directly
                 // We assume the return value matches OutputTexture format (usually float4 for simulation)
-                // If it's a vector, we write it. If it's scalar, we might need casting?
-                output.push_str(&format!("{}OutputTexture[ThreadId.xy] = {};\n", ctx.indent(), expr_code));
+                let coord = if ctx.is_compute_3d { "ThreadId.xyz" } else { "ThreadId.xy" };
+                output.push_str(&format!("{}OutputTexture[{}] = {};\n", ctx.indent(), coord, expr_code));
                 output.push_str(&format!("{}return;\n", ctx.indent()));
             } else {
                 // For fragment shaders, return immediately
@@ -1476,8 +1522,9 @@ fn emit_expr(ctx: &mut USFContext, expr: &Expr) -> KainResult<(String, String)> 
             }
         },
         Expr::Field { object, field, .. } => {
-            let (obj_code, _) = emit_expr(ctx, object)?;
-            Ok((format!("{}.{}", obj_code, field), infer_swizzle_type(field)))
+            let (obj_code, obj_ty) = emit_expr(ctx, object)?;
+            let field_ty = infer_field_type(ctx, &obj_ty, field);
+            Ok((format!("{}.{}", obj_code, field), field_ty))
         },
         Expr::Index { object, index, .. } => {
             let (obj_code, obj_ty) = emit_expr(ctx, object)?;
@@ -1633,7 +1680,11 @@ fn emit_function_call(ctx: &mut USFContext, name: &str, args: &[kain_core::ast::
         "load" | "Load" => {
             let (texture, _) = emit_expr(ctx, &args[0].value)?;
             let (location, _) = emit_expr(ctx, &args[1].value)?;
-            Ok((format!("{}.Load(int3({}, 0))", texture, location), "float4".to_string()))
+            if ctx.is_compute_3d {
+                Ok((format!("{}.Load(int4({}, 0))", texture, location), "float4".to_string()))
+            } else {
+                Ok((format!("{}.Load(int3({}, 0))", texture, location), "float4".to_string()))
+            }
         },
         
         // UAV store operations (compute shaders)
@@ -1893,6 +1944,7 @@ fn generate_single_usf_cached(program: &TypedProgram, shader_name: &str, mirrors
         ));
     }
     
+    let type_db = build_struct_map(program);
     generate_cached(&filtered_program, mirrors)
 }
 
@@ -2224,4 +2276,63 @@ mod tests {
         assert!(header.contains("SHADER_PARAMETER(float, time)"),
             "Regular uniform 'time' must be in SHADER_PARAMETER_STRUCT");
     }
+}
+
+fn build_struct_map(program: &TypedProgram) -> HashMap<String, HashMap<String, String>> {
+    let mut type_db: HashMap<String, HashMap<String, String>> = HashMap::new();
+    for item in &program.items {
+        match item {
+            TypedItem::Struct(s) => {
+                let mut fields = HashMap::new();
+                for f in &s.ast.fields {
+                    fields.insert(f.name.clone(), map_type_to_usf(&f.ty));
+                }
+                type_db.insert(s.ast.name.clone(), fields);
+            }
+            TypedItem::Component(c) => {
+                let mut props = HashMap::new();
+                for p in &c.ast.props {
+                    props.insert(p.name.clone(), map_type_to_usf(&p.ty));
+                }
+                type_db.insert(c.ast.name.clone(), props.clone());
+                type_db.insert(format!("F{}ComponentData", c.ast.name), props);
+            }
+            TypedItem::Actor(a) => {
+                let mut state = HashMap::new();
+                for s in &a.ast.state {
+                    state.insert(s.name.clone(), map_type_to_usf(&s.ty));
+                }
+                type_db.insert(a.ast.name.clone(), state);
+            }
+            _ => {}
+        }
+    }
+    type_db
+}
+
+fn is_hlsl_swizzle(s: &str) -> bool {
+    if s.is_empty() || s.len() > 4 { return false; }
+    let valid_xyzw = s.chars().all(|c| "xyzw".contains(c));
+    let valid_rgba = s.chars().all(|c| "rgba".contains(c));
+    valid_xyzw || valid_rgba
+}
+
+fn infer_field_type(ctx: &USFContext, obj_type: &str, field_name: &str) -> String {
+    if is_hlsl_swizzle(field_name) {
+        return infer_swizzle_type(field_name);
+    }
+    
+    if let Some(fields) = ctx.struct_map.get(obj_type) {
+        if let Some(ty) = fields.get(field_name) {
+            return ty.clone();
+        }
+    }
+    
+    // Fallback to float
+    "float".to_string()
+}
+
+fn is_3d_id_type(ty: &Type) -> bool {
+    let usf_ty = map_type_to_usf(ty);
+    usf_ty == "float3" || usf_ty == "uint3" || usf_ty == "int3"
 }

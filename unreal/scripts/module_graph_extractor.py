@@ -12,9 +12,11 @@ Output: module_graph.json — loaded by KAIN codegen for auto-deriving Build.cs 
 
 Usage:
   python module_graph_extractor.py <UE_SOURCE_DIR> [--engine-scan <engine_scanned.json>]
+  python module_graph_extractor.py --config <config_file>
   
 Example:
   python module_graph_extractor.py "D:/Unreal/UE_5.7/Engine/Source" --engine-scan ../metadata/engine_5.7_scanned.json
+  python module_graph_extractor.py --config ue5_paths_config.json
 """
 
 import os
@@ -398,23 +400,51 @@ def build_api_to_module_map(modules):
 # Main: Orchestrate all passes and write output
 # ============================================================================
 
-def main():
-    parser = argparse.ArgumentParser(description="UE5 Module Dependency Graph Extractor")
-    parser.add_argument("ue_source_dir", help="Path to UE5 Engine/Source directory")
-    parser.add_argument("--engine-scan", help="Path to engine_scanned.json for type→module cross-reference")
-    parser.add_argument("--output", "-o", default=None, help="Output path (default: ../metadata/module_graph.json)")
-    args = parser.parse_args()
-
-    ue_source_dir = args.ue_source_dir
-    if not os.path.isdir(ue_source_dir):
-        print(f"ERROR: {ue_source_dir} is not a directory")
+def load_config(config_path):
+    """Load UE5 installation paths from configuration file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        print(f"Error loading config file {config_path}: {e}")
         sys.exit(1)
 
-    output_path = args.output or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "metadata", "module_graph.json"
-    )
 
+def find_valid_paths(config):
+    """Find all valid UE5 installation paths from config."""
+    valid_installations = []
+    
+    for installation in config.get('installations', []):
+        if not installation.get('enabled', True):
+            continue
+            
+        version = installation.get('version', 'unknown')
+        paths = installation.get('paths', [])
+        
+        # Find first valid path for this version
+        valid_path = None
+        for path in paths:
+            if os.path.exists(path):
+                valid_path = path
+                print(f"Found UE5 {version} at: {path}")
+                break
+        
+        if valid_path:
+            valid_installations.append({
+                'version': version,
+                'path': valid_path
+            })
+        else:
+            print(f"Warning: No valid path found for UE5 {version}. Tried:")
+            for path in paths:
+                print(f"  - {path}")
+    
+    return valid_installations
+
+
+def extract_for_installation(ue_source_dir, engine_scan_path, output_path):
+    """Extract module graph for a single UE5 installation."""
     print(f"🔍 Scanning .Build.cs files in: {ue_source_dir}")
     print()
 
@@ -433,7 +463,7 @@ def main():
 
     # Pass 2: Cross-reference with engine scan
     print("🔗 Pass 2: Cross-referencing type → module mapping...")
-    type_to_module = build_type_to_module_map(args.engine_scan, modules)
+    type_to_module = build_type_to_module_map(engine_scan_path, modules)
     print(f"   ✓ {len(type_to_module)} types mapped to modules")
     print()
 
@@ -465,7 +495,7 @@ def main():
         "_meta": {
             "generator": "module_graph_extractor.py",
             "source": ue_source_dir,
-            "engine_scan": args.engine_scan or "",
+            "engine_scan": engine_scan_path or "",
             "total_modules": len(modules),
             "total_types_mapped": len(type_to_module),
             "total_headers_mapped": len(header_to_module),
@@ -507,7 +537,91 @@ def main():
     print("   2. modules[\"RenderCore\"][\"public_deps\"] → [\"RHI\", \"CoreUObject\"]")
     print("   3. header_to_module[\"ShaderCore.h\"] → \"RenderCore\"")
     print("   4. api_to_module[\"AddShaderSourceDirectoryMapping\"] → \"RenderCore\"")
+    
+    return output
 
+
+def extract_from_config(config_path):
+    """Extract module graphs for all UE5 installations defined in config file."""
+    config = load_config(config_path)
+    installations = find_valid_paths(config)
+    
+    if not installations:
+        print("Error: No valid UE5 installations found in config.")
+        sys.exit(1)
+    
+    output_dir = config.get('output_directory', '../metadata')
+    os.makedirs(output_dir, exist_ok=True)
+    
+    results = []
+    for installation in installations:
+        version = installation['version']
+        path = installation['path']
+        
+        print(f"\n{'='*60}")
+        print(f"Extracting Module Graph for UE5 {version}")
+        print(f"{'='*60}")
+        
+        try:
+            # Look for corresponding engine scan file
+            engine_scan_path = os.path.join(output_dir, f"engine_{version}_scanned.json")
+            if not os.path.exists(engine_scan_path):
+                print(f"Warning: Engine scan not found at {engine_scan_path}")
+                engine_scan_path = None
+            
+            output_path = os.path.join(output_dir, f"module_graph_{version}.json")
+            output = extract_for_installation(path, engine_scan_path, output_path)
+            
+            results.append({
+                'version': version,
+                'output': output_path,
+                'modules': len(output['modules'])
+            })
+            
+        except Exception as e:
+            print(f"Error extracting module graph for UE5 {version}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print(f"\n{'='*60}")
+    print("Summary")
+    print(f"{'='*60}")
+    for result in results:
+        print(f"UE5 {result['version']}: {result['modules']} modules -> {result['output']}")
+    
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description="UE5 Module Dependency Graph Extractor")
+    parser.add_argument("ue_source_dir", nargs='?', help="Path to UE5 Engine/Source directory")
+    parser.add_argument("--engine-scan", help="Path to engine_scanned.json for type→module cross-reference")
+    parser.add_argument("--output", "-o", default=None, help="Output path (default: ../metadata/module_graph.json)")
+    parser.add_argument("--config", help="Path to config file for multi-version extraction")
+    args = parser.parse_args()
+
+    # Check for config mode
+    if args.config:
+        extract_from_config(args.config)
+        return
+
+    # Single installation mode
+    if not args.ue_source_dir:
+        print("Error: Either provide ue_source_dir or use --config")
+        parser.print_help()
+        sys.exit(1)
+
+    ue_source_dir = args.ue_source_dir
+    if not os.path.isdir(ue_source_dir):
+        print(f"ERROR: {ue_source_dir} is not a directory")
+        sys.exit(1)
+
+    output_path = args.output or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "metadata", "module_graph.json"
+    )
+
+    extract_for_installation(ue_source_dir, args.engine_scan, output_path)
 
 if __name__ == "__main__":
     main()

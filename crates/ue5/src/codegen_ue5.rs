@@ -67,25 +67,32 @@ pub fn generate_filtered(
             kain_core::types::TypedItem::Enum(en) => {
                 let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("E{}.h", en.ast.name));
                 gen.context.register_enum(en.ast.name.clone(), header);
+                gen.type_mapper.register_enum(en.ast.name.clone());
             },
             kain_core::types::TypedItem::Struct(st) => {
                 let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("F{}.h", st.ast.name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
                 if st.ast.attributes.iter().any(|a| a.name == "component") {
                     gen.context.register_component(st.ast.name.clone(), header);
+                    gen.type_mapper.register_component(st.ast.name.clone());
+                } else {
+                    gen.type_mapper.register_struct(st.ast.name.clone());
                 }
             },
             kain_core::types::TypedItem::Actor(a) => {
                 let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("A{}.h", a.ast.name));
                 gen.context.register_actor(a.ast.name.clone(), header);
+                gen.type_mapper.register_actor(a.ast.name.clone());
             },
             kain_core::types::TypedItem::Component(c) => {
                 let header = type_to_header.get(&c.ast.name).cloned().unwrap_or(format!("U{}.h", c.ast.name));
                 gen.context.register_component(c.ast.name.clone(), header);
+                gen.type_mapper.register_component(c.ast.name.clone());
             },
             kain_core::types::TypedItem::TypeAlias(a) => {
                 let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("F{}.h", a.ast.name));
                 gen.context.register_delegate(a.ast.name.clone(), header);
+                gen.type_mapper.register_delegate(a.ast.name.clone());
             },
             _ => {}
         }
@@ -122,17 +129,22 @@ pub fn generate_stdlib_functions(
             TypedItem::Enum(en) => {
                 let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("E{}.h", en.ast.name));
                 gen.context.register_enum(en.ast.name.clone(), header);
+                gen.type_mapper.register_enum(en.ast.name.clone());
             },
             TypedItem::Struct(st) => {
                 let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("F{}.h", st.ast.name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
                 if st.ast.attributes.iter().any(|a| a.name == "component") {
                     gen.context.register_component(st.ast.name.clone(), header);
+                    gen.type_mapper.register_component(st.ast.name.clone());
+                } else {
+                    gen.type_mapper.register_struct(st.ast.name.clone());
                 }
             },
             TypedItem::Actor(a) => {
                 let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("A{}.h", a.ast.name));
                 gen.context.register_actor(a.ast.name.clone(), header);
+                gen.type_mapper.register_actor(a.ast.name.clone());
             },
             _ => {}
         }
@@ -263,6 +275,8 @@ struct Ue5Gen {
     blueprint_used_types: std::collections::HashSet<String>,
     /// Raw plugin/module name for deriving FunctionLibrary class names.
     module_name: String,
+    /// Centralized type mapper - single source of truth for type mapping
+    type_mapper: crate::ue5::types::TypeMapper,
 }
 
 impl Ue5Gen {
@@ -273,6 +287,9 @@ impl Ue5Gen {
         let mut context = Ue5Context::new(module_name, copyright);
         context.output_name = name.to_string();  // Set output name for file naming
         context.set_type_to_header(type_to_header);
+        
+        // Create TypeMapper with EngineKnowledge from context
+        let type_mapper = crate::ue5::types::TypeMapper::with_knowledge(context.knowledge.clone());
         
         Self {
             header: StringBuilder::new(),
@@ -287,6 +304,7 @@ impl Ue5Gen {
             blueprint_fn_names: std::collections::HashSet::new(),
             blueprint_used_types: std::collections::HashSet::new(),
             module_name: module_name.to_string(),
+            type_mapper,
         }
     }
 
@@ -370,28 +388,12 @@ impl Ue5Gen {
     /// Check if a variable name refers to a pointer type by looking up its KAIN type
     /// in var_types and checking whether that type is a UObject-derived pointer in UE5.
     /// 
-    /// Now data-driven via EngineKnowledge instead of hardcoded type lists!
+    /// Now delegates to TypeMapper for centralized pointer type detection
     fn is_pointer_type_by_name(&self, name: &str) -> bool {
-        let kb = &self.context.knowledge;
-        
         // PRIMARY: Check var_types map (populated from actor state declarations)
         if let Some(type_name) = self.var_types.get(name) {
-            // Components and actors are always pointers
-            if self.context.is_component(type_name) || self.context.is_actor(type_name) {
-                return true;
-            }
-            
-            // Check if the mapped C++ type ends with * (already resolved as pointer)
-            let cpp_type = self.map_type_from_name(type_name);
-            if cpp_type.ends_with('*') {
-                return true;
-            }
-            
-            // Query EngineKnowledge: is this a UObject-derived type?
-            // This replaces the hardcoded array of 20+ types!
-            if kb.is_uobject_derived(type_name) {
-                return true;
-            }
+            // Use TypeMapper to check if this is a pointer type
+            return self.type_mapper.is_pointer_type_by_name(type_name);
         }
         
         // FALLBACK: Check if the identifier itself IS a known type name
@@ -399,46 +401,8 @@ impl Ue5Gen {
             return true;
         }
         
-        // Check EngineKnowledge for the variable name directly
-        if kb.is_uobject_derived(name) {
-            return true;
-        }
-        
-        // Heuristic: Check common UE5 pointer type naming patterns
-        // (Keep this as a fallback for user-defined types not in EngineKnowledge)
-        if name.ends_with("_comp") || name.ends_with("_component") 
-            || name.ends_with("Component") || name.ends_with("Comp") {
-            return true;
-        }
-        
-        false
-    }
-
-    /// Map a KAIN type name to its C++ equivalent (lightweight version for pointer detection)
-    fn map_type_from_name(&self, type_name: &str) -> String {
-        match type_name {
-            "Int" | "int" | "i32" => "int32".to_string(),
-            "Float" | "float" | "f32" => "float".to_string(),
-            "Bool" | "bool" => "bool".to_string(),
-            "String" | "str" => "FString".to_string(),
-            "Vec2" => "FVector2D".to_string(),
-            "Vec3" | "Vector" => "FVector".to_string(),
-            "Vec4" => "FVector4".to_string(),
-            "Color" | "LinearColor" => "FLinearColor".to_string(),
-            _ => {
-                if self.context.is_component(type_name) {
-                    return format!("U{}*", type_name);
-                }
-                if self.context.is_actor(type_name) {
-                    return format!("A{}*", type_name);
-                }
-                let kb = &self.context.knowledge;
-                if kb.is_engine_component(type_name) || kb.is_engine_actor(type_name) {
-                    return format!("{}*", type_name);
-                }
-                type_name.to_string()
-            }
-        }
+        // Use TypeMapper for final check
+        self.type_mapper.is_pointer_type_by_name(name)
     }
 
     fn gen_program(&mut self, program: &TypedProgram) -> Ue5Output {
@@ -3185,172 +3149,10 @@ impl Ue5Gen {
         }
     }
 
-    /// Map KAIN types to UE5 C++ types
-    /// Also collects forward declarations for pointer types
+    /// Map KAIN types to UE5 C++ types using centralized TypeMapper
+    /// This eliminates duplicate type mapping logic and prevents double-prefixing bugs
     fn map_type(&self, ty: &Type) -> String {
-        match ty {
-            Type::Named { name, generics, .. } => {
-                let ue_name = match name.as_str() {
-                    // Primitives
-                    "Int" => "int32",
-                    "Float" => "float",
-                    "Bool" => "bool",
-                    "String" => "FString",
-                    "Name" => "FName",
-                    "Unit" | "()" => "void",
-                    
-                    // Vectors - Use double precision for Actor/Blueprint compatibility (Standard UE5)
-                "Vec2" => "FVector2D",
-                "Vec3" => "FVector",
-                "Vec4" => "FVector4",
-                
-                // Double-precision vectors (explicit) - same as implicit now
-                "DVec2" => "FVector2D",
-                "DVec3" => "FVector",
-                "DVec4" => "FVector4",
-                    
-                    // Rotations
-                    "Quat" => "FQuat",
-                    "Rotation" => "FRotator",
-                    
-                    // Containers
-                    "Array" => "TArray",
-                    "Map" => "TMap",
-                    "Set" => "TSet",
-                    "Option" => "TOptional",
-                    
-                    // Smart pointers
-                    "SharedPtr" => "TSharedPtr",
-                    "WeakPtr" => "TWeakPtr",
-                    "UniquePtr" => "TUniquePtr",
-                    "SoftObjectPtr" => "TSoftObjectPtr",
-                    "SubclassOf" => "TSubclassOf",
-                    
-                    // Object references
-                    "Actor" => "AActor*",
-                    "Object" => "UObject*",
-                    "Component" => "UActorComponent*",
-                    "Class" => "TSubclassOf<UObject>",
-                    
-                    // Common UE5 types
-                    "Transform" => "FTransform",
-                    "AnimMontage" => "UAnimMontage*",
-                    "StaticMesh" => "UStaticMesh*",
-                    "SkeletalMesh" => "USkeletalMesh*",
-                    "Texture2D" => "UTexture2D*",
-                    "Material" => "UMaterial*",
-                    "MaterialInstance" => "UMaterialInstance*",
-                    "MaterialInstanceDynamic" => "UMaterialInstanceDynamic*",
-                    "StaticMeshComponent" => "UStaticMeshComponent*",
-                    "SplineComponent" => "USplineComponent*",
-                    "InstancedStaticMeshComponent" => "UInstancedStaticMeshComponent*",
-                    "SkeletalMeshComponent" => "USkeletalMeshComponent*",
-                    "AnimSequence" => "UAnimSequence*",
-                    "SoundBase" => "USoundBase*",
-                    "ParticleSystem" => "UParticleSystem*",
-                    "NiagaraSystem" => "UNiagaraSystem*",
-                    "RWBuffer" => "FRDGBuffer*",
-                    "RWTexture2D" => "FRDGTexture*",
-                    "Sampler2D" => "UTexture2D*",
-                    
-                    // Check if it's a user-defined type
-                    _ => {
-                        // Track its header if known - must do this BEFORE any early returns
-                        if let Some(header) = self.context.type_to_header.get(name).cloned() {
-                            self.context.need_header(header);
-                        }
-
-                        // Check if it's a known delegate
-                        if self.context.is_delegate(name) {
-                            return format!("F{}", name);
-                        }
-                        // Check if it's a known component - return as pointer
-                        if self.context.is_component(name) {
-                            return format!("U{}*", name);
-                        }
-
-                        // Check if it's a known enum
-                        if self.context.is_enum(name) {
-                            return to_enum_name(name);
-                        }
-                        // Check if it's a known struct
-                        if self.context.is_struct(name) {
-                            return to_struct_name(name);
-                        }
-
-                        // === ENGINE KNOWLEDGE FALLBACK ===
-                        // Check EngineKnowledge for engine types (components, actors, enums, structs)
-                        // This catches types like NiagaraComponent, CameraComponent, etc.
-                        // that aren't user-defined but are valid engine types.
-                        let kb = &self.context.knowledge;
-
-                        // Auto-resolve include for this engine type
-                        if let Some(header) = kb.get_include(name) {
-                            self.context.need_header(header.to_string());
-                        }
-
-                        // Auto-add module dependency for .Build.cs
-                        if let Some(module) = kb.get_module_for_type(name) {
-                            self.context.need_module(module.to_string());
-                        }
-
-                        // Engine component → pointer type
-                        if kb.is_engine_component(name) {
-                            let prefixed = if name.starts_with('U') { name.to_string() } else { format!("U{}", name) };
-                            return format!("{}*", prefixed);
-                        }
-                        // Engine actor → pointer type
-                        if kb.is_engine_actor(name) {
-                            let prefixed = if name.starts_with('A') { name.to_string() } else { format!("A{}", name) };
-                            return format!("{}*", prefixed);
-                        }
-                        // Engine enum → E prefix
-                        if kb.is_engine_enum(name) {
-                            return if name.starts_with('E') { name.to_string() } else { format!("E{}", name) };
-                        }
-                        // Engine struct → F prefix
-                        if kb.is_engine_struct(name) {
-                            return if name.starts_with('F') { name.to_string() } else { format!("F{}", name) };
-                        }
-
-                        // Unknown type - return as-is
-                        name
-                    }
-                };
-
-                if generics.is_empty() {
-                    ue_name.to_string()
-                } else {
-                    let gen_strs: Vec<String> = generics.iter().map(|g| self.map_type(g)).collect();
-                    format!("{}<{}>", ue_name, gen_strs.join(", "))
-                }
-            }
-            Type::Tuple(types, _) => {
-                let type_strs: Vec<String> = types.iter().map(|t| self.map_type(t)).collect();
-                format!("TTuple<{}>", type_strs.join(", "))
-            }
-            Type::Array(inner, size, _) => {
-                format!("TStaticArray<{}, {}>", self.map_type(inner), size)
-            }
-            Type::Ref { mutable, inner, .. } => {
-                if *mutable {
-                    format!("{}&", self.map_type(inner))
-                } else {
-                    format!("const {}&", self.map_type(inner))
-                }
-            }
-            Type::Function { params, return_type, .. } => {
-                let param_strs: Vec<String> = params.iter().map(|p| self.map_type(p)).collect();
-                format!("TFunction<{}({})>", self.map_type(return_type), param_strs.join(", "))
-            }
-            Type::Option(inner, _) => {
-                format!("TOptional<{}>", self.map_type(inner))
-            }
-            Type::Infer(_) => "auto".to_string(),
-            Type::Never(_) => "void".to_string(),
-            Type::Unit(_) => "void".to_string(),
-            _ => "auto".to_string(),
-        }
+        self.type_mapper.map_type_string(ty)
     }
 
     fn map_binop(&self, op: &BinaryOp) -> &'static str {

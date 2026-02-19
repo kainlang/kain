@@ -172,6 +172,37 @@ fn generate_delegate_header(
     let mut delegate_count = 0;
     let mut delegate_type_dependencies: std::collections::HashSet<String> = std::collections::HashSet::new();
     
+    // Create TypeMapper with registered types for correct prefix detection
+    let mut type_mapper = ue5::ue5::types::TypeMapper::new();
+    
+    // Register all types in the program so TypeMapper can apply correct prefixes
+    for item in &program.items {
+        match item {
+            kain_core::types::TypedItem::Enum(e) => {
+                type_mapper.register_enum(e.ast.name.clone());
+            }
+            kain_core::types::TypedItem::Struct(s) => {
+                if s.ast.attributes.iter().any(|a| a.name == "component") {
+                    type_mapper.register_component(s.ast.name.clone());
+                } else {
+                    type_mapper.register_struct(s.ast.name.clone());
+                }
+            }
+            kain_core::types::TypedItem::Actor(a) => {
+                type_mapper.register_actor(a.ast.name.clone());
+            }
+            kain_core::types::TypedItem::Component(c) => {
+                type_mapper.register_component(c.ast.name.clone());
+            }
+            kain_core::types::TypedItem::TypeAlias(alias) => {
+                if matches!(alias.ast.target, kain_core::ast::Type::Function { .. }) {
+                    type_mapper.register_delegate(alias.ast.name.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    
     // Collect all delegate declarations and their type dependencies
     for item in &program.items {
         if let kain_core::types::TypedItem::TypeAlias(alias) = item {
@@ -179,56 +210,19 @@ fn generate_delegate_header(
             if let kain_core::ast::Type::Function { params, .. } = &alias.ast.target {
                 let delegate_name = format!("F{}", alias.ast.name);
                 
-                // Helper function to map KAIN types to UE5 types and track dependencies
-                let mut map_type = |ty: &kain_core::ast::Type| -> String {
-                    match ty {
-                        kain_core::ast::Type::Named { name, .. } => {
-                            // Map KAIN types to UE5 types
-                            match name.as_str() {
-                                "Int" => "int32".to_string(),
-                                "Float" => "float".to_string(),
-                                "Bool" => "bool".to_string(),
-                                "String" => "FString".to_string(),
-                                "Vec2" => "FVector2D".to_string(),
-                                "Vec3" => "FVector".to_string(),
-                                "Vec4" => "FVector4".to_string(),
-                                // Check if it's an enum (starts with capital letter)
-                                _ if name.chars().next().unwrap().is_uppercase() => {
-                                    // Bug-4 fix: use ue5::naming for correct A/E/U/F prefixes.
-                                    let is_enum = program.items.iter().any(|item| {
-                                        matches!(item, kain_core::types::TypedItem::Enum(e) if e.ast.name == *name)
-                                    });
-                                    let is_actor = program.items.iter().any(|item| {
-                                        matches!(item, kain_core::types::TypedItem::Actor(a) if a.ast.name == *name)
-                                    });
-                                    let is_component = program.items.iter().any(|item| {
-                                        matches!(item, kain_core::types::TypedItem::Component(c) if c.ast.name == *name)
-                                        || matches!(item, kain_core::types::TypedItem::Struct(s)
-                                            if s.ast.name == *name && s.ast.attributes.iter().any(|a| a.name == "component"))
-                                    });
-                                    if is_enum {
-                                        let ue_name = ue5::ue5::naming::to_enum_name(name);
-                                        delegate_type_dependencies.insert(format!("{}.h", ue_name));
-                                        ue_name
-                                    } else if is_actor {
-                                        let ue_name = ue5::ue5::naming::to_actor_name(name);
-                                        delegate_type_dependencies.insert(format!("{}.h", ue_name));
-                                        format!("{}*", ue_name)
-                                    } else if is_component {
-                                        let ue_name = ue5::ue5::naming::to_component_name(name);
-                                        delegate_type_dependencies.insert(format!("{}.h", ue_name));
-                                        format!("{}*", ue_name)
-                                    } else {
-                                        let ue_name = ue5::ue5::naming::to_struct_name(name);
-                                        delegate_type_dependencies.insert(format!("{}.h", ue_name));
-                                        ue_name
-                                    }
-                                }
-                                _ => name.clone(),
-                            }
+                // Helper function to map KAIN types to UE5 types using TypeMapper
+                let map_type = |ty: &kain_core::ast::Type| -> String {
+                    let mapped = type_mapper.map_type_string(ty);
+                    
+                    // Track header dependencies for user-defined types
+                    if let kain_core::ast::Type::Named { name, .. } = ty {
+                        // Check if it's a user-defined type that needs a header
+                        if type_mapper.needs_forward_decl(ty) {
+                            delegate_type_dependencies.insert(format!("{}.h", mapped.trim_end_matches('*')));
                         }
-                        _ => "void".to_string(),
                     }
+                    
+                    mapped
                 };
                 
                 // Generate delegate declaration based on parameter count
@@ -572,9 +566,11 @@ pub fn generate_editor_items(
     // Determine where editor files go based on split mode
     let (ed_pub_dir, ed_priv_dir, include_prefix) = if layout.needs_split {
         // Split mode: editor files go to separate module directory
-        (layout.editor_public_dir.as_ref().unwrap().clone(), 
-         layout.editor_private_dir.as_ref().unwrap().clone(),
-         String::new()) // No prefix — files are at root of editor module
+        let ed_pub = layout.editor_public_dir.as_ref()
+            .ok_or_else(|| KainError::codegen_error("Editor public directory not set in split mode"))?;
+        let ed_priv = layout.editor_private_dir.as_ref()
+            .ok_or_else(|| KainError::codegen_error("Editor private directory not set in split mode"))?;
+        (ed_pub.clone(), ed_priv.clone(), String::new()) // No prefix — files are at root of editor module
     } else {
         // Single module: editor files go to Editor/ subdirectory
         let ed_pub = layout.public_dir.join("Editor");
@@ -586,7 +582,8 @@ pub fn generate_editor_items(
     
     // In split mode, generate a master header for the editor module
     let editor_master_header_path = if layout.needs_split {
-        let ed_pub = layout.editor_public_dir.as_ref().unwrap();
+        let ed_pub = layout.editor_public_dir.as_ref()
+            .ok_or_else(|| KainError::codegen_error("Editor public directory not set in split mode"))?;
         let editor_module_name = format!("{}Editor", config.plugin_name);
         let mut ed_master = String::new();
         ed_master.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
@@ -773,7 +770,8 @@ public:
 IMPLEMENT_MODULE(F{}Module, {})
 "#, editor_module_name, editor_module_name, editor_module_name, editor_module_name);
             
-            let ed_priv = layout.editor_private_dir.as_ref().unwrap();
+            let ed_priv = layout.editor_private_dir.as_ref()
+                .ok_or_else(|| KainError::codegen_error("Editor private directory not set in split mode"))?;
             let ed_module_cpp_path = ed_priv.join(format!("{}.cpp", editor_module_name));
             fs::write(&ed_module_cpp_path, ed_module_cpp).map_err(|e| KainError::Io(e))?;
             println!("      ✓ {}.cpp (editor module registration)", editor_module_name);

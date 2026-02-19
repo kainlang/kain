@@ -132,7 +132,36 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
     let mut delegate_param_types: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     {
         // We need a temporary gen just for map_type access
-        let tmp_gen = Ue5EditorGen::new(plugin_name, Some(shared_context.clone()), copyright);
+        let mut tmp_gen = Ue5EditorGen::new(plugin_name, Some(shared_context.clone()), copyright);
+        
+        // Register all types with TypeMapper for correct prefix detection
+        for item in &program.items {
+            match item {
+                TypedItem::Enum(e) => {
+                    tmp_gen.type_mapper.register_enum(e.ast.name.clone());
+                }
+                TypedItem::Struct(s) => {
+                    if s.ast.attributes.iter().any(|a| a.name == "component") {
+                        tmp_gen.type_mapper.register_component(s.ast.name.clone());
+                    } else {
+                        tmp_gen.type_mapper.register_struct(s.ast.name.clone());
+                    }
+                }
+                TypedItem::Actor(a) => {
+                    tmp_gen.type_mapper.register_actor(a.ast.name.clone());
+                }
+                TypedItem::Component(c) => {
+                    tmp_gen.type_mapper.register_component(c.ast.name.clone());
+                }
+                TypedItem::TypeAlias(alias) => {
+                    if matches!(alias.ast.target, kain_core::ast::Type::Function { .. }) {
+                        tmp_gen.type_mapper.register_delegate(alias.ast.name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        
         for item in &program.items {
             if let TypedItem::TypeAlias(alias) = item {
                 if let kain_core::ast::Type::Function { params, .. } = &alias.ast.target {
@@ -178,6 +207,34 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
             let mut gen = Ue5EditorGen::new(plugin_name, Some(shared_context.clone()), copyright);
             gen.has_shaders = program_has_shaders;
             gen.delegate_param_types = delegate_param_types.clone();
+            
+            // Register all types with TypeMapper for correct prefix detection
+            for item in &program.items {
+                match item {
+                    TypedItem::Enum(e) => {
+                        gen.type_mapper.register_enum(e.ast.name.clone());
+                    }
+                    TypedItem::Struct(s) => {
+                        if s.ast.attributes.iter().any(|a| a.name == "component") {
+                            gen.type_mapper.register_component(s.ast.name.clone());
+                        } else {
+                            gen.type_mapper.register_struct(s.ast.name.clone());
+                        }
+                    }
+                    TypedItem::Actor(a) => {
+                        gen.type_mapper.register_actor(a.ast.name.clone());
+                    }
+                    TypedItem::Component(c) => {
+                        gen.type_mapper.register_component(c.ast.name.clone());
+                    }
+                    TypedItem::TypeAlias(alias) => {
+                        if matches!(alias.ast.target, kain_core::ast::Type::Function { .. }) {
+                            gen.type_mapper.register_delegate(alias.ast.name.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
             
             // Build item-specific includes
             // Bug-4 fix: for Slate widgets, scan the Compose body for widget names so
@@ -332,11 +389,16 @@ struct Ue5EditorGen {
     /// e.g. "OnToolExecuted" → ["EEToolCategory"], "OnValueChanged" → ["float"]
     /// Built from program TypeAlias items, used to populate SlateGenerator's delegate_param_map
     delegate_param_types: std::collections::HashMap<String, Vec<String>>,
+    /// Centralized type mapper - single source of truth for type mapping
+    type_mapper: ue5::ue5::types::TypeMapper,
 }
 
 impl Ue5EditorGen {
     fn new(plugin_name: &str, runtime_context: Option<Ue5Context>, copyright: Option<&str>) -> Self {
         let context = runtime_context.unwrap_or_else(|| Ue5Context::new("EditorTools", copyright));
+        
+        // Create TypeMapper with EngineKnowledge from context
+        let type_mapper = ue5::ue5::types::TypeMapper::with_knowledge(context.knowledge.clone());
         
         Self {
             header: StringBuilder::new(),
@@ -347,6 +409,7 @@ impl Ue5EditorGen {
             detail_registrations: Vec::new(),
             has_shaders: false,
             delegate_param_types: std::collections::HashMap::new(),
+            type_mapper,
         }
     }
 
@@ -923,116 +986,10 @@ impl Ue5EditorGen {
         self.write_blank_source();
     }
 
+    /// Map KAIN types to UE5 C++ types using centralized TypeMapper
+    /// This eliminates duplicate type mapping logic and prevents double-prefixing bugs
     fn map_type(&self, ty: &Type) -> String {
-        match ty {
-            Type::Named { name, generics, .. } => {
-                let ue_name = match name.as_str() {
-                    "Int" | "int" | "i32" => "int32".to_string(),
-                    "Float" | "float" | "f32" => "float".to_string(),
-                    "Double" | "f64" => "double".to_string(),
-                    "Bool" | "bool" => "bool".to_string(),
-                    "String" | "str" => "FString".to_string(),
-                    "Name" => "FName".to_string(),
-                    "Vec2" => "FVector2D".to_string(),
-                    "Vec3" | "Vector" => "FVector".to_string(),
-                    "Vec4" => "FVector4".to_string(),
-                    "Rot" | "Rotator" => "FRotator".to_string(),
-                    "Quat" => "FQuat".to_string(),
-                    "Transform" => "FTransform".to_string(),
-                    "Color" | "LinearColor" => "FLinearColor".to_string(),
-                    "Text" => "FText".to_string(),
-                    "Brush" => "const FSlateBrush*".to_string(),
-                    "Margin" => "FMargin".to_string(),
-                    "Byte" | "uint8" => "uint8".to_string(),
-                    "Int64" | "i64" => "int64".to_string(),
-                    _ => {
-                        // Check user-defined types registered in context
-                        if let Some(header) = self.context.type_to_header.get(name).cloned() {
-                            self.context.need_header(header);
-                        }
-                        if self.context.is_delegate(name) {
-                            return naming::to_struct_name(name);
-                        }
-                        if self.context.is_component(name) {
-                            return format!("{}*", naming::to_uobject_name(name));
-                        }
-                        if self.context.is_enum(name) {
-                            return naming::to_enum_name(name);
-                        }
-                        if self.context.is_struct(name) {
-                            return naming::to_struct_name(name);
-                        }
-                        if self.context.is_actor(name) {
-                            return format!("{}*", naming::to_actor_name(name));
-                        }
-
-                        // === ENGINE KNOWLEDGE FALLBACK ===
-                        // Check EngineKnowledge for engine types (components, actors, enums, structs)
-                        let kb = &self.context.knowledge;
-
-                        // Check type alias first (e.g. "NiagaraComponent" -> "UNiagaraComponent")
-                        if let Some(resolved) = kb.resolve_type_alias(name) {
-                            if let Some(header) = kb.get_include(resolved) {
-                                self.context.need_header(header.to_string());
-                            }
-                            if let Some(module) = kb.get_module_for_type(resolved) {
-                                self.context.need_module(module.to_string());
-                            }
-                            if kb.is_engine_component(resolved) {
-                                return format!("{}*", resolved);
-                            }
-                            if kb.is_engine_actor(resolved) {
-                                return format!("{}*", resolved);
-                            }
-                            return resolved.to_string();
-                        }
-
-                        // Auto-resolve include for this engine type
-                        if let Some(header) = kb.get_include(name) {
-                            self.context.need_header(header.to_string());
-                        }
-
-                        // Auto-add module dependency
-                        if let Some(module) = kb.get_module_for_type(name) {
-                            self.context.need_module(module.to_string());
-                        }
-
-                        // Engine component -> pointer type
-                        if kb.is_engine_component(name) {
-                            let prefixed = if name.starts_with('U') { name.to_string() } else { format!("U{}", name) };
-                            return format!("{}*", prefixed);
-                        }
-                        // Engine actor -> pointer type
-                        if kb.is_engine_actor(name) {
-                            let prefixed = if name.starts_with('A') { name.to_string() } else { format!("A{}", name) };
-                            return format!("{}*", prefixed);
-                        }
-                        // Engine enum -> E prefix
-                        if kb.is_engine_enum(name) {
-                            return if name.starts_with('E') { name.to_string() } else { format!("E{}", name) };
-                        }
-                        // Engine struct -> F prefix
-                        if kb.is_engine_struct(name) {
-                            return if name.starts_with('F') { name.to_string() } else { format!("F{}", name) };
-                        }
-
-                        // Unknown type - return as-is
-                        name.clone()
-                    }
-                };
-
-                // Handle generic containers (TArray<T>, TMap<K,V>, TSet<T>)
-                if !generics.is_empty() {
-                    let generic_args: Vec<String> = generics.iter().map(|g| self.map_type(g)).collect();
-                    return format!("{}<{}>", ue_name, generic_args.join(", "));
-                }
-
-                ue_name
-            },
-            Type::Unit(_) => "void".to_string(),
-            Type::Function { .. } => "FSimpleDelegate".to_string(),
-            _ => "auto".to_string(),
-        }
+        self.type_mapper.map_type_string(ty)
     }
     
     fn gen_editor_module(&mut self, st: &kain_core::types::TypedStruct) {

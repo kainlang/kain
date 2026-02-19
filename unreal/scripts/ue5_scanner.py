@@ -9,6 +9,7 @@ Extracts: class hierarchy, includes, functions, properties, enums, structs,
 Usage:
     python ue5_scanner.py <engine_source_path> <output_json>
     python ue5_scanner.py --legacy <engine_source_path> <output_json>  # old flat format
+    python ue5_scanner.py --config <config_file>  # scan all configured installations
 """
 
 import os
@@ -382,16 +383,145 @@ class Ue5Scanner:
         return all_metadata
 
 
+def load_config(config_path):
+    """Load UE5 installation paths from configuration file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        print(f"Error loading config file {config_path}: {e}")
+        sys.exit(1)
+
+
+def find_valid_paths(config):
+    """Find all valid UE5 installation paths from config."""
+    valid_installations = []
+    
+    for installation in config.get('installations', []):
+        if not installation.get('enabled', True):
+            continue
+            
+        version = installation.get('version', 'unknown')
+        paths = installation.get('paths', [])
+        
+        # Find first valid path for this version
+        valid_path = None
+        for path in paths:
+            if os.path.exists(path):
+                valid_path = path
+                print(f"Found UE5 {version} at: {path}")
+                break
+        
+        if valid_path:
+            valid_installations.append({
+                'version': version,
+                'path': valid_path
+            })
+        else:
+            print(f"Warning: No valid path found for UE5 {version}. Tried:")
+            for path in paths:
+                print(f"  - {path}")
+    
+    return valid_installations
+
+
+def scan_from_config(config_path):
+    """Scan all UE5 installations defined in config file."""
+    config = load_config(config_path)
+    installations = find_valid_paths(config)
+    
+    if not installations:
+        print("Error: No valid UE5 installations found in config.")
+        sys.exit(1)
+    
+    scanner = Ue5Scanner()
+    output_dir = config.get('output_directory', '../metadata')
+    output_template = config.get('output_filename_template', 'engine_{version}_scanned.json')
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    results = []
+    for installation in installations:
+        version = installation['version']
+        path = installation['path']
+        
+        print(f"\n{'='*60}")
+        print(f"Scanning UE5 {version}")
+        print(f"{'='*60}")
+        
+        try:
+            classes, structs, enums, includes = scanner.scan_directory(path)
+            
+            metadata = {
+                "engine_version": version,
+                "classes": classes,
+                "structs": structs,
+                "enums": enums,
+                "type_aliases": [],
+                "include_map": includes,
+            }
+            
+            output_file = os.path.join(output_dir, output_template.format(version=version))
+            with open(output_file, 'w') as f:
+                json.dump(metadata, f, indent=2)
+            
+            total = len(classes) + len(structs) + len(enums)
+            print(f"\nExtraction complete: {total} types ({len(classes)} classes, {len(structs)} structs, {len(enums)} enums)")
+            print(f"Include map: {len(includes)} entries")
+            print(f"Saved to {output_file}")
+            
+            results.append({
+                'version': version,
+                'output': output_file,
+                'types': total
+            })
+            
+        except Exception as e:
+            print(f"Error scanning UE5 {version}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print(f"\n{'='*60}")
+    print("Summary")
+    print(f"{'='*60}")
+    for result in results:
+        print(f"UE5 {result['version']}: {result['types']} types -> {result['output']}")
+    
+    return results
+
+
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: python ue5_scanner.py [--legacy] <engine_source_path> [path2...] <output_json>")
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python ue5_scanner.py <engine_source_path> <output_json>")
+        print("  python ue5_scanner.py --legacy <engine_source_path> <output_json>")
+        print("  python ue5_scanner.py --config <config_file>")
         print()
         print("  Scans UE5 headers and emits EngineMetadata JSON for KAIN's EngineKnowledge system.")
         print("  Use --legacy to emit the old flat format (backward compat with StdLibResolver).")
+        print("  Use --config to scan all UE5 installations defined in a config file.")
         sys.exit(1)
+
+    # Check for config mode
+    if '--config' in sys.argv:
+        config_idx = sys.argv.index('--config')
+        if config_idx + 1 >= len(sys.argv):
+            print("Error: --config requires a config file path")
+            sys.exit(1)
+        config_path = sys.argv[config_idx + 1]
+        scan_from_config(config_path)
+        return
 
     legacy = '--legacy' in sys.argv
     args = [a for a in sys.argv[1:] if a != '--legacy']
+    
+    if len(args) < 2:
+        print("Error: Missing required arguments")
+        print("Usage: python ue5_scanner.py [--legacy] <engine_source_path> [path2...] <output_json>")
+        sys.exit(1)
+    
     output_json = args[-1]
     input_paths = args[:-1]
 

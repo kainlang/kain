@@ -32,6 +32,10 @@ impl<'a> Diagnostics<'a> {
                 "\n\x1b[1;31merror\x1b[0m: IO error: {}\n",
                 e
             ),
+            KainError::Enhanced { .. } => {
+                // Enhanced errors format themselves via Display trait
+                format!("\n{}\n", error)
+            }
         }
     }
     

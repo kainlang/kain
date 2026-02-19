@@ -1,0 +1,43 @@
+{
+  "description": "Configuration file for UE5 installation paths across multiple drives and versions",
+  "installations": [
+    {
+      "version": "5.4",
+      "paths": [
+        "C:/Program Files/Epic Games/UE_5.4/Engine/Source",
+        "D:/UE_5.4/Engine/Source",
+        "M:/UnrealEngine/UE_5.4/Engine/Source"
+      ],
+      "enabled": true
+    },
+    {
+      "version": "5.5",
+      "paths": [
+        "C:/Program Files/Epic Games/UE_5.5/Engine/Source",
+        "D:/UE_5.5/Engine/Source",
+        "M:/UnrealEngine/UE_5.5/Engine/Source"
+      ],
+      "enabled": true
+    },
+    {
+      "version": "5.6",
+      "paths": [
+        "C:/Program Files/Epic Games/UE_5.6/Engine/Source",
+        "D:/UE_5.6/Engine/Source",
+        "M:/UnrealEngine/UE_5.6/Engine/Source"
+      ],
+      "enabled": true
+    },
+    {
+      "version": "5.7",
+      "paths": [
+        "C:/Program Files/Epic Games/UE_5.7/Engine/Source",
+        "D:/UE_5.7/Engine/Source",
+        "M:/UnrealEngine/UE_5.7/Engine/Source"
+      ],
+      "enabled": true
+    }
+  ],
+  "output_directory": "../metadata",
+  "output_filename_template": "engine_{version}_scanned.json"
+}

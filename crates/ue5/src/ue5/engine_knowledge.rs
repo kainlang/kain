@@ -199,6 +199,21 @@ impl EngineKnowledge {
         }
         Err("Failed to parse metadata as either new or legacy format".to_string())
     }
+    
+    /// Load and validate metadata from file with schema validation
+    pub fn load_metadata_validated(&mut self, file_path: &std::path::Path, json_data: &str) -> Result<(), String> {
+        use crate::ue5::metadata_validation::MetadataValidator;
+        
+        // Create validator
+        let validator = MetadataValidator::new();
+        
+        // Validate against schema
+        let _validated_json = validator.validate_file(file_path, json_data)
+            .map_err(|e| e.to_string())?;
+        
+        // If validation passes, load normally
+        self.load_metadata(json_data)
+    }
 
     fn ingest_metadata(&mut self, meta: EngineMetadata) {
         for class in meta.classes {
