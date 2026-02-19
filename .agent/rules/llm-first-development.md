@@ -1,26 +1,12 @@
 ---
-trigger: always_on
----
-
----
 inclusion: always
 ---
 
 # LLM-First Development Philosophy
 
-## PROJECT CONTEXT
-
-**CRITICAL**: This is a SOLO DEV project. One person built everything. "Other devs" = OTHER LLMs, not humans. Private tool, never public.
-
-**Your Role**: LLM assistant helping solo dev iterate fast. No corporate patterns, just make it work.
-
-**Architecture**: 
-- Rust compiler (95% of work) - core compilation, type checking, AST merging
-- Python post-processing (5% of work) - surgical fixes for edge cases
-- Built into `kain build --ue5` pipeline (not separate MCP tools)
-
 ## Core Principle
 
+**KAIN is designed for AI code generation, not human coding.**
 **KAIN is designed for AI code generation, not human coding.**
 
 The entire system is optimized so that LLMs can generate production-quality UE5 plugins with ZERO manual intervention. If a build succeeds, the plugin is production-ready.
@@ -28,7 +14,7 @@ The entire system is optimized so that LLMs can generate production-quality UE5 
 ## The Goal
 
 ```
-LLM writes 4 .kn files → kain build --ue5 → Production UE5 Plugin
+LLM writes 1 .kn files → kain build --ue5 → Production UE5 Plugin
 ```
 
 **No manual fixes. No workarounds. No "just edit this one line."**
@@ -42,7 +28,7 @@ LLM writes 4 .kn files → kain build --ue5 → Production UE5 Plugin
 - Requires expert-level C++ knowledge
 - LLM-generated code needs extensive review
 
-### KAIN Plugin Development:
+### KAIN-PRO Plugin Development:
 - 7.5-18 hours per plugin (10-20x faster)
 - Zero boilerplate - compiler generates it
 - Type-safe - impossible to have memory leaks or typos
@@ -50,17 +36,6 @@ LLM writes 4 .kn files → kain build --ue5 → Production UE5 Plugin
 - **LLM-generated code is production-ready if it compiles**
 
 ## The Pipeline Architecture
-
-### Current State (Rust + Python Hybrid)
-
-```
-.kn source → Rust Parser → Type Checker → UE5 Codegen → Python Post-Processing → Production C++
-```
-
-**Rust (95%)**: Core compilation, AST merging, type checking, code generation
-**Python (5%)**: Surgical fixes for edge cases (missing includes, duplicate declarations, formatting)
-
-**Why Python?**: Handles the "last 5%" of edge cases with auto-fixes. Integrated directly into `kain build --ue5` pipeline.
 
 ### ❌ OLD (String Concatenation):
 ```
@@ -116,14 +91,7 @@ Typed Program → UE5 Codegen → ✓ Valid UE5 C++
 
 ## Error Message Quality
 
-### ❌ BAD (Current):
-```
-error: Expected Eq, got Newline
-  --> position 512
-```
-**LLM can't fix this.**
-
-### ✅ GOOD (Target):
+### ✅ CURRENT (Implemented):
 ```
 ❌ Parse error in actors.kn:11:51
 
@@ -138,6 +106,12 @@ error: Expected Eq, got Newline
    Note: Components should be created in BeginPlay(), not as state.
 ```
 **LLM can fix this immediately.**
+
+### 🎯 NEXT: Enhanced Diagnostics
+- Contextual suggestions based on EngineKnowledge
+- "Did you mean?" suggestions for typos
+- Multi-error reporting (show all errors, not just first)
+- Warning system for non-critical issues
 
 ## LLM Coding Patterns
 
@@ -222,47 +196,15 @@ Parse file3 (500 tokens) → ❌ Error in file3:11
 - ❌ Forward declarations
 - ❌ Header guards
 - ❌ Memory management
-- ❌ Missing #includes (Python fixes)
-- ❌ Duplicate declarations (Python fixes)
-- ❌ Formatting issues (Python fixes)
 
-**The compiler + Python post-processor handle ALL of this.**
-
-## Python Integration Architecture
-
-### Purpose
-Handle edge cases that are easier to fix in Python than Rust:
-- Missing #include directives
-- Duplicate forward declarations
-- Incorrect API macros
-- Formatting inconsistencies
-- File structure issues
-
-### Integration Point
-Python runs AFTER Rust codegen, BEFORE writing final files:
-```
-Rust generates C++ → Python post-processes → Write to disk
-```
-
-### Files
-- `kain/python/validation_rules.py` - Extensible validation rule system
-- `kain/python/post_process.py` - Main post-processing entry point (TODO)
-- `kain/crates/ue5/src/ue5/oracle_enhanced.rs` - Enhanced oracle with Python hooks
-- `kain/crates/cli/src/packager.rs` - Integration point (TODO)
-
-### Philosophy
-- Keep it simple: < 500 lines total
-- Log all fixes for transparency
-- Fail gracefully if Python missing
-- Add fixes iteratively as edge cases discovered
-- No complex logic - just surgical string fixes
+**The compiler handles ALL of this.**
 
 ## Marketplace Domination Strategy
 
 ### Volume Through Velocity:
 
 **Traditional:** 15-30 plugins/year (manual C++)
-**KAIN:** 150-300 plugins/year (LLM-generated + Python auto-fixes)
+**KAIN-PRO:** 150-300 plugins/year (LLM-generated)
 
 **10x more output = unassailable market position**
 
@@ -272,7 +214,6 @@ Every plugin is:
 - Compiler-verified (no typos)
 - Type-safe (no crashes)
 - Convention-compliant (UE5 best practices)
-- Auto-fixed (Python handles edge cases)
 - Production-ready (no manual fixes)
 
 **Better quality + 10x volume = market dominance**
@@ -299,11 +240,14 @@ Every plugin is:
 ## Success Metrics
 
 ### Build System Quality:
-- ✅ Per-file validation
-- ✅ Clear error messages with file:line:col
-- ✅ AST-level merging (not string concat)
-- ✅ Type checking before codegen
-- ✅ Helpful error suggestions
+- ✅ Per-file validation (IMPLEMENTED)
+- ✅ Clear error messages with file:line:col (IMPLEMENTED)
+- ✅ AST-level merging (IMPLEMENTED)
+- ✅ Type checking before codegen (IMPLEMENTED)
+- ✅ Helpful error suggestions (IMPLEMENTED)
+- ✅ Oracle semantic validation (IMPLEMENTED)
+- ✅ Automated hook system (12 hooks active)
+- ✅ Metadata auto-expansion (5 scripts)
 
 ### LLM Effectiveness:
 - ✅ Can fix errors from messages alone
@@ -311,13 +255,15 @@ Every plugin is:
 - ✅ Iterates quickly (< 5 attempts to success)
 - ✅ Produces production-quality code
 - ✅ Scales to complex plugins (10+ files)
+- ✅ Automated quality checks via hooks
 
 ### Production Readiness:
 - ✅ Zero manual fixes required
-- ✅ Compiles in UE5 first try
-- ✅ No runtime errors
+- ⏳ Compiles in UE5 first try (pending test)
+- ✅ No runtime errors (type-safe)
 - ✅ Marketplace-ready quality
 - ✅ Matches hand-written plugin quality
+- ✅ Comprehensive test coverage (32 tests passing)
 
 ## The Vision
 
@@ -333,3 +279,43 @@ Every plugin is:
 **All in < 30 minutes, with zero human intervention.**
 
 **This is the standard. Anything less is a bug.**
+
+---
+
+## Automated Quality Assurance
+
+### Hook System (12 Active Hooks)
+The pipeline includes comprehensive automated validation that runs during development:
+
+**Continuous Validation (Auto-Trigger):**
+- Type system consistency across all codegen crates
+- Oracle validation rule coverage
+- Metadata schema compliance
+- Test fixture synchronization
+- Documentation synchronization
+- Naming convention enforcement
+- Dependency graph validation
+- Automatic compilation and testing
+
+**On-Demand Tools (Manual Trigger):**
+- Full UE5 integration testing
+- Metadata auto-expansion (scans for missing types)
+- Performance regression detection
+- Parallel task execution via subagents
+
+### Metadata Expansion System
+When new UE5 types are referenced in codegen, automated scripts expand the knowledge base:
+- `expand_engine_knowledge.py` - Adds types, constructors, includes
+- `expand_widget_registry.py` - Adds Slate widgets
+- `expand_shader_knowledge.py` - Adds shader types
+- `expand_uht_rules.py` - Adds UHT macro rules
+- `validate_module_graph.py` - Validates dependencies
+
+All metadata is schema-validated and propagates automatically to all codegen crates via `Ue5Context`.
+
+### Why This Matters for LLMs
+1. **Instant Feedback** - Errors caught immediately during file save
+2. **Comprehensive Coverage** - 12 different validation layers
+3. **Self-Healing** - Metadata auto-expands when gaps detected
+4. **Zero Manual Work** - All quality checks automated
+5. **Production Confidence** - If hooks pass, code is production-ready

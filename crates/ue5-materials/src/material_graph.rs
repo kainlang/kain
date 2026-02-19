@@ -7,6 +7,7 @@ pub struct MaterialGraph {
     pub nodes: Vec<MaterialNode>,
     pub outputs: MaterialOutputs,
     pub properties: MaterialProperties,
+    pub is_dynamic: bool,  // Feature 7: Dynamic Materials - set to true when Time nodes are used
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +25,24 @@ pub enum MaterialInputType {
     Vec3,
     Vec4,
     Color,
+}
+
+/// Output type for Custom HLSL nodes
+/// Maps to UE5's ECustomMaterialOutputType enum values
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CustomOutputType {
+    Float1,  // CMOT_Float1 - single float
+    Float2,  // CMOT_Float2 - 2D vector
+    Float3,  // CMOT_Float3 - 3D vector
+    Float4,  // CMOT_Float4 - 4D vector
+}
+
+/// Input definition for Custom HLSL nodes
+/// Each input becomes a pin on the UMaterialExpressionCustom node
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomInput {
+    pub name: String,
+    pub input_type: CustomOutputType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,10 +66,27 @@ pub enum MaterialNodeType {
     Lerp { a: String, b: String, alpha: String },
     Dot { a: String, b: String },
     DotProduct { a: String, b: String },  // Alias for Dot
+    Cross { a: String, b: String },
+    Normalize { input: String },
+    Length { input: String },
+    Distance { a: String, b: String },
     Power { base: String, exponent: String },
     Clamp { input: String, min: String, max: String },
+    Abs { input: String },
+    Min { a: String, b: String },
+    Max { a: String, b: String },
+    Saturate { input: String },
+    Frac { input: String },
+    Floor { input: String },
+    Ceil { input: String },
+    Round { input: String },
+    Sqrt { input: String },
+    Exp { input: String },
+    Log { input: String },
+    Sine { input: String },
+    Cosine { input: String },
     Fresnel { exponent: String, base_reflect_fraction: String },
-    ComponentMask { input: String, r: bool, g: bool, b: bool, a: bool },
+    ComponentMask { input: String, mask: String },
     Append { a: String, b: String },
     AppendVector { a: String, b: String },  // Alias for Append
     ConstantFloat { value: f32 },
@@ -59,6 +95,47 @@ pub enum MaterialNodeType {
     ConstantVector3 { value: [f32; 3] },  // Alias for ConstantVec3
     ConstantVector4 { value: [f32; 4] },  // Alias for ConstantVec4
     TextureCoordinate { index: u32, tiling: [f32; 2] },
+    
+    // Feature 1: Custom HLSL Nodes
+    // Allows embedding arbitrary HLSL code directly in material graphs
+    // Validates Requirements: 1.1, 1.3, 1.4
+    CustomHLSL {
+        code: String,
+        output_type: CustomOutputType,
+        inputs: Vec<CustomInput>,
+    },
+    
+    // Feature 6: Time-Based Effects
+    // Provides engine time for animations and pulsing effects
+    // Validates Requirements: 6.1
+    Time,  // UMaterialExpressionTime - provides engine time for animations
+    
+    // Feature 5: UV Manipulation
+    // Allows scrolling, scaling, and rotating UV coordinates for animated textures
+    // Validates Requirements: 5.1, 5.2, 5.3
+    UVScroll {
+        uv_input: String,
+        offset_x: String,
+        offset_y: String,
+    },
+    UVScale {
+        uv_input: String,
+        scale_x: String,
+        scale_y: String,
+    },
+    UVRotate {
+        uv_input: String,
+        angle: String,
+        center: Option<(String, String)>,
+    },
+    
+    // Feature 3: Shader Integration
+    // Allows calling existing KAIN shaders from within materials
+    // Validates Requirements: 3.1
+    MaterialFunctionCall {
+        function_path: String,
+        inputs: Vec<String>, // node IDs
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +199,7 @@ impl MaterialGraph {
             nodes: Vec::new(),
             outputs: MaterialOutputs::default(),
             properties: MaterialProperties::default(),
+            is_dynamic: false,
         }
     }
 }

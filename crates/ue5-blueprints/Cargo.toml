@@ -1,0 +1,19 @@
+[package]
+name = "ue5-blueprints"
+version = "0.1.0"
+edition = "2021"
+description = "KAIN → UE5 Blueprint .uasset generator. Emits real .uasset files (via unreal_asset) and C++ factory fallbacks."
+
+[dependencies]
+kain-core    = { path = "../kain-core" }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+indoc        = "2.0"
+
+# unreal_asset stack — full read+write of .uasset binaries
+unreal_asset            = { workspace = true }
+unreal_asset_base       = { workspace = true }
+unreal_asset_exports    = { workspace = true }
+unreal_asset_properties = { workspace = true }
+unreal_asset_kismet     = { workspace = true }

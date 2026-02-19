@@ -304,6 +304,39 @@ let pulse = sine(t * speed) * 0.5 + 0.5
 
 // Feature 7: Dynamic materials (automatic from input parameters)
 input glow_intensity: Float = 1.0  // Automatically exposed at runtime
+
+// Feature 8: Material functions
+@material_function
+fn fresnel_glow(base_color: Vec3, rim_color: Vec3, rim_power: Float) -> Vec3:
+    let fresnel = fresnel(rim_power, 0.0)
+    return base_color + rim_color * fresnel
+
+// Use the function
+let glow = fresnel_glow(base, rim, power)
+
+// Feature 9: Material layers
+@material_graph
+material LayeredSurface:
+    input base_albedo: Texture2D
+    input dirt_albedo: Texture2D
+    input dirt_mask: Texture2D
+    
+    let base = sample(base_albedo, uv)
+    let dirt = sample(dirt_albedo, uv)
+    let mask = sample(dirt_mask, uv).r
+    
+    let blended = layer_blend(base, dirt, mask, mode: "lerp")
+    
+    output base_color = blended
+
+// Feature 10: World-space operations
+let world_pos = world_position()
+let world_norm = world_normal()
+let triplanar = triplanar_sample(texture, world_scale: 0.1, blend_sharpness: 4.0)
+
+// Feature 11: Vertex shaders
+let offset = sine(world_position().z * 0.1 + time() * 2.0) * 10.0
+output world_position_offset = vec3(0, 0, offset)  // Waving grass
 ```
 
 ## Data Models
@@ -318,8 +351,34 @@ pub struct MaterialGraph {
     pub nodes: Vec<MaterialNode>,
     pub outputs: MaterialOutputs,
     pub properties: MaterialProperties,
-    pub is_dynamic: bool,  // NEW: Feature 7
-    pub runtime_parameters: Vec<MaterialParameter>,  // NEW: Feature 7
+    pub is_dynamic: bool,  // Feature 7
+    pub runtime_parameters: Vec<MaterialParameter>,  // Feature 7
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaterialFunction {
+    pub name: String,
+    pub inputs: Vec<MaterialInput>,
+    pub nodes: Vec<MaterialNode>,
+    pub output: String,  // node ID
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayerDef {
+    pub name: String,
+    pub base_color: String,  // node ID
+    pub roughness: String,   // node ID
+    pub metallic: String,    // node ID
+    pub normal: String,      // node ID
+    pub mask: Option<String>, // node ID
+    pub blend_mode: LayerBlendMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CoordinateSpace {
+    World,
+    Object,
+    Tangent,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -417,6 +476,66 @@ pub enum MaterialParameterType {
 ### Property 19: Material Parameter Exposure
 *For any* material with input parameters, the generated C++ factory code should contain parameter setup code (ParameterName, DefaultValue) for each input, and the parameter should be accessible via UE5's material instance API
 **Validates: Requirements 7.1, 7.5**
+
+### Property 20: Material Function Asset Generation
+*For any* @material_function definition, the generated C++ should create a UMaterialFunction asset with the correct name and package path
+**Validates: Requirements 8.1**
+
+### Property 21: Material Function Input/Output Nodes
+*For any* material function with N inputs and 1 output, the generated MaterialFunction should contain exactly N FunctionInput nodes and 1 FunctionOutput node
+**Validates: Requirements 8.2, 8.3**
+
+### Property 22: Material Function Call Wiring
+*For any* material that calls a material function with N arguments, the generated MaterialGraph should contain a MaterialFunctionCall node with exactly N input connections wired to the argument nodes
+**Validates: Requirements 8.4**
+
+### Property 23: Nested Material Function Resolution
+*For any* material function A that calls material function B, the generated code should resolve both functions and create correct MaterialFunctionCall chains such that A's call to B is properly wired
+**Validates: Requirements 8.5**
+
+### Property 24: Material Layer Blend Node Generation
+*For any* material with N layers, the generated MaterialGraph should contain N-1 layer blend nodes (each layer blends with the result of previous layers)
+**Validates: Requirements 9.1**
+
+### Property 25: Layer Mask Wiring
+*For any* layer with a blend mask, the generated layer blend node should have its Alpha input wired to the mask texture sample node
+**Validates: Requirements 9.2**
+
+### Property 26: Layer Blend Mode Configuration
+*For any* layer with blend_mode specified as "lerp", "additive", "multiply", or "overlay", the generated layer blend node should have the corresponding UE5 blend mode enum value set
+**Validates: Requirements 9.3**
+
+### Property 27: Layer Stack Ordering
+*For any* material with layers [L1, L2, L3], the generated node graph should wire them such that L1 is the base, L2 blends on top of L1, and L3 blends on top of (L1+L2)
+**Validates: Requirements 9.4**
+
+### Property 28: World Position Node Generation
+*For any* world_position() call, the generated MaterialGraph should contain exactly one WorldPosition node (deduplication), and all world_position() references should wire to that same node
+**Validates: Requirements 10.1**
+
+### Property 29: World Normal Node Generation
+*For any* world_normal() call, the generated MaterialGraph should contain exactly one VertexNormalWS node (deduplication), and all world_normal() references should wire to that same node
+**Validates: Requirements 10.2**
+
+### Property 30: Triplanar Sampling Node Chain
+*For any* triplanar_sample() call, the generated MaterialGraph should contain exactly 3 TextureSample nodes (X, Y, Z projections), 3 ComponentMask nodes for blend weights, and blend nodes to combine the samples
+**Validates: Requirements 10.3, 10.5**
+
+### Property 31: World-to-UV Transformation
+*For any* texture sample using world-space coordinates, the generated MaterialGraph should contain transformation nodes that convert WorldPosition to UV space using the specified scale factor
+**Validates: Requirements 10.4**
+
+### Property 32: Vertex Displacement Output Wiring
+*For any* material with world_position_offset output set, the generated C++ should wire the output node to Material->GetEditorOnlyData()->WorldPositionOffset.Expression
+**Validates: Requirements 11.1**
+
+### Property 33: Coordinate Space Displacement
+*For any* vertex displacement expression, if it uses world_position() the generated nodes should be in world space, if it uses object_position() the generated nodes should be in object space
+**Validates: Requirements 11.2, 11.3**
+
+### Property 34: Animated Vertex Displacement
+*For any* world_position_offset expression that references time(), the generated MaterialGraph should contain Time nodes and the material should be marked as dynamic
+**Validates: Requirements 11.4**
 
 ## Error Handling
 
@@ -632,30 +751,104 @@ Enables runtime parameter control from Blueprint/C++.
 
 **Deliverable:** Developers can control material parameters at runtime
 
+### Phase 8: Material Functions
+**Estimated: 4-5 hours**
+
+Enables reusable shader logic and code organization.
+
+**Tasks:**
+1. Add MaterialFunctionInput, MaterialFunctionOutput variants to MaterialNodeType
+2. Add MaterialFunction struct to hold function definitions
+3. Implement convert_material_function_def() in MaterialGraphConverter
+4. Implement resolve_function_call() for function call resolution
+5. Implement generate_material_function_asset() in MaterialFactoryGenerator
+6. Implement generate_function_input_node(), generate_function_output_node(), generate_function_call_node()
+7. Add dependency resolution for nested function calls
+8. Write property tests for function asset generation, input/output nodes, call wiring, and nested resolution
+
+**Deliverable:** Developers can define reusable material functions and build shader libraries
+
+### Phase 9: Material Layers
+**Estimated: 5-6 hours**
+
+Enables complex surface blending like weathered metal, dirt, decals.
+
+**Tasks:**
+1. Add MaterialLayerBlend variant to MaterialNodeType
+2. Add LayerDef struct and LayerBlendMode enum
+3. Implement convert_layer_blend() in MaterialGraphConverter
+4. Implement create_layer_stack() for multi-layer materials
+5. Implement generate_layer_blend_node() in MaterialFactoryGenerator
+6. Implement generate_layer_stack() for layer ordering
+7. Add support for layer masks and blend modes
+8. Write property tests for layer blend nodes, mask wiring, blend modes, and stack ordering
+
+**Deliverable:** Developers can create complex layered materials with masks and blend modes
+
+### Phase 10: World-Space Operations
+**Estimated: 2-3 hours**
+
+Enables triplanar mapping and world-aligned textures without UV seams.
+
+**Tasks:**
+1. Add WorldPosition, WorldNormal, TriplanarSample variants to MaterialNodeType
+2. Implement create_world_position_node() and create_world_normal_node() with deduplication
+3. Implement convert_triplanar_sample() for triplanar projection
+4. Implement create_world_to_uv_transform() for coordinate conversion
+5. Implement generate_world_position_node(), generate_world_normal_node(), generate_triplanar_sample_nodes()
+6. Write property tests for world position/normal nodes, triplanar sampling, and coordinate transformation
+
+**Deliverable:** Developers can use world-space coordinates for seamless texturing
+
+### Phase 11: Vertex Shaders
+**Estimated: 1-2 hours**
+
+Enables vertex displacement for waving grass, cloth, deformation.
+
+**Tasks:**
+1. Add ObjectPosition, VertexNormal variants to MaterialNodeType
+2. Add CoordinateSpace enum (World, Object, Tangent)
+3. Implement convert_vertex_displacement() in MaterialGraphConverter
+4. Implement create_object_position_node() and create_vertex_normal_node()
+5. Implement generate_vertex_displacement_nodes() in MaterialFactoryGenerator
+6. Add support for world-space and object-space displacement
+7. Write property tests for vertex displacement output wiring, coordinate spaces, and animated displacement
+
+**Deliverable:** Developers can modify vertex positions for dynamic geometry effects
+
 ## Parallelization Strategy
 
 These phases can be implemented in parallel by different agents:
 
-**Group A (Independent):**
-- Phase 1: Custom HLSL Nodes
-- Phase 5: UV Manipulation
-- Phase 6: Time-Based Effects
+**Group A (Independent - Start Immediately):**
+- Phase 1: Custom HLSL Nodes (1-2h)
+- Phase 5: UV Manipulation (1h)
+- Phase 6: Time-Based Effects (2-3h)
+- Phase 10: World-Space Operations (2-3h)
+- Phase 11: Vertex Shaders (1-2h)
 
 **Group B (Depends on Phase 2):**
-- Phase 2: Expression to Node Conversion (must be done first)
-- Phase 3: Shader Integration (needs expression conversion)
-- Phase 4: Texture Sampling (needs expression conversion)
+- Phase 2: Expression to Node Conversion (2-3h) - MUST BE DONE FIRST
+- Phase 3: Shader Integration (2-3h)
+- Phase 4: Texture Sampling (2-3h)
+- Phase 8: Material Functions (4-5h)
+- Phase 9: Material Layers (5-6h)
 
 **Group C (Depends on all others):**
-- Phase 7: Dynamic Materials (needs all features to test parameter exposure)
+- Phase 7: Dynamic Materials (2-3h) - needs all features to test parameter exposure
 
 **Recommended Parallel Execution:**
-1. Start Phase 1 immediately (highest priority, unblocks everything)
-2. Start Phase 2 immediately (required by Group B)
-3. Once Phase 2 is done, start Phases 3, 4, 5, 6 in parallel
-4. Once all others are done, start Phase 7
+1. **Wave 1** (Start immediately): Phases 1, 2, 5, 6, 10, 11 (6 agents in parallel)
+2. **Wave 2** (After Phase 2 completes): Phases 3, 4, 8, 9 (4 agents in parallel)
+3. **Wave 3** (After all others complete): Phase 7 (1 agent)
 
-This allows up to 5 agents working simultaneously (Phases 1, 2, 3, 4, 5 or 6).
+**Maximum Parallelization:** Up to 6 agents working simultaneously in Wave 1
+
+**Total Estimated Time:**
+- Wave 1: ~3 hours (longest task in parallel)
+- Wave 2: ~6 hours (longest task in parallel)
+- Wave 3: ~3 hours
+- **Total: ~12 hours with full parallelization** (vs ~30 hours sequential)
 
 ## Dependencies
 
@@ -698,24 +891,35 @@ This allows up to 5 agents working simultaneously (Phases 1, 2, 3, 4, 5 or 6).
 
 ## Future Enhancements
 
-### Phase 8: Material Functions (Future)
-- Define reusable material functions in KAIN
-- Call material functions from other materials
-- Build a library of common material effects
-
-### Phase 9: Material Instances (Future)
+### Phase 12: Material Instances (Future)
 - Generate material instances at compile time
 - Override parameters without duplicating materials
 - Reduce memory usage for material variations
+- Support for material instance constants (MIC)
 
-### Phase 10: Visual Material Editor (Future)
+### Phase 13: Visual Material Editor (Future)
 - VS Code extension for visual material editing
 - Drag-and-drop node graph editor
 - Live preview of materials
 - Bidirectional sync between visual editor and KAIN code
 
-### Phase 11: Material Optimization (Future)
+### Phase 14: Material Optimization (Future)
 - Dead code elimination (remove unused nodes)
 - Constant folding (evaluate constant expressions at compile time)
 - Node fusion (combine multiple operations into single nodes)
 - Instruction count analysis and warnings
+- Automatic LOD generation (simplified materials for distance)
+
+### Phase 15: Advanced Shading Models (Future)
+- Custom shading models (beyond UE5 built-ins)
+- Physically-based subsurface scattering
+- Anisotropic reflections
+- Iridescence and thin-film interference
+- Custom lighting models
+
+### Phase 16: Material Debugging (Future)
+- Visual debugging of material graphs
+- Node value inspection at runtime
+- Performance profiling per-node
+- Shader complexity visualization
+- Hot-reload for material changes

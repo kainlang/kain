@@ -75,6 +75,11 @@ private:
 #include "Materials/MaterialExpressionPower.h"
 #include "Materials/MaterialExpressionClamp.h"
 #include "Materials/MaterialExpressionFresnel.h"
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
+#include "Materials/MaterialFunction.h"
+#include "Materials/MaterialExpressionTime.h"
+#include "Materials/MaterialExpressionSine.h"
+#include "Materials/MaterialExpressionCosine.h"
 #include "UObject/SavePackage.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -308,7 +313,17 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::ComponentMask { input, r, g, b, a } => {
+            MaterialNodeType::ComponentMask { input, mask } => {
+                let (r, g, b, a) = match mask.as_str() {
+                    "R" => (true, false, false, false),
+                    "G" => (false, true, false, false),
+                    "B" => (false, false, true, false),
+                    "A" => (false, false, false, true),
+                    "RG" => (true, true, false, false),
+                    "RGB" => (true, true, true, false),
+                    "RGBA" => (true, true, true, true),
+                    _ => (true, true, true, true), // default to RGBA
+                };
                 format!(
                     r#"    UMaterialExpressionComponentMask* {} = NewObject<UMaterialExpressionComponentMask>(Material);
     {}->R = {};
@@ -321,10 +336,10 @@ void F{}MaterialFactory::GenerateMaterials()
     
 "#,
                     node.id,
-                    node.id, if *r { "true" } else { "false" },
-                    node.id, if *g { "true" } else { "false" },
-                    node.id, if *b { "true" } else { "false" },
-                    node.id, if *a { "true" } else { "false" },
+                    node.id, if r { "true" } else { "false" },
+                    node.id, if g { "true" } else { "false" },
+                    node.id, if b { "true" } else { "false" },
+                    node.id, if a { "true" } else { "false" },
                     node.id, x,
                     node.id, y,
                     node.id
@@ -463,6 +478,365 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, index, node.id, cpp_float(tiling[0]), node.id, cpp_float(tiling[1]), node.id, x, node.id, y, node.id
                 )
             }
+            MaterialNodeType::Cross { a, b } => {
+                format!(
+                    r#"    UMaterialExpressionCrossProduct* {} = NewObject<UMaterialExpressionCrossProduct>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Normalize { input } => {
+                format!(
+                    r#"    UMaterialExpressionNormalize* {} = NewObject<UMaterialExpressionNormalize>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Length { input } => {
+                format!(
+                    r#"    UMaterialExpressionLength* {} = NewObject<UMaterialExpressionLength>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Distance { a, b } => {
+                format!(
+                    r#"    UMaterialExpressionDistance* {} = NewObject<UMaterialExpressionDistance>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Abs { input } => {
+                format!(
+                    r#"    UMaterialExpressionAbs* {} = NewObject<UMaterialExpressionAbs>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Min { a, b } => {
+                format!(
+                    r#"    UMaterialExpressionMin* {} = NewObject<UMaterialExpressionMin>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Max { a, b } => {
+                format!(
+                    r#"    UMaterialExpressionMax* {} = NewObject<UMaterialExpressionMax>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Saturate { input } => {
+                format!(
+                    r#"    UMaterialExpressionSaturate* {} = NewObject<UMaterialExpressionSaturate>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Frac { input } => {
+                format!(
+                    r#"    UMaterialExpressionFrac* {} = NewObject<UMaterialExpressionFrac>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Floor { input } => {
+                format!(
+                    r#"    UMaterialExpressionFloor* {} = NewObject<UMaterialExpressionFloor>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Ceil { input } => {
+                format!(
+                    r#"    UMaterialExpressionCeil* {} = NewObject<UMaterialExpressionCeil>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Round { input } => {
+                format!(
+                    r#"    UMaterialExpressionRound* {} = NewObject<UMaterialExpressionRound>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Sqrt { input } => {
+                format!(
+                    r#"    UMaterialExpressionSquareRoot* {} = NewObject<UMaterialExpressionSquareRoot>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Exp { input } => {
+                format!(
+                    r#"    UMaterialExpressionExponential* {} = NewObject<UMaterialExpressionExponential>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Log { input } => {
+                format!(
+                    r#"    UMaterialExpressionLogarithm* {} = NewObject<UMaterialExpressionLogarithm>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Sine { input } => {
+                format!(
+                    r#"    UMaterialExpressionSine* {} = NewObject<UMaterialExpressionSine>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::Cosine { input } => {
+                format!(
+                    r#"    UMaterialExpressionCosine* {} = NewObject<UMaterialExpressionCosine>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::CustomHLSL { code, output_type, inputs } => {
+                // Generate UMaterialExpressionCustom node with embedded HLSL code
+                let output_type_enum = match output_type {
+                    crate::material_graph::CustomOutputType::Float1 => "CMOT_Float1",
+                    crate::material_graph::CustomOutputType::Float2 => "CMOT_Float2",
+                    crate::material_graph::CustomOutputType::Float3 => "CMOT_Float3",
+                    crate::material_graph::CustomOutputType::Float4 => "CMOT_Float4",
+                };
+                
+                let mut result = format!(
+                    r#"    UMaterialExpressionCustom* {} = NewObject<UMaterialExpressionCustom>(Material);
+    {}->Code = TEXT("{}");
+    {}->OutputType = {};
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+"#,
+                    node.id, 
+                    node.id, code.replace("\"", "\\\"").replace("\n", "\\n"),
+                    node.id, output_type_enum,
+                    node.id, x, 
+                    node.id, y
+                );
+                
+                // Add input declarations
+                for input in inputs {
+                    let input_type_enum = match input.input_type {
+                        crate::material_graph::CustomOutputType::Float1 => "CMOT_Float1",
+                        crate::material_graph::CustomOutputType::Float2 => "CMOT_Float2",
+                        crate::material_graph::CustomOutputType::Float3 => "CMOT_Float3",
+                        crate::material_graph::CustomOutputType::Float4 => "CMOT_Float4",
+                    };
+                    result.push_str(&format!(
+                        r#"    {{
+        FCustomInput CustomInput;
+        CustomInput.InputName = TEXT("{}");
+        {}->Inputs.Add(CustomInput);
+    }}
+"#,
+                        input.name, node.id
+                    ));
+                }
+                
+                result.push_str(&format!(
+                    r#"    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id
+                ));
+                
+                result
+            }
+            MaterialNodeType::UVScroll { uv_input, offset_x, offset_y } => {
+                // UV scrolling is implemented as two Add nodes (one for X, one for Y)
+                // We need to split the UV into components, add offsets, then recombine
+                format!(
+                    r#"    // UVScroll node - splits UV, adds offsets, recombines
+    // Note: This is a placeholder - actual implementation will be wired in generate_connections
+    UMaterialExpressionAdd* {} = NewObject<UMaterialExpressionAdd>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::UVScale { uv_input, scale_x, scale_y } => {
+                // UV scaling is implemented as Multiply nodes
+                format!(
+                    r#"    // UVScale node - multiplies UV by scale factors
+    // Note: This is a placeholder - actual implementation will be wired in generate_connections
+    UMaterialExpressionMultiply* {} = NewObject<UMaterialExpressionMultiply>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::UVRotate { uv_input, angle, center } => {
+                // UV rotation requires a rotation matrix (sine, cosine, multiply, add nodes)
+                // This is complex and will be fully implemented in generate_connections
+                format!(
+                    r#"    // UVRotate node - rotates UV around center point
+    // Note: This is a placeholder - actual rotation matrix will be wired in generate_connections
+    UMaterialExpressionAdd* {} = NewObject<UMaterialExpressionAdd>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::MaterialFunctionCall { function_path, inputs } => {
+                // Generate UMaterialExpressionMaterialFunctionCall node
+                // This node calls an existing material function (which could be a KAIN shader)
+                let mut result = format!(
+                    r#"    UMaterialExpressionMaterialFunctionCall* {} = NewObject<UMaterialExpressionMaterialFunctionCall>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    
+    // Load the material function asset
+    UMaterialFunction* Function_{} = LoadObject<UMaterialFunction>(nullptr, TEXT("{}"));
+    if (Function_{})
+    {{
+        {}->SetMaterialFunction(Function_{});
+    }}
+    else
+    {{
+        UE_LOG(LogTemp, Warning, TEXT("Failed to load material function: {}"));
+    }}
+    
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id,
+                    node.id, x,
+                    node.id, y,
+                    node.id, function_path,
+                    node.id,
+                    node.id, node.id,
+                    function_path,
+                    node.id
+                );
+                
+                result
+            }
+            // Placeholder implementations for Phase 2 node types (Time, UV manipulation)
+            // These will be fully implemented in their respective phases
+            MaterialNodeType::Time => {
+                format!(
+                    r#"    UMaterialExpressionTime* {} = NewObject<UMaterialExpressionTime>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::UVScroll { .. } => {
+                // Placeholder - will be implemented in Phase 5
+                format!(
+                    r#"    // TODO: Implement UVScroll node generation in Phase 5
+    // Placeholder node for {}
+    
+"#,
+                    node.id
+                )
+            }
+            MaterialNodeType::UVScale { .. } => {
+                // Placeholder - will be implemented in Phase 5
+                format!(
+                    r#"    // TODO: Implement UVScale node generation in Phase 5
+    // Placeholder node for {}
+    
+"#,
+                    node.id
+                )
+            }
+            MaterialNodeType::UVRotate { .. } => {
+                // Placeholder - will be implemented in Phase 5
+                format!(
+                    r#"    // TODO: Implement UVRotate node generation in Phase 5
+    // Placeholder node for {}
+    
+"#,
+                    node.id
+                )
+            }
         }
     }
 
@@ -529,6 +903,97 @@ void F{}MaterialFactory::GenerateMaterials()
                 MaterialNodeType::TextureSampleParameter2D { uv_input, .. } => {
                     if let Some(uv) = uv_input {
                         code.push_str(&format!("    {}->Coordinates.Expression = {};\n", node.id, uv));
+                    }
+                }
+                MaterialNodeType::Cross { a, b } => {
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, a));
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, b));
+                }
+                MaterialNodeType::Normalize { input } => {
+                    code.push_str(&format!("    {}->VectorInput.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Length { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Distance { a, b } => {
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, a));
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, b));
+                }
+                MaterialNodeType::Abs { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Min { a, b } => {
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, a));
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, b));
+                }
+                MaterialNodeType::Max { a, b } => {
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, a));
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, b));
+                }
+                MaterialNodeType::Saturate { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Frac { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Floor { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Ceil { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Round { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Sqrt { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Exp { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Log { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Sine { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::Cosine { input } => {
+                    code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
+                }
+                MaterialNodeType::UVScroll { uv_input, offset_x, offset_y } => {
+                    // UVScroll: Add offset to UV coordinates
+                    // The node itself is an Add node, wire UV and offset
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, uv_input));
+                    // For now, we'll use offset_x as the offset (simplified)
+                    // TODO: Properly handle 2D offset with component-wise addition
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, offset_x));
+                }
+                MaterialNodeType::UVScale { uv_input, scale_x, scale_y } => {
+                    // UVScale: Multiply UV by scale factors
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, uv_input));
+                    // For now, we'll use scale_x as the scale (simplified)
+                    // TODO: Properly handle 2D scale with component-wise multiplication
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, scale_x));
+                }
+                MaterialNodeType::UVRotate { uv_input, angle, center } => {
+                    // UVRotate: Complex rotation matrix
+                    // For now, simplified implementation
+                    // TODO: Implement full rotation matrix with sine/cosine nodes
+                    code.push_str(&format!("    {}->A.Expression = {};\n", node.id, uv_input));
+                    code.push_str(&format!("    {}->B.Expression = {};\n", node.id, angle));
+                }
+                MaterialNodeType::MaterialFunctionCall { inputs, .. } => {
+                    // Wire inputs to the material function call
+                    // UMaterialExpressionMaterialFunctionCall uses FunctionInputs array
+                    for (i, input_id) in inputs.iter().enumerate() {
+                        code.push_str(&format!(
+                            "    if ({}->FunctionInputs.IsValidIndex({}))\n",
+                            node.id, i
+                        ));
+                        code.push_str(&format!(
+                            "        {}->FunctionInputs[{}].Input.Expression = {};\n",
+                            node.id, i, input_id
+                        ));
                     }
                 }
                 _ => {}
@@ -613,6 +1078,7 @@ mod tests {
                 nodes: vec![],
                 outputs: MaterialOutputs::default(),
                 properties: MaterialProperties::default(),
+                is_dynamic: false,
             }
         ];
         

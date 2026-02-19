@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    # ── KAIN pipeline ────────────────────────────────────────────────────────
     "crates/kain-core",
     "crates/ue5",
     "crates/ue5-shaders",
@@ -9,45 +10,84 @@ members = [
     "crates/sys",
     "crates/cli",
     # "crates/browser" # Uncomment when ready to integrate
+
+    # ── Unreal asset read/write (unrealmodding, vendored into crates/unreal/) ─
+    "crates/unreal/unreal_asset",
+    "crates/unreal/unreal_asset_base",
+    "crates/unreal/unreal_asset_kismet",
+    "crates/unreal/unreal_asset_exports",
+    "crates/unreal/unreal_asset_properties",
+    "crates/unreal/unreal_asset_registry",
+    "crates/unreal/unreal_asset_proc_macro",
+    "crates/unreal/unreal_helpers", "crates/ue5-blueprints",
 ]
 resolver = "2"
 
-[workspace.dependencies]
-# Compiler Front-end
-logos = "0.14"
-chumsky = "0.9"
-ariadne = "0.4"
-thiserror = "1"
-indexmap = "2"
-petgraph = "0.6"
+# ── Shared package metadata (used by crates/unreal/* via workspace = true) ──
+[workspace.package]
+version    = "0.1.0"
+authors    = ["KAIN"]
+license    = "MIT"
+repository = "https://github.com/private/kain"
+description = "KAIN language toolchain"
 
-# Runtime & Async
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-std", "fs"] }
-flume = "0.11"
+[workspace.dependencies]
+# ── Compiler Front-end ───────────────────────────────────────────────────────
+logos      = "0.14"
+chumsky    = "0.9"
+ariadne    = "0.4"
+thiserror  = "1"
+indexmap   = "2"
+petgraph   = "0.6"
+
+# ── Runtime & Async ──────────────────────────────────────────────────────────
+tokio     = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-std", "fs"] }
+flume     = "0.11"
 once_cell = "1"
 
-# Serialization
-serde = { version = "1", features = ["derive"] }
+# ── Serialization ────────────────────────────────────────────────────────────
+serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml       = "0.8"
 jsonschema = "0.18"
 
-# CLI & LSP
-clap = { version = "4", features = ["derive"] }
+# ── CLI & LSP ────────────────────────────────────────────────────────────────
+clap      = { version = "4", features = ["derive"] }
 tower-lsp = "0.20"
-notify = "6"
-ctrlc = "3"
+notify    = "6"
+ctrlc     = "3"
 
-# Utilities
-reqwest = { version = "0.12.28", features = ["blocking", "json"] }
-flate2 = "1.0"
-tar = "0.4"
-heck = "0.5.0"
+# ── Utilities ────────────────────────────────────────────────────────────────
+reqwest   = { version = "0.12.28", features = ["blocking", "json"] }
+flate2    = "1.0"
+tar       = "0.4"
+heck      = "0.5.0"
 minijinja = "2.15.1"
-chrono = "0.4.43"
+chrono    = "0.4.43"
 
-# Backend specific (can remain here to lock versions)
+# ── Backend specific ─────────────────────────────────────────────────────────
 inkwell = { version = "0.4", features = ["llvm17-0", "target-x86"] }
-walrus = "0.21"
-rspirv = "0.12"
-pyo3 = { version = "0.20", features = ["auto-initialize"] }
+walrus  = "0.21"
+rspirv  = "0.12"
+pyo3    = { version = "0.20", features = ["auto-initialize"] }
+
+# ── Unreal asset sub-crate deps (used by crates/unreal/* internally) ─────────
+unreal_asset          = { path = "crates/unreal/unreal_asset" }
+unreal_asset_base     = { path = "crates/unreal/unreal_asset_base" }
+unreal_asset_kismet   = { path = "crates/unreal/unreal_asset_kismet" }
+unreal_asset_exports  = { path = "crates/unreal/unreal_asset_exports" }
+unreal_asset_properties  = { path = "crates/unreal/unreal_asset_properties" }
+unreal_asset_registry = { path = "crates/unreal/unreal_asset_registry" }
+unreal_asset_proc_macro  = { path = "crates/unreal/unreal_asset_proc_macro" }
+unreal_helpers        = { path = "crates/unreal/unreal_helpers" }
+
+# ── Deps that unreal/* crates use via workspace = true ───────────────────────
+bitflags      = "2.4.0"
+bitvec        = "1.0.1"
+byteorder     = "1.4.3"
+enum_dispatch = "0.3.12"
+lazy_static   = "1.4.0"
+log           = "0.4.20"
+num_enum      = "0.6.1"
+ordered-float = "3.7.0"
+regex         = "1.9.3"

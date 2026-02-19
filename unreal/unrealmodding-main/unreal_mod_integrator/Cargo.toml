@@ -1,0 +1,35 @@
+[package]
+name = "unreal_mod_integrator"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage = "https://github.com/AstroTechies/unrealmodding/tree/main/unreal_mod_integrator"
+documentation = "https://docs.rs/unreal_mod_integrator"
+edition = "2021"
+
+[features]
+no_bulk_data = []
+# UE versions
+# If you want support for other ue versions, you can make a pull request with the support added,
+# or make an issue asking for a specific ue version to be supported.
+ue4_23 = []
+ue4_27 = []
+
+[dependencies]
+unreal_asset.workspace = true
+unreal_helpers.workspace = true
+unreal_mod_metadata.workspace = true
+unreal_pak.workspace = true
+
+lazy_static.workspace = true
+log.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+
+[build-dependencies]
+zip-extract = "0.1.2"
+github_helpers.workspace = true

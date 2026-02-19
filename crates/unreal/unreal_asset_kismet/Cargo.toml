@@ -1,0 +1,19 @@
+[package]
+name = "unreal_asset_kismet"
+version.workspace = true
+authors.workspace = true
+description = "Kismet implementations for unreal_asset"
+license.workspace = true
+repository.workspace = true
+homepage = "https://github.com/AstroTechies/unrealmodding/tree/main/unreal_asset/unreal_asset_kismet"
+documentation = "https://docs.rs/unreal_asset_kismet"
+edition = "2021"
+
+[dependencies]
+unreal_asset_base.workspace = true
+unreal_asset_proc_macro.workspace = true
+
+byteorder.workspace = true
+enum_dispatch.workspace = true
+num_enum.workspace = true
+ordered-float.workspace = true

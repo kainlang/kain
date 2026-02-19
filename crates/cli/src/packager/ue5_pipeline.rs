@@ -704,23 +704,23 @@ fn emit_expr(
                 }
                 "mask_r" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, r: true, g: false, b: false, a: false }
+                    MaterialNodeType::ComponentMask { input, mask: "R".to_string() }
                 }
                 "mask_g" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, r: false, g: true, b: false, a: false }
+                    MaterialNodeType::ComponentMask { input, mask: "G".to_string() }
                 }
                 "mask_b" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, r: false, g: false, b: true, a: false }
+                    MaterialNodeType::ComponentMask { input, mask: "B".to_string() }
                 }
                 "mask_a" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, r: false, g: false, b: false, a: true }
+                    MaterialNodeType::ComponentMask { input, mask: "A".to_string() }
                 }
                 "mask_rgb" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, r: true, g: true, b: true, a: false }
+                    MaterialNodeType::ComponentMask { input, mask: "RGB".to_string() }
                 }
                 "append" => {
                     let a = arg_ids.get(0).cloned().unwrap_or_default();
@@ -747,18 +747,19 @@ fn emit_expr(
             let input = emit_expr(object, x - 200, y, counter, nodes, scope);
             let id = format!("node_{}", counter);
             *counter += 1;
-            let (r, g, b, a) = match field.as_str() {
-                "r" | "x" => (true, false, false, false),
-                "g" | "y" => (false, true, false, false),
-                "b" | "z" => (false, false, true, false),
-                "a" | "w" => (false, false, false, true),
-                "rg" | "xy" => (true, true, false, false),
-                "rgb" | "xyz" => (true, true, true, false),
-                _ => (true, true, true, false), // default rgb
+            let mask = match field.as_str() {
+                "r" | "x" => "R",
+                "g" | "y" => "G",
+                "b" | "z" => "B",
+                "a" | "w" => "A",
+                "rg" | "xy" => "RG",
+                "rgb" | "xyz" => "RGB",
+                "rgba" | "xyzw" => "RGBA",
+                _ => "RGB", // default rgb
             };
             nodes.push(MaterialNode {
                 id: id.clone(),
-                node_type: MaterialNodeType::ComponentMask { input, r, g, b, a },
+                node_type: MaterialNodeType::ComponentMask { input, mask: mask.to_string() },
                 position: (x, y),
             });
             id

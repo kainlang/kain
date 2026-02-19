@@ -1,0 +1,55 @@
+[package]
+name = "unreal_mod_manager"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage = "https://github.com/AstroTechies/unrealmodding/tree/main/unreal_mod_manager"
+documentation = "https://docs.rs/unreal_mod_manager"
+edition = "2021"
+
+[features]
+no_bulk_data = ["unreal_mod_integrator/no_bulk_data"]
+cpp_loader = ["dep:unreal_cpp_bootstrapper", "dep:tempfile", "dep:dll_injector"]
+cpp_loader_gui = ["cpp_loader", "unreal_cpp_bootstrapper?/gui"]
+# Ue versions
+# If you want support for other ue versions, you can make a pull request with the support added,
+# or make an issue asking for a specific ue version to be supported.
+ue4_23 = ["unreal_mod_integrator/ue4_23"]
+ue4_27 = ["unreal_mod_integrator/ue4_27"]
+
+default = ["ue4_27"]
+
+[dependencies]
+dll_injector.workspace = true
+dll_injector.optional = true
+unreal_asset.workspace = true
+unreal_cpp_bootstrapper.workspace = true
+unreal_cpp_bootstrapper.optional = true
+unreal_helpers.workspace = true
+unreal_mod_integrator.workspace = true
+unreal_mod_metadata.workspace = true
+unreal_pak.workspace = true
+
+directories = "4.0.1"
+eframe = "0.29.1"
+egui_extras = "0.29.1"
+lazy_static.workspace = true
+log.workspace = true
+open = "3.2.0"
+parking_lot = "0.12.1"
+petgraph = "0.6.3"
+regex.workspace = true
+reqwest.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+steamlocate = "1.1.1"
+sha2 = "0.10.6"
+tempfile = { version = "3.4.0", optional = true }
+hex = "0.4.3"
+egui_commonmark = "0.18.0"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.11.0"

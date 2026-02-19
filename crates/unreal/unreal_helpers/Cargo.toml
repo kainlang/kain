@@ -1,0 +1,37 @@
+[package]
+name = "unreal_helpers"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage = "https://github.com/AstroTechies/unrealmodding/tree/main/unreal_helpers"
+documentation = "https://docs.rs/unreal_helpers"
+edition = "2021"
+
+[dependencies]
+bitvec.workspace = true
+bitvec.optional = true
+
+lazy_static.workspace = true
+lazy_static.optional = true
+regex.workspace = true
+regex.optional = true
+
+byteorder.workspace = true
+byteorder.optional = true
+
+serde.workspace = true
+serde.optional = true
+
+thiserror = "1.0.40"
+
+[features]
+bitvec = ["dep:bitvec"]
+guid = []
+path = ["dep:lazy_static", "dep:regex"]
+read_write = ["dep:byteorder"]
+serde = ["dep:serde"]
+
+[package.metadata.docs.rs]
+all-features = true

@@ -6,7 +6,8 @@ inclusion: always
 
 ## Core Principle
 
-**KAIN-PRO is designed for AI code generation, not human coding.**
+**KAIN is designed for AI code generation, not human coding.**
+**KAIN is designed for AI code generation, not human coding.**
 
 The entire system is optimized so that LLMs can generate production-quality UE5 plugins with ZERO manual intervention. If a build succeeds, the plugin is production-ready.
 
