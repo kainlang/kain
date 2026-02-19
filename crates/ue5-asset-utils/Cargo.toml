@@ -1,0 +1,15 @@
+[package]
+name = "ue5-asset-utils"
+version = "0.1.0"
+edition = "2021"
+description = "Shared utilities for UE5 .uasset generation: property conversion, import building, path helpers."
+
+[dependencies]
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+
+# unreal_asset stack
+unreal_asset            = { workspace = true }
+unreal_asset_base       = { workspace = true }
+unreal_asset_properties = { workspace = true }
+ordered-float           = "3.7.0"

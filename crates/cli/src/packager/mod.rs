@@ -10,6 +10,7 @@ pub mod build_cs_gen;
 pub mod post_process;
 pub mod dependencies;
 pub mod inject;
+pub mod registry_writer;
 
 // Re-export public API to maintain backward compatibility
 pub use config::*;

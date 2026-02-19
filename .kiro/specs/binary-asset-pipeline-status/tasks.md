@@ -55,15 +55,27 @@ This spec documents the current state of the binary asset pipeline and identifie
     - ✅ 3 passing tests
     - ✅ Full blueprint support with event graphs achieved
   
-  - [ ] 6.2 Create spec for Material Functions
-    - NOW HIGHEST PRIORITY (5-6h effort)
+  - [x] 6.2 ~~Create spec for UDataAsset Writer~~ - ✅ COMPLETE (Feb 19, 2026)
+    - ✅ Fully implemented in crates/ue5-editor/src/data_asset_writer.rs
+    - ✅ 26 passing tests covering round-trips, field types, class resolution
+    - ✅ Handles EngineVersion parameterization (UE 5.0 → 5.4+)
+    - ✅ Ready for integration into ue5_pipeline.rs
+  
+  - [x] 6.3 ~~Create spec for Asset Registry Writer~~ - ✅ COMPLETE (Feb 19, 2026)
+    - ✅ Fully implemented in crates/cli/src/packager/registry_writer.rs
+    - ✅ 6 passing tests covering creation, dedup, file I/O
+    - ✅ Targets AddedDependencyFlags (UE 4.27/5.0+ compatible)
+    - ✅ Ready for integration into ue5_pipeline.rs
+  
+  - [ ] 6.4 Create spec for Shader → Material Custom HLSL Bridge
+    - NOW HIGHEST PRIORITY (2-3h effort)
+    - Closes gap between shader and material pipelines
+    - Embeds USF code in UMaterialExpressionCustom nodes
+  
+  - [ ] 6.5 Create spec for Material Functions
+    - HIGH PRIORITY (5-6h effort)
     - Enables reusable material logic
     - Required for complex materials
-  
-  - [ ] 6.3 Create spec for UDataAsset Writer
-    - High priority (3-4h effort)
-    - Enables data-driven design
-    - No editor needed for data tables
 
 ## Summary
 
@@ -76,20 +88,20 @@ This spec documents the current state of the binary asset pipeline and identifie
 ✅ C++ factory fallback
 
 ### What Remains (ACTUAL WORK)
+❌ Shader → Custom HLSL bridge (2-3h) - HIGHEST PRIORITY
 ❌ Material functions (5-6h) - HIGH
 ❌ Dynamic materials (3-4h) - MEDIUM
-❌ UDataAsset writer (3-4h) - HIGH
-❌ Shader → Custom HLSL integration (2-3h) - MEDIUM
 ❌ World-space operations (3-4h) - MEDIUM
 ❌ Vertex shaders (2-3h) - MEDIUM
 ❌ Material layers (3-4h) - LOW
-❌ Asset registry writer (2-3h) - MEDIUM
 
-**Total Remaining:** 24-33 hours (down from 32-45 hours - Kismet complete saves 8-12h)
+**Total Remaining:** 16-25 hours (down from 24-33 hours - DataAsset + Registry complete saves 5-7h)
 
 ### Key Insight
-The implementation plan was created before discovering that the binary pipeline was already built. 83% of the planned work (Phases 0-6) is already complete. **Kismet bytecode is also COMPLETE** (discovered after initial assessment). The focus should be on:
+The implementation plan was created before discovering that the binary pipeline was already built. 83% of the planned work (Phases 0-6) is already complete. **Kismet bytecode, UDataAsset writer, and Asset Registry writer are all COMPLETE** (discovered/implemented after initial assessment). The focus should be on:
 1. ~~Kismet bytecode~~ ✅ COMPLETE
-2. Material functions (now highest priority)
-3. Remaining material features (Phases 7-11)
-4. Expansion opportunities (UDataAsset, Asset Registry, etc.)
+2. ~~UDataAsset writer~~ ✅ COMPLETE (26 tests)
+3. ~~Asset Registry writer~~ ✅ COMPLETE (6 tests)
+4. Shader → Material Custom HLSL bridge (now highest priority)
+5. Material functions
+6. Remaining material features (Dynamic Materials, World-Space ops, Vertex shaders, Layers)

@@ -27,9 +27,14 @@ pub struct Ue5Config {
     #[serde(default)]
     pub copyright: Option<String>,
     #[serde(default)]
-    pub modular_output: bool,  // NEW: Generate separate .h/.cpp per source file
+    pub modular_output: bool,  // Generate separate .h/.cpp per source file
     #[serde(default)]
     pub stdlib_path: Option<PathBuf>,  // Optional custom stdlib path
+    /// Target UE5 engine version, e.g. "5.2", "5.3", "5.4".
+    /// Drives the binary format for .uasset / AssetRegistry.bin output.
+    /// Defaults to "5.2" if not specified.
+    #[serde(default)]
+    pub engine_version: Option<String>,
 }
 
 fn default_plugin_dir() -> PathBuf { PathBuf::from("Plugins") }

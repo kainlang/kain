@@ -44,6 +44,36 @@ pub struct AssetPackageData {
 }
 
 impl AssetPackageData {
+    /// Create a new `AssetPackageData` instance from data.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_data(
+        package_name: FName,
+        package_guid: Guid,
+        cooked_hash: Option<FMD5Hash>,
+        imported_classes: Option<Vec<FName>>,
+        disk_size: i64,
+        file_version: i32,
+        ue5_version: Option<i32>,
+        file_version_licensee_ue: i32,
+        custom_versions: Option<Vec<CustomVersion>>,
+        flags: u32,
+        version: FAssetRegistryVersionType,
+    ) -> Self {
+        Self {
+            package_name,
+            package_guid,
+            cooked_hash,
+            imported_classes,
+            disk_size,
+            file_version,
+            ue5_version,
+            file_version_licensee_ue,
+            custom_versions,
+            flags,
+            version,
+        }
+    }
+
     /// Read `AssetPackageData` from an asset
     pub fn new<Reader: ArchiveReader<impl PackageIndexTrait>>(
         asset: &mut Reader,

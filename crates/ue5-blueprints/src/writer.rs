@@ -12,7 +12,6 @@
 
 use std::io::Cursor;
 
-use ordered_float::OrderedFloat;
 use unreal_asset::{
     engine_version::EngineVersion,
     exports::{
@@ -28,23 +27,18 @@ use unreal_asset::{
     Asset, Import,
 };
 use unreal_asset_properties::{
-    int_property::{BoolProperty, FloatProperty, IntProperty, Int64Property, DoubleProperty},
-    enum_property::EnumProperty,
     object_property::ObjectProperty,
-    str_property::{NameProperty, StrProperty},
-    struct_property::StructProperty,
+    int_property::IntProperty,
+    str_property::NameProperty,
     array_property::ArrayProperty,
-    color_property::LinearColorProperty,
-    soft_path_property::{SoftObjectPathProperty, SoftObjectPathPropertyValue},
-    object_property::SoftObjectPath,
-    vector_property::{VectorProperty, RotatorProperty},
     Property,
 };
-use unreal_asset_base::types::vector::{Color, Vector};
+use ue5_asset_utils::{ImportBuilder, PropertyDef, PropertyValue};
+use ue5_asset_utils::property_converter::convert_property_defs;
 
 use crate::{
     error::{BlueprintError, Result},
-    ir::{BlueprintDef, BlueprintEngineVersion, PropertyDef, PropertyValue, ComponentDef},
+    ir::{BlueprintDef, BlueprintEngineVersion, ComponentDef},
     kismet,
 };
 
@@ -181,7 +175,7 @@ impl BlueprintBuildContext {
 
         // ── Parent class import ──────────────────────────────────────────────
         // Parse "/Script/Engine.Actor" → package="/Script/Engine", class="Actor"
-        let (parent_pkg_path, parent_class_name) = parse_class_path(parent_class);
+        let (parent_pkg_path, parent_class_name) = ImportBuilder::parse_class_path(parent_class);
 
         // Package import for parent (may reuse engine_import)
         let parent_pkg_import = if parent_pkg_path == "/Script/Engine" {
@@ -309,7 +303,7 @@ impl BlueprintBuildContext {
         let package_fname = self.asset.add_fname("Package");
 
         // Find or create the /Script/Engine package import
-        let engine_pkg_idx = find_import_by_name(&self.asset, "/Script/Engine")
+        let engine_pkg_idx = ImportBuilder::find_import_by_name(&self.asset, "/Script/Engine")
             .unwrap_or_else(|| {
                 self.asset.imports.push(Import {
                     class_package: coreuobject_pkg.clone(),
@@ -437,7 +431,7 @@ impl BlueprintBuildContext {
 
             // Set ComponentTemplate default properties
             if !comp.defaults.is_empty() {
-                let comp_props = self.convert_property_defs(&comp.defaults);
+                let comp_props = convert_property_defs(&mut self.asset, &comp.defaults);
                 let comp_export_idx = (comp_template_idx.index - 1) as usize;
                 if let Some(normal) = self.asset.asset_data.exports[comp_export_idx].get_normal_export_mut() {
                     normal.properties = comp_props;
@@ -659,300 +653,11 @@ impl BlueprintBuildContext {
         if defaults.is_empty() {
             return;
         }
-        let props = self.convert_property_defs(defaults);
+        let props = convert_property_defs(&mut self.asset, defaults);
         let cdo_idx = (self.cdo_export.index - 1) as usize;
         if let Some(normal) = self.asset.asset_data.exports[cdo_idx].get_normal_export_mut() {
             normal.properties = props;
         }
-    }
-
-    // ── PropertyValue → Property conversion ─────────────────────────────────
-
-    fn convert_property_defs(&mut self, defs: &[PropertyDef]) -> Vec<Property> {
-        defs.iter().filter_map(|def| self.convert_one_property(def)).collect()
-    }
-
-    fn convert_one_property(&mut self, def: &PropertyDef) -> Option<Property> {
-        let name = self.asset.add_fname(&def.name);
-        match &def.value {
-            PropertyValue::Bool(v) => Some(BoolProperty {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: *v,
-            }.into()),
-
-            PropertyValue::Int(v) => Some(IntProperty {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: *v,
-            }.into()),
-
-            PropertyValue::Int64(v) => Some(Int64Property {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: *v,
-            }.into()),
-
-            PropertyValue::Float(v) => Some(FloatProperty {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: OrderedFloat(*v),
-            }.into()),
-
-            PropertyValue::Double(v) => Some(DoubleProperty {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: OrderedFloat(*v),
-            }.into()),
-
-            PropertyValue::Str(v) => Some(StrProperty {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: Some(v.clone()),
-            }.into()),
-
-            PropertyValue::Name(v) => {
-                let val = self.asset.add_fname(v);
-                Some(NameProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: val,
-                }.into())
-            }
-
-            PropertyValue::Text(v) => Some(StrProperty {
-                name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: Some(v.clone()),
-            }.into()),
-
-            PropertyValue::SoftObject(path) => {
-                // For UE5.2+, SoftObjectPath uses TopLevelAssetPath
-                // We store as the "New" variant with asset_path + sub_path
-                let (asset_path_str, sub_path) = split_soft_path(path);
-                let asset_path_fname = self.asset.add_fname(&asset_path_str);
-                Some(SoftObjectPathProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: SoftObjectPathPropertyValue::New(SoftObjectPath {
-                        asset_path: unreal_asset_properties::object_property::TopLevelAssetPath {
-                            package_name: Some(asset_path_fname),
-                            asset_name: self.asset.add_fname(""),
-                        },
-                        sub_path_string: sub_path,
-                    }),
-                }.into())
-            }
-
-            PropertyValue::Vector { x, y, z } => {
-                let struct_type = self.asset.add_fname("Vector");
-                Some(StructProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    struct_type: Some(struct_type),
-                    struct_guid: Some(Default::default()),
-                    serialize_none: true,
-                    value: vec![VectorProperty {
-                        name: Default::default(),
-                        ancestry: Default::default(),
-                        property_guid: None,
-                        duplication_index: 0,
-                        value: Vector::new(
-                            OrderedFloat(*x as f64),
-                            OrderedFloat(*y as f64),
-                            OrderedFloat(*z as f64),
-                        ),
-                    }.into()],
-                }.into())
-            }
-
-            PropertyValue::Rotator { pitch, yaw, roll } => {
-                let struct_type = self.asset.add_fname("Rotator");
-                Some(StructProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    struct_type: Some(struct_type),
-                    struct_guid: Some(Default::default()),
-                    serialize_none: true,
-                    value: vec![RotatorProperty {
-                        name: Default::default(),
-                        ancestry: Default::default(),
-                        property_guid: None,
-                        duplication_index: 0,
-                        value: Vector::new(
-                            OrderedFloat(*pitch as f64),
-                            OrderedFloat(*yaw as f64),
-                            OrderedFloat(*roll as f64),
-                        ),
-                    }.into()],
-                }.into())
-            }
-
-            PropertyValue::LinearColor { r, g, b, a } => {
-                let struct_type = self.asset.add_fname("LinearColor");
-                Some(StructProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    struct_type: Some(struct_type),
-                    struct_guid: Some(Default::default()),
-                    serialize_none: true,
-                    value: vec![LinearColorProperty {
-                        name: Default::default(),
-                        ancestry: Default::default(),
-                        property_guid: None,
-                        duplication_index: 0,
-                        color: Color::new(
-                            OrderedFloat(*r),
-                            OrderedFloat(*g),
-                            OrderedFloat(*b),
-                            OrderedFloat(*a),
-                        ),
-                    }.into()],
-                }.into())
-            }
-
-            PropertyValue::Enum { enum_type, value } => {
-                let enum_fname = self.asset.add_fname(enum_type);
-                let val_str = format!("{}::{}", enum_type, value);
-                let val_fname = self.asset.add_fname(&val_str);
-                Some(EnumProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    enum_type: Some(enum_fname),
-                    inner_type: None,
-                    value: Some(val_fname),
-                }.into())
-            }
-
-            PropertyValue::ObjectRef(path) => {
-                // Resolve the object path to an import index.
-                // Path format: "/Script/Engine.StaticMesh" or "/Game/Meshes/SM_Cube.SM_Cube"
-                let resolved = self.resolve_object_import(path);
-                Some(ObjectProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    value: resolved,
-                }.into())
-            }
-
-            PropertyValue::Array { inner_type: _, values } => {
-                // Convert each value, wrapping in an array
-                let inner_props: Vec<Property> = values.iter()
-                    .filter_map(|v| {
-                        let temp_def = PropertyDef { name: def.name.clone(), value: v.clone() };
-                        self.convert_one_property(&temp_def)
-                    })
-                    .collect();
-
-                let arr_type = self.asset.add_fname(&infer_array_inner_type(&def.value));
-                Some(ArrayProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    array_type: Some(arr_type),
-                    value: inner_props,
-                    dummy_property: None,
-                }.into())
-            }
-
-            PropertyValue::Struct { struct_type, fields } => {
-                let st = self.asset.add_fname(struct_type);
-                let inner = self.convert_property_defs(fields);
-                Some(StructProperty {
-                    name,
-                    ancestry: Default::default(),
-                    property_guid: None,
-                    duplication_index: 0,
-                    struct_type: Some(st),
-                    struct_guid: Some(Default::default()),
-                    serialize_none: true,
-                    value: inner,
-                }.into())
-            }
-        }
-    }
-
-    // ── Object reference resolution ─────────────────────────────────────────
-
-    /// Resolve an object path like "/Script/Engine.StaticMesh" or
-    /// "/Game/Meshes/SM_Cube.SM_Cube" to a PackageIndex import.
-    ///
-    /// If the import already exists, returns it. Otherwise creates a new one.
-    /// For paths that can't be parsed, returns PackageIndex(0) (null).
-    fn resolve_object_import(&mut self, path: &str) -> PackageIndex {
-        // Check if an import with this object name already exists
-        let (pkg_path, obj_name) = parse_class_path(path);
-        if let Some(existing) = find_import_by_name(&self.asset, &obj_name) {
-            return existing;
-        }
-
-        // Find or create the package import
-        let pkg_import = if let Some(existing_pkg) = find_import_by_name(&self.asset, &pkg_path) {
-            existing_pkg
-        } else {
-            let pkg_fname = self.asset.add_fname(&pkg_path);
-            let package_class = self.asset.add_fname("Package");
-            let coreuobject = self.asset.add_fname("/Script/CoreUObject");
-            self.asset.imports.push(Import {
-                class_package: coreuobject,
-                class_name: package_class,
-                outer_index: PackageIndex::new(0),
-                object_name: pkg_fname,
-                optional: false,
-            });
-            PackageIndex::new(-(self.asset.imports.len() as i32))
-        };
-
-        // Create the object import
-        let obj_fname = self.asset.add_fname(&obj_name);
-        // Determine class — for /Script/ paths it's a Class, for /Game/ it's an Object
-        let (class_pkg, class_name) = if pkg_path.starts_with("/Script/") {
-            let cp = self.asset.add_fname("/Script/CoreUObject");
-            let cn = self.asset.add_fname("Class");
-            (cp, cn)
-        } else {
-            let cp = self.asset.add_fname("/Script/CoreUObject");
-            let cn = self.asset.add_fname("Object");
-            (cp, cn)
-        };
-
-        self.asset.imports.push(Import {
-            class_package: class_pkg,
-            class_name,
-            outer_index: pkg_import,
-            object_name: obj_fname,
-            optional: false,
-        });
-        PackageIndex::new(-(self.asset.imports.len() as i32))
     }
 
     // ── Serialize to bytes ───────────────────────────────────────────────────
@@ -984,53 +689,8 @@ fn map_engine_version(v: BlueprintEngineVersion) -> EngineVersion {
     }
 }
 
-/// Parse "/Script/Engine.Actor" → ("/Script/Engine", "Actor")
-fn parse_class_path(path: &str) -> (String, String) {
-    if let Some(dot_pos) = path.rfind('.') {
-        (path[..dot_pos].to_string(), path[dot_pos + 1..].to_string())
-    } else {
-        ("/Script/Engine".to_string(), path.to_string())
-    }
-}
-
-/// Find an import by object name string
-fn find_import_by_name(asset: &Asset<Cursor<Vec<u8>>>, name: &str) -> Option<PackageIndex> {
-    for (i, imp) in asset.imports.iter().enumerate() {
-        let matches = imp.object_name.get_content(|n| n == name);
-        if matches {
-            return Some(PackageIndex::new(-((i + 1) as i32)));
-        }
-    }
-    None
-}
-
-/// Split a soft object path like "/Game/Meshes/SM_Player.SM_Player" into
-/// (asset_path, sub_path)
-fn split_soft_path(path: &str) -> (String, Option<String>) {
-    if let Some(dot_pos) = path.rfind('.') {
-        let sub = &path[dot_pos + 1..];
-        // If the sub path is just the asset name repeated, no sub_path needed
-        (path.to_string(), Some(sub.to_string()))
-    } else {
-        (path.to_string(), None)
-    }
-}
-
-/// Infer the UE property type name for an array's inner type
-fn infer_array_inner_type(val: &PropertyValue) -> String {
-    match val {
-        PropertyValue::Array { inner_type, .. } => {
-            match inner_type.as_str() {
-                "float" | "Float" => "FloatProperty",
-                "int" | "Int" => "IntProperty",
-                "bool" | "Bool" => "BoolProperty",
-                "string" | "String" => "StrProperty",
-                other => other,
-            }.to_string()
-        }
-        _ => "StructProperty".to_string(),
-    }
-}
+// parse_class_path, find_import_by_name, split_soft_path, infer_array_inner_type,
+// resolve_object_import — all moved to ue5_asset_utils::{ImportBuilder, property_converter}
 
 // ---------------------------------------------------------------------------
 // Tests

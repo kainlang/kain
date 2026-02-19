@@ -2,7 +2,7 @@
 
 > **Prerequisite Reading:** `docs/BINARY_ASSET_PIPELINE.md` — covers the proven Material + Blueprint patterns in full.
 > **Date:** February 19, 2026
-> **Status:** Blueprint + Material binary pipelines **complete**. This doc maps what to build next.
+> **Status:** Blueprint ✅ + Material ✅ binary pipelines complete. Shared `ue5-asset-utils` ✅ extracted. **Next:** `UDataAsset` writer (`ue5-editor`).
 
 The `unreal_asset` vendored library (`crates/unreal/`) can write **any** UE5 `.uasset` type — not just materials and blueprints. Now that we have a proven `Asset::new_empty()` → export graph → `write_data()` pattern, the cost of adding new asset types is dramatically lower. This document maps every crate in KAIN that can benefit, what's currently blocking it, and a concrete implementation pattern for each.
 
@@ -40,7 +40,7 @@ let export = NormalExport {
 asset.asset_data.exports.push(Export::NormalExport(export));
 
 // 4. Properties — typed values on those exports
-// Use BlueprintBuildContext::convert_one_property() as a reference.
+// Use ue5_asset_utils::property_converter::convert_property_defs() — the canonical impl.
 
 // 5. Serialize
 asset.rebuild_name_map();
@@ -110,62 +110,94 @@ pub fn emit_event_graph(
 
 ---
 
-## 2. `ue5-editor` — `UDataAsset` Binary Writer (NEXT PRIORITY)
+## 2. ~~`ue5-editor` — `UDataAsset` Binary Writer~~ ✅ COMPLETE
 
-**File:** `crates/ue5-editor/src/editor/assets.rs`
-**Current state:** `// TODO: Implement asset generation` — returns empty strings.
+**File:** `crates/ue5-editor/src/data_asset_writer.rs`
+**Status:** FULLY IMPLEMENTED (Feb 19, 2026)
 
-### What to Build: `DataAssetBinaryWriter`
+### What Was Built: `DataAssetBinaryWriter`
 
-Any KAIN `struct` annotated with `@data_asset` maps cleanly to a `UDataAsset` subclass written as a `.uasset`. The property conversion code from `BlueprintBuildContext::convert_one_property` is **directly reusable**.
+Full `.uasset` serializer for `UDataAsset` subclasses. KAIN structs tagged `@data_asset` can now be compiled to real binary assets.
 
-### The UDataAsset Object Graph
+**What it does:**
+- Creates a single-export `.uasset` with a proper property bag
+- Resolves imports: `/Script/CoreUObject`, `/Script/Engine`, your custom class path
+- Uses `ue5-asset-utils`'s `PropertyDef`/`PropertyValue` for type-safe field population
+- Handles `EngineVersion` parameterization (UE 5.0 → 5.4+)
+- **26 unit tests** covering round-trips, field types, class resolution
 
-```
-Exports:
-  [1] UDataAsset "DA_ItemTable"
-        class_index → import: /Script/Engine.DataTable OR your custom UDataAsset subclass
-        object_flags: RF_PUBLIC | RF_STANDALONE
-        properties: [ all struct fields as PropertyData ]
-```
-
-No SCS, no CDO, no generated class — just one export with a flat property bag. Much simpler than blueprints.
-
-### Implementation Pattern
-
+**API:**
 ```rust
-pub fn write_data_asset(
-    name: &str,
-    class_path: &str,  // e.g. "/Script/MyPlugin.UMyItemDataAsset"
-    fields: &[PropertyDef],
-    engine_version: EngineVersion,
-) -> Result<Vec<u8>> {
-    let mut asset = Asset::new_empty(engine_version);
-    
-    // 1 import: the UDataAsset subclass
-    let (pkg, cls) = parse_class_path(class_path);  // reuse from blueprints
-    // ... add imports ...
-    
-    // 1 export: the asset object itself
-    let export = NormalExport { ... };
-    // Set properties from `fields` using convert_property_defs()
-    
-    asset.rebuild_name_map();
-    // ... write_data() ...
-}
+use ue5_editor::data_asset_writer::{write_data_asset, PropertyDef, PropertyValue};
+
+let bytes = write_data_asset(
+    "DA_MyItem",
+    "/Script/MyPlugin.UMyItem",
+    &[
+        PropertyDef::new("Health", PropertyValue::Float(100.0)),
+        PropertyDef::new("Name",   PropertyValue::String("Sword".into())),
+    ],
+    EngineVersion::VER_UE5_2,
+)?;
+std::fs::write("Content/DA_MyItem.uasset", bytes)?;
 ```
 
-### What this Unlocks
-- `@data_asset struct ItemData { name: String, damage: Float }` → `DA_ItemData.uasset` drops directly into `Content/DataAssets/`
-- No editor, no C++ compile, no `DataTable` CSV round-trip
-- Importable by Blueprints immediately, same session
-
-### Integration Point
-`ue5_pipeline.rs` STEP 3.7 (after Blueprint step), filtering for `TypedItem::Struct` with `@data_asset` attribute.
+### What This Unlocked
+- ✅ `@data_asset struct ItemData { ... }` → `DA_ItemData.uasset` drops directly into `Content/DataAssets/`
+- ✅ No editor, no C++ compile, no `DataTable` CSV round-trip
+- ✅ Importable by Blueprints immediately, same session
+- ✅ Ready for integration into `ue5_pipeline.rs` STEP 3.7
 
 ---
 
-## 3. `ue5-materials` — `UMaterialExpressionCustom` for Shaders
+## 3. ~~Asset Registry Writer~~ ✅ COMPLETE
+
+**File:** `crates/cli/src/packager/registry_writer.rs`
+**Status:** FULLY IMPLEMENTED (Feb 19, 2026)
+
+### What Was Built: `RegistryAppender`
+
+Creates or updates `AssetRegistry.bin` with generated asset metadata. Enables **instant Content Browser visibility** without a full editor scan.
+
+**What it does:**
+- Reads existing `AssetRegistry.bin` if present — appends new entries
+- Creates a fresh registry from scratch if none exists
+- Deduplicates by `object_path` — idempotent on repeated pipeline runs
+- Targets `FAssetRegistryVersionType::AddedDependencyFlags` — pre-FixedTags, self-contained name table, UE 4.27 / 5.0+ compatible
+- Registry write failures are **non-fatal** — logged, pipeline continues
+- **6 unit tests** covering creation, dedup, empty no-op, and file I/O
+
+**API:**
+```rust
+use cli::packager::registry_writer::{register_assets, AssetEntry};
+
+let entries = vec![
+    AssetEntry::blueprint("/Game/Blueprints/BP_Enemy", "BP_Enemy"),
+    AssetEntry::material("/Game/Materials/M_Fire", "M_Fire"),
+    AssetEntry::data_asset("/Game/Data/DA_Items", "DA_Items"),
+    AssetEntry::custom("/Game/Foo/Bar", "Bar", "/Script/MyPlugin.UBar"),
+];
+
+// Non-fatal — log and continue if this fails
+if let Err(e) = register_assets(&registry_path, &entries, engine_version) {
+    log::warn!("AssetRegistry update failed (non-fatal): {}", e);
+}
+```
+
+**Additional Work:**
+- ✅ Added `AssetRegistryState::from_data()` public constructor
+- ✅ Added `AssetPackageData::from_data()` public constructor
+- ✅ Documented FName::Backed vs FName::Dummy gotcha
+- ✅ Documented cooked_hash requirement for AddedDependencyFlags
+
+### What This Unlocked
+- ✅ Generated assets appear in the Content Browser **immediately** on editor launch, no re-scan
+- ✅ Critical for workflows involving many generated assets (data tables, per-actor blueprints, shader materials)
+- ✅ Ready for integration into `ue5_pipeline.rs` final step
+
+---
+
+## 4. `ue5-materials` — `UMaterialExpressionCustom` for Shaders (NEXT PRIORITY)
 
 **Files:** `crates/ue5-materials/src/material_serializer.rs` + `crates/ue5-shaders/src/codegen_usf.rs`
 **Current gap:** The material builder has `add_custom_hlsl_node()` but it's disconnected from the KAIN shader pipeline.
@@ -196,55 +228,43 @@ This gives you AAA-quality HLSL embedded directly in your material `.uasset`. No
 
 ---
 
-## 4. `unreal_asset_registry` — Content Browser Auto-Registration
+## 5. ~~Shared `PropertyConverter` Utility~~ ✅ COMPLETE
 
-**Crate:** `crates/unreal/unreal_asset_registry/`
-**Current gap:** Not used anywhere in the pipeline.
+**Status:** IMPLEMENTED in `crates/ue5-asset-utils/src/property_converter.rs`
 
-### The Problem
-
-When KAIN drops `.uasset` files into `Content/`, the UE5 Editor won't see them in the Content Browser until it runs a full asset scan. On large projects this can take 30+ seconds.
-
-### What the Registry Crate Does
-
-`AssetRegistry.bin` is a binary cache file at `Saved/AssetRegistry.bin` (or per-plugin). The `unreal_asset_registry` crate can read and write this file directly.
-
-### What to Build: `RegistryAppender`
-
-After every KAIN build that generates `.uasset` files, append the new assets to the registry:
+Both `ue5-materials` (via `MaterialAssetBuilder`) and `ue5-blueprints` (via `BlueprintBuildContext`) now use the shared property conversion utility. The `PropertyDef`/`PropertyValue` IR types live in `ue5-asset-utils/src/property_types.rs` and are re-exported by `ue5-blueprints`.
 
 ```rust
-use unreal_asset_registry::AssetRegistry;
-
-pub fn register_generated_assets(
-    registry_path: &Path,
-    generated: &[(String, String)], // (package_path, asset_class)
-) -> Result<()> {
-    let mut registry = if registry_path.exists() {
-        AssetRegistry::read(registry_path)?
-    } else {
-        AssetRegistry::new()
-    };
-    
-    for (path, class) in generated {
-        registry.add_asset(path, class);
-    }
-    
-    registry.write(registry_path)?;
-    Ok(())
-}
+// crates/ue5-asset-utils/src/property_converter.rs
+pub fn convert_property_def(asset: &mut Asset<Cursor<Vec<u8>>>, def: &PropertyDef) -> Option<Property>
+pub fn convert_property_defs(asset: &mut Asset<Cursor<Vec<u8>>>, defs: &[PropertyDef]) -> Vec<Property>
 ```
 
-### What this Unlocks
-- Generated assets appear in the Content Browser **immediately** on editor launch, no re-scan
-- Critical for any workflow involving many generated assets (data tables, per-actor blueprints, shader materials)
-
-### Integration Point
-Final step in `build_ue5_plugin()`, after all asset writes complete. Needs the plugin's `Saved/` directory from `PluginLayout`.
+This avoids drift between implementations (e.g., if the `SoftObjectPath` format changes in a UE5 update, fix it once).
 
 ---
 
-## 5. `ue5-editor` — `UBlueprint` Widget (Slate Extension)
+## 6. ~~Shared `ImportBuilder` Utility~~ ✅ COMPLETE
+
+**Status:** IMPLEMENTED in `crates/ue5-asset-utils/src/import_builder.rs`
+
+Provides deduplicating import creation used by both writers:
+
+```rust
+// crates/ue5-asset-utils/src/import_builder.rs
+impl ImportBuilder {
+    pub fn find_import_by_name(asset, name) -> Option<PackageIndex>
+    pub fn get_or_add_import(asset, class_package, class_name, outer, object_name) -> PackageIndex
+    pub fn get_or_add_package(asset, package_path) -> PackageIndex
+    pub fn get_or_add_class(asset, class_name, outer_package) -> PackageIndex
+    pub fn parse_class_path(path) -> (String, String)
+    pub fn resolve_object_import(asset, path) -> PackageIndex
+}
+```
+
+---
+
+## 7. `ue5-editor` — `UBlueprint` Widget (Slate Extension)
 
 **File:** `crates/ue5-editor/src/editor/slate.rs`
 **Current state:** Generates Slate C++ widget code.
@@ -274,32 +294,30 @@ This is the highest-complexity target — a `.umap` writer would allow KAIN prog
 
 ## Cross-Cutting Improvements
 
-### Shared `PropertyConverter` Utility
+### ~~Shared `PropertyConverter` Utility~~ ✅ COMPLETE
 
-Both `ue5-materials` (via `MaterialAssetBuilder`) and `ue5-blueprints` (via `BlueprintBuildContext`) independently implement property conversion functions. These should be extracted into a **shared utility** in a new `crates/ue5-asset-utils/` crate (or added to `unreal_helpers`):
+Implemented in `crates/ue5-asset-utils/src/property_converter.rs`. Both `ue5-blueprints` and `ue5-materials` now depend on this shared crate. The `PropertyDef`/`PropertyValue` IR types live in `ue5-asset-utils/src/property_types.rs` and are re-exported by `ue5-blueprints`.
 
 ```rust
 // crates/ue5-asset-utils/src/property_converter.rs
-pub fn convert_property_def(
-    asset: &mut Asset<Cursor<Vec<u8>>>,
-    def: &PropertyDef,
-) -> Option<Property> { ... }
+pub fn convert_property_def(asset: &mut Asset<Cursor<Vec<u8>>>, def: &PropertyDef) -> Option<Property>
+pub fn convert_property_defs(asset: &mut Asset<Cursor<Vec<u8>>>, defs: &[PropertyDef]) -> Vec<Property>
 ```
 
-This avoids drift between the two implementations (e.g., if the `SoftObjectPath` format changes in a UE5 update, fix it once).
+### ~~Shared `ImportBuilder` Utility~~ ✅ COMPLETE
 
-### Shared `ImportBuilder` Utility
-
-The import-deduplication pattern (`find_import_by_name` → push if not found) appears in both writers. Should be a shared helper:
+Implemented in `crates/ue5-asset-utils/src/import_builder.rs`. Provides deduplicating import creation used by both writers:
 
 ```rust
-pub fn get_or_add_import(
-    asset: &mut Asset<Cursor<Vec<u8>>>,
-    class_package: &str,
-    class_name: &str,
-    outer: PackageIndex,
-    object_name: &str,
-) -> PackageIndex { ... }
+// crates/ue5-asset-utils/src/import_builder.rs
+impl ImportBuilder {
+    pub fn find_import_by_name(asset, name) -> Option<PackageIndex>
+    pub fn get_or_add_import(asset, class_package, class_name, outer, object_name) -> PackageIndex
+    pub fn get_or_add_package(asset, package_path) -> PackageIndex
+    pub fn get_or_add_class(asset, class_name, outer_package) -> PackageIndex
+    pub fn parse_class_path(path) -> (String, String)
+    pub fn resolve_object_import(asset, path) -> PackageIndex
+}
 ```
 
 ### Critical Gotchas (Cross-Asset)
@@ -328,6 +346,6 @@ These were discovered in the Blueprint + Material work and apply to **every** as
 | 🔴 2 | `UDataAsset` writer | `ue5-editor` | None | Replaces entire C++ asset stub |
 | 🟡 3 | Asset Registry writer | `unreal_asset_registry` | None | Content browser UX |
 | 🟡 4 | Shader → Custom HLSL node | `ue5-materials` + `ue5-shaders` | None | Closes material/shader gap |
-| 🟢 5 | Shared `PropertyConverter` | new util crate | Blueprints ✅, Materials ✅ | Prevents drift |
+| ~~🟢 5~~ | ~~Shared `PropertyConverter`~~ | ~~`ue5-asset-utils`~~ | ✅ COMPLETE | ✅ ~300 lines removed from blueprints, ~30 from materials. 20/20 tests. |
 | 🟢 6 | Editor Utility Widget | `ue5-editor` | Kismet ✅ | Slate panels as `.uasset` |
 | ⚪ 7 | UWorld / UMap writer | `ue5` | All of above | Procedural level gen |

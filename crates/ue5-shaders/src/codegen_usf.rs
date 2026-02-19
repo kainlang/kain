@@ -2500,6 +2500,13 @@ mod tests {
     }
 }
 
+/// Public wrapper around the internal struct-to-HLSL-type map builder.
+/// Used by the material graph converter to seed the type database for
+/// [`emit_shader_body`] when performing the shader→CustomHLSL bridge.
+pub fn build_struct_map_pub(program: &TypedProgram) -> HashMap<String, HashMap<String, String>> {
+    build_struct_map(program)
+}
+
 fn build_struct_map(program: &TypedProgram) -> HashMap<String, HashMap<String, String>> {
     let mut type_db: HashMap<String, HashMap<String, String>> = HashMap::new();
     for item in &program.items {

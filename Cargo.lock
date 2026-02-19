@@ -385,10 +385,14 @@ dependencies = [
  "toml",
  "tower-lsp",
  "ue5",
+ "ue5-asset-utils",
  "ue5-blueprints",
  "ue5-editor",
  "ue5-materials",
  "ue5-shaders",
+ "unreal_asset",
+ "unreal_asset_base",
+ "unreal_asset_registry",
  "web",
 ]
 
@@ -2774,6 +2778,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ue5-asset-utils"
+version = "0.1.0"
+dependencies = [
+ "ordered-float",
+ "serde",
+ "serde_json",
+ "unreal_asset",
+ "unreal_asset_base",
+ "unreal_asset_properties",
+]
+
+[[package]]
 name = "ue5-blueprints"
 version = "0.1.0"
 dependencies = [
@@ -2783,6 +2799,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "ue5-asset-utils",
  "unreal_asset",
  "unreal_asset_base",
  "unreal_asset_exports",
@@ -2800,6 +2817,10 @@ dependencies = [
  "serde",
  "serde_json",
  "ue5",
+ "ue5-asset-utils",
+ "unreal_asset",
+ "unreal_asset_base",
+ "unreal_asset_properties",
 ]
 
 [[package]]
@@ -2811,6 +2832,7 @@ dependencies = [
  "ordered-float",
  "serde",
  "serde_json",
+ "ue5-asset-utils",
  "unreal_asset",
  "unreal_asset_base",
  "unreal_asset_exports",

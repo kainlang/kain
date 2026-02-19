@@ -6,6 +6,10 @@ edition = "2021"
 [dependencies]
 kain-core = { path = "../kain-core" }
 ue5 = { path = "../ue5" }
+ue5-asset-utils = { path = "../ue5-asset-utils" }
+unreal_asset = { workspace = true }
+unreal_asset_base = { workspace = true }
+unreal_asset_properties = { workspace = true }
 heck = "0.5"
 minijinja = "2.5"
 serde = { version = "1.0", features = ["derive"] }

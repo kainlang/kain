@@ -91,6 +91,7 @@ pub fn inject_into_plugin(
         copyright: None,
         modular_output: true,  // Always use modular for injection
         stdlib_path: None,     // No stdlib for injection
+        engine_version: None,  // Use default (5.2)
     };
     
     // STEP 8: Setup plugin layout (detect existing structure)

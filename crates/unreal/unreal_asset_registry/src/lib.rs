@@ -62,6 +62,39 @@ pub struct AssetRegistryState {
 }
 
 impl AssetRegistryState {
+    /// Create a new `AssetRegistryState` from data, without reading from a binary file.
+    ///
+    /// This is used for programmatic generation of asset registries.
+    ///
+    /// * `version` — The registry format version to target
+    /// * `object_version` / `object_version_ue5` — Object serialization versions
+    /// * `name_map` — Shared name map (must be `Some` for versions `< FixedTags`)
+    /// * `assets_data` / `depends_nodes` / `package_data` — Registry contents
+    pub fn from_data(
+        version: FAssetRegistryVersionType,
+        object_version: ObjectVersion,
+        object_version_ue5: ObjectVersionUE5,
+        name_map: Option<SharedResource<NameMap>>,
+        assets_data: Vec<AssetData>,
+        depends_nodes: Vec<DependsNode>,
+        package_data: Vec<AssetPackageData>,
+    ) -> Self {
+        Self {
+            assets_data,
+            depends_nodes,
+            package_data,
+            name_map,
+            object_version,
+            object_version_ue5,
+            version,
+        }
+    }
+
+    /// Get a reference to the internal name map (if present).
+    pub fn name_map(&self) -> Option<&SharedResource<NameMap>> {
+        self.name_map.as_ref()
+    }
+
     /// Read an `AssetRegistryState` from an asset
     fn load<Reader: ArchiveReader<impl PackageIndexTrait>>(
         asset: &mut Reader,

@@ -8,6 +8,7 @@ use unreal_asset::{
     types::PackageIndex,
     Asset, Import,
 };
+use ue5_asset_utils::ImportBuilder;
 use unreal_asset_properties::{
     int_property::{BoolProperty, FloatProperty, IntProperty},
     object_property::ObjectProperty,
@@ -78,48 +79,11 @@ impl MaterialAssetBuilder {
     pub fn new(material_name: &str) -> Self {
         let mut asset = Asset::new_empty(EngineVersion::VER_UE5_2);
 
-        // ── Core imports every material needs ──────────────────────────────
-        // Import 0: /Script/CoreUObject (Package)
-        let core_uobject_pkg = asset.add_fname("/Script/CoreUObject");
-        let package_class = asset.add_fname("Package");
-        let core_uobject_import = asset.add_import(Import::new(
-            core_uobject_pkg.clone(),
-            package_class.clone(),
-            PackageIndex::new(0),
-            core_uobject_pkg.clone(),
-            false,
-        ));
-
-        // Import 1: /Script/Engine (Package)
-        let engine_pkg = asset.add_fname("/Script/Engine");
-        let engine_import = asset.add_import(Import::new(
-            core_uobject_pkg.clone(),
-            package_class.clone(),
-            PackageIndex::new(0),
-            engine_pkg,
-            false,
-        ));
-
-        // Import 2: Material class (inside /Script/Engine)
-        let class_name = asset.add_fname("Class");
-        let material_class_name = asset.add_fname("Material");
-        let material_class_import = asset.add_import(Import::new(
-            core_uobject_pkg.clone(),
-            class_name.clone(),
-            engine_import,
-            material_class_name,
-            false,
-        ));
-
-        // Import 3: Material package (the asset's own package)
-        let mat_pkg_name = asset.add_fname(material_name);
-        let material_package_import = asset.add_import(Import::new(
-            core_uobject_pkg.clone(),
-            package_class.clone(),
-            PackageIndex::new(0),
-            mat_pkg_name,
-            false,
-        ));
+        // ── Core imports every material needs (via shared ImportBuilder) ────
+        let core_uobject_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
+        let engine_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/Engine");
+        let material_class_import = ImportBuilder::get_or_add_class(&mut asset, "Material", engine_import);
+        let material_package_import = ImportBuilder::get_or_add_package(&mut asset, material_name);
 
         let mut builder = MaterialAssetBuilder {
             asset,
@@ -153,17 +117,11 @@ impl MaterialAssetBuilder {
             return idx;
         }
 
-        let core_uobject = self.asset.add_fname("/Script/CoreUObject");
-        let class_fname = self.asset.add_fname("Class");
-        let expr_class = self.asset.add_fname(class_name);
-
-        let idx = self.asset.add_import(Import::new(
-            core_uobject,
-            class_fname,
+        let idx = ImportBuilder::get_or_add_class(
+            &mut self.asset,
+            class_name,
             self.engine_import,
-            expr_class,
-            false,
-        ));
+        );
 
         self.class_imports.insert(class_name.to_string(), idx);
         idx

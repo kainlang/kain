@@ -8,5 +8,6 @@
 //! - Editor modules with toolbar/menu registration
 
 pub mod editor;
+pub mod data_asset_writer;
 
 pub use editor::*;

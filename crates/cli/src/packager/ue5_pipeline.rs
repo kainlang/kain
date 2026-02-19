@@ -4,6 +4,18 @@ use crate::error::{KainError, KainResult};
 use super::config::Ue5Config;
 use super::post_process;
 
+/// Metadata for a single generated binary asset, collected during the build
+/// for bulk-registration into AssetRegistry.bin.
+#[cfg(feature = "ue5")]
+struct GeneratedAsset {
+    /// Full UE package name, e.g. `/Game/Materials/M_Fire`
+    package_name: String,
+    /// Short asset name, e.g. `M_Fire`
+    asset_name: String,
+    /// Full UE class path, e.g. `/Script/Engine.Material`
+    class_path: &'static str,
+}
+
 /// Build UE5 plugin from KAIN.toml configuration
 pub fn build_ue5_plugin() -> KainResult<()> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -47,11 +59,49 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     // STEP 3: Compile shaders (optional)
     super::codegen::compile_shaders(&layout, &ue5_config, &typed_program, &shader_names)?;
 
+    // Accumulate all successfully written binary assets so we can stamp AssetRegistry.bin
+    // in a single pass at the end. This is data-driven: each step appends to this Vec.
+    #[cfg(feature = "ue5")]
+    let mut generated_assets: Vec<GeneratedAsset> = Vec::new();
+
     // STEP 3.5: Generate Materials (Binary .uasset + C++ Factory fallback)
+    //
+    // Shader→Material bridge: before converting each material graph we inject
+    // all Surface-stage shaders from the typed program as CustomHLSL nodes.
+    // This means any KAIN `shader foo { stage = Surface; … }` whose name
+    // matches a node reference in the graph gets embedded as a
+    // UMaterialExpressionCustom node rather than requiring a separate .usf file.
     #[cfg(feature = "ue5")]
     if !material_graphs.is_empty() {
         println!();
         println!("🎨 Generating {} materials...", material_graphs.len());
+
+        // Build a pre-baked map of Surface shader name → CustomHLSL body.
+        // We call emit_shader_body once per shader and cache the result so it
+        // isn't re-generated for every material graph that references the same shader.
+        let surface_shader_hlsl: std::collections::HashMap<String, String> = {
+            let mirrors = ue5_shaders::codegen_usf::CachedMirrors::from_program(&typed_program);
+            let type_db = ue5_shaders::codegen_usf::build_struct_map_pub(&typed_program);
+            typed_program.items.iter()
+                .filter_map(|item| {
+                    if let kain_core::types::TypedItem::Shader(shader) = item {
+                        if matches!(shader.ast.stage, kain_core::ast::ShaderStage::Surface) {
+                            let name = shader.ast.name.clone();
+                            let body = ue5_shaders::codegen_usf::emit_shader_body(
+                                shader, &mirrors, type_db.clone(),
+                            ).unwrap_or_default();
+                            return Some((name, body));
+                        }
+                    }
+                    None
+                })
+                .collect()
+        };
+
+        if !surface_shader_hlsl.is_empty() {
+            println!("   🔗 Shader bridge: {} Surface shader(s) available for material injection",
+                surface_shader_hlsl.len());
+        }
 
         // Ensure Content/Materials exists for binary output
         let mat_content_dir = layout.plugin_root.join("Content").join("Materials");
@@ -61,7 +111,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 
         let mut converted_graphs = Vec::new();
         for mat_def in &material_graphs {
-            match convert_material_graph(mat_def) {
+            match convert_material_graph(mat_def, &surface_shader_hlsl) {
                 Ok(graph) => {
                     // Attempt binary .uasset generation first
                     match ue5_materials::material_serializer::serialize_material_graph(&graph) {
@@ -71,6 +121,11 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                                 eprintln!("   ⚠️  Failed to write .uasset for {}: {}", graph.name, e);
                             } else {
                                 println!("   ✓ Binary material asset: {} ({} bytes)", graph.name, bytes.len());
+                                generated_assets.push(GeneratedAsset {
+                                    package_name: format!("/Game/Materials/{}", graph.name),
+                                    asset_name: graph.name.clone(),
+                                    class_path: "/Script/Engine.Material",
+                                });
                             }
                         }
                         Err(e) => {
@@ -129,7 +184,14 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                              Ok(Some(bytes)) => {
                                  let path = bp_content_dir.join(format!("{}.uasset", bp_ir.name));
                                  match fs::write(&path, &bytes) {
-                                     Ok(_) => println!("   ✓ Binary blueprint: {} ({} bytes)", bp_ir.name, bytes.len()),
+                                     Ok(_) => {
+                                         println!("   ✓ Binary blueprint: {} ({} bytes)", bp_ir.name, bytes.len());
+                                         generated_assets.push(GeneratedAsset {
+                                             package_name: format!("/Game/Blueprints/{}", bp_ir.name),
+                                             asset_name: bp_ir.name.clone(),
+                                             class_path: "/Script/Engine.Blueprint",
+                                         });
+                                     }
                                      Err(e) => eprintln!("   ⚠️  Failed to write .uasset for {}: {}", bp_ir.name, e),
                                  }
                              }
@@ -150,6 +212,77 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                     Err(e) => {
                          eprintln!("   ❌ Failed to convert actor {} to blueprint IR: {}", actor.name, e);
                     }
+                }
+            }
+            println!();
+        }
+    }
+
+    // STEP 3.7: Generate DataAssets (Binary .uasset for every @data_asset struct)
+    //
+    // Every KAIN struct tagged with `@data_asset` (or `@data_asset("ClassName")`) is
+    // serialised into a UDataAsset-compatible .uasset and placed in Content/DataAssets/.
+    // The class path resolves via the same alias table as write_data_asset.
+    #[cfg(feature = "ue5")]
+    {
+        use ue5_editor::data_asset_writer::{
+            fields_from_struct, resolve_data_asset_class, write_data_asset,
+        };
+
+        let data_asset_structs: Vec<&kain_core::ast::Struct> = typed_program.items.iter()
+            .filter_map(|item| {
+                if let kain_core::types::TypedItem::Struct(ts) = item {
+                    // Only emit if the struct carries a @data_asset attribute
+                    if ts.ast.attributes.iter().any(|a| a.name == "data_asset") {
+                        return Some(&ts.ast);
+                    }
+                }
+                None
+            })
+            .collect();
+
+        if !data_asset_structs.is_empty() {
+            println!("📦 Generating {} DataAsset(s)...", data_asset_structs.len());
+
+            let da_content_dir = layout.plugin_root.join("Content").join("DataAssets");
+            if let Err(e) = fs::create_dir_all(&da_content_dir) {
+                eprintln!("   ⚠️  Failed to create DataAssets content dir: {}", e);
+            }
+
+            // Derive UE5 engine version from the config engine_version field (if present)
+            // or fall back to a sensible UE5.2 default.
+            let engine_ver = ue5_config.engine_version
+                .as_deref()
+                .and_then(parse_engine_version)
+                .unwrap_or(unreal_asset::engine_version::EngineVersion::VER_UE5_2);
+
+            for st in data_asset_structs {
+                // Resolve optional class argument: @data_asset("MyPlugin.UMyClass")
+                let class_path = resolve_data_asset_class(&st.attributes);
+
+                // Convert struct fields → PropertyDef list
+                let fields = fields_from_struct(st);
+
+                // Asset name = struct name, e.g. `DA_ItemTable`
+                let asset_name = &st.name;
+
+                match write_data_asset(asset_name, &class_path, &fields, engine_ver) {
+                    Ok(bytes) => {
+                        let path = da_content_dir.join(format!("{}.uasset", asset_name));
+                        match fs::write(&path, &bytes) {
+                            Ok(_) => {
+                                println!("   ✓ DataAsset: {} ({} bytes, class: {})",
+                                    asset_name, bytes.len(), class_path);
+                                generated_assets.push(GeneratedAsset {
+                                    package_name: format!("/Game/DataAssets/{}", asset_name),
+                                    asset_name: asset_name.clone(),
+                                    class_path: "/Script/Engine.DataAsset",
+                                });
+                            }
+                            Err(e) => eprintln!("   ⚠️  Failed to write DataAsset {}: {}", asset_name, e),
+                        }
+                    }
+                    Err(e) => eprintln!("   ⚠️  Failed to generate DataAsset {}: {}", asset_name, e),
                 }
             }
             println!();
@@ -267,6 +400,43 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 
     super::codegen::write_plugin_files(&layout, &ue5_config, &description, has_shaders, &module_graph, &typed_program)?;
 
+    // STEP 6: Stamp AssetRegistry.bin
+    //
+    // After all binary assets have been written, update (or create) the plugin's
+    // AssetRegistry.bin so the Unreal Editor sees all generated content immediately
+    // in the Content Browser — no full asset scan needed on first open.
+    //
+    // This step is intentionally non-fatal: a registry failure never blocks the build.
+    #[cfg(feature = "ue5")]
+    {
+        use super::registry_writer::{register_assets, AssetEntry};
+
+        if !generated_assets.is_empty() {
+            println!("📋 Updating AssetRegistry.bin ({} assets)...", generated_assets.len());
+
+            // AssetRegistry.bin lives at the plugin root alongside Content/
+            let registry_path = layout.plugin_root.join("AssetRegistry.bin");
+
+            // Derive UE5 engine version (same logic as DataAsset step)
+            let engine_ver = ue5_config.engine_version
+                .as_deref()
+                .and_then(parse_engine_version)
+                .unwrap_or(unreal_asset_base::engine_version::EngineVersion::VER_UE5_2);
+
+            // Build data-driven AssetEntry descriptors from the accumulated list
+            let entries: Vec<AssetEntry> = generated_assets
+                .iter()
+                .map(|a| AssetEntry::new(&a.package_name, &a.asset_name, a.class_path))
+                .collect();
+
+            match register_assets(&registry_path, &entries, engine_ver) {
+                Ok(()) => println!("   ✓ AssetRegistry.bin updated: {}", registry_path.display()),
+                Err(e) => eprintln!("   ⚠️  AssetRegistry update failed (non-fatal): {}", e),
+            }
+            println!();
+        }
+    }
+
     // Summary
     println!();
     println!("✅ Plugin build complete!");
@@ -283,6 +453,8 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             stdlib_files.len());
     }
     println!("⚡ Total shaders: {}", shader_names.len());
+    #[cfg(feature = "ue5")]
+    println!("📦 Binary assets stamped: {}", generated_assets.len());
     Ok(())
 }
 
@@ -489,9 +661,33 @@ fn load_and_parse_sources(
     Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs))
 }
 
-/// Convert AST MaterialGraphDef to IR MaterialGraph
+/// Map an engine version string from KAIN.toml to a `EngineVersion` enum value.
+/// Supports formats like `"5.2"`, `"5.3"`, `"5.4"`.
 #[cfg(feature = "ue5")]
-fn convert_material_graph(def: &kain_core::ast::MaterialGraphDef) -> KainResult<ue5_materials::MaterialGraph> {
+fn parse_engine_version(s: &str) -> Option<unreal_asset::engine_version::EngineVersion> {
+    use unreal_asset::engine_version::EngineVersion;
+    // Strip optional "UE" prefix and normalise
+    let s = s.trim_start_matches("UE").trim_start_matches("VER_UE").trim();
+    match s {
+        "5.0" | "UE5_0" | "5_0" => Some(EngineVersion::VER_UE5_0),
+        "5.1" | "UE5_1" | "5_1" => Some(EngineVersion::VER_UE5_1),
+        // 5.2 is the highest version available in the pinned unreal_asset crate.
+        // Map any newer version to 5.2 for maximum forward-compat.
+        _ => Some(EngineVersion::VER_UE5_2),
+    }
+}
+
+/// Convert AST MaterialGraphDef to IR MaterialGraph.
+///
+/// `surface_shaders` maps shader name → pre-emitted HLSL body for Surface-stage
+/// shaders. When a `call(shader_name)` node is encountered in the graph, the
+/// corresponding HLSL is embedded as a `MaterialNodeType::CustomHLSL` node
+/// instead of resolving as an unknown function.
+#[cfg(feature = "ue5")]
+fn convert_material_graph(
+    def: &kain_core::ast::MaterialGraphDef,
+    surface_shaders: &std::collections::HashMap<String, String>,
+) -> KainResult<ue5_materials::MaterialGraph> {
     use ue5_materials::{MaterialGraph, MaterialInput, MaterialInputType, MaterialProperties,
                         MaterialOutputs, BlendMode, ShadingModel, MaterialDomain,
                         MaterialNode, MaterialNodeType};
@@ -591,7 +787,7 @@ fn convert_material_graph(def: &kain_core::ast::MaterialGraphDef) -> KainResult<
         if let kain_core::ast::MaterialStatement::Let { name, value, .. } = stmt {
             let x = -500 + stmt_idx as i32 * col_width;
             let y = 0;
-            let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope);
+            let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope, surface_shaders);
             scope.insert(name.clone(), node_id);
         }
     }
@@ -599,7 +795,7 @@ fn convert_material_graph(def: &kain_core::ast::MaterialGraphDef) -> KainResult<
     // Resolve outputs: each output.value is an Ident referring to a let-binding or input
     let mut outputs = MaterialOutputs::default();
     for output in &def.outputs {
-        let node_id = emit_expr(&output.value, 400, 0, &mut node_counter, &mut nodes, &scope);
+        let node_id = emit_expr(&output.value, 400, 0, &mut node_counter, &mut nodes, &scope, surface_shaders);
         match output.name.as_str() {
             "base_color"           => outputs.base_color = Some(node_id),
             "metallic"             => outputs.metallic = Some(node_id),
@@ -633,6 +829,9 @@ fn convert_material_graph(def: &kain_core::ast::MaterialGraphDef) -> KainResult<
 
 /// Recursively emit material nodes for an expression, returning the node_id of the root.
 /// If the expression is a simple identifier already in scope, returns that node_id directly.
+///
+/// `surface_shaders` maps KAIN Surface shader names to their pre-emitted HLSL bodies.
+/// When a function call matches a shader name, it is injected as a `CustomHLSL` node.
 #[cfg(feature = "ue5")]
 fn emit_expr(
     expr: &kain_core::ast::Expr,
@@ -641,6 +840,7 @@ fn emit_expr(
     counter: &mut usize,
     nodes: &mut Vec<ue5_materials::MaterialNode>,
     scope: &std::collections::HashMap<String, String>,
+    surface_shaders: &std::collections::HashMap<String, String>,
 ) -> String {
     use ue5_materials::{MaterialNode, MaterialNodeType};
     use kain_core::ast::{Expr, BinaryOp};
@@ -688,8 +888,8 @@ fn emit_expr(
 
         // Binary ops: *, +, -, /
         Expr::Binary { left, op, right, .. } => {
-            let a = emit_expr(left, x - 200, y - 100, counter, nodes, scope);
-            let b = emit_expr(right, x - 200, y + 100, counter, nodes, scope);
+            let a = emit_expr(left, x - 200, y - 100, counter, nodes, scope, surface_shaders);
+            let b = emit_expr(right, x - 200, y + 100, counter, nodes, scope, surface_shaders);
             let id = format!("node_{}", counter);
             *counter += 1;
             let node_type = match op {
@@ -725,7 +925,7 @@ fn emit_expr(
             let arg_ids: Vec<String> = args.iter().enumerate().map(|(i, arg)| {
                 let ax = x - 200;
                 let ay = y + i as i32 * 150 - (args.len() as i32 * 75);
-                emit_expr(&arg.value, ax, ay, counter, nodes, scope)
+                emit_expr(&arg.value, ax, ay, counter, nodes, scope, surface_shaders)
             }).collect();
 
             // sample(tex, uv) — patch uv onto the existing texture param node, return tex id
@@ -809,6 +1009,31 @@ fn emit_expr(
                     let base_reflect_fraction = arg_ids.get(1).cloned().unwrap_or_default();
                     MaterialNodeType::Fresnel { exponent, base_reflect_fraction }
                 }
+                // ── Shader→Material bridge ───────────────────────────
+                // When a call refers to a known Surface-stage shader name,
+                // embed its pre-emitted HLSL body as a CustomHLSL node.
+                // Each positional argument becomes a Float1 input pin named
+                // after its node_id so the material graph can wire it up.
+                name if surface_shaders.contains_key(name) => {
+                    use ue5_materials::{CustomOutputType, CustomInput};
+                    let hlsl_body = surface_shaders.get(name).cloned().unwrap_or_default();
+                    // Map each positional argument to a typed input pin.
+                    // The arg child nodes are already in `nodes`; CustomHLSL
+                    // references them via their sequential "In0", "In1", … names.
+                    let inputs: Vec<CustomInput> = arg_ids
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _node_id)| CustomInput {
+                            name: format!("In{}", i),
+                            input_type: CustomOutputType::Float3,
+                        })
+                        .collect();
+                    MaterialNodeType::CustomHLSL {
+                        code: hlsl_body,
+                        output_type: CustomOutputType::Float3,
+                        inputs,
+                    }
+                }
                 _ => {
                     // Unknown function — emit a scalar param as placeholder
                     MaterialNodeType::ScalarParameter { name: func_name.to_string(), default: 0.0 }
@@ -821,7 +1046,7 @@ fn emit_expr(
 
         // Field access: expr.rgb, expr.r, etc. — emit a ComponentMask
         Expr::Field { object, field, .. } => {
-            let input = emit_expr(object, x - 200, y, counter, nodes, scope);
+            let input = emit_expr(object, x - 200, y, counter, nodes, scope, surface_shaders);
             let id = format!("node_{}", counter);
             *counter += 1;
             let mask = match field.as_str() {
@@ -904,6 +1129,7 @@ fn create_default_config(cwd: &PathBuf) -> KainResult<Ue5Config> {
         copyright: None,
         modular_output: true,  // Default to modular output
         stdlib_path: None,     // No stdlib by default
+        engine_version: None,  // Use default (5.2)
     })
 }
 
