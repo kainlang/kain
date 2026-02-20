@@ -5,6 +5,7 @@
 //!
 //! Example:
 //! ```
+//! use ue5::StdLibResolver;
 //! let resolver = StdLibResolver::new();
 //! let result = resolver.resolve("sqrt", &["16.0".to_string()]);
 //! assert_eq!(result, Ok("FMath::Sqrt(16.0)".to_string()));

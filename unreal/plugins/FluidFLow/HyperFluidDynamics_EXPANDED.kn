@@ -585,7 +585,8 @@ enum ValidationCaseType:
 # DATATABLES - Presets, materials, coupling coefficients
 ############################################################
 
-@datatable
+# FluidPreset is too complex for DataTable (has Array<CouplingField>)
+# Removed @datatable attribute - use as regular struct instead
 struct FluidPreset:
     id: Int
     name: String
@@ -1249,6 +1250,7 @@ actor HyperFluidWorld:
 
 @uclass("Blueprintable", "BlueprintType")
 actor HyperFluidEmitter:
+    state world: HyperFluidSimulationCore = null
     state emission_rate: Float = 1.0
     state initial_velocity: Vec3 = vec3(0, 1, 0)
     state temperature: Float = 293.0
@@ -1258,13 +1260,13 @@ actor HyperFluidEmitter:
     state emission_shape: EmissionShape = EmissionShape.Sphere
     state emission_radius: Float = 1.0
 
-    on Server_Emit(world: HyperFluidSimulationCore, count: Int):
+    on Server_Emit(count: Int):
         let c = max(count, 1)
-        SmoothedParticleHydrodynamics.Emit(world.particles, c, initial_velocity, temperature, density)
+        SmoothedParticleHydrodynamics.Emit(self.world.particles, c, initial_velocity, temperature, density)
 
-    on Server_EmitBurst(world: HyperFluidSimulationCore, count: Int, velocity: Vec3):
+    on Server_EmitBurst(count: Int, velocity: Vec3):
         let c = max(count, 1)
-        SmoothedParticleHydrodynamics.EmitBurst(world.particles, c, velocity, temperature, density)
+        SmoothedParticleHydrodynamics.EmitBurst(self.world.particles, c, velocity, temperature, density)
 
 enum EmissionShape:
     Point
@@ -1276,28 +1278,29 @@ enum EmissionShape:
 
 @uclass("Blueprintable", "BlueprintType")
 actor HyperFluidProbe:
+    state world: HyperFluidSimulationCore = null
     state sample_position: Vec3 = vec3(0, 0, 0)
     state radius: Float = 1.0
     state buffer: Array<Float> = []
     state sample_rate: Int = 60
 
-    on Server_Sample(world: HyperFluidSimulationCore):
-        buffer = hyperfluid_sample_field(world, sample_position, radius)
+    on Server_Sample():
+        buffer = hyperfluid_sample_field(self.world, sample_position, radius)
         self.Client_ReceiveSample(buffer)
 
     on Client_ReceiveSample(data: Array<Float>):
         println("Probe Data Received: " + string(data.length) + " components")
 
-    on Server_SampleVelocity(world: HyperFluidSimulationCore):
-        let vel = hyperfluid_sample_velocity(world, sample_position)
+    on Server_SampleVelocity():
+        let vel = hyperfluid_sample_velocity(self.world, sample_position)
         self.Client_ReceiveSample([vel.x, vel.y, vel.z])
 
-    on Server_SamplePressure(world: HyperFluidSimulationCore):
-        let p = hyperfluid_sample_pressure(world, sample_position)
+    on Server_SamplePressure():
+        let p = hyperfluid_sample_pressure(self.world, sample_position)
         self.Client_ReceiveSample([p])
 
-    on Server_SampleTemperature(world: HyperFluidSimulationCore):
-        let t = hyperfluid_sample_temperature(world, sample_position)
+    on Server_SampleTemperature():
+        let t = hyperfluid_sample_temperature(self.world, sample_position)
         self.Client_ReceiveSample([t])
 
 @uclass("Blueprintable", "BlueprintType")

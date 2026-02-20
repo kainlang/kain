@@ -93,6 +93,9 @@ pub struct Ue5Context {
 
     /// Virtual method obligations (pure virtual overrides required by base classes)
     pub virtual_obligations: VirtualObligations,
+
+    /// Trait implementations (class_name -> [trait_names])
+    pub trait_impls: HashMap<String, Vec<String>>,
 }
 
 use super::resolver::StdLibResolver;
@@ -172,6 +175,7 @@ impl Ue5Context {
             uht_rules,
             module_graph,
             virtual_obligations,
+            trait_impls: HashMap::new(),
         }
     }
 
@@ -347,5 +351,39 @@ mod tests {
         
         ctx.clear_ident_remaps();
         assert_eq!(ctx.remap_ident("delta_time"), "delta_time");
+    }
+
+    #[test]
+    fn test_trait_tracking() {
+        let mut ctx = Ue5Context::new("Test", None);
+        
+        ctx.register_trait_impl("Player", "Damageable");
+        ctx.register_trait_impl("Player", "Simulatable");
+        
+        let interface_list = ctx.get_interface_list("Player");
+        assert!(interface_list.contains("IDamageable"));
+        assert!(interface_list.contains("ISimulatable"));
+    }
+}
+
+impl Ue5Context {
+    /// Register that a class implements a trait
+    pub fn register_trait_impl(&mut self, class_name: &str, trait_name: &str) {
+        self.trait_impls
+            .entry(class_name.to_string())
+            .or_default()
+            .push(trait_name.to_string());
+    }
+
+    /// Get the interface inheritance list for a class
+    /// Returns a string like ", public IDamageable, public ISimulatable"
+    pub fn get_interface_list(&self, class_name: &str) -> String {
+        match self.trait_impls.get(class_name) {
+            Some(traits) => traits.iter()
+                .map(|t| format!(", public I{}", t))
+                .collect::<Vec<_>>()
+                .join(""),
+            None => String::new(),
+        }
     }
 }

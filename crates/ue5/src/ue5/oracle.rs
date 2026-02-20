@@ -752,6 +752,17 @@ fn check_engine_name_collision(ctx: &mut ValidationContext, type_name: &str, typ
 /// Requirement 3.1: Verify GetLifetimeReplicatedProps will be generated
 /// Requirement 3.2: Verify RPC naming conventions and parameter serialization
 fn validate_replication(ctx: &mut ValidationContext, program: &TypedProgram) {
+    // Collect all enum names from the program for serialization checking
+    let enum_names: std::collections::HashSet<String> = program.items.iter()
+        .filter_map(|item| {
+            if let TypedItem::Enum(e) = item {
+                Some(e.ast.name.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
     for item in &program.items {
         if let TypedItem::Actor(actor) = item {
             let actor_name = &actor.ast.name;
@@ -764,7 +775,7 @@ fn validate_replication(ctx: &mut ValidationContext, program: &TypedProgram) {
                     has_replicated_props = true;
                     
                     // Validate that the type is serializable
-                    if !is_serializable_type(&state.ty) {
+                    if !is_serializable_type(&state.ty, &enum_names) {
                         ctx.error(format!(
                             "Actor '{}', property '{}': Replicated properties must be UE5-serializable. \
                             Type '{:?}' cannot be replicated. Use primitives, structs, enums, or UObject pointers.",
@@ -790,7 +801,7 @@ fn validate_replication(ctx: &mut ValidationContext, program: &TypedProgram) {
                 let is_replicated = state.attributes.iter().any(|a| a.name == "replicated");
                 if is_replicated {
                     // Validate that the type is serializable
-                    if !is_serializable_type(&state.ty) {
+                    if !is_serializable_type(&state.ty, &enum_names) {
                         ctx.error(format!(
                             "Component '{}', property '{}': Replicated properties must be UE5-serializable. \
                             Type '{:?}' cannot be replicated.",
@@ -807,6 +818,17 @@ fn validate_replication(ctx: &mut ValidationContext, program: &TypedProgram) {
 /// Requirement 3.2: Verify Server_*, Client_*, Multicast_* naming
 /// Requirement 3.2: Validate RPC parameter types are serializable
 fn validate_rpcs(ctx: &mut ValidationContext, program: &TypedProgram) {
+    // Collect all enum names from the program for serialization checking
+    let enum_names: std::collections::HashSet<String> = program.items.iter()
+        .filter_map(|item| {
+            if let TypedItem::Enum(e) = item {
+                Some(e.ast.name.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
     for item in &program.items {
         if let TypedItem::Actor(actor) = item {
             let actor_name = &actor.ast.name;
@@ -823,7 +845,7 @@ fn validate_rpcs(ctx: &mut ValidationContext, program: &TypedProgram) {
                 if is_server || is_client || is_multicast {
                     // Validate parameters are serializable
                     for param in &handler.params {
-                        if !is_serializable_type(&param.ty) {
+                        if !is_serializable_type(&param.ty, &enum_names) {
                             ctx.error(format!(
                                 "Actor '{}', RPC '{}', parameter '{}': RPC parameters must be serializable. \
                                 Type '{:?}' cannot be used in RPCs.",
@@ -854,7 +876,7 @@ fn validate_rpcs(ctx: &mut ValidationContext, program: &TypedProgram) {
                 if is_server || is_client || is_multicast {
                     // Validate parameters are serializable
                     for param in &method.params {
-                        if !is_serializable_type(&param.ty) {
+                        if !is_serializable_type(&param.ty, &enum_names) {
                             ctx.error(format!(
                                 "Actor '{}', RPC '{}', parameter '{}': RPC parameters must be serializable. \
                                 Type '{:?}' cannot be used in RPCs.",
@@ -888,6 +910,17 @@ fn validate_datatables(ctx: &mut ValidationContext, program: &TypedProgram, _kb:
             _ => None,
         })
         .collect();
+    
+    // Collect enum names for serialization checking
+    let enum_names: std::collections::HashSet<String> = program.items.iter()
+        .filter_map(|item| {
+            if let TypedItem::Enum(e) = item {
+                Some(e.ast.name.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
 
     for item in &program.items {
         if let TypedItem::Struct(struct_def) = item {
@@ -905,7 +938,7 @@ fn validate_datatables(ctx: &mut ValidationContext, program: &TypedProgram, _kb:
                         false
                     };
 
-                    if !is_user_type && !is_serializable_type(&field.ty) {
+                    if !is_user_type && !is_serializable_type(&field.ty, &enum_names) {
                         ctx.error(format!(
                             "DataTable struct '{}', field '{}': DataTable fields must be UE5-serializable. \
                             Type '{:?}' cannot be used in DataTables.",
@@ -1128,21 +1161,28 @@ fn extract_type_name(ty: &Type) -> Option<String> {
 }
 
 /// Helper: Check if a type is serializable for replication/RPCs
-fn is_serializable_type(ty: &Type) -> bool {
+fn is_serializable_type(ty: &Type, enum_names: &std::collections::HashSet<String>) -> bool {
     match ty {
         Type::Named { name, .. } => {
+            // Check if it's a user-defined enum
+            if enum_names.contains(name) {
+                return true;
+            }
+            
             // Primitives are serializable
             matches!(name.as_str(),
                 "Int" | "Float" | "Bool" | "String" |
                 "i8" | "i16" | "i32" | "i64" |
                 "u8" | "u16" | "u32" | "u64" |
                 "f32" | "f64" | "bool" |
+                // KAIN vector types (map to UE5 types)
+                "Vec2" | "Vec3" | "Vec4" |
                 // UE5 types
                 "FVector" | "FRotator" | "FTransform" | "FLinearColor" | "FColor" |
                 "FVector2D" | "FVector4" | "FQuat" | "FName" | "FString" | "FText" |
                 // Containers (if inner types are serializable, which we check recursively)
                 "Array" | "TArray" | "Map" | "TMap" | "Set" | "TSet"
-            ) || name.starts_with("E") // Enums are serializable
+            ) || name.starts_with("E") // Enums are serializable (UE5 prefixed)
               || name.starts_with("F") // Structs are serializable
               || name.starts_with("U") // UObject pointers are serializable
               || name.starts_with("A") // Actor pointers are serializable

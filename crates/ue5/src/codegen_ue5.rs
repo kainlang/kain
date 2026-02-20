@@ -28,6 +28,23 @@ use std::collections::HashSet;
 // Import the UE5 support library
 use crate::ue5::{Ue5Context, TEMPLATES};
 use serde_json::json;
+
+// Trait to abstract over TypedProgram and MonomorphizedProgram
+trait ProgramItems {
+    fn items(&self) -> &[TypedItem];
+}
+
+impl ProgramItems for TypedProgram {
+    fn items(&self) -> &[TypedItem] {
+        &self.items
+    }
+}
+
+impl ProgramItems for MonomorphizedProgram {
+    fn items(&self) -> &[TypedItem] {
+        &self.items
+    }
+}
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::ue5::{
     to_actor_name, to_struct_name, to_enum_name, to_component_name, to_uobject_name, to_pascal_case,
@@ -47,8 +64,29 @@ pub struct Ue5Output {
     pub shader_files: Vec<(String, String)>, // Vec<(filename, content)>
 }
 
+/// Generate UE5 C++ code from a typed program (legacy, for packager)
+/// Returns separate .h and .cpp file contents, plus any shader files
+/// 
+/// # Note
+/// This is a compatibility function for the packager which still works with TypedProgram.
+/// New code should use `generate()` which accepts MonomorphizedProgram.
+pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
+    let module_name = output_name.unwrap_or("Kain");
+    generate_filtered_typed(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
+}
+
 /// Generate UE5 C++ code from a monomorphized program
 /// Returns separate .h and .cpp file contents, plus any shader files
+/// 
+/// # Arguments
+/// * `program` - Monomorphized program with all generic functions instantiated
+/// * `output_name` - Optional module name (defaults to "Kain")
+/// * `copyright` - Optional copyright header text
+/// 
+/// # Note
+/// This function expects a `MonomorphizedProgram` where all generic types have been
+/// resolved to concrete types. Generic functions like `identity<T>` will have been
+/// instantiated as `identity_Int`, `identity_Float`, etc.
 pub fn generate(program: &MonomorphizedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
     let module_name = output_name.unwrap_or("Kain");
     generate_filtered(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
@@ -56,8 +94,70 @@ pub fn generate(program: &MonomorphizedProgram, output_name: Option<&str>, copyr
 
 /// Generate UE5 C++ code with a pre-configured context (includes metadata)
 /// This is used by the CLI when compiling with `-t ue5` to enable full pipeline features
+/// 
+/// # Arguments
+/// * `program` - Monomorphized program with all generic functions instantiated
+/// * `output_name` - Optional module name
+/// * `copyright` - Optional copyright header text
+/// * `context` - Pre-configured Ue5Context with EngineKnowledge and type registry
+/// 
+/// # Note
+/// This is the preferred entry point when you have a pre-built Ue5Context with
+/// metadata loaded. The context includes EngineKnowledge for type resolution.
 pub fn generate_with_context(
     program: &MonomorphizedProgram, 
+    output_name: Option<&str>, 
+    copyright: Option<&str>,
+    context: &Ue5Context
+) -> KainResult<Ue5Output> {
+    let module_name = output_name.unwrap_or("Kain");
+    let mut gen = Ue5Gen::new(module_name, output_name, copyright, None, std::collections::HashMap::new());
+    
+    // Use the provided context instead of creating a new one
+    gen.context = context.clone();
+    
+    // PRE-PASS: Register all types
+    for item in program.items() {
+        match item {
+            kain_core::types::TypedItem::Enum(en) => {
+                let prefixed_name = to_enum_name(&en.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_enum(en.ast.name.clone(), header);
+                gen.type_mapper.register_enum(en.ast.name.clone());
+            },
+            kain_core::types::TypedItem::Struct(st) => {
+                let prefixed_name = to_struct_name(&st.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_struct(st.ast.name.clone(), header.clone());
+                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                    gen.context.register_component(st.ast.name.clone(), header);
+                    gen.type_mapper.register_component(st.ast.name.clone());
+                } else {
+                    gen.type_mapper.register_struct(st.ast.name.clone());
+                }
+            },
+            kain_core::types::TypedItem::Actor(a) => {
+                let prefixed_name = to_actor_name(&a.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_actor(a.ast.name.clone(), header);
+                gen.type_mapper.register_actor(a.ast.name.clone());
+            },
+            kain_core::types::TypedItem::Component(c) => {
+                let prefixed_name = to_component_name(&c.ast.name);
+                let header = format!("{}.h", prefixed_name);
+                gen.context.register_component(c.ast.name.clone(), header);
+                gen.type_mapper.register_component(c.ast.name.clone());
+            },
+            _ => {}
+        }
+    }
+    
+    Ok(gen.gen_program(program))
+}
+
+/// Legacy version for TypedProgram (packager compatibility)
+pub fn generate_with_context_typed(
+    program: &TypedProgram, 
     output_name: Option<&str>, 
     copyright: Option<&str>,
     context: &Ue5Context
@@ -115,6 +215,22 @@ pub fn generate_with_context(
 }
 
 /// Generate UE5 C++ code limited to a specific item
+/// 
+/// # Arguments
+/// * `program` - Monomorphized program with concrete types only
+/// * `module_name` - Plugin name for API macro (e.g., "UltimateTest")
+/// * `output_name` - Optional output file name
+/// * `filter_item` - Optional item name to generate (None = all items)
+/// * `copyright` - Optional copyright header
+/// * `type_to_header` - Map of type names to their header files
+/// * `context` - Optional pre-configured Ue5Context
+/// 
+/// # Returns
+/// Ue5Output with header, source, and shader files
+/// 
+/// # Note
+/// This is the main internal codegen function. It receives a MonomorphizedProgram
+/// where all generic functions have been instantiated with concrete types.
 pub fn generate_filtered(
     program: &MonomorphizedProgram, 
     module_name: &str,  // Plugin name for API macro (e.g., "UltimateTest")
@@ -132,12 +248,14 @@ pub fn generate_filtered(
     for item in &program.items {
         match item {
             kain_core::types::TypedItem::Enum(en) => {
-                let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("E{}.h", en.ast.name));
+                let prefixed_name = to_enum_name(&en.ast.name);
+                let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_enum(en.ast.name.clone(), header);
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             kain_core::types::TypedItem::Struct(st) => {
-                let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("F{}.h", st.ast.name));
+                let prefixed_name = to_struct_name(&st.ast.name);
+                let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
                 if st.ast.attributes.iter().any(|a| a.name == "component") {
                     gen.context.register_component(st.ast.name.clone(), header);
@@ -147,19 +265,31 @@ pub fn generate_filtered(
                 }
             },
             kain_core::types::TypedItem::Actor(a) => {
-                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("A{}.h", a.ast.name));
+                let prefixed_name = to_actor_name(&a.ast.name);
+                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_actor(a.ast.name.clone(), header);
                 gen.type_mapper.register_actor(a.ast.name.clone());
             },
             kain_core::types::TypedItem::Component(c) => {
-                let header = type_to_header.get(&c.ast.name).cloned().unwrap_or(format!("U{}.h", c.ast.name));
+                let prefixed_name = to_component_name(&c.ast.name);
+                let header = type_to_header.get(&c.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_component(c.ast.name.clone(), header);
                 gen.type_mapper.register_component(c.ast.name.clone());
             },
             kain_core::types::TypedItem::TypeAlias(a) => {
-                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("F{}.h", a.ast.name));
+                let prefixed_name = to_struct_name(&a.ast.name);
+                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_delegate(a.ast.name.clone(), header);
                 gen.type_mapper.register_delegate(a.ast.name.clone());
+            },
+            // Traits are filtered out during type checking - should not appear here
+            kain_core::types::TypedItem::Impl(impl_block) => {
+                // Register trait implementations for interface inheritance
+                if let Some(ref trait_name) = impl_block.ast.trait_name {
+                    if let kain_core::ast::Type::Named { name: class_name, .. } = &impl_block.ast.target_type {
+                        gen.context.register_trait_impl(class_name, trait_name);
+                    }
+                }
             },
             _ => {}
         }
@@ -168,9 +298,84 @@ pub fn generate_filtered(
     Ok(gen.gen_program(program))
 }
 
-/// Legacy function for compatibility - returns combined output
+/// Legacy function for compatibility with TypedProgram (packager)
+/// 
+/// # Note
+/// This is for the packager which still works with TypedProgram.
+/// The packager converts MonomorphizedProgram back to TypedProgram after monomorphization.
+pub fn generate_filtered_typed(
+    program: &TypedProgram, 
+    module_name: &str,
+    output_name: Option<&str>,
+    target_item: Option<String>, 
+    copyright: Option<&str>,
+    type_to_header: std::collections::HashMap<String, String>,
+    shader_file_names: Option<Vec<String>>,
+) -> KainResult<Ue5Output> {
+    let mut gen = Ue5Gen::new(module_name, output_name, copyright, target_item, type_to_header.clone());
+    gen.shader_file_names = shader_file_names.unwrap_or_default();
+    
+    // PRE-PASS: Register all types
+    for item in &program.items {
+        match item {
+            kain_core::types::TypedItem::Enum(en) => {
+                let prefixed_name = to_enum_name(&en.ast.name);
+                let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
+                gen.context.register_enum(en.ast.name.clone(), header);
+                gen.type_mapper.register_enum(en.ast.name.clone());
+            },
+            kain_core::types::TypedItem::Struct(st) => {
+                let prefixed_name = to_struct_name(&st.ast.name);
+                let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
+                gen.context.register_struct(st.ast.name.clone(), header.clone());
+                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                    gen.context.register_component(st.ast.name.clone(), header);
+                    gen.type_mapper.register_component(st.ast.name.clone());
+                } else {
+                    gen.type_mapper.register_struct(st.ast.name.clone());
+                }
+            },
+            kain_core::types::TypedItem::Actor(a) => {
+                let prefixed_name = to_actor_name(&a.ast.name);
+                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
+                gen.context.register_actor(a.ast.name.clone(), header);
+                gen.type_mapper.register_actor(a.ast.name.clone());
+            },
+            kain_core::types::TypedItem::Component(c) => {
+                let prefixed_name = to_component_name(&c.ast.name);
+                let header = type_to_header.get(&c.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
+                gen.context.register_component(c.ast.name.clone(), header);
+                gen.type_mapper.register_component(c.ast.name.clone());
+            },
+            kain_core::types::TypedItem::TypeAlias(a) => {
+                let prefixed_name = to_struct_name(&a.ast.name);  // Delegates use F prefix
+                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
+                gen.context.register_delegate(a.ast.name.clone(), header);
+                gen.type_mapper.register_delegate(a.ast.name.clone());
+            },
+            _ => {}
+        }
+    }
+    
+    // Convert TypedProgram to MonomorphizedProgram for gen_program
+    Ok(gen.gen_program(&kain_core::monomorphize::MonomorphizedProgram {
+        items: program.items.clone(),
+    }))
+}
+/// 
+/// # Deprecated
+/// This function still accepts `TypedProgram` for backward compatibility.
+/// New code should use `generate()` with a `MonomorphizedProgram` instead.
+/// 
+/// # Note
+/// This function internally monomorphizes the program before codegen.
+/// Generic functions will be instantiated automatically.
 pub fn generate_combined(program: &TypedProgram, copyright: Option<&str>) -> KainResult<String> {
-    let output = generate_filtered(program, "Kain", None, None, copyright, std::collections::HashMap::new(), None)?;
+    // Convert TypedProgram to MonomorphizedProgram
+    use kain_core::monomorphize;
+    let mono_program = monomorphize::monomorphize(program)?;
+    
+    let output = generate_filtered(&mono_program, "Kain", None, None, copyright, std::collections::HashMap::new(), None)?;
     let mut combined = output.header;
     combined.push_str("\n// === IMPLEMENTATION (.cpp) ===\n\n");
     combined.push_str(&output.source);
@@ -179,6 +384,16 @@ pub fn generate_combined(program: &TypedProgram, copyright: Option<&str>) -> Kai
 
 /// Generate a standalone header containing ALL stdlib utility functions as static inline implementations.
 /// This is used in modular output mode to create a shared KainStdlib.h that all actor modules include.
+/// 
+/// # Deprecated
+/// This function still accepts `TypedProgram` for backward compatibility.
+/// New code should ensure monomorphization happens before calling this.
+/// 
+/// # Arguments
+/// * `program` - TypedProgram (should be monomorphized first for generic stdlib functions)
+/// * `module_name` - Module name for API macros
+/// * `copyright` - Optional copyright header
+/// * `type_to_header` - Map of type names to header files
 pub fn generate_stdlib_functions(
     program: &TypedProgram,
     module_name: &str,
@@ -194,12 +409,14 @@ pub fn generate_stdlib_functions(
     for item in &program.items {
         match item {
             TypedItem::Enum(en) => {
-                let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("E{}.h", en.ast.name));
+                let prefixed_name = to_enum_name(&en.ast.name);
+                let header = type_to_header.get(&en.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_enum(en.ast.name.clone(), header);
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             TypedItem::Struct(st) => {
-                let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("F{}.h", st.ast.name));
+                let prefixed_name = to_struct_name(&st.ast.name);
+                let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
                 if st.ast.attributes.iter().any(|a| a.name == "component") {
                     gen.context.register_component(st.ast.name.clone(), header);
@@ -209,7 +426,8 @@ pub fn generate_stdlib_functions(
                 }
             },
             TypedItem::Actor(a) => {
-                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("A{}.h", a.ast.name));
+                let prefixed_name = to_actor_name(&a.ast.name);
+                let header = type_to_header.get(&a.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_actor(a.ast.name.clone(), header);
                 gen.type_mapper.register_actor(a.ast.name.clone());
             },
@@ -478,9 +696,9 @@ impl Ue5Gen {
         self.type_mapper.is_pointer_type_by_name(name)
     }
 
-    fn gen_program(&mut self, program: &TypedProgram) -> Ue5Output {
+    fn gen_program<P: ProgramItems>(&mut self, program: &P) -> Ue5Output {
         // Check if we need replication support
-        let needs_replication = program.items.iter().any(|item| {
+        let needs_replication = program.items().iter().any(|item| {
             match item {
                 TypedItem::Actor(a) => a.ast.state.iter().any(|s| {
                     s.attributes.iter().any(|a| a.name == "replicated")
@@ -498,7 +716,7 @@ impl Ue5Gen {
         }
         
         // Collect all shaders for actor integration
-        let shaders: Vec<&TypedShader> = program.items.iter()
+        let shaders: Vec<&TypedShader> = program.items().iter()
             .filter_map(|item| {
                 if let TypedItem::Shader(shader) = item {
                     // Track shader feature
@@ -512,7 +730,7 @@ impl Ue5Gen {
         
         // Determine what kind of item we're generating (for smart includes)
         let target_item_kind = if let Some(target) = &self.target_item {
-            program.items.iter().find_map(|item| {
+            program.items().iter().find_map(|item| {
                 let name = match item {
                     TypedItem::Actor(a) => &a.ast.name,
                     TypedItem::Struct(s) => &s.ast.name,
@@ -580,7 +798,7 @@ impl Ue5Gen {
 
         // DISCOVERY PASS: If we are targeting a specific item, scan it for dependencies first
         if self.target_item.is_some() {
-            for item in &program.items {
+            for item in program.items() {
                 let item_name = match item {
                     TypedItem::Actor(a) => &a.ast.name,
                     TypedItem::Struct(s) => &s.ast.name,
@@ -629,7 +847,7 @@ impl Ue5Gen {
         // Check if this is a delegate-only file (delegates don't need .generated.h)
         let is_delegate_only = if let Some(target) = &self.target_item {
             // Check if the target item is a delegate
-            program.items.iter().any(|item| {
+            program.items().iter().any(|item| {
                 if let TypedItem::TypeAlias(alias) = item {
                     if alias.ast.name == *target {
                         // Check if it's a function type (delegate)
@@ -684,7 +902,7 @@ impl Ue5Gen {
         // PRE-PASS: Collect all enum, struct, and component names BEFORE generating any code
         // This ensures that delegate parameter types can be correctly resolved
         let default_header = format!("{}.h", self.context.output_name);
-        for item in &program.items {
+        for item in program.items() {
             let item_header = match item {
                 TypedItem::Enum(en) => self.context.type_to_header.get(&en.ast.name).cloned().unwrap_or(default_header.clone()),
                 TypedItem::Struct(st) => self.context.type_to_header.get(&st.ast.name).cloned().unwrap_or(default_header.clone()),
@@ -715,7 +933,11 @@ impl Ue5Gen {
 
         // Pre-compute POD mirrors so the actor dispatch code can reference them
         // without needing the full TypedProgram.
-        self.component_mirrors = match ue5_shaders::pod_mirror::collect_component_mirrors(program) {
+        // Convert MonomorphizedProgram to TypedProgram for shader codegen
+        let typed_program = kain_core::types::TypedProgram {
+            items: program.items().to_vec(),
+        };
+        self.component_mirrors = match ue5_shaders::pod_mirror::collect_component_mirrors(&typed_program) {
             Ok(m) => m,
             Err(e) => {
                 eprintln!("[KAIN ue5 codegen] POD mirror error: {}", e);
@@ -725,7 +947,7 @@ impl Ue5Gen {
 
         // Build a map from every named type to its field/state list for depth-1
         // uniform path resolution (e.g. HyperFluidSimulationCore → [(physics, ...), ...]).
-        for item in &program.items {
+        for item in program.items() {
             match item {
                 TypedItem::Struct(st) => {
                     let fields: Vec<(String, Type)> = st.ast.fields
@@ -766,7 +988,7 @@ impl Ue5Gen {
         // Check if we're in blueprint-library-only mode
         let blueprint_library_only = self.target_item.as_ref().map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
         
-        for item in &program.items {
+        for item in program.items() {
             let item_name = match item {
                 TypedItem::Actor(a) => &a.ast.name,
                 TypedItem::Struct(s) => &s.ast.name,
@@ -921,11 +1143,16 @@ impl Ue5Gen {
         let mut shader_files = Vec::new();
         
         // Generate USF files for each shader
+        // Note: Shader codegen still uses TypedProgram, so we create a temporary one
+        let typed_program = kain_core::types::TypedProgram {
+            items: program.items().to_vec(),
+        };
+        
         for shader in &shaders {
             let shader_name = &shader.ast.name;
             
             // Generate USF shader code
-            match ue5_shaders::generate_usf(program) {
+            match ue5_shaders::generate_usf(&typed_program) {
                 Ok(usf_code) => {
                     shader_files.push((format!("{}.usf", shader_name), usf_code));
                 }
@@ -935,11 +1162,11 @@ impl Ue5Gen {
             }
             
             // Generate C++ header for shader
-            let header_code = ue5_shaders::codegen_usf::generate_cpp_header(program, shader_name);
+            let header_code = ue5_shaders::codegen_usf::generate_cpp_header(&typed_program, shader_name);
             shader_files.push((format!("{}.h", shader_name), header_code));
             
             // Generate C++ implementation for shader
-            let cpp_code = ue5_shaders::codegen_usf::generate_cpp_implementation(program, shader_name, "YourPlugin");
+            let cpp_code = ue5_shaders::codegen_usf::generate_cpp_implementation(&typed_program, shader_name, "YourPlugin");
             shader_files.push((format!("{}.cpp", shader_name), cpp_code));
         }
         
@@ -963,6 +1190,7 @@ impl Ue5Gen {
             },
             TypedItem::Enum(en) => self.gen_uenum(&en.ast),
             TypedItem::Function(fn_typed) => self.gen_ufunction(&fn_typed.ast),
+            // Traits are filtered out during type checking - should not appear here
             TypedItem::Impl(im) => self.gen_impl(&im.ast),
             TypedItem::TypeAlias(alias) => {
                 // Check if this is a delegate by naming convention or type
@@ -976,7 +1204,7 @@ impl Ue5Gen {
                     }
                 }
             },
-            _ => {} // Skip shaders
+            _ => {} // Skip shaders and traits
         }
     }
 
@@ -994,8 +1222,11 @@ impl Ue5Gen {
         
         // --- 1. Header Generation ---
         
+        // Get interface inheritance list
+        let interface_list = self.context.get_interface_list(&actor.name);
+        
         self.header.push_line(&format!("UCLASS()"));
-        self.write_header(&format!("class {} {} : public AActor", self.context.module_api, class_name));
+        self.write_header(&format!("class {} {} : public AActor{}", self.context.module_api, class_name, interface_list));
         self.write_header("{");
         self.push_indent();
         self.write_header("GENERATED_BODY()");
@@ -1881,8 +2112,11 @@ impl Ue5Gen {
             f.attributes.iter().any(|a| a.name == "replicated")
         });
         
+        // Get interface inheritance list
+        let interface_list = self.context.get_interface_list(&struct_def.name);
+        
         self.header.push_line("UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))");
-        self.write_header(&format!("class {} {} : public UActorComponent", self.context.module_api, class_name));
+        self.write_header(&format!("class {} {} : public UActorComponent{}", self.context.module_api, class_name, interface_list));
         self.write_header("{");
         self.push_indent();
         self.write_header("GENERATED_BODY()");
@@ -2224,6 +2458,15 @@ impl Ue5Gen {
             self.write_blank_source();
         }
     }
+
+    // TODO: Agent 4 will implement trait codegen
+    // fn gen_trait(&mut self, trait_def: &Trait) {
+    //     use crate::ue5::traits;
+    //     
+    //     // Generate UInterface header
+    //     let trait_header = traits::generate_trait_header(trait_def, &self.context.module_api);
+    //     self.write_header(&trait_header);
+    // }
 
     fn gen_impl(&mut self, impl_def: &Impl) {
         let target = self.map_type(&impl_def.target_type);

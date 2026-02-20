@@ -411,7 +411,7 @@ fn generate_injection_files(
         };
         
         // Generate filtered output for this item
-        match ue5::generate_filtered(
+        match ue5::generate_filtered_typed(
             program,
             &config.plugin_name,
             Some(&output_name),

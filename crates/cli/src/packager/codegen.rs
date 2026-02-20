@@ -433,7 +433,7 @@ pub fn generate_runtime_items(
         println!("   📄 Slicing item: {} → {}.h/cpp", item_name, output_name);
 
         // Generate filtered output for this specific item using the FULL program shared state and type map
-        match ue5::generate_filtered(program, &config.plugin_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec())) {
+        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec())) {
             Ok(ue5_output) => {
                 // Write header
                 let header_path = layout.public_dir.join(format!("{}.h", output_name));
@@ -526,7 +526,7 @@ pub fn generate_blueprint_library(
         println!("   📦 Generating blueprint function library...");
         // Generate blueprint functions with special target to skip type definitions
         let bp_lib_name = format!("{}BlueprintLibrary", config.plugin_name);
-        match ue5::generate_filtered(program, &config.plugin_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None) {
+        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None) {
             Ok(bp_output) => {
                 let bp_header_path = layout.public_dir.join(format!("{}.h", bp_lib_name));
                 fs::write(&bp_header_path, &bp_output.header).map_err(|e| KainError::Io(e))?;
@@ -925,7 +925,7 @@ pub fn generate_monolithic(
 ) -> KainResult<()> {
     println!("🎯 Generating main plugin files from merged program...");
     
-    match ue5::generate(program, Some(&config.plugin_name), config.copyright.as_deref()) {
+    match ue5::generate_from_typed(program, Some(&config.plugin_name), config.copyright.as_deref()) {
         Ok(ue5_output) => {
             // Write header
             let main_header_path = layout.public_dir.join(format!("{}.h", config.plugin_name));

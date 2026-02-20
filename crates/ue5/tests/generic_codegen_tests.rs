@@ -19,13 +19,8 @@ fn compile_ue5(source: &str) -> Result<Ue5Output, error::KainError> {
     // Monomorphization
     let mono = monomorphize::monomorphize(&typed)?;
     
-    // Convert MonomorphizedProgram to TypedProgram for codegen
-    let mono_typed = types::TypedProgram {
-        items: mono.items,
-    };
-    
-    // UE5 codegen
-    let output = generate(&mono_typed, None, None)?;
+    // UE5 codegen (now accepts MonomorphizedProgram directly)
+    let output = generate(&mono, None, None)?;
     
     Ok(output)
 }

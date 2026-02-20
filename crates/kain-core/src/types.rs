@@ -37,7 +37,7 @@ pub enum TypedItem {
     Actor(TypedActor),
     Struct(TypedStruct),
     Enum(TypedEnum),
-    Trait(TypedTrait),
+    // Trait(TypedTrait), // TODO: Agent 4 will implement trait type checking
     Comptime(TypedComptime),
     Const(TypedConst),
     Macro(TypedMacro),
@@ -190,6 +190,10 @@ pub fn check(program: &Program) -> KainResult<TypedProgram> {
     let mut typed_items = Vec::new();
     
     for item in &program.items {
+        // Skip traits for now - trait type checking not yet implemented
+        if matches!(item, Item::Trait(_)) {
+            continue;
+        }
         typed_items.push(check_item(&mut env, item)?);
     }
     
@@ -213,6 +217,10 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::TypeAlias(ta) => Ok(TypedItem::TypeAlias(TypedTypeAlias { ast: ta.clone() })),
         Item::MaterialGraph(mg) => Ok(TypedItem::MaterialGraph(mg.clone())),
         Item::MaterialFunction(mf) => Ok(TypedItem::MaterialFunction(mf.clone())),
+        Item::Trait(_) => {
+            // This should never be reached because we filter traits in check()
+            unreachable!("Traits should be filtered before check_item")
+        },
         _ => {
             // For now, ignore other items or provide dummy implementation
             // Since we are running in interpreter mode mostly, types are just for checking.

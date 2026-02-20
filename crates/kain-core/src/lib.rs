@@ -25,6 +25,7 @@ pub use types::*;
 pub use effects::*;
 pub use error::*;
 pub use span::*;
+pub use monomorphize::MonomorphizedProgram;
 
 /// Compilation target
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

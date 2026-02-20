@@ -157,6 +157,12 @@ All 11 bugs were caught by the `ultimate.kn` test plugin. **All fixes are implem
                                               ↑ NEW STEP
 ```
 
+**API Changes:**
+- Main codegen entry point updated: `generate(program: &MonomorphizedProgram, ...)` 
+- Internal function updated: `generate_filtered(program: &MonomorphizedProgram, ...)`
+- Legacy functions remain for backward compatibility: `generate_combined(&TypedProgram)`, `generate_stdlib_functions(&TypedProgram)`
+- All 12 backends now receive monomorphized AST with concrete types only
+
 ### Key Features
 
 - ✅ **Generic Functions:** `fn identity<T>(x: T) -> T`

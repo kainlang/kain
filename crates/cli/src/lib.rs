@@ -223,7 +223,7 @@ pub fn compile_ue5_with_context(
     ue5::oracle::validate_program_full(&typed_for_codegen, &context.knowledge, &context.uht_rules)?;
     
     // Generate with context
-    ue5::generate_with_context(&typed_for_codegen, output_name, copyright, &context)
+    ue5::generate_with_context_typed(&typed_for_codegen, output_name, copyright, &context)
 }
 
 /// Find metadata directory by searching in order:
