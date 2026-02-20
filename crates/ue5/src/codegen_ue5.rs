@@ -1273,7 +1273,17 @@ impl Ue5Gen {
                 props.join(", "),
                 category
             ));
-            let cpp_type = self.map_type(&state_decl.ty);
+            let mut cpp_type = self.map_type(&state_decl.ty);
+            
+            // Components must be pointers in actor state
+            if let Type::Named { name, .. } = &state_decl.ty {
+                if self.context.is_component(name) || name.ends_with("Component") {
+                    if !cpp_type.ends_with('*') {
+                        cpp_type.push('*');
+                    }
+                }
+            }
+            
             self.write_header(&format!("{} {};", cpp_type, state_decl.name));
             if let Type::Named { name, .. } = &state_decl.ty {
                 self.var_types.insert(state_decl.name.clone(), name.clone());
@@ -1658,8 +1668,9 @@ impl Ue5Gen {
                     // Sampler2D`). Only apply the name-heuristic fallback when the loop
                     // didn't already add ANY output/RT texture — prevents duplicate args that
                     // cause a C++ "too many arguments" error on the AddPass_ call site.
+                    // Only check for "Output" suffix - input textures ending in "RT" should not prevent output texture generation
                     let already_has_output = texture_args.iter()
-                        .any(|a| a.contains("Output") || a.ends_with("RT"));
+                        .any(|a| a.contains("Output"));
 
                     if !already_has_output {
                         let shader_name_lower = shader_name.to_lowercase();

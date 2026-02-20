@@ -74,6 +74,7 @@ private:
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionTextureSample.h"
+#include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
@@ -98,10 +99,6 @@ private:
 #include "Materials/MaterialExpressionCosine.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialExpressionVertexNormalWS.h"
-#include "Materials/MaterialExpressionAbsoluteWorldPosition.h"
-#include "Materials/MaterialExpressionCameraPositionWS.h"
-#include "Materials/MaterialExpressionObjectPositionWS.h"
-#include "Materials/MaterialExpressionObjectOrientation.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/SavePackage.h"
 #include "Misc/Paths.h"
@@ -1207,7 +1204,7 @@ void F{}MaterialFactory::GenerateMaterials()
 
         format!(
             r#"    Material->BlendMode = {};
-    Material->ShadingModel = {};
+    Material->SetShadingModel({});
     Material->TwoSided = {};
     
 "#,
