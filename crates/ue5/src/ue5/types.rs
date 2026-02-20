@@ -28,7 +28,7 @@ pub struct TypeMapConfig {
 impl Default for TypeMapConfig {
     fn default() -> Self {
         Self {
-            use_float_precision: true, // Default to float for game data
+            use_float_precision: false, // Default to UE5 LWC-friendly FVector/FVector2D/FVector4
             enum_names: HashSet::new(),
             struct_names: HashSet::new(),
             component_names: HashSet::new(),

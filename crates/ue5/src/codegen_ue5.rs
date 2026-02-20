@@ -662,7 +662,7 @@ impl Ue5Gen {
         let mut args = Vec::new();
         let mut current = s;
         while let Some(start) = current.find('{') {
-            fmt.push_str(&current[..start]);
+            fmt.push_str(&current[..start].replace('%', "%%"));
             current = &current[start + 1..];
             if let Some(end) = current.find('}') {
                 let ident = &current[..end];
@@ -673,7 +673,7 @@ impl Ue5Gen {
                 fmt.push('{');
             }
         }
-        fmt.push_str(current);
+        fmt.push_str(&current.replace('%', "%%"));
         (fmt, args)
     }
 
@@ -2107,12 +2107,12 @@ impl Ue5Gen {
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr_string(&a.value)).collect();
                 // Handle vector constructors
                 match fn_name.as_str() {
-                    "vec2" => format!("FVector2f({})", arg_strs.join(", ")),
-                    "vec3" => format!("FVector3f({})", arg_strs.join(", ")),
-                    "vec4" => format!("FVector4f({})", arg_strs.join(", ")),
-                    "Vec2" => format!("FVector2f({})", arg_strs.join(", ")),
-                    "Vec3" => format!("FVector3f({})", arg_strs.join(", ")),
-                    "Vec4" => format!("FVector4f({})", arg_strs.join(", ")),
+                    "vec2" => format!("FVector2D({})", arg_strs.join(", ")),
+                    "vec3" => format!("FVector({})", arg_strs.join(", ")),
+                    "vec4" => format!("FVector4({})", arg_strs.join(", ")),
+                    "Vec2" => format!("FVector2D({})", arg_strs.join(", ")),
+                    "Vec3" => format!("FVector({})", arg_strs.join(", ")),
+                    "Vec4" => format!("FVector4({})", arg_strs.join(", ")),
                     _ => format!("{}({})", fn_name, arg_strs.join(", "))
                 }
             }
@@ -2972,7 +2972,7 @@ impl Ue5Gen {
                 for part in parts {
                     match part {
                         Expr::String(s, _) => {
-                            fmt_str.push_str(&self.escape_string(s));
+                            fmt_str.push_str(&self.escape_string(s).replace('%', "%%"));
                         }
                         _ => {
                             let expr_code = self.gen_expr(part);
@@ -3240,7 +3240,7 @@ impl Ue5Gen {
                 
                 // BUG-008: qualify @blueprint fn calls with U{Plugin}FunctionLibrary::
                 if self.blueprint_fn_names.contains(ue5_fn_name) {
-                    let lib_class = format!("U{}FunctionLibrary", to_pascal_case(&self.module_name));
+                    let lib_class = format!("U{}FunctionLibrary", self.context.output_name);
                     return format!("{}::{}({})", lib_class, ue5_fn_name, arg_strs.join(", "));
                 }
 

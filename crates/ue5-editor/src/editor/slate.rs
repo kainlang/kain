@@ -1560,7 +1560,8 @@ impl SlateGenerator {
     
     fn has_list_data(&self, st: &Struct) -> bool {
         st.fields.iter().any(|f| {
-            matches!(&f.ty, Type::Array { .. })
+            matches!(&f.ty, Type::Array(_, _, _))
+                || matches!(&f.ty, Type::Named { name, generics, .. } if name.eq_ignore_ascii_case("Array") && !generics.is_empty())
         })
     }
     
@@ -1569,7 +1570,13 @@ impl SlateGenerator {
         self.push_line("// === List View Support ===");
         
         for field in &st.fields {
-            if let Type::Array(element, _, _) = &field.ty {
+            let element_opt = match &field.ty {
+                Type::Array(element, _, _) => Some(element.as_ref()),
+                Type::Named { name, generics, .. } if name.eq_ignore_ascii_case("Array") && !generics.is_empty() => Some(&generics[0]),
+                _ => None,
+            };
+
+            if let Some(element) = element_opt {
                 let element_type = self.map_type(element);
                 let ptr_type = format!("TSharedPtr<{}>", element_type);
                 
@@ -1612,13 +1619,19 @@ impl SlateGenerator {
         if let Some(elem) = self.list_item_types.values().next() {
             format!("SNew({}<TSharedPtr<{}>>)", slate_class, elem)
         } else {
-            format!("SNew({}<FTableRowBase>)", slate_class)
+            // Fallback to a valid list item type accepted by Slate traits.
+            format!("SNew({}<TSharedPtr<FString>>)", slate_class)
         }
     }
     
     fn map_type(&self, ty: &Type) -> String {
         match ty {
-            Type::Named { name, .. } => match name.as_str() {
+            Type::Named { name, generics, .. } => {
+                if name.eq_ignore_ascii_case("Array") && !generics.is_empty() {
+                    return format!("TArray<{}>", self.map_type(&generics[0]));
+                }
+
+                match name.as_str() {
                 "Int" | "int" => "int32".to_string(),
                 "Float" | "float" => "float".to_string(),
                 "Bool" | "bool" => "bool".to_string(),
@@ -1657,6 +1670,7 @@ impl SlateGenerator {
                     // Fallback: assume it's a custom type with F prefix
                     naming::to_struct_name(name)
                 }
+                }
             },
             Type::Array(element, _, _) => {
                 format!("TArray<{}>", self.map_type(element))
@@ -1668,7 +1682,12 @@ impl SlateGenerator {
     
     fn get_default_value(&self, ty: &Type) -> String {
         match ty {
-            Type::Named { name, .. } => match name.as_str() {
+            Type::Named { name, generics, .. } => {
+                if name.eq_ignore_ascii_case("Array") && !generics.is_empty() {
+                    return format!("TArray<{}>()", self.map_type(&generics[0]));
+                }
+
+                match name.as_str() {
                 "Int" | "int" => "0".to_string(),
                 "Float" | "float" => "0.0f".to_string(),
                 "Bool" | "bool" => "false".to_string(),
@@ -1697,6 +1716,7 @@ impl SlateGenerator {
                         }
                     }
                 },
+                }
             },
             Type::Array(element, _, _) => {
                 let element_type = self.map_type(element);

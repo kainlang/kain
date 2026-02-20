@@ -368,9 +368,16 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 
         // Detect if program has shaders (needed for module registration)
         let has_shaders = !shader_names.is_empty();
+        let has_material_factories = !material_graphs.is_empty();
 
         // Generate module registration
-        super::codegen::generate_module_registration(&layout, &ue5_config, &typed_program, has_shaders)?;
+        super::codegen::generate_module_registration(
+            &layout,
+            &ue5_config,
+            &typed_program,
+            has_shaders,
+            has_material_factories,
+        )?;
 
     } else {
         // MONOLITHIC MODE: Generate single .h/.cpp with all types merged
