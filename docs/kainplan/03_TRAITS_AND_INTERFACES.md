@@ -1157,3 +1157,179 @@ impl AsyncLoader for AssetManager:
 ```
 
 **UE5 Challenge:** No native async interface support. Would require custom Future/Promise wrapper types.
+
+
+---
+
+## 11. Implementation Checklist
+
+### Parser (Week 1)
+- [ ] Add `parse_trait()` method
+- [ ] Parse trait method signatures
+- [ ] Parse default method implementations
+- [ ] Parse `impl Trait for Type` syntax
+- [ ] Update `trait_name` field in Impl AST
+- [ ] Add trait parsing tests
+
+### Type System (Week 2)
+- [ ] Add trait registry to TypeEnv
+- [ ] Implement trait constraint validation
+- [ ] Check impl blocks implement all required methods
+- [ ] Validate method signatures match trait definitions
+- [ ] Support trait bounds on generics
+- [ ] Add type system tests for traits
+
+### UE5 Codegen (Week 3-4)
+- [ ] Create `ue5/interface.rs` module
+- [ ] Generate I-prefix interface class
+- [ ] Generate U-prefix UObject wrapper
+- [ ] Add UINTERFACE macro with specifiers
+- [ ] Generate UFUNCTION macros for methods
+- [ ] Handle BlueprintNativeEvent methods
+- [ ] Generate `_Implementation` methods for defaults
+- [ ] Update actor codegen to inherit interfaces
+- [ ] Update struct codegen to inherit interfaces
+- [ ] Add interface includes to implementers
+- [ ] Handle multiple interface inheritance
+- [ ] Add UE5 codegen tests
+
+### Integration (Week 5)
+- [ ] Update packager to handle trait files
+- [ ] Generate separate interface header files
+- [ ] Update master header to include interfaces
+- [ ] Handle cross-file trait references
+- [ ] Add integration tests
+
+### Testing (Week 6)
+- [ ] Create TraitTest plugin
+- [ ] Test simple trait with single method
+- [ ] Test trait with multiple methods
+- [ ] Test trait with default implementations
+- [ ] Test multiple traits on single type
+- [ ] Test generic traits (monomorphization)
+- [ ] Test Blueprint-callable traits
+- [ ] Test trait objects (TScriptInterface)
+- [ ] Test cross-file trait definitions
+- [ ] Compile in UE5 and verify Blueprint integration
+
+### Documentation
+- [ ] Update KAIN language guide with trait syntax
+- [ ] Add trait examples to cookbook
+- [ ] Document UInterface mapping strategy
+- [ ] Add performance guidelines
+- [ ] Update AI_PLUGIN_CREATION_GUIDE.md
+
+---
+
+## 12. Open Questions
+
+### 12.1 Trait Object Syntax
+
+**Option 1:** Rust-style `dyn Trait`
+```kain
+fn process(items: Array<dyn Drawable>):
+    for item in items:
+        item.draw()
+```
+
+**Option 2:** Explicit trait object type
+```kain
+fn process(items: Array<TraitObject<Drawable>>):
+    for item in items:
+        item.draw()
+```
+
+**Recommendation:** Option 1 (more concise, familiar to Rust developers)
+
+### 12.2 Default Implementation Location
+
+**Option 1:** Inline in interface header
+```cpp
+class IDamageable {
+    virtual float GetMaxHealth_Implementation() { return 100.0f; }
+};
+```
+
+**Option 2:** Separate .cpp file
+```cpp
+// IDamageable.cpp
+float IDamageable::GetMaxHealth_Implementation() {
+    return 100.0f;
+}
+```
+
+**Recommendation:** Option 1 for simple defaults, Option 2 for complex logic (to reduce header bloat)
+
+### 12.3 Blueprint Category Naming
+
+**Option 1:** Use trait name as category
+```cpp
+UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Damageable")
+bool TakeDamage(float Amount);
+```
+
+**Option 2:** Allow custom category via attribute
+```kain
+@blueprint
+@category("Combat")
+trait Damageable:
+    fn take_damage(self, amount: Float) -> Bool
+```
+
+**Recommendation:** Option 2 (more flexible, better Blueprint organization)
+
+---
+
+## 13. Summary
+
+### Current State
+- ✅ Trait AST exists and is parsed (partially)
+- ✅ Impl blocks work in interpreter
+- ❌ No production codegen for any backend
+- ❌ No type system validation
+
+### Implementation Complexity (1-10)
+- **Parser:** 3/10 (straightforward syntax extension)
+- **Type System:** 6/10 (constraint validation, signature matching)
+- **UE5 Codegen:** 9/10 (dual-class system, BlueprintNativeEvent, includes)
+- **WASM Codegen:** 5/10 (vtable generation)
+- **LLVM Codegen:** 3/10 (native vtable support)
+- **Rust Codegen:** 2/10 (nearly 1:1 mapping)
+
+### Estimated Timeline
+- **Full Implementation:** 6 weeks (1 developer)
+- **MVP (UE5 only, no generics):** 3 weeks
+- **Production-Ready (all features):** 8-10 weeks
+
+### Priority Recommendation
+**HIGH** - Traits are essential for:
+- Polymorphic gameplay systems (damage, interaction, AI)
+- Blueprint interface integration
+- Reusable component patterns
+- Plugin extensibility
+
+Without traits, KAIN users must resort to inheritance (less flexible) or duplicate code (unmaintainable).
+
+---
+
+## 14. References
+
+### UE5 Documentation
+- [UInterface Documentation](https://docs.unrealengine.com/5.3/en-US/interfaces-in-unreal-engine/)
+- [BlueprintNativeEvent](https://docs.unrealengine.com/5.3/en-US/blueprint-native-events-in-unreal-engine/)
+- [TScriptInterface](https://docs.unrealengine.com/5.3/en-US/API/Runtime/CoreUObject/UObject/TScriptInterface/)
+
+### KAIN Codebase
+- `crates/kain-core/src/ast.rs:304-332` - Trait AST definitions
+- `crates/kain-core/src/parser.rs:174-216` - Impl block parsing
+- `crates/kain-core/src/types.rs:62-65` - TypedImpl structure
+- `crates/kain-core/src/runtime.rs:1791-1803` - Impl registration
+
+### Related Documents
+- `docs/recent/AGENT_HANDOFF.md` - KAIN pipeline overview
+- `docs/recent/AI_PLUGIN_CREATION_GUIDE.md` - Plugin development patterns
+- `docs/kain-patterns.md` - KAIN language patterns
+
+---
+
+**Document End**

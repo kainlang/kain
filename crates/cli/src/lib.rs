@@ -50,58 +50,73 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
     // 3. Type check
     let typed_ast = types::check(&ast)?;
     
+    // 3.5 Monomorphize (NEW: Instantiate generic functions with concrete types)
+    let mono_ast = monomorphize::monomorphize(&typed_ast)?;
+    
     // 4. Codegen based on target
     match target {
         #[cfg(feature = "ue5")]
         CompileTarget::Ue5 => {
-            let output = ue5::generate(&typed_ast, None, None)?;
+            // Convert MonomorphizedProgram back to TypedProgram for now
+            // TODO: Update generate() to accept MonomorphizedProgram directly
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            let output = ue5::generate(&typed_for_codegen, None, None)?;
             Ok(output.header + "\n" + &output.source)
         }
         
         #[cfg(feature = "ue5")]
         CompileTarget::Usf => {
-            ue5_shaders::generate_usf(&typed_ast)
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            ue5_shaders::generate_usf(&typed_for_codegen)
         }
         
         #[cfg(feature = "gpu")]
         CompileTarget::Spirv => {
-            gpu::generate_spirv(&typed_ast).map(|bytes| format!("{} bytes", bytes.len()))
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            gpu::generate_spirv(&typed_for_codegen).map(|bytes| format!("{} bytes", bytes.len()))
         }
         
         #[cfg(feature = "gpu")]
         CompileTarget::Hlsl => {
-            gpu::generate_hlsl(&typed_ast)
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            gpu::generate_hlsl(&typed_for_codegen)
         }
         
         #[cfg(feature = "web")]
         CompileTarget::Wasm => {
-            web::generate_wasm(&typed_ast).map(|bytes| format!("{} bytes", bytes.len()))
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            web::generate_wasm(&typed_for_codegen).map(|bytes| format!("{} bytes", bytes.len()))
         }
         
         #[cfg(feature = "web")]
         CompileTarget::Js => {
-            web::generate_js(&typed_ast)
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            web::generate_js(&typed_for_codegen)
         }
         
         #[cfg(feature = "web")]
         CompileTarget::Hybrid => {
-            let output = web::generate_hybrid(&typed_ast)?;
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            let output = web::generate_hybrid(&typed_for_codegen)?;
             Ok(output.js)
         }
         
         #[cfg(feature = "sys")]
         CompileTarget::Llvm => {
-            sys::generate_llvm(&typed_ast).map(|_| "LLVM IR generated".to_string())
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            sys::generate_llvm(&typed_for_codegen).map(|_| "LLVM IR generated".to_string())
         }
         
         #[cfg(feature = "sys")]
         CompileTarget::Rust => {
-            sys::generate_rust(&typed_ast)
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            sys::generate_rust(&typed_for_codegen)
         }
         
         #[cfg(feature = "sys")]
         CompileTarget::Cpp => {
-            sys::generate_cpp(&typed_ast)
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            sys::generate_cpp(&typed_for_codegen)
         }
         
         CompileTarget::Interpret | CompileTarget::Test => {
@@ -111,7 +126,8 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
         
         #[cfg(feature = "ue5")]
         CompileTarget::Ue5Editor => {
-            let output = ue5_editor::generate(&typed_ast, "EditorTools", None)?;
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            let output = ue5_editor::generate(&typed_for_codegen, "EditorTools", None)?;
             Ok(output.header + "\n" + &output.source)
         }
         
@@ -152,6 +168,10 @@ pub fn compile_ue5_with_context(
     let mut ast = Parser::new(&tokens).parse()?;
     comptime::eval_program(&mut ast)?;
     let typed_ast = types::check(&ast)?;
+    
+    // Monomorphize (instantiate generic functions)
+    let mono_ast = monomorphize::monomorphize(&typed_ast)?;
+    let typed_for_codegen = TypedProgram { items: mono_ast.items };
     
     // Find metadata directory
     let metadata_path = metadata_dir.unwrap_or_else(|| find_metadata_dir());
@@ -202,10 +222,10 @@ pub fn compile_ue5_with_context(
     }
     
     // Run Oracle validation
-    ue5::oracle::validate_program_full(&typed_ast, &context.knowledge, &context.uht_rules)?;
+    ue5::oracle::validate_program_full(&typed_for_codegen, &context.knowledge, &context.uht_rules)?;
     
     // Generate with context
-    ue5::generate_with_context(&typed_ast, output_name, copyright, &context)
+    ue5::generate_with_context(&typed_for_codegen, output_name, copyright, &context)
 }
 
 /// Find metadata directory by searching in order:
@@ -252,7 +272,9 @@ pub fn generate_usf_header(source: &str, shader_name: &str) -> Result<String, Ka
     let mut ast = Parser::new(&tokens).parse()?;
     comptime::eval_program(&mut ast)?;
     let typed_ast = types::check(&ast)?;
-    Ok(ue5_shaders::generate_cpp_header(&typed_ast, shader_name))
+    let mono_ast = monomorphize::monomorphize(&typed_ast)?;
+    let typed_for_codegen = TypedProgram { items: mono_ast.items };
+    Ok(ue5_shaders::generate_cpp_header(&typed_for_codegen, shader_name))
 }
 
 #[cfg(feature = "ue5")]
@@ -263,7 +285,9 @@ pub fn generate_usf_implementation(source: &str, shader_name: &str, plugin_name:
     let mut ast = Parser::new(&tokens).parse()?;
     comptime::eval_program(&mut ast)?;
     let typed_ast = types::check(&ast)?;
-    Ok(ue5_shaders::generate_cpp_implementation(&typed_ast, shader_name, plugin_name))
+    let mono_ast = monomorphize::monomorphize(&typed_ast)?;
+    let typed_for_codegen = TypedProgram { items: mono_ast.items };
+    Ok(ue5_shaders::generate_cpp_implementation(&typed_for_codegen, shader_name, plugin_name))
 }
 
 #[cfg(feature = "ue5")]
@@ -274,5 +298,7 @@ pub fn compile_ue5editor(source: &str, plugin_name: &str, copyright: Option<&str
     let mut ast = Parser::new(&tokens).parse()?;
     comptime::eval_program(&mut ast)?;
     let typed_ast = types::check(&ast)?;
-    ue5_editor::generate(&typed_ast, plugin_name, copyright)
+    let mono_ast = monomorphize::monomorphize(&typed_ast)?;
+    let typed_for_codegen = TypedProgram { items: mono_ast.items };
+    ue5_editor::generate(&typed_for_codegen, plugin_name, copyright)
 }
