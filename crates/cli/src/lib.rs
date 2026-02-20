@@ -57,15 +57,13 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
     match target {
         #[cfg(feature = "ue5")]
         CompileTarget::Ue5 => {
-            // Convert MonomorphizedProgram back to TypedProgram for now
-            // TODO: Update generate() to accept MonomorphizedProgram directly
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            let output = ue5::generate(&typed_for_codegen, None, None)?;
+            let output = ue5::generate(&mono_ast, None, None)?;
             Ok(output.header + "\n" + &output.source)
         }
         
         #[cfg(feature = "ue5")]
         CompileTarget::Usf => {
+            // Convert to TypedProgram for shader codegen (shaders don't use generics yet)
             let typed_for_codegen = TypedProgram { items: mono_ast.items };
             ue5_shaders::generate_usf(&typed_for_codegen)
         }

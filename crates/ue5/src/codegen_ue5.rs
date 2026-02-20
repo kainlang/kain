@@ -15,7 +15,7 @@
 //!
 //! Compile with: kain file.kn -t ue5 -o Output.generated.h
 
-use kain_core::TypedProgram;
+use kain_core::{TypedProgram, MonomorphizedProgram};
 use kain_core::types::{TypedItem, TypedShader};
 use kain_core::error::KainResult;
 use kain_core::ast::{
@@ -47,9 +47,9 @@ pub struct Ue5Output {
     pub shader_files: Vec<(String, String)>, // Vec<(filename, content)>
 }
 
-/// Generate UE5 C++ code from a typed program
+/// Generate UE5 C++ code from a monomorphized program
 /// Returns separate .h and .cpp file contents, plus any shader files
-pub fn generate(program: &TypedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
+pub fn generate(program: &MonomorphizedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
     let module_name = output_name.unwrap_or("Kain");
     generate_filtered(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
 }
@@ -57,7 +57,7 @@ pub fn generate(program: &TypedProgram, output_name: Option<&str>, copyright: Op
 /// Generate UE5 C++ code with a pre-configured context (includes metadata)
 /// This is used by the CLI when compiling with `-t ue5` to enable full pipeline features
 pub fn generate_with_context(
-    program: &TypedProgram, 
+    program: &MonomorphizedProgram, 
     output_name: Option<&str>, 
     copyright: Option<&str>,
     context: &Ue5Context
@@ -116,7 +116,7 @@ pub fn generate_with_context(
 
 /// Generate UE5 C++ code limited to a specific item
 pub fn generate_filtered(
-    program: &TypedProgram, 
+    program: &MonomorphizedProgram, 
     module_name: &str,  // Plugin name for API macro (e.g., "UltimateTest")
     output_name: Option<&str>,  // Per-item name for file naming (e.g., "AMaterialTestActor")
     target_item: Option<String>, 

@@ -9,11 +9,12 @@ use crate::error::{KainError, KainResult};
 pub struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
+    injected_tokens: Vec<Token>, // Buffer for synthetic tokens (e.g., splitting >> into > >)
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens, pos: 0 }
+        Self { tokens, pos: 0, injected_tokens: Vec::new() }
     }
 
     pub fn parse(&mut self) -> KainResult<Program> {
@@ -121,6 +122,7 @@ impl<'a> Parser<'a> {
             TokenKind::Macro => self.parse_macro(),
             TokenKind::Test => self.parse_test(),
             TokenKind::Use => self.parse_use(),
+            // TokenKind::Trait => self.parse_trait(vis), // TODO: Agent 4 will implement this
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
             _ => Err(KainError::parser("Expected item", self.current_span())),
@@ -171,6 +173,74 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_trait(&mut self, vis: Visibility) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect(TokenKind::Trait)?;
+        let name = self.parse_ident()?;
+        
+        // Parse generics: trait Foo<T>
+        let generics = self.parse_generics()?;
+        
+        self.expect(TokenKind::Colon)?;
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        let mut methods = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Parse trait method signature
+            self.expect(TokenKind::Fn)?;
+            let method_name = self.parse_ident()?;
+            
+            self.expect(TokenKind::LParen)?;
+            let params = self.parse_params()?;
+            self.expect(TokenKind::RParen)?;
+            
+            let return_type = if self.check(TokenKind::Arrow) {
+                self.advance();
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            
+            let effects = self.parse_effects()?;
+            
+            // Check for default implementation
+            let default_impl = if self.check(TokenKind::Colon) {
+                self.advance();
+                Some(self.parse_block()?)
+            } else {
+                None
+            };
+            
+            methods.push(TraitMethod {
+                name: method_name,
+                params,
+                return_type,
+                effects,
+                default_impl,
+                span: self.current_span(),
+            });
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::Trait(Trait {
+            name,
+            generics,
+            methods,
+            visibility: vis,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
     fn parse_impl(&mut self) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Impl)?;
@@ -178,8 +248,26 @@ impl<'a> Parser<'a> {
         // Parse impl-level generics: impl<T>
         let generics = self.parse_generics()?;
         
+        // Check for "TraitName for" pattern to support "impl Trait for Type"
+        let trait_name = if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+            // Look ahead to see if there's a "for" keyword
+            let saved_pos = self.pos;
+            let potential_trait = self.parse_ident()?;
+            
+            if self.check(TokenKind::For) {
+                // This is "impl Trait for Type" syntax
+                self.advance(); // consume "for"
+                Some(potential_trait)
+            } else {
+                // This is just "impl Type" syntax, backtrack
+                self.pos = saved_pos;
+                None
+            }
+        } else {
+            None
+        };
+        
         // Parse target type: Option<T>
-        // Note: Currently assumes "impl Type". To support "impl Trait for Type", we'd check for 'for'.
         let target_type = self.parse_type()?;
         
         self.expect(TokenKind::Colon)?;
@@ -209,7 +297,7 @@ impl<'a> Parser<'a> {
         
         Ok(Item::Impl(Impl {
             generics,
-            trait_name: None,
+            trait_name,
             target_type,
             methods,
             span: start.merge(self.current_span()),
@@ -1397,12 +1485,16 @@ impl<'a> Parser<'a> {
             
             // Handle >> token for nested generics like Box<Box<Int>>
             // The >> is lexed as a single Shr token, but should be treated as > >
-            // We consume it here, which closes this generic level
-            // The caller's generic parsing will also see the Shr and close its level
+            // When we see >>, we consume it but inject a synthetic > token for the outer level
             if self.check(TokenKind::Shr) {
-                // Consume the >> - this closes the current generic
-                // The outer generic will also check for Shr/Gt and handle it
-                self.advance();
+                // Split the >> into two > tokens
+                // Consume the >> and replace it with a single >
+                let shr_span = self.current_span();
+                self.advance(); // consume >>
+                
+                // Insert a synthetic > token at the current position
+                // This allows the outer generic parser to close properly
+                self.inject_token(Token::new(TokenKind::Gt, shr_span));
             } else {
                 self.expect(TokenKind::Gt)?; // consume >
             }
@@ -2511,18 +2603,45 @@ impl<'a> Parser<'a> {
     }
 
     // Helper methods
-    fn peek_kind(&self) -> TokenKind { self.tokens.get(self.pos).map(|t| t.kind.clone()).unwrap_or(TokenKind::Eof) }
-    fn current_span(&self) -> Span { self.tokens.get(self.pos).map(|t| t.span).unwrap_or(Span::new(0, 0)) }
+    fn peek_kind(&self) -> TokenKind { 
+        // Check injected tokens first
+        if !self.injected_tokens.is_empty() {
+            return self.injected_tokens[0].kind.clone();
+        }
+        self.tokens.get(self.pos).map(|t| t.kind.clone()).unwrap_or(TokenKind::Eof) 
+    }
+    
+    fn current_span(&self) -> Span { 
+        // Check injected tokens first
+        if !self.injected_tokens.is_empty() {
+            return self.injected_tokens[0].span;
+        }
+        self.tokens.get(self.pos).map(|t| t.span).unwrap_or(Span::new(0, 0)) 
+    }
+    
     fn at_end(&self) -> bool { matches!(self.peek_kind(), TokenKind::Eof) }
     fn check(&self, k: TokenKind) -> bool { std::mem::discriminant(&self.peek_kind()) == std::mem::discriminant(&k) }
     fn check_line_end(&self) -> bool { matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Dedent | TokenKind::Eof) }
-    fn advance(&mut self) { if !self.at_end() { self.pos += 1; } }
+    
+    fn advance(&mut self) { 
+        // Consume injected tokens first
+        if !self.injected_tokens.is_empty() {
+            self.injected_tokens.remove(0);
+            return;
+        }
+        if !self.at_end() { self.pos += 1; } 
+    }
+    
     fn skip_newlines(&mut self) { while let TokenKind::Newline(_) = self.peek_kind() { self.advance(); } }
     fn check_newline(&self) -> bool { matches!(self.peek_kind(), TokenKind::Newline(_)) }
     fn skip_formatting(&mut self) {
         while matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Indent | TokenKind::Dedent) {
             self.advance();
         }
+    }
+    
+    fn inject_token(&mut self, token: Token) {
+        self.injected_tokens.push(token);
     }
 
     fn expect(&mut self, k: TokenKind) -> KainResult<()> {

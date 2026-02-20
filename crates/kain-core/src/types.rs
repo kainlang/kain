@@ -37,6 +37,7 @@ pub enum TypedItem {
     Actor(TypedActor),
     Struct(TypedStruct),
     Enum(TypedEnum),
+    Trait(TypedTrait),
     Comptime(TypedComptime),
     Const(TypedConst),
     Macro(TypedMacro),
@@ -104,6 +105,11 @@ pub struct TypedStruct {
 pub struct TypedEnum {
     pub ast: Enum,
     pub variant_payload_types: HashMap<String, Vec<ResolvedType>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedTrait {
+    pub ast: Trait,
 }
 
 /// Fully resolved type
