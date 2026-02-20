@@ -697,6 +697,23 @@ fn load_and_parse_sources(
     };
     println!();
     
+    // Monomorphize (instantiate generic functions with concrete types)
+    println!("🔄 Monomorphizing generic functions...");
+    let mono_ast = match kain_core::monomorphize::monomorphize(&typed_program) {
+        Ok(ma) => {
+            println!("   ✓ Monomorphization complete");
+            ma
+        }
+        Err(e) => {
+            return Err(KainError::runtime(format!(
+                "❌ Monomorphization error: {}", e
+            )));
+        }
+    };
+    // Convert MonomorphizedProgram back to TypedProgram for codegen
+    let typed_program = kain_core::types::TypedProgram { items: mono_ast.items };
+    println!();
+    
     // Run Oracle validation (with data-driven UHT rules when available)
     println!("🔬 Running Unreal Semantic Validator (Oracle)...");
     let kb = ue5::ue5::engine_knowledge::EngineKnowledge::new();

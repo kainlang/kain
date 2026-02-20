@@ -4,7 +4,7 @@
   "description": "Automatically detects when tasks can be parallelized and delegates independent subtasks to general-task-execution subagents for concurrent execution",
   "version": "1",
   "when": {
-    "type": "userTriggered"
+    "type": "promptSubmit"
   },
   "then": {
     "type": "askAgent",
