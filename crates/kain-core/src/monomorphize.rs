@@ -33,8 +33,15 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                         fields.insert(f.name.clone(), ty);
                     }
                 }
-                ctx.structs.insert(s.ast.name.clone(), fields);
-                ctx.concrete_items.push(item.clone());
+                
+                if !s.ast.generics.is_empty() {
+                    // Generic struct - store for later instantiation
+                    ctx.generic_structs.insert(s.ast.name.clone(), s.clone());
+                } else {
+                    // Concrete struct - add to output and register fields
+                    ctx.structs.insert(s.ast.name.clone(), fields);
+                    ctx.concrete_items.push(item.clone());
+                }
             }
             TypedItem::Impl(imp) => {
                 // Register methods from impl blocks
@@ -52,39 +59,46 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                     ctx.trait_impls.insert((trait_name.clone(), type_name_str));
                 }
                 
-                for method in &imp.ast.methods {
-                    let mangled_name = format!("{}_{}", type_name, method.name);
-                    
-                    let mut standalone_fn = method.clone();
-                    standalone_fn.name = mangled_name.clone();
-                    
-                    // Resolve method type
-                    let mut params = Vec::new();
-                    for p in &method.params {
-                         if p.name == "self" {
-                             params.push(target_ty.clone());
-                         } else {
-                             params.push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
-                         }
+                // Check if this is a generic impl block
+                if !imp.ast.generics.is_empty() {
+                    // Generic impl - store for later instantiation
+                    ctx.generic_impls.insert(type_name.clone(), imp.clone());
+                } else {
+                    // Concrete impl - generate methods immediately
+                    for method in &imp.ast.methods {
+                        let mangled_name = format!("{}_{}", type_name, method.name);
+                        
+                        let mut standalone_fn = method.clone();
+                        standalone_fn.name = mangled_name.clone();
+                        
+                        // Resolve method type
+                        let mut params = Vec::new();
+                        for p in &method.params {
+                             if p.name == "self" {
+                                 params.push(target_ty.clone());
+                             } else {
+                                 params.push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
+                             }
+                        }
+                        let ret = method.return_type.as_ref()
+                            .map(|t| resolve_ast_type(t).unwrap_or(ResolvedType::Unknown))
+                            .unwrap_or(ResolvedType::Unit);
+                        
+                        let method_ty = ResolvedType::Function {
+                            params,
+                            ret: Box::new(ret),
+                            effects: crate::effects::EffectSet::new(), // Todo scan effects?
+                        };
+                        
+                        let typed_method = TypedFunction {
+                            ast: standalone_fn,
+                            resolved_type: method_ty,
+                            effects: crate::effects::EffectSet::new(),
+                        };
+                        
+                        ctx.methods.entry(type_name.clone()).or_default().insert(method.name.clone(), mangled_name.clone());
+                        ctx.concrete_items.push(TypedItem::Function(typed_method));
                     }
-                    let ret = method.return_type.as_ref()
-                        .map(|t| resolve_ast_type(t).unwrap_or(ResolvedType::Unknown))
-                        .unwrap_or(ResolvedType::Unit);
-                    
-                    let method_ty = ResolvedType::Function {
-                        params,
-                        ret: Box::new(ret),
-                        effects: crate::effects::EffectSet::new(), // Todo scan effects?
-                    };
-                    
-                    let typed_method = TypedFunction {
-                        ast: standalone_fn,
-                        resolved_type: method_ty,
-                        effects: crate::effects::EffectSet::new(),
-                    };
-                    
-                    ctx.methods.entry(type_name.clone()).or_default().insert(method.name.clone(), mangled_name.clone());
-                    ctx.concrete_items.push(TypedItem::Function(typed_method));
                 }
             }
             _ => {
@@ -123,8 +137,12 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
 
 struct MonoContext {
     generic_functions: HashMap<String, TypedFunction>,
+    generic_structs: HashMap<String, TypedStruct>,
+    /// Generic impl blocks: Type Name -> Impl
+    generic_impls: HashMap<String, TypedImpl>,
     concrete_items: Vec<TypedItem>,
     instantiated: HashMap<String, String>,
+    instantiated_structs: HashMap<String, String>,
     /// Type -> MethodName -> MangledName
     methods: HashMap<String, HashMap<String, String>>,
     /// Struct Name -> Field Name -> Type
@@ -137,8 +155,11 @@ impl MonoContext {
     fn new() -> Self {
         Self {
             generic_functions: HashMap::new(),
+            generic_structs: HashMap::new(),
+            generic_impls: HashMap::new(),
             concrete_items: Vec::new(),
             instantiated: HashMap::new(),
+            instantiated_structs: HashMap::new(),
             methods: HashMap::new(),
             structs: HashMap::new(),
             trait_impls: HashSet::new(),
@@ -182,6 +203,120 @@ impl MonoContext {
         self.concrete_items.push(TypedItem::Function(new_func));
         
         Ok(mangled_name)
+    }
+    
+    fn instantiate_struct(&mut self, name: &str, type_args: &[ResolvedType]) -> KainResult<String> {
+        let mangled_name = format!("{}_{}", name, mangle_types(type_args));
+        
+        if self.instantiated_structs.contains_key(&mangled_name) {
+            return Ok(mangled_name);
+        }
+        
+        let generic_struct = self.generic_structs.get(name)
+            .ok_or_else(|| KainError::type_error(format!("Generic struct {} not found", name), crate::span::Span::new(0,0)))?
+            .clone();
+            
+        if generic_struct.ast.generics.len() != type_args.len() {
+             return Err(KainError::type_error(format!("Generic arg count mismatch for {}: expected {}, got {}", name, generic_struct.ast.generics.len(), type_args.len()), generic_struct.ast.span));
+        }
+        
+        // Build type mapping
+        let mut mapping = HashMap::new();
+        for (i, param) in generic_struct.ast.generics.iter().enumerate() {
+            mapping.insert(param.name.clone(), type_args[i].clone());
+        }
+        
+        // Clone and modify the struct
+        let mut new_struct = generic_struct.clone();
+        new_struct.ast.name = mangled_name.clone();
+        new_struct.ast.generics.clear();
+        
+        // Substitute types in fields
+        for field in &mut new_struct.ast.fields {
+            substitute_type_ast(&mut field.ty, &mapping);
+        }
+        
+        // Update field_types map
+        let mut new_field_types = HashMap::new();
+        for (field_name, field_ty) in &new_struct.field_types {
+            new_field_types.insert(field_name.clone(), substitute_type(field_ty, &mapping));
+        }
+        new_struct.field_types = new_field_types.clone();
+        
+        // Register the instantiated struct
+        self.instantiated_structs.insert(mangled_name.clone(), mangled_name.clone());
+        self.structs.insert(mangled_name.clone(), new_field_types);
+        self.concrete_items.push(TypedItem::Struct(new_struct));
+        
+        // Instantiate generic methods for this struct if they exist
+        if let Some(generic_impl) = self.generic_impls.get(name).cloned() {
+            self.instantiate_impl_methods(&mangled_name, &generic_impl, type_args)?;
+        }
+        
+        Ok(mangled_name)
+    }
+    
+    fn instantiate_impl_methods(&mut self, instantiated_struct_name: &str, generic_impl: &TypedImpl, type_args: &[ResolvedType]) -> KainResult<()> {
+        // Build type mapping from generic parameters to concrete types
+        let mut mapping = HashMap::new();
+        for (i, param) in generic_impl.ast.generics.iter().enumerate() {
+            if i < type_args.len() {
+                mapping.insert(param.name.clone(), type_args[i].clone());
+            }
+        }
+        
+        // Instantiate each method
+        for method in &generic_impl.ast.methods {
+            let mangled_name = format!("{}_{}", instantiated_struct_name, method.name);
+            
+            let mut standalone_fn = method.clone();
+            standalone_fn.name = mangled_name.clone();
+            
+            // Substitute types in parameters
+            for param in &mut standalone_fn.params {
+                substitute_type_ast(&mut param.ty, &mapping);
+            }
+            
+            // Substitute return type
+            if let Some(ret) = &mut standalone_fn.return_type {
+                substitute_type_ast(ret, &mapping);
+            }
+            
+            // Substitute types in body
+            substitute_block(&mut standalone_fn.body, &mapping);
+            
+            // Resolve method type
+            let target_ty = ResolvedType::Struct(instantiated_struct_name.to_string(), HashMap::new());
+            let mut params = Vec::new();
+            for p in &standalone_fn.params {
+                if p.name == "self" {
+                    params.push(target_ty.clone());
+                } else {
+                    params.push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
+                }
+            }
+            let ret = standalone_fn.return_type.as_ref()
+                .map(|t| resolve_ast_type(t).unwrap_or(ResolvedType::Unknown))
+                .unwrap_or(ResolvedType::Unit);
+            
+            let method_ty = ResolvedType::Function {
+                params,
+                ret: Box::new(ret),
+                effects: crate::effects::EffectSet::new(),
+            };
+            
+            let typed_method = TypedFunction {
+                ast: standalone_fn,
+                resolved_type: method_ty,
+                effects: crate::effects::EffectSet::new(),
+            };
+            
+            // Register the method
+            self.methods.entry(instantiated_struct_name.to_string()).or_default().insert(method.name.clone(), mangled_name.clone());
+            self.concrete_items.push(TypedItem::Function(typed_method));
+        }
+        
+        Ok(())
     }
 }
 
@@ -311,6 +446,26 @@ fn substitute_type(ty: &ResolvedType, mapping: &HashMap<String, ResolvedType>) -
             }
         }
         ResolvedType::Array(inner, n) => ResolvedType::Array(Box::new(substitute_type(inner, mapping)), *n),
+        ResolvedType::Struct(name, fields) => {
+            // Substitute types in struct fields
+            let new_fields: HashMap<String, ResolvedType> = fields.iter()
+                .map(|(k, v)| (k.clone(), substitute_type(v, mapping)))
+                .collect();
+            ResolvedType::Struct(name.clone(), new_fields)
+        }
+        ResolvedType::Tuple(elems) => {
+            ResolvedType::Tuple(elems.iter().map(|e| substitute_type(e, mapping)).collect())
+        }
+        ResolvedType::Option(inner) => ResolvedType::Option(Box::new(substitute_type(inner, mapping))),
+        ResolvedType::Result(ok, err) => ResolvedType::Result(
+            Box::new(substitute_type(ok, mapping)),
+            Box::new(substitute_type(err, mapping))
+        ),
+        ResolvedType::Ref { mutable, inner } => ResolvedType::Ref {
+            mutable: *mutable,
+            inner: Box::new(substitute_type(inner, mapping))
+        },
+        ResolvedType::Slice(inner) => ResolvedType::Slice(Box::new(substitute_type(inner, mapping))),
         _ => ty.clone() 
     }
 }
@@ -1221,6 +1376,46 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
         }
     }
     
+    // Check function parameters for generic struct types
+    for param in &func.ast.params {
+        if let Type::Named { name, generics, .. } = &param.ty {
+            if !generics.is_empty() && ctx.generic_structs.contains_key(name) {
+                // Resolve the type arguments
+                let mut type_args = Vec::new();
+                for gen_ty in generics {
+                    if let Ok(resolved) = resolve_ast_type(gen_ty) {
+                        type_args.push(resolved);
+                    }
+                }
+                
+                // Instantiate the generic struct
+                if !type_args.is_empty() {
+                    let _ = ctx.instantiate_struct(name, &type_args)?;
+                }
+            }
+        }
+    }
+    
+    // Check if the return type is a generic struct that needs instantiation
+    if let Some(ret_ty) = &func.ast.return_type {
+        if let Type::Named { name, generics, .. } = ret_ty {
+            if !generics.is_empty() && ctx.generic_structs.contains_key(name) {
+                // Resolve the type arguments
+                let mut type_args = Vec::new();
+                for gen_ty in generics {
+                    if let Ok(resolved) = resolve_ast_type(gen_ty) {
+                        type_args.push(resolved);
+                    }
+                }
+                
+                // Instantiate the generic struct
+                if !type_args.is_empty() {
+                    let _ = ctx.instantiate_struct(name, &type_args)?;
+                }
+            }
+        }
+    }
+    
     scan_block(ctx, &mut env, &mut new_func.ast.body)?;
     Ok(new_func)
 }
@@ -1238,7 +1433,27 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
     match stmt {
         Stmt::Expr(e) => { scan_expr(ctx, env, e)?; }
         Stmt::Return(Some(e), _) => { scan_expr(ctx, env, e)?; }
-        Stmt::Let { pattern, value, .. } => {
+        Stmt::Let { pattern, ty, value, .. } => {
+            // Check if the type annotation is a generic struct
+            if let Some(type_ann) = ty {
+                if let Type::Named { name, generics, .. } = type_ann {
+                    if !generics.is_empty() && ctx.generic_structs.contains_key(name) {
+                        // Resolve the type arguments
+                        let mut type_args = Vec::new();
+                        for gen_ty in generics {
+                            if let Ok(resolved) = resolve_ast_type(gen_ty) {
+                                type_args.push(resolved);
+                            }
+                        }
+                        
+                        // Instantiate the generic struct
+                        if !type_args.is_empty() {
+                            let _ = ctx.instantiate_struct(name, &type_args)?;
+                        }
+                    }
+                }
+            }
+            
             // Scan the value expression (may contain generic calls like identity(42))
             if let Some(val_expr) = value {
                 let ty = scan_expr(ctx, env, val_expr)?;
@@ -1278,12 +1493,72 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
         Expr::String(_, _) => Ok(ResolvedType::String),
         Expr::Bool(_, _) => Ok(ResolvedType::Bool),
         Expr::Ident(name, _) => Ok(env.get(name)),
-        Expr::Struct { name, fields, .. } => {
-            for (_, val) in fields {
-                scan_expr(ctx, env, val)?;
+        Expr::Unary { op, operand, .. } => {
+            // Handle unary expressions - importantly, negative literals like -42
+            let operand_ty = scan_expr(ctx, env, operand)?;
+            
+            // For unary minus, preserve the operand type (Int/Float)
+            // This ensures -42 is inferred as Int, not Any
+            match op {
+                UnaryOp::Neg => Ok(operand_ty),
+                UnaryOp::Not | UnaryOp::BitNot => Ok(ResolvedType::Bool),
+                UnaryOp::Ref | UnaryOp::RefMut => Ok(ResolvedType::Ref {
+                    mutable: matches!(op, UnaryOp::RefMut),
+                    inner: Box::new(operand_ty),
+                }),
+                UnaryOp::Deref => {
+                    // Dereference a reference type
+                    match operand_ty {
+                        ResolvedType::Ref { inner, .. } => Ok(*inner),
+                        _ => Ok(operand_ty),
+                    }
+                }
             }
+        }
+        Expr::Struct { name, fields, .. } => {
+            // Scan field values first to get their types
+            let mut field_types = HashMap::new();
+            for (field_name, val) in fields {
+                let val_ty = scan_expr(ctx, env, val)?;
+                field_types.insert(field_name.clone(), val_ty);
+            }
+            
+            // Check if this struct is generic and needs instantiation
+            if let Some(generic_struct) = ctx.generic_structs.get(name).cloned() {
+                // Infer type arguments from field values
+                let mut type_args = Vec::new();
+                
+                for generic_param in &generic_struct.ast.generics {
+                    // Find a field that uses this type parameter
+                    let mut inferred_type = None;
+                    
+                    for field in &generic_struct.ast.fields {
+                        if let Type::Named { name: field_type_name, .. } = &field.ty {
+                            if field_type_name == &generic_param.name {
+                                // This field uses the generic parameter
+                                if let Some(val_ty) = field_types.get(&field.name) {
+                                    inferred_type = Some(val_ty.clone());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if let Some(ty) = inferred_type {
+                        type_args.push(ty);
+                    } else {
+                        type_args.push(ResolvedType::Unknown);
+                    }
+                }
+                
+                // Instantiate the generic struct with inferred types
+                if !type_args.is_empty() && !type_args.iter().any(|t| matches!(t, ResolvedType::Unknown)) {
+                    let instantiated_name = ctx.instantiate_struct(name, &type_args)?;
+                    return Ok(ResolvedType::Struct(instantiated_name, HashMap::new()));
+                }
+            }
+            
             // Return struct type
-            // Ideally we check fields against definition, but here we just return the type
             Ok(ResolvedType::Struct(name.clone(), HashMap::new()))
         },
         Expr::Field { object, field, span: _ } => {

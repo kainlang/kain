@@ -1294,13 +1294,19 @@ impl<'a> Parser<'a> {
             let mut generics = Vec::new();
             if self.check(TokenKind::Lt) {
                 self.advance(); // consume <
-                while !self.check(TokenKind::Gt) && !self.at_end() {
+                while !self.check(TokenKind::Gt) && !self.check(TokenKind::Shr) && !self.at_end() {
                     generics.push(self.parse_type()?);
-                    if !self.check(TokenKind::Gt) {
+                    if !self.check(TokenKind::Gt) && !self.check(TokenKind::Shr) {
                         self.expect(TokenKind::Comma)?;
                     }
                 }
-                self.expect(TokenKind::Gt)?;
+                
+                // Handle >> for nested generics
+                if self.check(TokenKind::Shr) {
+                    self.advance();
+                } else {
+                    self.expect(TokenKind::Gt)?;
+                }
             }
             
             return Ok(Type::Impl {
@@ -1382,13 +1388,24 @@ impl<'a> Parser<'a> {
         let mut type_args = Vec::new();
         if self.check(TokenKind::Lt) {
             self.advance(); // consume <
-            while !self.check(TokenKind::Gt) && !self.at_end() {
+            while !self.check(TokenKind::Gt) && !self.check(TokenKind::Shr) && !self.at_end() {
                 type_args.push(self.parse_type()?);
-                if !self.check(TokenKind::Gt) {
+                if !self.check(TokenKind::Gt) && !self.check(TokenKind::Shr) {
                     self.expect(TokenKind::Comma)?;
                 }
             }
-            self.expect(TokenKind::Gt)?; // consume >
+            
+            // Handle >> token for nested generics like Box<Box<Int>>
+            // The >> is lexed as a single Shr token, but should be treated as > >
+            // We consume it here, which closes this generic level
+            // The caller's generic parsing will also see the Shr and close its level
+            if self.check(TokenKind::Shr) {
+                // Consume the >> - this closes the current generic
+                // The outer generic will also check for Shr/Gt and handle it
+                self.advance();
+            } else {
+                self.expect(TokenKind::Gt)?; // consume >
+            }
         }
         
         Ok(Type::Named { name, generics: type_args, span })

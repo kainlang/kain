@@ -66,9 +66,10 @@ kain-private/
 ## 3. THE THREE CODEGEN CRATES
 
 ### `ue5` (Runtime)
-- **Owns:** `EngineKnowledge`, `Ue5Context`, naming conventions
+- **Owns:** `EngineKnowledge`, `Ue5Context`, naming conventions, `StdLibResolver`
 - **Generates:** Actor headers/cpp, component headers, struct headers, enum headers, delegate macros, blueprint function libraries
 - **Key file:** `codegen_ue5.rs` — `gen_actor_with_shaders()`, `gen_expr()`, `map_type()`, `is_pointer_receiver()`
+- **Key modules:** `stdlib_resolver.rs` — Maps KAIN stdlib functions (abs, sqrt, sin, etc.) to UE5 FMath:: equivalents
 - **Tests:** 22 passing
 
 ### `ue5-editor` (Editor)
@@ -236,6 +237,7 @@ Python post-processor cleans up empty lines
 | File | What It Does | When To Edit |
 |------|-------------|--------------|
 | `crates/ue5/src/codegen_ue5.rs` | Actor/struct/enum C++ generation | Runtime codegen bugs |
+| `crates/ue5/src/ue5/stdlib_resolver.rs` | KAIN stdlib → UE5 FMath mapping | Adding stdlib functions |
 | `crates/ue5/src/ue5/engine_knowledge.rs` | Engine type database | Adding new engine types |
 | `crates/ue5-editor/src/editor/slate.rs` | Slate widget tree → SNew() | UI generation bugs |
 | `crates/ue5-editor/src/editor/details.rs` | Details panel generation | Property panel bugs |

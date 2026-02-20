@@ -6,6 +6,13 @@
 //! - Structs get 'F' prefix (struct Transform -> FTransform)
 //! - UObjects get 'U' prefix
 //!
+//! ## Standard Library Support
+//! Maps KAIN stdlib functions to UE5 equivalents via `StdLibResolver`:
+//! - Math functions: abs, sqrt, sin, cos, min, max → FMath::Abs, FMath::Sqrt, etc.
+//! - Vector functions: vec3, dot, cross, normalize → FVector constructors and methods
+//! - Collection functions: len, push, pop → TArray methods
+//! - String functions: split, join, trim → FString methods
+//!
 //! Compile with: kain file.kn -t ue5 -o Output.generated.h
 
 use kain_core::TypedProgram;
@@ -337,6 +344,8 @@ struct Ue5Gen {
     module_name: String,
     /// Centralized type mapper - single source of truth for type mapping
     type_mapper: crate::ue5::types::TypeMapper,
+    /// Standard library function resolver (maps KAIN stdlib to UE5 FMath::)
+    stdlib_resolver: crate::ue5::stdlib_resolver::StdLibResolver,
 }
 
 impl Ue5Gen {
@@ -350,6 +359,9 @@ impl Ue5Gen {
         
         // Create TypeMapper with EngineKnowledge from context
         let type_mapper = crate::ue5::types::TypeMapper::with_knowledge(context.knowledge.clone());
+        
+        // Create StdLibResolver for math function mapping
+        let stdlib_resolver = crate::ue5::stdlib_resolver::StdLibResolver::new();
         
         Self {
             header: StringBuilder::new(),
@@ -365,6 +377,7 @@ impl Ue5Gen {
             blueprint_used_types: std::collections::HashSet::new(),
             module_name: module_name.to_string(),
             type_mapper,
+            stdlib_resolver,
         }
     }
 
@@ -2690,44 +2703,13 @@ impl Ue5Gen {
                     // Otherwise, emit the call as-is (it's a function/method call, not a constructor)
                 }
                 
-                // Map math functions to FMath:: / UE5 equivalents
+                // Try stdlib resolver first (centralized math function mapping)
+                if let Ok(ue5_code) = self.stdlib_resolver.resolve(&fn_name, &arg_strs) {
+                    return ue5_code;
+                }
+                
+                // Map remaining special functions (vector ops, UE5-specific, etc.)
                 let ue5_fn_name = match fn_name.as_str() {
-                    // Standard math
-                    "abs" => "FMath::Abs",
-                    "min" => "FMath::Min",
-                    "max" => "FMath::Max",
-                    "sqrt" => "FMath::Sqrt",
-                    "pow" => "FMath::Pow",
-                    "exp" => "FMath::Exp",
-                    "log" => "FMath::Loge",
-                    "log2" => "FMath::Log2",
-                    
-                    // Trig
-                    "sin" => "FMath::Sin",
-                    "cos" => "FMath::Cos",
-                    "tan" => "FMath::Tan",
-                    "asin" => "FMath::Asin",
-                    "acos" => "FMath::Acos",
-                    "atan" => "FMath::Atan",
-                    "atan2" => "FMath::Atan2",
-                    
-                    // Rounding
-                    "floor" => "FMath::Floor",
-                    "ceil" => "FMath::CeilToFloat",
-                    "round" => "FMath::RoundToFloat",
-                    "fract" | "frac" => "FMath::Frac",
-                    
-                    // Interpolation & clamping
-                    "clamp" => "FMath::Clamp",
-                    "lerp" | "mix" => "FMath::Lerp",
-                    "saturate" => "FMath::Clamp",
-                    "smoothstep" => "FMath::SmoothStep",
-                    
-                    // Random (KAIN stdlib uses random() extensively)
-                    "random" | "rand" => "FMath::FRand",
-                    "random_range" | "rand_range" => "FMath::FRandRange",
-                    
-                    // Vector math
                     "dot" => return {
                         // Use component-wise dot product for float vectors
                         if arg_strs.len() == 2 {
@@ -2807,18 +2789,6 @@ impl Ue5Gen {
                     
                     _ => fn_name.as_str()
                 };
-                
-                // Special case for saturate - clamp to 0-1
-                if fn_name == "saturate" {
-                    if arg_strs.len() == 1 {
-                        return format!("FMath::Clamp({}, 0.0f, 1.0f)", arg_strs[0]);
-                    }
-                }
-                
-                // Special case for smoothstep with 3 args
-                if fn_name == "smoothstep" && arg_strs.len() == 3 {
-                    return format!("FMath::SmoothStep({}, {}, {})", arg_strs[0], arg_strs[1], arg_strs[2]);
-                }
                 
                 // BUG-008: qualify @blueprint fn calls with U{Plugin}FunctionLibrary::
                 if self.blueprint_fn_names.contains(ue5_fn_name) {
