@@ -189,7 +189,7 @@ impl ShaderValidator {
         let mut errors = Vec::new();
         
         // Run all validation sub-methods
-        self.validate_uniforms(shader, &mut errors);
+        self.validate_uniforms(shader, program, &mut errors);
         self.validate_pod_structs(shader, program, &mut errors);
         self.validate_hlsl_syntax(shader, &mut errors);
         self.validate_bindings(shader, &mut errors);
@@ -207,7 +207,7 @@ impl ShaderValidator {
     /// - HLSL-compatible types
     /// - Valid binding ranges for resource type
     /// - Permutation uniforms follow CFG_* or ENABLE_* naming convention
-    fn validate_uniforms(&mut self, shader: &TypedShader, errors: &mut Vec<String>) {
+    fn validate_uniforms(&mut self, shader: &TypedShader, program: Option<&TypedProgram>, errors: &mut Vec<String>) {
         let shader_name = &shader.ast.name;
         
         // Note: Binding conflict detection is now handled in validate_bindings()
@@ -217,7 +217,7 @@ impl ShaderValidator {
             let uniform_name = &uniform.name;
             
             // Validate uniform type is HLSL-compatible
-            self.validate_uniform_type(shader_name, uniform_name, &uniform.ty, errors);
+            self.validate_uniform_type(shader_name, uniform_name, &uniform.ty, program, errors);
             
             // Validate binding range based on resource type
             // Note: This is also checked in validate_bindings() but we keep it here for early detection
@@ -229,7 +229,14 @@ impl ShaderValidator {
     }
     
     /// Validate that a uniform type is HLSL-compatible
-    fn validate_uniform_type(&self, shader_name: &str, uniform_name: &str, ty: &Type, errors: &mut Vec<String>) {
+    fn validate_uniform_type(
+        &self,
+        shader_name: &str,
+        uniform_name: &str,
+        ty: &Type,
+        program: Option<&TypedProgram>,
+        errors: &mut Vec<String>,
+    ) {
         match ty {
             Type::Named { name, .. } => {
                 // Check if it's a known HLSL type or texture/sampler type
@@ -269,6 +276,18 @@ impl ShaderValidator {
                 ];
                 
                 if !valid_types.contains(&type_name) {
+                    // User-defined structs are valid uniform types for POD parameter blocks.
+                    // Accept if the type is declared in the program as a struct.
+                    let is_user_struct = program.map_or(false, |p| {
+                        p.items.iter().any(|item| {
+                            matches!(item, TypedItem::Struct(s) if s.ast.name == type_name)
+                        })
+                    });
+
+                    if is_user_struct {
+                        return;
+                    }
+
                     // Check if it's a known HLSL intrinsic type via ShaderKnowledge
                     // For now, warn about unknown types
                     errors.push(format!(
@@ -1639,6 +1658,40 @@ mod tests {
         }
     }
     
+    #[test]
+    fn test_uniform_user_struct_type_is_accepted() {
+        let mut validator = ShaderValidator::new();
+
+        // Use a 16-byte aligned struct so the test isolates uniform type acceptance.
+        let program = make_test_program_with_struct("GpuParams", vec![
+            make_field("albedo", "Vec4"),
+        ]);
+
+        let shader = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "params".to_string(),
+                ty: Type::Named {
+                    name: "GpuParams".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 1,
+                span: Span::default(),
+            },
+        ]);
+
+        let result = validator.validate_shader(&shader, Some(&program));
+        if let Err(errors) = result {
+            assert!(
+                !errors
+                    .iter()
+                    .any(|e| e.contains("Uniform 'params' has potentially invalid HLSL type 'GpuParams'")),
+                "User struct uniform should not be rejected as invalid type: {:?}",
+                errors
+            );
+        }
+    }
+
     #[test]
     fn test_pod_struct_valid_hlsl_types() {
         let mut validator = ShaderValidator::new();
