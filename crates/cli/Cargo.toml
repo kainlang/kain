@@ -40,6 +40,10 @@ minijinja = { workspace = true }
 heck = { workspace = true }
 toml = { workspace = true }
 
+# C++ validation dependencies
+which = "6.0"
+quick-xml = "0.36"
+
 [features]
 default = ["ue5", "gpu", "web", "sys"]
 ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders", "dep:ue5-materials", "dep:ue5-blueprints", "dep:ue5-asset-utils", "dep:unreal_asset_registry", "dep:unreal_asset_base", "dep:unreal_asset"]

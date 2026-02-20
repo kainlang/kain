@@ -1,9 +1,0 @@
-# SimpleEditor.kn
-# Minimal test case
-
-@editor_module
-struct SimpleEditorModule:
-    @menu_entry("Tools/Simple Spawner")
-    fn OpenMenuSpawner():
-        # Just print for now
-        println("Opening Spawner")

@@ -485,6 +485,22 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         }
     }
 
+    // STEP 7: Validate generated C++ code
+    println!();
+    println!("🔬 Validating generated C++ code...");
+    match super::cpp_validator::validate_cpp_with_resharper(&layout.plugin_root) {
+        Ok(()) => {
+            // ReSharper validation succeeded or was skipped
+        }
+        Err(e) => {
+            // ReSharper failed, try basic validation
+            eprintln!("   ⚠️  ReSharper validation failed: {}", e);
+            println!("   🔄 Falling back to basic validation...");
+            super::cpp_validator::validate_cpp_basic(&layout.plugin_root)?;
+        }
+    }
+    println!();
+
     // Summary
     println!();
     println!("✅ Plugin build complete!");

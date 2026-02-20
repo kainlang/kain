@@ -11,6 +11,7 @@ pub mod post_process;
 pub mod dependencies;
 pub mod inject;
 pub mod registry_writer;
+pub mod cpp_validator;
 
 // Re-export public API to maintain backward compatibility
 pub use config::*;
