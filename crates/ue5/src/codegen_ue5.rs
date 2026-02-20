@@ -774,6 +774,20 @@ impl Ue5Gen {
         let blueprint_library_only = self.target_item.as_ref()
             .map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
 
+        // Check whether the current generation target dispatches shaders.
+        // If true, actor headers need UTextureRenderTarget2D declarations/includes.
+        let target_dispatches_shaders = if let Some(target) = &self.target_item {
+            program.items().iter().any(|item| {
+                if let TypedItem::Actor(a) = item {
+                    a.ast.name == *target && a.ast.attributes.iter().any(|attr| attr.name == "dispatch")
+                } else {
+                    false
+                }
+            })
+        } else {
+            !shaders.is_empty() // monolithic mode: include if any shaders exist
+        };
+
         // Determine what kind of item we're generating (for smart includes)
         let target_item_kind = if let Some(target) = &self.target_item {
             program.items().iter().find_map(|item| {
@@ -875,6 +889,10 @@ impl Ue5Gen {
                     includes.push(Box::leak(header.into_boxed_str())); // Keep it simple for now
                 }
             }
+
+            if target_dispatches_shaders && !includes.contains(&"Engine/TextureRenderTarget2D.h") {
+                includes.push("Engine/TextureRenderTarget2D.h");
+            }
         }
 
         // Bug-4 fix: if we're in blueprint-library-only mode, only include headers for
@@ -936,17 +954,6 @@ impl Ue5Gen {
         // Only include RenderGraph/shader headers if this actor actually dispatches shaders.
         // In sliced mode, check for @dispatch attribute on the target actor.
         // In monolithic mode (no target_item), include if any shaders exist.
-        let target_dispatches_shaders = if let Some(target) = &self.target_item {
-            program.items().iter().any(|item| {
-                if let TypedItem::Actor(a) = item {
-                    a.ast.name == *target && a.ast.attributes.iter().any(|attr| attr.name == "dispatch")
-                } else {
-                    false
-                }
-            })
-        } else {
-            !shaders.is_empty() // monolithic mode: include if any shaders exist
-        };
         if target_dispatches_shaders {
             self.source.push_line("#include \"RenderGraph.h\"");
             self.source.push_line("#include \"RenderGraphBuilder.h\"");
@@ -954,6 +961,7 @@ impl Ue5Gen {
             self.source.push_line("#include \"RenderGraphUtils.h\"");
             self.source.push_line("#include \"RenderTargetPool.h\"");
             self.source.push_line("#include \"Engine/TextureRenderTarget2D.h\"");
+            self.source.push_line("#include \"TextureResource.h\"");
             // Use shader file names (from toml or auto-detected) instead of AST names
             // This ensures correct casing (e.g., K12SovereignPBR.h not K12SovereignPbr.h)
             for shader_file_name in &self.shader_file_names {

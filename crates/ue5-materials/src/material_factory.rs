@@ -101,11 +101,13 @@ private:
 #include "Materials/MaterialExpressionVertexNormalWS.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/SavePackage.h"
+#include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 
 void F{}MaterialFactory::GenerateMaterials()
 {{
+#if WITH_EDITOR
     // Create Content/Materials directory
     FString ContentPath = FPaths::ProjectPluginsDir() / TEXT("{}/Content/Materials");
     IFileManager::Get().MakeDirectory(*ContentPath, true);
@@ -119,7 +121,7 @@ void F{}MaterialFactory::GenerateMaterials()
             cpp.push_str(&format!("    Generate_{}();\n", graph.name));
         }
 
-        cpp.push_str("}\n\n");
+        cpp.push_str("#else\n    // Material graph construction is editor-only.\n#endif\n}\n\n");
 
         // Generate each material function
         for graph in graphs {
@@ -146,6 +148,7 @@ void F{}MaterialFactory::GenerateMaterials()
         let mut code = format!(
             r#"void F{}MaterialFactory::Generate_{}()
 {{
+#if WITH_EDITOR
     FString PackageName = TEXT("/{}/Materials/{}");
     UPackage* Package = CreatePackage(*PackageName);
     Package->FullyLoad();
@@ -184,6 +187,7 @@ void F{}MaterialFactory::GenerateMaterials()
     
     // Register with asset registry
     FAssetRegistryModule::AssetCreated(Material);
+#endif
 }}
 
 "#
