@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 // ─── Property Values ─────────────────────────────────────────────────────────
 // Re-exported from the shared ue5-asset-utils crate (single source of truth).
-pub use ue5_asset_utils::{PropertyDef, PropertyValue};
+pub use ue5_asset_utils::{KainEngineTarget, PropertyDef, PropertyValue};
 
 // ─── Component Tree (SCS) ────────────────────────────────────────────────────
 
@@ -149,16 +149,15 @@ pub struct BlueprintDef {
     pub engine_version: BlueprintEngineVersion,
 }
 
-/// Which UE5 version format to target when writing binary .uasset.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum BlueprintEngineVersion {
-    Ue5_1,
-    Ue5_2,
-    #[default]
-    Ue5_3,
-    Ue5_4,
-    Ue5_5,
-}
+/// Which UE5 version to target when writing binary .uasset files.
+///
+/// This is a thin type alias to [`KainEngineTarget`] allowing Blueprint IR
+/// to carry version information without a direct dependency on ue5-asset-utils
+/// internals. All serialization uses [`KainEngineTarget::as_serializer_version`].
+pub type BlueprintEngineVersion = KainEngineTarget;
+
+/// Convenience constructor aliases so existing `BlueprintEngineVersion::Ue5_x`
+/// call sites still compile without changes.
 
 impl BlueprintDef {
     pub fn new(

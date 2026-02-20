@@ -84,6 +84,16 @@ pub enum EngineVersion {
     VER_UE5_1,
     /// 5.2
     VER_UE5_2,
+    /// 5.3 — binary format identical to 5.2; KAIN uses VER_UE5_2 as the serializer target.
+    VER_UE5_3,
+    /// 5.4 — binary format identical to 5.2; KAIN uses VER_UE5_2 as the serializer target.
+    VER_UE5_4,
+    /// 5.5 — binary format identical to 5.2; KAIN uses VER_UE5_2 as the serializer target.
+    VER_UE5_5,
+    /// 5.6 — binary format identical to 5.2; KAIN uses VER_UE5_2 as the serializer target.
+    VER_UE5_6,
+    /// 5.7 — binary format identical to 5.2; KAIN uses VER_UE5_2 as the serializer target.
+    VER_UE5_7,
 
     /// The newest specified version of the Unreal Engine.
     VER_UE4_AUTOMATIC_VERSION,
@@ -217,6 +227,29 @@ lazy_static! {
             ObjectVersion::VER_UE4_CORRECT_LICENSEE_FLAG,
             EngineVersion::VER_UE5_2
         ),
+        // 5.3–5.7 share the same ObjectVersion watermark as 5.2.
+        // The serializer writes the 5.2 binary format for all of them,
+        // which UE5.3+ accepts (Epic maintains backwards format compat).
+        (
+            ObjectVersion::VER_UE4_CORRECT_LICENSEE_FLAG,
+            EngineVersion::VER_UE5_3
+        ),
+        (
+            ObjectVersion::VER_UE4_CORRECT_LICENSEE_FLAG,
+            EngineVersion::VER_UE5_4
+        ),
+        (
+            ObjectVersion::VER_UE4_CORRECT_LICENSEE_FLAG,
+            EngineVersion::VER_UE5_5
+        ),
+        (
+            ObjectVersion::VER_UE4_CORRECT_LICENSEE_FLAG,
+            EngineVersion::VER_UE5_6
+        ),
+        (
+            ObjectVersion::VER_UE4_CORRECT_LICENSEE_FLAG,
+            EngineVersion::VER_UE5_7
+        ),
     ]);
     static ref OBJECT_VERSION_TO_ENGINE_VERSION_UE5: Vec<(ObjectVersionUE5, EngineVersion)> =
         Vec::from([
@@ -231,7 +264,29 @@ lazy_static! {
             (
                 ObjectVersionUE5::AUTOMATIC_VERSION,
                 EngineVersion::VER_UE5_2
-            )
+            ),
+            // 5.3–5.7: no new ObjectVersionUE5 watermarks in the vendored library yet.
+            // They map to AUTOMATIC_VERSION (the highest known), same as 5.2.
+            (
+                ObjectVersionUE5::AUTOMATIC_VERSION,
+                EngineVersion::VER_UE5_3
+            ),
+            (
+                ObjectVersionUE5::AUTOMATIC_VERSION,
+                EngineVersion::VER_UE5_4
+            ),
+            (
+                ObjectVersionUE5::AUTOMATIC_VERSION,
+                EngineVersion::VER_UE5_5
+            ),
+            (
+                ObjectVersionUE5::AUTOMATIC_VERSION,
+                EngineVersion::VER_UE5_6
+            ),
+            (
+                ObjectVersionUE5::AUTOMATIC_VERSION,
+                EngineVersion::VER_UE5_7
+            ),
         ]);
 }
 

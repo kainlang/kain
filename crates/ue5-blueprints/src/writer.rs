@@ -38,7 +38,7 @@ use ue5_asset_utils::property_converter::convert_property_defs;
 
 use crate::{
     error::{BlueprintError, Result},
-    ir::{BlueprintDef, BlueprintEngineVersion, ComponentDef},
+    ir::{BlueprintDef, ComponentDef},
     kismet,
 };
 
@@ -54,7 +54,7 @@ impl BlueprintBinaryWriter {
     /// Returns the raw .uasset bytes ready to be written to disk.
     /// Path: `<project>/Content/<package_path>/<name>.uasset`
     pub fn write(bp: &BlueprintDef) -> Result<Vec<u8>> {
-        let engine_version = map_engine_version(bp.engine_version);
+        let engine_version = bp.engine_version.as_serializer_version();
         let mut ctx = BlueprintBuildContext::new(&bp.name, &bp.parent_class, engine_version)?;
 
         // 1. Add component class imports (one per unique class)
@@ -674,23 +674,9 @@ impl BlueprintBuildContext {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Map KAIN's engine version enum to unreal_asset's EngineVersion.
-fn map_engine_version(v: BlueprintEngineVersion) -> EngineVersion {
-    match v {
-        BlueprintEngineVersion::Ue5_1 => EngineVersion::VER_UE5_1,
-        BlueprintEngineVersion::Ue5_2
-        | BlueprintEngineVersion::Ue5_3
-        | BlueprintEngineVersion::Ue5_4
-        | BlueprintEngineVersion::Ue5_5 => EngineVersion::VER_UE5_2,
-    }
-}
-
 // parse_class_path, find_import_by_name, split_soft_path, infer_array_inner_type,
 // resolve_object_import — all moved to ue5_asset_utils::{ImportBuilder, property_converter}
+// Version mapping — delegated to KainEngineTarget::as_serializer_version() in ue5-asset-utils.
 
 // ---------------------------------------------------------------------------
 // Tests
