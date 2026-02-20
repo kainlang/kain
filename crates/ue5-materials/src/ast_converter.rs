@@ -39,7 +39,7 @@ impl MaterialGraphConverter {
         if graph.properties.expose_parameters {
             for input in &def.inputs {
                 // Only mark scalar/vector/color parameters as dynamic (not textures)
-                if matches!(input.ty, Type::Named { name, .. } if name == "Float" || name == "Vec3" || name == "Vec4") {
+                if matches!(input.ty, Type::Named { ref name, .. } if name == "Float" || name == "Vec3" || name == "Vec4") {
                     if let Err(e) = graph.mark_parameter_dynamic(&input.name) {
                         eprintln!("Warning: Failed to mark parameter '{}' as dynamic: {}", input.name, e);
                     }
@@ -114,9 +114,10 @@ impl MaterialGraphConverter {
             Type::Named { name, .. } if name == "Sampler2D" => {
                 MaterialNode {
                     id: node_id.clone(),
-                    node_type: MaterialNodeType::TextureParameter {
-                        name: input.name.clone(),
-                        default_path: None,
+                    node_type: MaterialNodeType::TextureSampleParameter2D {
+                        param_name: input.name.clone(),
+                        default_texture: None,
+                        uv_input: None,
                     },
                     position: (x, y),
                 }
@@ -624,7 +625,7 @@ impl MaterialGraphConverter {
                                 
                                 graph.nodes.push(MaterialNode {
                                     id: node_id.clone(),
-                                    node_type: MaterialNodeType::ConstantVector { value: [x, y, z] },
+                                    node_type: MaterialNodeType::ConstantVec3 { value: [x, y, z] },
                                     position: (pos_x, pos_y),
                                 });
                                 
@@ -634,12 +635,12 @@ impl MaterialGraphConverter {
                             }
                         }
                         "vec4" => {
-                            // vec4 constructor - convert to constant vector (drop w component)
+                            // vec4 constructor - convert to constant 4-vector
                             if args.len() == 4 {
                                 let x = self.extract_float_from_expr(&args[0].value)?;
                                 let y = self.extract_float_from_expr(&args[1].value)?;
                                 let z = self.extract_float_from_expr(&args[2].value)?;
-                                // Drop w component for now
+                                let w = self.extract_float_from_expr(&args[3].value)?;
                                 
                                 let node_id = self.next_node_id();
                                 let pos_x = -400;
@@ -647,7 +648,7 @@ impl MaterialGraphConverter {
                                 
                                 graph.nodes.push(MaterialNode {
                                     id: node_id.clone(),
-                                    node_type: MaterialNodeType::ConstantVector { value: [x, y, z] },
+                                    node_type: MaterialNodeType::ConstantVec4 { value: [x, y, z, w] },
                                     position: (pos_x, pos_y),
                                 });
                                 
@@ -1283,7 +1284,7 @@ impl MaterialGraphConverter {
     /// * `Err(String)` - Error message if shader not found
     /// 
     /// # Examples
-    /// ```
+    /// ```ignore
     /// // Resolves "MyCustomShader" to "/Game/Materials/Functions/MyCustomShader"
     /// let path = converter.resolve_shader_path("MyCustomShader")?;
     /// ```
@@ -1324,7 +1325,8 @@ impl Default for MaterialGraphConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_core::ast::{Span, Type};
+    use kain_core::span::Span;
+    use kain_core::ast::Type;
 
     #[test]
     fn test_simple_material_conversion() {
@@ -1345,9 +1347,9 @@ mod tests {
                     default: Some(Expr::Call {
                         callee: Box::new(Expr::Ident("vec3".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Float(1.0, Span::default()) },
-                            CallArg { name: None, value: Expr::Float(0.0, Span::default()) },
-                            CallArg { name: None, value: Expr::Float(0.0, Span::default()) },
+                            CallArg { name: None, value: Expr::Float(1.0, Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(0.0, Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(0.0, Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     }),
@@ -1708,9 +1710,9 @@ mod tests {
                     value: Expr::Call {
                         callee: Box::new(Expr::Ident("uv_scroll".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()) },
-                            CallArg { name: None, value: Expr::Float(0.1, Span::default()) },
-                            CallArg { name: None, value: Expr::Float(0.2, Span::default()) },
+                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(0.1, Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(0.2, Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     },
@@ -1757,9 +1759,9 @@ mod tests {
                     value: Expr::Call {
                         callee: Box::new(Expr::Ident("uv_scale".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()) },
-                            CallArg { name: None, value: Expr::Float(2.0, Span::default()) },
-                            CallArg { name: None, value: Expr::Float(2.0, Span::default()) },
+                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(2.0, Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(2.0, Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     },
@@ -1806,8 +1808,8 @@ mod tests {
                     value: Expr::Call {
                         callee: Box::new(Expr::Ident("uv_rotate".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()) },
-                            CallArg { name: None, value: Expr::Float(45.0, Span::default()) },
+                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(45.0, Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     },
@@ -1854,9 +1856,9 @@ mod tests {
                     value: Expr::Call {
                         callee: Box::new(Expr::Ident("uv_scale".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()) },
-                            CallArg { name: None, value: Expr::Float(2.0, Span::default()) },
-                            CallArg { name: None, value: Expr::Float(2.0, Span::default()) },
+                            CallArg { name: None, value: Expr::Ident("uv".to_string(), Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(2.0, Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(2.0, Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     },
@@ -1867,9 +1869,9 @@ mod tests {
                     value: Expr::Call {
                         callee: Box::new(Expr::Ident("uv_scroll".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Ident("scaled_uv".to_string(), Span::default()) },
-                            CallArg { name: None, value: Expr::Float(0.1, Span::default()) },
-                            CallArg { name: None, value: Expr::Float(0.2, Span::default()) },
+                            CallArg { name: None, value: Expr::Ident("scaled_uv".to_string(), Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(0.1, Span::default()), span: Span::default() },
+                            CallArg { name: None, value: Expr::Float(0.2, Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     },
@@ -1950,7 +1952,7 @@ mod tests {
                     value: Expr::Call {
                         callee: Box::new(Expr::Ident("sin".to_string(), Span::default())),
                         args: vec![
-                            CallArg { name: None, value: Expr::Ident("t_scaled".to_string(), Span::default()) },
+                            CallArg { name: None, value: Expr::Ident("t_scaled".to_string(), Span::default()), span: Span::default() },
                         ],
                         span: Span::default(),
                     },

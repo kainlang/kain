@@ -882,7 +882,21 @@ impl Ue5Gen {
         self.source.push_line("// Do not edit - regenerate from .kn source");
         self.write_blank_source();
         self.source.push_line(&format!("#include \"{}.h\"", self.context.output_name));
-        if !shaders.is_empty() {
+        // Only include RenderGraph/shader headers if this actor actually dispatches shaders.
+        // In sliced mode, check for @dispatch attribute on the target actor.
+        // In monolithic mode (no target_item), include if any shaders exist.
+        let target_dispatches_shaders = if let Some(target) = &self.target_item {
+            program.items().iter().any(|item| {
+                if let TypedItem::Actor(a) = item {
+                    a.ast.name == *target && a.ast.attributes.iter().any(|attr| attr.name == "dispatch")
+                } else {
+                    false
+                }
+            })
+        } else {
+            !shaders.is_empty() // monolithic mode: include if any shaders exist
+        };
+        if target_dispatches_shaders {
             self.source.push_line("#include \"RenderGraph.h\"");
             self.source.push_line("#include \"RenderGraphBuilder.h\"");
             self.source.push_line("#include \"RenderGraphResources.h\"");
@@ -1049,20 +1063,43 @@ impl Ue5Gen {
 
         // Generate non-function items (actors, structs, enums, components)
         // Skip if we're in blueprint-library-only mode
+        // Count actors from the FULL program (not filtered other_items) so sliced mode
+        // doesn't falsely think there's only 1 actor and auto-wire all compute shaders.
+        let actor_count = program.items().iter().filter(|i| matches!(i, TypedItem::Actor(_))).count();
         if !blueprint_library_only {
             for item in &other_items {
                 match item {
                     TypedItem::Actor(actor_typed) => {
                         // Only pass COMPUTE shaders to actor codegen for RDG dispatch.
                         // Fragment/vertex shaders are used via materials, not direct dispatch.
-                        let compute_shaders: Vec<&TypedShader> = shaders.iter()
+                        let all_compute: Vec<&TypedShader> = shaders.iter()
                             .filter(|s| s.ast.stage == kain_core::ast::ShaderStage::Compute)
                             .copied()
                             .collect();
-                        let compute_shader_names: Vec<String> = compute_shaders.iter()
-                            .map(|s| s.ast.name.clone())
-                            .collect();
-                        self.gen_actor_with_shaders(&actor_typed.ast, &compute_shaders, &compute_shader_names)
+
+                        // Data-driven: check for @dispatch("ShaderA", "ShaderB") attribute
+                        let dispatch_attr = actor_typed.ast.attributes.iter()
+                            .find(|a| a.name == "dispatch");
+
+                        let (actor_shaders, actor_shader_names): (Vec<&TypedShader>, Vec<String>) =
+                            if let Some(attr) = dispatch_attr {
+                                // Explicit opt-in: only wire named shaders
+                                let requested: Vec<String> = attr.args.iter().filter_map(|arg| {
+                                    if let kain_core::ast::Expr::String(s, _) = arg { Some(s.clone()) } else { None }
+                                }).collect();
+                                let filtered: Vec<&TypedShader> = all_compute.iter()
+                                    .filter(|s| requested.contains(&s.ast.name))
+                                    .copied()
+                                    .collect();
+                                let names: Vec<String> = filtered.iter().map(|s| s.ast.name.clone()).collect();
+                                (filtered, names)
+                            } else {
+                                // No @dispatch attribute → don't wire any shaders.
+                                // Actors must explicitly opt-in via @dispatch("ShaderA", "ShaderB").
+                                (Vec::new(), Vec::new())
+                            };
+
+                        self.gen_actor_with_shaders(&actor_typed.ast, &actor_shaders, &actor_shader_names)
                     },
                     TypedItem::Struct(st) => {
                         let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
@@ -3576,29 +3613,72 @@ impl Ue5Gen {
             TypedItem::Actor(a) => {
                 for state in &a.ast.state {
                     self.map_type(&state.ty);
+                    self.discover_type_headers(&state.ty);
                 }
                 for method in &a.ast.methods {
                     if let Some(ret) = &method.return_type {
                         self.map_type(ret);
+                        self.discover_type_headers(ret);
                     }
                     for param in &method.params {
                         self.map_type(&param.ty);
+                        self.discover_type_headers(&param.ty);
+                    }
+                }
+                for handler in &a.ast.handlers {
+                    for param in &handler.params {
+                        self.map_type(&param.ty);
+                        self.discover_type_headers(&param.ty);
                     }
                 }
             },
             TypedItem::Struct(s) => {
                 for field in &s.ast.fields {
                     self.map_type(&field.ty);
+                    self.discover_type_headers(&field.ty);
                 }
             },
             TypedItem::Component(c) => {
                 for state in &c.ast.state {
                     self.map_type(&state.ty);
+                    self.discover_type_headers(&state.ty);
                 }
             },
             TypedItem::TypeAlias(a) => {
                 self.map_type(&a.ast.target);
+                self.discover_type_headers(&a.ast.target);
             },
+            _ => {}
+        }
+    }
+
+    /// Recursively walk a Type and call context.need_header() for any user-defined
+    /// type that has a registered header in type_to_header.
+    fn discover_type_headers(&self, ty: &Type) {
+        match ty {
+            Type::Named { name, generics, .. } => {
+                if let Some(header) = self.context.type_to_header.get(name) {
+                    self.context.need_header(header.clone());
+                }
+                for g in generics {
+                    self.discover_type_headers(g);
+                }
+            }
+            Type::Array(inner, _, _) | Type::Slice(inner, _) | Type::Option(inner, _) => {
+                self.discover_type_headers(inner);
+            }
+            Type::Result(ok, err, _) => {
+                self.discover_type_headers(ok);
+                self.discover_type_headers(err);
+            }
+            Type::Ref { inner, .. } => self.discover_type_headers(inner),
+            Type::Tuple(items, _) => {
+                for t in items { self.discover_type_headers(t); }
+            }
+            Type::Function { params, return_type, .. } => {
+                for p in params { self.discover_type_headers(p); }
+                self.discover_type_headers(return_type);
+            }
             _ => {}
         }
     }

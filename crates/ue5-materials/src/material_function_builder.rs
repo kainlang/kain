@@ -449,6 +449,133 @@ impl MaterialFunctionBuilder {
         self.add_unary_op_node("MaterialExpressionSaturate", input)
     }
 
+    pub fn add_abs_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionAbs", input)
+    }
+
+    pub fn add_frac_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionFrac", input)
+    }
+
+    pub fn add_floor_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionFloor", input)
+    }
+
+    pub fn add_ceil_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionCeil", input)
+    }
+
+    pub fn add_round_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionRound", input)
+    }
+
+    pub fn add_sqrt_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionSquareRoot", input)
+    }
+
+    pub fn add_sine_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionSine", input)
+    }
+
+    pub fn add_cosine_node(&mut self, input: usize) -> usize {
+        self.add_unary_op_node("MaterialExpressionCosine", input)
+    }
+
+    pub fn add_length_node(&mut self, input: usize) -> usize {
+        let prop = self.make_input_property("Input", input, 0);
+        self.add_expression_export("MaterialExpressionLength", vec![prop])
+    }
+
+    pub fn add_cross_node(&mut self, a: usize, b: usize) -> usize {
+        self.add_binary_op_node("MaterialExpressionCrossProduct", a, b)
+    }
+
+    pub fn add_min_node(&mut self, a: usize, b: usize) -> usize {
+        self.add_binary_op_node("MaterialExpressionMin", a, b)
+    }
+
+    pub fn add_max_node(&mut self, a: usize, b: usize) -> usize {
+        self.add_binary_op_node("MaterialExpressionMax", a, b)
+    }
+
+    pub fn add_distance_node(&mut self, a: usize, b: usize) -> usize {
+        self.add_binary_op_node("MaterialExpressionDistance", a, b)
+    }
+
+    pub fn add_append_node(&mut self, a: usize, b: usize) -> usize {
+        self.add_binary_op_node("MaterialExpressionAppendVector", a, b)
+    }
+
+    pub fn add_clamp_node(&mut self, input: usize, min: usize, max: usize) -> usize {
+        let input_prop = self.make_input_property("Input", input, 0);
+        let min_prop = self.make_input_property("Min", min, 0);
+        let max_prop = self.make_input_property("Max", max, 0);
+        self.add_expression_export("MaterialExpressionClamp", vec![input_prop, min_prop, max_prop])
+    }
+
+    pub fn add_constant4_node(&mut self, r: f32, g: f32, b: f32, a: f32) -> usize {
+        let name = self.asset.add_fname("Constant");
+        let struct_type = self.asset.add_fname("LinearColor");
+
+        let color_struct = StructProperty {
+            name,
+            ancestry: Default::default(),
+            property_guid: None,
+            duplication_index: 0,
+            struct_type: Some(struct_type),
+            struct_guid: Some(Default::default()),
+            serialize_none: true,
+            value: vec![LinearColorProperty {
+                name: Default::default(),
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                color: Color::new(
+                    OrderedFloat(r),
+                    OrderedFloat(g),
+                    OrderedFloat(b),
+                    OrderedFloat(a),
+                ),
+            }
+            .into()],
+        };
+
+        self.add_expression_export("MaterialExpressionConstant4Vector", vec![color_struct.into()])
+    }
+
+    pub fn add_time_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionTime", Vec::new())
+    }
+
+    pub fn add_texture_coordinate_node(&mut self, index: u32) -> usize {
+        let idx_name = self.asset.add_fname("CoordinateIndex");
+        let props = vec![IntProperty {
+            name: idx_name,
+            ancestry: Default::default(),
+            property_guid: None,
+            duplication_index: 0,
+            value: index as i32,
+        }
+        .into()];
+        self.add_expression_export("MaterialExpressionTextureCoordinate", props)
+    }
+
+    pub fn add_component_mask_node(&mut self, input: usize, r: bool, g: bool, b: bool, a: bool) -> usize {
+        let input_prop = self.make_input_property("Input", input, 0);
+        let r_name = self.asset.add_fname("R");
+        let g_name = self.asset.add_fname("G");
+        let b_name = self.asset.add_fname("B");
+        let a_name = self.asset.add_fname("A");
+        let props = vec![
+            input_prop,
+            BoolProperty { name: r_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: r }.into(),
+            BoolProperty { name: g_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: g }.into(),
+            BoolProperty { name: b_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: b }.into(),
+            BoolProperty { name: a_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: a }.into(),
+        ];
+        self.add_expression_export("MaterialExpressionComponentMask", props)
+    }
+
     // ── Build: finalize and serialize ──────────────────────────────────────
 
     /// Finalize the material function and serialize to .uasset bytes.
@@ -582,8 +709,11 @@ fn convert_function_node(
         MaterialNodeType::ConstantVec3 { value } | MaterialNodeType::ConstantVector3 { value } => {
             Ok(builder.add_constant3_node(value[0], value[1], value[2]))
         }
+        MaterialNodeType::ConstantVec4 { value } | MaterialNodeType::ConstantVector4 { value } => {
+            Ok(builder.add_constant4_node(value[0], value[1], value[2], value[3]))
+        }
 
-        // Arithmetic
+        // Arithmetic (binary)
         MaterialNodeType::Add { a, b } => {
             Ok(builder.add_add_node(resolve(a)?, resolve(b)?))
         }
@@ -599,6 +729,21 @@ fn convert_function_node(
         MaterialNodeType::Dot { a, b } | MaterialNodeType::DotProduct { a, b } => {
             Ok(builder.add_dot_node(resolve(a)?, resolve(b)?))
         }
+        MaterialNodeType::Cross { a, b } => {
+            Ok(builder.add_cross_node(resolve(a)?, resolve(b)?))
+        }
+        MaterialNodeType::Min { a, b } => {
+            Ok(builder.add_min_node(resolve(a)?, resolve(b)?))
+        }
+        MaterialNodeType::Max { a, b } => {
+            Ok(builder.add_max_node(resolve(a)?, resolve(b)?))
+        }
+        MaterialNodeType::Distance { a, b } => {
+            Ok(builder.add_distance_node(resolve(a)?, resolve(b)?))
+        }
+        MaterialNodeType::Append { a, b } | MaterialNodeType::AppendVector { a, b } => {
+            Ok(builder.add_append_node(resolve(a)?, resolve(b)?))
+        }
         MaterialNodeType::Power { base, exponent } => {
             Ok(builder.add_power_node(resolve(base)?, resolve(exponent)?))
         }
@@ -607,16 +752,49 @@ fn convert_function_node(
         MaterialNodeType::Lerp { a, b, alpha } => {
             Ok(builder.add_lerp_node(resolve(a)?, resolve(b)?, resolve(alpha)?))
         }
+        MaterialNodeType::Clamp { input, min, max } => {
+            Ok(builder.add_clamp_node(resolve(input)?, resolve(min)?, resolve(max)?))
+        }
 
         // Unary
         MaterialNodeType::Normalize { input } => {
             Ok(builder.add_normalize_node(resolve(input)?))
         }
+        MaterialNodeType::Length { input } => {
+            Ok(builder.add_length_node(resolve(input)?))
+        }
+        MaterialNodeType::Abs { input } => Ok(builder.add_abs_node(resolve(input)?)),
         MaterialNodeType::Saturate { input } => {
             Ok(builder.add_saturate_node(resolve(input)?))
         }
+        MaterialNodeType::Frac { input } => Ok(builder.add_frac_node(resolve(input)?)),
+        MaterialNodeType::Floor { input } => Ok(builder.add_floor_node(resolve(input)?)),
+        MaterialNodeType::Ceil { input } => Ok(builder.add_ceil_node(resolve(input)?)),
+        MaterialNodeType::Round { input } => Ok(builder.add_round_node(resolve(input)?)),
+        MaterialNodeType::Sqrt { input } => Ok(builder.add_sqrt_node(resolve(input)?)),
+        MaterialNodeType::Sine { input } => Ok(builder.add_sine_node(resolve(input)?)),
+        MaterialNodeType::Cosine { input } => Ok(builder.add_cosine_node(resolve(input)?)),
 
-        // Add more node types as needed...
+        // Time
+        MaterialNodeType::Time => Ok(builder.add_time_node()),
+
+        // Texture
+        MaterialNodeType::TextureCoordinate { index, .. } => {
+            Ok(builder.add_texture_coordinate_node(*index))
+        }
+        MaterialNodeType::ComponentMask { input, mask } => {
+            let node = resolve(input)?;
+            let m = mask.to_lowercase();
+            Ok(builder.add_component_mask_node(
+                node,
+                m.contains('r'),
+                m.contains('g'),
+                m.contains('b'),
+                m.contains('a'),
+            ))
+        }
+
+        // Node types that don't make sense in material functions
         _ => Err(format!("Node type {:?} not yet supported in material functions", node_type)),
     }
 }

@@ -114,7 +114,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             match convert_material_graph(mat_def, &surface_shader_hlsl) {
                 Ok(graph) => {
                     // Attempt binary .uasset generation first
-                    match ue5_materials::material_serializer::serialize_material_graph(&graph) {
+                    match ue5_materials::material_serializer::serialize_material_graph(&graph, ue5_asset_utils::KainEngineTarget::default()) {
                         Ok(bytes) => {
                             let path = mat_content_dir.join(format!("{}.uasset", graph.name));
                             if let Err(e) = fs::write(&path, &bytes) {

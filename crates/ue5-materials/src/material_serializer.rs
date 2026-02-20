@@ -50,7 +50,6 @@ pub struct MaterialAssetBuilder {
     engine_import: PackageIndex,
     core_uobject_import: PackageIndex,
     material_class_import: PackageIndex,
-    material_package_import: PackageIndex,
 
     // Expression class imports — lazily added as needed
     class_imports: HashMap<String, PackageIndex>,
@@ -98,15 +97,12 @@ impl MaterialAssetBuilder {
         let core_uobject_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
         let engine_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/Engine");
         let material_class_import = ImportBuilder::get_or_add_class(&mut asset, "Material", engine_import);
-        let material_package_import = ImportBuilder::get_or_add_package(&mut asset, material_name);
-
         let mut builder = MaterialAssetBuilder {
             asset,
             material_name: material_name.to_string(),
             engine_import,
             core_uobject_import,
             material_class_import,
-            material_package_import,
             class_imports: HashMap::new(),
             material_export_index: PackageIndex::new(1), // first export is 1-based
             node_exports: Vec::new(),
@@ -512,6 +508,15 @@ impl MaterialAssetBuilder {
 
     // -- Texture sampling --
 
+    /// Add a plain TextureSample node (non-parameter, no exposed name).
+    pub fn add_texture_sample_node(&mut self, uv: Option<usize>) -> usize {
+        let mut props: Vec<Property> = Vec::new();
+        if let Some(uv_node) = uv {
+            props.push(self.make_input_property("Coordinates", uv_node, 0));
+        }
+        self.add_expression_export("MaterialExpressionTextureSample", props)
+    }
+
     pub fn add_texture_sample_parameter(&mut self, param_name: &str, uv: Option<usize>) -> usize {
         let pname = self.asset.add_fname("ParameterName");
         let mut props: Vec<Property> = vec![StrProperty {
@@ -625,6 +630,47 @@ impl MaterialAssetBuilder {
             }),
         ];
         self.add_expression_export("MaterialExpressionScalarParameter", props)
+    }
+
+    pub fn add_color_parameter_node(&mut self, param_name: &str, default: [f32; 4]) -> usize {
+        let pname = self.asset.add_fname("ParameterName");
+        let default_name = self.asset.add_fname("DefaultValue");
+        let struct_type = self.asset.add_fname("LinearColor");
+
+        let color_struct = StructProperty {
+            name: default_name,
+            ancestry: Default::default(),
+            property_guid: None,
+            duplication_index: 0,
+            struct_type: Some(struct_type),
+            struct_guid: Some(Default::default()),
+            serialize_none: true,
+            value: vec![LinearColorProperty {
+                name: Default::default(),
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                color: Color::new(
+                    OrderedFloat(default[0]),
+                    OrderedFloat(default[1]),
+                    OrderedFloat(default[2]),
+                    OrderedFloat(default[3]),
+                ),
+            }
+            .into()],
+        };
+
+        let props = vec![
+            Property::from(StrProperty {
+                name: pname,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: Some(param_name.to_string()),
+            }),
+            color_struct.into(),
+        ];
+        self.add_expression_export("MaterialExpressionVectorParameter", props)
     }
 
     pub fn add_vector_parameter_node(&mut self, param_name: &str, default: [f32; 3]) -> usize {
@@ -1216,8 +1262,11 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
 // ---------------------------------------------------------------------------
 
 /// Convert a MaterialGraph IR to .uasset bytes.
-pub fn serialize_material_graph(graph: &MaterialGraph) -> Result<Vec<u8>, String> {
-    let mut builder = MaterialAssetBuilder::new(&format!("M_{}", graph.name), KainEngineTarget::default());
+///
+/// `engine_target` controls the UE version the asset is built for.
+/// Pass `KainEngineTarget::default()` if you don't need to target a specific version.
+pub fn serialize_material_graph(graph: &MaterialGraph, engine_target: KainEngineTarget) -> Result<Vec<u8>, String> {
+    let mut builder = MaterialAssetBuilder::new(&format!("M_{}", graph.name), engine_target);
 
     // Configure material properties
     builder.set_blend_mode(&graph.properties.blend_mode);
@@ -1315,7 +1364,7 @@ fn convert_node(
             Ok(builder.add_vector_parameter_node(name, *default))
         }
         MaterialNodeType::ColorParameter { name, default } => {
-            Ok(builder.add_vector_parameter_node(name, [default[0], default[1], default[2]]))
+            Ok(builder.add_color_parameter_node(name, *default))
         }
 
         // Arithmetic
@@ -1409,12 +1458,12 @@ fn convert_node(
         )),
 
         // Textures
-        MaterialNodeType::TextureSample { uv_input, .. } => {
+        MaterialNodeType::TextureSample { texture_input, uv_input } => {
             let uv = uv_input
                 .as_ref()
                 .and_then(|id| node_map.get(id))
                 .copied();
-            Ok(builder.add_texture_sample_parameter("TextureSample", uv))
+            Ok(builder.add_texture_sample_node(uv))
         }
         MaterialNodeType::TextureSampleParameter2D {
             param_name,
@@ -1455,12 +1504,12 @@ fn convert_node(
             offset_y,
         } => {
             let uv = resolve(node_map, uv_input)?;
-            // offset_x/y are node ID refs to speed values
-            // For panner, we use constant speed values
-            // Try to parse as float for simple cases
-            let sx = offset_x.parse::<f32>().unwrap_or(0.1);
-            let sy = offset_y.parse::<f32>().unwrap_or(0.0);
-            Ok(builder.add_panner_node(uv, sx, sy))
+            // offset_x/y are node IDs referencing speed value nodes
+            let ox = resolve(node_map, offset_x)?;
+            let oy = resolve(node_map, offset_y)?;
+            // Build a 2-component speed vector and use Panner-style Add
+            let speed_vec = builder.add_append_node(ox, oy);
+            Ok(builder.add_add_node(uv, speed_vec))
         }
         MaterialNodeType::UVScale {
             uv_input,
@@ -1468,10 +1517,11 @@ fn convert_node(
             scale_y,
         } => {
             let uv = resolve(node_map, uv_input)?;
-            let sx_val = scale_x.parse::<f32>().unwrap_or(1.0);
-            let sy_val = scale_y.parse::<f32>().unwrap_or(1.0);
-            let scale = builder.add_constant3_node(sx_val, sy_val, 0.0);
-            Ok(builder.add_multiply_node(uv, scale))
+            // scale_x/y are node IDs referencing scale value nodes
+            let sx = resolve(node_map, scale_x)?;
+            let sy = resolve(node_map, scale_y)?;
+            let scale_vec = builder.add_append_node(sx, sy);
+            Ok(builder.add_multiply_node(uv, scale_vec))
         }
         MaterialNodeType::UVRotate {
             uv_input,
@@ -1503,9 +1553,15 @@ fn convert_node(
             output_type,
             inputs,
         } => {
+            // CustomInput has name + input_type but no node_id field.
+            // Inputs are positional — wire them to any nodes that share
+            // the same name in the node_map (best-effort resolution).
             let resolved: Vec<(String, usize)> = inputs
                 .iter()
-                .map(|ci| Ok((ci.name.clone(), 0usize))) // Custom inputs need resolution
+                .map(|ci| {
+                    let node_id = node_map.get(&ci.name).copied().unwrap_or(0);
+                    Ok((ci.name.clone(), node_id))
+                })
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(builder.add_custom_hlsl_node(code, output_type, &resolved))
         }
@@ -1650,7 +1706,7 @@ mod tests {
 
         graph.outputs.base_color = Some("add".to_string());
 
-        let bytes = serialize_material_graph(&graph).expect("serialization should succeed");
+        let bytes = serialize_material_graph(&graph, KainEngineTarget::default()).expect("serialization should succeed");
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
     }

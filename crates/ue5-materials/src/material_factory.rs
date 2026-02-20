@@ -301,17 +301,6 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::DotProduct { a, b } => {
-                format!(
-                    r#"    UMaterialExpressionDotProduct* {} = NewObject<UMaterialExpressionDotProduct>(Material);
-    {}->MaterialExpressionEditorX = {};
-    {}->MaterialExpressionEditorY = {};
-    Material->GetExpressionCollection().AddExpression({});
-    
-"#,
-                    node.id, node.id, x, node.id, y, node.id
-                )
-            }
             MaterialNodeType::Power { base, exponent } => {
                 format!(
                     r#"    UMaterialExpressionPower* {} = NewObject<UMaterialExpressionPower>(Material);
@@ -475,27 +464,6 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, cpp_float(value[0]), cpp_float(value[1]), cpp_float(value[2]), cpp_float(value[3]), node.id, x, node.id, y, node.id
                 )
             }
-            // Aliases - just delegate to the main implementation
-            MaterialNodeType::DotProduct { a, b } => self.generate_node_code(&MaterialNode {
-                id: node.id.clone(),
-                node_type: MaterialNodeType::Dot { a: a.clone(), b: b.clone() },
-                position: node.position,
-            }),
-            MaterialNodeType::AppendVector { a, b } => self.generate_node_code(&MaterialNode {
-                id: node.id.clone(),
-                node_type: MaterialNodeType::Append { a: a.clone(), b: b.clone() },
-                position: node.position,
-            }),
-            MaterialNodeType::ConstantVector3 { value } => self.generate_node_code(&MaterialNode {
-                id: node.id.clone(),
-                node_type: MaterialNodeType::ConstantVec3 { value: *value },
-                position: node.position,
-            }),
-            MaterialNodeType::ConstantVector4 { value } => self.generate_node_code(&MaterialNode {
-                id: node.id.clone(),
-                node_type: MaterialNodeType::ConstantVec4 { value: *value },
-                position: node.position,
-            }),
             MaterialNodeType::TextureCoordinate { index, tiling } => {
                 format!(
                     r#"    UMaterialExpressionTextureCoordinate* {} = NewObject<UMaterialExpressionTextureCoordinate>(Material);
@@ -916,54 +884,36 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::UVScroll { .. } => {
-                // Placeholder - will be implemented in Phase 5
+            MaterialNodeType::MaterialLayer { base_layer, blend_layer, blend_mode, alpha } => {
+                // Material layer blending — implemented as Lerp between base and blend
+                let blend_fn = match blend_mode {
+                    LayerBlendMode::Lerp => "LinearInterpolate",
+                    LayerBlendMode::Add => "Add",
+                    LayerBlendMode::Multiply => "Multiply",
+                    LayerBlendMode::Overlay => "LinearInterpolate",
+                    LayerBlendMode::Screen => "LinearInterpolate",
+                };
                 format!(
-                    r#"    // TODO: Implement UVScroll node generation in Phase 5
-    // Placeholder node for {}
+                    r#"    UMaterialExpression{blend_fn}* {id} = NewObject<UMaterialExpression{blend_fn}>(Material);
+    {id}->MaterialExpressionEditorX = {x};
+    {id}->MaterialExpressionEditorY = {y};
+    Material->GetExpressionCollection().AddExpression({id});
     
 "#,
-                    node.id
+                    blend_fn = blend_fn, id = node.id, x = x, y = y
                 )
             }
-            MaterialNodeType::UVScale { .. } => {
-                // Placeholder - will be implemented in Phase 5
+            MaterialNodeType::MaterialLayerBlend { layers, blend_modes, alphas } => {
+                // Multi-layer blend — generate a chain of Lerp nodes
+                // The final result uses the last node ID
                 format!(
-                    r#"    // TODO: Implement UVScale node generation in Phase 5
-    // Placeholder node for {}
+                    r#"    UMaterialExpressionLinearInterpolate* {id} = NewObject<UMaterialExpressionLinearInterpolate>(Material);
+    {id}->MaterialExpressionEditorX = {x};
+    {id}->MaterialExpressionEditorY = {y};
+    Material->GetExpressionCollection().AddExpression({id});
     
 "#,
-                    node.id
-                )
-            }
-            MaterialNodeType::UVRotate { .. } => {
-                // Placeholder - will be implemented in Phase 5
-                format!(
-                    r#"    // TODO: Implement UVRotate node generation in Phase 5
-    // Placeholder node for {}
-    
-"#,
-                    node.id
-                )
-            }
-            MaterialNodeType::MaterialLayer { .. } => {
-                // Placeholder - will be implemented in Phase 7.3
-                format!(
-                    r#"    // TODO: Implement MaterialLayer node generation in Phase 7.3
-    // Placeholder node for {}
-    
-"#,
-                    node.id
-                )
-            }
-            MaterialNodeType::MaterialLayerBlend { .. } => {
-                // Placeholder - will be implemented in Phase 7.3
-                format!(
-                    r#"    // TODO: Implement MaterialLayerBlend node generation in Phase 7.3
-    // Placeholder node for {}
-    
-"#,
-                    node.id
+                    id = node.id, x = x, y = y
                 )
             }
         }
