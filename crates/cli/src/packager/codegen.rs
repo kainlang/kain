@@ -1044,28 +1044,38 @@ fn compute_runtime_deps(
     program: &kain_core::types::TypedProgram,
 ) -> Vec<String> {
     let base_modules = ["Core", "CoreUObject", "Engine", "Projects"];
-    
-    if module_graph.is_loaded() {
+
+    let mut deps = if module_graph.is_loaded() {
         // Data-driven: extract all types referenced in the program and resolve via graph
         let referenced = extract_referenced_types(program);
         let type_refs: Vec<&str> = referenced.iter().map(|s| s.as_str()).collect();
-        
+
         let mut apis: Vec<&str> = Vec::new();
         if has_shaders {
             apis.push("AddShaderSourceDirectoryMapping");
             apis.push("AllShaderSourceDirectoryMappings");
             apis.push("IMPLEMENT_GLOBAL_SHADER");
         }
-        
+
         module_graph.resolve_deps_for_types(&type_refs, &[], &apis, &base_modules)
     } else {
         // Fallback: feature-based (legacy behavior)
-        let mut deps = Vec::new();
-        if has_shaders {
-            deps.extend(["RenderCore", "RHI", "Renderer"].iter().map(|s| s.to_string()));
+        Vec::new()
+    };
+
+    // Shader compilation always requires RHI (FGlobalShader) and Renderer
+    // (IMPLEMENT_GLOBAL_SHADER). RenderCore is transitively pulled in by RHI,
+    // but all three must be listed explicitly for UnrealBuildTool to pick them up.
+    if has_shaders {
+        for module in &["RenderCore", "RHI", "Renderer"] {
+            let s = module.to_string();
+            if !deps.contains(&s) {
+                deps.push(s);
+            }
         }
-        deps
     }
+
+    deps
 }
 
 /// Compute the extra module dependencies needed for editor code.

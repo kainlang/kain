@@ -6,37 +6,38 @@ use crate::error::KainResult;
 use ue5_materials::{MaterialGraph, MaterialFactoryGenerator};
 
 /// Generate material factory files for runtime material creation.
-/// Creates MaterialFactories.h/cpp in Generated/ directory.
+/// Creates MaterialFactories.h/cpp in `private_dir/Generated/`.
+///
+/// `private_dir` is the plugin's Source/<Module>/Private directory as
+/// computed by PluginLayout — callers should pass `layout.private_dir`.
 #[cfg(feature = "ue5")]
 pub fn generate_material_factories(
     plugin_name: &str,
     graphs: &[MaterialGraph],
-    output_dir: &Path,
+    private_dir: &Path,
 ) -> KainResult<()> {
     if graphs.is_empty() {
         return Ok(());
     }
 
     let generator = MaterialFactoryGenerator::new(plugin_name.to_string());
-    
-    // Create Generated directory
-    let generated_dir = output_dir
-        .join("Source")
-        .join(plugin_name)
-        .join("Private")
-        .join("Generated");
+
+    // Place Generated/ directly under the layout's private directory — this
+    // is always correct regardless of whether the plugin uses split-module
+    // layout or the legacy flat layout.
+    let generated_dir = private_dir.join("Generated");
     fs::create_dir_all(&generated_dir)?;
-    
+
     // Generate header
     let header = generator.generate_factory_header(graphs);
     fs::write(generated_dir.join("MaterialFactories.h"), header)?;
-    
+
     // Generate cpp
     let cpp = generator.generate_factory_cpp(graphs);
     fs::write(generated_dir.join("MaterialFactories.cpp"), cpp)?;
-    
+
     println!("✓ Generated material factories for {} materials", graphs.len());
-    
+
     Ok(())
 }
 
@@ -44,8 +45,8 @@ pub fn generate_material_factories(
 #[cfg(not(feature = "ue5"))]
 pub fn generate_material_factories(
     _plugin_name: &str,
-    _graphs: &[()],  // Empty slice type
-    _output_dir: &Path,
+    _graphs: &[()],
+    _private_dir: &Path,
 ) -> KainResult<()> {
     Ok(())
 }

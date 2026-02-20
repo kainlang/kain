@@ -920,15 +920,12 @@ impl ShaderValidator {
                     } else {
                         cbuffer_bindings.insert(binding, uniform_name.clone());
                     }
-                    
-                    // Check for b0 usage (reserved for View uniform buffer in UE5)
-                    if binding == 0 {
-                        errors.push(format!(
-                            "Shader '{}': Constant buffer parameter '{}' uses binding @0 (b0) which is reserved for UE5 View uniform buffer. \
-                            Use @1 or higher for material parameters.",
-                            shader_name, uniform_name
-                        ));
-                    }
+
+                    // NOTE: In KAIN, scalar/vector uniforms are packed into a
+                    // SHADER_PARAMETER_STRUCT, not declared as explicit cbuffer registers.
+                    // UE5's b0 reservation (View uniform buffer) does not apply to
+                    // SHADER_PARAMETER_STRUCT members. The @N annotation is a KAIN-internal
+                    // ordering index only, so no b-register conflict is possible here.
                     
                     // Validate constant buffer binding range
                     if binding > 13 {
@@ -2185,9 +2182,10 @@ mod tests {
     }
     
     #[test]
-    fn test_binding_cbuffer_b0_reserved() {
+    fn test_binding_cbuffer_b0_not_reserved_for_shader_params() {
         let mut validator = ShaderValidator::new();
-        
+
+        // KAIN uses SHADER_PARAMETER_STRUCT (not explicit cbuffer b0) so @0 is valid.
         let shader = make_test_shader("TestShader", vec![
             Uniform {
                 name: "my_color".to_string(),
@@ -2196,17 +2194,17 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 0, // b0 is reserved for View!
+                binding: 0, // @0 is fine — it's a struct member index, not b0 register
                 span: Span::default(),
             },
         ]);
-        
+
         let result = validator.validate_shader(&shader, None);
-        assert!(result.is_err(), "Should detect b0 usage");
-        
-        let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("b0") && e.contains("reserved for UE5 View")), 
-                "Should report b0 reserved error: {:?}", errors);
+        // Should NOT error on @0 for scalar/vector params in SHADER_PARAMETER_STRUCT
+        if let Err(errors) = result {
+            assert!(!errors.iter().any(|e| e.contains("b0") && e.contains("reserved for UE5 View")),
+                    "Should NOT report b0 reserved error for SHADER_PARAMETER_STRUCT members: {:?}", errors);
+        }
     }
     
     #[test]

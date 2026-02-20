@@ -141,9 +141,11 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             }
         }
 
-        // Always generate C++ factories as a safety net (editor can re-import)
+        // Always generate C++ factories as a safety net (editor can re-import).
+        // Route through layout.private_dir so the files land in the correct
+        // Source/<Module>/Private/Generated/ path, not at the project root.
         if !converted_graphs.is_empty() {
-            super::material_gen::generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &cwd)?;
+            super::material_gen::generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &layout.private_dir)?;
         }
         println!();
     }

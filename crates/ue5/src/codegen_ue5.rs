@@ -2567,10 +2567,19 @@ impl Ue5Gen {
                         return "UE_LOG(LogTemp, Warning, TEXT(\"\"))".to_string();
                     }
                     
-                    // For single string literal, use directly
+                    // For single string literal — may contain {identifier} interpolation
                     if args.len() == 1 {
                         if let Expr::String(s, _) = &args[0].value {
-                            return format!("UE_LOG(LogTemp, Warning, TEXT(\"{}\"))", self.escape_string(s));
+                            // Check if the string contains {identifier} interpolation patterns.
+                            // KAIN allows `println("Value is {x}")` with a regular string literal
+                            // (no `f"..."` prefix required). We apply the same transformation as
+                            // for Expr::FString: replace {var} with %s and collect format args.
+                            let (fmt_str, fmt_args) = self.interpolate_raw_string(s);
+                            if fmt_args.is_empty() {
+                                return format!("UE_LOG(LogTemp, Warning, TEXT(\"{}\"))", fmt_str);
+                            } else {
+                                return format!("UE_LOG(LogTemp, Warning, TEXT(\"{}\"), {})", fmt_str, fmt_args.join(", "));
+                            }
                         }
                         // For single FString with interpolation, generate direct UE_LOG format
                         if let Expr::FString(parts, _) = &args[0].value {

@@ -1131,6 +1131,10 @@ impl<'a> Parser<'a> {
             self.skip_newlines();
         }
         
+        // Drain any newlines emitted after the 'return' statement (the break
+        // above skips the loop's own trailing skip_newlines call) and then
+        // consume the indented block's Dedent token.
+        self.skip_newlines();
         if self.check(TokenKind::Dedent) {
             self.advance();
         }

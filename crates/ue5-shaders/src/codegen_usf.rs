@@ -111,13 +111,9 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
             
             if is_compute && all_uav_outputs.is_empty() {
                 // We'll inject a default output UAV called "OutputTexture"
-                 let is_3d = if let Some(p) = shader.ast.inputs.get(0) {
-                     is_3d_id_type(&p.ty)
-                 } else {
-                     false
-                 };
-                 let uav_ty = if is_3d { "RWTexture3D<float4>" } else { "RWTexture2D<float4>" };
-                 all_uav_outputs.push(("OutputTexture".to_string(), uav_ty.to_string(), 0));
+                let is_3d = is_3d_compute_shader(shader);
+                let uav_ty = if is_3d { "RWTexture3D<float4>" } else { "RWTexture2D<float4>" };
+                all_uav_outputs.push(("OutputTexture".to_string(), uav_ty.to_string(), 0));
             }
             
             break; // Found our shader, stop looking
@@ -449,13 +445,9 @@ fn generate_cpp_implementation_cached(program: &TypedProgram, shader_name: &str,
             
             // Inject default OutputTexture if needed for compute
             if is_compute && all_uav_outputs.is_empty() {
-                 let is_3d = if let Some(p) = shader.ast.inputs.get(0) {
-                     is_3d_id_type(&p.ty)
-                 } else {
-                     false
-                 };
-                 let uav_ty = if is_3d { "RWTexture3D<float4>" } else { "RWTexture2D<float4>" };
-                 all_uav_outputs.push(("OutputTexture".to_string(), uav_ty.to_string(), 0));
+                let is_3d = is_3d_compute_shader(shader);
+                let uav_ty = if is_3d { "RWTexture3D<float4>" } else { "RWTexture2D<float4>" };
+                all_uav_outputs.push(("OutputTexture".to_string(), uav_ty.to_string(), 0));
             }
             break; 
         }
@@ -630,12 +622,15 @@ fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResul
         }
     }
     
-    // For compute shaders, check if we need to inject the OutputTexture UAV
+    // For compute shaders, check if we need to inject the OutputTexture UAV.
+    // 3D-ness is determined by whether the shader declares a 3D volume UAV output
+    // (Image3D / RWTexture3D uniform), NOT by the dispatch ID type — every compute
+    // shader uses uint3/Vec3 for SV_DispatchThreadID regardless of dimensionality.
     if has_compute && all_uav_outputs.is_empty() {
         let is_3d = program.items.iter().find_map(|item| {
             if let TypedItem::Shader(s) = item {
                 if matches!(s.ast.stage, ShaderStage::Compute) {
-                    return Some(s.ast.inputs.get(0).map_or(false, |p| is_3d_id_type(&p.ty)));
+                    return Some(is_3d_compute_shader(s));
                 }
             }
             None
@@ -892,12 +887,13 @@ pub fn emit_shader_body(shader: &TypedShader, mirrors: &CachedMirrors, type_db: 
     
     match shader.ast.stage {
         ShaderStage::Compute => {
-            // Check dimensionality
-            let is_3d = shader.ast.inputs.get(0).map_or(false, |p| is_3d_id_type(&p.ty));
+            // Determine 3D-ness from output UAV type, not the dispatch ID.
+            // All compute shaders use uint3/Vec3 for SV_DispatchThreadID.
+            let is_3d = is_3d_compute_shader(shader);
             ctx.is_compute_3d = is_3d;
 
             // Check for @compute(x,y,z) attribute
-            let mut threads = if is_3d { (8, 8, 8) } else { (32, 32, 1) };
+            let mut threads = if is_3d { (8, 8, 8) } else { (8, 8, 1) };
             /* 
             // Attributes not yet supported on Shader AST node
             for attr in &shader.ast.attributes {
@@ -2561,7 +2557,15 @@ fn infer_field_type(ctx: &USFContext, obj_type: &str, field_name: &str) -> Strin
     "float".to_string()
 }
 
-fn is_3d_id_type(ty: &Type) -> bool {
-    let usf_ty = map_type_to_usf(ty);
-    usf_ty == "float3" || usf_ty == "uint3" || usf_ty == "int3"
+/// Determine whether a compute shader operates on 3D volume data.
+///
+/// The heuristic checks for explicit `Image3D` or `RWTexture3D` uniforms — if
+/// the shader writes to a 3D texture it is a 3D compute shader.  The dispatch
+/// ID type (always `uint3` / `Vec3` regardless of dimensionality) is
+/// intentionally **not** used as the signal.
+fn is_3d_compute_shader(shader: &TypedShader) -> bool {
+    shader.ast.uniforms.iter().any(|u| {
+        let usf_ty = map_type_to_usf(&u.ty);
+        usf_ty.contains("RWTexture3D") || usf_ty.contains("Texture3D")
+    })
 }

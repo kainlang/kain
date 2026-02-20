@@ -139,17 +139,24 @@ void F{}MaterialFactory::GenerateMaterials()
 
     /// Generate a complete material creation function
     fn generate_material_function(&self, graph: &MaterialGraph) -> String {
+        // Strip leading "M_" prefix from graph.name before building the package path,
+        // because the format string already prepends "M_". Without this, a graph named
+        // "M_TerrainBase" would produce the double-prefixed path "M_M_TerrainBase".
+        let bare_name = graph.name.strip_prefix("M_").unwrap_or(&graph.name);
+        // The full asset name always carries the M_ prefix in UE5 convention.
+        let asset_name = format!("M_{}", bare_name);
+
         let mut code = format!(
             r#"void F{}MaterialFactory::Generate_{}()
 {{
-    FString PackageName = TEXT("/{}/Materials/M_{}");
+    FString PackageName = TEXT("/{}/Materials/{}");
     UPackage* Package = CreatePackage(*PackageName);
     Package->FullyLoad();
     
-    UMaterial* Material = NewObject<UMaterial>(Package, TEXT("M_{}"), RF_Public | RF_Standalone);
+    UMaterial* Material = NewObject<UMaterial>(Package, TEXT("{}"), RF_Public | RF_Standalone);
     
 "#,
-            self.plugin_name, graph.name, self.plugin_name, graph.name, graph.name
+            self.plugin_name, graph.name, self.plugin_name, asset_name, asset_name
         );
 
         // Generate nodes
