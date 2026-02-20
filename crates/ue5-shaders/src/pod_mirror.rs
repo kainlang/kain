@@ -34,6 +34,96 @@ pub struct PodField {
     pub hlsl_type: String,
 }
 
+/// Returns the byte size of an HLSL scalar/vector type.
+/// Used for cbuffer alignment calculations.
+fn hlsl_type_size(hlsl_type: &str) -> u32 {
+    match hlsl_type {
+        "float"  | "int"  | "uint" | "bool" => 4,
+        "float2" | "int2" | "uint2"         => 8,
+        "float3" | "int3" | "uint3"         => 12,
+        "float4" | "int4" | "uint4"         => 16,
+        "double"                            => 8,
+        _                                   => 4, // safe default
+    }
+}
+
+/// Returns the alignment requirement of an HLSL type in a cbuffer.
+/// HLSL aligns each element to its own size, capped at 4 bytes (float4 = 16).
+fn hlsl_type_align(hlsl_type: &str) -> u32 {
+    hlsl_type_size(hlsl_type).min(16)
+}
+
+/// Compute the padded field layout for a cbuffer struct.
+/// Returns a list of `(field_name, hlsl_type)` entries including any injected
+/// `_paddingN` fields needed to satisfy HLSL cbuffer packing rules.
+///
+/// HLSL cbuffer rule: a field must not straddle a 16-byte boundary.
+/// If placing a field at the current offset would cross a 16-byte row,
+/// padding is injected to push it to the next row.
+pub fn compute_padded_hlsl_layout(fields: &[PodField]) -> Vec<(String, String)> {
+    let mut layout: Vec<(String, String)> = Vec::new();
+    let mut offset: u32 = 0;
+    let mut pad_idx: u32 = 0;
+
+    /// Emit padding floats to fill `gap_bytes` bytes, updating pad_idx.
+    fn emit_padding(layout: &mut Vec<(String, String)>, pad_idx: &mut u32, gap_bytes: u32) {
+        let mut remaining = gap_bytes;
+        while remaining >= 16 {
+            layout.push((format!("_padding{}", pad_idx), "float4".into()));
+            *pad_idx += 1;
+            remaining -= 16;
+        }
+        match remaining {
+            12 => { layout.push((format!("_padding{}", pad_idx), "float3".into())); *pad_idx += 1; }
+             8 => { layout.push((format!("_padding{}", pad_idx), "float2".into())); *pad_idx += 1; }
+             4 => { layout.push((format!("_padding{}", pad_idx), "float".into()));  *pad_idx += 1; }
+             0 => {}
+             _ => {
+                 // Odd byte count — shouldn't happen with 4-byte-aligned types,
+                 // but emit individual floats as a safe fallback
+                 for _ in 0..(remaining / 4) {
+                     layout.push((format!("_padding{}", pad_idx), "float".into()));
+                     *pad_idx += 1;
+                 }
+             }
+        }
+    }
+
+    for field in fields {
+        let size  = hlsl_type_size(&field.hlsl_type);
+        let align = hlsl_type_align(&field.hlsl_type);
+
+        // Align offset to the field's alignment requirement
+        let aligned_offset = (offset + align - 1) / align * align;
+
+        // Check if the field would straddle a 16-byte row boundary
+        let row_start = aligned_offset / 16 * 16;
+        let row_end   = row_start + 16;
+        let place_offset = if aligned_offset + size > row_end {
+            // Field straddles a boundary — push it to the next row
+            row_end
+        } else {
+            aligned_offset
+        };
+
+        // Emit explicit padding for any gap between current offset and place_offset
+        if place_offset > offset {
+            emit_padding(&mut layout, &mut pad_idx, place_offset - offset);
+        }
+
+        layout.push((field.name.clone(), field.hlsl_type.clone()));
+        offset = place_offset + size;
+    }
+
+    // Pad the struct to a 16-byte multiple (cbuffer requirement)
+    let remainder = offset % 16;
+    if remainder != 0 {
+        emit_padding(&mut layout, &mut pad_idx, 16 - remainder);
+    }
+
+    layout
+}
+
 /// A generated POD mirror struct for a `@component`.
 #[derive(Debug, Clone)]
 pub struct PodMirrorStruct {
@@ -47,30 +137,57 @@ pub struct PodMirrorStruct {
 
 impl PodMirrorStruct {
     /// C++ struct definition emitted **before** the shader class in `.h` files.
+    /// Includes padding fields that mirror the HLSL cbuffer layout exactly,
+    /// so sizeof(FXxxData) on the CPU matches the GPU struct size.
     pub fn generate_cpp_struct(&self) -> String {
         let mut out = String::new();
         out.push_str(&format!(
-            "// POD mirror for {} (GPU-compatible)\n",
+            "// POD mirror for {} (GPU-compatible, cbuffer-aligned)\n",
             self.component_name
         ));
         out.push_str(&format!("struct {} {{\n", self.pod_struct_name));
-        for field in &self.fields {
-            out.push_str(&format!("    {} {};\n", field.cpp_type, field.name));
+
+        // Build a lookup from field name → cpp_type for real fields
+        let cpp_types: std::collections::HashMap<&str, &str> = self.fields
+            .iter()
+            .map(|f| (f.name.as_str(), f.cpp_type.as_str()))
+            .collect();
+
+        // Use the padded HLSL layout so C++ and HLSL structs are byte-identical
+        let layout = compute_padded_hlsl_layout(&self.fields);
+        for (name, hlsl_type) in &layout {
+            if name.starts_with("_padding") {
+                // Padding fields: use float/FVector2f/FVector3f to match HLSL sizes
+                let cpp_pad_type = match hlsl_type.as_str() {
+                    "float"  => "float",
+                    "float2" => "FVector2f",
+                    "float3" => "FVector3f",
+                    "float4" => "FVector4f",
+                    _        => "float",
+                };
+                out.push_str(&format!("    {} {};\n", cpp_pad_type, name));
+            } else {
+                // Real field: use the original C++ type
+                let cpp_type = cpp_types.get(name.as_str()).copied().unwrap_or("float");
+                out.push_str(&format!("    {} {};\n", cpp_type, name));
+            }
         }
         out.push_str("};\n\n");
         out
     }
 
     /// HLSL struct definition emitted at the top of `.usf` files.
+    /// Padding fields are auto-injected to satisfy cbuffer 16-byte row packing rules.
     pub fn generate_hlsl_struct(&self) -> String {
         let mut out = String::new();
         out.push_str(&format!(
-            "// POD mirror for {}\n",
+            "// POD mirror for {} (cbuffer-aligned)\n",
             self.component_name
         ));
         out.push_str(&format!("struct {} {{\n", self.pod_struct_name));
-        for field in &self.fields {
-            out.push_str(&format!("    {} {};\n", field.hlsl_type, field.name));
+        let layout = compute_padded_hlsl_layout(&self.fields);
+        for (name, hlsl_type) in &layout {
+            out.push_str(&format!("    {} {};\n", hlsl_type, name));
         }
         out.push_str("};\n\n");
         out
@@ -508,6 +625,123 @@ mod tests {
         assert!(hlsl.contains("struct FPhysicsCompData"));
         assert!(hlsl.contains("float viscosity;"));
         assert!(hlsl.contains("int fluid_class;"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Padding layout tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_padding_no_padding_needed_all_floats() {
+        // 4x float = 16 bytes exactly, no padding needed
+        let fields = vec![
+            PodField { name: "a".into(), cpp_type: "float".into(), hlsl_type: "float".into() },
+            PodField { name: "b".into(), cpp_type: "float".into(), hlsl_type: "float".into() },
+            PodField { name: "c".into(), cpp_type: "float".into(), hlsl_type: "float".into() },
+            PodField { name: "d".into(), cpp_type: "float".into(), hlsl_type: "float".into() },
+        ];
+        let layout = compute_padded_hlsl_layout(&fields);
+        // No padding — 4 floats fit exactly in one 16-byte row
+        assert_eq!(layout.len(), 4);
+        assert!(layout.iter().all(|(n, _)| !n.starts_with("_padding")));
+    }
+
+    #[test]
+    fn test_padding_float3_plus_float_no_padding() {
+        // float3 (12 bytes) + float (4 bytes) = 16 bytes — fits in one row, no padding
+        let fields = vec![
+            PodField { name: "dir".into(),       cpp_type: "FVector3f".into(), hlsl_type: "float3".into() },
+            PodField { name: "intensity".into(), cpp_type: "float".into(),     hlsl_type: "float".into() },
+        ];
+        let layout = compute_padded_hlsl_layout(&fields);
+        assert_eq!(layout.len(), 2, "float3 + float fits in 16 bytes, no padding needed");
+        assert_eq!(layout[0].0, "dir");
+        assert_eq!(layout[1].0, "intensity");
+    }
+
+    #[test]
+    fn test_padding_float3_plus_float2_alignment() {
+        // float3 (12 bytes) + float2 (8 bytes):
+        // float2 has alignment 8, so aligned_offset = ceil(12/8)*8 = 16 (next row).
+        // No explicit padding field is needed — the alignment math naturally places
+        // float2 at offset 16. Total = 16 (float3 row, 4 bytes implicit gap) + 8 + 8 pad = 32.
+        let fields = vec![
+            PodField { name: "dir".into(), cpp_type: "FVector3f".into(), hlsl_type: "float3".into() },
+            PodField { name: "uv".into(),  cpp_type: "FVector2f".into(), hlsl_type: "float2".into() },
+        ];
+        let layout = compute_padded_hlsl_layout(&fields);
+        let names: Vec<&str> = layout.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"dir"), "dir must be present");
+        assert!(names.contains(&"uv"),  "uv must be present");
+        // Total size must be a multiple of 16
+        let total: u32 = layout.iter().map(|(_, t)| hlsl_type_size(t)).sum();
+        assert_eq!(total % 16, 0, "total struct size must be 16-byte aligned");
+    }
+
+    #[test]
+    fn test_padding_float3_plus_float3_needs_padding() {
+        // float3 (12 bytes) + float3 (12 bytes):
+        // Second float3 at aligned_offset=12 (align=4), row_start=0, row_end=16.
+        // 12+12=24 > 16 → straddles boundary → padding injected.
+        let fields = vec![
+            PodField { name: "pos".into(), cpp_type: "FVector3f".into(), hlsl_type: "float3".into() },
+            PodField { name: "vel".into(), cpp_type: "FVector3f".into(), hlsl_type: "float3".into() },
+        ];
+        let layout = compute_padded_hlsl_layout(&fields);
+        let names: Vec<&str> = layout.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"pos"), "pos must be present");
+        assert!(names.contains(&"vel"), "vel must be present");
+        let pos_pos = names.iter().position(|&n| n == "pos").unwrap();
+        let vel_pos = names.iter().position(|&n| n == "vel").unwrap();
+        assert!(vel_pos > pos_pos + 1, "padding must be injected between two float3s");
+        let total: u32 = layout.iter().map(|(_, t)| hlsl_type_size(t)).sum();
+        assert_eq!(total % 16, 0, "total struct size must be 16-byte aligned");
+    }
+
+    #[test]
+    fn test_padding_trailing_pad_to_16() {
+        // Single float (4 bytes) → must be padded to 16 bytes total
+        let fields = vec![
+            PodField { name: "time".into(), cpp_type: "float".into(), hlsl_type: "float".into() },
+        ];
+        let layout = compute_padded_hlsl_layout(&fields);
+        let total: u32 = layout.iter().map(|(_, t)| hlsl_type_size(t)).sum();
+        assert_eq!(total, 16, "single float must be padded to 16 bytes");
+        assert!(layout.iter().any(|(n, _)| n.starts_with("_padding")));
+    }
+
+    #[test]
+    fn test_padding_float4_no_padding() {
+        // float4 is already 16 bytes — no padding needed
+        let fields = vec![
+            PodField { name: "color".into(), cpp_type: "FVector4f".into(), hlsl_type: "float4".into() },
+        ];
+        let layout = compute_padded_hlsl_layout(&fields);
+        assert_eq!(layout.len(), 1);
+        assert_eq!(layout[0].0, "color");
+    }
+
+    #[test]
+    fn test_padding_cpp_and_hlsl_same_total_size() {
+        // Verify C++ and HLSL structs have the same total byte count
+        let mirror = PodMirrorStruct {
+            component_name: "TestComp".into(),
+            pod_struct_name: "FTestCompData".into(),
+            fields: vec![
+                PodField { name: "pos".into(),   cpp_type: "FVector3f".into(), hlsl_type: "float3".into() },
+                PodField { name: "speed".into(), cpp_type: "float".into(),     hlsl_type: "float".into() },
+                PodField { name: "vel".into(),   cpp_type: "FVector3f".into(), hlsl_type: "float3".into() },
+                PodField { name: "mass".into(),  cpp_type: "float".into(),     hlsl_type: "float".into() },
+            ],
+        };
+        let cpp  = mirror.generate_cpp_struct();
+        let hlsl = mirror.generate_hlsl_struct();
+        // Both must contain the same padding field names
+        let layout = compute_padded_hlsl_layout(&mirror.fields);
+        for (name, _) in &layout {
+            assert!(cpp.contains(name.as_str()),  "C++ must contain field {}", name);
+            assert!(hlsl.contains(name.as_str()), "HLSL must contain field {}", name);
+        }
     }
 
     #[test]

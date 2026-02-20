@@ -16,6 +16,7 @@ use unreal_asset_properties::{
     struct_property::StructProperty,
     array_property::ArrayProperty,
     color_property::LinearColorProperty,
+    enum_property::EnumProperty,
     material_input_property::{
         ColorMaterialInputProperty, ExpressionInputProperty, MaterialExpression,
     },
@@ -824,12 +825,14 @@ impl MaterialAssetBuilder {
         let code_name = self.asset.add_fname("Code");
         let output_type_name = self.asset.add_fname("OutputType");
 
-        let output_val = match output_type {
-            CustomOutputType::Float1 => 0,
-            CustomOutputType::Float2 => 1,
-            CustomOutputType::Float3 => 2,
-            CustomOutputType::Float4 => 3,
+        let cmot_value_str = match output_type {
+            CustomOutputType::Float1 => "CMOT_Float1",
+            CustomOutputType::Float2 => "CMOT_Float2",
+            CustomOutputType::Float3 => "CMOT_Float3",
+            CustomOutputType::Float4 => "CMOT_Float4",
         };
+        let output_enum_type = self.asset.add_fname("ECustomMaterialOutputType");
+        let output_value = self.asset.add_fname(cmot_value_str);
 
         let mut props: Vec<Property> = vec![
             StrProperty {
@@ -840,12 +843,14 @@ impl MaterialAssetBuilder {
                 value: Some(code.to_string()),
             }
             .into(),
-            IntProperty {
+            EnumProperty {
                 name: output_type_name,
                 ancestry: Default::default(),
                 property_guid: None,
                 duplication_index: 0,
-                value: output_val,
+                enum_type: Some(output_enum_type),
+                inner_type: None,
+                value: Some(output_value),
             }
             .into(),
         ];
@@ -886,13 +891,23 @@ impl MaterialAssetBuilder {
                 self.add_lerp_node(base, multiplied, alpha)
             }
             LayerBlendMode::Overlay => {
-                // Overlay: screen + multiply based on base luminance
-                // overlay(a,b) = a < 0.5 ? 2*a*b : 1 - 2*(1-a)*(1-b)
-                // Simplified: lerp between multiply and screen based on alpha
-                let multiplied = self.add_multiply_node(base, blend);
+                // Overlay: a < 0.5 ? 2*a*b : 1 - 2*(1-a)*(1-b)
+                // Implemented as lerp(2*a*b, 1-(1-a)*(1-b)*2, a) blended by alpha
                 let two = self.add_constant_node(2.0);
-                let doubled = self.add_multiply_node(multiplied, two);
-                self.add_lerp_node(base, doubled, alpha)
+                let one = self.add_constant_node(1.0);
+                // Multiply path: 2 * base * blend
+                let mul_part = self.add_multiply_node(base, blend);
+                let mul_doubled = self.add_multiply_node(mul_part, two);
+                // Screen path: 1 - 2*(1-base)*(1-blend)
+                let inv_base = self.add_subtract_node(one, base);
+                let inv_blend = self.add_subtract_node(one, blend);
+                let screen_inner = self.add_multiply_node(inv_base, inv_blend);
+                let screen_doubled = self.add_multiply_node(screen_inner, two);
+                let screen_part = self.add_subtract_node(one, screen_doubled);
+                // Lerp between multiply and screen using base as selector
+                let overlay = self.add_lerp_node(mul_doubled, screen_part, base);
+                // Apply blend alpha
+                self.add_lerp_node(base, overlay, alpha)
             }
             LayerBlendMode::Screen => {
                 // Screen: 1 - (1-a)*(1-b)
@@ -1084,8 +1099,8 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
 
     pub fn set_shading_model(&mut self, model: &ShadingModel) {
         self.shading_model = match model {
-            ShadingModel::DefaultLit => 1,
             ShadingModel::Unlit => 0,
+            ShadingModel::DefaultLit => 1,
             ShadingModel::Subsurface => 2,
             ShadingModel::PreintegratedSkin => 3,
             ShadingModel::ClearCoat => 4,
@@ -1203,31 +1218,43 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
             mat_props.push(arr_prop.into());
         }
 
-        // Blend mode
+        // Blend mode — UE5 serializes as EnumProperty(EBlendMode)
+        // Only write if non-default (Opaque = 0)
         if self.blend_mode != 0 {
             let bm_name = self.asset.add_fname("BlendMode");
+            let bm_enum_type = self.asset.add_fname("EBlendMode");
+            let bm_value_str = blend_mode_fname(self.blend_mode);
+            let bm_value = self.asset.add_fname(bm_value_str);
             mat_props.push(
-                IntProperty {
+                EnumProperty {
                     name: bm_name,
                     ancestry: Default::default(),
                     property_guid: None,
                     duplication_index: 0,
-                    value: self.blend_mode as i32,
+                    enum_type: Some(bm_enum_type),
+                    inner_type: None,
+                    value: Some(bm_value),
                 }
                 .into(),
             );
         }
 
-        // Shading model (default is 1 = DefaultLit, only write if not default)
+        // Shading model — UE5 serializes as EnumProperty(EMaterialShadingModel)
+        // Only write if non-default (DefaultLit = 1)
         if self.shading_model != 1 {
             let sm_name = self.asset.add_fname("ShadingModel");
+            let sm_enum_type = self.asset.add_fname("EMaterialShadingModel");
+            let sm_value_str = shading_model_fname(self.shading_model);
+            let sm_value = self.asset.add_fname(sm_value_str);
             mat_props.push(
-                IntProperty {
+                EnumProperty {
                     name: sm_name,
                     ancestry: Default::default(),
                     property_guid: None,
                     duplication_index: 0,
-                    value: self.shading_model as i32,
+                    enum_type: Some(sm_enum_type),
+                    inner_type: None,
+                    value: Some(sm_value),
                 }
                 .into(),
             );
@@ -1337,7 +1364,18 @@ fn resolve(node_map: &HashMap<String, usize>, id: &str) -> Result<usize, String>
     node_map
         .get(id)
         .copied()
-        .ok_or_else(|| format!("Unknown node reference: '{}'", id))
+        .ok_or_else(|| {
+            let available: Vec<&str> = node_map.keys().map(|s| s.as_str()).collect();
+            format!(
+                "Unknown node reference '{}'. Available nodes: [{}]",
+                id,
+                if available.len() <= 10 {
+                    available.join(", ")
+                } else {
+                    format!("{} ... ({} total)", available[..10].join(", "), available.len())
+                }
+            )
+        })
 }
 
 /// Convert a single MaterialNodeType into builder calls.
@@ -1463,7 +1501,17 @@ fn convert_node(
                 .as_ref()
                 .and_then(|id| node_map.get(id))
                 .copied();
-            Ok(builder.add_texture_sample_node(uv))
+            let node_id = builder.add_texture_sample_node(uv);
+            // Wire texture_input if provided (otherwise the node has no texture set)
+            if let Some(tex_id) = texture_input {
+                if let Some(&tex_node) = node_map.get(tex_id) {
+                    // The texture input is wired via the Texture object property
+                    // on the expression export. This is handled by the builder
+                    // through an input property on the "Texture" pin.
+                    let _ = tex_node; // TODO: Wire texture object reference when add_texture_sample_node supports it
+                }
+            }
+            Ok(node_id)
         }
         MaterialNodeType::TextureSampleParameter2D {
             param_name,
@@ -1504,12 +1552,16 @@ fn convert_node(
             offset_y,
         } => {
             let uv = resolve(node_map, uv_input)?;
-            // offset_x/y are node IDs referencing speed value nodes
+            // offset_x/y are node IDs referencing speed value nodes.
+            // To produce animated scrolling (like MaterialExpressionPanner),
+            // multiply each speed by Time, append into a float2, and add to UV.
             let ox = resolve(node_map, offset_x)?;
             let oy = resolve(node_map, offset_y)?;
-            // Build a 2-component speed vector and use Panner-style Add
-            let speed_vec = builder.add_append_node(ox, oy);
-            Ok(builder.add_add_node(uv, speed_vec))
+            let time = builder.add_time_node();
+            let scroll_x = builder.add_multiply_node(ox, time);
+            let scroll_y = builder.add_multiply_node(oy, time);
+            let scroll_vec = builder.add_append_node(scroll_x, scroll_y);
+            Ok(builder.add_add_node(uv, scroll_vec))
         }
         MaterialNodeType::UVScale {
             uv_input,
@@ -1559,7 +1611,12 @@ fn convert_node(
             let resolved: Vec<(String, usize)> = inputs
                 .iter()
                 .map(|ci| {
-                    let node_id = node_map.get(&ci.name).copied().unwrap_or(0);
+                    let node_id = node_map.get(&ci.name).copied()
+                        .ok_or_else(|| format!(
+                            "CustomHLSL input '{}' references unknown node — \
+                             ensure the input name matches a declared node or variable ID",
+                            ci.name
+                        ))?;
                     Ok((ci.name.clone(), node_id))
                 })
                 .collect::<Result<Vec<_>, String>>()?;
@@ -1617,6 +1674,41 @@ fn convert_node(
                 &alpha_nodes?,
             ))
         }
+    }
+}
+
+/// Map a BlendMode integer to the exact UE5 EBlendMode FName string.
+/// Values confirmed from UE5.4/5.7 EngineTypes.h.
+fn blend_mode_fname(mode: u8) -> &'static str {
+    match mode {
+        0 => "BLEND_Opaque",
+        1 => "BLEND_Masked",
+        2 => "BLEND_Translucent",
+        3 => "BLEND_Additive",
+        4 => "BLEND_Modulate",
+        5 => "BLEND_AlphaComposite",
+        6 => "BLEND_AlphaHoldout",
+        _ => "BLEND_Opaque",
+    }
+}
+
+/// Map a ShadingModel integer to the exact UE5 EMaterialShadingModel FName string.
+/// Values confirmed from UE5.4/5.7 EngineTypes.h.
+fn shading_model_fname(model: u8) -> &'static str {
+    match model {
+        0 => "MSM_Unlit",
+        1 => "MSM_DefaultLit",
+        2 => "MSM_Subsurface",
+        3 => "MSM_PreintegratedSkin",
+        4 => "MSM_ClearCoat",
+        5 => "MSM_SubsurfaceProfile",
+        6 => "MSM_TwoSidedFoliage",
+        7 => "MSM_Hair",
+        8 => "MSM_Cloth",
+        9 => "MSM_Eye",
+        10 => "MSM_SingleLayerWater",
+        11 => "MSM_ThinTranslucent",
+        _ => "MSM_DefaultLit",
     }
 }
 

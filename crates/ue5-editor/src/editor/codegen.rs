@@ -120,6 +120,11 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
                 // Map both the Kain name and the S-prefixed name
                 slate_widget_map.insert(st.ast.name.clone(), output_name.clone());
                 slate_widget_map.insert(output_name.clone(), output_name.clone());
+            } else if st.ast.attributes.iter().any(|a| a.name == "viewport") {
+                let base_name = st.ast.name.strip_suffix("Viewport").unwrap_or(&st.ast.name);
+                let output_name = format!("S{}Viewport", base_name);
+                slate_widget_map.insert(st.ast.name.clone(), output_name.clone());
+                slate_widget_map.insert(output_name.clone(), output_name.clone());
             }
         }
     }
@@ -274,6 +279,21 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
                 sibling_includes.dedup();
                 for sibling in &sibling_includes {
                     gen.source.push_line(&format!("#include \"{}.h\"", sibling));
+                }
+            } else if kind == "AssetEditor" {
+                // Asset editors often SNew() viewport/slate widgets; include their concrete headers.
+                let mut widget_includes: Vec<String> = Vec::new();
+                for field in &st.ast.fields {
+                    if let kain_core::ast::Type::Named { name, .. } = &field.ty {
+                        if let Some(header_name) = slate_widget_map.get(name.as_str()) {
+                            widget_includes.push(header_name.clone());
+                        }
+                    }
+                }
+                widget_includes.sort();
+                widget_includes.dedup();
+                for widget in &widget_includes {
+                    gen.source.push_line(&format!("#include \"{}.h\"", widget));
                 }
             }
             
@@ -856,6 +876,7 @@ impl Ue5EditorGen {
         let class_name = format!("F{}Toolkit", editor_name);
         
         // Collect field information for tab spawning
+        let mut has_asset = false;
         let mut has_viewport = false;
         let mut has_details = false;
         let mut has_slate_widget = false;
@@ -864,7 +885,9 @@ impl Ue5EditorGen {
         
         for field in &st.ast.fields {
             let field_attrs: Vec<&str> = field.attributes.iter().map(|a| a.name.as_str()).collect();
-            if field_attrs.contains(&"viewport") {
+            if field_attrs.contains(&"asset") {
+                has_asset = true;
+            } else if field_attrs.contains(&"viewport") {
                 has_viewport = true;
                 viewport_type = if let kain_core::ast::Type::Named { name, .. } = &field.ty {
                     format!("S{}", name)
@@ -981,11 +1004,10 @@ impl Ue5EditorGen {
         self.write_header("");
         
         // Member variables for sub-components
+        let mut emitted_dashboard_member = false;
         for field in &st.ast.fields {
             let field_attrs: Vec<&str> = field.attributes.iter().map(|a| a.name.as_str()).collect();
-            if field_attrs.contains(&"asset") {
-                self.write_header("TWeakObjectPtr<UObject> EditingAsset;");
-            } else if field_attrs.contains(&"viewport") {
+            if field_attrs.contains(&"viewport") {
                 let raw_name = if let kain_core::ast::Type::Named { name, .. } = &field.ty {
                     name.clone()
                 } else {
@@ -995,15 +1017,16 @@ impl Ue5EditorGen {
                 self.write_header(&format!("TSharedPtr<{}> ViewportWidget;", widget_name));
             } else if field_attrs.contains(&"details") {
                 self.write_header("TSharedPtr<IDetailsView> DetailsView;");
-            } else if field_attrs.contains(&"slate") {
-                let raw_name = if let kain_core::ast::Type::Named { name, .. } = &field.ty {
-                    name.clone()
-                } else {
-                    self.map_type(&field.ty)
-                };
-                let widget_name = format!("S{}", raw_name);
-                self.write_header(&format!("TSharedPtr<{}> DashboardWidget;", widget_name));
+            } else if field_attrs.contains(&"slate") && !emitted_dashboard_member {
+                self.write_header(&format!("TSharedPtr<{}> DashboardWidget;", slate_widget_type));
+                emitted_dashboard_member = true;
             }
+        }
+
+        // Generated InitEditor/SpawnDetailsTab always reference EditingAsset.
+        // Emit it unconditionally to avoid undeclared-identifier errors when @asset is omitted.
+        if has_asset || true {
+            self.write_header("TWeakObjectPtr<UObject> EditingAsset;");
         }
         
         self.pop_indent();

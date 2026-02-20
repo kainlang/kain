@@ -965,8 +965,8 @@ void F{}MaterialFactory::GenerateMaterials()
                     code.push_str(&format!("    {}->Max.Expression = {};\n", node.id, max));
                 }
                 MaterialNodeType::Fresnel { exponent, base_reflect_fraction } => {
-                    code.push_str(&format!("    {}->Exponent.Expression = {};\n", node.id, exponent));
-                    code.push_str(&format!("    {}->BaseReflectFraction.Expression = {};\n", node.id, base_reflect_fraction));
+                    code.push_str(&format!("    {}->ExponentIn.Expression = {};\n", node.id, exponent));
+                    code.push_str(&format!("    {}->BaseReflectFractionIn.Expression = {};\n", node.id, base_reflect_fraction));
                 }
                 MaterialNodeType::ComponentMask { input, .. } => {
                     code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));

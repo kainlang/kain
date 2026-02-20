@@ -443,8 +443,30 @@ pub fn generate_stdlib_functions(
     output.push_str("#include \"CoreMinimal.h\"\n");
     output.push_str("#include \"Kismet/KismetMathLibrary.h\"\n");
     
-    // Include all type headers so stdlib functions can reference them
-    let mut type_headers: Vec<String> = gen.context.type_to_header.values().cloned().collect();
+    // Include only headers for types actually used by generated stdlib function signatures.
+    // This avoids pulling stale/editor-only headers that may not exist in runtime output.
+    let mut stdlib_used_types: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for item in &program.items {
+        if let TypedItem::Function(f) = item {
+            let is_blueprint = f.ast.attributes.iter().any(|a| {
+                a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5"
+            });
+            if is_blueprint || f.ast.body.stmts.is_empty() {
+                continue;
+            }
+            for param in &f.ast.params {
+                collect_type_names(&param.ty, &mut stdlib_used_types);
+            }
+            if let Some(ret) = &f.ast.return_type {
+                collect_type_names(ret, &mut stdlib_used_types);
+            }
+        }
+    }
+
+    let mut type_headers: Vec<String> = stdlib_used_types
+        .iter()
+        .filter_map(|t| gen.context.type_to_header.get(t).cloned())
+        .collect();
     type_headers.sort();
     type_headers.dedup();
     for type_header in &type_headers {
@@ -457,7 +479,9 @@ pub fn generate_stdlib_functions(
     for item in &program.items {
         if let TypedItem::Function(f) = item {
             // SKIP blueprint functions - they go in the blueprint library, not stdlib
-            let is_blueprint = f.ast.attributes.iter().any(|a| a.name == "blueprint");
+            let is_blueprint = f.ast.attributes.iter().any(|a| {
+                a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5"
+            });
             if is_blueprint {
                 continue;
             }
@@ -466,7 +490,9 @@ pub fn generate_stdlib_functions(
             if !f.ast.body.stmts.is_empty() {
                 // Clone the function and strip blueprint/ue5 attributes so it generates as a free function
                 let mut free_func = f.ast.clone();
-                free_func.attributes.retain(|a| a.name != "blueprint" && a.name != "ue5");
+                free_func.attributes.retain(|a| {
+                    a.name != "blueprint" && a.name != "blueprint_pure" && a.name != "ue5"
+                });
                 
                 gen.gen_ufunction(&free_func);
                 func_count += 1;
@@ -727,7 +753,27 @@ impl Ue5Gen {
                 }
             })
             .collect();
+
+        // Pre-collect Blueprint function signature types BEFORE include generation.
+        // The blueprint-library-only include pass depends on this set.
+        self.blueprint_used_types.clear();
+        for item in program.items() {
+            if let TypedItem::Function(f) = item {
+                if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "blueprint_pure") {
+                    for param in &f.ast.params {
+                        collect_type_names(&param.ty, &mut self.blueprint_used_types);
+                    }
+                    if let Some(ret) = &f.ast.return_type {
+                        collect_type_names(ret, &mut self.blueprint_used_types);
+                    }
+                }
+            }
+        }
         
+        // Special mode: generate only BlueprintFunctionLibrary declarations/defs.
+        let blueprint_library_only = self.target_item.as_ref()
+            .map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
+
         // Determine what kind of item we're generating (for smart includes)
         let target_item_kind = if let Some(target) = &self.target_item {
             program.items().iter().find_map(|item| {
@@ -766,6 +812,10 @@ impl Ue5Gen {
         
         // Initialize includes based on item type (CoreMinimal.h is already in the template)
         let mut includes: Vec<&str> = Vec::new();
+        if blueprint_library_only {
+            // Start minimal; we'll add only needed signature type headers below.
+            includes.push("Kismet/BlueprintFunctionLibrary.h");
+        } else {
         match target_item_kind {
             "actor" => {
                 includes.push("GameFramework/Actor.h");
@@ -795,9 +845,10 @@ impl Ue5Gen {
                 }
             },
         }
+        }
 
         // DISCOVERY PASS: If we are targeting a specific item, scan it for dependencies first
-        if self.target_item.is_some() {
+        if self.target_item.is_some() && !blueprint_library_only {
             for item in program.items() {
                 let item_name = match item {
                     TypedItem::Actor(a) => &a.ast.name,
@@ -818,9 +869,11 @@ impl Ue5Gen {
         }
 
         // Add discovered headers to includes list
-        for header in self.context.get_needed_headers() {
-            if !includes.contains(&header.as_str()) {
-                includes.push(Box::leak(header.into_boxed_str())); // Keep it simple for now
+        if !blueprint_library_only {
+            for header in self.context.get_needed_headers() {
+                if !includes.contains(&header.as_str()) {
+                    includes.push(Box::leak(header.into_boxed_str())); // Keep it simple for now
+                }
             }
         }
 
@@ -828,13 +881,11 @@ impl Ue5Gen {
         // types that are actually referenced in @blueprint function signatures.
         // This replaces the old hardcoded skip list (plugin-specific names like
         // "FCosmosDashboard", "FSovereignDetailsPanel", etc.).
-        let blueprint_library_only = self.target_item.as_ref()
-            .map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
         if blueprint_library_only {
             // type_to_header keys are raw KAIN type names; collect only those used.
             let used = &self.blueprint_used_types;
             for (type_name, type_header) in &self.context.type_to_header {
-                if used.is_empty() || used.contains(type_name.as_str()) {
+                if used.contains(type_name.as_str()) {
                     let header_ref: &str = type_header;
                     if !includes.iter().any(|h| *h == header_ref) {
                         includes.push(Box::leak(type_header.clone().into_boxed_str()));
@@ -978,7 +1029,7 @@ impl Ue5Gen {
                     self.type_fields_map.insert(a.ast.name.clone(), fields);
                 }
                 TypedItem::Function(f) => {
-                    if f.ast.attributes.iter().any(|a| a.name == "blueprint") {
+                    if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "blueprint_pure") {
                         self.blueprint_fn_names.insert(f.ast.name.clone());
                         // Bug-4 fix: record every named type appearing in this fn's signature
                         // so the blueprint-library preamble can emit only the needed headers.
@@ -1017,7 +1068,7 @@ impl Ue5Gen {
                 // If we're in blueprint-library-only mode, only collect blueprint functions
                 if blueprint_library_only {
                     if let TypedItem::Function(f) = item {
-                        if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "ue5") {
+                        if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5") {
                             blueprint_funcs.push(item);
                         }
                     }
@@ -1040,7 +1091,7 @@ impl Ue5Gen {
                     }
                 },
                 TypedItem::Function(f) => {
-                    if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "ue5") {
+                    if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5") {
                         blueprint_funcs.push(item);
                     } else {
                         other_items.push(item);
@@ -1548,16 +1599,37 @@ impl Ue5Gen {
                 let mut pod_prep_lines: Vec<String> = Vec::new();
                 
                 for uniform in &shader.ast.uniforms {
+                    let is_permutation_uniform = {
+                        let n = uniform.name.as_str();
+                        n.starts_with("CFG_")
+                            || n.starts_with("ENABLE_")
+                            || n.starts_with("USE_")
+                            || n.starts_with("WITH_")
+                            || n.starts_with("HAS_")
+                            || n.starts_with("ALLOW_")
+                            || n.starts_with("SUPPORT_")
+                    };
+                    if is_permutation_uniform {
+                        continue;
+                    }
                     let name_lower = uniform.name.to_lowercase();
                     
-                    // Check if this is a Sampler2D type (texture uniform)
-                    let is_sampler = if let Type::Named { name, .. } = &uniform.ty {
-                        name == "Sampler2D" || name == "Texture2D" || name == "RWTexture2D"
+                    // Texture uniforms should be classified by declared type, not name heuristics.
+                    // Name-based checks (e.g. "tex") misclassify fields like `vertex_count`.
+                    let is_texture = if let Type::Named { name, .. } = &uniform.ty {
+                        matches!(
+                            name.as_str(),
+                            "Sampler2D"
+                                | "Texture2D"
+                                | "RWTexture2D"
+                                | "Buffer"
+                                | "RWBuffer"
+                                | "TextureCube"
+                                | "RWTextureCube"
+                        )
                     } else {
                         false
                     };
-                    
-                    let is_texture = is_sampler || name_lower.contains("texture") || name_lower.contains("sampler") || name_lower.contains("output") || name_lower.contains("tex");
                     
                     if is_texture {
                          // Texture Param Logic - Modular mapping by name
@@ -2176,7 +2248,7 @@ impl Ue5Gen {
         self.write_header(&format!("{}();", class_name));
         self.write_blank_header();
 
-        // Fields as UPROPERTY - components don't need default Category
+        // Fields as UPROPERTY
         for field in &struct_def.fields {
             self.gen_uproperty_with_context(field, None, false);
         }
@@ -2380,10 +2452,17 @@ impl Ue5Gen {
         // Build UPROPERTY macro
         let mut uproperty_parts: Vec<String> = props.iter().map(|s| s.to_string()).collect();
         
-        // Add default Category for BlueprintType structs if no explicit category was set
-        if is_blueprint_type && !has_explicit_category && category.is_empty() {
-            if let Some(struct_name) = parent_struct_name {
-                category = struct_name.to_string();
+        // Add default Category if no explicit category was set.
+        // UE5/UHT requires explicit Category for editor/Blueprint-exposed properties.
+        if !has_explicit_category && category.is_empty() {
+            if is_blueprint_type {
+                if let Some(struct_name) = parent_struct_name {
+                    category = struct_name.to_string();
+                }
+            } else {
+                // Component/legacy path: still expose as EditAnywhere/BlueprintReadWrite,
+                // so provide a stable fallback category.
+                category = "Component".to_string();
             }
         }
         
@@ -2448,7 +2527,9 @@ impl Ue5Gen {
     /// Generate UFUNCTION from KAIN function
     fn gen_ufunction(&mut self, func: &Function) {
         // Check for @ue5 attribute to determine if this should be a UFUNCTION
-        let has_ue5_attr = func.attributes.iter().any(|a| a.name == "ue5" || a.name == "blueprint");
+        let has_ue5_attr = func.attributes.iter().any(|a| {
+            a.name == "ue5" || a.name == "blueprint" || a.name == "blueprint_pure"
+        });
         
         if has_ue5_attr {
             let ret_type = func.return_type
@@ -2463,7 +2544,9 @@ impl Ue5Gen {
             let class_name = format!("U{}FunctionLibrary", self.context.output_name);
             
             // Pure functions (no side effects) should use BlueprintPure
-            let is_pure = func.attributes.iter().any(|a| a.name == "pure" || a.name == "const");
+            let is_pure = func.attributes.iter().any(|a| {
+                a.name == "pure" || a.name == "const" || a.name == "blueprint_pure"
+            });
             let has_out_params = func.params.iter().any(|p| p.mutable);
             
             // Determine UFUNCTION specifiers
@@ -2646,6 +2729,10 @@ impl Ue5Gen {
             let is_last = i == len - 1;
             if is_last && implicit_return {
                 if let Stmt::Expr(expr) = stmt {
+                    if let Expr::If { condition, then_branch, else_branch, .. } = expr {
+                        self.gen_if_expr_as_return_stmt(condition, then_branch, else_branch);
+                        continue;
+                    }
                     if !matches!(expr, Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)) {
                         let expr_str = self.gen_expr(expr);
                         self.write_source(&format!("return {};", expr_str));
@@ -2773,6 +2860,68 @@ impl Ue5Gen {
             }
         } else {
             self.write_source("}");
+        }
+    }
+
+    fn gen_if_expr_as_return_stmt(&mut self, condition: &Expr, then_branch: &Block, else_branch: &Option<Box<ElseBranch>>) {
+        self.write_source(&format!("if ({})", self.gen_expr(condition)));
+        self.write_source("{");
+        self.push_indent();
+        self.gen_block_source_with_implicit_return(then_branch, true);
+        self.pop_indent();
+
+        if let Some(else_br) = else_branch {
+            match else_br.as_ref() {
+                ElseBranch::Else(block) => {
+                    self.write_source("}");
+                    self.write_source("else");
+                    self.write_source("{");
+                    self.push_indent();
+                    self.gen_block_source_with_implicit_return(block, true);
+                    self.pop_indent();
+                    self.write_source("}");
+                }
+                ElseBranch::ElseIf(cond, block, next_else) => {
+                    self.write_source("}");
+                    self.write_source(&format!("else if ({})", self.gen_expr(cond)));
+                    self.write_source("{");
+                    self.push_indent();
+                    self.gen_block_source_with_implicit_return(block, true);
+                    self.pop_indent();
+                    if let Some(next) = next_else {
+                        self.gen_else_if_return_continuation(next);
+                    } else {
+                        self.write_source("}");
+                    }
+                }
+            }
+        } else {
+            self.write_source("}");
+        }
+    }
+
+    fn gen_else_if_return_continuation(&mut self, else_branch: &ElseBranch) {
+        match else_branch {
+            ElseBranch::Else(block) => {
+                self.write_source("else");
+                self.write_source("{");
+                self.push_indent();
+                self.gen_block_source_with_implicit_return(block, true);
+                self.pop_indent();
+                self.write_source("}");
+            }
+            ElseBranch::ElseIf(cond, block, next_else) => {
+                self.write_source(&format!("else if ({})", self.gen_expr(cond)));
+                self.write_source("{");
+                self.push_indent();
+                self.gen_block_source_with_implicit_return(block, true);
+                self.pop_indent();
+                if let Some(next) = next_else {
+                    self.gen_else_if_return_continuation(next);
+                } else {
+                    self.write_source("}");
+                }
+            }
         }
     }
 
@@ -3652,13 +3801,20 @@ impl Ue5Gen {
         }
     }
 
-    /// Recursively walk a Type and call context.need_header() for any user-defined
-    /// type that has a registered header in type_to_header.
+    /// Recursively walk a Type and call context.need_header() for any type that
+    /// has a registered header — either in type_to_header (user-defined types) or
+    /// in EngineKnowledge.include_map (engine types like UNiagaraComponent).
     fn discover_type_headers(&self, ty: &Type) {
         match ty {
             Type::Named { name, generics, .. } => {
+                // 1. User-defined types registered in type_to_header
                 if let Some(header) = self.context.type_to_header.get(name) {
                     self.context.need_header(header.clone());
+                }
+                // 2. Engine types from EngineKnowledge.include_map
+                //    (e.g. UNiagaraComponent -> "NiagaraComponent.h")
+                if let Some(header) = self.type_mapper.get_include_path(ty) {
+                    self.context.need_header(header);
                 }
                 for g in generics {
                     self.discover_type_headers(g);
@@ -3718,9 +3874,12 @@ fn default_cpp_value(ty_str: &str) -> Option<&'static str> {
         "double" => Some("0.0"),
         "bool"   => Some("false"),
         "FName"  => Some("NAME_None"),
-        "FVector"  | "FVector3f"  => Some("FVector::ZeroVector"),
-        "FVector2D" | "FVector2f" => Some("FVector2D::ZeroVector"),
-        "FVector4"  | "FVector4f" => Some("FVector4(ForceInitToZero)"),
+        "FVector"    => Some("FVector::ZeroVector"),
+        "FVector3f"  => Some("FVector3f(0.0f, 0.0f, 0.0f)"),
+        "FVector2D"  => Some("FVector2D::ZeroVector"),
+        "FVector2f"  => Some("FVector2f(0.0f, 0.0f)"),
+        "FVector4"   => Some("FVector4(ForceInitToZero)"),
+        "FVector4f"  => Some("FVector4f(0.0f, 0.0f, 0.0f, 0.0f)"),
         "FRotator"  => Some("FRotator::ZeroRotator"),
         "FQuat" | "FQuat4f" => Some("FQuat::Identity"),
         "FTransform" => Some("FTransform::Identity"),

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use super::dependencies::Dependencies;
 
-/// Detect whether the program has @datatable structs (requires DataTable module for FTableRowBase).
+/// Detect whether the program has @datatable structs (FTableRowBase usage).
 pub fn has_datatable_structs(program: &kain_core::types::TypedProgram) -> bool {
     program.items.iter().any(|item| {
         if let kain_core::types::TypedItem::Struct(s) = item {
@@ -121,14 +121,14 @@ public class {name} : ModuleRules
 
 /// Generate a .Build.cs for the RUNTIME module in split mode.
 /// `extra_public_deps` are resolved from the module graph based on referenced types/APIs.
-/// `has_datatable` adds the DataTable module required for FTableRowBase in non-editor targets.
+/// `has_datatable` is retained for compatibility; FTableRowBase is in Engine module.
 pub fn generate_build_cs_runtime(plugin_name: &str, extra_public_deps: &[String], has_datatable: bool) -> String {
     let mut public_deps: BTreeSet<String> = ["Core", "CoreUObject", "Engine", "Projects"]
         .iter().map(|s| s.to_string()).collect();
-    // DataTable module is required for FTableRowBase (used by @datatable structs).
-    // Without it, UnrealGame (non-editor) targets fail with C2504: 'FTableRowBase' base class undefined.
+    // FTableRowBase is declared in Engine/DataTable.h and resolved via Engine module.
+    // There is no standalone Unreal module named "DataTable".
     if has_datatable {
-        public_deps.insert("DataTable".to_string());
+        public_deps.insert("Engine".to_string());
     }
     for dep in extra_public_deps {
         public_deps.insert(dep.clone());
@@ -325,9 +325,9 @@ pub fn generate_build_cs_runtime_with_resolver(
     let mut public_deps: BTreeSet<String> = ["Core", "CoreUObject", "Engine", "Projects"]
         .iter().map(|s| s.to_string()).collect();
     
-    // Add DataTable module if needed
+    // FTableRowBase is provided by Engine module (no standalone DataTable module).
     if has_datatable {
-        public_deps.insert("DataTable".to_string());
+        public_deps.insert("Engine".to_string());
     }
     
     // Add detected public dependencies
