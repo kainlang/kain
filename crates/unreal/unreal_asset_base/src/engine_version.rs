@@ -265,26 +265,29 @@ lazy_static! {
                 ObjectVersionUE5::AUTOMATIC_VERSION,
                 EngineVersion::VER_UE5_2
             ),
-            // 5.3–5.7: no new ObjectVersionUE5 watermarks in the vendored library yet.
-            // They map to AUTOMATIC_VERSION (the highest known), same as 5.2.
+            // UE 5.3: no new global ObjectVersionUE5 variants (same watermark as 5.2)
             (
-                ObjectVersionUE5::AUTOMATIC_VERSION,
+                ObjectVersionUE5::DATA_RESOURCES,
                 EngineVersion::VER_UE5_3
             ),
+            // UE 5.4: last new variant = PROPERTY_TAG_COMPLETE_TYPE_NAME
             (
-                ObjectVersionUE5::AUTOMATIC_VERSION,
+                ObjectVersionUE5::PROPERTY_TAG_COMPLETE_TYPE_NAME,
                 EngineVersion::VER_UE5_4
             ),
+            // UE 5.5: last new variant = ASSETREGISTRY_PACKAGEBUILDDEPENDENCIES
             (
-                ObjectVersionUE5::AUTOMATIC_VERSION,
+                ObjectVersionUE5::ASSETREGISTRY_PACKAGEBUILDDEPENDENCIES,
                 EngineVersion::VER_UE5_5
             ),
+            // UE 5.6: last new variant = OS_SUB_OBJECT_SHADOW_SERIALIZATION
             (
-                ObjectVersionUE5::AUTOMATIC_VERSION,
+                ObjectVersionUE5::OS_SUB_OBJECT_SHADOW_SERIALIZATION,
                 EngineVersion::VER_UE5_6
             ),
+            // UE 5.7: last new variant = IMPORT_TYPE_HIERARCHIES
             (
-                ObjectVersionUE5::AUTOMATIC_VERSION,
+                ObjectVersionUE5::IMPORT_TYPE_HIERARCHIES,
                 EngineVersion::VER_UE5_7
             ),
         ]);

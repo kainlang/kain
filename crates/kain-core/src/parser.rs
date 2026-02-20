@@ -101,6 +101,11 @@ impl<'a> Parser<'a> {
             return self.parse_material_graph(attributes);
         }
         
+        // Check for @material_function attribute
+        if attributes.iter().any(|a| a.name == "material_function") {
+            return self.parse_material_function(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -1037,6 +1042,109 @@ impl<'a> Parser<'a> {
             inputs,
             body,
             outputs,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_material_function(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'fn' keyword — note: 'fn' is lexed as TokenKind::Fn, NOT Ident("fn")
+        if self.check(TokenKind::Fn) {
+            self.advance(); // consume 'fn'
+        } else {
+            return Err(KainError::parser("Expected 'fn' keyword after @material_function", self.current_span()));
+        }
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Expect '('
+        self.expect(TokenKind::LParen)?;
+        
+        // Parse inputs (function parameters)
+        let mut inputs = Vec::new();
+        while !self.check(TokenKind::RParen) && !self.at_end() {
+            let input_name = self.parse_ident()?;
+            self.expect(TokenKind::Colon)?;
+            let ty = self.parse_type()?;
+            
+            let default = if self.check(TokenKind::Eq) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            
+            inputs.push(MaterialInput {
+                name: input_name,
+                ty,
+                default,
+                span: self.current_span(),
+            });
+            
+            if !self.check(TokenKind::RParen) {
+                self.expect(TokenKind::Comma)?;
+            }
+        }
+        
+        self.expect(TokenKind::RParen)?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        let mut body = Vec::new();
+        let mut output: Option<Expr> = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for "let" or "return"
+            if self.check(TokenKind::Let) {
+                self.advance(); // consume 'let'
+                
+                let var_name = self.parse_ident()?;
+                self.expect(TokenKind::Eq)?;
+                let value = self.parse_expr()?;
+                
+                body.push(MaterialStatement::Let {
+                    name: var_name,
+                    value,
+                    span: self.current_span(),
+                });
+            } else if self.check(TokenKind::Return) {
+                self.advance(); // consume 'return'
+                output = Some(self.parse_expr()?);
+                break; // return must be last statement
+            } else {
+                return Err(KainError::parser(
+                    "Expected 'let' or 'return' in material function body",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        let output = output.ok_or_else(|| {
+            KainError::parser("Material function must have a 'return' statement", self.current_span())
+        })?;
+        
+        Ok(Item::MaterialFunction(MaterialFunctionDef {
+            name,
+            attributes,
+            inputs,
+            body,
+            output,
             span: start.merge(self.current_span()),
         }))
     }

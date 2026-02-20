@@ -14,14 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for ThermalComponent (GPU-compatible)
-struct FThermalComponentData {
-    float temperature;
-    float thermal_diffusivity;
-    float buoyancy_alpha;
-    float buoyancy_beta;
-    float radiation_gain;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FThermalFluidConductionShader : public FGlobalShader
 {
@@ -29,7 +22,7 @@ class FThermalFluidConductionShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FThermalFluidConductionShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FThermalComponentData, thermal)
+        SHADER_PARAMETER_STRUCT(FThermalComponentData, thermal)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -52,7 +45,7 @@ class FThermalFluidConductionShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FThermalFluidConductionShader, "/Plugin/YourPlugin/ThermalFluidConduction.usf", "ThermalFluidConductionCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FThermalFluidConductionShader, "/Plugin/FluidFlow/ThermalFluidConduction.usf", "ThermalFluidConductionCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_ThermalFluidConduction(

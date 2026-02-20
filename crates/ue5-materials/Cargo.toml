@@ -9,6 +9,7 @@ ue5-asset-utils = { path = "../ue5-asset-utils" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 indoc = "2.0"
+log = { workspace = true }
 unreal_asset.workspace = true
 unreal_asset_base.workspace = true
 unreal_asset_properties.workspace = true

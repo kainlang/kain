@@ -15,12 +15,12 @@
 			return ((g_const * ((mass1 * mass2))) / ((dist * dist)));
 		}
 
-		int32 UKainCosmosBlueprintLibraryFunctionLibrary::GetBiomeAtHeight(const float height, const float temp, const float moisture)
+		int64 UKainCosmosBlueprintLibraryFunctionLibrary::GetBiomeAtHeight(const float height, const float temp, const float moisture)
 		{
 			return /* complex if expr */;
 		}
 
-		FVector UKainCosmosBlueprintLibraryFunctionLibrary::PredictOrbitalPosition(const FVector current_pos, const FVector vel, const float time)
+		FVector3f UKainCosmosBlueprintLibraryFunctionLibrary::PredictOrbitalPosition(const FVector3f current_pos, const FVector3f vel, const float time)
 		{
 			return (current_pos + ((vel * time)));
 		}

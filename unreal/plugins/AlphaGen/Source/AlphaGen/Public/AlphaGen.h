@@ -11,10 +11,6 @@ enum class EAlphaGenType : uint8;
 enum class EAlphaGenFilterType : uint8;
 enum class EAlphaSource : uint8;
 struct FAlphaInfo;
-struct FAlphaGenEditorWidget;
-struct FAlphaPreviewWidget;
-struct FParameterEditorWidget;
-struct FAlphaGenEditorModule;
 
 // Module includes
 #include "AlphaGenDelegates.h"

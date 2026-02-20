@@ -5,22 +5,21 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FActor.h"
 
 #include "KainCosmosDelegates.generated.h"
 
 // Delegate declarations
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPlanetClaimed, FActor, Param0, int32, Param1);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPlanetClaimed, AActor*, Param0, int64, Param1);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnResourceDepleted, int32, Param0, float, Param1);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnResourceDepleted, int64, Param0, float, Param1);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClimateCritical, float, Param0);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOrbitShift, FVector, Param0, FVector, Param1);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOrbitShift, FVector3f, Param0, FVector3f, Param1);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlanetGenerationStep, int32, Param0);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlanetGenerationStep, int64, Param0);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBiomeChanged, int32, Param0, int32, Param1);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBiomeChanged, int64, Param0, int64, Param1);
 
 // Internal struct for UHT processing
 USTRUCT()

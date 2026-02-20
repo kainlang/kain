@@ -6,6 +6,14 @@
 #include "FluidFlow.h"
 
 // Editor module includes
-#include "FHyperFluidEditorModuleModule.h"
+#include "FHyperFluidEditorModule.h"
 #include "FHyperFluidDetailsCustomization.h"
 #include "SHyperFluidViewport.h"
+#include "SSFluidSimulationDashboard.h"
+#include "SSSimulationControls.h"
+#include "SSVisualizationControls.h"
+#include "SFluidSimulationViewport.h"
+#include "FFluidWorldDetailsCustomization.h"
+#include "FFluidSimulationToolbarExtension.h"
+#include "FFluidSimulationEditorToolkit.h"
+#include "FFluidFlowEditorModule.h"

@@ -35,6 +35,18 @@ impl MaterialGraphConverter {
             self.variable_map.insert(input.name.clone(), node_id);
         }
         
+        // Feature 7.1: Mark all parameters as dynamic if expose_parameters is enabled
+        if graph.properties.expose_parameters {
+            for input in &def.inputs {
+                // Only mark scalar/vector/color parameters as dynamic (not textures)
+                if matches!(input.ty, Type::Named { name, .. } if name == "Float" || name == "Vec3" || name == "Vec4") {
+                    if let Err(e) = graph.mark_parameter_dynamic(&input.name) {
+                        eprintln!("Warning: Failed to mark parameter '{}' as dynamic: {}", input.name, e);
+                    }
+                }
+            }
+        }
+        
         // Convert body statements (let bindings)
         for stmt in &def.body {
             match stmt {
@@ -871,6 +883,170 @@ impl MaterialGraphConverter {
                             
                             Ok(node_id)
                         }
+                        "world_position" => {
+                            // world_position() - returns absolute world position
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.1
+                            if !args.is_empty() {
+                                return Err(format!("world_position() expects 0 arguments, got {}", args.len()));
+                            }
+                            
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::WorldPosition,
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
+                        "world_normal" => {
+                            // world_normal() - returns world-space vertex normal
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.2
+                            if !args.is_empty() {
+                                return Err(format!("world_normal() expects 0 arguments, got {}", args.len()));
+                            }
+                            
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::WorldNormal,
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
+                        "absolute_world_position" => {
+                            // absolute_world_position() - returns absolute world position (no camera offset)
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.1
+                            if !args.is_empty() {
+                                return Err(format!("absolute_world_position() expects 0 arguments, got {}", args.len()));
+                            }
+                            
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::AbsoluteWorldPosition,
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
+                        "camera_position" => {
+                            // camera_position() - returns world-space camera position
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.3
+                            if !args.is_empty() {
+                                return Err(format!("camera_position() expects 0 arguments, got {}", args.len()));
+                            }
+                            
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::CameraPosition,
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
+                        "object_position" => {
+                            // object_position() - returns object pivot world position
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.1
+                            if !args.is_empty() {
+                                return Err(format!("object_position() expects 0 arguments, got {}", args.len()));
+                            }
+                            
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::ObjectPosition,
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
+                        "object_orientation" => {
+                            // object_orientation() - returns object rotation as vector
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.1
+                            if !args.is_empty() {
+                                return Err(format!("object_orientation() expects 0 arguments, got {}", args.len()));
+                            }
+                            
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::ObjectOrientation,
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
+                        "triplanar_sample" => {
+                            // triplanar_sample(texture, [world_position], [blend_sharpness])
+                            // Feature 7.4: World-Space Operations - Validates Requirements 7.4.4
+                            if args.is_empty() || args.len() > 3 {
+                                return Err(format!("triplanar_sample() expects 1-3 arguments (texture, [world_position], [blend_sharpness]), got {}", args.len()));
+                            }
+                            
+                            // Get texture argument - should be a variable reference to a texture input
+                            let texture_arg = &args[0].value;
+                            let texture_name = match texture_arg {
+                                Expr::Ident(name, _) => name.clone(),
+                                _ => return Err("triplanar_sample() first argument must be a texture input variable".to_string()),
+                            };
+                            
+                            // Get texture node ID from variable map
+                            let texture_id = self.variable_map.get(&texture_name)
+                                .cloned()
+                                .ok_or_else(|| format!("Undefined texture variable: {}", texture_name))?;
+                            
+                            // Get optional world position
+                            let world_position = if args.len() >= 2 {
+                                Some(self.convert_expr(graph, &args[1].value)?)
+                            } else {
+                                None
+                            };
+                            
+                            // Get optional blend sharpness (default: 4.0)
+                            let blend_sharpness = if args.len() >= 3 {
+                                self.extract_float_from_expr(&args[2].value)?
+                            } else {
+                                4.0
+                            };
+                            
+                            // Create triplanar sample node
+                            let node_id = self.next_node_id();
+                            let x = -200;
+                            let y = (graph.nodes.len() as i32) * 100;
+                            
+                            graph.nodes.push(MaterialNode {
+                                id: node_id.clone(),
+                                node_type: MaterialNodeType::TriplanarSample {
+                                    texture: texture_id,
+                                    world_position,
+                                    blend_sharpness,
+                                },
+                                position: (x, y),
+                            });
+                            
+                            Ok(node_id)
+                        }
                         _ => Err(format!("Unknown function: {}", name)),
                     }
                 } else {
@@ -953,6 +1129,10 @@ impl MaterialGraphConverter {
                     // For now, we'll use defaults
                     // TODO: Parse actual attribute arguments when format is defined
                 }
+            }
+            // Feature 7.1: Detect @dynamic attribute for runtime parameter modification
+            if attr.name == "dynamic" {
+                props.expose_parameters = true;
             }
         }
         
@@ -1042,7 +1222,7 @@ impl MaterialGraphConverter {
         node_id
     }
 
-    fn set_output(&self, graph: &mut MaterialGraph, name: &str, node_id: String) -> Result<(), String> {
+    fn set_output(&mut self, graph: &mut MaterialGraph, name: &str, node_id: String) -> Result<(), String> {
         match name {
             "base_color" => graph.outputs.base_color = Some(node_id),
             "emissive" => graph.outputs.emissive = Some(node_id),
@@ -1052,6 +1232,11 @@ impl MaterialGraphConverter {
             "opacity" => graph.outputs.opacity = Some(node_id),
             "specular" => graph.outputs.specular = Some(node_id),
             "ambient_occlusion" => graph.outputs.ambient_occlusion = Some(node_id),
+            "world_position_offset" => {
+                // Phase 7.5: Mark graph as using vertex shader when WorldPositionOffset is connected
+                graph.outputs.world_position_offset = Some(node_id);
+                graph.uses_vertex_shader = true;
+            }
             _ => return Err(format!("Unknown output: {}", name)),
         }
         Ok(())

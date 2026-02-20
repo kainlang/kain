@@ -10,45 +10,8 @@ targets = ["ue5"]
 [ue5]
 plugin_name = "FluidFlow"
 plugin_dir = "."
-sources = ["HyperFluidDynamics.kn"]
+sources = ["HyperFluidDynamics_EXPANDED.kn"]
 shaders = [
-    "LatticeBoltzmannCollision",
-    "LatticeBoltzmannStreaming", 
-    "SmoothedParticleHydrodynamics",
-    "MagnetohydrodynamicsInduction",
-    "MagnetohydrodynamicsLorentz",
-    "QuantumFluidGrossPitaevskii",
-    "QuantumFluidVortices",
-    "MultiphasePhaseField",
-    "MultiphaseSurfaceTension",
-    "ThermalFluidConduction",
-    "ThermalFluidConvection",
-    "ReactiveFluidChemistry",
-    "ReactiveFluidCombustion",
-    "GranularFlowCollision",
-    "GranularFlowFriction",
-    "CosmicDustAccretion",
-    "CosmicDustRadiation",
-    "SuperfluidHelium4",
-    "SuperfluidVortexLattice",
-    "PlasmaTokamak",
-    "PlasmaFusion",
-    "ViscoelasticStress",
-    "ViscoelasticRelaxation",
-    "ImmersedBoundaryForce",
-    "ImmersedBoundaryVelocity",
-    "SpectralFourierTransform",
-    "SpectralTurbulence",
-    "VortexMethodCore",
-    "VortexMethodAdvection",
-    "FiniteVolumeFlux",
-    "FiniteVolumeGradient",
-    "FiniteElementStiffness",
-    "FiniteElementMass",
-    "FluidRaymarching",
-    "FluidSchlieren",
-    "FluidInterferometry",
-    "FluidHolography",
-    "FluidQuantumVisualization"
+
 ]
 modular_output = true

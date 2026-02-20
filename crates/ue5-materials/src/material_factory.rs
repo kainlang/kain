@@ -45,8 +45,24 @@ private:
         for graph in graphs {
             header.push_str(&format!("    static void Generate_{}();\n", graph.name));
         }
+        
+        header.push_str("};\n\n");
+        
+        // Feature 7.1: Generate parameter structs for dynamic materials
+        for graph in graphs {
+            header.push_str(&self.generate_parameter_struct(graph));
+        }
+        
+        // Feature 7.1: Generate MID helper function declarations
+        for graph in graphs {
+            if graph.properties.expose_parameters {
+                header.push_str(&format!(
+                    "// Material Instance Dynamic helper for {}\nUFUNCTION(BlueprintCallable, Category=\"Material\")\nstatic UMaterialInstanceDynamic* Create{}MaterialInstance(UObject* Outer, const F{}MaterialParams& Params);\n\n",
+                    graph.name, graph.name, graph.name
+                ));
+            }
+        }
 
-        header.push_str("};\n");
         header
     }
 
@@ -80,6 +96,13 @@ private:
 #include "Materials/MaterialExpressionTime.h"
 #include "Materials/MaterialExpressionSine.h"
 #include "Materials/MaterialExpressionCosine.h"
+#include "Materials/MaterialExpressionWorldPosition.h"
+#include "Materials/MaterialExpressionVertexNormalWS.h"
+#include "Materials/MaterialExpressionAbsoluteWorldPosition.h"
+#include "Materials/MaterialExpressionCameraPositionWS.h"
+#include "Materials/MaterialExpressionObjectPositionWS.h"
+#include "Materials/MaterialExpressionObjectOrientation.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/SavePackage.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -104,6 +127,11 @@ void F{}MaterialFactory::GenerateMaterials()
         // Generate each material function
         for graph in graphs {
             cpp.push_str(&self.generate_material_function(graph));
+        }
+        
+        // Feature 7.1: Generate MID helper implementations
+        for graph in graphs {
+            cpp.push_str(&self.generate_mid_helper(graph));
         }
 
         cpp
@@ -794,6 +822,83 @@ void F{}MaterialFactory::GenerateMaterials()
                 
                 result
             }
+            // Feature 7.4: World-Space Operations
+            MaterialNodeType::WorldPosition => {
+                format!(
+                    r#"    UMaterialExpressionWorldPosition* {} = NewObject<UMaterialExpressionWorldPosition>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::WorldNormal => {
+                format!(
+                    r#"    UMaterialExpressionVertexNormalWS* {} = NewObject<UMaterialExpressionVertexNormalWS>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::AbsoluteWorldPosition => {
+                format!(
+                    r#"    UMaterialExpressionAbsoluteWorldPosition* {} = NewObject<UMaterialExpressionAbsoluteWorldPosition>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::CameraPosition => {
+                format!(
+                    r#"    UMaterialExpressionCameraPositionWS* {} = NewObject<UMaterialExpressionCameraPositionWS>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::ObjectPosition => {
+                format!(
+                    r#"    UMaterialExpressionObjectPositionWS* {} = NewObject<UMaterialExpressionObjectPositionWS>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::ObjectOrientation => {
+                format!(
+                    r#"    UMaterialExpressionObjectOrientation* {} = NewObject<UMaterialExpressionObjectOrientation>(Material);
+    {}->MaterialExpressionEditorX = {};
+    {}->MaterialExpressionEditorY = {};
+    Material->GetExpressionCollection().AddExpression({});
+    
+"#,
+                    node.id, node.id, x, node.id, y, node.id
+                )
+            }
+            MaterialNodeType::TriplanarSample { .. } => {
+                // Triplanar sampling is implemented as a CustomHLSL node
+                // The actual node generation is handled by the CustomHLSL case
+                format!(
+                    r#"    // Triplanar sample node {} (implemented via CustomHLSL)
+    
+"#,
+                    node.id
+                )
+            }
             // Placeholder implementations for Phase 2 node types (Time, UV manipulation)
             // These will be fully implemented in their respective phases
             MaterialNodeType::Time => {
@@ -831,6 +936,26 @@ void F{}MaterialFactory::GenerateMaterials()
                 // Placeholder - will be implemented in Phase 5
                 format!(
                     r#"    // TODO: Implement UVRotate node generation in Phase 5
+    // Placeholder node for {}
+    
+"#,
+                    node.id
+                )
+            }
+            MaterialNodeType::MaterialLayer { .. } => {
+                // Placeholder - will be implemented in Phase 7.3
+                format!(
+                    r#"    // TODO: Implement MaterialLayer node generation in Phase 7.3
+    // Placeholder node for {}
+    
+"#,
+                    node.id
+                )
+            }
+            MaterialNodeType::MaterialLayerBlend { .. } => {
+                // Placeholder - will be implemented in Phase 7.3
+                format!(
+                    r#"    // TODO: Implement MaterialLayerBlend node generation in Phase 7.3
     // Placeholder node for {}
     
 "#,
@@ -996,6 +1121,15 @@ void F{}MaterialFactory::GenerateMaterials()
                         ));
                     }
                 }
+                MaterialNodeType::TriplanarSample { texture, world_position, .. } => {
+                    // Triplanar sampling is implemented as CustomHLSL
+                    // Wire texture, world position, and world normal inputs
+                    code.push_str(&format!("    // Triplanar sample connections for {}\n", node.id));
+                    code.push_str(&format!("    // Texture: {}\n", texture));
+                    if let Some(pos) = world_position {
+                        code.push_str(&format!("    // World Position: {}\n", pos));
+                    }
+                }
                 _ => {}
             }
         }
@@ -1023,6 +1157,19 @@ void F{}MaterialFactory::GenerateMaterials()
         }
         if let Some(ao) = &graph.outputs.ambient_occlusion {
             code.push_str(&format!("    Material->GetEditorOnlyData()->AmbientOcclusion.Expression = {};\n", ao));
+        }
+        
+        // Phase 7.5: Connect WorldPositionOffset for vertex shader displacement
+        if let Some(wpo) = &graph.outputs.world_position_offset {
+            code.push_str(&format!("    Material->GetEditorOnlyData()->WorldPositionOffset.Expression = {};\n", wpo));
+            
+            // Add comment explaining vertex shader usage
+            code.push_str("    // WorldPositionOffset enables vertex displacement in the vertex shader stage\n");
+            
+            // If displacement scale is specified, add a comment
+            if let Some(scale) = graph.vertex_displacement_scale {
+                code.push_str(&format!("    // Displacement scale: {}x\n", scale));
+            }
         }
 
         code
@@ -1062,6 +1209,112 @@ void F{}MaterialFactory::GenerateMaterials()
             if props.two_sided { "true" } else { "false" }
         )
     }
+    
+    /// Feature 7.1: Generate parameter struct for dynamic materials
+    /// Creates a USTRUCT with all material parameters exposed for runtime modification
+    fn generate_parameter_struct(&self, graph: &MaterialGraph) -> String {
+        if !graph.properties.expose_parameters || graph.dynamic_parameters.is_empty() {
+            return String::new();
+        }
+        
+        let mut code = format!(
+            "// Parameter struct for dynamic material: {}\nUSTRUCT(BlueprintType)\nstruct F{}MaterialParams\n{{\n    GENERATED_BODY()\n\n",
+            graph.name, graph.name
+        );
+        
+        // Use the dynamic_parameters list instead of scanning all nodes
+        for param in &graph.dynamic_parameters {
+            match param.param_type {
+                DynamicParameterType::Scalar => {
+                    let default = match param.default_value {
+                        DynamicParameterValue::Scalar(v) => v,
+                        _ => 0.0,
+                    };
+                    code.push_str(&format!(
+                        "    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=\"Material Parameters\")\n    float {} = {};\n\n",
+                        param.name, cpp_float(default)
+                    ));
+                }
+                DynamicParameterType::Vector => {
+                    let default = match param.default_value {
+                        DynamicParameterValue::Vector(v) => v,
+                        _ => [0.0, 0.0, 0.0],
+                    };
+                    code.push_str(&format!(
+                        "    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=\"Material Parameters\")\n    FLinearColor {} = FLinearColor({}, {}, {}, 1.0f);\n\n",
+                        param.name, cpp_float(default[0]), cpp_float(default[1]), cpp_float(default[2])
+                    ));
+                }
+                DynamicParameterType::Color => {
+                    let default = match param.default_value {
+                        DynamicParameterValue::Color(v) => v,
+                        _ => [1.0, 1.0, 1.0, 1.0],
+                    };
+                    code.push_str(&format!(
+                        "    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=\"Material Parameters\")\n    FLinearColor {} = FLinearColor({}, {}, {}, {});\n\n",
+                        param.name, cpp_float(default[0]), cpp_float(default[1]), cpp_float(default[2]), cpp_float(default[3])
+                    ));
+                }
+            }
+        }
+        
+        code.push_str("};\n\n");
+        code
+    }
+    
+    /// Feature 7.1: Generate Material Instance Dynamic helper function
+    /// Creates a Blueprint-callable function that instantiates a MID with parameters
+    fn generate_mid_helper(&self, graph: &MaterialGraph) -> String {
+        if !graph.properties.expose_parameters || graph.dynamic_parameters.is_empty() {
+            return String::new();
+        }
+        
+        let mut setter_code = String::new();
+        for param in &graph.dynamic_parameters {
+            match param.param_type {
+                DynamicParameterType::Scalar => {
+                    setter_code.push_str(&format!("    MID->SetScalarParameterValue(TEXT(\"{}\"), Params.{});\n", param.name, param.name));
+                }
+                DynamicParameterType::Vector | DynamicParameterType::Color => {
+                    setter_code.push_str(&format!("    MID->SetVectorParameterValue(TEXT(\"{}\"), Params.{});\n", param.name, param.name));
+                }
+            }
+        }
+        
+        format!(
+            r#"
+UMaterialInstanceDynamic* Create{}MaterialInstance(UObject* Outer, const F{}MaterialParams& Params)
+{{
+    UMaterial* BaseMaterial = LoadObject<UMaterial>(nullptr, TEXT("/{}/Materials/M_{}"));
+    if (!BaseMaterial)
+    {{
+        UE_LOG(LogTemp, Error, TEXT("Failed to load base material: /{}/Materials/M_{}"));
+        return nullptr;
+    }}
+    
+    UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMaterial, Outer);
+    if (!MID)
+    {{
+        UE_LOG(LogTemp, Error, TEXT("Failed to create Material Instance Dynamic"));
+        return nullptr;
+    }}
+    
+    // Apply parameters
+{}
+    
+    return MID;
+}}
+
+"#,
+            graph.name,
+            graph.name,
+            self.plugin_name,
+            graph.name,
+            self.plugin_name,
+            graph.name,
+            setter_code
+        )
+    }
 }
 
 #[cfg(test)]
@@ -1079,6 +1332,9 @@ mod tests {
                 outputs: MaterialOutputs::default(),
                 properties: MaterialProperties::default(),
                 is_dynamic: false,
+                dynamic_parameters: Vec::new(),
+                uses_vertex_shader: false,
+                vertex_displacement_scale: None,
             }
         ];
         
@@ -1121,5 +1377,120 @@ mod tests {
         assert!(code.contains("UMaterialExpressionMultiply"));
         assert!(code.contains("MaterialExpressionEditorX = 300"));
         assert!(code.contains("MaterialExpressionEditorY = 400"));
+    }
+    
+    #[test]
+    fn test_dynamic_material_generation() {
+        let gen = MaterialFactoryGenerator::new("TestPlugin".to_string());
+        
+        let mut graph = MaterialGraph::new("M_Dynamic".to_string());
+        graph.properties.expose_parameters = true;
+        
+        // Add inputs (required for mark_parameter_dynamic to work)
+        graph.inputs.push(MaterialInput {
+            name: "Intensity".to_string(),
+            input_type: MaterialInputType::Float,
+            default_value: Some("1.0".to_string()),
+            is_dynamic: false,
+        });
+        graph.inputs.push(MaterialInput {
+            name: "Tint".to_string(),
+            input_type: MaterialInputType::Vec3,
+            default_value: Some("vec3(1.0, 1.0, 1.0)".to_string()),
+            is_dynamic: false,
+        });
+        graph.inputs.push(MaterialInput {
+            name: "EmissiveColor".to_string(),
+            input_type: MaterialInputType::Color,
+            default_value: Some("vec4(1.0, 0.5, 0.0, 1.0)".to_string()),
+            is_dynamic: false,
+        });
+        
+        // Add scalar parameter
+        graph.nodes.push(MaterialNode {
+            id: "node_0".to_string(),
+            node_type: MaterialNodeType::ScalarParameter {
+                name: "Intensity".to_string(),
+                default: 1.0,
+            },
+            position: (0, 0),
+        });
+        
+        // Add vector parameter
+        graph.nodes.push(MaterialNode {
+            id: "node_1".to_string(),
+            node_type: MaterialNodeType::VectorParameter {
+                name: "Tint".to_string(),
+                default: [1.0, 1.0, 1.0],
+            },
+            position: (0, 100),
+        });
+        
+        // Add color parameter
+        graph.nodes.push(MaterialNode {
+            id: "node_2".to_string(),
+            node_type: MaterialNodeType::ColorParameter {
+                name: "EmissiveColor".to_string(),
+                default: [1.0, 0.5, 0.0, 1.0],
+            },
+            position: (0, 200),
+        });
+        
+        // Mark parameters as dynamic (Phase 7.1)
+        graph.mark_parameter_dynamic("Intensity").unwrap();
+        graph.mark_parameter_dynamic("Tint").unwrap();
+        graph.mark_parameter_dynamic("EmissiveColor").unwrap();
+        
+        let header = gen.generate_factory_header(&[graph.clone()]);
+        let cpp = gen.generate_factory_cpp(&[graph]);
+        
+        // Verify parameter struct generation
+        assert!(header.contains("struct FM_DynamicMaterialParams"));
+        assert!(header.contains("float Intensity"));
+        assert!(header.contains("FLinearColor Tint"));
+        assert!(header.contains("FLinearColor EmissiveColor"));
+        assert!(header.contains("UPROPERTY(EditAnywhere, BlueprintReadWrite"));
+        
+        // Verify MID helper declaration
+        assert!(header.contains("CreateM_DynamicMaterialInstance"));
+        assert!(header.contains("UFUNCTION(BlueprintCallable"));
+        
+        // Verify MID helper implementation
+        assert!(cpp.contains("UMaterialInstanceDynamic* CreateM_DynamicMaterialInstance"));
+        assert!(cpp.contains("UMaterialInstanceDynamic::Create"));
+        assert!(cpp.contains("SetScalarParameterValue(TEXT(\"Intensity\")"));
+        assert!(cpp.contains("SetVectorParameterValue(TEXT(\"Tint\")"));
+        assert!(cpp.contains("SetVectorParameterValue(TEXT(\"EmissiveColor\")"));
+        assert!(cpp.contains("LoadObject<UMaterial>"));
+        
+        // Verify includes
+        assert!(cpp.contains("#include \"Materials/MaterialInstanceDynamic.h\""));
+    }
+    
+    #[test]
+    fn test_non_dynamic_material_no_params() {
+        let gen = MaterialFactoryGenerator::new("TestPlugin".to_string());
+        
+        let mut graph = MaterialGraph::new("M_Static".to_string());
+        graph.properties.expose_parameters = false;  // Not dynamic
+        
+        graph.nodes.push(MaterialNode {
+            id: "node_0".to_string(),
+            node_type: MaterialNodeType::ScalarParameter {
+                name: "Roughness".to_string(),
+                default: 0.5,
+            },
+            position: (0, 0),
+        });
+        
+        let header = gen.generate_factory_header(&[graph.clone()]);
+        let cpp = gen.generate_factory_cpp(&[graph]);
+        
+        // Verify NO parameter struct generated
+        assert!(!header.contains("struct FM_StaticMaterialParams"));
+        
+        // Verify NO MID helper generated
+        assert!(!header.contains("CreateM_StaticMaterialInstance"));
+        assert!(!cpp.contains("UMaterialInstanceDynamic* CreateM_StaticMaterialInstance"));
     }
 }

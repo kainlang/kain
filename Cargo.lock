@@ -2829,6 +2829,7 @@ version = "0.1.0"
 dependencies = [
  "indoc",
  "kain-core",
+ "log",
  "ordered-float",
  "serde",
  "serde_json",

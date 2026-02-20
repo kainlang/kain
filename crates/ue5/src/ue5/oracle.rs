@@ -878,23 +878,41 @@ fn validate_rpcs(ctx: &mut ValidationContext, program: &TypedProgram) {
 /// Task 4.3: Validate datatable structs
 /// Requirement 3.3: Verify all fields are UE5-serializable, no pointers
 fn validate_datatables(ctx: &mut ValidationContext, program: &TypedProgram, _kb: &EngineKnowledge) {
+    // Collect all user-defined enum and struct names from the program.
+    // UE5 DataTables fully support UENUM and USTRUCT field types — the type-checker
+    // has already verified these names resolve to real program items.
+    let user_defined_types: std::collections::HashSet<String> = program.items.iter()
+        .filter_map(|item| match item {
+            TypedItem::Enum(e)   => Some(e.ast.name.clone()),
+            TypedItem::Struct(s) => Some(s.ast.name.clone()),
+            _ => None,
+        })
+        .collect();
+
     for item in &program.items {
         if let TypedItem::Struct(struct_def) = item {
             let is_datatable = struct_def.ast.attributes.iter().any(|a| a.name == "datatable");
-            
+
             if is_datatable {
                 let struct_name = &struct_def.ast.name;
-                
+
                 for field in &struct_def.ast.fields {
-                    // Check if field type is serializable
-                    if !is_serializable_type(&field.ty) {
+                    // Allow user-defined enum/struct types in addition to UE5 primitives —
+                    // they map to UENUM/USTRUCT which are always DataTable-compatible.
+                    let is_user_type = if let Type::Named { name, .. } = &field.ty {
+                        user_defined_types.contains(name.as_str())
+                    } else {
+                        false
+                    };
+
+                    if !is_user_type && !is_serializable_type(&field.ty) {
                         ctx.error(format!(
                             "DataTable struct '{}', field '{}': DataTable fields must be UE5-serializable. \
                             Type '{:?}' cannot be used in DataTables.",
                             struct_name, field.name, field.ty
                         ));
                     }
-                    
+
                     // Check for pointer types (not allowed in DataTables)
                     if is_pointer_type(&field.ty) {
                         ctx.error(format!(

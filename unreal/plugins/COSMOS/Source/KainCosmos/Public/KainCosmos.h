@@ -21,9 +21,6 @@ struct FClimateComponent;
 struct FResourceLatticeComponent;
 struct FOrbitalPhysicsComponent;
 class AKainSovereignPlanet;
-struct FCosmosDashboard;
-struct FSovereignDetailsPanel;
-struct FKainCosmosModule;
 
 // Module includes
 #include "KainCosmosDelegates.h"

@@ -68,6 +68,9 @@ pub enum Item {
 
     /// `@material_graph Name: inputs, body, outputs`
     MaterialGraph(MaterialGraphDef),
+
+    /// `@material_function Name: inputs, body, output`
+    MaterialFunction(MaterialFunctionDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -930,5 +933,17 @@ pub enum MaterialStatement {
 pub struct MaterialOutput {
     pub name: String,  // base_color, emissive, roughness, metallic, normal, opacity, etc.
     pub value: Expr,
+    pub span: Span,
+}
+
+/// Material function definition: `@material_function Name: inputs, body, output`
+/// Material functions are reusable node graphs that can be called from materials.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialFunctionDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub inputs: Vec<MaterialInput>,
+    pub body: Vec<MaterialStatement>,
+    pub output: Expr,  // Single output expression
     pub span: Span,
 }

@@ -9,4 +9,4 @@
 #include "SAlphaGenEditorWidget.h"
 #include "SAlphaPreviewWidget.h"
 #include "SParameterEditorWidget.h"
-#include "FAlphaGenEditorModuleModule.h"
+#include "FAlphaGenEditorModule.h"

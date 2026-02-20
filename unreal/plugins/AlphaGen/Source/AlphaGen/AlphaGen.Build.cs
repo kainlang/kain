@@ -15,9 +15,7 @@ public class AlphaGen : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Projects",
-				"RHI",
-				"RenderCore",
-				"Renderer"
+				"RenderCore"
 			}
 		);
 	}

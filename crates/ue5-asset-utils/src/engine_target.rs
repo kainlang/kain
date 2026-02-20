@@ -22,9 +22,10 @@
 //!   2. Update **only** `as_serializer_version()` to return the new variant.
 //!   3. Nothing else changes.
 //!
-//! Until the library catches up, new versions map to the highest known safe
-//! binary format (currently `VER_UE5_2`), which UE5.3+ accepts due to Epic's
-//! backwards format compatibility guarantee.
+//! With the vendored library now updated from local UE 5.4–5.7 engine source,
+//! each version from 5.4 onwards maps to its true native `EngineVersion`.
+//! UE 5.3 is a special case: it shipped no new global `ObjectVersionUE5` variants,
+//! so it shares the 5.2 watermark.
 
 use serde::{Deserialize, Serialize};
 use unreal_asset_base::engine_version::EngineVersion;
@@ -83,31 +84,32 @@ impl KainEngineTarget {
     ///
     /// # Compatibility Notes
     ///
-    /// - UE 5.0 → serialized as `VER_UE5_0`
-    /// - UE 5.1 → serialized as `VER_UE5_1`
-    /// - UE 5.2 → serialized as `VER_UE5_2`
-    /// - UE 5.3–5.7 → serialized as `VER_UE5_2` (highest known format in the
-    ///   vendored library). This is **safe**: Epic guarantees that newer engine
-    ///   versions can load assets written by any older compatible format.
+    /// - UE 5.0 → `VER_UE5_0`
+    /// - UE 5.1 → `VER_UE5_1`
+    /// - UE 5.2 → `VER_UE5_2`
+    /// - UE 5.3 → `VER_UE5_2` (5.3 added **no** new global `ObjectVersionUE5`
+    ///   variants; its watermark is identical to 5.2's `DATA_RESOURCES`)
+    /// - UE 5.4 → `VER_UE5_4` (adds `SCRIPT_SERIALIZATION_OFFSET` …
+    ///   `PROPERTY_TAG_COMPLETE_TYPE_NAME`)
+    /// - UE 5.5 → `VER_UE5_5` (adds `ASSETREGISTRY_PACKAGEBUILDDEPENDENCIES`)
+    /// - UE 5.6 → `VER_UE5_6` (adds `METADATA_SERIALIZATION_OFFSET` …
+    ///   `OS_SUB_OBJECT_SHADOW_SERIALIZATION`)
+    /// - UE 5.7 → `VER_UE5_7` (adds `IMPORT_TYPE_HIERARCHIES`)
     ///
-    /// When the vendored `unreal_asset` library is updated to expose
-    /// `VER_UE5_3` etc., update *only* this function.
+    /// This is the **only** place in KAIN that touches the raw `EngineVersion` enum.
     pub fn as_serializer_version(self) -> EngineVersion {
-        // ── Version dispatch table ───────────────────────────────────────────
-        // This is the ONLY place in the entire KAIN codebase that maps
-        // KainEngineTarget → the raw EngineVersion enum.
         match self {
             KainEngineTarget::Ue5_0 => EngineVersion::VER_UE5_0,
             KainEngineTarget::Ue5_1 => EngineVersion::VER_UE5_1,
-            // 5.2+ all serialize at the 5.2 binary format for now.
-            // TODO: update each arm below when the vendored library is extended
-            // e.g.: KainEngineTarget::Ue5_3 => EngineVersion::VER_UE5_3,
-            KainEngineTarget::Ue5_2
-            | KainEngineTarget::Ue5_3
-            | KainEngineTarget::Ue5_4
-            | KainEngineTarget::Ue5_5
-            | KainEngineTarget::Ue5_6
-            | KainEngineTarget::Ue5_7 => EngineVersion::VER_UE5_2,
+            KainEngineTarget::Ue5_2 => EngineVersion::VER_UE5_2,
+            // 5.3 shipped no new global ObjectVersionUE5 variants — same watermark as 5.2.
+            KainEngineTarget::Ue5_3 => EngineVersion::VER_UE5_2,
+            // 5.4–5.7 each have their own native EngineVersion (backed by real
+            // ObjectVersionUE5 watermarks extracted from local engine source).
+            KainEngineTarget::Ue5_4 => EngineVersion::VER_UE5_4,
+            KainEngineTarget::Ue5_5 => EngineVersion::VER_UE5_5,
+            KainEngineTarget::Ue5_6 => EngineVersion::VER_UE5_6,
+            KainEngineTarget::Ue5_7 => EngineVersion::VER_UE5_7,
         }
     }
 
@@ -140,21 +142,28 @@ impl KainEngineTarget {
         }
     }
 
-    /// The effective binary format version written to disk.
-    /// Useful for logging/diagnostics when `self != self.serializer_ceiling()`.
+    /// The effective binary format ceiling for a target version.
+    /// Returns the `KainEngineTarget` that `as_serializer_version()` actually
+    /// writes — useful for logging when the target has no unique native format.
     pub fn serializer_ceiling(self) -> KainEngineTarget {
         match self {
             KainEngineTarget::Ue5_0 => KainEngineTarget::Ue5_0,
             KainEngineTarget::Ue5_1 => KainEngineTarget::Ue5_1,
-            // Everything at or above 5.2 currently serializes at 5.2 format
-            _ => KainEngineTarget::Ue5_2,
+            // 5.3 has no unique format — effectively 5.2
+            KainEngineTarget::Ue5_2 | KainEngineTarget::Ue5_3 => KainEngineTarget::Ue5_2,
+            // 5.4–5.7 each have their own native format
+            KainEngineTarget::Ue5_4 => KainEngineTarget::Ue5_4,
+            KainEngineTarget::Ue5_5 => KainEngineTarget::Ue5_5,
+            KainEngineTarget::Ue5_6 => KainEngineTarget::Ue5_6,
+            KainEngineTarget::Ue5_7 => KainEngineTarget::Ue5_7,
         }
     }
 
     /// True if the target version is higher than what the serializer natively
     /// knows about (i.e. the file will be written in a backwards-compat format).
+    /// After the library update, only `Ue5_3` triggers this (shares 5.2 format).
     pub fn is_above_serializer_ceiling(self) -> bool {
-        self > KainEngineTarget::Ue5_2
+        self.serializer_ceiling() != self
     }
 }
 
@@ -199,27 +208,28 @@ mod tests {
     }
 
     #[test]
-    fn test_ue5_3_through_5_7_map_to_ue5_2_format() {
-        for v in [
-            KainEngineTarget::Ue5_3,
-            KainEngineTarget::Ue5_4,
-            KainEngineTarget::Ue5_5,
-            KainEngineTarget::Ue5_6,
-            KainEngineTarget::Ue5_7,
-        ] {
-            assert_eq!(
-                v.as_serializer_version(),
-                EngineVersion::VER_UE5_2,
-                "{v} should serialize at VER_UE5_2 format until library is updated"
-            );
-        }
+    fn test_ue5_3_maps_to_ue5_2_format() {
+        // 5.3 shipped no new global ObjectVersionUE5 variants — shares the 5.2 watermark
+        assert_eq!(KainEngineTarget::Ue5_3.as_serializer_version(), EngineVersion::VER_UE5_2);
+    }
+
+    #[test]
+    fn test_ue5_4_through_5_7_have_native_formats() {
+        // Now that the vendored library has real watermarks from local engine source:
+        assert_eq!(KainEngineTarget::Ue5_4.as_serializer_version(), EngineVersion::VER_UE5_4);
+        assert_eq!(KainEngineTarget::Ue5_5.as_serializer_version(), EngineVersion::VER_UE5_5);
+        assert_eq!(KainEngineTarget::Ue5_6.as_serializer_version(), EngineVersion::VER_UE5_6);
+        assert_eq!(KainEngineTarget::Ue5_7.as_serializer_version(), EngineVersion::VER_UE5_7);
     }
 
     #[test]
     fn test_is_above_serializer_ceiling() {
+        // Only Ue5_3 is above its ceiling (shares 5.2 format)
         assert!(!KainEngineTarget::Ue5_2.is_above_serializer_ceiling());
         assert!(KainEngineTarget::Ue5_3.is_above_serializer_ceiling());
-        assert!(KainEngineTarget::Ue5_7.is_above_serializer_ceiling());
+        // 5.4–5.7 each have their own native format — not above ceiling
+        assert!(!KainEngineTarget::Ue5_4.is_above_serializer_ceiling());
+        assert!(!KainEngineTarget::Ue5_7.is_above_serializer_ceiling());
     }
 
     #[test]
@@ -243,7 +253,10 @@ mod tests {
     fn test_serializer_ceiling() {
         assert_eq!(KainEngineTarget::Ue5_0.serializer_ceiling(), KainEngineTarget::Ue5_0);
         assert_eq!(KainEngineTarget::Ue5_2.serializer_ceiling(), KainEngineTarget::Ue5_2);
-        assert_eq!(KainEngineTarget::Ue5_5.serializer_ceiling(), KainEngineTarget::Ue5_2);
-        assert_eq!(KainEngineTarget::Ue5_7.serializer_ceiling(), KainEngineTarget::Ue5_2);
+        // 5.3 has no unique format, ceiling stays at 5.2
+        assert_eq!(KainEngineTarget::Ue5_3.serializer_ceiling(), KainEngineTarget::Ue5_2);
+        // 5.4–5.7 are their own ceiling
+        assert_eq!(KainEngineTarget::Ue5_5.serializer_ceiling(), KainEngineTarget::Ue5_5);
+        assert_eq!(KainEngineTarget::Ue5_7.serializer_ceiling(), KainEngineTarget::Ue5_7);
     }
 }

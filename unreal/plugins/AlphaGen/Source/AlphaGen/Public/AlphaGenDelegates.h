@@ -5,14 +5,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FTexture2D.h"
 
 #include "AlphaGenDelegates.generated.h"
 
 // Delegate declarations
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTextureGenerated, FTexture2D, Param0);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTextureGenerated, Texture2D, Param0);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFilterApplied, FTexture2D, Param0);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFilterApplied, Texture2D, Param0);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnExportComplete, FString, Param0);
 

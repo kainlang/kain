@@ -14,16 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for QuantumComponent (GPU-compatible)
-struct FQuantumComponentData {
-    float coherence_length;
-    float healing_length;
-    float vortex_core_size;
-    float phase_wrapping;
-    float dispersion_gain;
-    float superfluid_fraction;
-    float condensate_density;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FQuantumFluidGrossPitaevskiiShader : public FGlobalShader
 {
@@ -31,7 +22,7 @@ class FQuantumFluidGrossPitaevskiiShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FQuantumFluidGrossPitaevskiiShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FQuantumComponentData, quantum)
+        SHADER_PARAMETER_STRUCT(FQuantumComponentData, quantum)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -54,7 +45,7 @@ class FQuantumFluidGrossPitaevskiiShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FQuantumFluidGrossPitaevskiiShader, "/Plugin/YourPlugin/QuantumFluidGrossPitaevskii.usf", "QuantumFluidGrossPitaevskiiCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FQuantumFluidGrossPitaevskiiShader, "/Plugin/FluidFlow/QuantumFluidGrossPitaevskii.usf", "QuantumFluidGrossPitaevskiiCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_QuantumFluidGrossPitaevskii(

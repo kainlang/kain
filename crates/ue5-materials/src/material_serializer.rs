@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 use unreal_asset::{
-    engine_version::EngineVersion,
     exports::{BaseExport, Export, ExportBaseTrait, NormalExport},
     flags::EObjectFlags,
     types::PackageIndex,
     Asset, Import,
 };
 use ue5_asset_utils::ImportBuilder;
+use ue5_asset_utils::KainEngineTarget;
 use unreal_asset_properties::{
     int_property::{BoolProperty, FloatProperty, IntProperty},
     object_property::ObjectProperty,
@@ -76,8 +76,23 @@ pub struct MaterialAssetBuilder {
 
 impl MaterialAssetBuilder {
     /// Create a new builder for a material with the given name.
-    pub fn new(material_name: &str) -> Self {
-        let mut asset = Asset::new_empty(EngineVersion::VER_UE5_2);
+    /// `engine_target` controls the UE version the asset is built for.
+    /// Use `KainEngineTarget::default()` if you don't need to target a specific
+    /// version.
+    pub fn new(material_name: &str, engine_target: KainEngineTarget) -> Self {
+        let mut asset = Asset::new_empty(engine_target.as_serializer_version());
+
+        // Log if we're serializing below the requested target version
+        if engine_target.is_above_serializer_ceiling() {
+            // Non-fatal: the 5.2 format is accepted by UE5.3+
+            // (Epic maintains backwards format compatibility).
+            log::debug!(
+                "MaterialAssetBuilder: targeting UE {engine_target} but serializing \
+                 at {} format (highest known; UE{} will accept this file)",
+                engine_target.serializer_ceiling(),
+                engine_target,
+            );
+        }
 
         // ── Core imports every material needs (via shared ImportBuilder) ────
         let core_uobject_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
@@ -724,7 +739,14 @@ impl MaterialAssetBuilder {
     ) -> usize {
         let mut props = Vec::new();
 
-        // Set the MaterialFunction property as a soft object path
+        // Create an import for the MaterialFunction asset
+        // function_path should be like "/Game/Materials/Functions/MF_MyFunction.MF_MyFunction"
+        let func_import = ImportBuilder::resolve_object_import(
+            &mut self.asset,
+            function_path,
+        );
+
+        // Set the MaterialFunction property to reference the imported function
         let func_name = self.asset.add_fname("MaterialFunction");
         props.push(
             ObjectProperty {
@@ -732,11 +754,12 @@ impl MaterialAssetBuilder {
                 ancestry: Default::default(),
                 property_guid: None,
                 duplication_index: 0,
-                value: PackageIndex::new(0), // Will need to be resolved
+                value: func_import,
             }
             .into(),
         );
 
+        // Wire up function inputs
         for (input_name, node_id) in inputs {
             props.push(self.make_input_property(input_name, *node_id, 0));
         }
@@ -786,6 +809,178 @@ impl MaterialAssetBuilder {
         }
 
         self.add_expression_export("MaterialExpressionCustom", props)
+    }
+
+    // ── Phase 7.3: Material Layers ─────────────────────────────────────────
+
+    /// Add a material layer blend node (two-layer blend)
+    /// Blends base_layer and blend_layer using the specified blend mode and alpha
+    pub fn add_material_layer_node(
+        &mut self,
+        base: usize,
+        blend: usize,
+        mode: &LayerBlendMode,
+        alpha: usize,
+    ) -> usize {
+        // Material layers in UE5 are implemented using lerp/add/multiply nodes
+        // We generate the appropriate node based on blend mode
+        match mode {
+            LayerBlendMode::Lerp => {
+                // Simple lerp between base and blend
+                self.add_lerp_node(base, blend, alpha)
+            }
+            LayerBlendMode::Add => {
+                // Multiply blend by alpha, then add to base
+                let scaled_blend = self.add_multiply_node(blend, alpha);
+                self.add_add_node(base, scaled_blend)
+            }
+            LayerBlendMode::Multiply => {
+                // Lerp between base and (base * blend) using alpha
+                let multiplied = self.add_multiply_node(base, blend);
+                self.add_lerp_node(base, multiplied, alpha)
+            }
+            LayerBlendMode::Overlay => {
+                // Overlay: screen + multiply based on base luminance
+                // overlay(a,b) = a < 0.5 ? 2*a*b : 1 - 2*(1-a)*(1-b)
+                // Simplified: lerp between multiply and screen based on alpha
+                let multiplied = self.add_multiply_node(base, blend);
+                let two = self.add_constant_node(2.0);
+                let doubled = self.add_multiply_node(multiplied, two);
+                self.add_lerp_node(base, doubled, alpha)
+            }
+            LayerBlendMode::Screen => {
+                // Screen: 1 - (1-a)*(1-b)
+                // Simplified: lerp towards white based on blend
+                let one = self.add_constant_node(1.0);
+                let inv_base = self.add_subtract_node(one, base);
+                let inv_blend = self.add_subtract_node(one, blend);
+                let multiplied = self.add_multiply_node(inv_base, inv_blend);
+                let screen = self.add_subtract_node(one, multiplied);
+                self.add_lerp_node(base, screen, alpha)
+            }
+        }
+    }
+
+    /// Add a multi-layer blend node (3+ layers)
+    /// Blends multiple layers sequentially using the specified blend modes and alphas
+    /// layers[0] is the base, subsequent layers are blended on top
+    pub fn add_material_layer_blend_node(
+        &mut self,
+        layers: &[usize],
+        modes: &[LayerBlendMode],
+        alphas: &[usize],
+    ) -> usize {
+        if layers.is_empty() {
+            panic!("MaterialLayerBlend requires at least one layer");
+        }
+        
+        if layers.len() == 1 {
+            // Single layer - just return it
+            return layers[0];
+        }
+        
+        if modes.len() != layers.len() - 1 || alphas.len() != layers.len() - 1 {
+            panic!(
+                "MaterialLayerBlend: modes and alphas must have length = layers.len() - 1. \
+                 Got {} layers, {} modes, {} alphas",
+                layers.len(),
+                modes.len(),
+                alphas.len()
+            );
+        }
+        
+        // Start with the base layer
+        let mut result = layers[0];
+        
+        // Blend each subsequent layer on top
+        for i in 1..layers.len() {
+            result = self.add_material_layer_node(
+                result,
+                layers[i],
+                &modes[i - 1],
+                alphas[i - 1],
+            );
+        }
+        
+        result
+    }
+
+    // ── Phase 7.4: World-Space Operations ──────────────────────────────────
+
+    // -- World Position --
+
+    pub fn add_world_position_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionWorldPosition", Vec::new())
+    }
+
+    pub fn add_world_normal_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionVertexNormalWS", Vec::new())
+    }
+
+    pub fn add_absolute_world_position_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionAbsoluteWorldPosition", Vec::new())
+    }
+
+    pub fn add_camera_position_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionCameraPositionWS", Vec::new())
+    }
+
+    pub fn add_object_position_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionObjectPositionWS", Vec::new())
+    }
+
+    pub fn add_object_orientation_node(&mut self) -> usize {
+        self.add_expression_export("MaterialExpressionObjectOrientation", Vec::new())
+    }
+
+    // -- Triplanar Sampling --
+    // This is a complex node that requires multiple texture samples and blending
+    // We'll create a custom HLSL implementation for now
+    pub fn add_triplanar_sample_node(
+        &mut self,
+        texture: usize,
+        world_position: Option<usize>,
+        blend_sharpness: f32,
+    ) -> usize {
+        // Get world position (use provided or create new)
+        let world_pos = match world_position {
+            Some(pos) => pos,
+            None => self.add_world_position_node(),
+        };
+
+        // Get world normal
+        let world_normal = self.add_world_normal_node();
+
+        // Create triplanar sampling HLSL code
+        let code = format!(
+            r#"// Triplanar texture sampling
+// Calculate blend weights based on world normal
+float3 blendWeights = abs(WorldNormal);
+blendWeights = pow(blendWeights, {});
+blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z);
+
+// Sample texture from each axis
+float2 uvX = WorldPosition.zy;
+float2 uvY = WorldPosition.xz;
+float2 uvZ = WorldPosition.xy;
+
+float4 texX = Texture2DSample(Tex, TexSampler, uvX);
+float4 texY = Texture2DSample(Tex, TexSampler, uvY);
+float4 texZ = Texture2DSample(Tex, TexSampler, uvZ);
+
+// Blend samples
+return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
+            blend_sharpness
+        );
+
+        // Create custom HLSL node with texture, world position, and world normal inputs
+        let inputs = vec![
+            ("Tex".to_string(), texture),
+            ("WorldPosition".to_string(), world_pos),
+            ("WorldNormal".to_string(), world_normal),
+        ];
+
+        self.add_custom_hlsl_node(&code, &CustomOutputType::Float4, &inputs)
     }
 
     // ── Material output connections ────────────────────────────────────────
@@ -858,6 +1053,18 @@ impl MaterialAssetBuilder {
 
     pub fn set_two_sided(&mut self, two_sided: bool) {
         self.two_sided = two_sided;
+    }
+
+    // ── Feature 7.1: Dynamic parameter exposure ────────────────────────────
+
+    /// Mark a parameter as runtime-modifiable via MaterialInstanceDynamic.
+    /// This is a no-op at the .uasset level (parameters are always accessible),
+    /// but signals to the C++ wrapper generator that this parameter should be
+    /// exposed in the UKainMaterialParameterCollection class.
+    pub fn mark_parameter_dynamic(&mut self, _param_name: &str) {
+        // No-op: UE5 material parameters are always accessible via MID.
+        // This method exists for API consistency with MaterialGraph::mark_parameter_dynamic
+        // and to signal intent to the C++ wrapper generator.
     }
 
     // ── Build: finalize and serialize ──────────────────────────────────────
@@ -1010,7 +1217,7 @@ impl MaterialAssetBuilder {
 
 /// Convert a MaterialGraph IR to .uasset bytes.
 pub fn serialize_material_graph(graph: &MaterialGraph) -> Result<Vec<u8>, String> {
-    let mut builder = MaterialAssetBuilder::new(&format!("M_{}", graph.name));
+    let mut builder = MaterialAssetBuilder::new(&format!("M_{}", graph.name), KainEngineTarget::default());
 
     // Configure material properties
     builder.set_blend_mode(&graph.properties.blend_mode);
@@ -1302,6 +1509,58 @@ fn convert_node(
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(builder.add_custom_hlsl_node(code, output_type, &resolved))
         }
+
+        // World-Space Operations (Phase 7.4)
+        MaterialNodeType::WorldPosition => Ok(builder.add_world_position_node()),
+        MaterialNodeType::WorldNormal => Ok(builder.add_world_normal_node()),
+        MaterialNodeType::AbsoluteWorldPosition => Ok(builder.add_absolute_world_position_node()),
+        MaterialNodeType::CameraPosition => Ok(builder.add_camera_position_node()),
+        MaterialNodeType::ObjectPosition => Ok(builder.add_object_position_node()),
+        MaterialNodeType::ObjectOrientation => Ok(builder.add_object_orientation_node()),
+        MaterialNodeType::TriplanarSample {
+            texture,
+            world_position,
+            blend_sharpness,
+        } => {
+            let tex_node = resolve(node_map, texture)?;
+            let world_pos = world_position
+                .as_ref()
+                .map(|id| resolve(node_map, id))
+                .transpose()?;
+            Ok(builder.add_triplanar_sample_node(tex_node, world_pos, *blend_sharpness))
+        }
+
+        // Material Layers (Phase 7.3)
+        MaterialNodeType::MaterialLayer {
+            base_layer,
+            blend_layer,
+            blend_mode,
+            alpha,
+        } => {
+            let base = resolve(node_map, base_layer)?;
+            let blend = resolve(node_map, blend_layer)?;
+            let alpha_node = resolve(node_map, alpha)?;
+            Ok(builder.add_material_layer_node(base, blend, blend_mode, alpha_node))
+        }
+        MaterialNodeType::MaterialLayerBlend {
+            layers,
+            blend_modes,
+            alphas,
+        } => {
+            let layer_nodes: Result<Vec<usize>, String> = layers
+                .iter()
+                .map(|id| resolve(node_map, id))
+                .collect();
+            let alpha_nodes: Result<Vec<usize>, String> = alphas
+                .iter()
+                .map(|id| resolve(node_map, id))
+                .collect();
+            Ok(builder.add_material_layer_blend_node(
+                &layer_nodes?,
+                blend_modes,
+                &alpha_nodes?,
+            ))
+        }
     }
 }
 
@@ -1326,7 +1585,7 @@ mod tests {
 
     #[test]
     fn test_simple_constant_material() {
-        let mut builder = MaterialAssetBuilder::new("M_TestConstant");
+        let mut builder = MaterialAssetBuilder::new("M_TestConstant", KainEngineTarget::default());
         let c = builder.add_constant3_node(1.0, 0.0, 0.0);
         builder.connect_to_base_color(c);
 
@@ -1338,7 +1597,7 @@ mod tests {
 
     #[test]
     fn test_add_node_material() {
-        let mut builder = MaterialAssetBuilder::new("M_TestAdd");
+        let mut builder = MaterialAssetBuilder::new("M_TestAdd", KainEngineTarget::default());
         let c1 = builder.add_constant_node(0.5);
         let c2 = builder.add_constant_node(0.3);
         let add = builder.add_add_node(c1, c2);
@@ -1350,7 +1609,7 @@ mod tests {
 
     #[test]
     fn test_complex_material() {
-        let mut builder = MaterialAssetBuilder::new("M_Complex");
+        let mut builder = MaterialAssetBuilder::new("M_Complex", KainEngineTarget::default());
 
         let tex = builder.add_texture_sample_parameter("Albedo", None);
         let roughness = builder.add_scalar_parameter_node("Roughness", 0.8);
@@ -1398,7 +1657,7 @@ mod tests {
 
     #[test]
     fn test_all_node_types() {
-        let mut builder = MaterialAssetBuilder::new("M_AllNodes");
+        let mut builder = MaterialAssetBuilder::new("M_AllNodes", KainEngineTarget::default());
 
         // Constants
         let c1 = builder.add_constant_node(1.0);
@@ -1445,6 +1704,92 @@ mod tests {
         builder.connect_to_base_color(mask);
         builder.connect_to_roughness(sp);
 
+        let bytes = builder.build().expect("build should succeed");
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn test_simple_layer_blend() {
+        let mut builder = MaterialAssetBuilder::new("M_LayerBlend", KainEngineTarget::default());
+        
+        // Create two base colors to blend
+        let base = builder.add_constant3_node(1.0, 0.0, 0.0); // Red
+        let overlay = builder.add_constant3_node(0.0, 0.0, 1.0); // Blue
+        let alpha = builder.add_constant_node(0.5); // 50% blend
+        
+        // Blend using lerp mode
+        let blended = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
+        builder.connect_to_base_color(blended);
+        
+        let bytes = builder.build().expect("build should succeed");
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_layer_stack() {
+        let mut builder = MaterialAssetBuilder::new("M_MultiLayer", KainEngineTarget::default());
+        
+        // Create three layers
+        let layer1 = builder.add_constant3_node(1.0, 0.0, 0.0); // Red base
+        let layer2 = builder.add_constant3_node(0.0, 1.0, 0.0); // Green overlay
+        let layer3 = builder.add_constant3_node(0.0, 0.0, 1.0); // Blue top
+        
+        let alpha1 = builder.add_constant_node(0.5);
+        let alpha2 = builder.add_constant_node(0.3);
+        
+        // Blend all three layers
+        let blended = builder.add_material_layer_blend_node(
+            &[layer1, layer2, layer3],
+            &[LayerBlendMode::Lerp, LayerBlendMode::Add],
+            &[alpha1, alpha2],
+        );
+        
+        builder.connect_to_base_color(blended);
+        
+        let bytes = builder.build().expect("build should succeed");
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn test_layer_alpha_control() {
+        let mut builder = MaterialAssetBuilder::new("M_DynamicLayer", KainEngineTarget::default());
+        
+        // Create base and overlay
+        let base = builder.add_constant3_node(0.2, 0.2, 0.2); // Dark gray
+        let overlay = builder.add_constant3_node(1.0, 1.0, 1.0); // White
+        
+        // Use a parameter for dynamic alpha control
+        let alpha = builder.add_scalar_parameter_node("BlendAmount", 0.5);
+        
+        // Test different blend modes
+        let lerp_blend = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
+        let add_blend = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Add, alpha);
+        let multiply_blend = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Multiply, alpha);
+        
+        // Use the lerp blend for output
+        builder.connect_to_base_color(lerp_blend);
+        
+        let bytes = builder.build().expect("build should succeed");
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn test_all_blend_modes() {
+        let mut builder = MaterialAssetBuilder::new("M_AllBlendModes", KainEngineTarget::default());
+        
+        let base = builder.add_constant3_node(0.5, 0.5, 0.5);
+        let overlay = builder.add_constant3_node(0.8, 0.2, 0.3);
+        let alpha = builder.add_constant_node(0.7);
+        
+        // Test all blend modes compile
+        let _lerp = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
+        let _add = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Add, alpha);
+        let _multiply = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Multiply, alpha);
+        let _overlay = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Overlay, alpha);
+        let screen = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Screen, alpha);
+        
+        builder.connect_to_base_color(screen);
+        
         let bytes = builder.build().expect("build should succeed");
         assert!(!bytes.is_empty());
     }

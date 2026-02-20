@@ -15,9 +15,7 @@ public class KainCosmosEditor : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"KainCosmos",
-				"RHI",
-				"RenderCore",
-				"Renderer"
+				"RenderCore"
 			}
 		);
 

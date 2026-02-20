@@ -15,9 +15,7 @@ public class AlphaGenEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"RHI",
-				"RenderCore",
-				"Renderer"
+				"RenderCore"
 			}
 		);
 

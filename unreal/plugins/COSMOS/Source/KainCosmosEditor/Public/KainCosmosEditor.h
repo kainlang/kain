@@ -8,4 +8,4 @@
 // Editor module includes
 #include "SCosmosDashboard.h"
 #include "SSovereignDetailsPanel.h"
-#include "FKainCosmosModuleModule.h"
+#include "FKainCosmosModule.h"

@@ -46,122 +46,82 @@
 #include "FluidInterferometry.h"
 #include "FluidHolography.h"
 #include "FluidQuantumVisualization.h"
+#include "AdvectVelocity.h"
+#include "AdvectDensity.h"
+#include "AdvectTemperature.h"
+#include "ApplyExternalForces.h"
+#include "ComputeDivergence.h"
+#include "JacobiPressure.h"
+#include "SubtractGradient.h"
+#include "VOF_AdvectionPLIC.h"
+#include "LevelSet_Reinitialization.h"
+#include "PhaseChange_Evaporation.h"
+#include "PhaseChange_Condensation.h"
+#include "TurbulenceKEpsilon.h"
+#include "TurbulenceKOmegaSST.h"
+#include "TurbulenceSpalartAllmaras.h"
+#include "LES_DynamicSmagorinsky.h"
+#include "ParticleDrag.h"
+#include "ParticleCollision.h"
+#include "ParticleBreakup.h"
+#include "ParticleEvaporation.h"
+#include "AcousticWaveEquation.h"
+#include "AcousticSourceTerm.h"
+#include "DarcyFlow.h"
+#include "Forchheimer.h"
+#include "PoroElastic.h"
+#include "FreeSurface_VOF.h"
+#include "FreeSurface_LevelSet.h"
+#include "SurfaceTension_CSF.h"
+#include "AdvectionWENO5.h"
+#include "SDFCollisionPass.h"
+#include "ClearTexture.h"
+#include "FluidRaymarching.h"
+#include "FluidSchlieren.h"
+#include "FluidInterferometry.h"
+#include "FluidHolography.h"
+#include "FluidQuantumVisualization.h"
 
 AHyperFluidWorld::AHyperFluidWorld()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	grid = CreateDefaultSubobject<UGridResolutionComponent>(TEXT("Grid"));
-	time = CreateDefaultSubobject<UTimeIntegrationComponent>(TEXT("Time"));
-	physics = CreateDefaultSubobject<UPhysicalPropertiesComponent>(TEXT("Physics"));
-	turbulence = CreateDefaultSubobject<UTurbulenceComponent>(TEXT("Turbulence"));
-	multiphase = CreateDefaultSubobject<UMultiphaseComponent>(TEXT("Multiphase"));
-	thermal = CreateDefaultSubobject<UThermalComponent>(TEXT("Thermal"));
-	em = CreateDefaultSubobject<UElectroMagneticComponent>(TEXT("Em"));
-	quantum = CreateDefaultSubobject<UQuantumComponent>(TEXT("Quantum"));
-	particles = CreateDefaultSubobject<UParticulateComponent>(TEXT("Particles"));
-	adaptive = CreateDefaultSubobject<UAdaptiveMeshComponent>(TEXT("Adaptive"));
-	viz = CreateDefaultSubobject<UVisualizationComponent>(TEXT("Viz"));
 }
 
 void AHyperFluidWorld::BeginPlay()
 {
 	Super::BeginPlay();
-	// Initialize Render Targets here (omitted for brevity, user must implemented or we gen helper)
-	// Helper: KismetRenderingLibrary::CreateRenderTarget2D(this, 1024, 1024, RTF_RGBA32f);
-	grid->grid_dim = FVector(256, 256, 256);
-	grid->cell_size = FVector(1.000000f, 1.000000f, 1.000000f);
-	grid->adaptive = AdaptiveStrategy.AMR;
-	grid->refine_threshold = 0.050000f;
-	grid->coarsen_threshold = 0.010000f;
-	grid->max_refine_level = 5;
-	grid->min_cell_size = 0.010000f;
-	time->dt = 0.016000f;
-	time->time_integrator = TimeIntegrator.RK4;
-	time->cfl = 0.400000f;
-	time->substeps = 2;
-	time->real_time_sync = true;
-	time->clamp_dt = true;
-	time->max_dt = 0.050000f;
-	time->min_dt = 0.001000f;
-	physics->fluid_class = FluidClass.Water;
-	physics->solver_family = SolverFamily.LatticeBoltzmann;
-	physics->turbulence_model = TurbulenceModel.LES;
-	physics->boundary_type = BoundaryType.NoSlip;
-	physics->coupling_fields = {CouplingField.Thermal, CouplingField.Magnetic};
-	physics->quality = QualityTier.High;
-	physics->backend = GPUBackend.RDGDirect;
-	physics->viscosity = 0.001000f;
-	physics->density = 1000.000000f;
-	physics->surface_tension = 0.072000f;
-	physics->compressibility = 0.000100f;
-	physics->conductivity = 0.500000f;
-	physics->permittivity = 1.000000f;
-	physics->permeability = 1.000000f;
-	physics->reactivity = 0.000000f;
-	physics->radiation_absorption = 0.010000f;
-	physics->gravity_scale = 1.000000f;
-	physics->anisotropy = 0.000000f;
-	physics->cavitation_threshold = (-10000.000000f);
-	physics->yield_stress = 0.000000f;
-	physics->foam_threshold = 0.250000f;
-	physics->spray_threshold = 0.300000f;
-	physics->bubble_coalescence = 0.200000f;
-	turbulence->intensity = 0.100000f;
-	turbulence->vortex_confinement = 0.500000f;
-	turbulence->energy_injection = 0.010000f;
-	turbulence->dissipation = 0.000500f;
-	turbulence->length_scale = 0.250000f;
-	turbulence->noise_seed = 12345;
-	multiphase->phases = 3;
-	multiphase->phase_field_mobility = 1.000000f;
-	multiphase->interface_thickness = 0.010000f;
-	multiphase->surface_tension_coupling = 0.800000f;
-	multiphase->contact_angle = 0.500000f;
-	multiphase->bubble_spawn_rate = 0.100000f;
-	multiphase->droplet_spawn_rate = 0.100000f;
-	thermal->temperature = 293.000000f;
-	thermal->thermal_diffusivity = 0.001000f;
-	thermal->buoyancy_alpha = 0.000100f;
-	thermal->buoyancy_beta = 0.000100f;
-	thermal->radiation_gain = 0.000000f;
-	thermal->heat_sources = {0.000000f};
-	em->charge_density = 0.000000f;
-	em->electric_field = FVector(0, 0, 0);
-	em->magnetic_field = FVector(0, 0, 0);
-	em->lorentz_force_gain = 1.000000f;
-	em->resistivity = 0.010000f;
-	em->hall_parameter = 0.100000f;
-	em->ambipolar_diffusion = 0.050000f;
-	quantum->coherence_length = 0.010000f;
-	quantum->healing_length = 0.020000f;
-	quantum->vortex_core_size = 0.005000f;
-	quantum->phase_wrapping = 1.000000f;
-	quantum->dispersion_gain = 0.100000f;
-	quantum->superfluid_fraction = 0.500000f;
-	quantum->condensate_density = 1.000000f;
-	particles->particle_count = 100000;
-	particles->particle_radius = 0.005000f;
-	particles->drag_coefficient = 0.470000f;
-	particles->cohesion = 0.100000f;
-	particles->restitution = 0.200000f;
-	particles->friction = 0.500000f;
-	particles->adhesion = 0.050000f;
-	particles->granular_compaction = 0.100000f;
-	adaptive->strategy = AdaptiveStrategy.AMR;
-	adaptive->mesh_quality_threshold = 0.800000f;
-	adaptive->error_indicator_gain = 1.000000f;
-	adaptive->max_blocks = 4096;
-	adaptive->min_blocks = 64;
-	viz->visualization = VisualizationMode.VolumeRaymarch;
-	viz->exposure = 1.000000f;
-	viz->contrast = 1.000000f;
-	viz->saturation = 1.000000f;
-	viz->line_thickness = 1.000000f;
-	viz->sample_count = 64;
-	viz->step_size = 0.500000f;
-	viz->color_a = FVector(0.100000f, 0.400000f, 0.900000f);
-	viz->color_b = FVector(0.900000f, 0.600000f, 0.200000f);
-	viz->color_c = FVector(0.100000f, 0.900000f, 0.600000f);
+	if (!PositionRT_A)
+	{
+		PositionRT_A = NewObject<UTextureRenderTarget2D>(this);
+		PositionRT_A->bAutoGenerateMips = false;
+		PositionRT_A->RenderTargetFormat = RTF_RGBA32f;
+		PositionRT_A->InitAutoFormat(512, 512);
+		PositionRT_A->UpdateResourceImmediate(true);
+	}
+	if (!PositionRT_B)
+	{
+		PositionRT_B = NewObject<UTextureRenderTarget2D>(this);
+		PositionRT_B->bAutoGenerateMips = false;
+		PositionRT_B->RenderTargetFormat = RTF_RGBA32f;
+		PositionRT_B->InitAutoFormat(512, 512);
+		PositionRT_B->UpdateResourceImmediate(true);
+	}
+	if (!VelocityRT_A)
+	{
+		VelocityRT_A = NewObject<UTextureRenderTarget2D>(this);
+		VelocityRT_A->bAutoGenerateMips = false;
+		VelocityRT_A->RenderTargetFormat = RTF_RGBA32f;
+		VelocityRT_A->InitAutoFormat(512, 512);
+		VelocityRT_A->UpdateResourceImmediate(true);
+	}
+	if (!VelocityRT_B)
+	{
+		VelocityRT_B = NewObject<UTextureRenderTarget2D>(this);
+		VelocityRT_B->bAutoGenerateMips = false;
+		VelocityRT_B->RenderTargetFormat = RTF_RGBA32f;
+		VelocityRT_B->InitAutoFormat(512, 512);
+		VelocityRT_B->UpdateResourceImmediate(true);
+	}
 }
 
 void AHyperFluidWorld::Tick(float DeltaTime)
@@ -171,11 +131,12 @@ void AHyperFluidWorld::Tick(float DeltaTime)
 	// Enqueue Simulation on Render Thread
 	ENQUEUE_RENDER_COMMAND(SimulationTick)(
 		[this, DeltaTime](FRHICommandListImmediate& RHICmdList) {
+			if (!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) { return; }
+
 			FRDGBuilder GraphBuilder(RHICmdList);
 
 			// 1. Register External Textures (Ping-Pong Logic)
 			bool bOddFrame = GFrameNumberRenderThread % 2 != 0;
-			if(!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) return;
 			auto CreateRenderTarget = [&](FRHICommandListImmediate& RHICmdList, UTextureRenderTarget2D* RT, const TCHAR* Name) -> TRefCountPtr<IPooledRenderTarget> {
 				if (!RT || !RT->GetResource()) return nullptr;
 				FTexture2DRHIRef TextureRHI = RT->GetResource()->GetTexture2DRHI();
@@ -200,984 +161,1891 @@ void AHyperFluidWorld::Tick(float DeltaTime)
 			FRDGTextureRef VelocityInput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_A : VelocityRT_B, TEXT("VelIn")));
 			FRDGTextureRef VelocityOutput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RHICmdList, bOddFrame ? VelocityRT_B : VelocityRT_A, TEXT("VelOut")));
 
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			FTurbulenceComponentData turbulence_pod {};
-			if (this->turbulence != nullptr) {
-			    turbulence_pod.intensity = static_cast<float>(this->turbulence->intensity);
-			    turbulence_pod.vortex_confinement = static_cast<float>(this->turbulence->vortex_confinement);
-			    turbulence_pod.energy_injection = static_cast<float>(this->turbulence->energy_injection);
-			    turbulence_pod.dissipation = static_cast<float>(this->turbulence->dissipation);
-			    turbulence_pod.length_scale = static_cast<float>(this->turbulence->length_scale);
-			    turbulence_pod.noise_seed = static_cast<int32>(this->turbulence->noise_seed);
+			if (this->simulation->turbulence != nullptr) {
+			    turbulence_pod.intensity = static_cast<float>(this->simulation->turbulence->intensity);
+			    turbulence_pod.vortex_confinement = static_cast<float>(this->simulation->turbulence->vortex_confinement);
+			    turbulence_pod.energy_injection = static_cast<float>(this->simulation->turbulence->energy_injection);
+			    turbulence_pod.dissipation = static_cast<float>(this->simulation->turbulence->dissipation);
+			    turbulence_pod.length_scale = static_cast<float>(this->simulation->turbulence->length_scale);
+			    turbulence_pod.noise_seed = static_cast<int32>(this->simulation->turbulence->noise_seed);
 			}
 			AddPass_LatticeBoltzmannCollision(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			FTurbulenceComponentData turbulence_pod {};
-			if (this->turbulence != nullptr) {
-			    turbulence_pod.intensity = static_cast<float>(this->turbulence->intensity);
-			    turbulence_pod.vortex_confinement = static_cast<float>(this->turbulence->vortex_confinement);
-			    turbulence_pod.energy_injection = static_cast<float>(this->turbulence->energy_injection);
-			    turbulence_pod.dissipation = static_cast<float>(this->turbulence->dissipation);
-			    turbulence_pod.length_scale = static_cast<float>(this->turbulence->length_scale);
-			    turbulence_pod.noise_seed = static_cast<int32>(this->turbulence->noise_seed);
+			if (this->simulation->turbulence != nullptr) {
+			    turbulence_pod.intensity = static_cast<float>(this->simulation->turbulence->intensity);
+			    turbulence_pod.vortex_confinement = static_cast<float>(this->simulation->turbulence->vortex_confinement);
+			    turbulence_pod.energy_injection = static_cast<float>(this->simulation->turbulence->energy_injection);
+			    turbulence_pod.dissipation = static_cast<float>(this->simulation->turbulence->dissipation);
+			    turbulence_pod.length_scale = static_cast<float>(this->simulation->turbulence->length_scale);
+			    turbulence_pod.noise_seed = static_cast<int32>(this->simulation->turbulence->noise_seed);
 			}
 			AddPass_LatticeBoltzmannStreaming(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			FTurbulenceComponentData turbulence_pod {};
-			if (this->turbulence != nullptr) {
-			    turbulence_pod.intensity = static_cast<float>(this->turbulence->intensity);
-			    turbulence_pod.vortex_confinement = static_cast<float>(this->turbulence->vortex_confinement);
-			    turbulence_pod.energy_injection = static_cast<float>(this->turbulence->energy_injection);
-			    turbulence_pod.dissipation = static_cast<float>(this->turbulence->dissipation);
-			    turbulence_pod.length_scale = static_cast<float>(this->turbulence->length_scale);
-			    turbulence_pod.noise_seed = static_cast<int32>(this->turbulence->noise_seed);
+			if (this->simulation->turbulence != nullptr) {
+			    turbulence_pod.intensity = static_cast<float>(this->simulation->turbulence->intensity);
+			    turbulence_pod.vortex_confinement = static_cast<float>(this->simulation->turbulence->vortex_confinement);
+			    turbulence_pod.energy_injection = static_cast<float>(this->simulation->turbulence->energy_injection);
+			    turbulence_pod.dissipation = static_cast<float>(this->simulation->turbulence->dissipation);
+			    turbulence_pod.length_scale = static_cast<float>(this->simulation->turbulence->length_scale);
+			    turbulence_pod.noise_seed = static_cast<int32>(this->simulation->turbulence->noise_seed);
 			}
 			AddPass_SmoothedParticleHydrodynamics(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FElectroMagneticComponentData em_pod {};
-			if (this->em != nullptr) {
-			    em_pod.charge_density = static_cast<float>(this->em->charge_density);
-			    em_pod.electric_field = static_cast<FVector3f>(this->em->electric_field);
-			    em_pod.magnetic_field = static_cast<FVector3f>(this->em->magnetic_field);
-			    em_pod.lorentz_force_gain = static_cast<float>(this->em->lorentz_force_gain);
-			    em_pod.resistivity = static_cast<float>(this->em->resistivity);
-			    em_pod.hall_parameter = static_cast<float>(this->em->hall_parameter);
-			    em_pod.ambipolar_diffusion = static_cast<float>(this->em->ambipolar_diffusion);
+			if (this->simulation->em != nullptr) {
+			    em_pod.charge_density = static_cast<float>(this->simulation->em->charge_density);
+			    em_pod.electric_field = static_cast<FVector3f>(this->simulation->em->electric_field);
+			    em_pod.magnetic_field = static_cast<FVector3f>(this->simulation->em->magnetic_field);
+			    em_pod.lorentz_force_gain = static_cast<float>(this->simulation->em->lorentz_force_gain);
+			    em_pod.resistivity = static_cast<float>(this->simulation->em->resistivity);
+			    em_pod.hall_parameter = static_cast<float>(this->simulation->em->hall_parameter);
+			    em_pod.ambipolar_diffusion = static_cast<float>(this->simulation->em->ambipolar_diffusion);
 			}
 			AddPass_MagnetohydrodynamicsInduction(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FElectroMagneticComponentData em_pod {};
-			if (this->em != nullptr) {
-			    em_pod.charge_density = static_cast<float>(this->em->charge_density);
-			    em_pod.electric_field = static_cast<FVector3f>(this->em->electric_field);
-			    em_pod.magnetic_field = static_cast<FVector3f>(this->em->magnetic_field);
-			    em_pod.lorentz_force_gain = static_cast<float>(this->em->lorentz_force_gain);
-			    em_pod.resistivity = static_cast<float>(this->em->resistivity);
-			    em_pod.hall_parameter = static_cast<float>(this->em->hall_parameter);
-			    em_pod.ambipolar_diffusion = static_cast<float>(this->em->ambipolar_diffusion);
+			if (this->simulation->em != nullptr) {
+			    em_pod.charge_density = static_cast<float>(this->simulation->em->charge_density);
+			    em_pod.electric_field = static_cast<FVector3f>(this->simulation->em->electric_field);
+			    em_pod.magnetic_field = static_cast<FVector3f>(this->simulation->em->magnetic_field);
+			    em_pod.lorentz_force_gain = static_cast<float>(this->simulation->em->lorentz_force_gain);
+			    em_pod.resistivity = static_cast<float>(this->simulation->em->resistivity);
+			    em_pod.hall_parameter = static_cast<float>(this->simulation->em->hall_parameter);
+			    em_pod.ambipolar_diffusion = static_cast<float>(this->simulation->em->ambipolar_diffusion);
 			}
 			AddPass_MagnetohydrodynamicsLorentz(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FQuantumComponentData quantum_pod {};
-			if (this->quantum != nullptr) {
-			    quantum_pod.coherence_length = static_cast<float>(this->quantum->coherence_length);
-			    quantum_pod.healing_length = static_cast<float>(this->quantum->healing_length);
-			    quantum_pod.vortex_core_size = static_cast<float>(this->quantum->vortex_core_size);
-			    quantum_pod.phase_wrapping = static_cast<float>(this->quantum->phase_wrapping);
-			    quantum_pod.dispersion_gain = static_cast<float>(this->quantum->dispersion_gain);
-			    quantum_pod.superfluid_fraction = static_cast<float>(this->quantum->superfluid_fraction);
-			    quantum_pod.condensate_density = static_cast<float>(this->quantum->condensate_density);
+			if (this->simulation->quantum != nullptr) {
+			    quantum_pod.coherence_length = static_cast<float>(this->simulation->quantum->coherence_length);
+			    quantum_pod.healing_length = static_cast<float>(this->simulation->quantum->healing_length);
+			    quantum_pod.vortex_core_size = static_cast<float>(this->simulation->quantum->vortex_core_size);
+			    quantum_pod.phase_wrapping = static_cast<float>(this->simulation->quantum->phase_wrapping);
+			    quantum_pod.dispersion_gain = static_cast<float>(this->simulation->quantum->dispersion_gain);
+			    quantum_pod.superfluid_fraction = static_cast<float>(this->simulation->quantum->superfluid_fraction);
+			    quantum_pod.condensate_density = static_cast<float>(this->simulation->quantum->condensate_density);
 			}
 			AddPass_QuantumFluidGrossPitaevskii(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FQuantumComponentData quantum_pod {};
-			if (this->quantum != nullptr) {
-			    quantum_pod.coherence_length = static_cast<float>(this->quantum->coherence_length);
-			    quantum_pod.healing_length = static_cast<float>(this->quantum->healing_length);
-			    quantum_pod.vortex_core_size = static_cast<float>(this->quantum->vortex_core_size);
-			    quantum_pod.phase_wrapping = static_cast<float>(this->quantum->phase_wrapping);
-			    quantum_pod.dispersion_gain = static_cast<float>(this->quantum->dispersion_gain);
-			    quantum_pod.superfluid_fraction = static_cast<float>(this->quantum->superfluid_fraction);
-			    quantum_pod.condensate_density = static_cast<float>(this->quantum->condensate_density);
+			if (this->simulation->quantum != nullptr) {
+			    quantum_pod.coherence_length = static_cast<float>(this->simulation->quantum->coherence_length);
+			    quantum_pod.healing_length = static_cast<float>(this->simulation->quantum->healing_length);
+			    quantum_pod.vortex_core_size = static_cast<float>(this->simulation->quantum->vortex_core_size);
+			    quantum_pod.phase_wrapping = static_cast<float>(this->simulation->quantum->phase_wrapping);
+			    quantum_pod.dispersion_gain = static_cast<float>(this->simulation->quantum->dispersion_gain);
+			    quantum_pod.superfluid_fraction = static_cast<float>(this->simulation->quantum->superfluid_fraction);
+			    quantum_pod.condensate_density = static_cast<float>(this->simulation->quantum->condensate_density);
 			}
 			AddPass_QuantumFluidVortices(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FMultiphaseComponentData multiphase_pod {};
-			if (this->multiphase != nullptr) {
-			    multiphase_pod.phases = static_cast<int32>(this->multiphase->phases);
-			    multiphase_pod.phase_field_mobility = static_cast<float>(this->multiphase->phase_field_mobility);
-			    multiphase_pod.interface_thickness = static_cast<float>(this->multiphase->interface_thickness);
-			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->multiphase->surface_tension_coupling);
-			    multiphase_pod.contact_angle = static_cast<float>(this->multiphase->contact_angle);
-			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->multiphase->bubble_spawn_rate);
-			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->multiphase->droplet_spawn_rate);
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
 			}
 			AddPass_MultiphasePhaseField(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FMultiphaseComponentData multiphase_pod {};
-			if (this->multiphase != nullptr) {
-			    multiphase_pod.phases = static_cast<int32>(this->multiphase->phases);
-			    multiphase_pod.phase_field_mobility = static_cast<float>(this->multiphase->phase_field_mobility);
-			    multiphase_pod.interface_thickness = static_cast<float>(this->multiphase->interface_thickness);
-			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->multiphase->surface_tension_coupling);
-			    multiphase_pod.contact_angle = static_cast<float>(this->multiphase->contact_angle);
-			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->multiphase->bubble_spawn_rate);
-			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->multiphase->droplet_spawn_rate);
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
 			}
 			AddPass_MultiphaseSurfaceTension(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FThermalComponentData thermal_pod {};
-			if (this->thermal != nullptr) {
-			    thermal_pod.temperature = static_cast<float>(this->thermal->temperature);
-			    thermal_pod.thermal_diffusivity = static_cast<float>(this->thermal->thermal_diffusivity);
-			    thermal_pod.buoyancy_alpha = static_cast<float>(this->thermal->buoyancy_alpha);
-			    thermal_pod.buoyancy_beta = static_cast<float>(this->thermal->buoyancy_beta);
-			    thermal_pod.radiation_gain = static_cast<float>(this->thermal->radiation_gain);
+			if (this->simulation->thermal != nullptr) {
+			    thermal_pod.temperature = static_cast<float>(this->simulation->thermal->temperature);
+			    thermal_pod.thermal_diffusivity = static_cast<float>(this->simulation->thermal->thermal_diffusivity);
+			    thermal_pod.buoyancy_alpha = static_cast<float>(this->simulation->thermal->buoyancy_alpha);
+			    thermal_pod.buoyancy_beta = static_cast<float>(this->simulation->thermal->buoyancy_beta);
+			    thermal_pod.radiation_gain = static_cast<float>(this->simulation->thermal->radiation_gain);
+			    thermal_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->thermal->radiation_model);
 			}
 			AddPass_ThermalFluidConduction(GraphBuilder, thermal_pod, ThermalRT, FIntVector(32, 32, 1));
+			}
+			{
 			FThermalComponentData thermal_pod {};
-			if (this->thermal != nullptr) {
-			    thermal_pod.temperature = static_cast<float>(this->thermal->temperature);
-			    thermal_pod.thermal_diffusivity = static_cast<float>(this->thermal->thermal_diffusivity);
-			    thermal_pod.buoyancy_alpha = static_cast<float>(this->thermal->buoyancy_alpha);
-			    thermal_pod.buoyancy_beta = static_cast<float>(this->thermal->buoyancy_beta);
-			    thermal_pod.radiation_gain = static_cast<float>(this->thermal->radiation_gain);
+			if (this->simulation->thermal != nullptr) {
+			    thermal_pod.temperature = static_cast<float>(this->simulation->thermal->temperature);
+			    thermal_pod.thermal_diffusivity = static_cast<float>(this->simulation->thermal->thermal_diffusivity);
+			    thermal_pod.buoyancy_alpha = static_cast<float>(this->simulation->thermal->buoyancy_alpha);
+			    thermal_pod.buoyancy_beta = static_cast<float>(this->simulation->thermal->buoyancy_beta);
+			    thermal_pod.radiation_gain = static_cast<float>(this->simulation->thermal->radiation_gain);
+			    thermal_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->thermal->radiation_model);
 			}
 			AddPass_ThermalFluidConvection(GraphBuilder, thermal_pod, ThermalRT, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_ReactiveFluidChemistry(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_ReactiveFluidCombustion(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FParticulateComponentData particles_pod {};
-			if (this->particles != nullptr) {
-			    particles_pod.particle_count = static_cast<int32>(this->particles->particle_count);
-			    particles_pod.particle_radius = static_cast<float>(this->particles->particle_radius);
-			    particles_pod.drag_coefficient = static_cast<float>(this->particles->drag_coefficient);
-			    particles_pod.cohesion = static_cast<float>(this->particles->cohesion);
-			    particles_pod.restitution = static_cast<float>(this->particles->restitution);
-			    particles_pod.friction = static_cast<float>(this->particles->friction);
-			    particles_pod.adhesion = static_cast<float>(this->particles->adhesion);
-			    particles_pod.granular_compaction = static_cast<float>(this->particles->granular_compaction);
+			if (this->simulation->particles != nullptr) {
+			    particles_pod.particle_count = static_cast<int32>(this->simulation->particles->particle_count);
+			    particles_pod.particle_radius = static_cast<float>(this->simulation->particles->particle_radius);
+			    particles_pod.drag_coefficient = static_cast<float>(this->simulation->particles->drag_coefficient);
+			    particles_pod.cohesion = static_cast<float>(this->simulation->particles->cohesion);
+			    particles_pod.restitution = static_cast<float>(this->simulation->particles->restitution);
+			    particles_pod.friction = static_cast<float>(this->simulation->particles->friction);
+			    particles_pod.adhesion = static_cast<float>(this->simulation->particles->adhesion);
+			    particles_pod.granular_compaction = static_cast<float>(this->simulation->particles->granular_compaction);
 			}
 			AddPass_GranularFlowCollision(GraphBuilder, particles_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FParticulateComponentData particles_pod {};
-			if (this->particles != nullptr) {
-			    particles_pod.particle_count = static_cast<int32>(this->particles->particle_count);
-			    particles_pod.particle_radius = static_cast<float>(this->particles->particle_radius);
-			    particles_pod.drag_coefficient = static_cast<float>(this->particles->drag_coefficient);
-			    particles_pod.cohesion = static_cast<float>(this->particles->cohesion);
-			    particles_pod.restitution = static_cast<float>(this->particles->restitution);
-			    particles_pod.friction = static_cast<float>(this->particles->friction);
-			    particles_pod.adhesion = static_cast<float>(this->particles->adhesion);
-			    particles_pod.granular_compaction = static_cast<float>(this->particles->granular_compaction);
+			if (this->simulation->particles != nullptr) {
+			    particles_pod.particle_count = static_cast<int32>(this->simulation->particles->particle_count);
+			    particles_pod.particle_radius = static_cast<float>(this->simulation->particles->particle_radius);
+			    particles_pod.drag_coefficient = static_cast<float>(this->simulation->particles->drag_coefficient);
+			    particles_pod.cohesion = static_cast<float>(this->simulation->particles->cohesion);
+			    particles_pod.restitution = static_cast<float>(this->simulation->particles->restitution);
+			    particles_pod.friction = static_cast<float>(this->simulation->particles->friction);
+			    particles_pod.adhesion = static_cast<float>(this->simulation->particles->adhesion);
+			    particles_pod.granular_compaction = static_cast<float>(this->simulation->particles->granular_compaction);
 			}
 			AddPass_GranularFlowFriction(GraphBuilder, particles_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_CosmicDustAccretion(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_CosmicDustRadiation(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FQuantumComponentData quantum_pod {};
-			if (this->quantum != nullptr) {
-			    quantum_pod.coherence_length = static_cast<float>(this->quantum->coherence_length);
-			    quantum_pod.healing_length = static_cast<float>(this->quantum->healing_length);
-			    quantum_pod.vortex_core_size = static_cast<float>(this->quantum->vortex_core_size);
-			    quantum_pod.phase_wrapping = static_cast<float>(this->quantum->phase_wrapping);
-			    quantum_pod.dispersion_gain = static_cast<float>(this->quantum->dispersion_gain);
-			    quantum_pod.superfluid_fraction = static_cast<float>(this->quantum->superfluid_fraction);
-			    quantum_pod.condensate_density = static_cast<float>(this->quantum->condensate_density);
+			if (this->simulation->quantum != nullptr) {
+			    quantum_pod.coherence_length = static_cast<float>(this->simulation->quantum->coherence_length);
+			    quantum_pod.healing_length = static_cast<float>(this->simulation->quantum->healing_length);
+			    quantum_pod.vortex_core_size = static_cast<float>(this->simulation->quantum->vortex_core_size);
+			    quantum_pod.phase_wrapping = static_cast<float>(this->simulation->quantum->phase_wrapping);
+			    quantum_pod.dispersion_gain = static_cast<float>(this->simulation->quantum->dispersion_gain);
+			    quantum_pod.superfluid_fraction = static_cast<float>(this->simulation->quantum->superfluid_fraction);
+			    quantum_pod.condensate_density = static_cast<float>(this->simulation->quantum->condensate_density);
 			}
 			AddPass_SuperfluidHelium4(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FQuantumComponentData quantum_pod {};
-			if (this->quantum != nullptr) {
-			    quantum_pod.coherence_length = static_cast<float>(this->quantum->coherence_length);
-			    quantum_pod.healing_length = static_cast<float>(this->quantum->healing_length);
-			    quantum_pod.vortex_core_size = static_cast<float>(this->quantum->vortex_core_size);
-			    quantum_pod.phase_wrapping = static_cast<float>(this->quantum->phase_wrapping);
-			    quantum_pod.dispersion_gain = static_cast<float>(this->quantum->dispersion_gain);
-			    quantum_pod.superfluid_fraction = static_cast<float>(this->quantum->superfluid_fraction);
-			    quantum_pod.condensate_density = static_cast<float>(this->quantum->condensate_density);
+			if (this->simulation->quantum != nullptr) {
+			    quantum_pod.coherence_length = static_cast<float>(this->simulation->quantum->coherence_length);
+			    quantum_pod.healing_length = static_cast<float>(this->simulation->quantum->healing_length);
+			    quantum_pod.vortex_core_size = static_cast<float>(this->simulation->quantum->vortex_core_size);
+			    quantum_pod.phase_wrapping = static_cast<float>(this->simulation->quantum->phase_wrapping);
+			    quantum_pod.dispersion_gain = static_cast<float>(this->simulation->quantum->dispersion_gain);
+			    quantum_pod.superfluid_fraction = static_cast<float>(this->simulation->quantum->superfluid_fraction);
+			    quantum_pod.condensate_density = static_cast<float>(this->simulation->quantum->condensate_density);
 			}
 			AddPass_SuperfluidVortexLattice(GraphBuilder, quantum_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FElectroMagneticComponentData em_pod {};
-			if (this->em != nullptr) {
-			    em_pod.charge_density = static_cast<float>(this->em->charge_density);
-			    em_pod.electric_field = static_cast<FVector3f>(this->em->electric_field);
-			    em_pod.magnetic_field = static_cast<FVector3f>(this->em->magnetic_field);
-			    em_pod.lorentz_force_gain = static_cast<float>(this->em->lorentz_force_gain);
-			    em_pod.resistivity = static_cast<float>(this->em->resistivity);
-			    em_pod.hall_parameter = static_cast<float>(this->em->hall_parameter);
-			    em_pod.ambipolar_diffusion = static_cast<float>(this->em->ambipolar_diffusion);
+			if (this->simulation->em != nullptr) {
+			    em_pod.charge_density = static_cast<float>(this->simulation->em->charge_density);
+			    em_pod.electric_field = static_cast<FVector3f>(this->simulation->em->electric_field);
+			    em_pod.magnetic_field = static_cast<FVector3f>(this->simulation->em->magnetic_field);
+			    em_pod.lorentz_force_gain = static_cast<float>(this->simulation->em->lorentz_force_gain);
+			    em_pod.resistivity = static_cast<float>(this->simulation->em->resistivity);
+			    em_pod.hall_parameter = static_cast<float>(this->simulation->em->hall_parameter);
+			    em_pod.ambipolar_diffusion = static_cast<float>(this->simulation->em->ambipolar_diffusion);
 			}
 			AddPass_PlasmaTokamak(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FElectroMagneticComponentData em_pod {};
-			if (this->em != nullptr) {
-			    em_pod.charge_density = static_cast<float>(this->em->charge_density);
-			    em_pod.electric_field = static_cast<FVector3f>(this->em->electric_field);
-			    em_pod.magnetic_field = static_cast<FVector3f>(this->em->magnetic_field);
-			    em_pod.lorentz_force_gain = static_cast<float>(this->em->lorentz_force_gain);
-			    em_pod.resistivity = static_cast<float>(this->em->resistivity);
-			    em_pod.hall_parameter = static_cast<float>(this->em->hall_parameter);
-			    em_pod.ambipolar_diffusion = static_cast<float>(this->em->ambipolar_diffusion);
+			if (this->simulation->em != nullptr) {
+			    em_pod.charge_density = static_cast<float>(this->simulation->em->charge_density);
+			    em_pod.electric_field = static_cast<FVector3f>(this->simulation->em->electric_field);
+			    em_pod.magnetic_field = static_cast<FVector3f>(this->simulation->em->magnetic_field);
+			    em_pod.lorentz_force_gain = static_cast<float>(this->simulation->em->lorentz_force_gain);
+			    em_pod.resistivity = static_cast<float>(this->simulation->em->resistivity);
+			    em_pod.hall_parameter = static_cast<float>(this->simulation->em->hall_parameter);
+			    em_pod.ambipolar_diffusion = static_cast<float>(this->simulation->em->ambipolar_diffusion);
 			}
 			AddPass_PlasmaFusion(GraphBuilder, em_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_ViscoelasticStress(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_ViscoelasticRelaxation(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_ImmersedBoundaryForce(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_ImmersedBoundaryVelocity(GraphBuilder, physics_pod, VelocityOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_SpectralFourierTransform(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			FTurbulenceComponentData turbulence_pod {};
-			if (this->turbulence != nullptr) {
-			    turbulence_pod.intensity = static_cast<float>(this->turbulence->intensity);
-			    turbulence_pod.vortex_confinement = static_cast<float>(this->turbulence->vortex_confinement);
-			    turbulence_pod.energy_injection = static_cast<float>(this->turbulence->energy_injection);
-			    turbulence_pod.dissipation = static_cast<float>(this->turbulence->dissipation);
-			    turbulence_pod.length_scale = static_cast<float>(this->turbulence->length_scale);
-			    turbulence_pod.noise_seed = static_cast<int32>(this->turbulence->noise_seed);
+			if (this->simulation->turbulence != nullptr) {
+			    turbulence_pod.intensity = static_cast<float>(this->simulation->turbulence->intensity);
+			    turbulence_pod.vortex_confinement = static_cast<float>(this->simulation->turbulence->vortex_confinement);
+			    turbulence_pod.energy_injection = static_cast<float>(this->simulation->turbulence->energy_injection);
+			    turbulence_pod.dissipation = static_cast<float>(this->simulation->turbulence->dissipation);
+			    turbulence_pod.length_scale = static_cast<float>(this->simulation->turbulence->length_scale);
+			    turbulence_pod.noise_seed = static_cast<int32>(this->simulation->turbulence->noise_seed);
 			}
 			AddPass_SpectralTurbulence(GraphBuilder, physics_pod, turbulence_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_VortexMethodCore(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_VortexMethodAdvection(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_FiniteVolumeFlux(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_FiniteVolumeGradient(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_FiniteElementStiffness(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FPhysicalPropertiesComponentData physics_pod {};
-			if (this->physics != nullptr) {
-			    physics_pod.fluid_class = static_cast<EFluidClass>(this->physics->fluid_class);
-			    physics_pod.solver_family = static_cast<ESolverFamily>(this->physics->solver_family);
-			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->physics->turbulence_model);
-			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->physics->boundary_type);
-			    physics_pod.quality = static_cast<EQualityTier>(this->physics->quality);
-			    physics_pod.backend = static_cast<EGPUBackend>(this->physics->backend);
-			    physics_pod.viscosity = static_cast<float>(this->physics->viscosity);
-			    physics_pod.density = static_cast<float>(this->physics->density);
-			    physics_pod.surface_tension = static_cast<float>(this->physics->surface_tension);
-			    physics_pod.compressibility = static_cast<float>(this->physics->compressibility);
-			    physics_pod.conductivity = static_cast<float>(this->physics->conductivity);
-			    physics_pod.permittivity = static_cast<float>(this->physics->permittivity);
-			    physics_pod.permeability = static_cast<float>(this->physics->permeability);
-			    physics_pod.reactivity = static_cast<float>(this->physics->reactivity);
-			    physics_pod.radiation_absorption = static_cast<float>(this->physics->radiation_absorption);
-			    physics_pod.gravity_scale = static_cast<float>(this->physics->gravity_scale);
-			    physics_pod.anisotropy = static_cast<float>(this->physics->anisotropy);
-			    physics_pod.cavitation_threshold = static_cast<float>(this->physics->cavitation_threshold);
-			    physics_pod.yield_stress = static_cast<float>(this->physics->yield_stress);
-			    physics_pod.foam_threshold = static_cast<float>(this->physics->foam_threshold);
-			    physics_pod.spray_threshold = static_cast<float>(this->physics->spray_threshold);
-			    physics_pod.bubble_coalescence = static_cast<float>(this->physics->bubble_coalescence);
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
 			}
 			AddPass_FiniteElementMass(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FVisualizationComponentData viz_pod {};
-			if (this->viz != nullptr) {
-			    viz_pod.visualization = static_cast<EVisualizationMode>(this->viz->visualization);
-			    viz_pod.exposure = static_cast<float>(this->viz->exposure);
-			    viz_pod.contrast = static_cast<float>(this->viz->contrast);
-			    viz_pod.saturation = static_cast<float>(this->viz->saturation);
-			    viz_pod.line_thickness = static_cast<float>(this->viz->line_thickness);
-			    viz_pod.sample_count = static_cast<int32>(this->viz->sample_count);
-			    viz_pod.step_size = static_cast<float>(this->viz->step_size);
-			    viz_pod.color_a = static_cast<FVector3f>(this->viz->color_a);
-			    viz_pod.color_b = static_cast<FVector3f>(this->viz->color_b);
-			    viz_pod.color_c = static_cast<FVector3f>(this->viz->color_c);
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
 			}
 			AddPass_FluidRaymarching(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FVisualizationComponentData viz_pod {};
-			if (this->viz != nullptr) {
-			    viz_pod.visualization = static_cast<EVisualizationMode>(this->viz->visualization);
-			    viz_pod.exposure = static_cast<float>(this->viz->exposure);
-			    viz_pod.contrast = static_cast<float>(this->viz->contrast);
-			    viz_pod.saturation = static_cast<float>(this->viz->saturation);
-			    viz_pod.line_thickness = static_cast<float>(this->viz->line_thickness);
-			    viz_pod.sample_count = static_cast<int32>(this->viz->sample_count);
-			    viz_pod.step_size = static_cast<float>(this->viz->step_size);
-			    viz_pod.color_a = static_cast<FVector3f>(this->viz->color_a);
-			    viz_pod.color_b = static_cast<FVector3f>(this->viz->color_b);
-			    viz_pod.color_c = static_cast<FVector3f>(this->viz->color_c);
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
 			}
 			AddPass_FluidSchlieren(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FVisualizationComponentData viz_pod {};
-			if (this->viz != nullptr) {
-			    viz_pod.visualization = static_cast<EVisualizationMode>(this->viz->visualization);
-			    viz_pod.exposure = static_cast<float>(this->viz->exposure);
-			    viz_pod.contrast = static_cast<float>(this->viz->contrast);
-			    viz_pod.saturation = static_cast<float>(this->viz->saturation);
-			    viz_pod.line_thickness = static_cast<float>(this->viz->line_thickness);
-			    viz_pod.sample_count = static_cast<int32>(this->viz->sample_count);
-			    viz_pod.step_size = static_cast<float>(this->viz->step_size);
-			    viz_pod.color_a = static_cast<FVector3f>(this->viz->color_a);
-			    viz_pod.color_b = static_cast<FVector3f>(this->viz->color_b);
-			    viz_pod.color_c = static_cast<FVector3f>(this->viz->color_c);
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
 			}
 			AddPass_FluidInterferometry(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FVisualizationComponentData viz_pod {};
-			if (this->viz != nullptr) {
-			    viz_pod.visualization = static_cast<EVisualizationMode>(this->viz->visualization);
-			    viz_pod.exposure = static_cast<float>(this->viz->exposure);
-			    viz_pod.contrast = static_cast<float>(this->viz->contrast);
-			    viz_pod.saturation = static_cast<float>(this->viz->saturation);
-			    viz_pod.line_thickness = static_cast<float>(this->viz->line_thickness);
-			    viz_pod.sample_count = static_cast<int32>(this->viz->sample_count);
-			    viz_pod.step_size = static_cast<float>(this->viz->step_size);
-			    viz_pod.color_a = static_cast<FVector3f>(this->viz->color_a);
-			    viz_pod.color_b = static_cast<FVector3f>(this->viz->color_b);
-			    viz_pod.color_c = static_cast<FVector3f>(this->viz->color_c);
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
 			}
 			AddPass_FluidHolography(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
 			FVisualizationComponentData viz_pod {};
-			if (this->viz != nullptr) {
-			    viz_pod.visualization = static_cast<EVisualizationMode>(this->viz->visualization);
-			    viz_pod.exposure = static_cast<float>(this->viz->exposure);
-			    viz_pod.contrast = static_cast<float>(this->viz->contrast);
-			    viz_pod.saturation = static_cast<float>(this->viz->saturation);
-			    viz_pod.line_thickness = static_cast<float>(this->viz->line_thickness);
-			    viz_pod.sample_count = static_cast<int32>(this->viz->sample_count);
-			    viz_pod.step_size = static_cast<float>(this->viz->step_size);
-			    viz_pod.color_a = static_cast<FVector3f>(this->viz->color_a);
-			    viz_pod.color_b = static_cast<FVector3f>(this->viz->color_b);
-			    viz_pod.color_c = static_cast<FVector3f>(this->viz->color_c);
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
 			}
 			AddPass_FluidQuantumVisualization(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FTimeIntegrationComponentData time_pod {};
+			if (this->simulation->time != nullptr) {
+			    time_pod.dt = static_cast<float>(this->simulation->time->dt);
+			    time_pod.time_integrator = static_cast<ETimeIntegrator>(this->simulation->time->time_integrator);
+			    time_pod.cfl = static_cast<float>(this->simulation->time->cfl);
+			    time_pod.substeps = static_cast<int32>(this->simulation->time->substeps);
+			    time_pod.real_time_sync = static_cast<bool>(this->simulation->time->real_time_sync);
+			    time_pod.clamp_dt = static_cast<bool>(this->simulation->time->clamp_dt);
+			    time_pod.max_dt = static_cast<float>(this->simulation->time->max_dt);
+			    time_pod.min_dt = static_cast<float>(this->simulation->time->min_dt);
+			}
+			AddPass_AdvectVelocity(GraphBuilder, physics_pod, time_pod, VelocityInput, VelocityOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FTimeIntegrationComponentData time_pod {};
+			if (this->simulation->time != nullptr) {
+			    time_pod.dt = static_cast<float>(this->simulation->time->dt);
+			    time_pod.time_integrator = static_cast<ETimeIntegrator>(this->simulation->time->time_integrator);
+			    time_pod.cfl = static_cast<float>(this->simulation->time->cfl);
+			    time_pod.substeps = static_cast<int32>(this->simulation->time->substeps);
+			    time_pod.real_time_sync = static_cast<bool>(this->simulation->time->real_time_sync);
+			    time_pod.clamp_dt = static_cast<bool>(this->simulation->time->clamp_dt);
+			    time_pod.max_dt = static_cast<float>(this->simulation->time->max_dt);
+			    time_pod.min_dt = static_cast<float>(this->simulation->time->min_dt);
+			}
+			AddPass_AdvectDensity(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FTimeIntegrationComponentData time_pod {};
+			if (this->simulation->time != nullptr) {
+			    time_pod.dt = static_cast<float>(this->simulation->time->dt);
+			    time_pod.time_integrator = static_cast<ETimeIntegrator>(this->simulation->time->time_integrator);
+			    time_pod.cfl = static_cast<float>(this->simulation->time->cfl);
+			    time_pod.substeps = static_cast<int32>(this->simulation->time->substeps);
+			    time_pod.real_time_sync = static_cast<bool>(this->simulation->time->real_time_sync);
+			    time_pod.clamp_dt = static_cast<bool>(this->simulation->time->clamp_dt);
+			    time_pod.max_dt = static_cast<float>(this->simulation->time->max_dt);
+			    time_pod.min_dt = static_cast<float>(this->simulation->time->min_dt);
+			}
+			AddPass_AdvectTemperature(GraphBuilder, physics_pod, time_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FThermalComponentData thermal_pod {};
+			if (this->simulation->thermal != nullptr) {
+			    thermal_pod.temperature = static_cast<float>(this->simulation->thermal->temperature);
+			    thermal_pod.thermal_diffusivity = static_cast<float>(this->simulation->thermal->thermal_diffusivity);
+			    thermal_pod.buoyancy_alpha = static_cast<float>(this->simulation->thermal->buoyancy_alpha);
+			    thermal_pod.buoyancy_beta = static_cast<float>(this->simulation->thermal->buoyancy_beta);
+			    thermal_pod.radiation_gain = static_cast<float>(this->simulation->thermal->radiation_gain);
+			    thermal_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->thermal->radiation_model);
+			}
+			FTimeIntegrationComponentData time_pod {};
+			if (this->simulation->time != nullptr) {
+			    time_pod.dt = static_cast<float>(this->simulation->time->dt);
+			    time_pod.time_integrator = static_cast<ETimeIntegrator>(this->simulation->time->time_integrator);
+			    time_pod.cfl = static_cast<float>(this->simulation->time->cfl);
+			    time_pod.substeps = static_cast<int32>(this->simulation->time->substeps);
+			    time_pod.real_time_sync = static_cast<bool>(this->simulation->time->real_time_sync);
+			    time_pod.clamp_dt = static_cast<bool>(this->simulation->time->clamp_dt);
+			    time_pod.max_dt = static_cast<float>(this->simulation->time->max_dt);
+			    time_pod.min_dt = static_cast<float>(this->simulation->time->min_dt);
+			}
+			AddPass_ApplyExternalForces(GraphBuilder, physics_pod, thermal_pod, time_pod, VelocityInput, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			AddPass_ComputeDivergence(GraphBuilder, physics_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			AddPass_JacobiPressure(GraphBuilder, physics_pod, PositionOutput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			AddPass_SubtractGradient(GraphBuilder, physics_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			AddPass_VOF_AdvectionPLIC(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			AddPass_LevelSet_Reinitialization(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			FThermalComponentData thermal_pod {};
+			if (this->simulation->thermal != nullptr) {
+			    thermal_pod.temperature = static_cast<float>(this->simulation->thermal->temperature);
+			    thermal_pod.thermal_diffusivity = static_cast<float>(this->simulation->thermal->thermal_diffusivity);
+			    thermal_pod.buoyancy_alpha = static_cast<float>(this->simulation->thermal->buoyancy_alpha);
+			    thermal_pod.buoyancy_beta = static_cast<float>(this->simulation->thermal->buoyancy_beta);
+			    thermal_pod.radiation_gain = static_cast<float>(this->simulation->thermal->radiation_gain);
+			    thermal_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->thermal->radiation_model);
+			}
+			AddPass_PhaseChange_Evaporation(GraphBuilder, multiphase_pod, thermal_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			FThermalComponentData thermal_pod {};
+			if (this->simulation->thermal != nullptr) {
+			    thermal_pod.temperature = static_cast<float>(this->simulation->thermal->temperature);
+			    thermal_pod.thermal_diffusivity = static_cast<float>(this->simulation->thermal->thermal_diffusivity);
+			    thermal_pod.buoyancy_alpha = static_cast<float>(this->simulation->thermal->buoyancy_alpha);
+			    thermal_pod.buoyancy_beta = static_cast<float>(this->simulation->thermal->buoyancy_beta);
+			    thermal_pod.radiation_gain = static_cast<float>(this->simulation->thermal->radiation_gain);
+			    thermal_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->thermal->radiation_model);
+			}
+			AddPass_PhaseChange_Condensation(GraphBuilder, multiphase_pod, thermal_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			if (this->simulation->turbulence_advanced != nullptr) {
+			    turbulence_advanced_pod.les_model = static_cast<ELESModel>(this->simulation->turbulence_advanced->les_model);
+			    turbulence_advanced_pod.rans_model = static_cast<ERANSModel>(this->simulation->turbulence_advanced->rans_model);
+			    turbulence_advanced_pod.wall_function = static_cast<EWallFunction>(this->simulation->turbulence_advanced->wall_function);
+			    turbulence_advanced_pod.smagorinsky_constant = static_cast<float>(this->simulation->turbulence_advanced->smagorinsky_constant);
+			    turbulence_advanced_pod.wale_constant = static_cast<float>(this->simulation->turbulence_advanced->wale_constant);
+			    turbulence_advanced_pod.vreman_constant = static_cast<float>(this->simulation->turbulence_advanced->vreman_constant);
+			    turbulence_advanced_pod.k_epsilon_c_mu = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c_mu);
+			    turbulence_advanced_pod.k_epsilon_c1 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c1);
+			    turbulence_advanced_pod.k_epsilon_c2 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c2);
+			    turbulence_advanced_pod.k_omega_beta_star = static_cast<float>(this->simulation->turbulence_advanced->k_omega_beta_star);
+			    turbulence_advanced_pod.k_omega_sigma_k = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_k);
+			    turbulence_advanced_pod.k_omega_sigma_omega = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_omega);
+			    turbulence_advanced_pod.y_plus_target = static_cast<float>(this->simulation->turbulence_advanced->y_plus_target);
+			    turbulence_advanced_pod.wall_damping = static_cast<bool>(this->simulation->turbulence_advanced->wall_damping);
+			    turbulence_advanced_pod.transition_model = static_cast<ETransitionModel>(this->simulation->turbulence_advanced->transition_model);
+			    turbulence_advanced_pod.intermittency = static_cast<float>(this->simulation->turbulence_advanced->intermittency);
+			    turbulence_advanced_pod.transition_onset_reynolds = static_cast<float>(this->simulation->turbulence_advanced->transition_onset_reynolds);
+			    turbulence_advanced_pod.synthetic_method = static_cast<ESyntheticTurbulence>(this->simulation->turbulence_advanced->synthetic_method);
+			    turbulence_advanced_pod.eddy_count = static_cast<int32>(this->simulation->turbulence_advanced->eddy_count);
+			    turbulence_advanced_pod.eddy_lifetime = static_cast<float>(this->simulation->turbulence_advanced->eddy_lifetime);
+			    turbulence_advanced_pod.reynolds_stress_model = static_cast<EReynoldsStressModel>(this->simulation->turbulence_advanced->reynolds_stress_model);
+			}
+			AddPass_TurbulenceKEpsilon(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			if (this->simulation->turbulence_advanced != nullptr) {
+			    turbulence_advanced_pod.les_model = static_cast<ELESModel>(this->simulation->turbulence_advanced->les_model);
+			    turbulence_advanced_pod.rans_model = static_cast<ERANSModel>(this->simulation->turbulence_advanced->rans_model);
+			    turbulence_advanced_pod.wall_function = static_cast<EWallFunction>(this->simulation->turbulence_advanced->wall_function);
+			    turbulence_advanced_pod.smagorinsky_constant = static_cast<float>(this->simulation->turbulence_advanced->smagorinsky_constant);
+			    turbulence_advanced_pod.wale_constant = static_cast<float>(this->simulation->turbulence_advanced->wale_constant);
+			    turbulence_advanced_pod.vreman_constant = static_cast<float>(this->simulation->turbulence_advanced->vreman_constant);
+			    turbulence_advanced_pod.k_epsilon_c_mu = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c_mu);
+			    turbulence_advanced_pod.k_epsilon_c1 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c1);
+			    turbulence_advanced_pod.k_epsilon_c2 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c2);
+			    turbulence_advanced_pod.k_omega_beta_star = static_cast<float>(this->simulation->turbulence_advanced->k_omega_beta_star);
+			    turbulence_advanced_pod.k_omega_sigma_k = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_k);
+			    turbulence_advanced_pod.k_omega_sigma_omega = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_omega);
+			    turbulence_advanced_pod.y_plus_target = static_cast<float>(this->simulation->turbulence_advanced->y_plus_target);
+			    turbulence_advanced_pod.wall_damping = static_cast<bool>(this->simulation->turbulence_advanced->wall_damping);
+			    turbulence_advanced_pod.transition_model = static_cast<ETransitionModel>(this->simulation->turbulence_advanced->transition_model);
+			    turbulence_advanced_pod.intermittency = static_cast<float>(this->simulation->turbulence_advanced->intermittency);
+			    turbulence_advanced_pod.transition_onset_reynolds = static_cast<float>(this->simulation->turbulence_advanced->transition_onset_reynolds);
+			    turbulence_advanced_pod.synthetic_method = static_cast<ESyntheticTurbulence>(this->simulation->turbulence_advanced->synthetic_method);
+			    turbulence_advanced_pod.eddy_count = static_cast<int32>(this->simulation->turbulence_advanced->eddy_count);
+			    turbulence_advanced_pod.eddy_lifetime = static_cast<float>(this->simulation->turbulence_advanced->eddy_lifetime);
+			    turbulence_advanced_pod.reynolds_stress_model = static_cast<EReynoldsStressModel>(this->simulation->turbulence_advanced->reynolds_stress_model);
+			}
+			AddPass_TurbulenceKOmegaSST(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			if (this->simulation->turbulence_advanced != nullptr) {
+			    turbulence_advanced_pod.les_model = static_cast<ELESModel>(this->simulation->turbulence_advanced->les_model);
+			    turbulence_advanced_pod.rans_model = static_cast<ERANSModel>(this->simulation->turbulence_advanced->rans_model);
+			    turbulence_advanced_pod.wall_function = static_cast<EWallFunction>(this->simulation->turbulence_advanced->wall_function);
+			    turbulence_advanced_pod.smagorinsky_constant = static_cast<float>(this->simulation->turbulence_advanced->smagorinsky_constant);
+			    turbulence_advanced_pod.wale_constant = static_cast<float>(this->simulation->turbulence_advanced->wale_constant);
+			    turbulence_advanced_pod.vreman_constant = static_cast<float>(this->simulation->turbulence_advanced->vreman_constant);
+			    turbulence_advanced_pod.k_epsilon_c_mu = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c_mu);
+			    turbulence_advanced_pod.k_epsilon_c1 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c1);
+			    turbulence_advanced_pod.k_epsilon_c2 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c2);
+			    turbulence_advanced_pod.k_omega_beta_star = static_cast<float>(this->simulation->turbulence_advanced->k_omega_beta_star);
+			    turbulence_advanced_pod.k_omega_sigma_k = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_k);
+			    turbulence_advanced_pod.k_omega_sigma_omega = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_omega);
+			    turbulence_advanced_pod.y_plus_target = static_cast<float>(this->simulation->turbulence_advanced->y_plus_target);
+			    turbulence_advanced_pod.wall_damping = static_cast<bool>(this->simulation->turbulence_advanced->wall_damping);
+			    turbulence_advanced_pod.transition_model = static_cast<ETransitionModel>(this->simulation->turbulence_advanced->transition_model);
+			    turbulence_advanced_pod.intermittency = static_cast<float>(this->simulation->turbulence_advanced->intermittency);
+			    turbulence_advanced_pod.transition_onset_reynolds = static_cast<float>(this->simulation->turbulence_advanced->transition_onset_reynolds);
+			    turbulence_advanced_pod.synthetic_method = static_cast<ESyntheticTurbulence>(this->simulation->turbulence_advanced->synthetic_method);
+			    turbulence_advanced_pod.eddy_count = static_cast<int32>(this->simulation->turbulence_advanced->eddy_count);
+			    turbulence_advanced_pod.eddy_lifetime = static_cast<float>(this->simulation->turbulence_advanced->eddy_lifetime);
+			    turbulence_advanced_pod.reynolds_stress_model = static_cast<EReynoldsStressModel>(this->simulation->turbulence_advanced->reynolds_stress_model);
+			}
+			AddPass_TurbulenceSpalartAllmaras(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FTurbulenceAdvancedComponentData turbulence_advanced_pod {};
+			if (this->simulation->turbulence_advanced != nullptr) {
+			    turbulence_advanced_pod.les_model = static_cast<ELESModel>(this->simulation->turbulence_advanced->les_model);
+			    turbulence_advanced_pod.rans_model = static_cast<ERANSModel>(this->simulation->turbulence_advanced->rans_model);
+			    turbulence_advanced_pod.wall_function = static_cast<EWallFunction>(this->simulation->turbulence_advanced->wall_function);
+			    turbulence_advanced_pod.smagorinsky_constant = static_cast<float>(this->simulation->turbulence_advanced->smagorinsky_constant);
+			    turbulence_advanced_pod.wale_constant = static_cast<float>(this->simulation->turbulence_advanced->wale_constant);
+			    turbulence_advanced_pod.vreman_constant = static_cast<float>(this->simulation->turbulence_advanced->vreman_constant);
+			    turbulence_advanced_pod.k_epsilon_c_mu = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c_mu);
+			    turbulence_advanced_pod.k_epsilon_c1 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c1);
+			    turbulence_advanced_pod.k_epsilon_c2 = static_cast<float>(this->simulation->turbulence_advanced->k_epsilon_c2);
+			    turbulence_advanced_pod.k_omega_beta_star = static_cast<float>(this->simulation->turbulence_advanced->k_omega_beta_star);
+			    turbulence_advanced_pod.k_omega_sigma_k = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_k);
+			    turbulence_advanced_pod.k_omega_sigma_omega = static_cast<float>(this->simulation->turbulence_advanced->k_omega_sigma_omega);
+			    turbulence_advanced_pod.y_plus_target = static_cast<float>(this->simulation->turbulence_advanced->y_plus_target);
+			    turbulence_advanced_pod.wall_damping = static_cast<bool>(this->simulation->turbulence_advanced->wall_damping);
+			    turbulence_advanced_pod.transition_model = static_cast<ETransitionModel>(this->simulation->turbulence_advanced->transition_model);
+			    turbulence_advanced_pod.intermittency = static_cast<float>(this->simulation->turbulence_advanced->intermittency);
+			    turbulence_advanced_pod.transition_onset_reynolds = static_cast<float>(this->simulation->turbulence_advanced->transition_onset_reynolds);
+			    turbulence_advanced_pod.synthetic_method = static_cast<ESyntheticTurbulence>(this->simulation->turbulence_advanced->synthetic_method);
+			    turbulence_advanced_pod.eddy_count = static_cast<int32>(this->simulation->turbulence_advanced->eddy_count);
+			    turbulence_advanced_pod.eddy_lifetime = static_cast<float>(this->simulation->turbulence_advanced->eddy_lifetime);
+			    turbulence_advanced_pod.reynolds_stress_model = static_cast<EReynoldsStressModel>(this->simulation->turbulence_advanced->reynolds_stress_model);
+			}
+			AddPass_LES_DynamicSmagorinsky(GraphBuilder, turbulence_advanced_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			if (this->simulation->particle_system != nullptr) {
+			    particle_system_pod.particle_type = static_cast<EParticleType>(this->simulation->particle_system->particle_type);
+			    particle_system_pod.particle_count = static_cast<int32>(this->simulation->particle_system->particle_count);
+			    particle_system_pod.particle_diameter = static_cast<float>(this->simulation->particle_system->particle_diameter);
+			    particle_system_pod.particle_density = static_cast<float>(this->simulation->particle_system->particle_density);
+			    particle_system_pod.particle_shape_factor = static_cast<float>(this->simulation->particle_system->particle_shape_factor);
+			    particle_system_pod.drag_model = static_cast<EDragModel>(this->simulation->particle_system->drag_model);
+			    particle_system_pod.drag_coefficient = static_cast<float>(this->simulation->particle_system->drag_coefficient);
+			    particle_system_pod.collision_model = static_cast<ECollisionModel>(this->simulation->particle_system->collision_model);
+			    particle_system_pod.restitution_coefficient = static_cast<float>(this->simulation->particle_system->restitution_coefficient);
+			    particle_system_pod.friction_coefficient = static_cast<float>(this->simulation->particle_system->friction_coefficient);
+			    particle_system_pod.cohesion_energy = static_cast<float>(this->simulation->particle_system->cohesion_energy);
+			    particle_system_pod.breakup_model = static_cast<EBreakupModel>(this->simulation->particle_system->breakup_model);
+			    particle_system_pod.coalescence_model = static_cast<ECoalescenceModel>(this->simulation->particle_system->coalescence_model);
+			    particle_system_pod.weber_number_critical = static_cast<float>(this->simulation->particle_system->weber_number_critical);
+			    particle_system_pod.evaporation_model = static_cast<EEvaporationModel>(this->simulation->particle_system->evaporation_model);
+			    particle_system_pod.latent_heat = static_cast<float>(this->simulation->particle_system->latent_heat);
+			    particle_system_pod.vapor_pressure = static_cast<float>(this->simulation->particle_system->vapor_pressure);
+			    particle_system_pod.tracking_scheme = static_cast<ETrackingScheme>(this->simulation->particle_system->tracking_scheme);
+			    particle_system_pod.interpolation_order = static_cast<int32>(this->simulation->particle_system->interpolation_order);
+			    particle_system_pod.two_way_coupling = static_cast<bool>(this->simulation->particle_system->two_way_coupling);
+			    particle_system_pod.four_way_coupling = static_cast<bool>(this->simulation->particle_system->four_way_coupling);
+			}
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			AddPass_ParticleDrag(GraphBuilder, particle_system_pod, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			if (this->simulation->particle_system != nullptr) {
+			    particle_system_pod.particle_type = static_cast<EParticleType>(this->simulation->particle_system->particle_type);
+			    particle_system_pod.particle_count = static_cast<int32>(this->simulation->particle_system->particle_count);
+			    particle_system_pod.particle_diameter = static_cast<float>(this->simulation->particle_system->particle_diameter);
+			    particle_system_pod.particle_density = static_cast<float>(this->simulation->particle_system->particle_density);
+			    particle_system_pod.particle_shape_factor = static_cast<float>(this->simulation->particle_system->particle_shape_factor);
+			    particle_system_pod.drag_model = static_cast<EDragModel>(this->simulation->particle_system->drag_model);
+			    particle_system_pod.drag_coefficient = static_cast<float>(this->simulation->particle_system->drag_coefficient);
+			    particle_system_pod.collision_model = static_cast<ECollisionModel>(this->simulation->particle_system->collision_model);
+			    particle_system_pod.restitution_coefficient = static_cast<float>(this->simulation->particle_system->restitution_coefficient);
+			    particle_system_pod.friction_coefficient = static_cast<float>(this->simulation->particle_system->friction_coefficient);
+			    particle_system_pod.cohesion_energy = static_cast<float>(this->simulation->particle_system->cohesion_energy);
+			    particle_system_pod.breakup_model = static_cast<EBreakupModel>(this->simulation->particle_system->breakup_model);
+			    particle_system_pod.coalescence_model = static_cast<ECoalescenceModel>(this->simulation->particle_system->coalescence_model);
+			    particle_system_pod.weber_number_critical = static_cast<float>(this->simulation->particle_system->weber_number_critical);
+			    particle_system_pod.evaporation_model = static_cast<EEvaporationModel>(this->simulation->particle_system->evaporation_model);
+			    particle_system_pod.latent_heat = static_cast<float>(this->simulation->particle_system->latent_heat);
+			    particle_system_pod.vapor_pressure = static_cast<float>(this->simulation->particle_system->vapor_pressure);
+			    particle_system_pod.tracking_scheme = static_cast<ETrackingScheme>(this->simulation->particle_system->tracking_scheme);
+			    particle_system_pod.interpolation_order = static_cast<int32>(this->simulation->particle_system->interpolation_order);
+			    particle_system_pod.two_way_coupling = static_cast<bool>(this->simulation->particle_system->two_way_coupling);
+			    particle_system_pod.four_way_coupling = static_cast<bool>(this->simulation->particle_system->four_way_coupling);
+			}
+			AddPass_ParticleCollision(GraphBuilder, particle_system_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			if (this->simulation->particle_system != nullptr) {
+			    particle_system_pod.particle_type = static_cast<EParticleType>(this->simulation->particle_system->particle_type);
+			    particle_system_pod.particle_count = static_cast<int32>(this->simulation->particle_system->particle_count);
+			    particle_system_pod.particle_diameter = static_cast<float>(this->simulation->particle_system->particle_diameter);
+			    particle_system_pod.particle_density = static_cast<float>(this->simulation->particle_system->particle_density);
+			    particle_system_pod.particle_shape_factor = static_cast<float>(this->simulation->particle_system->particle_shape_factor);
+			    particle_system_pod.drag_model = static_cast<EDragModel>(this->simulation->particle_system->drag_model);
+			    particle_system_pod.drag_coefficient = static_cast<float>(this->simulation->particle_system->drag_coefficient);
+			    particle_system_pod.collision_model = static_cast<ECollisionModel>(this->simulation->particle_system->collision_model);
+			    particle_system_pod.restitution_coefficient = static_cast<float>(this->simulation->particle_system->restitution_coefficient);
+			    particle_system_pod.friction_coefficient = static_cast<float>(this->simulation->particle_system->friction_coefficient);
+			    particle_system_pod.cohesion_energy = static_cast<float>(this->simulation->particle_system->cohesion_energy);
+			    particle_system_pod.breakup_model = static_cast<EBreakupModel>(this->simulation->particle_system->breakup_model);
+			    particle_system_pod.coalescence_model = static_cast<ECoalescenceModel>(this->simulation->particle_system->coalescence_model);
+			    particle_system_pod.weber_number_critical = static_cast<float>(this->simulation->particle_system->weber_number_critical);
+			    particle_system_pod.evaporation_model = static_cast<EEvaporationModel>(this->simulation->particle_system->evaporation_model);
+			    particle_system_pod.latent_heat = static_cast<float>(this->simulation->particle_system->latent_heat);
+			    particle_system_pod.vapor_pressure = static_cast<float>(this->simulation->particle_system->vapor_pressure);
+			    particle_system_pod.tracking_scheme = static_cast<ETrackingScheme>(this->simulation->particle_system->tracking_scheme);
+			    particle_system_pod.interpolation_order = static_cast<int32>(this->simulation->particle_system->interpolation_order);
+			    particle_system_pod.two_way_coupling = static_cast<bool>(this->simulation->particle_system->two_way_coupling);
+			    particle_system_pod.four_way_coupling = static_cast<bool>(this->simulation->particle_system->four_way_coupling);
+			}
+			AddPass_ParticleBreakup(GraphBuilder, particle_system_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FHyperFluidParticleSystemComponentData particle_system_pod {};
+			if (this->simulation->particle_system != nullptr) {
+			    particle_system_pod.particle_type = static_cast<EParticleType>(this->simulation->particle_system->particle_type);
+			    particle_system_pod.particle_count = static_cast<int32>(this->simulation->particle_system->particle_count);
+			    particle_system_pod.particle_diameter = static_cast<float>(this->simulation->particle_system->particle_diameter);
+			    particle_system_pod.particle_density = static_cast<float>(this->simulation->particle_system->particle_density);
+			    particle_system_pod.particle_shape_factor = static_cast<float>(this->simulation->particle_system->particle_shape_factor);
+			    particle_system_pod.drag_model = static_cast<EDragModel>(this->simulation->particle_system->drag_model);
+			    particle_system_pod.drag_coefficient = static_cast<float>(this->simulation->particle_system->drag_coefficient);
+			    particle_system_pod.collision_model = static_cast<ECollisionModel>(this->simulation->particle_system->collision_model);
+			    particle_system_pod.restitution_coefficient = static_cast<float>(this->simulation->particle_system->restitution_coefficient);
+			    particle_system_pod.friction_coefficient = static_cast<float>(this->simulation->particle_system->friction_coefficient);
+			    particle_system_pod.cohesion_energy = static_cast<float>(this->simulation->particle_system->cohesion_energy);
+			    particle_system_pod.breakup_model = static_cast<EBreakupModel>(this->simulation->particle_system->breakup_model);
+			    particle_system_pod.coalescence_model = static_cast<ECoalescenceModel>(this->simulation->particle_system->coalescence_model);
+			    particle_system_pod.weber_number_critical = static_cast<float>(this->simulation->particle_system->weber_number_critical);
+			    particle_system_pod.evaporation_model = static_cast<EEvaporationModel>(this->simulation->particle_system->evaporation_model);
+			    particle_system_pod.latent_heat = static_cast<float>(this->simulation->particle_system->latent_heat);
+			    particle_system_pod.vapor_pressure = static_cast<float>(this->simulation->particle_system->vapor_pressure);
+			    particle_system_pod.tracking_scheme = static_cast<ETrackingScheme>(this->simulation->particle_system->tracking_scheme);
+			    particle_system_pod.interpolation_order = static_cast<int32>(this->simulation->particle_system->interpolation_order);
+			    particle_system_pod.two_way_coupling = static_cast<bool>(this->simulation->particle_system->two_way_coupling);
+			    particle_system_pod.four_way_coupling = static_cast<bool>(this->simulation->particle_system->four_way_coupling);
+			}
+			AddPass_ParticleEvaporation(GraphBuilder, particle_system_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FCouplingComponentData coupling_pod {};
+			if (this->simulation->coupling != nullptr) {
+			    coupling_pod.coupling_strategy = static_cast<ECouplingStrategy>(this->simulation->coupling->coupling_strategy);
+			    coupling_pod.coupling_timestep_ratio = static_cast<int32>(this->simulation->coupling->coupling_timestep_ratio);
+			    coupling_pod.coupling_tolerance = static_cast<float>(this->simulation->coupling->coupling_tolerance);
+			    coupling_pod.coupling_max_iterations = static_cast<int32>(this->simulation->coupling->coupling_max_iterations);
+			    coupling_pod.boussinesq_approximation = static_cast<bool>(this->simulation->coupling->boussinesq_approximation);
+			    coupling_pod.natural_convection_gain = static_cast<float>(this->simulation->coupling->natural_convection_gain);
+			    coupling_pod.forced_convection_gain = static_cast<float>(this->simulation->coupling->forced_convection_gain);
+			    coupling_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->coupling->radiation_model);
+			    coupling_pod.fsi_method = static_cast<EFSIMethod>(this->simulation->coupling->fsi_method);
+			    coupling_pod.structural_damping = static_cast<float>(this->simulation->coupling->structural_damping);
+			    coupling_pod.added_mass_effect = static_cast<bool>(this->simulation->coupling->added_mass_effect);
+			    coupling_pod.electrokinetic_mobility = static_cast<float>(this->simulation->coupling->electrokinetic_mobility);
+			    coupling_pod.zeta_potential = static_cast<float>(this->simulation->coupling->zeta_potential);
+			    coupling_pod.debye_length = static_cast<float>(this->simulation->coupling->debye_length);
+			    coupling_pod.magnetic_reynolds_number = static_cast<float>(this->simulation->coupling->magnetic_reynolds_number);
+			    coupling_pod.hartmann_number = static_cast<float>(this->simulation->coupling->hartmann_number);
+			    coupling_pod.interaction_parameter = static_cast<float>(this->simulation->coupling->interaction_parameter);
+			    coupling_pod.reaction_mechanism = static_cast<EReactionMechanism>(this->simulation->coupling->reaction_mechanism);
+			    coupling_pod.species_count = static_cast<int32>(this->simulation->coupling->species_count);
+			    coupling_pod.acoustic_coupling = static_cast<bool>(this->simulation->coupling->acoustic_coupling);
+			    coupling_pod.speed_of_sound = static_cast<float>(this->simulation->coupling->speed_of_sound);
+			    coupling_pod.acoustic_impedance = static_cast<float>(this->simulation->coupling->acoustic_impedance);
+			}
+			AddPass_AcousticWaveEquation(GraphBuilder, coupling_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FCouplingComponentData coupling_pod {};
+			if (this->simulation->coupling != nullptr) {
+			    coupling_pod.coupling_strategy = static_cast<ECouplingStrategy>(this->simulation->coupling->coupling_strategy);
+			    coupling_pod.coupling_timestep_ratio = static_cast<int32>(this->simulation->coupling->coupling_timestep_ratio);
+			    coupling_pod.coupling_tolerance = static_cast<float>(this->simulation->coupling->coupling_tolerance);
+			    coupling_pod.coupling_max_iterations = static_cast<int32>(this->simulation->coupling->coupling_max_iterations);
+			    coupling_pod.boussinesq_approximation = static_cast<bool>(this->simulation->coupling->boussinesq_approximation);
+			    coupling_pod.natural_convection_gain = static_cast<float>(this->simulation->coupling->natural_convection_gain);
+			    coupling_pod.forced_convection_gain = static_cast<float>(this->simulation->coupling->forced_convection_gain);
+			    coupling_pod.radiation_model = static_cast<ERadiationModel>(this->simulation->coupling->radiation_model);
+			    coupling_pod.fsi_method = static_cast<EFSIMethod>(this->simulation->coupling->fsi_method);
+			    coupling_pod.structural_damping = static_cast<float>(this->simulation->coupling->structural_damping);
+			    coupling_pod.added_mass_effect = static_cast<bool>(this->simulation->coupling->added_mass_effect);
+			    coupling_pod.electrokinetic_mobility = static_cast<float>(this->simulation->coupling->electrokinetic_mobility);
+			    coupling_pod.zeta_potential = static_cast<float>(this->simulation->coupling->zeta_potential);
+			    coupling_pod.debye_length = static_cast<float>(this->simulation->coupling->debye_length);
+			    coupling_pod.magnetic_reynolds_number = static_cast<float>(this->simulation->coupling->magnetic_reynolds_number);
+			    coupling_pod.hartmann_number = static_cast<float>(this->simulation->coupling->hartmann_number);
+			    coupling_pod.interaction_parameter = static_cast<float>(this->simulation->coupling->interaction_parameter);
+			    coupling_pod.reaction_mechanism = static_cast<EReactionMechanism>(this->simulation->coupling->reaction_mechanism);
+			    coupling_pod.species_count = static_cast<int32>(this->simulation->coupling->species_count);
+			    coupling_pod.acoustic_coupling = static_cast<bool>(this->simulation->coupling->acoustic_coupling);
+			    coupling_pod.speed_of_sound = static_cast<float>(this->simulation->coupling->speed_of_sound);
+			    coupling_pod.acoustic_impedance = static_cast<float>(this->simulation->coupling->acoustic_impedance);
+			}
+			AddPass_AcousticSourceTerm(GraphBuilder, coupling_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FBoundaryConditionComponentData boundary_pod {};
+			if (this->simulation->boundary != nullptr) {
+			    boundary_pod.primary_type = static_cast<EBoundaryType>(this->simulation->boundary->primary_type);
+			    boundary_pod.velocity_profile = static_cast<EVelocityProfile>(this->simulation->boundary->velocity_profile);
+			    boundary_pod.temperature_profile = static_cast<ETemperatureProfile>(this->simulation->boundary->temperature_profile);
+			    boundary_pod.pressure_profile = static_cast<EPressureProfile>(this->simulation->boundary->pressure_profile);
+			    boundary_pod.turbulence_intensity_inlet = static_cast<float>(this->simulation->boundary->turbulence_intensity_inlet);
+			    boundary_pod.turbulence_length_scale_inlet = static_cast<float>(this->simulation->boundary->turbulence_length_scale_inlet);
+			    boundary_pod.wall_roughness = static_cast<float>(this->simulation->boundary->wall_roughness);
+			    boundary_pod.wall_temperature = static_cast<float>(this->simulation->boundary->wall_temperature);
+			    boundary_pod.wall_heat_flux = static_cast<float>(this->simulation->boundary->wall_heat_flux);
+			    boundary_pod.slip_length = static_cast<float>(this->simulation->boundary->slip_length);
+			    boundary_pod.contact_angle_advancing = static_cast<float>(this->simulation->boundary->contact_angle_advancing);
+			    boundary_pod.contact_angle_receding = static_cast<float>(this->simulation->boundary->contact_angle_receding);
+			    boundary_pod.contact_angle_hysteresis = static_cast<float>(this->simulation->boundary->contact_angle_hysteresis);
+			    boundary_pod.porous_permeability = static_cast<float>(this->simulation->boundary->porous_permeability);
+			    boundary_pod.porous_porosity = static_cast<float>(this->simulation->boundary->porous_porosity);
+			    boundary_pod.sponge_layer_thickness = static_cast<float>(this->simulation->boundary->sponge_layer_thickness);
+			    boundary_pod.sponge_damping_coefficient = static_cast<float>(this->simulation->boundary->sponge_damping_coefficient);
+			    boundary_pod.moving_wall_velocity = static_cast<FVector3f>(this->simulation->boundary->moving_wall_velocity);
+			    boundary_pod.moving_wall_angular_velocity = static_cast<FVector3f>(this->simulation->boundary->moving_wall_angular_velocity);
+			    boundary_pod.inflow_turbulence_seed = static_cast<int32>(this->simulation->boundary->inflow_turbulence_seed);
+			    boundary_pod.outflow_convective_velocity = static_cast<float>(this->simulation->boundary->outflow_convective_velocity);
+			}
+			AddPass_DarcyFlow(GraphBuilder, physics_pod, boundary_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FBoundaryConditionComponentData boundary_pod {};
+			if (this->simulation->boundary != nullptr) {
+			    boundary_pod.primary_type = static_cast<EBoundaryType>(this->simulation->boundary->primary_type);
+			    boundary_pod.velocity_profile = static_cast<EVelocityProfile>(this->simulation->boundary->velocity_profile);
+			    boundary_pod.temperature_profile = static_cast<ETemperatureProfile>(this->simulation->boundary->temperature_profile);
+			    boundary_pod.pressure_profile = static_cast<EPressureProfile>(this->simulation->boundary->pressure_profile);
+			    boundary_pod.turbulence_intensity_inlet = static_cast<float>(this->simulation->boundary->turbulence_intensity_inlet);
+			    boundary_pod.turbulence_length_scale_inlet = static_cast<float>(this->simulation->boundary->turbulence_length_scale_inlet);
+			    boundary_pod.wall_roughness = static_cast<float>(this->simulation->boundary->wall_roughness);
+			    boundary_pod.wall_temperature = static_cast<float>(this->simulation->boundary->wall_temperature);
+			    boundary_pod.wall_heat_flux = static_cast<float>(this->simulation->boundary->wall_heat_flux);
+			    boundary_pod.slip_length = static_cast<float>(this->simulation->boundary->slip_length);
+			    boundary_pod.contact_angle_advancing = static_cast<float>(this->simulation->boundary->contact_angle_advancing);
+			    boundary_pod.contact_angle_receding = static_cast<float>(this->simulation->boundary->contact_angle_receding);
+			    boundary_pod.contact_angle_hysteresis = static_cast<float>(this->simulation->boundary->contact_angle_hysteresis);
+			    boundary_pod.porous_permeability = static_cast<float>(this->simulation->boundary->porous_permeability);
+			    boundary_pod.porous_porosity = static_cast<float>(this->simulation->boundary->porous_porosity);
+			    boundary_pod.sponge_layer_thickness = static_cast<float>(this->simulation->boundary->sponge_layer_thickness);
+			    boundary_pod.sponge_damping_coefficient = static_cast<float>(this->simulation->boundary->sponge_damping_coefficient);
+			    boundary_pod.moving_wall_velocity = static_cast<FVector3f>(this->simulation->boundary->moving_wall_velocity);
+			    boundary_pod.moving_wall_angular_velocity = static_cast<FVector3f>(this->simulation->boundary->moving_wall_angular_velocity);
+			    boundary_pod.inflow_turbulence_seed = static_cast<int32>(this->simulation->boundary->inflow_turbulence_seed);
+			    boundary_pod.outflow_convective_velocity = static_cast<float>(this->simulation->boundary->outflow_convective_velocity);
+			}
+			AddPass_Forchheimer(GraphBuilder, physics_pod, boundary_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FBoundaryConditionComponentData boundary_pod {};
+			if (this->simulation->boundary != nullptr) {
+			    boundary_pod.primary_type = static_cast<EBoundaryType>(this->simulation->boundary->primary_type);
+			    boundary_pod.velocity_profile = static_cast<EVelocityProfile>(this->simulation->boundary->velocity_profile);
+			    boundary_pod.temperature_profile = static_cast<ETemperatureProfile>(this->simulation->boundary->temperature_profile);
+			    boundary_pod.pressure_profile = static_cast<EPressureProfile>(this->simulation->boundary->pressure_profile);
+			    boundary_pod.turbulence_intensity_inlet = static_cast<float>(this->simulation->boundary->turbulence_intensity_inlet);
+			    boundary_pod.turbulence_length_scale_inlet = static_cast<float>(this->simulation->boundary->turbulence_length_scale_inlet);
+			    boundary_pod.wall_roughness = static_cast<float>(this->simulation->boundary->wall_roughness);
+			    boundary_pod.wall_temperature = static_cast<float>(this->simulation->boundary->wall_temperature);
+			    boundary_pod.wall_heat_flux = static_cast<float>(this->simulation->boundary->wall_heat_flux);
+			    boundary_pod.slip_length = static_cast<float>(this->simulation->boundary->slip_length);
+			    boundary_pod.contact_angle_advancing = static_cast<float>(this->simulation->boundary->contact_angle_advancing);
+			    boundary_pod.contact_angle_receding = static_cast<float>(this->simulation->boundary->contact_angle_receding);
+			    boundary_pod.contact_angle_hysteresis = static_cast<float>(this->simulation->boundary->contact_angle_hysteresis);
+			    boundary_pod.porous_permeability = static_cast<float>(this->simulation->boundary->porous_permeability);
+			    boundary_pod.porous_porosity = static_cast<float>(this->simulation->boundary->porous_porosity);
+			    boundary_pod.sponge_layer_thickness = static_cast<float>(this->simulation->boundary->sponge_layer_thickness);
+			    boundary_pod.sponge_damping_coefficient = static_cast<float>(this->simulation->boundary->sponge_damping_coefficient);
+			    boundary_pod.moving_wall_velocity = static_cast<FVector3f>(this->simulation->boundary->moving_wall_velocity);
+			    boundary_pod.moving_wall_angular_velocity = static_cast<FVector3f>(this->simulation->boundary->moving_wall_angular_velocity);
+			    boundary_pod.inflow_turbulence_seed = static_cast<int32>(this->simulation->boundary->inflow_turbulence_seed);
+			    boundary_pod.outflow_convective_velocity = static_cast<float>(this->simulation->boundary->outflow_convective_velocity);
+			}
+			AddPass_PoroElastic(GraphBuilder, physics_pod, boundary_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			AddPass_FreeSurface_VOF(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			AddPass_FreeSurface_LevelSet(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FMultiphaseComponentData multiphase_pod {};
+			if (this->simulation->multiphase != nullptr) {
+			    multiphase_pod.phases = static_cast<int32>(this->simulation->multiphase->phases);
+			    multiphase_pod.phase_field_mobility = static_cast<float>(this->simulation->multiphase->phase_field_mobility);
+			    multiphase_pod.interface_thickness = static_cast<float>(this->simulation->multiphase->interface_thickness);
+			    multiphase_pod.surface_tension_coupling = static_cast<float>(this->simulation->multiphase->surface_tension_coupling);
+			    multiphase_pod.contact_angle = static_cast<float>(this->simulation->multiphase->contact_angle);
+			    multiphase_pod.bubble_spawn_rate = static_cast<float>(this->simulation->multiphase->bubble_spawn_rate);
+			    multiphase_pod.droplet_spawn_rate = static_cast<float>(this->simulation->multiphase->droplet_spawn_rate);
+			}
+			AddPass_SurfaceTension_CSF(GraphBuilder, multiphase_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			AddPass_AdvectionWENO5(GraphBuilder, physics_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FPhysicalPropertiesComponentData physics_pod {};
+			if (this->simulation->physics != nullptr) {
+			    physics_pod.fluid_class = static_cast<EFluidClass>(this->simulation->physics->fluid_class);
+			    physics_pod.solver_family = static_cast<ESolverFamily>(this->simulation->physics->solver_family);
+			    physics_pod.hybrid_solver = static_cast<EHybridSolver>(this->simulation->physics->hybrid_solver);
+			    physics_pod.pressure_solver = static_cast<EPressureSolver>(this->simulation->physics->pressure_solver);
+			    physics_pod.advection_scheme = static_cast<EAdvectionScheme>(this->simulation->physics->advection_scheme);
+			    physics_pod.turbulence_model = static_cast<ETurbulenceModel>(this->simulation->physics->turbulence_model);
+			    physics_pod.boundary_type = static_cast<EBoundaryType>(this->simulation->physics->boundary_type);
+			    physics_pod.quality = static_cast<EQualityTier>(this->simulation->physics->quality);
+			    physics_pod.backend = static_cast<EGPUBackend>(this->simulation->physics->backend);
+			    physics_pod.viscosity = static_cast<float>(this->simulation->physics->viscosity);
+			    physics_pod.density = static_cast<float>(this->simulation->physics->density);
+			    physics_pod.surface_tension = static_cast<float>(this->simulation->physics->surface_tension);
+			    physics_pod.compressibility = static_cast<float>(this->simulation->physics->compressibility);
+			    physics_pod.conductivity = static_cast<float>(this->simulation->physics->conductivity);
+			    physics_pod.permittivity = static_cast<float>(this->simulation->physics->permittivity);
+			    physics_pod.permeability = static_cast<float>(this->simulation->physics->permeability);
+			    physics_pod.reactivity = static_cast<float>(this->simulation->physics->reactivity);
+			    physics_pod.radiation_absorption = static_cast<float>(this->simulation->physics->radiation_absorption);
+			    physics_pod.gravity_scale = static_cast<float>(this->simulation->physics->gravity_scale);
+			    physics_pod.anisotropy = static_cast<float>(this->simulation->physics->anisotropy);
+			    physics_pod.cavitation_threshold = static_cast<float>(this->simulation->physics->cavitation_threshold);
+			    physics_pod.yield_stress = static_cast<float>(this->simulation->physics->yield_stress);
+			    physics_pod.foam_threshold = static_cast<float>(this->simulation->physics->foam_threshold);
+			    physics_pod.spray_threshold = static_cast<float>(this->simulation->physics->spray_threshold);
+			    physics_pod.bubble_coalescence = static_cast<float>(this->simulation->physics->bubble_coalescence);
+			}
+			FCollisionComponentData collision_pod {};
+			if (this->simulation->collision != nullptr) {
+			    collision_pod.enabled = static_cast<bool>(this->simulation->collision->enabled);
+			    collision_pod.restitution = static_cast<float>(this->simulation->collision->restitution);
+			    collision_pod.friction = static_cast<float>(this->simulation->collision->friction);
+			    collision_pod.sdf_threshold = static_cast<float>(this->simulation->collision->sdf_threshold);
+			    collision_pod.use_global_distance_field = static_cast<bool>(this->simulation->collision->use_global_distance_field);
+			}
+			AddPass_SDFCollisionPass(GraphBuilder, physics_pod, collision_pod, VelocityInput, PositionOutput, FIntVector(32, 32, 1));
+			}
+			AddPass_ClearTexture(GraphBuilder, FVector4f(0.0f, 0.0f, 0.0f, 0.0f), PositionOutput, FIntVector(32, 32, 1));
+			{
+			FVisualizationComponentData viz_pod {};
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
+			}
+			AddPass_FluidRaymarching(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
+			}
+			AddPass_FluidSchlieren(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
+			}
+			AddPass_FluidInterferometry(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
+			}
+			AddPass_FluidHolography(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
+			{
+			FVisualizationComponentData viz_pod {};
+			if (this->simulation->viz != nullptr) {
+			    viz_pod.visualization = static_cast<EVisualizationMode>(this->simulation->viz->visualization);
+			    viz_pod.exposure = static_cast<float>(this->simulation->viz->exposure);
+			    viz_pod.contrast = static_cast<float>(this->simulation->viz->contrast);
+			    viz_pod.saturation = static_cast<float>(this->simulation->viz->saturation);
+			    viz_pod.line_thickness = static_cast<float>(this->simulation->viz->line_thickness);
+			    viz_pod.sample_count = static_cast<int32>(this->simulation->viz->sample_count);
+			    viz_pod.step_size = static_cast<float>(this->simulation->viz->step_size);
+			    viz_pod.color_a = static_cast<FVector3f>(this->simulation->viz->color_a);
+			    viz_pod.color_b = static_cast<FVector3f>(this->simulation->viz->color_b);
+			    viz_pod.color_c = static_cast<FVector3f>(this->simulation->viz->color_c);
+			}
+			AddPass_FluidQuantumVisualization(GraphBuilder, viz_pod, PositionOutput, FIntVector(32, 32, 1));
+			}
 
 			GraphBuilder.Execute();
 		}
 	);
 }
-
-	void AHyperFluidWorld::Server_Initialize_Implementation(const TArray<int32>& preset_ids)
-	{
-		active_presets = preset_ids;
-		ApplyPresets(preset_ids);
-	}
-
-	bool AHyperFluidWorld::Server_Initialize_Validate(const TArray<int32>& preset_ids)
-	{
-		return true; // Add validation logic here
-	}
-
-	void AHyperFluidWorld::Server_StepSimulation_Implementation(const int32 steps)
-	{
-		const auto step_count = FMath::Max(steps, 1);
-		DispatchSimulation(step_count);
-	}
-
-	bool AHyperFluidWorld::Server_StepSimulation_Validate(const int32 steps)
-	{
-		return true; // Add validation logic here
-	}
-
-	void AHyperFluidWorld::Server_SetVisualization_Implementation(const EVisualizationMode mode)
-	{
-		viz->visualization = mode;
-		UpdateVisualization();
-	}
-
-	bool AHyperFluidWorld::Server_SetVisualization_Validate(const EVisualizationMode mode)
-	{
-		return true; // Add validation logic here
-	}
-
-	void AHyperFluidWorld::Client_ReceiveTelemetry_Implementation(const TArray<float>& data)
-	{
-		noop();
-	}
-
-	void AHyperFluidWorld::ApplyPresets(const TArray<int32> preset_ids)
-	{
-		for (auto pid : preset_ids)
-		{
-			const auto preset = FluidPreset.lookup(pid);
-			physics->fluid_class = preset.class;
-			physics->solver_family = preset.solver;
-			physics->turbulence_model = preset.turbulence;
-			physics->boundary_type = preset.boundary;
-			physics->coupling_fields = preset.coupling;
-			physics->quality = preset.quality;
-			physics->backend = preset.backend;
-			adaptive->strategy = preset.adaptive;
-			time->time_integrator = preset.time_integrator;
-			physics->viscosity = preset.viscosity;
-			physics->density = preset.density;
-			physics->surface_tension = preset.surface_tension;
-			physics->compressibility = preset.compressibility;
-			physics->conductivity = preset.conductivity;
-			physics->permittivity = preset.permittivity;
-			physics->permeability = preset.permeability;
-			physics->reactivity = preset.chemical_reactivity;
-			physics->radiation_absorption = preset.radiation_absorption;
-			physics->gravity_scale = preset.gravity_scale;
-			physics->anisotropy = preset.anisotropy;
-			physics->cavitation_threshold = preset.cavitation_threshold;
-			physics->yield_stress = preset.yield_stress;
-			physics->foam_threshold = preset.foam_threshold;
-			physics->spray_threshold = preset.spray_threshold;
-			physics->bubble_coalescence = preset.bubble_coalescence;
-			turbulence->intensity = preset.turbulence_intensity;
-			turbulence->vortex_confinement = preset.vorticity_confinement;
-			adaptive->refine_threshold = preset.adaptive_refine_threshold;
-			adaptive->coarsen_threshold = preset.adaptive_coarsen_threshold;
-		}
-	}
-
-	void AHyperFluidWorld::DispatchSimulation(const int32 steps)
-	{
-		const auto solver = physics->solver_family;
-		if ((solver == SolverFamily.LatticeBoltzmann))
-		{
-			DispatchLBM(steps);
-		}
-		else if ((solver == SolverFamily.SmoothedParticleHydro))
-		{
-			DispatchSPH(steps);
-		}
-		else if ((solver == SolverFamily.FiniteVolume))
-		{
-			DispatchFVM(steps);
-		}
-		else if ((solver == SolverFamily.FiniteElement))
-		{
-			DispatchFEM(steps);
-		}
-		else if ((solver == SolverFamily.Spectral))
-		{
-			DispatchSpectral(steps);
-		}
-		else if ((solver == SolverFamily.VortexMethod))
-		{
-			DispatchVortex(steps);
-		}
-		else
-		{
-			DispatchLBM(steps);
-		}
-	}
-
-	void AHyperFluidWorld::DispatchLBM(const int32 steps)
-	{
-		for (auto i : range(0, steps))
-		{
-			LatticeBoltzmannCollision.Dispatch(grid->grid_dim, physics, turbulence);
-			LatticeBoltzmannStreaming.Dispatch(grid->grid_dim, physics, turbulence);
-			if (physics->coupling_fields.Contains(CouplingField.Magnetic))
-			{
-				MagnetohydrodynamicsInduction.Dispatch(grid->grid_dim, em);
-				MagnetohydrodynamicsLorentz.Dispatch(grid->grid_dim, em);
-			}
-			if (physics->coupling_fields.Contains(CouplingField.Quantum))
-			{
-				QuantumFluidGrossPitaevskii.Dispatch(grid->grid_dim, quantum);
-				QuantumFluidVortices.Dispatch(grid->grid_dim, quantum);
-			}
-			if (physics->coupling_fields.Contains(CouplingField.Thermal))
-			{
-				ThermalFluidConduction.Dispatch(grid->grid_dim, thermal);
-				ThermalFluidConvection.Dispatch(grid->grid_dim, thermal);
-			}
-		}
-	}
-
-	void AHyperFluidWorld::DispatchSPH(const int32 steps)
-	{
-		for (auto i : range(0, steps))
-		{
-			SmoothedParticleHydrodynamics.Dispatch(particles->particle_count, physics, turbulence);
-			if (physics->coupling_fields.Contains(CouplingField.Magnetic))
-			{
-				MagnetohydrodynamicsLorentz.Dispatch(grid->grid_dim, em);
-			}
-			if (physics->coupling_fields.Contains(CouplingField.Thermal))
-			{
-				ThermalFluidConvection.Dispatch(grid->grid_dim, thermal);
-			}
-		}
-	}
-
-	void AHyperFluidWorld::DispatchFVM(const int32 steps)
-	{
-		for (auto i : range(0, steps))
-		{
-			FiniteVolumeFlux.Dispatch(grid->grid_dim, physics);
-			FiniteVolumeGradient.Dispatch(grid->grid_dim, physics);
-			if ((physics->boundary_type == BoundaryType.NoSlip))
-			{
-				ImmersedBoundaryForce.Dispatch(grid->grid_dim, physics);
-				ImmersedBoundaryVelocity.Dispatch(grid->grid_dim, physics);
-			}
-		}
-	}
-
-	void AHyperFluidWorld::DispatchFEM(const int32 steps)
-	{
-		for (auto i : range(0, steps))
-		{
-			FiniteElementStiffness.Dispatch(grid->grid_dim, physics);
-			FiniteElementMass.Dispatch(grid->grid_dim, physics);
-			if (physics->coupling_fields.Contains(CouplingField.Structural))
-			{
-				ViscoelasticStress.Dispatch(grid->grid_dim, physics);
-				ViscoelasticRelaxation.Dispatch(grid->grid_dim, physics);
-			}
-		}
-	}
-
-	void AHyperFluidWorld::DispatchSpectral(const int32 steps)
-	{
-		for (auto i : range(0, steps))
-		{
-			SpectralFourierTransform.Dispatch(grid->grid_dim, physics);
-			SpectralTurbulence.Dispatch(grid->grid_dim, physics, turbulence);
-		}
-	}
-
-	void AHyperFluidWorld::DispatchVortex(const int32 steps)
-	{
-		for (auto i : range(0, steps))
-		{
-			VortexMethodCore.Dispatch(grid->grid_dim, physics);
-			VortexMethodAdvection.Dispatch(grid->grid_dim, physics);
-		}
-	}
-
-	void AHyperFluidWorld::UpdateVisualization()
-	{
-		const auto mode = viz->visualization;
-		if ((mode == VisualizationMode.VolumeRaymarch))
-		{
-			FluidRaymarching.Dispatch(grid->grid_dim, viz);
-		}
-		else if ((mode == VisualizationMode.Schlieren))
-		{
-			FluidSchlieren.Dispatch(grid->grid_dim, viz);
-		}
-		else if ((mode == VisualizationMode.Interferometry))
-		{
-			FluidInterferometry.Dispatch(grid->grid_dim, viz);
-		}
-		else if ((mode == VisualizationMode.Holography))
-		{
-			FluidHolography.Dispatch(grid->grid_dim, viz);
-		}
-		else if ((mode == VisualizationMode.QuantumPhase))
-		{
-			FluidQuantumVisualization.Dispatch(grid->grid_dim, viz);
-		}
-		else
-		{
-			FluidRaymarching.Dispatch(grid->grid_dim, viz);
-		}
-	}
 

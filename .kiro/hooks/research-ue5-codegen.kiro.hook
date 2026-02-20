@@ -4,7 +4,7 @@
   "description": "Automatically uses context-gatherer subagent to research relevant codegen files when user asks about UE5 implementation, pipeline improvements, or making the system smarter",
   "version": "1",
   "when": {
-    "type": "userTriggered"
+    "type": "promptSubmit"
   },
   "then": {
     "type": "askAgent",

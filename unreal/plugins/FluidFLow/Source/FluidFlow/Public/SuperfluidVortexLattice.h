@@ -14,16 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for QuantumComponent (GPU-compatible)
-struct FQuantumComponentData {
-    float coherence_length;
-    float healing_length;
-    float vortex_core_size;
-    float phase_wrapping;
-    float dispersion_gain;
-    float superfluid_fraction;
-    float condensate_density;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FSuperfluidVortexLatticeShader : public FGlobalShader
 {
@@ -31,7 +22,7 @@ class FSuperfluidVortexLatticeShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FSuperfluidVortexLatticeShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FQuantumComponentData, quantum)
+        SHADER_PARAMETER_STRUCT(FQuantumComponentData, quantum)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -54,7 +45,7 @@ class FSuperfluidVortexLatticeShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FSuperfluidVortexLatticeShader, "/Plugin/YourPlugin/SuperfluidVortexLattice.usf", "SuperfluidVortexLatticeCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FSuperfluidVortexLatticeShader, "/Plugin/FluidFlow/SuperfluidVortexLattice.usf", "SuperfluidVortexLatticeCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_SuperfluidVortexLattice(

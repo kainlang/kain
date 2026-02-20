@@ -43,7 +43,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs) =
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions) =
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
@@ -144,6 +144,49 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         // Always generate C++ factories as a safety net (editor can re-import)
         if !converted_graphs.is_empty() {
             super::material_gen::generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &cwd)?;
+        }
+        println!();
+    }
+
+    // STEP 2.5: Generate Material Functions (.uasset files)
+    #[cfg(feature = "ue5")]
+    if !material_functions.is_empty() {
+        println!();
+        println!("🔧 Generating {} material functions...", material_functions.len());
+
+        // Ensure Content/Materials/Functions exists for binary output
+        let func_content_dir = layout.plugin_root.join("Content").join("Materials").join("Functions");
+        if let Err(e) = fs::create_dir_all(&func_content_dir) {
+            eprintln!("   ⚠️  Failed to create material functions content dir: {}", e);
+        }
+
+        for func_def in &material_functions {
+            match convert_material_function(func_def) {
+                Ok(func_ir) => {
+                    // Generate .uasset file
+                    match ue5_materials::material_function_builder::serialize_material_function(&func_ir) {
+                        Ok(bytes) => {
+                            let path = func_content_dir.join(format!("MF_{}.uasset", func_def.name));
+                            if let Err(e) = fs::write(&path, &bytes) {
+                                eprintln!("   ⚠️  Failed to write .uasset for {}: {}", func_def.name, e);
+                            } else {
+                                println!("   ✓ Material function: MF_{} ({} bytes)", func_def.name, bytes.len());
+                                generated_assets.push(GeneratedAsset {
+                                    package_name: format!("/Game/Materials/Functions/MF_{}", func_def.name),
+                                    asset_name: format!("MF_{}", func_def.name),
+                                    class_path: "/Script/Engine.MaterialFunction",
+                                });
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("   ⚠️  Failed to serialize material function {}: {}", func_def.name, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to convert material function {}: {}", func_def.name, e);
+                }
+            }
         }
         println!();
     }
@@ -250,11 +293,12 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             }
 
             // Derive UE5 engine version from the config engine_version field (if present)
-            // or fall back to a sensible UE5.2 default.
+            // or fall back to whatever KainEngineTarget::default() maps to.
+            // This keeps the fallback in sync with a single definition (engine_target.rs).
             let engine_ver = ue5_config.engine_version
                 .as_deref()
                 .and_then(parse_engine_version)
-                .unwrap_or(unreal_asset::engine_version::EngineVersion::VER_UE5_2);
+                .unwrap_or_else(|| ue5_asset_utils::KainEngineTarget::default().as_serializer_version());
 
             for st in data_asset_structs {
                 // Resolve optional class argument: @data_asset("MyPlugin.UMyClass")
@@ -414,14 +458,16 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         if !generated_assets.is_empty() {
             println!("📋 Updating AssetRegistry.bin ({} assets)...", generated_assets.len());
 
-            // AssetRegistry.bin lives at the plugin root alongside Content/
-            let registry_path = layout.plugin_root.join("AssetRegistry.bin");
+            // AssetRegistry.bin must live inside Content/ — that is the path
+            // UE's plugin asset-registry scanner reads on startup.
+            // (plugin_root/AssetRegistry.bin is NOT scanned by the editor.)
+            let registry_path = layout.plugin_root.join("Content").join("AssetRegistry.bin");
 
             // Derive UE5 engine version (same logic as DataAsset step)
             let engine_ver = ue5_config.engine_version
                 .as_deref()
                 .and_then(parse_engine_version)
-                .unwrap_or(unreal_asset_base::engine_version::EngineVersion::VER_UE5_2);
+                .unwrap_or_else(|| ue5_asset_utils::KainEngineTarget::default().as_serializer_version());
 
             // Build data-driven AssetEntry descriptors from the accumulated list
             let entries: Vec<AssetEntry> = generated_assets
@@ -459,12 +505,12 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 }
 
 /// Load stdlib + user source files, parse, validate, and type-check.
-/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs).
+/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs, material_functions).
 fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>)> {
+) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -619,9 +665,20 @@ fn load_and_parse_sources(
         })
         .collect();
     
-    // Filter out material graphs from the program before type checking
+    // Extract material functions BEFORE type checking
+    let material_functions: Vec<kain_core::ast::MaterialFunctionDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::MaterialFunction(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    // Filter out material graphs and functions from the program before type checking
     // (they will be processed separately for material generation)
-    merged.items.retain(|item| !matches!(item, kain_core::ast::Item::MaterialGraph(_)));
+    merged.items.retain(|item| !matches!(item, kain_core::ast::Item::MaterialGraph(_) | kain_core::ast::Item::MaterialFunction(_)));
     
     // Type-check the MERGED program
     println!("🔍 Type checking merged program...");
@@ -658,23 +715,28 @@ fn load_and_parse_sources(
     }
     println!();
     
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs))
+    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions))
 }
 
-/// Map an engine version string from KAIN.toml to a `EngineVersion` enum value.
-/// Supports formats like `"5.2"`, `"5.3"`, `"5.4"`.
+/// Map an engine version string from KAIN.toml to a raw `EngineVersion` value.
+///
+/// Delegates through [`KainEngineTarget`] so that each supported version
+/// (5.0 – 5.7) maps to its **true native** `EngineVersion`, not a capped
+/// fallback. Accepts formats like `"5.4"`, `"UE5_4"`, `"VER_UE5_4"`.
 #[cfg(feature = "ue5")]
-fn parse_engine_version(s: &str) -> Option<unreal_asset::engine_version::EngineVersion> {
-    use unreal_asset::engine_version::EngineVersion;
-    // Strip optional "UE" prefix and normalise
-    let s = s.trim_start_matches("UE").trim_start_matches("VER_UE").trim();
-    match s {
-        "5.0" | "UE5_0" | "5_0" => Some(EngineVersion::VER_UE5_0),
-        "5.1" | "UE5_1" | "5_1" => Some(EngineVersion::VER_UE5_1),
-        // 5.2 is the highest version available in the pinned unreal_asset crate.
-        // Map any newer version to 5.2 for maximum forward-compat.
-        _ => Some(EngineVersion::VER_UE5_2),
-    }
+fn parse_engine_version(s: &str) -> Option<unreal_asset_base::engine_version::EngineVersion> {
+    use ue5_asset_utils::KainEngineTarget;
+    // Strip optional "UE" prefix and normalise ("UE5_4" → "5.4", etc.)
+    let s = s.trim();
+    let normalised = if let Some(rest) = s.strip_prefix("VER_UE") {
+        rest.replace('_', ".")
+    } else if let Some(rest) = s.strip_prefix("UE") {
+        rest.replace('_', ".")
+    } else {
+        s.to_string()
+    };
+    KainEngineTarget::from_str(normalised.trim())
+        .map(|t| t.as_serializer_version())
 }
 
 /// Convert AST MaterialGraphDef to IR MaterialGraph.
@@ -736,6 +798,7 @@ fn convert_material_graph(
             name: input.name.clone(),
             input_type: map_material_input_type(&input.ty),
             default_value: input.default.as_ref().map(|e| format!("{:?}", e)),
+            is_dynamic: false, // Phase 7.1: dynamic marking happens post-construction
         }
     }).collect();
 
@@ -815,7 +878,11 @@ fn convert_material_graph(
         blend_mode,
         shading_model,
         two_sided: false,
+        expose_parameters: false, // Phase 7.1: off by default; set by @dynamic attribute
     };
+
+    // Phase 7.5: detect vertex shader usage from whether world_position_offset is connected
+    let uses_vertex_shader = outputs.world_position_offset.is_some();
 
     Ok(MaterialGraph {
         name: def.name.clone(),
@@ -823,7 +890,10 @@ fn convert_material_graph(
         outputs,
         properties,
         nodes,
-        is_dynamic: false,
+        is_dynamic: false,               // Phase 7: set true when Time nodes are detected
+        dynamic_parameters: Vec::new(),  // Phase 7.1: populated by mark_parameter_dynamic()
+        uses_vertex_shader,              // Phase 7.5: auto-detected from output connections
+        vertex_displacement_scale: None, // Phase 7.5: no explicit scale by default
     })
 }
 
@@ -1079,6 +1149,73 @@ fn emit_expr(
             id
         }
     }
+}
+
+/// Map KAIN type to material input type
+/// Convert AST MaterialFunctionDef to IR MaterialFunction.
+/// Material functions are reusable node graphs that can be called from materials.
+#[cfg(feature = "ue5")]
+fn convert_material_function(
+    def: &kain_core::ast::MaterialFunctionDef,
+) -> KainResult<ue5_materials::MaterialFunction> {
+    use ue5_materials::{MaterialFunction, MaterialFunctionInput, MaterialInputType,
+                        MaterialNode, MaterialNodeType};
+    use std::collections::HashMap;
+
+    // Convert inputs
+    let inputs: Vec<MaterialFunctionInput> = def.inputs.iter().map(|input| {
+        MaterialFunctionInput {
+            name: input.name.clone(),
+            input_type: map_material_input_type(&input.ty),
+            default_value: input.default.as_ref().map(|e| format!("{:?}", e)),
+        }
+    }).collect();
+
+    // --- Expression → Node conversion ---
+    let mut node_counter: usize = 0;
+    let mut nodes: Vec<MaterialNode> = Vec::new();
+    let mut scope: HashMap<String, String> = HashMap::new();
+
+    // Grid layout
+    let col_width = 300i32;
+    let row_height = 200i32;
+
+    // Create input nodes for each declared parameter
+    for (row, input) in def.inputs.iter().enumerate() {
+        let x = -800;
+        let y = row as i32 * row_height;
+        let id = format!("input_{}", input.name);
+        
+        // Material function inputs are represented as FunctionInput nodes
+        // These will be converted to MaterialExpressionFunctionInput in the builder
+        let node_type = MaterialNodeType::ConstantFloat { value: 0.0 }; // Placeholder - will be replaced by FunctionInput
+        
+        nodes.push(MaterialNode { id: id.clone(), node_type, position: (x, y) });
+        scope.insert(input.name.clone(), id);
+    }
+
+    // Walk body let-bindings
+    for (stmt_idx, stmt) in def.body.iter().enumerate() {
+        if let kain_core::ast::MaterialStatement::Let { name, value, .. } = stmt {
+            let x = -500 + stmt_idx as i32 * col_width;
+            let y = 0;
+            let surface_shaders = HashMap::new(); // Functions don't use surface shaders
+            let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope, &surface_shaders);
+            scope.insert(name.clone(), node_id);
+        }
+    }
+
+    // Resolve output expression
+    let surface_shaders = HashMap::new();
+    let output_node_id = emit_expr(&def.output, 400, 0, &mut node_counter, &mut nodes, &scope, &surface_shaders);
+
+    Ok(MaterialFunction {
+        name: def.name.clone(),
+        inputs,
+        nodes,
+        output: output_node_id,
+        description: format!("Material function: {}", def.name),
+    })
 }
 
 /// Map KAIN type to material input type

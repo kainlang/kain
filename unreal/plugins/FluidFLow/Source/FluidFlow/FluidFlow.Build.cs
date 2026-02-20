@@ -13,11 +13,10 @@ public class FluidFlow : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
+				"DataTable",
 				"Engine",
 				"Projects",
-				"RHI",
-				"RenderCore",
-				"Renderer"
+				"RenderCore"
 			}
 		);
 	}

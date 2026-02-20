@@ -3,8 +3,22 @@
 
 #include "/Engine/Public/Platform.ush"
 
+// POD mirror for VisualizationComponent
+struct FVisualizationComponentData {
+    int visualization;
+    float exposure;
+    float contrast;
+    float saturation;
+    float line_thickness;
+    int sample_count;
+    float step_size;
+    float3 color_a;
+    float3 color_b;
+    float3 color_c;
+};
+
 // Scalar Parameters - Bind via SHADER_PARAMETER_STRUCT
-VisualizationComponent viz;
+FVisualizationComponentData viz;
 
 // UAV Outputs
 RWTexture2D<float4> OutputTexture : register(u0);

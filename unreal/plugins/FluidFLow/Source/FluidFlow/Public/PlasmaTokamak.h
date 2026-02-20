@@ -14,16 +14,7 @@
 #include "ShaderCompilerCore.h"
 #include "RHIStaticStates.h"
 
-// POD mirror for ElectroMagneticComponent (GPU-compatible)
-struct FElectroMagneticComponentData {
-    float charge_density;
-    FVector3f electric_field;
-    FVector3f magnetic_field;
-    float lorentz_force_gain;
-    float resistivity;
-    float hall_parameter;
-    float ambipolar_diffusion;
-};
+#include "FluidFlowShaderTypes.h"
 
 class FPlasmaTokamakShader : public FGlobalShader
 {
@@ -31,7 +22,7 @@ class FPlasmaTokamakShader : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FPlasmaTokamakShader, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-        SHADER_PARAMETER(FElectroMagneticComponentData, em)
+        SHADER_PARAMETER_STRUCT(FElectroMagneticComponentData, em)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
     END_SHADER_PARAMETER_STRUCT()
 
@@ -54,7 +45,7 @@ class FPlasmaTokamakShader : public FGlobalShader
 };
 
 // In your .cpp file, add:
-// IMPLEMENT_GLOBAL_SHADER(FPlasmaTokamakShader, "/Plugin/YourPlugin/PlasmaTokamak.usf", "PlasmaTokamakCS", SF_Compute);
+// IMPLEMENT_GLOBAL_SHADER(FPlasmaTokamakShader, "/Plugin/FluidFlow/PlasmaTokamak.usf", "PlasmaTokamakCS", SF_Compute);
 
 // Helper function to add pass to render graph
 void AddPass_PlasmaTokamak(

@@ -8,33 +8,66 @@
 #include "RenderGraphUtils.h"
 #include "RenderTargetPool.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "K1Tectonics.h"
-#include "K2Continental.h"
-#include "K3Thermal.h"
-#include "K4Moisture.h"
-#include "K5Resources.h"
-#include "K6Normals.h"
-#include "K7Ocean.h"
-#include "K8Atmosphere.h"
-#include "K9Biomes.h"
-#include "K10Flora.h"
-#include "K11CityLights.h"
-#include "K12SovereignPBR.h"
+#include "K1_Tectonics.h"
+#include "K2_Continental.h"
+#include "K3_Thermal.h"
+#include "K4_Moisture.h"
+#include "K5_Resources.h"
+#include "K6_Normals.h"
+#include "K7_Ocean.h"
+#include "K8_Atmosphere.h"
+#include "K9_Biomes.h"
+#include "K10_Flora.h"
+#include "K11_CityLights.h"
+#include "K12_SovereignPBR.h"
 
 AKainSovereignPlanet::AKainSovereignPlanet()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	sovereignty = CreateDefaultSubobject<USovereignComponent>(TEXT("Sovereignty"));
-	climate = CreateDefaultSubobject<UClimateComponent>(TEXT("Climate"));
-	resources = CreateDefaultSubobject<UResourceLatticeComponent>(TEXT("Resources"));
-	physics = CreateDefaultSubobject<UOrbitalPhysicsComponent>(TEXT("Physics"));
+}
+
+void AKainSovereignPlanet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AKainSovereignPlanet, planet_name);
 }
 
 void AKainSovereignPlanet::BeginPlay()
 {
 	Super::BeginPlay();
-	// Initialize Render Targets here (omitted for brevity, user must implemented or we gen helper)
-	// Helper: KismetRenderingLibrary::CreateRenderTarget2D(this, 1024, 1024, RTF_RGBA32f);
+	if (!PositionRT_A)
+	{
+		PositionRT_A = NewObject<UTextureRenderTarget2D>(this);
+		PositionRT_A->bAutoGenerateMips = false;
+		PositionRT_A->RenderTargetFormat = RTF_RGBA32f;
+		PositionRT_A->InitAutoFormat(512, 512);
+		PositionRT_A->UpdateResourceImmediate(true);
+	}
+	if (!PositionRT_B)
+	{
+		PositionRT_B = NewObject<UTextureRenderTarget2D>(this);
+		PositionRT_B->bAutoGenerateMips = false;
+		PositionRT_B->RenderTargetFormat = RTF_RGBA32f;
+		PositionRT_B->InitAutoFormat(512, 512);
+		PositionRT_B->UpdateResourceImmediate(true);
+	}
+	if (!VelocityRT_A)
+	{
+		VelocityRT_A = NewObject<UTextureRenderTarget2D>(this);
+		VelocityRT_A->bAutoGenerateMips = false;
+		VelocityRT_A->RenderTargetFormat = RTF_RGBA32f;
+		VelocityRT_A->InitAutoFormat(512, 512);
+		VelocityRT_A->UpdateResourceImmediate(true);
+	}
+	if (!VelocityRT_B)
+	{
+		VelocityRT_B = NewObject<UTextureRenderTarget2D>(this);
+		VelocityRT_B->bAutoGenerateMips = false;
+		VelocityRT_B->RenderTargetFormat = RTF_RGBA32f;
+		VelocityRT_B->InitAutoFormat(512, 512);
+		VelocityRT_B->UpdateResourceImmediate(true);
+	}
 	if ((planet_id == 0))
 	{
 		planet_id = 42;
@@ -49,11 +82,12 @@ void AKainSovereignPlanet::Tick(float DeltaTime)
 	// Enqueue Simulation on Render Thread
 	ENQUEUE_RENDER_COMMAND(SimulationTick)(
 		[this, DeltaTime](FRHICommandListImmediate& RHICmdList) {
+			if (!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) { return; }
+
 			FRDGBuilder GraphBuilder(RHICmdList);
 
 			// 1. Register External Textures (Ping-Pong Logic)
 			bool bOddFrame = GFrameNumberRenderThread % 2 != 0;
-			if(!PositionRT_A || !PositionRT_B || !VelocityRT_A || !VelocityRT_B) return;
 			auto CreateRenderTarget = [&](FRHICommandListImmediate& RHICmdList, UTextureRenderTarget2D* RT, const TCHAR* Name) -> TRefCountPtr<IPooledRenderTarget> {
 				if (!RT || !RT->GetResource()) return nullptr;
 				FTexture2DRHIRef TextureRHI = RT->GetResource()->GetTexture2DRHI();
@@ -87,25 +121,25 @@ void AKainSovereignPlanet::Tick(float DeltaTime)
 			);
 
 			FRDGTextureRef Tectonic_mapRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("tectonic_map"));
-			FRDGTextureRef Biome_mapRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("biome_map"));
-			FRDGTextureRef Height_mapRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("height_map"));
 			FRDGTextureRef ThermalRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("thermal"));
 			FRDGTextureRef H_mapRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("h_map"));
+			FRDGTextureRef Biome_mapRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("biome_map"));
+			FRDGTextureRef Height_mapRT = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("height_map"));
 
 			AddPass_K1_Tectonics(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_K2_Continental(GraphBuilder, Tectonic_mapRT, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_K3_Thermal(GraphBuilder, Height_mapRT, ThermalRT, FIntVector(32, 32, 1));
-			AddPass_K4_Moisture(GraphBuilder, ThermalRT, MoistureRT, FIntVector(32, 32, 1));
+			AddPass_K2_Continental(GraphBuilder, Tectonic_mapRT, FIntVector(32, 32, 1));
+			AddPass_K3_Thermal(GraphBuilder, Height_mapRT, FIntVector(32, 32, 1));
+			AddPass_K4_Moisture(GraphBuilder, ThermalRT, FIntVector(32, 32, 1));
 			AddPass_K5_Resources(GraphBuilder, 0.0f, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_K6_Normals(GraphBuilder, H_mapRT, PositionOutput, FIntVector(32, 32, 1));
-			AddPass_K10_Flora(GraphBuilder, Biome_mapRT, PositionOutput, FIntVector(32, 32, 1));
+			AddPass_K6_Normals(GraphBuilder, H_mapRT, FIntVector(32, 32, 1));
+			AddPass_K10_Flora(GraphBuilder, Biome_mapRT, FIntVector(32, 32, 1));
 
 			GraphBuilder.Execute();
 		}
 	);
 }
 
-	void AKainSovereignPlanet::Server_InitializeSimulation_Implementation(const int32 seed)
+	void AKainSovereignPlanet::Server_InitializeSimulation_Implementation(const int64 seed)
 	{
 		current_seed = seed;
 		is_generating = true;
@@ -113,28 +147,28 @@ void AKainSovereignPlanet::Tick(float DeltaTime)
 		Client_AsyncGPUPipeline(seed);
 	}
 
-	bool AKainSovereignPlanet::Server_InitializeSimulation_Validate(const int32 seed)
+	bool AKainSovereignPlanet::Server_InitializeSimulation_Validate(const int64 seed)
 	{
 		return true; // Add validation logic here
 	}
 
-	void AKainSovereignPlanet::Client_AsyncGPUPipeline_Implementation(const int32 seed)
+	void AKainSovereignPlanet::Client_AsyncGPUPipeline_Implementation(const int64 seed)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KAIN COSMOS: Firing 12-Kernel GPU Pipeline..."));
 		is_generating = false;
 	}
 
-	void AKainSovereignPlanet::Multicast_OnGenerationCommenced_Implementation(const int32 id)
+	void AKainSovereignPlanet::Multicast_OnGenerationCommenced_Implementation(const int64 id)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Planet {id} is being woven from the quantum foam."));
 	}
 
-	void AKainSovereignPlanet::Multicast_OnSovereignShift_Implementation(const int32 id)
+	void AKainSovereignPlanet::Multicast_OnSovereignShift_Implementation(const int64 id)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("A new power has claimed this world."));
 	}
 
-	void AKainSovereignPlanet::ClaimSovereignty(const int32 faction_id)
+	void AKainSovereignPlanet::ClaimSovereignty(const int64 faction_id)
 	{
 		sovereignty->owner_faction_id = faction_id;
 		planet_name = TEXT("Sovereign Territory");

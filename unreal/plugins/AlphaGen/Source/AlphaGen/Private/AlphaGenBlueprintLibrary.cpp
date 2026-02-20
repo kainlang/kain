@@ -9,22 +9,22 @@
 #include "RenderTargetPool.h"
 #include "Engine/TextureRenderTarget2D.h"
 
-		UTexture2D* UAlphaGenBlueprintLibraryFunctionLibrary::GenerateAlphaTexture(const EAlphaGenType generator_type, const int32 size, const float param1, const float param2, const float param3)
+		UTexture2D UAlphaGenBlueprintLibraryFunctionLibrary::GenerateAlphaTexture(const EAlphaGenType generator_type, const int64 size, const float param1, const float param2, const float param3)
 		{
 			return nullptr;
 		}
 
-		UTexture2D* UAlphaGenBlueprintLibraryFunctionLibrary::ApplyFilter(const UTexture2D* input_texture, const EAlphaGenFilterType filter_type, const float param1, const float param2, const float param3)
+		UTexture2D UAlphaGenBlueprintLibraryFunctionLibrary::ApplyFilter(const UTexture2D input_texture, const EAlphaGenFilterType filter_type, const float param1, const float param2, const float param3)
 		{
 			return nullptr;
 		}
 
-		UTexture2D* UAlphaGenBlueprintLibraryFunctionLibrary::ApplyFilterChain(const UTexture2D* input_texture, const TArray<EAlphaGenFilterType> filter_types, const TArray<float> filter_params)
+		UTexture2D UAlphaGenBlueprintLibraryFunctionLibrary::ApplyFilterChain(const UTexture2D input_texture, const TArray<EAlphaGenFilterType> filter_types, const TArray<float> filter_params)
 		{
 			return nullptr;
 		}
 
-		bool UAlphaGenBlueprintLibraryFunctionLibrary::ExportToProject(const UTexture2D* texture, const FString path, const FString name)
+		bool UAlphaGenBlueprintLibraryFunctionLibrary::ExportToProject(const UTexture2D texture, const FString path, const FString name)
 		{
 			return false;
 		}
