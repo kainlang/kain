@@ -1,0 +1,29 @@
+@graph_editor
+graph TestCombatGraph:
+    @node_type
+    @category("Combat/Input")
+    node InputNode:
+        outputs:
+            Execute: Exec
+            Damage: Float = 10.0
+    
+    @node_type
+    @category("Combat/Logic")
+    node DamageCalculator:
+        inputs:
+            Execute: Exec
+            BaseDamage: Float
+        properties:
+            Multiplier: Float = 1.5
+            CritChance: Float = 0.2
+        outputs:
+            Execute: Exec
+            FinalDamage: Float
+    
+    @node_type
+    @category("Combat/Output")
+    node ApplyDamage:
+        inputs:
+            Execute: Exec
+            Damage: Float
+            Target: Actor

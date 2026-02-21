@@ -2,7 +2,7 @@
 //!
 //! Builds graph schemas with connection rules and validation
 
-use crate::{ConnectionRule, GraphSchema, PinType, Result};
+use crate::{ConnectionRule, GraphSchema, PinType};
 
 pub struct SchemaBuilder {
     schema: GraphSchema,

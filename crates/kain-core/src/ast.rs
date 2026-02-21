@@ -71,6 +71,9 @@ pub enum Item {
 
     /// `@material_function Name: inputs, body, output`
     MaterialFunction(MaterialFunctionDef),
+
+    /// `@graph_editor Name: node_types, schema`
+    GraphEditor(GraphEditorDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -945,5 +948,65 @@ pub struct MaterialFunctionDef {
     pub inputs: Vec<MaterialInput>,
     pub body: Vec<MaterialStatement>,
     pub output: Expr,  // Single output expression
+    pub span: Span,
+}
+
+// === GRAPH EDITORS ===
+
+/// Graph editor definition: `@graph_editor Name: node_types, schema`
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphEditorDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub node_types: Vec<NodeTypeDef>,
+    pub schema: Option<GraphSchemaDef>,
+    pub span: Span,
+}
+
+/// Node type definition within a graph editor
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeTypeDef {
+    pub name: String,
+    pub category: Option<String>,
+    pub inputs: Vec<PinDef>,
+    pub outputs: Vec<PinDef>,
+    pub properties: Vec<PropertyDef>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Pin definition for node inputs/outputs
+#[derive(Debug, Clone, PartialEq)]
+pub struct PinDef {
+    pub name: String,
+    pub ty: Type,
+    pub is_array: bool,
+    pub default: Option<Expr>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Property definition for node configuration
+#[derive(Debug, Clone, PartialEq)]
+pub struct PropertyDef {
+    pub name: String,
+    pub ty: Type,
+    pub default: Option<Expr>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Graph schema definition for connection rules and validation
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphSchemaDef {
+    pub rules: Vec<SchemaRule>,
+    pub span: Span,
+}
+
+/// Schema rule for graph validation
+#[derive(Debug, Clone, PartialEq)]
+pub struct SchemaRule {
+    pub name: String,
+    pub condition: Expr,
     pub span: Span,
 }

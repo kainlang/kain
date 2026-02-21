@@ -107,6 +107,10 @@ impl<'a> Parser<'a> {
             return self.parse_material_function(attributes);
         }
         
+        // Check for @graph_editor attribute
+        if attributes.iter().any(|a| a.name == "graph_editor") {
+            return self.parse_graph_editor(attributes);
+        }
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -1239,6 +1243,305 @@ impl<'a> Parser<'a> {
             output,
             span: start.merge(self.current_span()),
         }))
+    }
+
+    fn parse_graph_editor(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'graph' keyword
+        if let TokenKind::Ident(ref s) = self.peek_kind() {
+            if s != "graph" {
+                return Err(KainError::parser("Expected 'graph' keyword after @graph_editor", self.current_span()));
+            }
+            self.advance(); // consume 'graph'
+        } else {
+            return Err(KainError::parser("Expected 'graph' keyword after @graph_editor", self.current_span()));
+        }
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse node types and schema
+        let mut node_types = Vec::new();
+        let mut schema = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for @node_type or @schema
+            let node_attrs = self.parse_attributes()?;
+            
+            if node_attrs.iter().any(|a| a.name == "node_type") {
+                node_types.push(self.parse_node_type(node_attrs)?);
+            } else if node_attrs.iter().any(|a| a.name == "schema") {
+                schema = Some(self.parse_graph_schema(node_attrs)?);
+            } else {
+                return Err(KainError::parser("Expected @node_type or @schema in graph editor", self.current_span()));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::GraphEditor(GraphEditorDef {
+            name,
+            attributes,
+            node_types,
+            schema,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_node_type(&mut self, attributes: Vec<Attribute>) -> KainResult<NodeTypeDef> {
+        let start = self.current_span();
+        
+        // Expect 'node' keyword
+        if let TokenKind::Ident(ref s) = self.peek_kind() {
+            if s != "node" {
+                return Err(KainError::parser("Expected 'node' keyword after @node_type", self.current_span()));
+            }
+            self.advance();
+        } else {
+            return Err(KainError::parser("Expected 'node' keyword after @node_type", self.current_span()));
+        }
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Extract category from attributes
+        let category = attributes.iter()
+            .find(|a| a.name == "category")
+            .and_then(|a| a.args.first())
+            .and_then(|arg| {
+                if let Expr::String(s, _) = arg {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            });
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse inputs, outputs, properties
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+        let mut properties = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for section keywords
+            if let TokenKind::Ident(ref s) = self.peek_kind() {
+                match s.as_str() {
+                    "inputs" => {
+                        self.advance();
+                        self.expect(TokenKind::Colon)?;
+                        inputs = self.parse_pin_list()?;
+                    }
+                    "outputs" => {
+                        self.advance();
+                        self.expect(TokenKind::Colon)?;
+                        outputs = self.parse_pin_list()?;
+                    }
+                    "properties" => {
+                        self.advance();
+                        self.expect(TokenKind::Colon)?;
+                        properties = self.parse_property_list()?;
+                    }
+                    _ => {
+                        return Err(KainError::parser("Expected 'inputs', 'outputs', or 'properties'", self.current_span()));
+                    }
+                }
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(NodeTypeDef {
+            name,
+            category,
+            inputs,
+            outputs,
+            properties,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_pin_list(&mut self) -> KainResult<Vec<PinDef>> {
+        let mut pins = Vec::new();
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let pin_attrs = self.parse_attributes()?;
+            let pin_start = self.current_span();
+            
+            // Parse pin name
+            let name = self.parse_ident()?;
+            
+            // Expect colon
+            self.expect(TokenKind::Colon)?;
+            
+            // Parse type
+            let ty = self.parse_type()?;
+            
+            // Check for array syntax by inspecting the Type enum
+            let is_array = matches!(&ty, Type::Named { name, .. } if name == "Array");
+            
+            // Check for default value
+            let default = if self.check(TokenKind::Eq) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            
+            pins.push(PinDef {
+                name,
+                ty,
+                is_array,
+                default,
+                attributes: pin_attrs,
+                span: pin_start.merge(self.current_span()),
+            });
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(pins)
+    }
+
+    fn parse_property_list(&mut self) -> KainResult<Vec<PropertyDef>> {
+        let mut properties = Vec::new();
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let prop_attrs = self.parse_attributes()?;
+            let prop_start = self.current_span();
+            
+            // Parse property name
+            let name = self.parse_ident()?;
+            
+            // Expect colon
+            self.expect(TokenKind::Colon)?;
+            
+            // Parse type
+            let ty = self.parse_type()?;
+            
+            // Check for default value
+            let default = if self.check(TokenKind::Eq) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            
+            properties.push(PropertyDef {
+                name,
+                ty,
+                default,
+                attributes: prop_attrs,
+                span: prop_start.merge(self.current_span()),
+            });
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(properties)
+    }
+
+    fn parse_graph_schema(&mut self, _attributes: Vec<Attribute>) -> KainResult<GraphSchemaDef> {
+        let start = self.current_span();
+        
+        // Expect 'schema' keyword
+        if let TokenKind::Ident(ref s) = self.peek_kind() {
+            if s != "schema" {
+                return Err(KainError::parser("Expected 'schema' keyword after @schema", self.current_span()));
+            }
+            self.advance();
+        }
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse rules (simplified for now)
+        let mut rules = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Parse rule name
+            let rule_name = self.parse_ident()?;
+            
+            // Expect colon
+            self.expect(TokenKind::Colon)?;
+            
+            // Parse condition expression
+            let condition = self.parse_expr()?;
+            
+            rules.push(SchemaRule {
+                name: rule_name,
+                condition,
+                span: start.merge(self.current_span()),
+            });
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(GraphSchemaDef {
+            rules,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_params(&mut self) -> KainResult<Vec<Param>> {
@@ -2649,4 +2952,3 @@ impl<'a> Parser<'a> {
         else { Err(KainError::parser(format!("Expected {:?}, got {:?}", k, self.peek_kind()), self.current_span())) }
     }
 }
-

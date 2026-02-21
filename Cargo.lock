@@ -389,6 +389,7 @@ dependencies = [
  "ue5-asset-utils",
  "ue5-blueprints",
  "ue5-editor",
+ "ue5-graphs",
  "ue5-materials",
  "ue5-shaders",
  "unreal_asset",
@@ -2894,6 +2895,8 @@ dependencies = [
  "serde_json",
  "thiserror",
  "unreal_asset",
+ "unreal_asset_base",
+ "unreal_asset_properties",
 ]
 
 [[package]]

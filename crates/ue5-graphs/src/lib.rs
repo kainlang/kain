@@ -29,7 +29,7 @@ pub mod error;
 pub use graph_ir::*;
 pub use ast_converter::*;
 pub use factory_generator::*;
-pub use binary_serializer::*;
+// pub use binary_serializer::*; // TODO: Fix binary serializer dependencies
 pub use node_types::*;
 pub use schema_builder::*;
 pub use error::*;
@@ -54,21 +54,46 @@ pub struct GraphEditorOutput {
 ///
 /// let output = generate_graph_editor(&graph_def, "MyPlugin")?;
 /// std::fs::write("MyGraph.uasset", &output.uasset)?;
-/// std::fs::write("MyGraph.h", &output.header)?;
-/// std::fs::write("MyGraph.cpp", &output.source)?;
+/// std::fs::write("MyGraphFactory.h", &output.header)?;
+/// std::fs::write("MyGraphFactory.cpp", &output.source)?;
 /// ```
 pub fn generate_graph_editor(
     ast: &kain_core::ast::GraphEditorDef,
     plugin_name: &str,
 ) -> Result<GraphEditorOutput> {
     // Convert AST to IR
-    let ir = ASTConverter::convert(ast)?;
-    
-    // Generate binary .uasset
-    let uasset = BinarySerializer::serialize(&ir)?;
+    let ir = convert_graph_editor(ast)?;
     
     // Generate C++ factory code
-    let (header, source) = FactoryGenerator::generate(&ir, plugin_name)?;
+    let generator = factory_generator::FactoryGenerator::new(ir.clone(), plugin_name);
+    let factory_output = generator.generate()?;
+    
+    // Combine all headers into one file (simplified for now)
+    let mut header = String::new();
+    header.push_str(&factory_output.base_node_header.1);
+    header.push_str("\n\n");
+    for (_, node_header) in &factory_output.node_headers {
+        header.push_str(node_header);
+        header.push_str("\n\n");
+    }
+    header.push_str(&factory_output.schema_header.1);
+    header.push_str("\n\n");
+    header.push_str(&factory_output.graph_header.1);
+    
+    // Combine all sources into one file (simplified for now)
+    let mut source = String::new();
+    source.push_str(&factory_output.base_node_source.1);
+    source.push_str("\n\n");
+    for (_, node_source) in &factory_output.node_sources {
+        source.push_str(node_source);
+        source.push_str("\n\n");
+    }
+    source.push_str(&factory_output.schema_source.1);
+    source.push_str("\n\n");
+    source.push_str(&factory_output.graph_source.1);
+    
+    // Generate binary .uasset (TODO: Implement binary serializer)
+    let uasset = Vec::new();
     
     Ok(GraphEditorOutput {
         uasset,

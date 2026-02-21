@@ -43,7 +43,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions) =
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors) =
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
@@ -187,6 +187,64 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                 }
                 Err(e) => {
                     eprintln!("   ⚠️  Failed to convert material function {}: {}", func_def.name, e);
+                }
+            }
+        }
+        println!();
+    }
+
+    // STEP 2.6: Generate Graph Editors (.uasset + C++ Factory)
+    #[cfg(feature = "ue5")]
+    if !graph_editors.is_empty() {
+        println!();
+        println!("📊 Generating {} graph editors...", graph_editors.len());
+
+        // Ensure Content/Graphs exists for binary output
+        let graph_content_dir = layout.plugin_root.join("Content").join("Graphs");
+        if let Err(e) = fs::create_dir_all(&graph_content_dir) {
+            eprintln!("   ⚠️  Failed to create graphs content dir: {}", e);
+        }
+
+        for graph_def in &graph_editors {
+            match ue5_graphs::generate_graph_editor(graph_def, &ue5_config.plugin_name) {
+                Ok(output) => {
+                    // Write .uasset binary
+                    if !output.uasset.is_empty() {
+                        let uasset_path = graph_content_dir.join(format!("{}.uasset", graph_def.name));
+                        if let Err(e) = fs::write(&uasset_path, &output.uasset) {
+                            eprintln!("   ⚠️  Failed to write .uasset for {}: {}", graph_def.name, e);
+                        } else {
+                            println!("   ✓ Graph editor asset: {} ({} bytes)", graph_def.name, output.uasset.len());
+                            generated_assets.push(GeneratedAsset {
+                                package_name: format!("/Game/Graphs/{}", graph_def.name),
+                                asset_name: graph_def.name.clone(),
+                                class_path: "/Script/Engine.EdGraph",
+                            });
+                        }
+                    }
+
+                    // Write factory header (if generated)
+                    if !output.header.is_empty() {
+                        let header_path = layout.source_dir.join(format!("{}Factory.h", graph_def.name));
+                        if let Err(e) = fs::write(&header_path, &output.header) {
+                            eprintln!("   ⚠️  Failed to write factory header for {}: {}", graph_def.name, e);
+                        } else {
+                            println!("   ✓ Factory header: {}Factory.h", graph_def.name);
+                        }
+                    }
+
+                    // Write factory source (if generated)
+                    if !output.source.is_empty() {
+                        let source_path = layout.source_dir.join(format!("{}Factory.cpp", graph_def.name));
+                        if let Err(e) = fs::write(&source_path, &output.source) {
+                            eprintln!("   ⚠️  Failed to write factory source for {}: {}", graph_def.name, e);
+                        } else {
+                            println!("   ✓ Factory source: {}Factory.cpp", graph_def.name);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to generate graph editor {}: {}", graph_def.name, e);
                 }
             }
         }
@@ -530,12 +588,12 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 }
 
 /// Load stdlib + user source files, parse, validate, and type-check.
-/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs, material_functions).
+/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors).
 fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>)> {
+) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -701,9 +759,24 @@ fn load_and_parse_sources(
         })
         .collect();
     
-    // Filter out material graphs and functions from the program before type checking
-    // (they will be processed separately for material generation)
-    merged.items.retain(|item| !matches!(item, kain_core::ast::Item::MaterialGraph(_) | kain_core::ast::Item::MaterialFunction(_)));
+    // Extract graph editors BEFORE type checking
+    let graph_editors: Vec<kain_core::ast::GraphEditorDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::GraphEditor(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    // Filter out material graphs, material functions, and graph editors from the program before type checking
+    // (they will be processed separately for generation)
+    merged.items.retain(|item| !matches!(item, 
+        kain_core::ast::Item::MaterialGraph(_) | 
+        kain_core::ast::Item::MaterialFunction(_) |
+        kain_core::ast::Item::GraphEditor(_)
+    ));
     
     // Type-check the MERGED program
     println!("🔍 Type checking merged program...");
@@ -757,7 +830,7 @@ fn load_and_parse_sources(
     }
     println!();
     
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions))
+    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors))
 }
 
 /// Map an engine version string from KAIN.toml to a raw `EngineVersion` value.
