@@ -729,6 +729,7 @@ pub fn generate_module_registration(
 
         if has_material_factories {
             includes.push("#include \"Generated/MaterialFactories.h\"".to_string());
+            includes.push("#include \"Misc/CoreDelegates.h\"".to_string());
         }
         
         if has_shaders {
@@ -757,10 +758,14 @@ pub fn generate_module_registration(
         }
         
         if has_material_factories {
-            // Add material factory initialization
+            // Defer material generation until engine init has completed.
+            // Running CreatePackage/NewObject directly in StartupModule can be too early
+            // on some boots and may crash before UObject systems are fully ready.
             startup_body.push_str(&format!(r#"
-        // Generate runtime materials
-        F{}MaterialFactory::GenerateMaterials();
+        #if WITH_EDITOR
+        // Generate editor materials once engine startup has completed.
+        FCoreDelegates::OnPostEngineInit.AddStatic(&F{}MaterialFactory::GenerateMaterials);
+        #endif
 "#, config.plugin_name));
         }
         
@@ -866,6 +871,7 @@ IMPLEMENT_MODULE(F{}Module, {})
 
         if has_material_factories {
             includes.push("#include \"Generated/MaterialFactories.h\"".to_string());
+            includes.push("#include \"Misc/CoreDelegates.h\"".to_string());
         }
         
         if has_shaders {
@@ -894,10 +900,14 @@ IMPLEMENT_MODULE(F{}Module, {})
         }
         
         if has_material_factories {
-            // Add material factory initialization
+            // Defer material generation until engine init has completed.
+            // Running CreatePackage/NewObject directly in StartupModule can be too early
+            // on some boots and may crash before UObject systems are fully ready.
             startup_body.push_str(&format!(r#"
-        // Generate runtime materials
-        F{}MaterialFactory::GenerateMaterials();
+        #if WITH_EDITOR
+        // Generate editor materials once engine startup has completed.
+        FCoreDelegates::OnPostEngineInit.AddStatic(&F{}MaterialFactory::GenerateMaterials);
+        #endif
 "#, config.plugin_name));
         }
         

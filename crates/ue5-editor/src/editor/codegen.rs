@@ -131,6 +131,17 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
     
     // Detect if program has any shaders (needed for module shader directory mapping)
     let program_has_shaders = program.items.iter().any(|item| matches!(item, TypedItem::Shader(_)));
+    // Collect toolbar struct names so editor modules can register them.
+    let toolbar_names: Vec<String> = program.items.iter()
+        .filter_map(|item| {
+            if let TypedItem::Struct(st) = item {
+                if st.ast.attributes.iter().any(|a| a.name == "toolbar") {
+                    return Some(st.ast.name.clone());
+                }
+            }
+            None
+        })
+        .collect();
     
     // Build delegate parameter type map from program type aliases
     // Used by SlateGenerator to generate correct Broadcast() calls in delegate bridges
@@ -212,6 +223,7 @@ pub fn generate_per_item(program: &TypedProgram, plugin_name: &str, copyright: O
             let mut gen = Ue5EditorGen::new(plugin_name, Some(shared_context.clone()), copyright);
             gen.has_shaders = program_has_shaders;
             gen.delegate_param_types = delegate_param_types.clone();
+            gen.toolbar_names = toolbar_names.clone();
             
             // Register all types with TypeMapper for correct prefix detection
             for item in &program.items {
@@ -409,6 +421,8 @@ struct Ue5EditorGen {
     /// e.g. "OnToolExecuted" → ["EEToolCategory"], "OnValueChanged" → ["float"]
     /// Built from program TypeAlias items, used to populate SlateGenerator's delegate_param_map
     delegate_param_types: std::collections::HashMap<String, Vec<String>>,
+    /// Toolbar struct names available in this program (for editor module registration).
+    toolbar_names: Vec<String>,
     /// Centralized type mapper - single source of truth for type mapping
     type_mapper: ue5::ue5::types::TypeMapper,
 }
@@ -429,6 +443,7 @@ impl Ue5EditorGen {
             detail_registrations: Vec::new(),
             has_shaders: false,
             delegate_param_types: std::collections::HashMap::new(),
+            toolbar_names: Vec::new(),
             type_mapper,
         }
     }
@@ -445,6 +460,8 @@ impl Ue5EditorGen {
         // This provides all runtime types + delegates without circular dependencies
         if kind == "Slate" || kind == "Details" || kind == "Viewport" || kind == "AssetEditor" {
             self.header.push_line(&format!("#include \"{}EditorTypes.h\"", plugin_name));
+            // Also include runtime plugin header so custom delegate typedefs are always visible.
+            self.header.push_line(&format!("#include \"{}.h\"", plugin_name));
         } else {
             // For modules and other types, include main plugin header
             self.header.push_line(&format!("#include \"{}.h\"", plugin_name));
@@ -509,6 +526,8 @@ impl Ue5EditorGen {
             "EditorModule" => {
                 self.header.push_line("#include \"Modules/ModuleInterface.h\"");
                 self.header.push_line("#include \"Modules/ModuleManager.h\"");
+                self.header.push_line("#include \"LevelEditor.h\"");
+                self.header.push_line("#include \"Framework/MultiBox/MultiBoxExtender.h\"");
                 if self.has_shaders {
                     self.header.push_line("#include \"Interfaces/IPluginManager.h\"");
                     self.header.push_line("#include \"ShaderCore.h\"");
@@ -577,6 +596,18 @@ impl Ue5EditorGen {
         let has_toolbars = program.items.iter().any(|item| {
             matches!(item, TypedItem::Struct(st) if st.ast.attributes.iter().any(|a| a.name == "toolbar"))
         });
+
+        // Pre-collect toolbars so editor modules can register them regardless of declaration order.
+        self.toolbar_names = program.items.iter()
+            .filter_map(|item| {
+                if let TypedItem::Struct(st) = item {
+                    if st.ast.attributes.iter().any(|a| a.name == "toolbar") {
+                        return Some(st.ast.name.clone());
+                    }
+                }
+                None
+            })
+            .collect();
         
         // Track features for automatic dependency management
         if has_slate || has_details || has_viewports {
@@ -1005,9 +1036,11 @@ impl Ue5EditorGen {
         
         // Member variables for sub-components
         let mut emitted_dashboard_member = false;
+        let mut emitted_viewport_member = false;
+        let mut emitted_details_member = false;
         for field in &st.ast.fields {
             let field_attrs: Vec<&str> = field.attributes.iter().map(|a| a.name.as_str()).collect();
-            if field_attrs.contains(&"viewport") {
+            if field_attrs.contains(&"viewport") && !emitted_viewport_member {
                 let raw_name = if let kain_core::ast::Type::Named { name, .. } = &field.ty {
                     name.clone()
                 } else {
@@ -1015,8 +1048,10 @@ impl Ue5EditorGen {
                 };
                 let widget_name = format!("S{}", raw_name);
                 self.write_header(&format!("TSharedPtr<{}> ViewportWidget;", widget_name));
-            } else if field_attrs.contains(&"details") {
+                emitted_viewport_member = true;
+            } else if field_attrs.contains(&"details") && !emitted_details_member {
                 self.write_header("TSharedPtr<IDetailsView> DetailsView;");
+                emitted_details_member = true;
             } else if field_attrs.contains(&"slate") && !emitted_dashboard_member {
                 self.write_header(&format!("TSharedPtr<{}> DashboardWidget;", slate_widget_type));
                 emitted_dashboard_member = true;
@@ -1298,6 +1333,15 @@ impl Ue5EditorGen {
         let base_name = module_name.strip_suffix("Module").unwrap_or(module_name);
         let class_name = format!("F{}Module", base_name);
 
+        // Ensure toolbar extension classes are visible in module source/header.
+        let toolbar_names = self.toolbar_names.clone();
+        for toolbar_name in &toolbar_names {
+            self.write_header(&format!("#include \"F{}Extension.h\"", toolbar_name));
+        }
+        if !toolbar_names.is_empty() {
+            self.write_blank_header();
+        }
+
         // Header
         self.write_header(&format!("class {} : public IModuleInterface", class_name));
         self.write_header("{");
@@ -1344,6 +1388,23 @@ impl Ue5EditorGen {
             self.write_source("");
             self.write_source("// Register detail customization");
             self.source.push_line(registration);
+        }
+
+        // Register generated toolbar extensions with Level Editor extensibility manager.
+        for toolbar_name in &toolbar_names {
+            self.write_source("");
+            self.write_source("if (FModuleManager::Get().IsModuleLoaded(\"LevelEditor\"))");
+            self.write_source("{");
+            self.push_indent();
+            self.write_source("FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(\"LevelEditor\");");
+            self.write_source("TSharedPtr<FExtender> ToolbarExtender = MakeShared<FExtender>();");
+            self.write_source(&format!(
+                "ToolbarExtender->AddToolBarExtension(\"Settings\", EExtensionHook::After, nullptr, FToolBarExtensionDelegate::CreateStatic(&F{}Extension::RegisterToolbar));",
+                toolbar_name
+            ));
+            self.write_source("LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);");
+            self.pop_indent();
+            self.write_source("}");
         }
         
         self.pop_indent();

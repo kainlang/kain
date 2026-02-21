@@ -722,6 +722,57 @@ impl Ue5Gen {
         self.type_mapper.is_pointer_type_by_name(name)
     }
 
+    /// Best-effort enum detection for log formatting and conversions.
+    /// Uses collected variable type info and enum registry.
+    fn is_enum_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::EnumVariant { .. } => true,
+            Expr::Ident(name, _) => {
+                if let Some(type_name) = self.var_types.get(name) {
+                    self.context.is_enum(type_name)
+                } else {
+                    self.context.is_enum(name)
+                }
+            }
+            Expr::Field { object, field, .. } => {
+                if let Expr::Ident(obj, _) = object.as_ref() {
+                    if obj == "self" {
+                        if let Some(type_name) = self.var_types.get(field) {
+                            return self.context.is_enum(type_name);
+                        }
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// Heuristic float-expression detection for `%` lowering.
+    fn is_likely_float_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Float(_, _) => true,
+            Expr::Ident(name, _) => {
+                if let Some(type_name) = self.var_types.get(name) {
+                    type_name == "Float"
+                } else {
+                    false
+                }
+            }
+            Expr::Field { object, field, .. } => {
+                if let Expr::Ident(obj, _) = object.as_ref() {
+                    if obj == "self" {
+                        if let Some(type_name) = self.var_types.get(field) {
+                            return type_name == "Float";
+                        }
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
     fn gen_program<P: ProgramItems>(&mut self, program: &P) -> Ue5Output {
         // Check if we need replication support
         let needs_replication = program.items().iter().any(|item| {
@@ -1434,9 +1485,14 @@ impl Ue5Gen {
         // Initialize component state fields with CreateDefaultSubobject
         for state_decl in &actor.state {
             let cpp_type = self.map_type(&state_decl.ty);
-            
-            // Check if this is a component type (ends with "Component*" or is a UActorComponent subclass)
-            if cpp_type.contains("Component*") {
+
+            // Check if this is a component type using semantic type info first.
+            // String matching on mapped C++ names misses component types like
+            // UFoo* when the source type is @component but doesn't end with "Component".
+            let is_component_state = matches!(&state_decl.ty, Type::Named { name, .. }
+                if self.context.is_component(name) || name.ends_with("Component"));
+
+            if is_component_state {
                 // Extract the component class name (e.g., "USovereignComponent*" -> "USovereignComponent")
                 let component_class = cpp_type.trim_end_matches('*').trim();
                 
@@ -2064,16 +2120,28 @@ impl Ue5Gen {
             Expr::String(s, _) => format!("TEXT(\"{}\")", self.escape_string(s)),
             Expr::None(_) => "nullptr".to_string(),
             Expr::Field { object, field, .. } => {
+                // KAIN property-style length access: arr.length / arr.len -> arr.Num()
+                if field == "length" || field == "len" || field == "count" || field == "size" {
+                    return format!("{}.Num()", self.gen_expr_string(object));
+                }
+
                 // Remap vector component field names: .x -> .X, .y -> .Y, etc.
                 let ue5_field = match field.as_str() {
                     "x" => "X", "y" => "Y", "z" => "Z", "w" => "W",
                     "r" => "X", "g" => "Y", "b" => "Z", "a" => "W",
                     _ => field.as_str(),
                 };
-                format!("{}.{}", self.gen_expr_string(object), ue5_field)
+                let access_op = if self.is_pointer_receiver(object) { "->" } else { "." };
+                format!("{}{}{}", self.gen_expr_string(object), access_op, ue5_field)
             }
             Expr::Binary { left, op, right, .. } => {
-                format!("({} {} {})", self.gen_expr_string(left), self.gen_binop_string(*op), self.gen_expr_string(right))
+                let l = self.gen_expr_string(left);
+                let r = self.gen_expr_string(right);
+                if *op == BinaryOp::Mod && (self.is_likely_float_expr(left) || self.is_likely_float_expr(right)) {
+                    format!("FMath::Fmod(static_cast<double>({}), static_cast<double>({}))", l, r)
+                } else {
+                    format!("({} {} {})", l, self.gen_binop_string(*op), r)
+                }
             }
             Expr::Unary { op, operand, .. } => {
                 let o = self.gen_expr_string(operand);
@@ -2493,6 +2561,9 @@ impl Ue5Gen {
             if let Some(default_expr) = &field.default {
                 let default_str = self.gen_default_value(default_expr, &ty_str);
                 self.write_header(&format!("{} {} = {};", ty_str, field.name, default_str));
+            } else if ty_str.starts_with('E') {
+                // UE5 runtime LogClass requires explicit enum initialization in USTRUCT fields.
+                self.write_header(&format!("{} {} = static_cast<{}>(0);", ty_str, field.name, ty_str));
             } else if let Some(init) = default_cpp_value(&ty_str) {
                 self.write_header(&format!("{} {} = {};", ty_str, field.name, init));
             } else {
@@ -3008,8 +3079,12 @@ impl Ue5Gen {
             Expr::Binary { left, op, right, .. } => {
                 let l = self.gen_expr(left);
                 let r = self.gen_expr(right);
-                let op_str = self.map_binop(op);
-                format!("({} {} {})", l, op_str, r)
+                if *op == BinaryOp::Mod && (self.is_likely_float_expr(left) || self.is_likely_float_expr(right)) {
+                    format!("FMath::Fmod(static_cast<double>({}), static_cast<double>({}))", l, r)
+                } else {
+                    let op_str = self.map_binop(op);
+                    format!("({} {} {})", l, op_str, r)
+                }
             }
 
             Expr::Unary { op, operand, .. } => {
@@ -3054,10 +3129,15 @@ impl Ue5Gen {
                                     }
                                     _ => {
                                         let expr_code = self.gen_expr(part);
-                                        // Determine proper UE_LOG format specifier based on type
-                                        let (spec, arg) = get_ue_log_format_spec(part, &expr_code);
-                                        fmt_str.push_str(&spec);
-                                        fmt_args.push(arg);
+                                        if self.is_enum_expr(part) {
+                                            fmt_str.push_str("%d");
+                                            fmt_args.push(format!("static_cast<int32>({})", expr_code));
+                                        } else {
+                                            // Determine proper UE_LOG format specifier based on type
+                                            let (spec, arg) = get_ue_log_format_spec(part, &expr_code);
+                                            fmt_str.push_str(&spec);
+                                            fmt_args.push(arg);
+                                        }
                                     }
                                 }
                             }
@@ -3073,6 +3153,9 @@ impl Ue5Gen {
                     // For multiple args or non-string, convert all to FString
                     let arg_strs: Vec<String> = args.iter().map(|a| {
                         let expr = self.gen_expr(&a.value);
+                        if self.is_enum_expr(&a.value) {
+                            return format!("FString::FromInt(static_cast<int32>({}))", expr);
+                        }
                         // Wrap non-string types in FString conversion for formatting
                         if expr.starts_with("TEXT(") {
                             // Don't wrap TEXT() in FString - just use it directly
@@ -3278,6 +3361,11 @@ impl Ue5Gen {
 
             Expr::Field { object, field, .. } => {
                 let obj = self.gen_expr(object);
+
+                // KAIN property-style length access: arr.length / arr.len -> arr.Num()
+                if field == "length" || field == "len" || field == "count" || field == "size" {
+                    return format!("{}.Num()", obj);
+                }
                 
                 // Remap vector component field names: .x -> .X, .y -> .Y, etc.
                 let ue5_field = match field.as_str() {
