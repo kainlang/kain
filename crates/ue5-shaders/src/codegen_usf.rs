@@ -102,7 +102,7 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
                 
                 if usf_type.starts_with("RWTexture") || usf_type.starts_with("RWBuffer") || usf_type.starts_with("RWStructuredBuffer") {
                     all_uav_outputs.push(entry);
-                } else if usf_type.contains("Texture") {
+                } else if usf_type.contains("Texture") || usf_type.starts_with("StructuredBuffer") {
                     all_texture_inputs.push(entry);
                 } else {
                     all_scalar_params.push(entry);
@@ -187,18 +187,23 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
     
     // Emit texture parameters
     for (name, ty, _) in &all_texture_inputs {
-        let texture_type = if ty.contains("Texture2D") {
-            "Texture2D"
-        } else if ty.contains("Texture3D") {
-            "Texture3D"
-        } else if ty.contains("TextureCube") {
-            "TextureCube"
+        if ty.starts_with("StructuredBuffer") {
+            // StructuredBuffer is an SRV, not a texture — use SHADER_PARAMETER_SRV
+            output.push_str(&format!("        SHADER_PARAMETER_SRV(FRHIShaderResourceView*, {})\n", name));
         } else {
-            "Texture2D"
-        };
-        // Use RDG texture parameters for graph correctness
-        output.push_str(&format!("        SHADER_PARAMETER_RDG_TEXTURE({}, {})\n", texture_type, name));
-        output.push_str(&format!("        SHADER_PARAMETER_SAMPLER(SamplerState, {}Sampler)\n", name));
+            let texture_type = if ty.contains("Texture2D") {
+                "Texture2D"
+            } else if ty.contains("Texture3D") {
+                "Texture3D"
+            } else if ty.contains("TextureCube") {
+                "TextureCube"
+            } else {
+                "Texture2D"
+            };
+            // Use RDG texture parameters for graph correctness
+            output.push_str(&format!("        SHADER_PARAMETER_RDG_TEXTURE({}, {})\n", texture_type, name));
+            output.push_str(&format!("        SHADER_PARAMETER_SAMPLER(SamplerState, {}Sampler)\n", name));
+        }
     }
     
     // Emit UAV parameters
@@ -323,9 +328,13 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
         args.push(format!("    {} {}", cpp_type, name));
     }
     
-    // 2. Textures
-    for (name, _, _) in &all_texture_inputs {
-        args.push(format!("    FRDGTextureRef {}", name));
+    // 2. Textures / SRVs
+    for (name, ty, _) in &all_texture_inputs {
+        if ty.starts_with("StructuredBuffer") {
+            args.push(format!("    FRHIShaderResourceView* {}", name));
+        } else {
+            args.push(format!("    FRDGTextureRef {}", name));
+        }
     }
     
     // 3. UAVs
@@ -436,7 +445,7 @@ fn generate_cpp_implementation_cached(program: &TypedProgram, shader_name: &str,
                 
                 if usf_type.starts_with("RWTexture") || usf_type.starts_with("RWBuffer") || usf_type.starts_with("RWStructuredBuffer") {
                     all_uav_outputs.push(entry);
-                } else if usf_type.contains("Texture") || usf_type.contains("Sampler") {
+                } else if usf_type.contains("Texture") || usf_type.contains("Sampler") || usf_type.starts_with("StructuredBuffer") {
                     all_texture_inputs.push(entry);
                 } else {
                     all_scalar_params.push(entry);
@@ -473,9 +482,13 @@ fn generate_cpp_implementation_cached(program: &TypedProgram, shader_name: &str,
         args.push(format!("    {} {}", cpp_type, name));
     }
     
-    // 2. Textures
-    for (name, _, _) in &all_texture_inputs {
-         args.push(format!("    FRDGTextureRef {}", name));
+    // 2. Textures / SRVs
+    for (name, ty, _) in &all_texture_inputs {
+        if ty.starts_with("StructuredBuffer") {
+            args.push(format!("    FRHIShaderResourceView* {}", name));
+        } else {
+            args.push(format!("    FRDGTextureRef {}", name));
+        }
     }
     
     // 3. UAVs
@@ -1842,38 +1855,76 @@ fn emit_function_call(ctx: &mut USFContext, name: &str, args: &[kain_core::ast::
 
 fn map_type_to_usf(ty: &Type) -> String {
     match ty {
-        Type::Named { name, .. } => match name.as_str() {
-            "Float" | "f32" => "float".to_string(),
-            "Double" | "f64" => "double".to_string(),
-            "Int" | "i32" => "int".to_string(),
-            "UInt" | "u32" => "uint".to_string(),
-            "Bool" => "bool".to_string(),
-            "Vec2" => "float2".to_string(),
-            "Vec3" => "float3".to_string(),
-            "Vec4" => "float4".to_string(),
-            "IVec2" => "int2".to_string(),
-            "IVec3" => "int3".to_string(),
-            "IVec4" => "int4".to_string(),
-            "UVec2" => "uint2".to_string(),
-            "UVec3" => "uint3".to_string(),
-            "UVec4" => "uint4".to_string(),
-            "Mat2" => "float2x2".to_string(),
-            "Mat3" => "float3x3".to_string(),
-            "Mat4" => "float4x4".to_string(),
-            "Sampler2D" => "Texture2D<float4>".to_string(),
-            "Sampler3D" => "Texture3D<float4>".to_string(),
-            "SamplerCube" => "TextureCube<float4>".to_string(),
-            "Image2D" => "RWTexture2D<float4>".to_string(),
-            "Image3D" => "RWTexture3D<float4>".to_string(),
-            "RWTexture2D" => "RWTexture2D<float4>".to_string(),
-            "RWTexture2D_Float" => "RWTexture2D<float>".to_string(),
-            "RWTexture2D_Float2" => "RWTexture2D<float2>".to_string(),
-            "RWTexture2D_Float3" => "RWTexture2D<float3>".to_string(),
-            "RWTexture2D_Int" => "RWTexture2D<int>".to_string(),
-            "RWTexture2D_UInt" => "RWTexture2D<uint>".to_string(),
-            "StructuredBuffer" => "StructuredBuffer<float4>".to_string(),
-            "RWStructuredBuffer" => "RWStructuredBuffer<float4>".to_string(),
-            _ => name.clone(),
+        Type::Named { name, generics, .. } => {
+            // Handle generic types like Buffer<Mat4>, RWTexture2D<Vec4>, etc.
+            let inner_hlsl = if !generics.is_empty() {
+                Some(map_type_to_usf(&generics[0]))
+            } else {
+                None
+            };
+
+            match name.as_str() {
+                "Float" | "f32" => "float".to_string(),
+                "Double" | "f64" => "double".to_string(),
+                "Int" | "i32" => "int".to_string(),
+                "UInt" | "u32" => "uint".to_string(),
+                "Bool" => "bool".to_string(),
+                "Vec2" => "float2".to_string(),
+                "Vec3" => "float3".to_string(),
+                "Vec4" => "float4".to_string(),
+                "IVec2" => "int2".to_string(),
+                "IVec3" => "int3".to_string(),
+                "IVec4" => "int4".to_string(),
+                "UVec2" => "uint2".to_string(),
+                "UVec3" => "uint3".to_string(),
+                "UVec4" => "uint4".to_string(),
+                "Mat2" => "float2x2".to_string(),
+                "Mat3" => "float3x3".to_string(),
+                "Mat4" => "float4x4".to_string(),
+                "Sampler2D" => "Texture2D<float4>".to_string(),
+                "Sampler3D" => "Texture3D<float4>".to_string(),
+                "SamplerCube" => "TextureCube<float4>".to_string(),
+                "Image2D" => "RWTexture2D<float4>".to_string(),
+                "Image3D" => "RWTexture3D<float4>".to_string(),
+                "Buffer" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("StructuredBuffer<{}>", inner)
+                },
+                "RWBuffer" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("RWStructuredBuffer<{}>", inner)
+                },
+                "RWTexture2D" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("RWTexture2D<{}>", inner)
+                },
+                "RWTexture3D" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("RWTexture3D<{}>", inner)
+                },
+                "Texture2D" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("Texture2D<{}>", inner)
+                },
+                "Texture3D" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("Texture3D<{}>", inner)
+                },
+                "RWTexture2D_Float" => "RWTexture2D<float>".to_string(),
+                "RWTexture2D_Float2" => "RWTexture2D<float2>".to_string(),
+                "RWTexture2D_Float3" => "RWTexture2D<float3>".to_string(),
+                "RWTexture2D_Int" => "RWTexture2D<int>".to_string(),
+                "RWTexture2D_UInt" => "RWTexture2D<uint>".to_string(),
+                "StructuredBuffer" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("StructuredBuffer<{}>", inner)
+                },
+                "RWStructuredBuffer" => {
+                    let inner = inner_hlsl.unwrap_or_else(|| "float4".to_string());
+                    format!("RWStructuredBuffer<{}>", inner)
+                },
+                _ => name.clone(),
+            }
         },
         _ => "float4".to_string(),
     }

@@ -666,7 +666,9 @@ impl Ue5Gen {
             current = &current[start + 1..];
             if let Some(end) = current.find('}') {
                 let ident = &current[..end];
-                let remapped = self.remap_pointer_member_access(&self.remap_ident(ident));
+                let remapped = self.remap_collection_length_access(
+                    &self.remap_pointer_member_access(&self.remap_ident(ident))
+                );
                 if self.is_enum_ident_name(ident) {
                     fmt.push_str("%d");
                     args.push(format!("static_cast<int32>({})", remapped));
@@ -693,6 +695,22 @@ impl Ue5Gen {
         if let Some((head, tail)) = expr.split_once('.') {
             if self.is_pointer_type_by_name(head) {
                 return format!("{}->{}", head, tail);
+            }
+        }
+        expr.to_string()
+    }
+
+    /// Normalize collection length access inside interpolation placeholders.
+    /// Supports `arr.length`, `arr.length()`, `arr.len`, and `arr.len()`.
+    fn remap_collection_length_access(&self, expr: &str) -> String {
+        for suffix in [".length()", ".len()", ".count()", ".size()"] {
+            if let Some(base) = expr.strip_suffix(suffix) {
+                return format!("{}.Num()", base);
+            }
+        }
+        for suffix in [".length", ".len", ".count", ".size"] {
+            if let Some(base) = expr.strip_suffix(suffix) {
+                return format!("{}.Num()", base);
             }
         }
         expr.to_string()
@@ -1068,8 +1086,14 @@ impl Ue5Gen {
             // Use shader file names (from toml or auto-detected) instead of AST names
             // This ensures correct casing (e.g., K12SovereignPBR.h not K12SovereignPbr.h)
             for shader_file_name in &self.shader_file_names {
-                eprintln!("   📄 [CODEGEN] Including shader header: {}.h", shader_file_name);
-                let shader_header = format!("{}.h", shader_file_name);
+                let shader_base = shader_file_name
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or(shader_file_name)
+                    .strip_suffix(".usf")
+                    .unwrap_or_else(|| shader_file_name.rsplit(['/', '\\']).next().unwrap_or(shader_file_name));
+                eprintln!("   📄 [CODEGEN] Including shader header: {}.h", shader_base);
+                let shader_header = format!("{}.h", shader_base);
                 self.source.push_line(&format!("#include \"{}\"", shader_header));
             }
         }
@@ -1250,10 +1274,24 @@ impl Ue5Gen {
                                     if let kain_core::ast::Expr::String(s, _) = arg { Some(s.clone()) } else { None }
                                 }).collect();
                                 let filtered: Vec<&TypedShader> = all_compute.iter()
-                                    .filter(|s| requested.contains(&s.ast.name))
+                                    .filter(|s| {
+                                        requested.iter().any(|req| {
+                                            req.eq_ignore_ascii_case(&s.ast.name)
+                                                || req.replace("_", "").eq_ignore_ascii_case(&s.ast.name.replace("_", ""))
+                                        })
+                                    })
                                     .copied()
                                     .collect();
-                                let names: Vec<String> = filtered.iter().map(|s| s.ast.name.clone()).collect();
+                                let names: Vec<String> = filtered.iter().map(|s| {
+                                    requested
+                                        .iter()
+                                        .find(|req| {
+                                            req.eq_ignore_ascii_case(&s.ast.name)
+                                                || req.replace("_", "").eq_ignore_ascii_case(&s.ast.name.replace("_", ""))
+                                        })
+                                        .cloned()
+                                        .unwrap_or_else(|| s.ast.name.clone())
+                                }).collect();
                                 (filtered, names)
                             } else {
                                 // No @dispatch attribute → don't wire any shaders.
@@ -1283,7 +1321,7 @@ impl Ue5Gen {
         // Generate function library class if we have blueprint functions
         if !blueprint_funcs.is_empty() {
             self.header.push_line("UCLASS()");
-            let lib_class = format!("U{}FunctionLibrary", self.context.output_name);
+            let lib_class = format!("U{}FunctionLibrary", self.module_name);
             self.write_header(&format!("class {} {} : public UBlueprintFunctionLibrary", self.context.module_api, lib_class));
             self.write_header("{");
             self.push_indent();
@@ -1680,7 +1718,7 @@ impl Ue5Gen {
             for shader in shaders.iter() {
                 for uniform in &shader.ast.uniforms {
                     if let Type::Named { name, .. } = &uniform.ty {
-                        if name == "Sampler2D" || name == "Texture2D" {
+                        if name == "Sampler2D" || name == "Texture2D" || name == "Texture3D" || name == "TextureCube" {
                             // This shader needs an input texture - mark it as needed
                             needed_intermediates.insert(uniform.name.clone());
                         }
@@ -1740,12 +1778,18 @@ impl Ue5Gen {
                         matches!(
                             name.as_str(),
                             "Sampler2D"
+                                | "Sampler3D"
+                                | "SamplerCube"
                                 | "Texture2D"
                                 | "RWTexture2D"
                                 | "Texture3D"
                                 | "RWTexture3D"
+                                | "Image2D"
+                                | "Image3D"
                                 | "Buffer"
                                 | "RWBuffer"
+                                | "StructuredBuffer"
+                                | "RWStructuredBuffer"
                                 | "TextureCube"
                                 | "RWTextureCube"
                         )
@@ -1774,12 +1818,18 @@ impl Ue5Gen {
                         matches!(
                             name.as_str(),
                             "Sampler2D"
+                                | "Sampler3D"
+                                | "SamplerCube"
                                 | "Texture2D"
                                 | "RWTexture2D"
                                 | "Texture3D"
                                 | "RWTexture3D"
+                                | "Image2D"
+                                | "Image3D"
                                 | "Buffer"
                                 | "RWBuffer"
+                                | "StructuredBuffer"
+                                | "RWStructuredBuffer"
                                 | "TextureCube"
                                 | "RWTextureCube"
                         )
@@ -1813,10 +1863,18 @@ impl Ue5Gen {
                         matches!(
                             name.as_str(),
                             "Sampler2D"
+                                | "Sampler3D"
+                                | "SamplerCube"
                                 | "Texture2D"
                                 | "RWTexture2D"
+                                | "Texture3D"
+                                | "RWTexture3D"
+                                | "Image2D"
+                                | "Image3D"
                                 | "Buffer"
                                 | "RWBuffer"
+                                | "StructuredBuffer"
+                                | "RWStructuredBuffer"
                                 | "TextureCube"
                                 | "RWTextureCube"
                         )
@@ -2860,6 +2918,10 @@ impl Ue5Gen {
                     }
                 } else if needs_ref {
                     format!("const {}& {}", ty_str, p.name)
+                } else if ty_str.ends_with('*') {
+                    // UObject/AActor/UActorComponent pointers should not be const-qualified
+                    // as value parameters; it creates const-correctness friction in generated handlers.
+                    format!("{} {}", ty_str, p.name)
                 } else {
                     format!("const {} {}", ty_str, p.name)
                 };
@@ -2955,6 +3017,21 @@ impl Ue5Gen {
                         self.gen_if_expr_as_return_stmt(condition, then_branch, else_branch);
                         continue;
                     }
+                    // Match expressions with statement-level arms (e.g. nested matches)
+                    // must be emitted as if/return chains, not wrapped with `return <expr>`.
+                    if let Expr::Match { scrutinee, arms, .. } = expr {
+                        let needs_statement_form = arms.iter().any(|arm| {
+                            matches!(&arm.body,
+                                Expr::Block(_, _) | Expr::If { .. } | Expr::Match { .. }
+                                | Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)
+                                | Expr::Assign { .. }
+                            )
+                        });
+                        if needs_statement_form {
+                            self.gen_match_as_return_stmt(scrutinee, arms);
+                            continue;
+                        }
+                    }
                     if !matches!(expr, Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)) {
                         let expr_str = self.gen_expr(expr);
                         self.write_source(&format!("return {};", expr_str));
@@ -2992,7 +3069,24 @@ impl Ue5Gen {
 
             Stmt::Return(maybe_expr, _) => {
                 if let Some(expr) = maybe_expr {
-                    self.write_source(&format!("return {};", self.gen_expr(expr)));
+                    if let Expr::If { condition, then_branch, else_branch, .. } = expr {
+                        self.gen_if_expr_as_return_stmt(condition, then_branch, else_branch);
+                    } else if let Expr::Match { scrutinee, arms, .. } = expr {
+                        let needs_statement_form = arms.iter().any(|arm| {
+                            matches!(&arm.body,
+                                Expr::Block(_, _) | Expr::If { .. } | Expr::Match { .. }
+                                | Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)
+                                | Expr::Assign { .. }
+                            )
+                        });
+                        if needs_statement_form {
+                            self.gen_match_as_return_stmt(scrutinee, arms);
+                        } else {
+                            self.write_source(&format!("return {};", self.gen_expr(expr)));
+                        }
+                    } else {
+                        self.write_source(&format!("return {};", self.gen_expr(expr)));
+                    }
                 } else {
                     self.write_source("return;");
                 }
@@ -3155,6 +3249,59 @@ impl Ue5Gen {
                     self.write_source("}");
                 }
             }
+        }
+    }
+
+    fn gen_match_as_return_stmt(&mut self, scrutinee: &Expr, arms: &[kain_core::ast::MatchArm]) {
+        let scrut = self.gen_expr(scrutinee);
+        let mut first = true;
+        for arm in arms {
+            let is_wildcard = match &arm.pattern {
+                Pattern::Wildcard(_) => true,
+                Pattern::Binding { name, .. } if name == "_" => true,
+                _ => false,
+            };
+
+            if is_wildcard {
+                if !first {
+                    self.write_source("else");
+                }
+            } else {
+                let cond = match &arm.pattern {
+                    Pattern::Variant { enum_name, variant, .. } => {
+                        let path = if let Some(en) = enum_name {
+                            format!("{}::{}", to_enum_name(en), variant)
+                        } else {
+                            variant.clone()
+                        };
+                        format!("{} == {}", scrut, path)
+                    }
+                    Pattern::Literal(lit) => {
+                        format!("{} == {}", scrut, self.gen_expr(lit))
+                    }
+                    Pattern::Binding { name, .. } => {
+                        format!("{} == {}", scrut, name)
+                    }
+                    _ => format!("true /* unsupported pattern */"),
+                };
+                if first {
+                    self.write_source(&format!("if ({})", cond));
+                    first = false;
+                } else {
+                    self.write_source(&format!("else if ({})", cond));
+                }
+            }
+
+            self.write_source("{");
+            self.push_indent();
+            // Wrap the arm body in a synthetic block for implicit return handling
+            let synthetic_block = kain_core::ast::Block {
+                stmts: vec![kain_core::ast::Stmt::Expr(arm.body.clone())],
+                span: kain_core::span::Span::default(),
+            };
+            self.gen_block_source_with_implicit_return(&synthetic_block, true);
+            self.pop_indent();
+            self.write_source("}");
         }
     }
 
@@ -3482,7 +3629,7 @@ impl Ue5Gen {
                 
                 // BUG-008: qualify @blueprint fn calls with U{Plugin}FunctionLibrary::
                 if self.blueprint_fn_names.contains(ue5_fn_name) {
-                    let lib_class = format!("U{}FunctionLibrary", self.context.output_name);
+                    let lib_class = format!("U{}FunctionLibrary", self.module_name);
                     return format!("{}::{}({})", lib_class, ue5_fn_name, arg_strs.join(", "));
                 }
 

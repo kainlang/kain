@@ -1371,6 +1371,29 @@ impl SlateGenerator {
         // Clear and populate field_type_map for delegate type checking during Construct
         self.field_type_map.clear();
         
+        // Pre-pass: collect all delegate types that will be used, and emit
+        // DECLARE_DELEGATE for any that aren't known engine or registered custom delegates.
+        let mut declared_delegates: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (field, analysis) in st.fields.iter().zip(analyses.iter()) {
+            let is_event_field = matches!(analysis.reactivity, PropertyReactivity::Event)
+                || field.name.starts_with("on_") || field.name.starts_with("On");
+            if is_event_field {
+                let cpp_type = self.map_type(&field.ty);
+                let delegate_type = self.map_event_delegate_type(&field.name, &cpp_type);
+                // Check if this delegate type needs a forward declaration
+                if delegate_type.starts_with("F") && delegate_type.len() > 1 && !declared_delegates.contains(&delegate_type) {
+                    let is_known = self.is_known_delegate_type(&delegate_type);
+                    if !is_known {
+                        self.push_line(&format!("DECLARE_DELEGATE({});", delegate_type));
+                        declared_delegates.insert(delegate_type);
+                    }
+                }
+            }
+        }
+        if !declared_delegates.is_empty() {
+            self.push_line("");
+        }
+        
         // Emit optimization report as comment
         let report = optimizer.generate_report(&analyses);
         for line in report.lines() {
@@ -1444,9 +1467,36 @@ impl SlateGenerator {
     /// Map event field names to proper UE5 delegate types.
     /// Queries the widget registry first (data-driven), then falls back to hardcoded mappings.
     fn map_event_delegate_type(&self, name: &str, cpp_type: &str) -> String {
-        // First check if cpp_type is already a proper delegate type (starts with F)
+        // First check if cpp_type is already a known delegate type.
+        // Do NOT blindly trust any F* token because unresolved invented types
+        // (e.g. FOnNodeSelected without a declaration) break SLATE_ARGUMENT expansion.
         if cpp_type.starts_with("F") && cpp_type.len() > 1 {
-            return cpp_type.to_string();
+            let is_known_engine_delegate = matches!(
+                cpp_type,
+                "FOnClicked"
+                    | "FSimpleDelegate"
+                    | "FOnFloatValueChanged"
+                    | "FOnTextCommitted"
+                    | "FOnTextChanged"
+                    | "FOnCheckStateChanged"
+                    | "FOnSelectionChanged"
+                    | "FOnLinearColorValueChanged"
+                    | "FPointerEventHandler"
+                    | "FKeyEventHandler"
+                    | "FOnGenerateRow"
+                    | "FOnGetChildren"
+            );
+
+            let is_known_custom_delegate = if let Some(ref ctx) = self.context {
+                let stripped = cpp_type.strip_prefix('F').unwrap_or(cpp_type);
+                ctx.delegate_names.contains(stripped)
+            } else {
+                false
+            };
+
+            if is_known_engine_delegate || is_known_custom_delegate {
+                return cpp_type.to_string();
+            }
         }
 
         // Query widget registry for the event name (data-driven from 2,346 widgets)
@@ -1499,6 +1549,35 @@ impl SlateGenerator {
         }
     }
     
+    /// Check if a delegate type is a known engine or registered custom delegate.
+    fn is_known_delegate_type(&self, delegate_type: &str) -> bool {
+        let is_engine = matches!(
+            delegate_type,
+            "FOnClicked"
+                | "FSimpleDelegate"
+                | "FOnFloatValueChanged"
+                | "FOnTextCommitted"
+                | "FOnTextChanged"
+                | "FOnCheckStateChanged"
+                | "FOnSelectionChanged"
+                | "FOnLinearColorValueChanged"
+                | "FPointerEventHandler"
+                | "FKeyEventHandler"
+                | "FOnGenerateRow"
+                | "FOnGetChildren"
+        );
+        if is_engine {
+            return true;
+        }
+        if let Some(ref ctx) = self.context {
+            let stripped = delegate_type.strip_prefix('F').unwrap_or(delegate_type);
+            if ctx.delegate_names.contains(stripped) {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Convert snake_case to PascalCase
     fn to_pascal_case(&self, s: &str) -> String {
         s.split('_')
