@@ -1072,6 +1072,12 @@ impl Ue5Gen {
         self.source.push_line("// Do not edit - regenerate from .kn source");
         self.write_blank_source();
         self.source.push_line(&format!("#include \"{}.h\"", self.context.output_name));
+        // If this file may call @blueprint static helpers, include the generated
+        // module-level blueprint library header so U{Module}FunctionLibrary symbols resolve.
+        let module_blueprint_header = format!("{}BlueprintLibrary", self.module_name);
+        if self.context.output_name != module_blueprint_header {
+            self.source.push_line(&format!("#include \"{}.h\"", module_blueprint_header));
+        }
         // Only include RenderGraph/shader headers if this actor actually dispatches shaders.
         // In sliced mode, check for @dispatch attribute on the target actor.
         // In monolithic mode (no target_item), include if any shaders exist.
@@ -2814,8 +2820,9 @@ impl Ue5Gen {
             let params = self.gen_params_for_blueprint(&func.params);
             let has_return = func.return_type.is_some();
             
-            // Use a proper function library class name based on output name
-            let class_name = format!("U{}FunctionLibrary", self.context.output_name);
+            // Canonical: Blueprint function library class is based on plugin/module name.
+            // Using output_name here regresses to classes like UAeroTunnelBlueprintLibraryFunctionLibrary.
+            let class_name = format!("U{}FunctionLibrary", self.module_name);
             
             // Pure functions (no side effects) should use BlueprintPure
             let is_pure = func.attributes.iter().any(|a| {

@@ -530,10 +530,12 @@ fn generate_cpp_implementation_cached(program: &TypedProgram, shader_name: &str,
     
     // Bind Textures
     if !all_texture_inputs.is_empty() {
-        output.push_str("    // Bind Textures\n");
-        for (name, _, _) in &all_texture_inputs {
+        output.push_str("    // Bind Textures / SRVs\n");
+        for (name, ty, _) in &all_texture_inputs {
              output.push_str(&format!("    Params->{} = {};\n", name, name));
-             output.push_str(&format!("    Params->{}Sampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();\n", name));
+             if !ty.starts_with("StructuredBuffer") {
+                 output.push_str(&format!("    Params->{}Sampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();\n", name));
+             }
         }
     }
     
@@ -695,7 +697,9 @@ fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResul
         output.push_str("// Texture Inputs\n");
         for (name, ty, binding) in &all_texture_inputs {
             output.push_str(&format!("{} {} : register(t{});\n", ty, name, binding));
-            output.push_str(&format!("SamplerState {}Sampler : register(s{});\n", name, binding));
+            if !ty.starts_with("StructuredBuffer") {
+                output.push_str(&format!("SamplerState {}Sampler : register(s{});\n", name, binding));
+            }
         }
         output.push_str("\n");
     }
