@@ -224,6 +224,7 @@ pub struct TypeRegistry {
     structs: HashSet<String>,
     actors: HashSet<String>,
     components: HashSet<String>,
+    subsystems: HashSet<String>,
     delegates: HashSet<String>,
 }
 
@@ -248,6 +249,10 @@ impl TypeRegistry {
         self.components.insert(name);
     }
     
+    pub fn register_subsystem(&mut self, name: String) {
+        self.subsystems.insert(name);
+    }
+    
     pub fn register_delegate(&mut self, name: String) {
         self.delegates.insert(name);
     }
@@ -266,6 +271,10 @@ impl TypeRegistry {
     
     pub fn is_component(&self, name: &str) -> bool {
         self.components.contains(name)
+    }
+    
+    pub fn is_subsystem(&self, name: &str) -> bool {
+        self.subsystems.contains(name)
     }
     
     pub fn is_delegate(&self, name: &str) -> bool {
@@ -329,6 +338,11 @@ impl TypeMapper {
     pub fn register_component(&mut self, name: String) {
         self.registry.register_component(name.clone());
         self.config.component_names.insert(name);
+    }
+    
+    /// Register a subsystem type
+    pub fn register_subsystem(&mut self, name: String) {
+        self.registry.register_subsystem(name);
     }
     
     /// Register a delegate type

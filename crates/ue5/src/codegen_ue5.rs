@@ -47,7 +47,7 @@ impl ProgramItems for MonomorphizedProgram {
 }
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::ue5::{
-    to_actor_name, to_struct_name, to_enum_name, to_component_name, to_uobject_name, to_pascal_case,
+    to_actor_name, to_struct_name, to_enum_name, to_component_name, to_uobject_name, to_subsystem_name, to_pascal_case,
     TypeMapConfig, map_type as ue5_map_type,
     get_ue_log_format_spec, escape_string as ue5_escape_string,
     PropertyBuilder, FunctionBuilder,
@@ -126,13 +126,25 @@ pub fn generate_with_context(
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             kain_core::types::TypedItem::Struct(st) => {
-                let prefixed_name = to_struct_name(&st.ast.name);
-                let header = format!("{}.h", prefixed_name);
-                gen.context.register_struct(st.ast.name.clone(), header.clone());
-                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
+                let is_subsystem = st.ast.attributes.iter().any(|a| a.name == "subsystem");
+                
+                if is_component {
+                    let prefixed_name = to_component_name(&st.ast.name);
+                    let header = format!("{}.h", prefixed_name);
+                    gen.context.register_struct(st.ast.name.clone(), header.clone());
                     gen.context.register_component(st.ast.name.clone(), header);
                     gen.type_mapper.register_component(st.ast.name.clone());
+                } else if is_subsystem {
+                    let prefixed_name = to_subsystem_name(&st.ast.name);
+                    let header = format!("{}.h", prefixed_name);
+                    gen.context.register_struct(st.ast.name.clone(), header.clone());
+                    gen.context.register_subsystem(st.ast.name.clone(), header);
+                    gen.type_mapper.register_subsystem(st.ast.name.clone());
                 } else {
+                    let prefixed_name = to_struct_name(&st.ast.name);
+                    let header = format!("{}.h", prefixed_name);
+                    gen.context.register_struct(st.ast.name.clone(), header.clone());
                     gen.type_mapper.register_struct(st.ast.name.clone());
                 }
             },
@@ -178,13 +190,25 @@ pub fn generate_with_context_typed(
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             kain_core::types::TypedItem::Struct(st) => {
-                let prefixed_name = to_struct_name(&st.ast.name);
-                let header = format!("{}.h", prefixed_name);
-                gen.context.register_struct(st.ast.name.clone(), header.clone());
-                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
+                let is_subsystem = st.ast.attributes.iter().any(|a| a.name == "subsystem");
+                
+                if is_component {
+                    let prefixed_name = to_component_name(&st.ast.name);
+                    let header = format!("{}.h", prefixed_name);
+                    gen.context.register_struct(st.ast.name.clone(), header.clone());
                     gen.context.register_component(st.ast.name.clone(), header);
                     gen.type_mapper.register_component(st.ast.name.clone());
+                } else if is_subsystem {
+                    let prefixed_name = to_subsystem_name(&st.ast.name);
+                    let header = format!("{}.h", prefixed_name);
+                    gen.context.register_struct(st.ast.name.clone(), header.clone());
+                    gen.context.register_subsystem(st.ast.name.clone(), header);
+                    gen.type_mapper.register_subsystem(st.ast.name.clone());
                 } else {
+                    let prefixed_name = to_struct_name(&st.ast.name);
+                    let header = format!("{}.h", prefixed_name);
+                    gen.context.register_struct(st.ast.name.clone(), header.clone());
                     gen.type_mapper.register_struct(st.ast.name.clone());
                 }
             },
@@ -590,6 +614,10 @@ struct Ue5Gen {
     type_mapper: crate::ue5::types::TypeMapper,
     /// Standard library function resolver (maps KAIN stdlib to UE5 FMath::)
     stdlib_resolver: crate::ue5::stdlib_resolver::StdLibResolver,
+    /// Methods from `impl` blocks, keyed by target type name.
+    /// Populated during gen_program so gen_ucomponent/gen_usubsystem can look up
+    /// lifecycle method bodies (begin_play, tick, etc.) and emit real implementations.
+    impl_methods: std::collections::HashMap<String, Vec<kain_core::ast::Function>>,
 }
 
 impl Ue5Gen {
@@ -622,6 +650,7 @@ impl Ue5Gen {
             module_name: module_name.to_string(),
             type_mapper,
             stdlib_resolver,
+            impl_methods: std::collections::HashMap::new(),
         }
     }
 
@@ -1186,6 +1215,21 @@ impl Ue5Gen {
             }
         }
         
+        // Collect impl block methods keyed by target type name.
+        // This allows gen_ucomponent/gen_usubsystem to look up lifecycle method bodies
+        // (begin_play, tick, initialize, etc.) and emit real C++ implementations.
+        self.impl_methods.clear();
+        for item in program.items() {
+            if let TypedItem::Impl(imp) = item {
+                if let Type::Named { name, .. } = &imp.ast.target_type {
+                    self.impl_methods
+                        .entry(name.clone())
+                        .or_insert_with(Vec::new)
+                        .extend(imp.ast.methods.iter().cloned());
+                }
+            }
+        }
+        
         // Separate items by type for proper ordering
         let mut delegates = Vec::new();
         let mut blueprint_funcs = Vec::new();
@@ -1309,8 +1353,11 @@ impl Ue5Gen {
                     },
                     TypedItem::Struct(st) => {
                         let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
+                        let is_subsystem = st.ast.attributes.iter().any(|a| a.name == "subsystem");
                         if is_component {
                             self.gen_ucomponent(&st.ast);
+                        } else if is_subsystem {
+                            self.gen_usubsystem(&st.ast);
                         } else {
                             self.gen_ustruct(&st.ast);
                         }
@@ -1468,8 +1515,33 @@ impl Ue5Gen {
         // Get interface inheritance list
         let interface_list = self.context.get_interface_list(&actor.name);
         
-        self.header.push_line(&format!("UCLASS()"));
-        self.write_header(&format!("class {} {} : public AActor{}", self.context.module_api, class_name, interface_list));
+        // Build UCLASS specifiers — data-driven from attributes
+        let mut uclass_specs = Vec::new();
+        if let Some(attr) = actor.attributes.iter().find(|a| a.name == "uclass") {
+            for arg in &attr.args {
+                if let Expr::String(s, _) = arg {
+                    uclass_specs.push(s.clone());
+                }
+            }
+        }
+        // Default HideCategories for cleaner details panel
+        if !uclass_specs.iter().any(|s| s.contains("HideCategories")) {
+            uclass_specs.push("HideCategories=(Input, Collision, LOD)".to_string());
+        }
+        if uclass_specs.is_empty() {
+            self.header.push_line("UCLASS()");
+        } else {
+            self.header.push_line(&format!("UCLASS({})", uclass_specs.join(", ")));
+        }
+        
+        // Determine base class — @base("ACineCameraActor") overrides default AActor
+        let base_class = actor.attributes.iter()
+            .find(|a| a.name == "base")
+            .and_then(|a| a.args.first())
+            .and_then(|arg| if let Expr::String(s, _) = arg { Some(s.clone()) } else { None })
+            .unwrap_or_else(|| "AActor".to_string());
+        
+        self.write_header(&format!("class {} {} : public {}{}", self.context.module_api, class_name, base_class, interface_list));
         self.write_header("{");
         self.push_indent();
         self.write_header("GENERATED_BODY()");
@@ -1578,24 +1650,30 @@ impl Ue5Gen {
         self.source.push_line("{");
         self.source.push_line("\tPrimaryActorTick.bCanEverTick = true;");
         
+        // Collect component state fields for initialization
+        let component_fields: Vec<_> = actor.state.iter().filter(|state_decl| {
+            matches!(&state_decl.ty, Type::Named { name, .. }
+                if self.context.is_component(name) || name.ends_with("Component"))
+        }).collect();
+        
+        // Create a default scene root if actor has any component state fields.
+        // This ensures the actor has a proper scene hierarchy for attachment.
+        if !component_fields.is_empty() {
+            self.source.push_line("");
+            self.source.push_line("\tRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT(\"DefaultSceneRoot\"));");
+        }
+        
         // Initialize component state fields with CreateDefaultSubobject
         for state_decl in &actor.state {
             let cpp_type = self.map_type(&state_decl.ty);
 
-            // Check if this is a component type using semantic type info first.
-            // String matching on mapped C++ names misses component types like
-            // UFoo* when the source type is @component but doesn't end with "Component".
             let is_component_state = matches!(&state_decl.ty, Type::Named { name, .. }
                 if self.context.is_component(name) || name.ends_with("Component"));
 
             if is_component_state {
-                // Extract the component class name (e.g., "USovereignComponent*" -> "USovereignComponent")
                 let component_class = cpp_type.trim_end_matches('*').trim();
-                
-                // Generate CreateDefaultSubobject call
-                // Format: sovereignty = CreateDefaultSubobject<USovereignComponent>(TEXT("SovereignComponent"));
                 let component_name = &state_decl.name;
-                let text_name = to_pascal_case(component_name); // Convert snake_case to PascalCase for TEXT() name
+                let text_name = to_pascal_case(component_name);
                 
                 self.source.push_line(&format!(
                     "\t{} = CreateDefaultSubobject<{}>(TEXT(\"{}\"));",
@@ -1604,6 +1682,12 @@ impl Ue5Gen {
                     text_name
                 ));
             }
+        }
+        
+        // Set replication on actor if it has replicated state
+        if has_replicated_state {
+            self.source.push_line("");
+            self.source.push_line("\tbReplicates = true;");
         }
         
         self.source.push_line("}");
@@ -2498,11 +2582,19 @@ impl Ue5Gen {
     }
 
     /// Generate UActorComponent class from KAIN struct
+    /// 
+    /// Supports lifecycle attributes:
+    /// - `@tick` → enables TickComponent() override with PrimaryComponentTick.bCanEverTick = true
+    /// - `@beginplay` → enables BeginPlay() override
     fn gen_ucomponent(&mut self, struct_def: &Struct) {
         // Track component name
         self.context.register_component(struct_def.name.clone(), format!("{}.h", self.context.output_name));
         
         let class_name = to_component_name(&struct_def.name);
+        
+        // Check for lifecycle attributes
+        let has_tick = struct_def.attributes.iter().any(|a| a.name == "tick");
+        let has_beginplay = struct_def.attributes.iter().any(|a| a.name == "beginplay");
         
         // Check if component has replicated fields
         let has_replicated = struct_def.fields.iter().any(|f| {
@@ -2523,6 +2615,14 @@ impl Ue5Gen {
         self.write_blank_header();
         self.push_indent();
         self.write_header(&format!("{}();", class_name));
+        
+        // Lifecycle method declarations
+        if has_beginplay {
+            self.write_header("virtual void BeginPlay() override;");
+        }
+        if has_tick {
+            self.write_header("virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;");
+        }
         self.write_blank_header();
 
         // Fields as UPROPERTY
@@ -2543,14 +2643,78 @@ impl Ue5Gen {
         self.write_header("};");
         self.write_blank_header();
 
-        // Implementation
+        // Implementation - Constructor
         self.write_source(&format!("{}::{}()", class_name, class_name));
         self.write_source("{");
         self.push_indent();
-        self.write_source("PrimaryComponentTick.bCanEverTick = false;");
+        if has_tick {
+            self.write_source("PrimaryComponentTick.bCanEverTick = true;");
+        } else {
+            self.write_source("PrimaryComponentTick.bCanEverTick = false;");
+        }
+        if has_replicated {
+            self.write_source("SetIsReplicatedByDefault(true);");
+        }
         self.pop_indent();
         self.write_source("}");
         self.write_blank_source();
+        
+        // BeginPlay implementation — wire impl block body if available
+        if has_beginplay {
+            self.write_source(&format!("void {}::BeginPlay()", class_name));
+            self.write_source("{");
+            self.push_indent();
+            self.write_source("Super::BeginPlay();");
+            
+            // Look up begin_play method from impl block
+            let begin_play_body = self.impl_methods.get(&struct_def.name)
+                .and_then(|methods| methods.iter().find(|m| m.name == "begin_play" || m.name == "BeginPlay"))
+                .cloned();
+            
+            if let Some(method) = begin_play_body {
+                self.write_blank_source();
+                self.with_var_type_scope(|this| {
+                    this.register_param_types(&method.params);
+                    this.gen_block_source(&method.body);
+                });
+            }
+            
+            self.pop_indent();
+            self.write_source("}");
+            self.write_blank_source();
+        }
+        
+        // TickComponent implementation — wire impl block body if available
+        if has_tick {
+            self.write_source(&format!("void {}::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)", class_name));
+            self.write_source("{");
+            self.push_indent();
+            self.write_source("Super::TickComponent(DeltaTime, TickType, ThisTickFunction);");
+            
+            // Look up tick method from impl block
+            let tick_body = self.impl_methods.get(&struct_def.name)
+                .and_then(|methods| methods.iter().find(|m| m.name == "tick" || m.name == "Tick"))
+                .cloned();
+            
+            if let Some(method) = tick_body {
+                // Remap common delta time parameter names to UE5's DeltaTime
+                for param in &method.params {
+                    if param.name == "delta_time" || param.name == "dt" || param.name == "delta" {
+                        self.context.add_ident_remap(param.name.clone(), "DeltaTime".to_string());
+                    }
+                }
+                self.write_blank_source();
+                self.with_var_type_scope(|this| {
+                    this.register_param_types(&method.params);
+                    this.gen_block_source(&method.body);
+                });
+                self.context.clear_ident_remaps();
+            }
+            
+            self.pop_indent();
+            self.write_source("}");
+            self.write_blank_source();
+        }
         
         // Implement GetLifetimeReplicatedProps if needed
         if has_replicated {
@@ -2567,6 +2731,173 @@ impl Ue5Gen {
                 }
             }
             
+            self.pop_indent();
+            self.write_source("}");
+            self.write_blank_source();
+        }
+    }
+
+    /// Generate UWorldSubsystem class from KAIN struct with @subsystem attribute.
+    ///
+    /// Generates:
+    /// - UCLASS with correct specifiers
+    /// - UWorldSubsystem inheritance
+    /// - Initialize()/Deinitialize() lifecycle overrides
+    /// - ShouldCreateSubsystem() override
+    /// - Optional FTickableGameObject interface when @tick attribute present
+    /// - UPROPERTY fields from struct fields
+    fn gen_usubsystem(&mut self, struct_def: &Struct) {
+        let class_name = to_subsystem_name(&struct_def.name);
+
+        // Check for @tick attribute → FTickableGameObject interface
+        let has_tick = struct_def.attributes.iter().any(|a| a.name == "tick");
+
+        // Check for @savegame fields
+        let has_savegame = struct_def.fields.iter().any(|f| {
+            f.attributes.iter().any(|a| a.name == "savegame")
+        });
+
+        // --- Header ---
+        self.header.push_line("UCLASS()");
+        if has_tick {
+            self.write_header(&format!(
+                "class {} {} : public UWorldSubsystem, public FTickableGameObject",
+                self.context.module_api, class_name
+            ));
+        } else {
+            self.write_header(&format!(
+                "class {} {} : public UWorldSubsystem",
+                self.context.module_api, class_name
+            ));
+        }
+        self.write_header("{");
+        self.push_indent();
+        self.write_header("GENERATED_BODY()");
+        self.write_blank_header();
+
+        self.write_header("public:");
+        self.write_blank_header();
+        self.push_indent();
+
+        // Lifecycle overrides
+        self.write_header("virtual void Initialize(FSubsystemCollectionBase& Collection) override;");
+        self.write_header("virtual void Deinitialize() override;");
+        self.write_header("virtual bool ShouldCreateSubsystem(UObject* Outer) const override;");
+
+        if has_tick {
+            self.write_blank_header();
+            self.write_header("// FTickableGameObject interface");
+            self.write_header("virtual void Tick(float DeltaTime) override;");
+            self.write_header("virtual TStatId GetStatId() const override;");
+            self.write_header("virtual bool IsTickable() const override;");
+        }
+
+        self.write_blank_header();
+
+        // Fields as UPROPERTY
+        for field in &struct_def.fields {
+            self.gen_uproperty_with_context(field, Some(&struct_def.name), false);
+        }
+
+        self.pop_indent();
+        self.pop_indent();
+        self.write_header("};");
+        self.write_blank_header();
+
+        // --- Source Implementation ---
+
+        // Initialize — wire impl block body if available
+        self.write_source(&format!("void {}::Initialize(FSubsystemCollectionBase& Collection)", class_name));
+        self.write_source("{");
+        self.push_indent();
+        self.write_source("Super::Initialize(Collection);");
+        
+        let init_body = self.impl_methods.get(&struct_def.name)
+            .and_then(|methods| methods.iter().find(|m| m.name == "initialize" || m.name == "Initialize"))
+            .cloned();
+        
+        if let Some(method) = init_body {
+            self.write_blank_source();
+            self.with_var_type_scope(|this| {
+                this.register_param_types(&method.params);
+                this.gen_block_source(&method.body);
+            });
+        }
+        
+        self.pop_indent();
+        self.write_source("}");
+        self.write_blank_source();
+
+        // Deinitialize — wire impl block body if available
+        self.write_source(&format!("void {}::Deinitialize()", class_name));
+        self.write_source("{");
+        self.push_indent();
+        
+        let deinit_body = self.impl_methods.get(&struct_def.name)
+            .and_then(|methods| methods.iter().find(|m| m.name == "deinitialize" || m.name == "Deinitialize"))
+            .cloned();
+        
+        if let Some(method) = deinit_body {
+            self.with_var_type_scope(|this| {
+                this.register_param_types(&method.params);
+                this.gen_block_source(&method.body);
+            });
+            self.write_blank_source();
+        }
+        
+        self.write_source("Super::Deinitialize();");
+        self.pop_indent();
+        self.write_source("}");
+        self.write_blank_source();
+
+        // ShouldCreateSubsystem
+        self.write_source(&format!("bool {}::ShouldCreateSubsystem(UObject* Outer) const", class_name));
+        self.write_source("{");
+        self.push_indent();
+        self.write_source("return true;");
+        self.pop_indent();
+        self.write_source("}");
+        self.write_blank_source();
+
+        // Tick (if @tick) — wire impl block body if available
+        if has_tick {
+            self.write_source(&format!("void {}::Tick(float DeltaTime)", class_name));
+            self.write_source("{");
+            self.push_indent();
+            
+            let tick_body = self.impl_methods.get(&struct_def.name)
+                .and_then(|methods| methods.iter().find(|m| m.name == "tick" || m.name == "Tick"))
+                .cloned();
+            
+            if let Some(method) = tick_body {
+                for param in &method.params {
+                    if param.name == "delta_time" || param.name == "dt" || param.name == "delta" {
+                        self.context.add_ident_remap(param.name.clone(), "DeltaTime".to_string());
+                    }
+                }
+                self.with_var_type_scope(|this| {
+                    this.register_param_types(&method.params);
+                    this.gen_block_source(&method.body);
+                });
+                self.context.clear_ident_remaps();
+            }
+            
+            self.pop_indent();
+            self.write_source("}");
+            self.write_blank_source();
+
+            self.write_source(&format!("TStatId {}::GetStatId() const", class_name));
+            self.write_source("{");
+            self.push_indent();
+            self.write_source(&format!("RETURN_QUICK_DECLARE_CYCLE_STAT({}, STATGROUP_Tickables);", class_name));
+            self.pop_indent();
+            self.write_source("}");
+            self.write_blank_source();
+
+            self.write_source(&format!("bool {}::IsTickable() const", class_name));
+            self.write_source("{");
+            self.push_indent();
+            self.write_source("return true;");
             self.pop_indent();
             self.write_source("}");
             self.write_blank_source();
@@ -3146,6 +3477,8 @@ impl Ue5Gen {
                     self.gen_if_stmt(condition, then_branch, else_branch);
                 } else if let Expr::Assign { target, value, .. } = expr {
                     self.write_source(&format!("{} = {};", self.gen_expr(target), self.gen_expr(value)));
+                } else if let Expr::Match { scrutinee, arms, .. } = expr {
+                    self.gen_match_as_statement(scrutinee, arms);
                 } else {
                     let expr_str = self.gen_expr(expr);
                     if !expr_str.is_empty() {
@@ -3301,12 +3634,107 @@ impl Ue5Gen {
 
             self.write_source("{");
             self.push_indent();
-            // Wrap the arm body in a synthetic block for implicit return handling
-            let synthetic_block = kain_core::ast::Block {
-                stmts: vec![kain_core::ast::Stmt::Expr(arm.body.clone())],
-                span: kain_core::span::Span::default(),
+            match &arm.body {
+                // Multi-statement block: emit all stmts via gen_block_source.
+                // The last stmt is responsible for its own return (e.g. Stmt::Return).
+                Expr::Block(block, _) => {
+                    self.gen_block_source(block);
+                }
+                // Nested match in return position: recurse
+                Expr::Match { scrutinee: inner_scrut, arms: inner_arms, .. } => {
+                    self.gen_match_as_return_stmt(inner_scrut, inner_arms);
+                }
+                // Single expression arm: wrap in synthetic block for implicit return
+                other => {
+                    let synthetic_block = kain_core::ast::Block {
+                        stmts: vec![kain_core::ast::Stmt::Expr(other.clone())],
+                        span: kain_core::span::Span::default(),
+                    };
+                    self.gen_block_source_with_implicit_return(&synthetic_block, true);
+                }
+            }
+            self.pop_indent();
+            self.write_source("}");
+        }
+    }
+
+    /// Emit a statement-level match expression as an if/else chain writing directly to source.
+    /// Uses gen_stmt/gen_block_source for arm bodies so all statement types are handled:
+    /// let bindings, nested matches, multi-statement blocks, assignments, returns, etc.
+    fn gen_match_as_statement(&mut self, scrutinee: &Expr, arms: &[kain_core::ast::MatchArm]) {
+        let scrut = self.gen_expr(scrutinee);
+        let mut first = true;
+
+        for arm in arms {
+            let is_wildcard = match &arm.pattern {
+                Pattern::Wildcard(_) => true,
+                Pattern::Binding { name, .. } if name == "_" => true,
+                _ => false,
             };
-            self.gen_block_source_with_implicit_return(&synthetic_block, true);
+
+            if is_wildcard {
+                if !first {
+                    self.write_source("else");
+                }
+            } else {
+                let cond = match &arm.pattern {
+                    Pattern::Variant { enum_name, variant, .. } => {
+                        let path = if let Some(en) = enum_name {
+                            format!("{}::{}", to_enum_name(en), variant)
+                        } else {
+                            variant.clone()
+                        };
+                        format!("{} == {}", scrut, path)
+                    }
+                    Pattern::Literal(lit) => {
+                        format!("{} == {}", scrut, self.gen_expr(lit))
+                    }
+                    Pattern::Binding { name, .. } => {
+                        format!("{} == {}", scrut, name)
+                    }
+                    _ => format!("true /* unsupported pattern */"),
+                };
+                if first {
+                    self.write_source(&format!("if ({})", cond));
+                    first = false;
+                } else {
+                    self.write_source(&format!("else if ({})", cond));
+                }
+            }
+
+            self.write_source("{");
+            self.push_indent();
+
+            // Emit the arm body using gen_stmt so all statement types are handled correctly.
+            // Wrap non-block expressions in a synthetic Stmt::Expr for uniform dispatch.
+            match &arm.body {
+                Expr::Block(block, _) => {
+                    self.gen_block_source(block);
+                }
+                Expr::Match { scrutinee: inner_scrut, arms: inner_arms, .. } => {
+                    self.gen_match_as_statement(inner_scrut, inner_arms);
+                }
+                Expr::If { condition, then_branch, else_branch, .. } => {
+                    self.gen_if_stmt(condition, then_branch, else_branch);
+                }
+                Expr::Assign { target, value, .. } => {
+                    self.write_source(&format!("{} = {};", self.gen_expr(target), self.gen_expr(value)));
+                }
+                Expr::Return(Some(val), _) => {
+                    self.write_source(&format!("return {};", self.gen_expr(val)));
+                }
+                Expr::Return(None, _) => {
+                    self.write_source("return;");
+                }
+                Expr::Ident(name, _) if name == "pass" => {}
+                other => {
+                    let s = self.gen_expr(other);
+                    if !s.is_empty() {
+                        self.write_source(&format!("{};", s));
+                    }
+                }
+            }
+
             self.pop_indent();
             self.write_source("}");
         }

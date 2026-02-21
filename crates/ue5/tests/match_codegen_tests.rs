@@ -324,6 +324,139 @@ fn main():
 }
 
 // ============================================================================
+// E2. MATCH EDGE CASES (TickOptimizer patterns)
+// ============================================================================
+
+#[test]
+fn test_nested_match_in_statement_arm() {
+    let source = r#"
+enum Mode:
+    Conservative
+    Balanced
+    Aggressive
+
+enum Band:
+    Near
+    Far
+
+fn get_interval(mode: Mode, band: Band) -> Float:
+    match mode:
+        Mode::Conservative =>
+            match band:
+                Band::Near => return 0.0
+                Band::Far => return 0.2
+        Mode::Balanced =>
+            match band:
+                Band::Near => return 0.0
+                Band::Far => return 0.5
+        _ => return 0.0
+    return 0.0
+
+fn main():
+    let v = get_interval(Mode::Balanced, Band::Far)
+"#;
+    let output = compile_ue5(source).unwrap();
+    let cpp = &output.source;
+
+    // Outer match arms should be if/else
+    assert!(cpp.contains("EMode::Conservative") || cpp.contains("Mode::Conservative"),
+        "Should have outer enum variant. Source:\n{}", cpp);
+    assert!(cpp.contains("EMode::Balanced") || cpp.contains("Mode::Balanced"),
+        "Should have outer enum variant. Source:\n{}", cpp);
+
+    // Inner match arms should also appear
+    assert!(cpp.contains("EBand::Near") || cpp.contains("Band::Near"),
+        "Should have inner enum variant. Source:\n{}", cpp);
+    assert!(cpp.contains("EBand::Far") || cpp.contains("Band::Far"),
+        "Should have inner enum variant. Source:\n{}", cpp);
+
+    // No unsupported pattern markers
+    assert!(!cpp.contains("/* unsupported pattern */"),
+        "Should not emit unsupported pattern markers. Source:\n{}", cpp);
+}
+
+#[test]
+fn test_match_arm_with_let_binding() {
+    let source = r#"
+enum Op:
+    Double
+    Triple
+
+fn apply(op: Op, x: Float) -> Float:
+    match op:
+        Op::Double =>
+            let result = x * 2.0
+            return result
+        Op::Triple =>
+            let result = x * 3.0
+            return result
+
+fn main():
+    let v = apply(Op::Double, 5.0)
+"#;
+    let output = compile_ue5(source).unwrap();
+    let cpp = &output.source;
+
+    // Let bindings inside match arm blocks must appear in output
+    assert!(cpp.contains("2.0") || cpp.contains("2"),
+        "Should have double multiplier. Source:\n{}", cpp);
+    assert!(cpp.contains("3.0") || cpp.contains("3"),
+        "Should have triple multiplier. Source:\n{}", cpp);
+
+    // No unsupported pattern markers
+    assert!(!cpp.contains("/* unsupported pattern */"),
+        "Should not emit unsupported pattern markers. Source:\n{}", cpp);
+}
+
+#[test]
+fn test_match_arm_multi_statement_block() {
+    let source = r#"
+enum Phase:
+    Init
+    Run
+    Cleanup
+
+fn run_phase(phase: Phase):
+    var counter = 0
+    var active = false
+    match phase:
+        Phase::Init =>
+            counter = 0
+            active = true
+        Phase::Run =>
+            counter = counter + 1
+        Phase::Cleanup =>
+            active = false
+            counter = 0
+    println("done")
+
+fn main():
+    run_phase(Phase::Init)
+"#;
+    let output = compile_ue5(source).unwrap();
+    let cpp = &output.source;
+
+    // All three arms should appear
+    assert!(cpp.contains("EPhase::Init") || cpp.contains("Phase::Init"),
+        "Should have Init arm. Source:\n{}", cpp);
+    assert!(cpp.contains("EPhase::Run") || cpp.contains("Phase::Run"),
+        "Should have Run arm. Source:\n{}", cpp);
+    assert!(cpp.contains("EPhase::Cleanup") || cpp.contains("Phase::Cleanup"),
+        "Should have Cleanup arm. Source:\n{}", cpp);
+
+    // Multi-statement arms: both assignments in Init arm must appear
+    assert!(cpp.contains("counter = 0"),
+        "Should have counter = 0. Source:\n{}", cpp);
+    assert!(cpp.contains("active = true") || cpp.contains("active=true"),
+        "Should have active = true. Source:\n{}", cpp);
+    assert!(cpp.contains("active = false") || cpp.contains("active=false"),
+        "Should have active = false. Source:\n{}", cpp);
+
+    assert!(!cpp.contains("/* unsupported pattern */"),
+        "Should not emit unsupported pattern markers. Source:\n{}", cpp);
+}
+
+// ============================================================================
 // F. EDGE CASES AND ERROR HANDLING
 // ============================================================================
 

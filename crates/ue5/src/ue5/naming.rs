@@ -179,6 +179,22 @@ pub fn to_component_name(name: &str) -> String {
     })
 }
 
+/// Subsystem names get 'U' prefix and 'Subsystem' suffix: TickOptimizer -> UTickOptimizerSubsystem
+/// If name already ends with "Subsystem", just add U prefix.
+pub fn to_subsystem_name(name: &str) -> String {
+    if name.starts_with('U') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
+        if name.ends_with("Subsystem") {
+            name.to_string()
+        } else {
+            format!("{}Subsystem", name)
+        }
+    } else if name.ends_with("Subsystem") {
+        format!("U{}", name)
+    } else {
+        format!("U{}Subsystem", name)
+    }
+}
+
 /// Generate module API macro from plugin name: "UltimateVFX" -> "ULTIMATEVFX_API"
 pub fn to_module_api(plugin_name: &str) -> String {
     format!("{}_API", plugin_name.to_uppercase())

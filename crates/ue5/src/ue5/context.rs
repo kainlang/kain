@@ -34,6 +34,9 @@ pub struct Ue5Context {
     /// All component names (structs with @component attribute)
     pub component_names: HashSet<String>,
     
+    /// All subsystem names (structs with @subsystem attribute)
+    pub subsystem_names: HashSet<String>,
+    
     /// All delegate names (type aliases to function types)
     pub delegate_names: HashSet<String>,
     
@@ -155,6 +158,7 @@ impl Ue5Context {
             enum_names: HashSet::new(),
             struct_names: HashSet::new(),
             component_names: HashSet::new(),
+            subsystem_names: HashSet::new(),
             delegate_names: HashSet::new(),
             actor_names: HashSet::new(),
             ident_remap: HashMap::new(),
@@ -230,6 +234,13 @@ impl Ue5Context {
         self.type_to_header.insert(name, header);
     }
     
+    /// Register a subsystem name and its header
+    pub fn register_subsystem(&mut self, name: String, header: String) {
+        self.subsystem_names.insert(name.clone());
+        self.struct_names.insert(name.clone());
+        self.type_to_header.insert(name, header);
+    }
+    
     /// Register a delegate name and its header
     pub fn register_delegate(&mut self, name: String, header: String) {
         self.delegate_names.insert(name.clone());
@@ -255,6 +266,11 @@ impl Ue5Context {
     /// Check if a name is a known component
     pub fn is_component(&self, name: &str) -> bool {
         self.component_names.contains(name)
+    }
+    
+    /// Check if a name is a known subsystem
+    pub fn is_subsystem(&self, name: &str) -> bool {
+        self.subsystem_names.contains(name)
     }
     
     /// Check if a name is a known delegate

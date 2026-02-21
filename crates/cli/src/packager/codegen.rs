@@ -37,6 +37,24 @@ pub fn compile_shaders(
             println!("   ✓ {}ShaderTypes.h (shared POD mirror types)", config.plugin_name);
         }
 
+        // Generate shared shader library (.ush) with common HLSL helpers.
+        // This analyzes all shaders for common patterns (bounds checks, UV setup,
+        // noise functions) and extracts them into a reusable include file.
+        let has_shared_library = if let Some(ush_content) = ue5_shaders::generate_shared_shader_library(program, &config.plugin_name) {
+            let ush_path = layout.shaders_dir.join(format!("{}Common.ush", config.plugin_name));
+            fs::write(&ush_path, ush_content).map_err(|e| KainError::Io(e))?;
+            println!("   ✓ {}Common.ush (shared shader helpers)", config.plugin_name);
+            true
+        } else {
+            false
+        };
+
+        // The #include line to inject into .usf files that use the shared library
+        let ush_include = format!(
+            "#include \"/Plugin/{}/Shaders/{}Common.ush\"\n",
+            config.plugin_name, config.plugin_name
+        );
+
         // Compile each shader using the merged typed program
         for shader_name in shader_names {
             eprintln!("🔨 [PACKAGER] Compiling shader: {}", shader_name);
@@ -45,8 +63,26 @@ pub fn compile_shaders(
             // Generate all three shader artifacts in one pass (mirrors computed once).
             match ue5_shaders::compile_shader_artifacts(program, shader_name, &config.plugin_name) {
                 Ok(artifacts) => {
+                    // Inject shared library #include into .usf if this shader uses shared helpers
+                    let usf_content = if has_shared_library {
+                        // Insert #include after the Platform.ush include
+                        let platform_include = "#include \"/Engine/Public/Platform.ush\"\n";
+                        if artifacts.usf.contains(platform_include) {
+                            artifacts.usf.replacen(
+                                platform_include,
+                                &format!("{}{}", platform_include, &ush_include),
+                                1
+                            )
+                        } else {
+                            // Fallback: prepend at top
+                            format!("{}{}", ush_include, artifacts.usf)
+                        }
+                    } else {
+                        artifacts.usf
+                    };
+
                     let usf_path = layout.shaders_dir.join(format!("{}.usf", shader_name));
-                    fs::write(&usf_path, artifacts.usf).map_err(|e| KainError::Io(e))?;
+                    fs::write(&usf_path, usf_content).map_err(|e| KainError::Io(e))?;
                     println!("   ✓ {}.usf", shader_name);
 
                     let header_path = layout.public_dir.join(format!("{}.h", shader_name));

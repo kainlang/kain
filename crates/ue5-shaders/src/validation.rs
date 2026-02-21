@@ -2400,7 +2400,11 @@ mod tests {
     fn test_binding_multiple_conflicts() {
         let mut validator = ShaderValidator::new();
         
-        // Test multiple types of conflicts in one shader
+        // Test multiple types of conflicts in one shader:
+        // - Texture binding conflict (two textures on t0)
+        // - Sampler binding out of range (s20 > s15)
+        // NOTE: Scalar uniforms (Vec3) use SHADER_PARAMETER_STRUCT, NOT explicit b-registers,
+        // so b0 reservation does not apply to them.
         let shader = make_test_shader("TestShader", vec![
             Uniform {
                 name: "texture1".to_string(),
@@ -2439,7 +2443,7 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 0, // b0 - reserved!
+                binding: 0, // Valid for scalars - they use SHADER_PARAMETER_STRUCT
                 span: Span::default(),
             },
         ]);
@@ -2452,8 +2456,7 @@ mod tests {
                 "Should report texture conflict: {:?}", errors);
         assert!(errors.iter().any(|e| e.contains("exceeds maximum sampler slot")), 
                 "Should report sampler limit: {:?}", errors);
-        assert!(errors.iter().any(|e| e.contains("b0") && e.contains("reserved")), 
-                "Should report b0 reserved: {:?}", errors);
+        // No b0 reservation check - scalars don't use explicit b-registers
     }
 }
 

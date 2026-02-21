@@ -5,6 +5,7 @@ members = [
     "crates/ue5",
     "crates/ue5-shaders",
     "crates/ue5-materials",
+    "crates/ue5-graphs",
     "crates/ue5-editor",
     "crates/gpu",
     "crates/web",

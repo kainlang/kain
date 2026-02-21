@@ -1,0 +1,16 @@
+[package]
+name = "ue5-graphs"
+version = "0.1.0"
+edition = "2021"
+authors = ["KAIN Team"]
+description = "UE5 graph editor codegen for KAIN compiler"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+unreal_asset = { path = "../unreal/unreal_asset" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1.4"

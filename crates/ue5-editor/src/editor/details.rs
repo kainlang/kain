@@ -158,7 +158,7 @@ impl DetailsGenerator {
             self.push_line("");
             
             for field in &category.fields {
-                self.generate_field_customization(field, &category.name, class_name);
+                self.generate_field_customization(field, &category.name, class_name, target_class);
             }
         }
         
@@ -319,12 +319,17 @@ impl DetailsGenerator {
             .and_then(|a| self.extract_string_attr_arg(a))
     }
     
-    fn generate_field_customization(&mut self, field: &DetailField, category_name: &str, class_name: &str) {
+    fn generate_field_customization(&mut self, field: &DetailField, category_name: &str, class_name: &str, target_class: &str) {
         let cat_var = Self::sanitize_identifier(category_name);
+        let handle_var = format!("{}Handle", field.name);
         
         match &field.widget_override {
             Some(WidgetOverride::Slider { min, max }) => {
-                self.push_line(&format!("// Custom slider for {}", field.name));
+                self.push_line(&format!("// Custom slider for {} (bound to property)", field.name));
+                self.push_line(&format!(
+                    "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED({}, {}));",
+                    handle_var, target_class, field.name
+                ));
                 self.push_line(&format!(
                     "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
                     cat_var, field.name
@@ -341,19 +346,24 @@ impl DetailsGenerator {
                 self.push_line(".ValueContent()");
                 self.push_line("[");
                 self.indent += 1;
-                // Format floats to always have decimal point
                 let min_str = if min.fract() == 0.0 { format!("{:.1}", min) } else { format!("{}", min) };
                 let max_str = if max.fract() == 0.0 { format!("{:.1}", max) } else { format!("{}", max) };
                 self.push_line(&format!(
-                    "SNew(SSpinBox<float>)\n\t\t.MinValue({}f)\n\t\t.MaxValue({}f)",
-                    min_str, max_str
+                    "SNew(SSpinBox<float>)\n\t\t.MinValue({}f)\n\t\t.MaxValue({}f)\n\t\t.Value_Lambda([{}]() -> float {{\n\t\t\tfloat Val = 0.0f;\n\t\t\t{}->GetValue(Val);\n\t\t\treturn Val;\n\t\t}})\n\t\t.OnValueChanged_Lambda([{}](float NewVal) {{\n\t\t\t{}->SetValue(NewVal);\n\t\t}})",
+                    min_str, max_str,
+                    handle_var, handle_var,
+                    handle_var, handle_var
                 ));
                 self.indent -= 1;
                 self.push_line("];");
                 self.push_line("");
             }
             Some(WidgetOverride::ColorPicker) => {
-                self.push_line(&format!("// Color picker for {}", field.name));
+                self.push_line(&format!("// Color picker for {} (bound to property)", field.name));
+                self.push_line(&format!(
+                    "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED({}, {}));",
+                    handle_var, target_class, field.name
+                ));
                 self.push_line(&format!(
                     "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
                     cat_var, field.name
@@ -370,17 +380,24 @@ impl DetailsGenerator {
                 self.push_line(".ValueContent()");
                 self.push_line("[");
                 self.indent += 1;
-                self.push_line("SNew(SColorBlock)");
+                self.push_line(&format!(
+                    "SNew(SColorBlock)\n\t\t.Color_Lambda([{}]() -> FLinearColor {{\n\t\t\tFLinearColor Val = FLinearColor::White;\n\t\t\t{}->GetValue(Val);\n\t\t\treturn Val;\n\t\t}})",
+                    handle_var, handle_var
+                ));
                 self.indent -= 1;
                 self.push_line("];");
                 self.push_line("");
             }
             Some(WidgetOverride::AssetPicker { allowed_classes }) => {
-                self.push_line(&format!("// Asset picker for {}", field.name));
+                self.push_line(&format!("// Asset picker for {} (bound to property)", field.name));
                 let classes_str = allowed_classes.join(", ");
                 self.push_line(&format!(
                     "// Allowed classes: {}",
                     classes_str
+                ));
+                self.push_line(&format!(
+                    "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED({}, {}));",
+                    handle_var, target_class, field.name
                 ));
                 self.push_line(&format!(
                     "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
@@ -402,6 +419,10 @@ impl DetailsGenerator {
                 if let Some(first_class) = allowed_classes.first() {
                     self.push_line(&format!(".AllowedClass({}::StaticClass())", first_class));
                 }
+                self.push_line(&format!(
+                    ".PropertyHandle({})",
+                    handle_var
+                ));
                 self.indent -= 1;
                 self.push_line("];");
                 self.push_line("");
@@ -425,19 +446,19 @@ impl DetailsGenerator {
                 self.push_line("");
             }
             None => {
-                // Standard property — just let UE5 handle it via DetailBuilder
+                // Standard property — add via property handle for full editor binding
+                self.push_line(&format!(
+                    "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED({}, {}));",
+                    handle_var, target_class, field.name
+                ));
                 if let Some(condition) = &field.visibility_condition {
                     self.push_line(&format!("// Conditional visibility: {}", condition));
-                    self.push_line(&format!(
-                        "TSharedRef<IPropertyHandle> {}Handle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED({}, {}));",
-                        field.name, "TargetClass", field.name
-                    ));
-                    self.push_line(&format!(
-                        "{}Cat.AddProperty({}Handle);",
-                        cat_var, field.name
-                    ));
                 }
-                // Otherwise default property display is automatic
+                self.push_line(&format!(
+                    "{}Cat.AddProperty({});",
+                    cat_var, handle_var
+                ));
+                self.push_line("");
             }
         }
     }
@@ -632,6 +653,87 @@ mod tests {
         assert!(source.contains("SSpinBox<float>"));
         assert!(source.contains("MinValue"));
         assert!(source.contains("MaxValue"));
+        assert!(source.contains("GET_MEMBER_NAME_CHECKED(UTest, value)"),
+            "Slider should generate property handle with GET_MEMBER_NAME_CHECKED. Got:\n{}", source);
+        assert!(source.contains("Value_Lambda"),
+            "Slider should bind Value via lambda. Got:\n{}", source);
+        assert!(source.contains("OnValueChanged_Lambda"),
+            "Slider should bind OnValueChanged via lambda. Got:\n{}", source);
+        assert!(source.contains("GetValue(Val)"),
+            "Slider getter should call GetValue. Got:\n{}", source);
+        assert!(source.contains("SetValue(NewVal)"),
+            "Slider setter should call SetValue. Got:\n{}", source);
+    }
+    
+    #[test]
+    fn test_default_property_binding() {
+        let st = Struct {
+            name: "WeaponDetails".to_string(),
+            generics: vec![],
+            fields: vec![
+                Field {
+                    name: "damage".to_string(),
+                    ty: float_type(),
+                    attributes: vec![
+                        Attribute { name: "category".to_string(), args: vec![Expr::String("Stats".to_string(), s())], span: s() },
+                    ],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+            ],
+            methods: vec![],
+            attributes: vec![Attribute { name: "details".to_string(), args: vec![], span: s() }],
+            visibility: Visibility::Public,
+            span: s(),
+        };
+        
+        let typed_st = make_typed_struct(st);
+        let mut gen = DetailsGenerator::new();
+        let (_, source) = gen.generate_customization(&typed_st);
+        
+        assert!(source.contains("GET_MEMBER_NAME_CHECKED(UWeapon, damage)"),
+            "Default property should use GET_MEMBER_NAME_CHECKED with target class. Got:\n{}", source);
+        assert!(source.contains("AddProperty(damageHandle)"),
+            "Default property should be added via handle. Got:\n{}", source);
+    }
+    
+    #[test]
+    fn test_color_picker_binding() {
+        let st = Struct {
+            name: "TestDetails".to_string(),
+            generics: vec![],
+            fields: vec![
+                Field {
+                    name: "tint_color".to_string(),
+                    ty: Type::Named { name: "Color".to_string(), generics: vec![], span: s() },
+                    attributes: vec![
+                        Attribute { name: "category".to_string(), args: vec![Expr::String("Visual".to_string(), s())], span: s() },
+                        Attribute { name: "color_picker".to_string(), args: vec![], span: s() },
+                    ],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+            ],
+            methods: vec![],
+            attributes: vec![Attribute { name: "details".to_string(), args: vec![], span: s() }],
+            visibility: Visibility::Public,
+            span: s(),
+        };
+        
+        let typed_st = make_typed_struct(st);
+        let mut gen = DetailsGenerator::new();
+        let (_, source) = gen.generate_customization(&typed_st);
+        
+        assert!(source.contains("GET_MEMBER_NAME_CHECKED(UTest, tint_color)"),
+            "Color picker should generate property handle. Got:\n{}", source);
+        assert!(source.contains("Color_Lambda"),
+            "Color picker should bind Color via lambda. Got:\n{}", source);
+        assert!(source.contains("FLinearColor"),
+            "Color picker should use FLinearColor. Got:\n{}", source);
     }
     
     #[test]

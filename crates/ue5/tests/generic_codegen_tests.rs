@@ -372,3 +372,229 @@ fn main():
     assert!(cpp.contains("min_") && cpp.contains("max_Int("), 
             "Should have nested min/max calls");
 }
+
+// ============================================================================
+// G. @SUBSYSTEM CODEGEN TESTS
+// ============================================================================
+
+#[test]
+fn test_subsystem_basic_generation() {
+    let source = r#"
+@subsystem
+struct TickOptimizer:
+    frame_budget: Float
+    enabled: Bool
+"#;
+
+    let output = compile_ue5(source).unwrap();
+    let header = &output.header;
+    let source_cpp = &output.source;
+
+    // Class name should be UTickOptimizerSubsystem
+    assert!(header.contains("UTickOptimizerSubsystem"), 
+        "Should generate UTickOptimizerSubsystem class. Header:\n{}", header);
+    assert!(header.contains("UWorldSubsystem"),
+        "Should inherit from UWorldSubsystem. Header:\n{}", header);
+    assert!(header.contains("UCLASS()"),
+        "Should have UCLASS(). Header:\n{}", header);
+    assert!(header.contains("GENERATED_BODY()"),
+        "Should have GENERATED_BODY(). Header:\n{}", header);
+
+    // Lifecycle methods
+    assert!(header.contains("Initialize(FSubsystemCollectionBase& Collection)"),
+        "Should declare Initialize. Header:\n{}", header);
+    assert!(header.contains("Deinitialize()"),
+        "Should declare Deinitialize. Header:\n{}", header);
+    assert!(header.contains("ShouldCreateSubsystem(UObject* Outer)"),
+        "Should declare ShouldCreateSubsystem. Header:\n{}", header);
+
+    // Source implementations
+    assert!(source_cpp.contains("Super::Initialize(Collection)"),
+        "Should call Super::Initialize. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("Super::Deinitialize()"),
+        "Should call Super::Deinitialize. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("return true"),
+        "ShouldCreateSubsystem should return true. Source:\n{}", source_cpp);
+
+    // Should NOT have tick interface
+    assert!(!header.contains("FTickableGameObject"),
+        "Should NOT have FTickableGameObject without @tick. Header:\n{}", header);
+}
+
+#[test]
+fn test_subsystem_with_tick() {
+    let source = r#"
+@subsystem
+@tick
+struct FrameProfiler:
+    budget_ms: Float
+"#;
+
+    let output = compile_ue5(source).unwrap();
+    let header = &output.header;
+    let source_cpp = &output.source;
+
+    assert!(header.contains("UFrameProfilerSubsystem"),
+        "Should generate UFrameProfilerSubsystem. Header:\n{}", header);
+    assert!(header.contains("FTickableGameObject"),
+        "Should inherit FTickableGameObject with @tick. Header:\n{}", header);
+    assert!(header.contains("virtual void Tick(float DeltaTime) override"),
+        "Should declare Tick. Header:\n{}", header);
+    assert!(header.contains("GetStatId"),
+        "Should declare GetStatId. Header:\n{}", header);
+    assert!(header.contains("IsTickable"),
+        "Should declare IsTickable. Header:\n{}", header);
+
+    // Source should have tick implementations
+    assert!(source_cpp.contains("RETURN_QUICK_DECLARE_CYCLE_STAT"),
+        "Should have stat declaration. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("IsTickable"),
+        "Should implement IsTickable. Source:\n{}", source_cpp);
+}
+
+// ============================================================================
+// COMPONENT LIFECYCLE TESTS
+// ============================================================================
+
+#[test]
+fn test_component_with_tick() {
+    let source = r#"
+@component
+@tick
+struct MovementComponent:
+    speed: Float
+    direction: Vec3
+"#;
+    let output = compile_ue5(source).unwrap();
+    let header = &output.header;
+    let source_cpp = &output.source;
+    
+    // Header should have TickComponent declaration
+    assert!(header.contains("virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override"),
+        "Should declare TickComponent. Header:\n{}", header);
+    
+    // Constructor should enable ticking
+    assert!(source_cpp.contains("PrimaryComponentTick.bCanEverTick = true"),
+        "Should enable ticking in constructor. Source:\n{}", source_cpp);
+    
+    // Source should implement TickComponent
+    assert!(source_cpp.contains("UMovementComponent::TickComponent"),
+        "Should implement TickComponent. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("Super::TickComponent"),
+        "Should call Super::TickComponent. Source:\n{}", source_cpp);
+}
+
+#[test]
+fn test_component_with_beginplay() {
+    let source = r#"
+@component
+@beginplay
+struct InitComponent:
+    is_initialized: Bool
+"#;
+    let output = compile_ue5(source).unwrap();
+    let header = &output.header;
+    let source_cpp = &output.source;
+    
+    // Header should have BeginPlay declaration
+    assert!(header.contains("virtual void BeginPlay() override"),
+        "Should declare BeginPlay. Header:\n{}", header);
+    
+    // Source should implement BeginPlay
+    assert!(source_cpp.contains("UInitComponent::BeginPlay()"),
+        "Should implement BeginPlay. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("Super::BeginPlay()"),
+        "Should call Super::BeginPlay. Source:\n{}", source_cpp);
+}
+
+#[test]
+fn test_component_with_both_lifecycle_methods() {
+    let source = r#"
+@component
+@tick
+@beginplay
+struct FullLifecycleComponent:
+    value: Float
+"#;
+    let output = compile_ue5(source).unwrap();
+    let header = &output.header;
+    let source_cpp = &output.source;
+    
+    // Should have both declarations
+    assert!(header.contains("virtual void BeginPlay() override"),
+        "Should declare BeginPlay. Header:\n{}", header);
+    assert!(header.contains("virtual void TickComponent"),
+        "Should declare TickComponent. Header:\n{}", header);
+    
+    // Should have both implementations
+    assert!(source_cpp.contains("UFullLifecycleComponent::BeginPlay()"),
+        "Should implement BeginPlay. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("UFullLifecycleComponent::TickComponent"),
+        "Should implement TickComponent. Source:\n{}", source_cpp);
+    
+    // Should enable ticking
+    assert!(source_cpp.contains("PrimaryComponentTick.bCanEverTick = true"),
+        "Should enable ticking. Source:\n{}", source_cpp);
+    
+    // CRITICAL: No TODOs in generated code
+    assert!(!source_cpp.contains("TODO"),
+        "Generated code must not contain TODO stubs. Source:\n{}", source_cpp);
+}
+
+#[test]
+fn test_component_lifecycle_with_impl_body() {
+    let source = r#"
+@component
+@tick
+@beginplay
+struct PhysicsComponent:
+    velocity: Vec3
+    gravity: Float
+
+impl PhysicsComponent:
+    fn begin_play(self):
+        gravity = 9.81
+
+    fn tick(self, dt: Float):
+        velocity = velocity + vec3(0.0, 0.0, gravity) * dt
+"#;
+    let output = compile_ue5(source).unwrap();
+    let source_cpp = &output.source;
+    
+    // BeginPlay should contain the user's initialization code
+    assert!(source_cpp.contains("Super::BeginPlay()"),
+        "Should call Super::BeginPlay. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("9.81"),
+        "BeginPlay should contain gravity initialization from impl block. Source:\n{}", source_cpp);
+    
+    // TickComponent should contain the user's physics code
+    assert!(source_cpp.contains("Super::TickComponent"),
+        "Should call Super::TickComponent. Source:\n{}", source_cpp);
+    
+    // CRITICAL: No TODOs in generated code
+    assert!(!source_cpp.contains("TODO"),
+        "Generated code must not contain TODO stubs. Source:\n{}", source_cpp);
+}
+
+#[test]
+fn test_component_no_todo_without_impl() {
+    let source = r#"
+@component
+@tick
+@beginplay
+struct EmptyLifecycleComponent:
+    value: Float
+"#;
+    let output = compile_ue5(source).unwrap();
+    let source_cpp = &output.source;
+    
+    // Even without impl blocks, no TODOs should appear
+    assert!(!source_cpp.contains("TODO"),
+        "Generated code must never contain TODO stubs, even without impl blocks. Source:\n{}", source_cpp);
+    
+    // Should still have structurally complete Super calls
+    assert!(source_cpp.contains("Super::BeginPlay()"),
+        "Should call Super::BeginPlay even without impl body. Source:\n{}", source_cpp);
+    assert!(source_cpp.contains("Super::TickComponent"),
+        "Should call Super::TickComponent even without impl body. Source:\n{}", source_cpp);
+}
