@@ -462,6 +462,11 @@ impl Ue5EditorGen {
             self.header.push_line(&format!("#include \"{}EditorTypes.h\"", plugin_name));
             // Also include runtime plugin header so custom delegate typedefs are always visible.
             self.header.push_line(&format!("#include \"{}.h\"", plugin_name));
+            // Include generated delegate declarations when available.
+            // Use __has_include guard so projects without delegates don't fail includes.
+            self.header.push_line(&format!("#if __has_include(\"{}Delegates.h\")", plugin_name));
+            self.header.push_line(&format!("#include \"{}Delegates.h\"", plugin_name));
+            self.header.push_line("#endif");
         } else {
             // For modules and other types, include main plugin header
             self.header.push_line(&format!("#include \"{}.h\"", plugin_name));
@@ -1047,7 +1052,8 @@ impl Ue5EditorGen {
                     self.map_type(&field.ty)
                 };
                 let widget_name = format!("S{}", raw_name);
-                self.write_header(&format!("TSharedPtr<{}> ViewportWidget;", widget_name));
+                let _ = widget_name;
+                self.write_header("TSharedPtr<SWidget> ViewportWidget;");
                 emitted_viewport_member = true;
             } else if field_attrs.contains(&"details") && !emitted_details_member {
                 self.write_header("TSharedPtr<IDetailsView> DetailsView;");

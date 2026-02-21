@@ -666,8 +666,14 @@ impl Ue5Gen {
             current = &current[start + 1..];
             if let Some(end) = current.find('}') {
                 let ident = &current[..end];
-                fmt.push_str("%s");
-                args.push(format!("*LexToString({})", self.remap_ident(ident)));
+                let remapped = self.remap_pointer_member_access(&self.remap_ident(ident));
+                if self.is_enum_ident_name(ident) {
+                    fmt.push_str("%d");
+                    args.push(format!("static_cast<int32>({})", remapped));
+                } else {
+                    fmt.push_str("%s");
+                    args.push(format!("*LexToString({})", remapped));
+                }
                 current = &current[end + 1..];
             } else {
                 fmt.push('{');
@@ -679,6 +685,26 @@ impl Ue5Gen {
 
     fn remap_ident(&self, name: &str) -> String {
         self.context.remap_ident(name)
+    }
+
+    /// Convert `ptr.member` into `ptr->member` for raw-string interpolation placeholders.
+    /// This is intentionally conservative and only rewrites the first access segment.
+    fn remap_pointer_member_access(&self, expr: &str) -> String {
+        if let Some((head, tail)) = expr.split_once('.') {
+            if self.is_pointer_type_by_name(head) {
+                return format!("{}->{}", head, tail);
+            }
+        }
+        expr.to_string()
+    }
+
+    /// Best-effort enum detection for an identifier by name.
+    fn is_enum_ident_name(&self, name: &str) -> bool {
+        if let Some(type_name) = self.var_types.get(name) {
+            self.context.is_enum(type_name)
+        } else {
+            self.context.is_enum(name)
+        }
     }
 
     /// Check if an expression refers to a pointer type (component, actor, UObject-derived)
@@ -700,6 +726,32 @@ impl Ue5Gen {
             }
             _ => false,
         }
+    }
+
+    /// Register parameter types in the local type table for best-effort inference
+    /// (enum logging, pointer access, float modulo lowering).
+    fn register_param_types(&mut self, params: &[Param]) {
+        for p in params {
+            match &p.ty {
+                Type::Named { name, .. } => {
+                    self.var_types.insert(p.name.clone(), name.clone());
+                }
+                // Preserve primitive float information for `%` lowering.
+                Type::Ref { inner, .. } => {
+                    if let Type::Named { name, .. } = inner.as_ref() {
+                        self.var_types.insert(p.name.clone(), name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Execute codegen inside a temporary var type scope.
+    fn with_var_type_scope<F: FnOnce(&mut Self)>(&mut self, f: F) {
+        let saved = self.var_types.clone();
+        f(self);
+        self.var_types = saved;
     }
 
     /// Check if a variable name refers to a pointer type by looking up its KAIN type
@@ -1551,7 +1603,10 @@ impl Ue5Gen {
         
         // User defined begin_play logic
         if let Some(handler) = actor.handlers.iter().find(|h| h.message_type == "begin_play" || h.message_type == "BeginPlay") {
-            self.gen_block_source(&handler.body);
+            self.with_var_type_scope(|this| {
+                this.register_param_types(&handler.params);
+                this.gen_block_source(&handler.body);
+            });
         }
         
         self.source.push_line("}");
@@ -1569,7 +1624,10 @@ impl Ue5Gen {
                     self.context.add_ident_remap(param.name.clone(), "DeltaTime".to_string());
                 }
             }
-            self.gen_block_source(&handler.body);
+            self.with_var_type_scope(|this| {
+                this.register_param_types(&handler.params);
+                this.gen_block_source(&handler.body);
+            });
             self.context.clear_ident_remaps();
         }
 
@@ -1656,13 +1714,84 @@ impl Ue5Gen {
                 
                 eprintln!("   🔧 [CODEGEN] Generating AddPass call for: {} (file: {})", shader_name, shader_file_name);
                 
-                // Classify uniforms to split Scalars vs Textures params
-                let mut texture_args = Vec::new();
-                let mut scalar_args = Vec::new();
+                // Keep AddPass_* call argument order aligned with ue5-shaders helper signatures:
+                // scalars first, then textures/UAVs (same contract used by generated .h/.cpp wrappers).
+                let mut call_args: Vec<String> = Vec::new();
+                let mut has_output_texture_arg = false;
                 // POD population lines emitted just before the AddPass_ call.
                 let mut pod_prep_lines: Vec<String> = Vec::new();
-                
+
+                let mut ordered_uniforms: Vec<&kain_core::ast::Uniform> = Vec::new();
                 for uniform in &shader.ast.uniforms {
+                    let is_permutation_uniform = {
+                        let n = uniform.name.as_str();
+                        n.starts_with("CFG_")
+                            || n.starts_with("ENABLE_")
+                            || n.starts_with("USE_")
+                            || n.starts_with("WITH_")
+                            || n.starts_with("HAS_")
+                            || n.starts_with("ALLOW_")
+                            || n.starts_with("SUPPORT_")
+                    };
+                    if is_permutation_uniform {
+                        continue;
+                    }
+                    let is_texture = if let Type::Named { name, .. } = &uniform.ty {
+                        matches!(
+                            name.as_str(),
+                            "Sampler2D"
+                                | "Texture2D"
+                                | "RWTexture2D"
+                                | "Texture3D"
+                                | "RWTexture3D"
+                                | "Buffer"
+                                | "RWBuffer"
+                                | "TextureCube"
+                                | "RWTextureCube"
+                        )
+                    } else {
+                        false
+                    };
+                    if !is_texture {
+                        ordered_uniforms.push(uniform);
+                    }
+                }
+                for uniform in &shader.ast.uniforms {
+                    let is_permutation_uniform = {
+                        let n = uniform.name.as_str();
+                        n.starts_with("CFG_")
+                            || n.starts_with("ENABLE_")
+                            || n.starts_with("USE_")
+                            || n.starts_with("WITH_")
+                            || n.starts_with("HAS_")
+                            || n.starts_with("ALLOW_")
+                            || n.starts_with("SUPPORT_")
+                    };
+                    if is_permutation_uniform {
+                        continue;
+                    }
+                    let is_texture = if let Type::Named { name, .. } = &uniform.ty {
+                        matches!(
+                            name.as_str(),
+                            "Sampler2D"
+                                | "Texture2D"
+                                | "RWTexture2D"
+                                | "Texture3D"
+                                | "RWTexture3D"
+                                | "Buffer"
+                                | "RWBuffer"
+                                | "TextureCube"
+                                | "RWTextureCube"
+                        )
+                    } else {
+                        false
+                    };
+                    if is_texture {
+                        ordered_uniforms.push(uniform);
+                    }
+                }
+                
+                for uniform in ordered_uniforms {
                     let is_permutation_uniform = {
                         let n = uniform.name.as_str();
                         n.starts_with("CFG_")
@@ -1700,18 +1829,20 @@ impl Ue5Gen {
                          let mut matched_texture = false;
                          if name_lower.contains("position") {
                              if name_lower.contains("output") || name_lower.contains("write") {
-                                texture_args.push("PositionOutput".to_string());
+                                call_args.push("PositionOutput".to_string());
+                                has_output_texture_arg = true;
                              } else {
-                                texture_args.push("PositionInput".to_string());
+                                call_args.push("PositionInput".to_string());
                              }
                              matched_texture = true;
                          } else if name_lower.contains("velocity") {
-                             if name_lower.contains("output") || name_lower.contains("write") {
-                                texture_args.push("VelocityOutput".to_string());
-                             } else {
-                                texture_args.push("VelocityInput".to_string());
-                             }
-                             matched_texture = true;
+                            if name_lower.contains("output") || name_lower.contains("write") {
+                               call_args.push("VelocityOutput".to_string());
+                               has_output_texture_arg = true;
+                            } else {
+                               call_args.push("VelocityInput".to_string());
+                            }
+                            matched_texture = true;
                          } else {
                              // For fragment shaders with Sampler2D uniforms, try to match to intermediate RTs
                              // Pattern: thermal -> ThermalRT, moisture -> MoistureRT, albedo -> AlbedoRT, etc.
@@ -1720,7 +1851,10 @@ impl Ue5Gen {
                              // Check if this intermediate RT was created
                              if needed_intermediates.contains(&uniform.name) {
                                  eprintln!("   ✅ [CODEGEN] Mapped texture uniform '{}' to intermediate RT '{}'", uniform.name, &rt_name);
-                                 texture_args.push(rt_name);
+                                 if rt_name.contains("Output") {
+                                     has_output_texture_arg = true;
+                                 }
+                                 call_args.push(rt_name);
                                  matched_texture = true;
                              }
                          }
@@ -1729,7 +1863,8 @@ impl Ue5Gen {
                              // For unmatched texture uniforms, use PositionOutput as a generic fallback
                              // This allows fragment shaders to compile even without explicit RT mappings
                              eprintln!("   ⚠️  [CODEGEN] Texture uniform '{}' has no matching RT, using PositionOutput as fallback", uniform.name);
-                             texture_args.push("PositionOutput".to_string());
+                             call_args.push("PositionOutput".to_string());
+                             has_output_texture_arg = true;
                          }
                     } else {
                         // Check first if this uniform is a @component type that needs a POD mirror.
@@ -1776,7 +1911,7 @@ impl Ue5Gen {
                             pod_prep_lines.push(
                                 mirror.generate_population_code(&state_var, &pod_var, "\t\t\t")
                             );
-                            scalar_args.push(pod_var);
+                            call_args.push(pod_var);
                         } else {
                         // Scalar Param - Modular exact name matching with common aliases
                         let mut found_match = false;
@@ -1806,14 +1941,14 @@ impl Ue5Gen {
                                  };
 
                                  if !cast.is_empty() {
-                                     scalar_args.push(format!("{}(this->{})", cast, state.name));
-                                 } else if is_enum {
-                                     scalar_args.push(format!("static_cast<int32>(this->{})", state.name));
-                                 } else {
-                                     scalar_args.push(format!("this->{}", state.name));
-                                 }
-                                 found_match = true;
-                                 break;
+                                    call_args.push(format!("{}(this->{})", cast, state.name));
+                                } else if is_enum {
+                                    call_args.push(format!("static_cast<int32>(this->{})", state.name));
+                                } else {
+                                    call_args.push(format!("this->{}", state.name));
+                                }
+                                found_match = true;
+                                break;
                              }
                         }
                         if !found_match {
@@ -1825,7 +1960,7 @@ impl Ue5Gen {
                                  "FIntVector" => "FIntVector(0, 0, 0)".to_string(),
                                  _ => "0.0f".to_string()
                              };
-                             scalar_args.push(fallback);
+                             call_args.push(fallback);
                         }
                         } // end scalar (non-component) branch
                     }
@@ -1841,31 +1976,27 @@ impl Ue5Gen {
                     // Sampler2D`). Only apply the name-heuristic fallback when the loop
                     // didn't already add ANY output/RT texture — prevents duplicate args that
                     // cause a C++ "too many arguments" error on the AddPass_ call site.
-                    // Only check for "Output" suffix - input textures ending in "RT" should not prevent output texture generation
-                    let already_has_output = texture_args.iter()
-                        .any(|a| a.contains("Output"));
-
-                    if !already_has_output {
+                    if !has_output_texture_arg {
                         let shader_name_lower = shader_name.to_lowercase();
                         if shader_name_lower.contains("position") {
-                            texture_args.push("PositionOutput".to_string());
+                            call_args.push("PositionOutput".to_string());
                         } else if shader_name_lower.contains("velocity") {
-                            texture_args.push("VelocityOutput".to_string());
+                            call_args.push("VelocityOutput".to_string());
                         } else if shader_name_lower.contains("thermal") {
-                            texture_args.push("ThermalRT".to_string());
+                            call_args.push("ThermalRT".to_string());
                         } else if shader_name_lower.contains("moisture") {
-                            texture_args.push("MoistureRT".to_string());
+                            call_args.push("MoistureRT".to_string());
                         } else if shader_name_lower.contains("albedo") {
-                            texture_args.push("AlbedoRT".to_string());
+                            call_args.push("AlbedoRT".to_string());
                         } else if shader_name_lower.contains("lights") || shader_name_lower.contains("city") {
-                            texture_args.push("LightsRT".to_string());
+                            call_args.push("LightsRT".to_string());
                         } else {
-                            texture_args.push("PositionOutput".to_string());
+                            call_args.push("PositionOutput".to_string());
                         }
                     }
                     
                     // GroupCount is always the final arg for compute shaders
-                    texture_args.push("FIntVector(32, 32, 1)".to_string());
+                    call_args.push("FIntVector(32, 32, 1)".to_string());
                 }
                 
                 // Don't add nullptr for output textures - the shader functions don't expect them
@@ -1886,7 +2017,7 @@ impl Ue5Gen {
                 }
                 
                 // Use shader_file_name (from toml) instead of AST name to preserve correct casing
-                self.source.push_line(&format!("\t\t\tAddPass_{}(GraphBuilder, {});", shader_file_name, [scalar_args, texture_args].concat().join(", ")));
+                self.source.push_line(&format!("\t\t\tAddPass_{}(GraphBuilder, {});", shader_file_name, call_args.join(", ")));
 
                 if needs_scope {
                     self.source.push_line("\t\t\t}");
@@ -2004,7 +2135,10 @@ impl Ue5Gen {
         self.write_source(&format!("{} {}::{}({})", ret_type, class_name, method_name, params));
         self.write_source("{");
         self.push_indent();
-        self.gen_block_source(&handler.body);
+        self.with_var_type_scope(|this| {
+            this.register_param_types(&handler.params);
+            this.gen_block_source(&handler.body);
+        });
         self.pop_indent();
         self.write_source("}");
         self.write_blank_source();
@@ -2258,7 +2392,10 @@ impl Ue5Gen {
         
         self.write_source("{");
         self.push_indent();
-        self.gen_block_source(&method.body);
+        self.with_var_type_scope(|this| {
+            this.register_param_types(&method.params);
+            this.gen_block_source(&method.body);
+        });
         self.pop_indent();
         self.write_source("}");
         self.write_blank_source();
@@ -2643,7 +2780,10 @@ impl Ue5Gen {
             self.write_source(&format!("{} {}::{}({})", ret_type, class_name, func.name, self.gen_params(&func.params)));
             self.write_source("{");
             self.push_indent();
-            self.gen_block_source_with_implicit_return(&func.body, has_return);
+            self.with_var_type_scope(|this| {
+                this.register_param_types(&func.params);
+                this.gen_block_source_with_implicit_return(&func.body, has_return);
+            });
             self.pop_indent();
             self.write_source("}");
             self.write_blank_source();
@@ -2662,7 +2802,10 @@ impl Ue5Gen {
             self.write_source(&format!("{} {}({})", ret_type, func.name, params));
             self.write_source("{");
             self.push_indent();
-            self.gen_block_source_with_implicit_return(&func.body, has_return);
+            self.with_var_type_scope(|this| {
+                this.register_param_types(&func.params);
+                this.gen_block_source_with_implicit_return(&func.body, has_return);
+            });
             self.pop_indent();
             self.write_source("}");
             self.write_blank_source();
@@ -2827,6 +2970,10 @@ impl Ue5Gen {
         match stmt {
             Stmt::Let { pattern, ty, value, .. } => {
                 if let Pattern::Binding { name, mutable, .. } = pattern {
+                    if let Some(Type::Named { name: ty_name, .. }) = ty {
+                        self.var_types.insert(name.clone(), ty_name.clone());
+                    }
+
                     let ty_str = ty.as_ref()
                         .map(|t| self.map_type(t))
                         .unwrap_or_else(|| "auto".to_string());
@@ -2889,6 +3036,11 @@ impl Ue5Gen {
             }
 
             Stmt::Expr(expr) => {
+                if let Expr::Ident(name, _) = expr {
+                    if name == "pass" {
+                        return;
+                    }
+                }
                 if let Expr::If { condition, then_branch, else_branch, .. } = expr {
                     self.gen_if_stmt(condition, then_branch, else_branch);
                 } else if let Expr::Assign { target, value, .. } = expr {
@@ -2982,6 +3134,7 @@ impl Ue5Gen {
     fn gen_else_if_return_continuation(&mut self, else_branch: &ElseBranch) {
         match else_branch {
             ElseBranch::Else(block) => {
+                self.write_source("}");
                 self.write_source("else");
                 self.write_source("{");
                 self.push_indent();
@@ -2990,6 +3143,7 @@ impl Ue5Gen {
                 self.write_source("}");
             }
             ElseBranch::ElseIf(cond, block, next_else) => {
+                self.write_source("}");
                 self.write_source(&format!("else if ({})", self.gen_expr(cond)));
                 self.write_source("{");
                 self.push_indent();
@@ -3047,10 +3201,15 @@ impl Ue5Gen {
                         }
                         _ => {
                             let expr_code = self.gen_expr(part);
-                            // Determine format specifier based on expression
-                            // For now use %s with LexToString for general case
-                            fmt_str.push_str("%s");
-                            fmt_args.push(format!("*LexToString({})", expr_code));
+                            if self.is_enum_expr(part) {
+                                fmt_str.push_str("%d");
+                                fmt_args.push(format!("static_cast<int32>({})", expr_code));
+                            } else {
+                                // Determine format specifier based on expression
+                                // For now use %s with LexToString for general case
+                                fmt_str.push_str("%s");
+                                fmt_args.push(format!("*LexToString({})", expr_code));
+                            }
                         }
                     }
                 }
@@ -3462,6 +3621,20 @@ impl Ue5Gen {
                 let has_assignment = arms.iter().any(|arm| {
                     matches!(&arm.body, Expr::Assign { .. })
                 });
+                // Also force statement mode when arm bodies are block/flow/no-op forms
+                // that cannot be represented as a valid C++ ternary expression.
+                let has_statement_arms = arms.iter().any(|arm| {
+                    match &arm.body {
+                        Expr::Block(_, _)
+                        | Expr::If { .. }
+                        | Expr::Match { .. }
+                        | Expr::Return(_, _)
+                        | Expr::Break(_, _)
+                        | Expr::Continue(_) => true,
+                        Expr::Ident(name, _) => name == "pass",
+                        _ => false,
+                    }
+                });
                 
                 // Detect if the match can be represented as ternary (simple patterns only)
                 let has_complex_patterns = arms.iter().any(|arm| {
@@ -3477,15 +3650,41 @@ impl Ue5Gen {
                 let scrut = self.gen_expr(scrutinee);
                 
                 // If arms contain assignments, generate as statement-level if/else
-                if has_assignment {
+                if has_assignment || has_statement_arms {
                     // Generate if/else chain for assignments
                     let mut result = String::new();
                     let mut first = true;
+                    let mut emit_arm_body = |body: &Expr| -> String {
+                        match body {
+                            Expr::Assign { target, value, .. } => {
+                                format!("{} = {}; ", self.gen_expr(target), self.gen_expr(value))
+                            }
+                            Expr::Block(block, _) => {
+                                let mut out = String::new();
+                                for stmt in &block.stmts {
+                                    match stmt {
+                                        Stmt::Expr(e) => {
+                                            let s = self.gen_expr(e);
+                                            if !s.is_empty() && s != "pass" {
+                                                out.push_str(&format!("{}; ", s));
+                                            }
+                                        }
+                                        Stmt::Return(Some(e), _) => {
+                                            out.push_str(&format!("return {}; ", self.gen_expr(e)));
+                                        }
+                                        Stmt::Return(None, _) => out.push_str("return; "),
+                                        _ => {}
+                                    }
+                                }
+                                out
+                            }
+                            Expr::Ident(name, _) if name == "pass" => String::new(),
+                            Expr::Ident(name, _) => format!("{}; ", name),
+                            _ => format!("{}; ", self.gen_expr(body)),
+                        }
+                    };
                     
                     for arm in arms {
-                        let is_wildcard = matches!(&arm.pattern, Pattern::Wildcard(_)) || 
-                            matches!(&arm.pattern, Pattern::Binding { name, .. } if name == "_");
-                        
                         match &arm.pattern {
                             Pattern::Wildcard(_) => {
                                 // Default case
@@ -3493,11 +3692,7 @@ impl Ue5Gen {
                                     result.push_str(" else ");
                                 }
                                 result.push_str("{ ");
-                                if let Expr::Assign { target, value, .. } = &arm.body {
-                                    result.push_str(&format!("{} = {}; ", self.gen_expr(target), self.gen_expr(value)));
-                                } else {
-                                    result.push_str(&format!("{}; ", self.gen_expr(&arm.body)));
-                                }
+                                result.push_str(&emit_arm_body(&arm.body));
                                 result.push_str("}");
                             }
                             Pattern::Binding { name, .. } if name == "_" => {
@@ -3506,11 +3701,7 @@ impl Ue5Gen {
                                     result.push_str(" else ");
                                 }
                                 result.push_str("{ ");
-                                if let Expr::Assign { target, value, .. } = &arm.body {
-                                    result.push_str(&format!("{} = {}; ", self.gen_expr(target), self.gen_expr(value)));
-                                } else {
-                                    result.push_str(&format!("{}; ", self.gen_expr(&arm.body)));
-                                }
+                                result.push_str(&emit_arm_body(&arm.body));
                                 result.push_str("}");
                             }
                             Pattern::Variant { enum_name, variant, .. } => {
@@ -3528,11 +3719,7 @@ impl Ue5Gen {
                                 }
                                 
                                 result.push_str("{ ");
-                                if let Expr::Assign { target, value, .. } = &arm.body {
-                                    result.push_str(&format!("{} = {}; ", self.gen_expr(target), self.gen_expr(value)));
-                                } else {
-                                    result.push_str(&format!("{}; ", self.gen_expr(&arm.body)));
-                                }
+                                result.push_str(&emit_arm_body(&arm.body));
                                 result.push_str("}");
                             }
                             Pattern::Literal(lit) => {
@@ -3546,11 +3733,7 @@ impl Ue5Gen {
                                 }
                                 
                                 result.push_str("{ ");
-                                if let Expr::Assign { target, value, .. } = &arm.body {
-                                    result.push_str(&format!("{} = {}; ", self.gen_expr(target), self.gen_expr(value)));
-                                } else {
-                                    result.push_str(&format!("{}; ", self.gen_expr(&arm.body)));
-                                }
+                                result.push_str(&emit_arm_body(&arm.body));
                                 result.push_str("}");
                             }
                             Pattern::Binding { name, .. } => {
@@ -3562,11 +3745,7 @@ impl Ue5Gen {
                                 }
                                 
                                 result.push_str("{ ");
-                                if let Expr::Assign { target, value, .. } = &arm.body {
-                                    result.push_str(&format!("{} = {}; ", self.gen_expr(target), self.gen_expr(value)));
-                                } else {
-                                    result.push_str(&format!("{}; ", self.gen_expr(&arm.body)));
-                                }
+                                result.push_str(&emit_arm_body(&arm.body));
                                 result.push_str("}");
                             }
                             _ => {
