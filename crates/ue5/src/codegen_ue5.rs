@@ -74,7 +74,7 @@ pub struct Ue5Output {
 /// New code should use `generate()` which accepts MonomorphizedProgram.
 pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
     let module_name = output_name.unwrap_or("Kain");
-    generate_filtered_typed(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
+    generate_filtered_typed(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None, false)
 }
 
 /// Generate UE5 C++ code from a monomorphized program
@@ -327,8 +327,38 @@ pub fn generate_filtered(
 /// Legacy function for compatibility with TypedProgram (packager)
 /// 
 /// # Note
+/// Generate UE5 C++ code from a typed program with optional filtering and KAIN source markers.
+/// 
 /// This is for the packager which still works with TypedProgram.
 /// The packager converts MonomorphizedProgram back to TypedProgram after monomorphization.
+/// 
+/// # Parameters
+/// * `program` - The typed program to generate code from
+/// * `module_name` - Name of the UE5 module
+/// * `output_name` - Optional output name override
+/// * `target_item` - Optional specific item to generate (for modular output)
+/// * `copyright` - Optional copyright header
+/// * `type_to_header` - Map of type names to their header files
+/// * `shader_file_names` - Optional list of shader file names
+/// * `embed_kain` - If true, embeds original KAIN source as comments in generated C++ for round-trip compilation
+/// 
+/// # Round-Trip Compilation
+/// When `embed_kain` is true, the generated C++ includes KAIN source markers:
+/// ```cpp
+/// // KAIN_BEGIN: actor Player
+/// // KAIN: actor Player:
+/// // KAIN:     state health: Float = 100.0
+/// class APlayer : public AActor { ... }
+/// // KAIN_END: actor Player
+/// ```
+/// 
+/// These markers enable:
+/// - Extracting KAIN source from compiled plugins (`cpp_to_kain.py`)
+/// - Validating codegen determinism (round-trip testing)
+/// - Generating LLM training examples from working plugins
+/// - Debugging what KAIN generated for specific C++ patterns
+/// 
+/// See `Kain/tools/ROUND_TRIP_README.md` for usage details.
 pub fn generate_filtered_typed(
     program: &TypedProgram, 
     module_name: &str,
@@ -337,9 +367,15 @@ pub fn generate_filtered_typed(
     copyright: Option<&str>,
     type_to_header: std::collections::HashMap<String, String>,
     shader_file_names: Option<Vec<String>>,
+    embed_kain: bool,
 ) -> KainResult<Ue5Output> {
     let mut gen = Ue5Gen::new(module_name, output_name, copyright, target_item, type_to_header.clone());
     gen.shader_file_names = shader_file_names.unwrap_or_default();
+    
+    // Enable KAIN markers if requested
+    if embed_kain {
+        gen.context.enable_markers(crate::ue5::MarkerStyle::Block);
+    }
     
     // PRE-PASS: Register all types
     for item in &program.items {
@@ -1431,8 +1467,65 @@ impl Ue5Gen {
             self.write_source(&format!("IMPLEMENT_MODULE(F{}Module, {})", self.context.output_name, self.context.output_name));
         }
         
-        // Return separate files including shaders
+        // Return separate files including shaders and other auxiliary generated artifacts.
+        // NOTE: `shader_files` is currently the generic sidecar file channel consumed by
+        // callers, so async/state-machine artifacts are emitted here as well.
         let mut shader_files = Vec::new();
+
+        // Generate state machine artifacts
+        for item in program.items() {
+            if let TypedItem::StateMachine(state_machine_def) = item {
+                // In sliced mode, only emit artifacts for the requested target item.
+                if let Some(target) = &self.target_item {
+                    if &state_machine_def.name != target {
+                        continue;
+                    }
+                }
+
+                match crate::state_machine_ir::convert_to_state_machine_ir(state_machine_def, &self.context) {
+                    Ok(ir) => {
+                        let output = crate::state_machine_codegen::generate_state_machine_code(&ir, &self.module_name);
+                        shader_files.push((format!("{}.h", ir.name), output.header));
+                        shader_files.push((format!("{}.cpp", ir.name), output.source));
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to generate state machine code for {}: {}",
+                            state_machine_def.name, e
+                        );
+                    }
+                }
+            }
+        }
+
+        // Generate async task artifacts
+        for item in program.items() {
+            if let TypedItem::AsyncTask(async_task_def) = item {
+                // In sliced mode, only emit artifacts for the requested target item.
+                if let Some(target) = &self.target_item {
+                    if &async_task_def.name != target {
+                        continue;
+                    }
+                }
+
+                match crate::async_task_ir::convert_to_async_task_ir(async_task_def, &self.context) {
+                    Ok(ir) => {
+                        let task_name = ir.task_name.clone();
+                        let output = crate::async_task_codegen::generate_async_task_code(&ir, &self.module_name);
+                        shader_files.push((format!("{}.h", task_name), output.task_header));
+                        shader_files.push((format!("{}.cpp", task_name), output.task_source));
+                        shader_files.push((format!("{}TaskQueue.h", task_name), output.queue_header));
+                        shader_files.push((format!("{}TaskQueue.cpp", task_name), output.queue_source));
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to generate async task code for {}: {}",
+                            async_task_def.name, e
+                        );
+                    }
+                }
+            }
+        }
         
         // Generate USF files for each shader
         // Note: Shader codegen still uses TypedProgram, so we create a temporary one
@@ -1513,6 +1606,14 @@ impl Ue5Gen {
         eprintln!("   📊 Shaders: {} (file names: {})", shaders.len(), shader_file_names.len());
         
         // --- 1. Header Generation ---
+        
+        // KAIN MARKER: Embed original KAIN source as comment (if enabled)
+        if self.context.marker_config.style != crate::ue5::MarkerStyle::None {
+            let marker = crate::ue5::kain_markers::actor_marker(actor, &self.context.marker_config);
+            if !marker.is_empty() {
+                self.write_header(&marker);
+            }
+        }
         
         // Get interface inheritance list
         let interface_list = self.context.get_interface_list(&actor.name);
@@ -1642,6 +1743,15 @@ impl Ue5Gen {
         }
 
         self.pop_indent();
+        
+        // KAIN MARKER: End marker for actor (if enabled)
+        if self.context.marker_config.style != crate::ue5::MarkerStyle::None {
+            let end_marker = crate::ue5::kain_markers::actor_end_marker(actor, &self.context.marker_config);
+            if !end_marker.is_empty() {
+                self.write_header(&end_marker);
+            }
+        }
+        
         self.write_header("};");
         self.write_blank_header();
         
@@ -2612,6 +2722,14 @@ impl Ue5Gen {
         
         let struct_name = to_struct_name(&struct_def.name);
         
+        // KAIN MARKER: Embed original KAIN source (if enabled)
+        if self.context.marker_config.style != crate::ue5::MarkerStyle::None {
+            let marker = crate::ue5::kain_markers::struct_marker(struct_def, &self.context.marker_config);
+            if !marker.is_empty() {
+                self.write_header(&marker);
+            }
+        }
+        
         let is_datatable = struct_def.attributes.iter().any(|a| a.name == "datatable");
         let is_blueprint_type = true; // All KAIN structs are BlueprintType by default
         
@@ -2634,6 +2752,15 @@ impl Ue5Gen {
         }
 
         self.pop_indent();
+        
+        // KAIN MARKER: End marker for struct (if enabled)
+        if self.context.marker_config.style != crate::ue5::MarkerStyle::None {
+            let end_marker = crate::ue5::kain_markers::struct_end_marker(struct_def, &self.context.marker_config);
+            if !end_marker.is_empty() {
+                self.write_header(&end_marker);
+            }
+        }
+        
         self.write_header("};");
     }
 
@@ -3242,6 +3369,14 @@ impl Ue5Gen {
     fn gen_uenum(&mut self, enum_def: &Enum) {
         // Track enum name
         self.context.register_enum(enum_def.name.clone(), format!("{}.h", self.context.output_name));
+        
+        // KAIN MARKER: Embed original KAIN source (if enabled)
+        if self.context.marker_config.style != crate::ue5::MarkerStyle::None {
+            let marker = crate::ue5::kain_markers::enum_marker(enum_def, &self.context.marker_config);
+            if !marker.is_empty() {
+                self.write_header(&marker);
+            }
+        }
         
         // Check if simple enum (all Unit variants)
         let is_simple = enum_def.variants.iter().all(|v| matches!(v.fields, VariantFields::Unit));

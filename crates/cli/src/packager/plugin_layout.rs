@@ -1,4 +1,5 @@
 use std::fs;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use crate::error::{KainError, KainResult};
 use super::config::Ue5Config;
@@ -15,6 +16,10 @@ pub struct PluginLayout {
     pub needs_split: bool,
     pub has_editor_items: bool,
     pub has_runtime_items: bool,
+    /// Data-driven module directory map: module name -> (public_dir, private_dir)
+    ///
+    /// Empty in legacy mode (no ue5.modules config).
+    pub module_dirs: HashMap<String, (PathBuf, PathBuf)>,
 }
 
 /// Detect whether the program has editor-specific items (Slate, Details, Viewport, etc.)
@@ -68,6 +73,76 @@ pub fn setup(
     };
     let source_dir = plugin_root.join("Source");
     let shaders_dir = plugin_root.join("Shaders");
+
+    // Data-driven module plan mode
+    if config.has_module_plan() {
+        let mut module_dirs: HashMap<String, (PathBuf, PathBuf)> = HashMap::new();
+        for module in &config.modules {
+            let base_dir = source_dir.join(&module.name);
+            let public_dir = module.output.public.clone().map(|p| {
+                if p.is_absolute() { p } else { plugin_root.join(p) }
+            }).unwrap_or_else(|| base_dir.join("Public"));
+            let private_dir = module.output.private.clone().map(|p| {
+                if p.is_absolute() { p } else { plugin_root.join(p) }
+            }).unwrap_or_else(|| base_dir.join("Private"));
+
+            fs::create_dir_all(&public_dir).map_err(|e| KainError::Io(e))?;
+            fs::create_dir_all(&private_dir).map_err(|e| KainError::Io(e))?;
+            module_dirs.insert(module.name.clone(), (public_dir, private_dir));
+        }
+        fs::create_dir_all(&shaders_dir).map_err(|e| KainError::Io(e))?;
+
+        let has_runtime_items = config.modules.iter().any(|m| {
+            matches!(m.module_type, super::config::Ue5ModuleType::Runtime)
+        });
+        let has_editor_items = config.modules.iter().any(|m| m.module_type.is_editorish());
+        let needs_split = has_runtime_items && has_editor_items;
+
+        // Select primary runtime dirs for existing generation flow.
+        let runtime_module_name = config.modules.iter()
+            .find(|m| matches!(m.module_type, super::config::Ue5ModuleType::Runtime) && m.name == config.plugin_name)
+            .or_else(|| config.modules.iter().find(|m| matches!(m.module_type, super::config::Ue5ModuleType::Runtime)))
+            .map(|m| m.name.clone())
+            .or_else(|| config.modules.first().map(|m| m.name.clone()))
+            .ok_or_else(|| KainError::runtime("ue5.modules is configured but empty".to_string()))?;
+
+        let (public_dir, private_dir) = module_dirs
+            .get(&runtime_module_name)
+            .cloned()
+            .ok_or_else(|| KainError::runtime(format!("Primary module '{}' has no resolved directories", runtime_module_name)))?;
+
+        // Select primary editor dirs if any
+        let editor_module_name = config.modules.iter()
+            .find(|m| m.module_type.is_editorish() && m.name == format!("{}Editor", config.plugin_name))
+            .or_else(|| config.modules.iter().find(|m| m.module_type.is_editorish()))
+            .map(|m| m.name.clone());
+
+        let (editor_public_dir, editor_private_dir) = if let Some(name) = editor_module_name {
+            if let Some((ed_pub, ed_priv)) = module_dirs.get(&name) {
+                (Some(ed_pub.clone()), Some(ed_priv.clone()))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        println!("📦 Multi-module layout: {} module(s)", config.modules.len());
+
+        return Ok(PluginLayout {
+            plugin_root,
+            source_dir,
+            shaders_dir,
+            public_dir,
+            private_dir,
+            editor_public_dir,
+            editor_private_dir,
+            needs_split,
+            has_editor_items,
+            has_runtime_items,
+            module_dirs,
+        });
+    }
     
     // Detect runtime vs editor items EARLY for two-module split decision
     // Graph editors are editor-only items
@@ -138,6 +213,7 @@ pub fn setup(
         needs_split,
         has_editor_items,
         has_runtime_items,
+        module_dirs: HashMap::new(),
     })
 }
 
@@ -200,5 +276,6 @@ pub fn detect_existing(plugin_root: &Path, plugin_name: &str) -> KainResult<Plug
         needs_split,
         has_editor_items,
         has_runtime_items,
+        module_dirs: HashMap::new(),
     })
 }

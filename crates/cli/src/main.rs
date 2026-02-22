@@ -99,6 +99,10 @@ enum Commands {
         /// Build UE5 plugin from KAIN.toml [ue5] config
         #[arg(long)]
         ue5: bool,
+        
+        /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
+        #[arg(long)]
+        embed: bool,
     },
     
     /// Run a file (explicit command)
@@ -534,10 +538,10 @@ fn main() {
                     lsp::run_server().await;
                 });
             }
-            Some(Commands::Build { input, targets, ue5 }) => {
+            Some(Commands::Build { input, targets, ue5, embed }) => {
                 if ue5 {
                     // UE5 plugin build
-                    if let Err(e) = packager::build_ue5_plugin() {
+                    if let Err(e) = packager::build_ue5_plugin_with_options(embed) {
                         eprintln!(" UE5 plugin build failed: {}", e);
                         std::process::exit(1);
                     }

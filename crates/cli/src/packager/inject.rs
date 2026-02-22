@@ -92,6 +92,7 @@ pub fn inject_into_plugin(
         modular_output: true,  // Always use modular for injection
         stdlib_path: None,     // No stdlib for injection
         engine_version: None,  // Use default (5.2)
+        modules: Vec::new(),
     };
     
     // STEP 8: Setup plugin layout (detect existing structure)
@@ -419,6 +420,7 @@ fn generate_injection_files(
             config.copyright.as_deref(),
             type_headers.clone(),
             None,
+            false,
         ) {
             Ok(ue5_output) => {
                 // Add header

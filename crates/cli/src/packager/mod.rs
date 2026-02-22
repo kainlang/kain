@@ -16,7 +16,7 @@ pub mod cpp_validator;
 // Re-export public API to maintain backward compatibility
 pub use config::*;
 pub use build::build_project;
-pub use ue5_pipeline::build_ue5_plugin;
+pub use ue5_pipeline::{build_ue5_plugin, build_ue5_plugin_with_options};
 pub use registry::{add_dependency, install_all};
 pub use inject::inject_into_plugin;
 
@@ -80,6 +80,12 @@ pub fn load_manifest(path: &PathBuf) -> KainResult<PackageManifest> {
     let content = fs::read_to_string(&manifest_path).map_err(|e| KainError::Io(e))?;
     let manifest: PackageManifest = toml::from_str(&content)
         .map_err(|e| KainError::runtime(format!("Failed to parse KAIN.toml: {}", e)))?;
+
+    if let Some(ref ue5) = manifest.ue5 {
+        ue5.validate_module_configs().map_err(|e| {
+            KainError::runtime(format!("Invalid [ue5.modules] configuration: {}", e))
+        })?;
+    }
     
     Ok(manifest)
 }

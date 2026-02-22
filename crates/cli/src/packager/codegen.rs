@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use chrono::Datelike;
+use serde::Serialize;
 use crate::error::{KainError, KainResult};
 use super::config::Ue5Config;
 use super::plugin_layout::PluginLayout;
@@ -9,6 +10,207 @@ use super::plugin_layout::PluginLayout;
 extern crate ue5;
 extern crate ue5_editor;
 extern crate ue5_shaders;
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SymbolRoutingManifest {
+    pub symbol_owner: HashMap<String, String>,
+    pub symbol_header: HashMap<String, String>,
+}
+
+impl SymbolRoutingManifest {
+    fn register(&mut self, symbol: &str, module: &str, include_path: &str) {
+        self.symbol_owner.insert(symbol.to_string(), module.to_string());
+        self.symbol_header
+            .insert(symbol.to_string(), include_path.replace('\\', "/"));
+    }
+
+    fn extend_from(&mut self, other: &SymbolRoutingManifest) {
+        for (k, v) in &other.symbol_owner {
+            self.symbol_owner.insert(k.clone(), v.clone());
+        }
+        for (k, v) in &other.symbol_header {
+            self.symbol_header.insert(k.clone(), v.clone());
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ItemRoute {
+    module_name: String,
+    public_dir: PathBuf,
+    private_dir: PathBuf,
+    include_prefix: String,
+}
+
+fn normalize_path_for_match(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn wildcard_match(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let t: Vec<char> = text.chars().collect();
+    let (mut pi, mut ti, mut star_idx, mut match_idx) = (0usize, 0usize, None::<usize>, 0usize);
+
+    while ti < t.len() {
+        if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
+            pi += 1;
+            ti += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star_idx = Some(pi);
+            match_idx = ti;
+            pi += 1;
+        } else if let Some(star) = star_idx {
+            pi = star + 1;
+            match_idx += 1;
+            ti = match_idx;
+        } else {
+            return false;
+        }
+    }
+
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+fn source_matches_glob(source_path: &Path, glob: &Path) -> bool {
+    let source = normalize_path_for_match(source_path);
+    let pat = normalize_path_for_match(glob);
+    wildcard_match(&pat, &source)
+}
+
+fn default_runtime_module_name(config: &Ue5Config) -> Option<String> {
+    config
+        .modules
+        .iter()
+        .find(|m| {
+            matches!(m.module_type, super::config::Ue5ModuleType::Runtime) && m.name == config.plugin_name
+        })
+        .or_else(|| {
+            config
+                .modules
+                .iter()
+                .find(|m| matches!(m.module_type, super::config::Ue5ModuleType::Runtime))
+        })
+        .or_else(|| config.modules.first())
+        .map(|m| m.name.clone())
+}
+
+fn default_editor_module_name(config: &Ue5Config) -> Option<String> {
+    config
+        .modules
+        .iter()
+        .find(|m| m.module_type.is_editorish() && m.name == format!("{}Editor", config.plugin_name))
+        .or_else(|| config.modules.iter().find(|m| m.module_type.is_editorish()))
+        .map(|m| m.name.clone())
+}
+
+fn resolve_item_module(
+    config: &Ue5Config,
+    symbol_name: &str,
+    is_editor_item: bool,
+    symbol_source_map: &HashMap<String, PathBuf>,
+) -> Option<String> {
+    if !config.has_module_plan() {
+        return None;
+    }
+
+    let source_path = symbol_source_map.get(symbol_name);
+    if let Some(src) = source_path {
+        for module in &config.modules {
+            if module.source_globs.is_empty() {
+                continue;
+            }
+            if module
+                .source_globs
+                .iter()
+                .any(|glob| source_matches_glob(src, glob) || src.ends_with(glob))
+            {
+                return Some(module.name.clone());
+            }
+        }
+    }
+
+    if is_editor_item {
+        default_editor_module_name(config).or_else(|| default_runtime_module_name(config))
+    } else {
+        default_runtime_module_name(config)
+    }
+}
+
+fn resolve_bucket_folder(module: &super::config::Ue5ModuleConfig, bucket: &str) -> Option<PathBuf> {
+    module.folders.get(bucket).cloned()
+}
+
+fn item_route(
+    layout: &PluginLayout,
+    config: &Ue5Config,
+    symbol_name: &str,
+    is_editor_item: bool,
+    bucket: &str,
+    symbol_source_map: &HashMap<String, PathBuf>,
+) -> ItemRoute {
+    if !config.has_module_plan() {
+        if is_editor_item {
+            let public = layout
+                .editor_public_dir
+                .clone()
+                .unwrap_or_else(|| layout.public_dir.join("Editor"));
+            let private = layout
+                .editor_private_dir
+                .clone()
+                .unwrap_or_else(|| layout.private_dir.join("Editor"));
+            return ItemRoute {
+                module_name: format!("{}Editor", config.plugin_name),
+                public_dir: public,
+                private_dir: private,
+                include_prefix: "Editor".to_string(),
+            };
+        }
+
+        return ItemRoute {
+            module_name: config.plugin_name.clone(),
+            public_dir: layout.public_dir.clone(),
+            private_dir: layout.private_dir.clone(),
+            include_prefix: String::new(),
+        };
+    }
+
+    let module_name = resolve_item_module(config, symbol_name, is_editor_item, symbol_source_map)
+        .unwrap_or_else(|| config.plugin_name.clone());
+
+    let (mut public_dir, mut private_dir) = layout
+        .module_dirs
+        .get(&module_name)
+        .cloned()
+        .unwrap_or_else(|| (layout.public_dir.clone(), layout.private_dir.clone()));
+
+    if let Some(module_cfg) = config.modules.iter().find(|m| m.name == module_name) {
+        if let Some(folder) = resolve_bucket_folder(module_cfg, bucket) {
+            public_dir = public_dir.join(&folder);
+            private_dir = private_dir.join(folder);
+        }
+    }
+
+    ItemRoute {
+        include_prefix: module_name.clone(),
+        module_name,
+        public_dir,
+        private_dir,
+    }
+}
+
+fn build_include_path(route: &ItemRoute, filename: &str, consumer_module: Option<&str>) -> String {
+    let mut include = filename.replace('\\', "/");
+    let same_module = consumer_module
+        .map(|m| m == route.module_name)
+        .unwrap_or(false);
+    if !route.include_prefix.is_empty() && !same_module {
+        include = format!("{}/{}", route.include_prefix, include);
+    }
+    include
+}
 
 /// Compile shaders from the typed program into .usf/.h/.cpp files.
 pub fn compile_shaders(
@@ -186,6 +388,8 @@ pub fn generate_headers(
             kain_core::types::TypedItem::Component(c) => (&c.ast.name, ue5::naming::to_component_name(&c.ast.name)),
             kain_core::types::TypedItem::Struct(s) => (&s.ast.name, ue5::naming::to_struct_name(&s.ast.name)),
             kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name)),
+            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone()),
+            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone()),
             kain_core::types::TypedItem::TypeAlias(a) => {
                 // Delegates go in master header, not separate files
                 (&a.ast.name, format!("{}", config.plugin_name))
@@ -438,7 +642,10 @@ pub fn generate_runtime_items(
     shader_names: &[String],
     type_headers: &HashMap<String, String>,
     master_header_path: &PathBuf,
-) -> KainResult<()> {
+    symbol_source_map: &HashMap<String, PathBuf>,
+    embed_kain: bool,
+) -> KainResult<SymbolRoutingManifest> {
+    let mut routing_manifest = SymbolRoutingManifest::default();
     for item in &program.items {
         // Skip editor-only structs (handled by ue5-editor crate)
         if let kain_core::types::TypedItem::Struct(s) = item {
@@ -456,12 +663,17 @@ pub fn generate_runtime_items(
                 continue; // Skip delegates
             }
         }
+
+        let is_state_machine = matches!(item, kain_core::types::TypedItem::StateMachine(_));
+        let is_async_task = matches!(item, kain_core::types::TypedItem::AsyncTask(_));
         
         let (item_name, output_name) = match item {
             kain_core::types::TypedItem::Actor(a) => (&a.ast.name, ue5::naming::to_actor_name(&a.ast.name)),
             kain_core::types::TypedItem::Component(c) => (&c.ast.name, ue5::naming::to_component_name(&c.ast.name)),
             kain_core::types::TypedItem::Struct(s) => (&s.ast.name, ue5::naming::to_struct_name(&s.ast.name)),
             kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name)),
+            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone()),
+            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone()),
             kain_core::types::TypedItem::TypeAlias(a) => (&a.ast.name, format!("F{}", a.ast.name)),
             _ => continue,
         };
@@ -469,12 +681,75 @@ pub fn generate_runtime_items(
         println!("   📄 Slicing item: {} → {}.h/cpp", item_name, output_name);
 
         // Generate filtered output for this specific item using the FULL program shared state and type map
-        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec())) {
+        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec()), embed_kain) {
             Ok(ue5_output) => {
+                if is_state_machine || is_async_task {
+                    let expected_files: Vec<String> = if is_state_machine {
+                        vec![
+                            format!("{}.h", output_name),
+                            format!("{}.cpp", output_name),
+                        ]
+                    } else {
+                        vec![
+                            format!("{}.h", output_name),
+                            format!("{}.cpp", output_name),
+                            format!("{}TaskQueue.h", output_name),
+                            format!("{}TaskQueue.cpp", output_name),
+                        ]
+                    };
+
+                    let mut wrote_count = 0usize;
+                    let mut include_lines = Vec::new();
+                    for expected in &expected_files {
+                        if let Some((filename, content)) = ue5_output
+                            .shader_files
+                            .iter()
+                            .find(|(name, _)| name == expected)
+                        {
+                            let is_header = filename.ends_with(".h");
+                            let output_path = if is_header {
+                                route.public_dir.join(filename)
+                            } else {
+                                route.private_dir.join(filename)
+                            };
+                            fs::write(&output_path, content).map_err(|e| KainError::Io(e))?;
+                            println!("      ✓ {}", filename);
+                            wrote_count += 1;
+
+                            if is_header {
+                                include_lines.push(format!(
+                                    "#include \"{}\"\n",
+                                    build_include_path(&route, filename, Some(&config.plugin_name))
+                                ));
+                            }
+                        }
+                    }
+
+                    if wrote_count == 0 {
+                        eprintln!(
+                            "      ✗ Failed to generate sidecar artifacts for {} (no expected files found)",
+                            item_name
+                        );
+                    } else {
+                        let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
+                        for include_line in include_lines {
+                            if !master.contains(&include_line) {
+                                master.push_str(&include_line);
+                            }
+                        }
+                        fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
+                    }
+
+                    continue;
+                }
+
                 // Write header
-                let header_path = layout.public_dir.join(format!("{}.h", output_name));
+                let header_filename = format!("{}.h", output_name);
+                let header_path = route.public_dir.join(&header_filename);
                 fs::write(&header_path, &ue5_output.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", output_name);
+                let include_path = build_include_path(&route, &header_filename, Some(&config.plugin_name));
+                routing_manifest.register(item_name, &route.module_name, &include_path);
                 
                 // Only write .cpp if it has meaningful content (not just includes)
                 let has_implementation = ue5_output.source.lines()
@@ -486,7 +761,7 @@ pub fn generate_runtime_items(
                     });
                 
                 if has_implementation {
-                    let cpp_path = layout.private_dir.join(format!("{}.cpp", output_name));
+                    let cpp_path = route.private_dir.join(format!("{}.cpp", output_name));
                     fs::write(&cpp_path, &ue5_output.source).map_err(|e| KainError::Io(e))?;
                     println!("      ✓ {}.cpp", output_name);
                 } else {
@@ -495,7 +770,7 @@ pub fn generate_runtime_items(
                 
                 // Append this item's include to master header
                 let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
-                master.push_str(&format!("#include \"{}.h\"\n", output_name));
+                master.push_str(&format!("#include \"{}\"\n", include_path));
                 fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
             }
             Err(e) => {
@@ -503,7 +778,7 @@ pub fn generate_runtime_items(
             }
         }
     }
-    Ok(())
+    Ok(routing_manifest)
 }
 
 /// Generate stdlib functions header if any exist.
@@ -562,7 +837,7 @@ pub fn generate_blueprint_library(
         println!("   📦 Generating blueprint function library...");
         // Generate blueprint functions with special target to skip type definitions
         let bp_lib_name = format!("{}BlueprintLibrary", config.plugin_name);
-        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None) {
+        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None, false) {
             Ok(bp_output) => {
                 let bp_header_path = layout.public_dir.join(format!("{}.h", bp_lib_name));
                 fs::write(&bp_header_path, &bp_output.header).map_err(|e| KainError::Io(e))?;
@@ -1187,7 +1462,22 @@ pub fn write_plugin_files(
     let uplugin_path = layout.plugin_root.join(format!("{}.uplugin", config.plugin_name));
     println!();
     println!("📦 Generating .uplugin file...");
-    let uplugin_content = super::uplugin_gen::generate_uplugin_file(&config.plugin_name, description, layout.has_editor_items, layout.needs_split, has_shaders);
+    let uplugin_content = if config.has_module_plan() {
+        super::uplugin_gen::generate_uplugin_file_from_modules(
+            &config.plugin_name,
+            description,
+            has_shaders,
+            &config.modules,
+        )
+    } else {
+        super::uplugin_gen::generate_uplugin_file(
+            &config.plugin_name,
+            description,
+            layout.has_editor_items,
+            layout.needs_split,
+            has_shaders,
+        )
+    };
     fs::write(&uplugin_path, uplugin_content).map_err(|e| KainError::Io(e))?;
     println!("   ✓ {}.uplugin", config.plugin_name);
     if has_shaders {
@@ -1202,6 +1492,64 @@ pub fn write_plugin_files(
     // Generate .Build.cs file(s)
     println!();
     println!("🔨 Generating .Build.cs file(s)...");
+
+    if config.has_module_plan() {
+        for module in &config.modules {
+            let (mut module_public_deps, module_private_deps): (Vec<String>, Vec<String>) = match module.module_type {
+                super::config::Ue5ModuleType::Runtime => {
+                    let mut deps = compute_runtime_deps(has_shaders, module_graph, program);
+                    if !deps.contains(&"Core".to_string()) { deps.push("Core".to_string()); }
+                    if !deps.contains(&"CoreUObject".to_string()) { deps.push("CoreUObject".to_string()); }
+                    if !deps.contains(&"Engine".to_string()) { deps.push("Engine".to_string()); }
+                    if !deps.contains(&"Projects".to_string()) { deps.push("Projects".to_string()); }
+                    (deps, Vec::new())
+                }
+                _ => {
+                    let (pub_extra, priv_extra) = compute_editor_deps(has_shaders, module_graph, program);
+                    (pub_extra, priv_extra)
+                }
+            };
+
+            // Merge explicit per-module deps from KAIN.toml.
+            for dep in &module.public_deps {
+                if !module_public_deps.contains(dep) {
+                    module_public_deps.push(dep.clone());
+                }
+            }
+            let mut merged_private = module_private_deps;
+            for dep in &module.private_deps {
+                if !merged_private.contains(dep) {
+                    merged_private.push(dep.clone());
+                }
+            }
+
+            // Auto-wire inter-module dependencies declared in depends_on.
+            for dep in &module.depends_on {
+                if !module_public_deps.contains(dep) {
+                    module_public_deps.push(dep.clone());
+                }
+            }
+
+            let module_dir = layout.source_dir.join(&module.name);
+            fs::create_dir_all(&module_dir).map_err(|e| KainError::Io(e))?;
+            let build_cs_path = module_dir.join(format!("{}.Build.cs", module.name));
+            let build_cs_content = super::build_cs_gen::generate_build_cs_module(
+                &module.name,
+                &module_public_deps,
+                &merged_private,
+            );
+            fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;
+
+            println!(
+                "   ✓ {}.Build.cs (data-driven module: {}, type={})",
+                module.name,
+                module.name,
+                module.module_type.as_uplugin_type()
+            );
+        }
+
+        return Ok(());
+    }
     
     if layout.needs_split {
         // SPLIT MODE: Two separate .Build.cs files

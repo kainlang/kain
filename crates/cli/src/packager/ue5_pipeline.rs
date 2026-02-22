@@ -1,4 +1,5 @@
 use std::fs;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use crate::error::{KainError, KainResult};
 use super::config::Ue5Config;
@@ -18,6 +19,11 @@ struct GeneratedAsset {
 
 /// Build UE5 plugin from KAIN.toml configuration
 pub fn build_ue5_plugin() -> KainResult<()> {
+    build_ue5_plugin_with_options(false)
+}
+
+/// Build UE5 plugin with options (embed KAIN markers, etc.)
+pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     
     // Try to load KAIN.toml, but don't fail if it doesn't exist
@@ -43,7 +49,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors, graph_runtimes) =
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes) =
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
@@ -884,7 +890,16 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         }
 
         // Generate per-item runtime files
-        super::codegen::generate_runtime_items(&layout, &ue5_config, &typed_program, &shader_names, &type_headers, &master_header_path)?;
+        let runtime_manifest = super::codegen::generate_runtime_items(
+            &layout,
+            &ue5_config,
+            &typed_program,
+            &shader_names,
+            &type_headers,
+            &master_header_path,
+            &symbol_source_map,
+            embed_kain,
+        )?;
 
         // Generate stdlib functions
         super::codegen::generate_stdlib_functions(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path)?;
@@ -893,7 +908,13 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         super::codegen::generate_blueprint_library(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path)?;
 
         // Generate editor tools
-        super::codegen::generate_editor_items(&layout, &ue5_config, &typed_program, &master_header_path)?;
+        let editor_manifest = super::codegen::generate_editor_items(
+            &layout,
+            &ue5_config,
+            &typed_program,
+            &master_header_path,
+            &symbol_source_map,
+        )?;
 
         println!();
         println!("   ✅ Master header finalized with all module includes");
@@ -914,6 +935,13 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             &typed_program,
             has_shaders,
             has_material_factories,
+        )?;
+
+        super::codegen::write_cross_module_manifests(
+            &layout,
+            &ue5_config,
+            &runtime_manifest,
+            &editor_manifest,
         )?;
 
     } else {
@@ -1067,12 +1095,12 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 }
 
 /// Load stdlib + user source files, parse, validate, and type-check.
-/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors, graph_runtimes).
+/// Returns (typed_program, shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes).
 fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>)> {
+) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, HashMap<String, PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -1161,6 +1189,7 @@ fn load_and_parse_sources(
     // Parse and validate EACH source file independently (LLM-optimized pipeline)
     let mut all_asts = Vec::new();
     let mut all_shader_names = Vec::new();
+    let mut symbol_source_map: HashMap<String, PathBuf> = HashMap::new();
     
     println!("🔍 Validating source files...");
     for source_path in &all_source_files {
@@ -1204,6 +1233,12 @@ fn load_and_parse_sources(
         
         if let Some(name) = source_path.file_name() {
             println!("   ✓ {} validated", name.to_string_lossy());
+        }
+
+        for item in &ast.items {
+            if let Some(symbol) = ast_item_symbol_name(item) {
+                symbol_source_map.insert(symbol, source_path.clone());
+            }
         }
         
         all_asts.push(ast);
@@ -1321,7 +1356,29 @@ fn load_and_parse_sources(
     }
     println!();
     
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors, graph_runtimes))
+    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes))
+}
+
+fn ast_item_symbol_name(item: &kain_core::ast::Item) -> Option<String> {
+    match item {
+        kain_core::ast::Item::Function(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Component(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Shader(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Actor(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Struct(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Enum(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Trait(v) => Some(v.name.clone()),
+        kain_core::ast::Item::TypeAlias(v) => Some(v.name.clone()),
+        kain_core::ast::Item::Const(v) => Some(v.name.clone()),
+        kain_core::ast::Item::MaterialGraph(v) => Some(v.name.clone()),
+        kain_core::ast::Item::MaterialFunction(v) => Some(v.name.clone()),
+        kain_core::ast::Item::GraphEditor(v) => Some(v.name.clone()),
+        kain_core::ast::Item::GraphRuntime(v) => Some(v.name.clone()),
+        kain_core::ast::Item::StateMachine(v) => Some(v.name.clone()),
+        kain_core::ast::Item::AsyncTask(v) => Some(v.name.clone()),
+        kain_core::ast::Item::EditorModule(v) => Some(v.name.clone()),
+        _ => None,
+    }
 }
 
 /// Map an engine version string from KAIN.toml to a raw `EngineVersion` value.
@@ -1873,6 +1930,7 @@ fn create_default_config(cwd: &PathBuf) -> KainResult<Ue5Config> {
         modular_output: true,  // Default to modular output
         stdlib_path: None,     // No stdlib by default
         engine_version: None,  // Use default (5.2)
+        modules: Vec::new(),
     })
 }
 

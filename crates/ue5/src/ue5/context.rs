@@ -7,7 +7,6 @@
 use std::collections::{HashSet, HashMap};
 use std::cell::RefCell;
 use super::project::BuildFile;
-use crate::ue5::naming::to_module_api;
 use super::engine_knowledge::EngineKnowledge;
 use super::widget_registry::WidgetRegistry;
 use super::editor_attributes::EditorAttributesRegistry;
@@ -99,6 +98,9 @@ pub struct Ue5Context {
 
     /// Trait implementations (class_name -> [trait_names])
     pub trait_impls: HashMap<String, Vec<String>>,
+    
+    /// KAIN marker configuration (for round-trip compilation)
+    pub marker_config: crate::ue5::kain_markers::MarkerConfig,
 }
 
 use super::resolver::StdLibResolver;
@@ -180,6 +182,7 @@ impl Ue5Context {
             module_graph,
             virtual_obligations,
             trait_impls: HashMap::new(),
+            marker_config: crate::ue5::kain_markers::MarkerConfig::default(),
         }
     }
 
@@ -199,6 +202,16 @@ impl Ue5Context {
         for module in modules {
             self.build_file.public_dependencies.insert(module);
         }
+    }
+    
+    /// Enable KAIN source markers in generated C++ (for round-trip compilation)
+    pub fn enable_markers(&mut self, style: crate::ue5::kain_markers::MarkerStyle) {
+        self.marker_config = crate::ue5::kain_markers::MarkerConfig {
+            style,
+            include_attributes: true,
+            include_types: true,
+            include_expressions: true,  // Maximum verbosity for debugging
+        };
     }
 
     /// Mark a header as needed for current generation
