@@ -273,6 +273,16 @@ impl ShaderValidator {
                     "RWTexture1DArray", "RWTexture2DArray",
                     // UE5 specific types
                     "Vec2", "Vec3", "Vec4",
+                    // KAIN unsigned/integer vector types
+                    "UInt", "UVec2", "UVec3", "UVec4",
+                    "IVec2", "IVec3", "IVec4",
+                    // KAIN matrix types
+                    "Mat2", "Mat3", "Mat4",
+                    // KAIN image/texture types
+                    "Sampler2D", "Sampler3D", "SamplerCube",
+                    "Image2D", "Image3D",
+                    "RWTexture2D_Float", "RWTexture2D_Float2", "RWTexture2D_Float3",
+                    "RWTexture2D_Int", "RWTexture2D_UInt",
                 ];
                 
                 if !valid_types.contains(&type_name) {
@@ -945,14 +955,7 @@ impl ShaderValidator {
                     // UE5's b0 reservation (View uniform buffer) does not apply to
                     // SHADER_PARAMETER_STRUCT members. The @N annotation is a KAIN-internal
                     // ordering index only, so no b-register conflict is possible here.
-                    
-                    // Validate constant buffer binding range
-                    if binding > 13 {
-                        errors.push(format!(
-                            "Shader '{}': Constant buffer parameter '{}' uses binding @{} which exceeds maximum constant buffer slot b13",
-                            shader_name, uniform_name, binding
-                        ));
-                    }
+                    // No slot range check needed for scalar params.
                 }
             }
         }

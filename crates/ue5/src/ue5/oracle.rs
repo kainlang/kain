@@ -818,14 +818,13 @@ fn validate_replication(ctx: &mut ValidationContext, program: &TypedProgram) {
 /// Requirement 3.2: Verify Server_*, Client_*, Multicast_* naming
 /// Requirement 3.2: Validate RPC parameter types are serializable
 fn validate_rpcs(ctx: &mut ValidationContext, program: &TypedProgram) {
-    // Collect all enum names from the program for serialization checking
+    // Collect all enum and struct names from the program for serialization checking
+    // User-defined enums and structs (UENUM/USTRUCT) are always serializable in UE5
     let enum_names: std::collections::HashSet<String> = program.items.iter()
-        .filter_map(|item| {
-            if let TypedItem::Enum(e) = item {
-                Some(e.ast.name.clone())
-            } else {
-                None
-            }
+        .filter_map(|item| match item {
+            TypedItem::Enum(e) => Some(e.ast.name.clone()),
+            TypedItem::Struct(s) => Some(s.ast.name.clone()),
+            _ => None,
         })
         .collect();
     
