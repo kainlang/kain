@@ -80,6 +80,12 @@ pub enum Item {
 
     /// `@state_machine Name: states, transitions`
     StateMachine(StateMachineDef),
+
+    /// `@async_task Name: input, output, callback, do_work`
+    AsyncTask(AsyncTaskDef),
+
+    /// `@editor_module Name: menu_entries, toolbar_buttons, toolbar_widgets`
+    EditorModule(EditorModuleDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1188,4 +1194,98 @@ pub struct TransitionDef {
     pub priority: i32,
     pub attributes: Vec<Attribute>,
     pub span: Span,
+}
+
+/// Async task definition for offloading heavy computations to worker threads
+/// Generates task queue class with thread pool, task class with DoWork method,
+/// and completion callback dispatching to main thread
+#[derive(Debug, Clone, PartialEq)]
+pub struct AsyncTaskDef {
+    pub name: String,
+    pub input_fields: Vec<Field>,
+    pub output_fields: Vec<Field>,
+    pub callback: Option<AsyncTaskCallback>,
+    pub do_work: Option<Block>,
+    pub priority: Option<i32>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Callback definition for async task completion
+#[derive(Debug, Clone, PartialEq)]
+pub struct AsyncTaskCallback {
+    pub name: String,
+    pub thread: AsyncTaskThread,
+    pub params: Vec<Param>,
+    pub body: Block,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Thread specification for callback execution
+#[derive(Debug, Clone, PartialEq)]
+pub enum AsyncTaskThread {
+    /// Execute callback on main game thread
+    Main,
+    /// Execute callback on worker thread (same thread as DoWork)
+    Worker,
+}
+
+// === EDITOR EXTENSION SYSTEM (UE5 Editor Module) ===
+
+/// Editor module definition for extending the UE5 editor
+/// Generates IModuleInterface subclass with IMPLEMENT_MODULE macro,
+/// menu extensions, toolbar extensions, and editor ticker registration
+#[derive(Debug, Clone, PartialEq)]
+pub struct EditorModuleDef {
+    pub name: String,
+    pub menu_entries: Vec<MenuEntryDef>,
+    pub toolbar_buttons: Vec<ToolbarButtonDef>,
+    pub toolbar_widgets: Vec<ToolbarWidgetDef>,
+    pub methods: Vec<Function>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Menu entry definition for editor menu extensions
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuEntryDef {
+    pub path: String,  // e.g., "Tools/Weapons"
+    pub label: String,  // e.g., "Open Weapon Editor"
+    pub method: Function,  // Callback method
+    pub icon: Option<String>,
+    pub tooltip: Option<String>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Toolbar button definition for editor toolbar extensions
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolbarButtonDef {
+    pub section: String,  // e.g., "Content"
+    pub label: Option<String>,  // Optional label
+    pub icon: String,  // e.g., "Icons.Weapon"
+    pub method: Function,  // Callback method
+    pub tooltip: Option<String>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Toolbar widget definition for custom editor toolbar widgets
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolbarWidgetDef {
+    pub section: String,  // e.g., "CameraSpeed"
+    pub position: ToolbarPosition,
+    pub widget_type: String,  // Widget class name
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Position specification for toolbar widgets
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToolbarPosition {
+    Before,
+    After,
+    Start,
+    End,
 }

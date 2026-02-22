@@ -25,6 +25,8 @@ pub mod viewport;
 pub mod details;
 pub mod assets;
 pub mod asset_editor_ir;
+pub mod editor_module_ir;
+pub mod editor_module_codegen;
 pub mod style;
 pub mod reactive;
 
