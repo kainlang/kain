@@ -18,6 +18,7 @@ pub struct PluginLayout {
 }
 
 /// Detect whether the program has editor-specific items (Slate, Details, Viewport, etc.)
+/// Note: Graph editors are detected separately in the pipeline since they're extracted from AST before type checking
 pub fn detect_editor_items(program: &kain_core::types::TypedProgram) -> bool {
     program.items.iter().any(|item| {
         match item {
@@ -57,6 +58,7 @@ pub fn setup(
     cwd: &Path,
     program: &kain_core::types::TypedProgram,
     has_shaders: bool,
+    has_graph_editors: bool,
 ) -> KainResult<PluginLayout> {
     // Handle plugin_dir = "." case to avoid nesting (e.g., MultiFileDemo/MultiFileDemo)
     let plugin_root = if config.plugin_dir == PathBuf::from(".") {
@@ -68,7 +70,8 @@ pub fn setup(
     let shaders_dir = plugin_root.join("Shaders");
     
     // Detect runtime vs editor items EARLY for two-module split decision
-    let has_editor_items = detect_editor_items(program);
+    // Graph editors are editor-only items
+    let has_editor_items = detect_editor_items(program) || has_graph_editors;
     let has_runtime_items = detect_runtime_items(program, has_shaders);
     
     // Two-module split: when BOTH runtime and editor items exist

@@ -654,9 +654,10 @@ pub fn generate_editor_items(
                     let path = entry.path();
                     if path.extension().map_or(false, |e| e == "h") {
                         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            // Keep the editor master header and any non-generated files
+                            // Keep the editor master header, factory files, and any non-generated files
                             let is_master = stem == format!("{}Editor", config.plugin_name);
-                            if !is_master && !expected_names.contains(stem) {
+                            let is_factory = stem.ends_with("Factory");
+                            if !is_master && !is_factory && !expected_names.contains(stem) {
                                 let _ = fs::remove_file(&path);
                                 println!("   🧹 Removed stale {}", path.file_name().unwrap_or_default().to_string_lossy());
                             }
@@ -670,7 +671,8 @@ pub fn generate_editor_items(
                     let path = entry.path();
                     if path.extension().map_or(false, |e| e == "cpp") {
                         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            if !expected_names.contains(stem) {
+                            let is_factory = stem.ends_with("Factory");
+                            if !is_factory && !expected_names.contains(stem) {
                                 let _ = fs::remove_file(&path);
                                 println!("   🧹 Removed stale {}", path.file_name().unwrap_or_default().to_string_lossy());
                             }

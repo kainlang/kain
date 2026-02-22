@@ -342,7 +342,9 @@ impl TypeMapper {
     
     /// Register a subsystem type
     pub fn register_subsystem(&mut self, name: String) {
-        self.registry.register_subsystem(name);
+        self.registry.register_subsystem(name.clone());
+        // Subsystems are UObject-derived classes (U*Subsystem) and should map as pointers.
+        self.config.component_names.insert(name);
     }
     
     /// Register a delegate type
@@ -500,12 +502,15 @@ impl TypeMapper {
         // Not prefixed - apply appropriate prefix based on type registry
         if self.registry.is_delegate(name) {
             format!("F{}", name)
+        } else if self.registry.is_subsystem(name) {
+            // Subsystems are UObject-derived classes and should keep explicit subsystem suffix.
+            format!("{}*", to_subsystem_name(name))
         } else if self.registry.is_component(name) {
             // Components get U prefix and Component suffix if not already present
             if name.ends_with("Component") {
-                format!("U{}", name)
+                format!("U{}*", name)
             } else {
-                format!("U{}Component", name)
+                format!("U{}Component*", name)
             }
         } else if self.registry.is_enum(name) {
             to_enum_name(name)
@@ -513,6 +518,11 @@ impl TypeMapper {
             to_struct_name(name)
         } else if self.registry.is_actor(name) {
             to_actor_name(name)
+        } else if name.ends_with("Graph") {
+            // Runtime graph defs are generated as UObject instance classes.
+            // Allow user-authored fields like `DialogueGraph` to bind to
+            // `UDialogueGraphInstance*` without requiring source-level renames.
+            format!("U{}Instance*", name)
         } else {
             // Unknown type - return as-is
             name.to_string()
@@ -541,7 +551,7 @@ impl TypeMapper {
         }
         
         // Check user-defined types
-        if self.registry.is_actor(name) || self.registry.is_component(name) {
+        if self.registry.is_actor(name) || self.registry.is_component(name) || self.registry.is_subsystem(name) {
             return true;
         }
         
@@ -567,6 +577,7 @@ impl TypeMapper {
                 // User-defined types need forward declarations
                 self.registry.is_actor(name) 
                     || self.registry.is_component(name)
+                    || self.registry.is_subsystem(name)
                     || self.registry.is_struct(name)
             }
             _ => false,
@@ -598,6 +609,8 @@ impl TypeMapper {
                 } else if self.registry.is_enum(name) {
                     Some("E".to_string())
                 } else if self.registry.is_component(name) {
+                    Some("U".to_string())
+                } else if self.registry.is_subsystem(name) {
                     Some("U".to_string())
                 } else if self.registry.is_delegate(name) {
                     Some("F".to_string())

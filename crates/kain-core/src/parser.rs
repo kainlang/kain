@@ -122,6 +122,11 @@ impl<'a> Parser<'a> {
             return self.parse_state_machine(attributes);
         }
         
+        // Check for @editor_module attribute
+        if attributes.iter().any(|a| a.name == "editor_module") {
+            return self.parse_editor_module(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -3706,6 +3711,254 @@ impl<'a> Parser<'a> {
         } else {
             Err(KainError::parser("Unexpected end of input", self.current_span()))
         }
+    }
+    
+    /// Parse @editor_module struct definition
+    /// Syntax:
+    /// ```kain
+    /// @editor_module
+    /// struct WeaponEditorModule:
+    ///     @menu_entry(path: "Tools/Weapons", label: "Open Weapon Editor")
+    ///     fn on_open_editor():
+    ///         println("Opening weapon editor...")
+    ///     
+    ///     @toolbar_button(section: "Content", icon: "Icons.Weapon")
+    ///     fn on_quick_create():
+    ///         println("Quick creating weapon...")
+    /// ```
+    fn parse_editor_module(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse module name
+        let name = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        let mut menu_entries = Vec::new();
+        let mut toolbar_buttons = Vec::new();
+        let mut toolbar_widgets = Vec::new();
+        let mut methods = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Parse attributes for the method
+            let method_attrs = self.parse_attributes()?;
+            
+            // Check if this is a menu entry, toolbar button, or toolbar widget
+            let is_menu_entry = method_attrs.iter().any(|a| a.name == "menu_entry");
+            let is_toolbar_button = method_attrs.iter().any(|a| a.name == "toolbar_button");
+            let is_toolbar_widget = method_attrs.iter().any(|a| a.name == "toolbar_widget");
+            
+            if is_menu_entry {
+                // Parse menu entry method
+                let menu_entry = self.parse_menu_entry(method_attrs)?;
+                menu_entries.push(menu_entry);
+            } else if is_toolbar_button {
+                // Parse toolbar button method
+                let toolbar_button = self.parse_toolbar_button(method_attrs)?;
+                toolbar_buttons.push(toolbar_button);
+            } else if is_toolbar_widget {
+                // Parse toolbar widget
+                let toolbar_widget = self.parse_toolbar_widget(method_attrs)?;
+                toolbar_widgets.push(toolbar_widget);
+            } else if self.check(TokenKind::Fn) {
+                // Regular method
+                if let Item::Function(func) = self.parse_function_with_attrs(Visibility::Public, method_attrs)? {
+                    methods.push(func);
+                }
+            } else {
+                return Err(KainError::parser(
+                    "Expected @menu_entry, @toolbar_button, @toolbar_widget, or fn in editor module",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::EditorModule(EditorModuleDef {
+            name,
+            menu_entries,
+            toolbar_buttons,
+            toolbar_widgets,
+            methods,
+            attributes,
+            span: start.merge(self.current_span()),
+        }))
+    }
+    
+    /// Parse @menu_entry method
+    fn parse_menu_entry(&mut self, attributes: Vec<Attribute>) -> KainResult<MenuEntryDef> {
+        let start = self.current_span();
+        
+        // Extract parameters from @menu_entry attribute
+        let menu_attr = attributes.iter()
+            .find(|a| a.name == "menu_entry")
+            .ok_or_else(|| KainError::parser("Expected @menu_entry attribute", self.current_span()))?;
+        
+        let mut path = None;
+        let mut label = None;
+        let mut icon = None;
+        let mut tooltip = None;
+        
+        // Parse named arguments from attribute
+        for arg in &menu_attr.args {
+            if let Expr::Tuple(parts, _) = arg {
+                if parts.len() == 2 {
+                    if let (Expr::Ident(param_name, _), Expr::String(value, _)) = (&parts[0], &parts[1]) {
+                        match param_name.as_str() {
+                            "path" => path = Some(value.clone()),
+                            "label" => label = Some(value.clone()),
+                            "icon" => icon = Some(value.clone()),
+                            "tooltip" => tooltip = Some(value.clone()),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        
+        let path = path.ok_or_else(|| KainError::parser("@menu_entry requires 'path' parameter", self.current_span()))?;
+        let label = label.ok_or_else(|| KainError::parser("@menu_entry requires 'label' parameter", self.current_span()))?;
+        
+        // Parse the method
+        if let Item::Function(method) = self.parse_function_with_attrs(Visibility::Public, vec![])? {
+            Ok(MenuEntryDef {
+                path,
+                label,
+                method,
+                icon,
+                tooltip,
+                attributes,
+                span: start.merge(self.current_span()),
+            })
+        } else {
+            Err(KainError::parser("Expected function after @menu_entry", self.current_span()))
+        }
+    }
+    
+    /// Parse @toolbar_button method
+    fn parse_toolbar_button(&mut self, attributes: Vec<Attribute>) -> KainResult<ToolbarButtonDef> {
+        let start = self.current_span();
+        
+        // Extract parameters from @toolbar_button attribute
+        let toolbar_attr = attributes.iter()
+            .find(|a| a.name == "toolbar_button")
+            .ok_or_else(|| KainError::parser("Expected @toolbar_button attribute", self.current_span()))?;
+        
+        let mut section = None;
+        let mut label = None;
+        let mut icon = None;
+        let mut tooltip = None;
+        
+        // Parse named arguments from attribute
+        for arg in &toolbar_attr.args {
+            if let Expr::Tuple(parts, _) = arg {
+                if parts.len() == 2 {
+                    if let (Expr::Ident(param_name, _), Expr::String(value, _)) = (&parts[0], &parts[1]) {
+                        match param_name.as_str() {
+                            "section" => section = Some(value.clone()),
+                            "label" => label = Some(value.clone()),
+                            "icon" => icon = Some(value.clone()),
+                            "tooltip" => tooltip = Some(value.clone()),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        
+        let section = section.ok_or_else(|| KainError::parser("@toolbar_button requires 'section' parameter", self.current_span()))?;
+        let icon = icon.ok_or_else(|| KainError::parser("@toolbar_button requires 'icon' parameter", self.current_span()))?;
+        
+        // Parse the method
+        if let Item::Function(method) = self.parse_function_with_attrs(Visibility::Public, vec![])? {
+            Ok(ToolbarButtonDef {
+                section,
+                label,
+                icon,
+                method,
+                tooltip,
+                attributes,
+                span: start.merge(self.current_span()),
+            })
+        } else {
+            Err(KainError::parser("Expected function after @toolbar_button", self.current_span()))
+        }
+    }
+    
+    /// Parse @toolbar_widget
+    fn parse_toolbar_widget(&mut self, attributes: Vec<Attribute>) -> KainResult<ToolbarWidgetDef> {
+        let start = self.current_span();
+        
+        // Extract parameters from @toolbar_widget attribute
+        let widget_attr = attributes.iter()
+            .find(|a| a.name == "toolbar_widget")
+            .ok_or_else(|| KainError::parser("Expected @toolbar_widget attribute", self.current_span()))?;
+        
+        let mut section = None;
+        let mut position = None;
+        let mut widget_type = None;
+        
+        // Parse named arguments from attribute
+        for arg in &widget_attr.args {
+            if let Expr::Tuple(parts, _) = arg {
+                if parts.len() == 2 {
+                    if let Expr::Ident(param_name, _) = &parts[0] {
+                        match param_name.as_str() {
+                            "section" => {
+                                if let Expr::String(value, _) = &parts[1] {
+                                    section = Some(value.clone());
+                                }
+                            }
+                            "position" => {
+                                if let Expr::Ident(pos, _) = &parts[1] {
+                                    position = Some(match pos.as_str() {
+                                        "Before" => ToolbarPosition::Before,
+                                        "After" => ToolbarPosition::After,
+                                        "Start" => ToolbarPosition::Start,
+                                        "End" => ToolbarPosition::End,
+                                        _ => ToolbarPosition::After,
+                                    });
+                                }
+                            }
+                            "widget_type" => {
+                                if let Expr::String(value, _) = &parts[1] {
+                                    widget_type = Some(value.clone());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        
+        let section = section.ok_or_else(|| KainError::parser("@toolbar_widget requires 'section' parameter", self.current_span()))?;
+        let position = position.unwrap_or(ToolbarPosition::After);
+        let widget_type = widget_type.ok_or_else(|| KainError::parser("@toolbar_widget requires 'widget_type' parameter", self.current_span()))?;
+        
+        Ok(ToolbarWidgetDef {
+            section,
+            position,
+            widget_type,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
     }
 }
 

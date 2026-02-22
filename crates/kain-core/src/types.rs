@@ -47,6 +47,11 @@ pub enum TypedItem {
     TypeAlias(TypedTypeAlias),
     MaterialGraph(crate::ast::MaterialGraphDef),
     MaterialFunction(crate::ast::MaterialFunctionDef),
+    GraphEditor(crate::ast::GraphEditorDef),
+    GraphRuntime(crate::ast::GraphRuntimeDef),
+    StateMachine(crate::ast::StateMachineDef),
+    AsyncTask(crate::ast::AsyncTaskDef),
+    EditorModule(crate::ast::EditorModuleDef),
 }
 
 #[derive(Debug, Clone)]
@@ -217,6 +222,11 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::TypeAlias(ta) => Ok(TypedItem::TypeAlias(TypedTypeAlias { ast: ta.clone() })),
         Item::MaterialGraph(mg) => Ok(TypedItem::MaterialGraph(mg.clone())),
         Item::MaterialFunction(mf) => Ok(TypedItem::MaterialFunction(mf.clone())),
+        Item::GraphEditor(ge) => Ok(TypedItem::GraphEditor(ge.clone())),
+        Item::GraphRuntime(gr) => Ok(TypedItem::GraphRuntime(gr.clone())),
+        Item::StateMachine(sm) => Ok(TypedItem::StateMachine(sm.clone())),
+        Item::AsyncTask(at) => Ok(TypedItem::AsyncTask(at.clone())),
+        Item::EditorModule(em) => Ok(TypedItem::EditorModule(em.clone())),
         Item::Trait(_) => {
             // This should never be reached because we filter traits in check()
             unreachable!("Traits should be filtered before check_item")

@@ -47,7 +47,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
-    let layout = super::plugin_layout::setup(&ue5_config, &cwd, &typed_program, !all_shader_names.is_empty())?;
+    let layout = super::plugin_layout::setup(&ue5_config, &cwd, &typed_program, !all_shader_names.is_empty(), !graph_editors.is_empty())?;
 
     // Use shader names from config or auto-detected
     let shader_names = if ue5_config.shaders.is_empty() {
@@ -229,8 +229,15 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                     }
 
                     // Write factory header (if generated)
+                    // Factory files are editor-only and should go in the editor module
                     if !output.header.is_empty() {
-                        let header_path = layout.source_dir.join(format!("{}Factory.h", graph_def.name));
+                        let header_path = if let Some(ref editor_pub) = layout.editor_public_dir {
+                            // Split mode: write to editor module Public directory
+                            editor_pub.join(format!("{}Factory.h", graph_def.name))
+                        } else {
+                            // Single module: write to main source directory
+                            layout.source_dir.join(format!("{}Factory.h", graph_def.name))
+                        };
                         if let Err(e) = fs::write(&header_path, &output.header) {
                             eprintln!("   ⚠️  Failed to write factory header for {}: {}", graph_def.name, e);
                         } else {
@@ -240,7 +247,13 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 
                     // Write factory source (if generated)
                     if !output.source.is_empty() {
-                        let source_path = layout.source_dir.join(format!("{}Factory.cpp", graph_def.name));
+                        let source_path = if let Some(ref editor_priv) = layout.editor_private_dir {
+                            // Split mode: write to editor module Private directory
+                            editor_priv.join(format!("{}Factory.cpp", graph_def.name))
+                        } else {
+                            // Single module: write to main source directory
+                            layout.source_dir.join(format!("{}Factory.cpp", graph_def.name))
+                        };
                         if let Err(e) = fs::write(&source_path, &output.source) {
                             eprintln!("   ⚠️  Failed to write factory source for {}: {}", graph_def.name, e);
                         } else {
@@ -633,6 +646,35 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                         }
                     }
 
+                    // Generate GraphAsset class
+                    let asset_gen = ue5_graphs::AssetGenerator::new(
+                        &graph_editor,
+                        &ue5_config.plugin_name,
+                    );
+
+                    match asset_gen.generate() {
+                        Ok(asset_output) => {
+                            // Write asset header
+                            let asset_header_path = layout.public_dir.join(&asset_output.asset_header.0);
+                            if let Err(e) = fs::write(&asset_header_path, &asset_output.asset_header.1) {
+                                eprintln!("      ⚠️  Failed to write asset header: {}", e);
+                            } else {
+                                println!("      ✓ {}", asset_output.asset_header.0);
+                            }
+
+                            // Write asset source
+                            let asset_source_path = layout.private_dir.join(&asset_output.asset_source.0);
+                            if let Err(e) = fs::write(&asset_source_path, &asset_output.asset_source.1) {
+                                eprintln!("      ⚠️  Failed to write asset source: {}", e);
+                            } else {
+                                println!("      ✓ {}", asset_output.asset_source.0);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("      ⚠️  Failed to generate asset for {}: {}", runtime_ir.name, e);
+                        }
+                    }
+
                     // Generate GraphData class (if graph_data is defined)
                     if graph_runtime_def.graph_data.is_some() {
                         match ue5_graphs::generate_graph_data_header(
@@ -832,8 +874,14 @@ pub fn build_ue5_plugin() -> KainResult<()> {
         println!("🎯 Generating modular plugin files (per-file output)...");
 
         // Generate headers (master, delegates, EditorTypes)
-        let (master_header_path, _delegate_count, type_headers) =
+        let (master_header_path, _delegate_count, mut type_headers) =
             super::codegen::generate_headers(&layout, &ue5_config, &typed_program)?;
+
+        // Register runtime graph aliases so regular UE5 codegen can resolve types used
+        // by subsystems/components/functions (e.g., DialogueGraph -> DialogueGraphInstance.h).
+        for runtime_def in &graph_runtimes {
+            type_headers.insert(runtime_def.name.clone(), format!("{}Instance.h", runtime_def.name));
+        }
 
         // Generate per-item runtime files
         super::codegen::generate_runtime_items(&layout, &ue5_config, &typed_program, &shader_names, &type_headers, &master_header_path)?;

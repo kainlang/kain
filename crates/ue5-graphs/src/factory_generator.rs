@@ -51,7 +51,7 @@ impl FactoryGenerator {
         // Generate node classes
         for node_type in &self.graph.node_types {
             let (header, source) = self.generate_node_class(node_type)?;
-            let node_name = format!("{}Node", node_type.name);
+            let node_name = format!("{}{}Node", self.graph.name, node_type.name);
             node_headers.push((format!("{}.h", node_name), header));
             node_sources.push((format!("{}.cpp", node_name), source));
         }
@@ -182,7 +182,8 @@ impl FactoryGenerator {
     
     /// Generate node class header
     fn generate_node_header(&self, node: &NodeType) -> Result<String> {
-        let class_name = format!("U{}Node", node.name);
+        let node_stem = format!("{}{}Node", self.graph.name, node.name);
+        let class_name = format!("U{}", node_stem);
         let base_class = format!("U{}NodeBase", self.graph.name);
         
         let mut lines = Vec::new();
@@ -192,7 +193,7 @@ impl FactoryGenerator {
         lines.push(String::new());
         lines.push(format!("#include \"CoreMinimal.h\""));
         lines.push(format!("#include \"{}NodeBase.h\"", self.graph.name));
-        lines.push(format!("#include \"{}.generated.h\"", format!("{}Node", node.name)));
+        lines.push(format!("#include \"{}.generated.h\"", node_stem));
         lines.push(String::new());
         
         // Class declaration
@@ -222,13 +223,14 @@ impl FactoryGenerator {
     
     /// Generate node class source
     fn generate_node_source(&self, node: &NodeType) -> Result<String> {
-        let class_name = format!("U{}Node", node.name);
+        let node_stem = format!("{}{}Node", self.graph.name, node.name);
+        let class_name = format!("U{}", node_stem);
         let node_title = node.name.clone();
         
         let mut lines = Vec::new();
         
         // Includes
-        lines.push(format!("#include \"{}Node.h\"", node.name));
+        lines.push(format!("#include \"{}.h\"", node_stem));
         lines.push(String::new());
         lines.push(format!("#define LOCTEXT_NAMESPACE \"{}Schema\"", self.graph.name));
         lines.push(String::new());
@@ -370,7 +372,7 @@ impl FactoryGenerator {
         
         // Include all node headers
         for node_type in &self.graph.node_types {
-            lines.push(format!("#include \"{}Node.h\"", node_type.name));
+            lines.push(format!("#include \"{}{}Node.h\"", self.graph.name, node_type.name));
         }
         
         lines.push(String::new());

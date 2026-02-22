@@ -1638,7 +1638,7 @@ impl Ue5Gen {
 
         // Actor Methods Declarations
         for method in &actor.methods {
-            self.gen_actor_method_decl(method);
+            self.gen_actor_method_decl(method, &class_name);
         }
 
         self.pop_indent();
@@ -2306,7 +2306,34 @@ impl Ue5Gen {
     }
 
     /// Generate actor method declaration in header
-    fn gen_actor_method_decl(&mut self, method: &Function) {
+    fn gen_actor_method_decl(&mut self, method: &Function, class_name: &str) {
+        // Check for @blueprint_event attribute first (takes precedence)
+        let is_blueprint_event = method.attributes.iter().any(|a| 
+            a.name == "blueprint_event" || 
+            a.name == "blueprint_native_event" ||
+            a.name == "blueprint_implementable_event"
+        );
+        
+        if is_blueprint_event {
+            // Use blueprint_event codegen for BlueprintNativeEvent functions
+            use crate::blueprint_ir::convert_to_blueprint_event_ir;
+            use crate::blueprint_codegen::generate_blueprint_event_code;
+            
+            match convert_to_blueprint_event_ir(method, &self.context) {
+                Ok(event_ir) => {
+                    let output = generate_blueprint_event_code(&event_ir, class_name, &self.context.module_api);
+                    // Write the header declaration (UFUNCTION + virtual declaration)
+                    self.write_header(&output.header_declaration);
+                    self.write_blank_header();
+                    return;
+                }
+                Err(e) => {
+                    eprintln!("⚠️  [CODEGEN] Failed to convert blueprint event IR for {}: {}", method.name, e);
+                    // Fall through to regular method generation
+                }
+            }
+        }
+        
         // Check for @blueprint_pure or @blueprint_callable attributes
         let is_pure = method.attributes.iter().any(|a| a.name == "blueprint_pure" || a.name == "pure");
         let is_callable = method.attributes.iter().any(|a| a.name == "blueprint_callable" || a.name == "blueprint");
@@ -2514,6 +2541,33 @@ impl Ue5Gen {
 
     /// Generate actor method implementation in source
     fn gen_actor_method_impl(&mut self, class_name: &str, method: &Function) {
+        // Check for @blueprint_event attribute first
+        let is_blueprint_event = method.attributes.iter().any(|a| 
+            a.name == "blueprint_event" || 
+            a.name == "blueprint_native_event" ||
+            a.name == "blueprint_implementable_event"
+        );
+        
+        if is_blueprint_event {
+            // Use blueprint_event codegen for _Implementation methods
+            use crate::blueprint_ir::convert_to_blueprint_event_ir;
+            use crate::blueprint_codegen::generate_blueprint_event_code;
+            
+            match convert_to_blueprint_event_ir(method, &self.context) {
+                Ok(event_ir) => {
+                    let output = generate_blueprint_event_code(&event_ir, class_name, &self.context.module_api);
+                    // Write the source implementation (_Implementation method)
+                    self.write_source(&output.source_implementation);
+                    self.write_blank_source();
+                    return;
+                }
+                Err(e) => {
+                    eprintln!("⚠️  [CODEGEN] Failed to convert blueprint event IR for {}: {}", method.name, e);
+                    // Fall through to regular method generation
+                }
+            }
+        }
+        
         // Skip inline methods (already in header)
         let is_inline = method.attributes.iter().any(|a| a.name == "inline");
         if is_inline {

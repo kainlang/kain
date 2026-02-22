@@ -42,16 +42,16 @@ impl InstanceGenerator {
         Ok(InstanceOutput {
             instance_header: (format!("{}Instance.h", self.graph.name), instance_header),
             instance_source: (format!("{}Instance.cpp", self.graph.name), instance_source),
-            node_data_header: (format!("{}NodeData.h", self.graph.name), node_data_header),
-            node_data_source: (format!("{}NodeData.cpp", self.graph.name), node_data_source),
+            node_data_header: (format!("{}GraphNodeData.h", self.graph.name), node_data_header),
+            node_data_source: (format!("{}GraphNodeData.cpp", self.graph.name), node_data_source),
         })
     }
     
     /// Generate instance header
     pub fn generate_instance_header(&self) -> Result<String> {
         let class_name = format!("U{}Instance", self.graph.name);
-        let node_data_class = format!("U{}NodeData", self.graph.name);
-        let asset_class = format!("U{}Asset", self.graph.name);
+        let node_data_class = format!("U{}GraphNodeData", self.graph.name);
+        let asset_class = format!("U{}GraphAsset", self.graph.name);
         
         let mut lines = Vec::new();
         
@@ -165,15 +165,15 @@ impl InstanceGenerator {
     /// Generate instance source
     pub fn generate_instance_source(&self) -> Result<String> {
         let class_name = format!("U{}Instance", self.graph.name);
-        let node_data_class = format!("U{}NodeData", self.graph.name);
-        let asset_class = format!("U{}Asset", self.graph.name);
+        let node_data_class = format!("U{}GraphNodeData", self.graph.name);
+        let asset_class = format!("U{}GraphAsset", self.graph.name);
         
         let mut lines = Vec::new();
         
         // Includes
         lines.push(format!("#include \"{}Instance.h\"", self.graph.name));
-        lines.push(format!("#include \"{}NodeData.h\"", self.graph.name));
-        lines.push(format!("#include \"{}Asset.h\"", self.graph.name));
+        lines.push(format!("#include \"{}GraphNodeData.h\"", self.graph.name));
+        lines.push(format!("#include \"{}GraphAsset.h\"", self.graph.name));
         lines.push(String::new());
         
         // ResetInstance
@@ -310,7 +310,7 @@ impl InstanceGenerator {
     
     /// Generate node data header
     pub fn generate_node_data_header(&self) -> Result<String> {
-        let class_name = format!("U{}NodeData", self.graph.name);
+        let class_name = format!("U{}GraphNodeData", self.graph.name);
         
         let mut lines = Vec::new();
         
@@ -319,7 +319,7 @@ impl InstanceGenerator {
         lines.push(String::new());
         lines.push(format!("#include \"CoreMinimal.h\""));
         lines.push(format!("#include \"UObject/Object.h\""));
-        lines.push(format!("#include \"{}NodeData.generated.h\"", self.graph.name));
+        lines.push(format!("#include \"{}GraphNodeData.generated.h\"", self.graph.name));
         lines.push(String::new());
         
         // Class declaration
@@ -358,12 +358,12 @@ impl InstanceGenerator {
     
     /// Generate node data source
     pub fn generate_node_data_source(&self) -> Result<String> {
-        let class_name = format!("U{}NodeData", self.graph.name);
+        let class_name = format!("U{}GraphNodeData", self.graph.name);
         
         let mut lines = Vec::new();
         
         // Includes
-        lines.push(format!("#include \"{}NodeData.h\"", self.graph.name));
+        lines.push(format!("#include \"{}GraphNodeData.h\"", self.graph.name));
         lines.push(String::new());
         
         // GetNodeName

@@ -87,17 +87,55 @@ pub fn generate_graph_editor(
     let generator = factory_generator::FactoryGenerator::new(ir.clone(), plugin_name);
     let factory_output = generator.generate()?;
     
-    // Combine all headers into one file (simplified for now)
-    let mut header = String::new();
-    header.push_str(&factory_output.base_node_header.1);
-    header.push_str("\n\n");
+    // Combine all headers into one file with a single, valid UHT include block.
+    // 1) Collect normal includes from all fragments (excluding *.generated.h)
+    // 2) Emit one "{Graph}Factory.generated.h" include as the LAST include
+    // 3) Append class bodies stripped of #pragma once / include directives
+    let mut include_lines: Vec<String> = Vec::new();
+    let mut body_chunks: Vec<String> = Vec::new();
+
+    let mut collect_fragment = |content: &str| {
+        let mut body: Vec<&str> = Vec::new();
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed == "#pragma once" || trimmed.starts_with("#include ") {
+                if trimmed.starts_with("#include ")
+                    && !trimmed.contains(".generated.h")
+                    && !include_lines.iter().any(|existing| existing == trimmed)
+                {
+                    include_lines.push(trimmed.to_string());
+                }
+                continue;
+            }
+
+            if trimmed.contains(".generated.h") {
+                continue;
+            }
+
+            body.push(line);
+        }
+
+        let body_text = body.join("\n").trim().to_string();
+        if !body_text.is_empty() {
+            body_chunks.push(body_text);
+        }
+    };
+
+    collect_fragment(&factory_output.base_node_header.1);
     for (_, node_header) in &factory_output.node_headers {
-        header.push_str(node_header);
-        header.push_str("\n\n");
+        collect_fragment(node_header);
     }
-    header.push_str(&factory_output.schema_header.1);
-    header.push_str("\n\n");
-    header.push_str(&factory_output.graph_header.1);
+    collect_fragment(&factory_output.schema_header.1);
+    collect_fragment(&factory_output.graph_header.1);
+
+    let mut header = String::new();
+    header.push_str("#pragma once\n\n");
+    for include in &include_lines {
+        header.push_str(include);
+        header.push('\n');
+    }
+    header.push_str(&format!("#include \"{}Factory.generated.h\"\n\n", ast.name));
+    header.push_str(&body_chunks.join("\n\n"));
     
     // Combine all sources into one file (simplified for now)
     let mut source = String::new();
