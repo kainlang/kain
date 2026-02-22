@@ -40,6 +40,12 @@ pub struct Ue5Config {
     /// If empty, packager falls back to legacy single/split-module behavior.
     #[serde(default)]
     pub modules: Vec<Ue5ModuleConfig>,
+    /// Optional plugin-level dependencies emitted into .uplugin `Plugins`.
+    ///
+    /// Use this when a module depends on engine/plugin modules coming from
+    /// external plugins (e.g. ChaosClothAssetEngine -> ChaosClothAsset).
+    #[serde(default)]
+    pub plugin_dependencies: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

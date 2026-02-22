@@ -1929,6 +1929,7 @@ fn create_default_config(cwd: &PathBuf) -> KainResult<Ue5Config> {
         stdlib_path: None,     // No stdlib by default
         engine_version: None,  // Use default (5.2)
         modules: Vec::new(),
+        plugin_dependencies: Vec::new(),
     })
 }
 

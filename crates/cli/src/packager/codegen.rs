@@ -1588,6 +1588,7 @@ pub fn write_plugin_files(
             description,
             has_shaders,
             &config.modules,
+            &config.plugin_dependencies,
         )
     } else {
         super::uplugin_gen::generate_uplugin_file(
@@ -1596,6 +1597,7 @@ pub fn write_plugin_files(
             layout.has_editor_items,
             layout.needs_split,
             has_shaders,
+            &config.plugin_dependencies,
         )
     };
     fs::write(&uplugin_path, uplugin_content).map_err(|e| KainError::Io(e))?;

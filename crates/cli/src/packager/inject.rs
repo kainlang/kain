@@ -93,6 +93,7 @@ pub fn inject_into_plugin(
         stdlib_path: None,     // No stdlib for injection
         engine_version: None,  // Use default (5.2)
         modules: Vec::new(),
+        plugin_dependencies: Vec::new(),
     };
     
     // STEP 8: Setup plugin layout (detect existing structure)
