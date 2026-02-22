@@ -241,8 +241,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             // Split mode: write to editor module Public directory
                             editor_pub.join(format!("{}Factory.h", graph_def.name))
                         } else {
-                            // Single module: write to main source directory
-                            layout.source_dir.join(format!("{}Factory.h", graph_def.name))
+                            // Single module: write to resolved public directory
+                            layout.public_dir.join(format!("{}Factory.h", graph_def.name))
                         };
                         if let Err(e) = fs::write(&header_path, &output.header) {
                             eprintln!("   ⚠️  Failed to write factory header for {}: {}", graph_def.name, e);
@@ -257,8 +257,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             // Split mode: write to editor module Private directory
                             editor_priv.join(format!("{}Factory.cpp", graph_def.name))
                         } else {
-                            // Single module: write to main source directory
-                            layout.source_dir.join(format!("{}Factory.cpp", graph_def.name))
+                            // Single module: write to resolved private directory
+                            layout.private_dir.join(format!("{}Factory.cpp", graph_def.name))
                         };
                         if let Err(e) = fs::write(&source_path, &output.source) {
                             eprintln!("   ⚠️  Failed to write factory source for {}: {}", graph_def.name, e);
@@ -349,8 +349,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
                         match node_gen.generate() {
                             Ok(node_output) => {
-                                // Write NodeData headers to Source/Public/
-                                let public_dir = layout.source_dir.join("Public");
+                                // Write NodeData headers to resolved public dir
+                                let public_dir = layout.public_dir.clone();
                                 if let Err(e) = fs::create_dir_all(&public_dir) {
                                     eprintln!("   ⚠️  Failed to create Public dir: {}", e);
                                 }
@@ -371,8 +371,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                                     }
                                 }
 
-                                // Write NodeData sources to Source/Private/
-                                let private_dir = layout.source_dir.join("Private");
+                                // Write NodeData sources to resolved private dir
+                                let private_dir = layout.private_dir.clone();
                                 if let Err(e) = fs::create_dir_all(&private_dir) {
                                     eprintln!("   ⚠️  Failed to create Private dir: {}", e);
                                 }
@@ -399,8 +399,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
                         match instance_gen.generate() {
                             Ok(instance_output) => {
-                                let public_dir = layout.source_dir.join("Public");
-                                let private_dir = layout.source_dir.join("Private");
+                                let public_dir = layout.public_dir.clone();
+                                let private_dir = layout.private_dir.clone();
 
                                 let header_path = public_dir.join(&instance_output.instance_header.0);
                                 if let Err(e) = fs::write(&header_path, &instance_output.instance_header.1) {
@@ -427,7 +427,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             &ue5_config.plugin_name,
                         ) {
                             Ok(header) => {
-                                let public_dir = layout.source_dir.join("Public");
+                                let public_dir = layout.public_dir.clone();
                                 let path = public_dir.join(format!("{}GraphData.h", runtime_ir.name));
                                 if let Err(e) = fs::write(&path, &header) {
                                     eprintln!("   ⚠️  Failed to write graph data header: {}", e);
@@ -445,7 +445,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             &ue5_config.plugin_name,
                         ) {
                             Ok(source) => {
-                                let private_dir = layout.source_dir.join("Private");
+                                let private_dir = layout.private_dir.clone();
                                 let path = private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
                                 if let Err(e) = fs::write(&path, &source) {
                                     eprintln!("   ⚠️  Failed to write graph data source: {}", e);
@@ -681,40 +681,38 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         }
                     }
 
-                    // Generate GraphData class (if graph_data is defined)
-                    if graph_runtime_def.graph_data.is_some() {
-                        match ue5_graphs::generate_graph_data_header(
-                            &graph_editor,
-                            &ue5_config.plugin_name,
-                        ) {
-                            Ok(header) => {
-                                let path = layout.public_dir.join(format!("{}GraphData.h", runtime_ir.name));
-                                if let Err(e) = fs::write(&path, &header) {
-                                    eprintln!("      ⚠️  Failed to write graph data header: {}", e);
-                                } else {
-                                    println!("      ✓ {}GraphData.h", runtime_ir.name);
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("      ⚠️  Failed to generate graph data header: {}", e);
+                    // Generate GraphData class
+                    match ue5_graphs::generate_graph_data_header(
+                        &graph_editor,
+                        &ue5_config.plugin_name,
+                    ) {
+                        Ok(header) => {
+                            let path = layout.public_dir.join(format!("{}GraphData.h", runtime_ir.name));
+                            if let Err(e) = fs::write(&path, &header) {
+                                eprintln!("      ⚠️  Failed to write graph data header: {}", e);
+                            } else {
+                                println!("      ✓ {}GraphData.h", runtime_ir.name);
                             }
                         }
+                        Err(e) => {
+                            eprintln!("      ⚠️  Failed to generate graph data header: {}", e);
+                        }
+                    }
 
-                        match ue5_graphs::generate_graph_data_source(
-                            &graph_editor,
-                            &ue5_config.plugin_name,
-                        ) {
-                            Ok(source) => {
-                                let path = layout.private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
-                                if let Err(e) = fs::write(&path, &source) {
-                                    eprintln!("      ⚠️  Failed to write graph data source: {}", e);
-                                } else {
-                                    println!("      ✓ {}GraphData.cpp", runtime_ir.name);
-                                }
+                    match ue5_graphs::generate_graph_data_source(
+                        &graph_editor,
+                        &ue5_config.plugin_name,
+                    ) {
+                        Ok(source) => {
+                            let path = layout.private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
+                            if let Err(e) = fs::write(&path, &source) {
+                                eprintln!("      ⚠️  Failed to write graph data source: {}", e);
+                            } else {
+                                println!("      ✓ {}GraphData.cpp", runtime_ir.name);
                             }
-                            Err(e) => {
-                                eprintln!("      ⚠️  Failed to generate graph data source: {}", e);
-                            }
+                        }
+                        Err(e) => {
+                            eprintln!("      ⚠️  Failed to generate graph data source: {}", e);
                         }
                     }
 

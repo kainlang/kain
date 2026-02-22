@@ -150,6 +150,14 @@ impl Ue5Context {
                 }
             }
         }
+        
+        // Load all extensions from unreal/metadata/extensions/*.json
+        let extensions_dir = std::path::Path::new("unreal/metadata/extensions");
+        if let Ok(count) = knowledge.load_extensions(extensions_dir) {
+            if count > 0 {
+                eprintln!("📦 Loaded {} extension(s)", count);
+            }
+        }
 
         let copyright = copyright.map(|s| s.to_string()).unwrap_or_else(|| {
             format!("Copyright {} Zentako. All Rights Reserved.", 

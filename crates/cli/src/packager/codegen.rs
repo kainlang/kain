@@ -678,6 +678,20 @@ pub fn generate_runtime_items(
             _ => continue,
         };
 
+        let bucket = match item {
+            kain_core::types::TypedItem::Actor(_) => "actors",
+            kain_core::types::TypedItem::Component(_) => "components",
+            kain_core::types::TypedItem::Struct(_) => "structs",
+            kain_core::types::TypedItem::Enum(_) => "enums",
+            kain_core::types::TypedItem::StateMachine(_) => "state_machines",
+            kain_core::types::TypedItem::AsyncTask(_) => "async_tasks",
+            kain_core::types::TypedItem::TypeAlias(_) => "types",
+            _ => "runtime",
+        };
+        let route = item_route(layout, config, item_name, false, bucket, symbol_source_map);
+        fs::create_dir_all(&route.public_dir).map_err(|e| KainError::Io(e))?;
+        fs::create_dir_all(&route.private_dir).map_err(|e| KainError::Io(e))?;
+
         println!("   📄 Slicing item: {} → {}.h/cpp", item_name, output_name);
 
         // Generate filtered output for this specific item using the FULL program shared state and type map
@@ -866,29 +880,31 @@ pub fn generate_editor_items(
     config: &Ue5Config,
     program: &kain_core::types::TypedProgram,
     master_header_path: &PathBuf,
-) -> KainResult<()> {
+    symbol_source_map: &HashMap<String, PathBuf>,
+) -> KainResult<SymbolRoutingManifest> {
     if !layout.has_editor_items {
         println!("   ℹ️  No editor items detected - skipping editor codegen");
-        return Ok(());
+        return Ok(SymbolRoutingManifest::default());
     }
+    let mut routing_manifest = SymbolRoutingManifest::default();
     
     println!("   🎨 Generating editor tools (Slate UI, Details, Viewport, Toolbar...)...");
     
     // Determine where editor files go based on split mode
-    let (ed_pub_dir, ed_priv_dir, include_prefix) = if layout.needs_split {
+    let (ed_pub_dir, ed_priv_dir) = if layout.needs_split {
         // Split mode: editor files go to separate module directory
         let ed_pub = layout.editor_public_dir.as_ref()
             .ok_or_else(|| KainError::codegen_error("Editor public directory not set in split mode"))?;
         let ed_priv = layout.editor_private_dir.as_ref()
             .ok_or_else(|| KainError::codegen_error("Editor private directory not set in split mode"))?;
-        (ed_pub.clone(), ed_priv.clone(), String::new()) // No prefix — files are at root of editor module
+        (ed_pub.clone(), ed_priv.clone()) // No prefix — files are at root of editor module
     } else {
         // Single module: editor files go to Editor/ subdirectory
         let ed_pub = layout.public_dir.join("Editor");
         let ed_priv = layout.private_dir.join("Editor");
         fs::create_dir_all(&ed_pub).map_err(|e| KainError::Io(e))?;
         fs::create_dir_all(&ed_priv).map_err(|e| KainError::Io(e))?;
-        (ed_pub, ed_priv, "Editor/".to_string())
+        (ed_pub, ed_priv)
     };
     
     // In split mode, generate a master header for the editor module
@@ -959,10 +975,33 @@ pub fn generate_editor_items(
             for editor_item in &editor_items {
                 println!("   📄 Editor item: {} [{}] → {}.h/cpp", editor_item.name, editor_item.kind, editor_item.name);
                 
+                let route = item_route(
+                    layout,
+                    config,
+                    &editor_item.name,
+                    true,
+                    "editor",
+                    symbol_source_map,
+                );
+                fs::create_dir_all(&route.public_dir).map_err(|e| KainError::Io(e))?;
+                fs::create_dir_all(&route.private_dir).map_err(|e| KainError::Io(e))?;
+
                 // Write header
-                let header_path = ed_pub_dir.join(format!("{}.h", editor_item.name));
+                let header_filename = format!("{}.h", editor_item.name);
+                let header_path = route.public_dir.join(&header_filename);
                 fs::write(&header_path, &editor_item.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", editor_item.name);
+                let editor_consumer_module = if layout.needs_split {
+                    format!("{}Editor", config.plugin_name)
+                } else {
+                    config.plugin_name.clone()
+                };
+                let include_path = build_include_path(
+                    &route,
+                    &header_filename,
+                    Some(&editor_consumer_module),
+                );
+                routing_manifest.register(&editor_item.name, &route.module_name, &include_path);
                 
                 // Only write .cpp if it has meaningful content (not just includes)
                 let has_implementation = editor_item.source.lines()
@@ -983,7 +1022,7 @@ pub fn generate_editor_items(
                     });
                 
                 if has_implementation {
-                    let cpp_path = ed_priv_dir.join(format!("{}.cpp", editor_item.name));
+                    let cpp_path = route.private_dir.join(format!("{}.cpp", editor_item.name));
                     fs::write(&cpp_path, &editor_item.source).map_err(|e| KainError::Io(e))?;
                     println!("      ✓ {}.cpp", editor_item.name);
                 } else {
@@ -994,12 +1033,12 @@ pub fn generate_editor_items(
                 if let Some(ref ed_master_path) = editor_master_header_path {
                     // Split mode: add to editor module master header (no prefix)
                     let mut master = fs::read_to_string(ed_master_path).map_err(|e| KainError::Io(e))?;
-                    master.push_str(&format!("#include \"{}.h\"\n", editor_item.name));
+                    master.push_str(&format!("#include \"{}\"\n", include_path));
                     fs::write(ed_master_path, master).map_err(|e| KainError::Io(e))?;
                 } else {
                     // Single module: add to runtime master header with Editor/ prefix
                     let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
-                    master.push_str(&format!("#include \"{}{}.h\"\n", include_prefix, editor_item.name));
+                    master.push_str(&format!("#include \"{}\"\n", include_path));
                     fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
                 }
             }
@@ -1010,6 +1049,87 @@ pub fn generate_editor_items(
         }
     }
     
+    Ok(routing_manifest)
+}
+
+#[derive(Debug, Serialize)]
+struct SymbolManifestEntry {
+    symbol: String,
+    module: String,
+    include: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SymbolManifestFile {
+    plugin: String,
+    symbols: Vec<SymbolManifestEntry>,
+}
+
+#[derive(Debug, Serialize)]
+struct ModuleIncludeManifestFile {
+    plugin: String,
+    module_headers: HashMap<String, Vec<String>>,
+}
+
+pub fn write_cross_module_manifests(
+    layout: &PluginLayout,
+    config: &Ue5Config,
+    runtime_manifest: &SymbolRoutingManifest,
+    editor_manifest: &SymbolRoutingManifest,
+) -> KainResult<()> {
+    let mut merged = SymbolRoutingManifest::default();
+    merged.extend_from(runtime_manifest);
+    merged.extend_from(editor_manifest);
+
+    let mut symbols: Vec<SymbolManifestEntry> = merged
+        .symbol_owner
+        .iter()
+        .filter_map(|(symbol, module)| {
+            let include = merged.symbol_header.get(symbol)?;
+            Some(SymbolManifestEntry {
+                symbol: symbol.clone(),
+                module: module.clone(),
+                include: include.clone(),
+            })
+        })
+        .collect();
+    symbols.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+
+    let mut module_headers: HashMap<String, Vec<String>> = HashMap::new();
+    for entry in &symbols {
+        module_headers
+            .entry(entry.module.clone())
+            .or_default()
+            .push(entry.include.clone());
+    }
+    for headers in module_headers.values_mut() {
+        headers.sort();
+        headers.dedup();
+    }
+
+    let out_dir = layout.plugin_root.join("Intermediate").join("Kain");
+    fs::create_dir_all(&out_dir).map_err(|e| KainError::Io(e))?;
+
+    let symbol_file = SymbolManifestFile {
+        plugin: config.plugin_name.clone(),
+        symbols,
+    };
+    let include_file = ModuleIncludeManifestFile {
+        plugin: config.plugin_name.clone(),
+        module_headers,
+    };
+
+    let symbol_json = serde_json::to_string_pretty(&symbol_file)
+        .map_err(|e| KainError::runtime(format!("Failed to serialize symbol manifest: {}", e)))?;
+    let include_json = serde_json::to_string_pretty(&include_file)
+        .map_err(|e| KainError::runtime(format!("Failed to serialize include manifest: {}", e)))?;
+
+    fs::write(out_dir.join("symbol_ownership_manifest.json"), symbol_json)
+        .map_err(|e| KainError::Io(e))?;
+    fs::write(out_dir.join("module_include_manifest.json"), include_json)
+        .map_err(|e| KainError::Io(e))?;
+
+    println!("   ✓ cross-module manifests emitted to {}/Intermediate/Kain", config.plugin_name);
     Ok(())
 }
 

@@ -280,12 +280,21 @@ pub fn generate_filtered(
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             kain_core::types::TypedItem::Struct(st) => {
-                let prefixed_name = to_struct_name(&st.ast.name);
+                let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
+                let is_subsystem = st.ast.attributes.iter().any(|a| a.name == "subsystem");
+                let prefixed_name = if is_subsystem {
+                    to_subsystem_name(&st.ast.name)
+                } else {
+                    to_struct_name(&st.ast.name)
+                };
                 let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
-                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                if is_component {
                     gen.context.register_component(st.ast.name.clone(), header);
                     gen.type_mapper.register_component(st.ast.name.clone());
+                } else if is_subsystem {
+                    gen.context.register_subsystem(st.ast.name.clone(), header);
+                    gen.type_mapper.register_subsystem(st.ast.name.clone());
                 } else {
                     gen.type_mapper.register_struct(st.ast.name.clone());
                 }
@@ -387,12 +396,21 @@ pub fn generate_filtered_typed(
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             kain_core::types::TypedItem::Struct(st) => {
-                let prefixed_name = to_struct_name(&st.ast.name);
+                let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
+                let is_subsystem = st.ast.attributes.iter().any(|a| a.name == "subsystem");
+                let prefixed_name = if is_subsystem {
+                    to_subsystem_name(&st.ast.name)
+                } else {
+                    to_struct_name(&st.ast.name)
+                };
                 let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
-                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                if is_component {
                     gen.context.register_component(st.ast.name.clone(), header);
                     gen.type_mapper.register_component(st.ast.name.clone());
+                } else if is_subsystem {
+                    gen.context.register_subsystem(st.ast.name.clone(), header);
+                    gen.type_mapper.register_subsystem(st.ast.name.clone());
                 } else {
                     gen.type_mapper.register_struct(st.ast.name.clone());
                 }
@@ -477,12 +495,21 @@ pub fn generate_stdlib_functions(
                 gen.type_mapper.register_enum(en.ast.name.clone());
             },
             TypedItem::Struct(st) => {
-                let prefixed_name = to_struct_name(&st.ast.name);
+                let is_component = st.ast.attributes.iter().any(|a| a.name == "component");
+                let is_subsystem = st.ast.attributes.iter().any(|a| a.name == "subsystem");
+                let prefixed_name = if is_subsystem {
+                    to_subsystem_name(&st.ast.name)
+                } else {
+                    to_struct_name(&st.ast.name)
+                };
                 let header = type_to_header.get(&st.ast.name).cloned().unwrap_or(format!("{}.h", prefixed_name));
                 gen.context.register_struct(st.ast.name.clone(), header.clone());
-                if st.ast.attributes.iter().any(|a| a.name == "component") {
+                if is_component {
                     gen.context.register_component(st.ast.name.clone(), header);
                     gen.type_mapper.register_component(st.ast.name.clone());
+                } else if is_subsystem {
+                    gen.context.register_subsystem(st.ast.name.clone(), header);
+                    gen.type_mapper.register_subsystem(st.ast.name.clone());
                 } else {
                     gen.type_mapper.register_struct(st.ast.name.clone());
                 }
@@ -1011,6 +1038,21 @@ impl Ue5Gen {
         } else {
             "all" // No target = generating everything
         };
+
+        let mut target_is_subsystem = false;
+        let mut target_is_tick_subsystem = false;
+        if let Some(target) = &self.target_item {
+            for item in program.items() {
+                if let TypedItem::Struct(s) = item {
+                    if &s.ast.name == target {
+                        target_is_subsystem = s.ast.attributes.iter().any(|a| a.name == "subsystem");
+                        target_is_tick_subsystem = target_is_subsystem
+                            && s.ast.attributes.iter().any(|a| a.name == "tick");
+                        break;
+                    }
+                }
+            }
+        }
         
         // Initialize includes based on item type (CoreMinimal.h is already in the template)
         let mut includes: Vec<&str> = Vec::new();
@@ -1036,6 +1078,12 @@ impl Ue5Gen {
             },
             "struct" | "enum" | "delegate" => {
                 // Minimal includes — CoreMinimal.h from template is sufficient
+                if target_is_subsystem {
+                    includes.push("Subsystems/WorldSubsystem.h");
+                }
+                if target_is_tick_subsystem {
+                    includes.push("Tickable.h");
+                }
             },
             _ => {
                 // Full includes for combined/unknown output
@@ -3057,6 +3105,18 @@ impl Ue5Gen {
             self.gen_uproperty_with_context(field, Some(&struct_def.name), false);
         }
 
+        // Additional subsystem methods declared directly on the struct
+        // (exclude lifecycle/tick methods handled by dedicated overrides below)
+        for method in &struct_def.methods {
+            let is_lifecycle = matches!(
+                method.name.as_str(),
+                "initialize" | "Initialize" | "deinitialize" | "Deinitialize" | "tick" | "Tick" | "on_tick" | "OnTick"
+            );
+            if !is_lifecycle {
+                self.gen_actor_method_decl(method, &class_name);
+            }
+        }
+
         self.pop_indent();
         self.pop_indent();
         self.write_header("};");
@@ -3159,6 +3219,17 @@ impl Ue5Gen {
             self.pop_indent();
             self.write_source("}");
             self.write_blank_source();
+        }
+
+        // Non-lifecycle subsystem method implementations
+        for method in &struct_def.methods {
+            let is_lifecycle = matches!(
+                method.name.as_str(),
+                "initialize" | "Initialize" | "deinitialize" | "Deinitialize" | "tick" | "Tick" | "on_tick" | "OnTick"
+            );
+            if !is_lifecycle {
+                self.gen_actor_method_impl(&class_name, method);
+            }
         }
     }
 
@@ -4908,6 +4979,17 @@ impl Ue5Gen {
                 for field in &s.ast.fields {
                     self.map_type(&field.ty);
                     self.discover_type_headers(&field.ty);
+                }
+
+                // @subsystem structs generate classes inheriting UWorldSubsystem,
+                // and optionally FTickableGameObject when @tick is present.
+                // Add required engine headers during dependency discovery so the
+                // generated header has all base-class includes.
+                if s.ast.attributes.iter().any(|a| a.name == "subsystem") {
+                    self.context.need_header("Subsystems/WorldSubsystem.h".to_string());
+                    if s.ast.attributes.iter().any(|a| a.name == "tick") {
+                        self.context.need_header("Tickable.h".to_string());
+                    }
                 }
             },
             TypedItem::Component(c) => {

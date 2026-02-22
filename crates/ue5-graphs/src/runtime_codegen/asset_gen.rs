@@ -60,7 +60,7 @@ impl AssetGenerator {
     pub fn generate_asset_header(&self) -> Result<String> {
         let class_name = format!("U{}GraphAsset", self.graph.name);
         let graph_data_class = format!("U{}GraphData", self.graph.name);
-        let instance_class = format!("U{}GraphInstance", self.graph.name);
+        let instance_class = format!("U{}Instance", self.graph.name);
         let api_macro = format!("{}_API", self.plugin_name.to_uppercase());
         
         let mut lines = Vec::new();
@@ -134,7 +134,7 @@ impl AssetGenerator {
     /// Generate Asset class source
     pub fn generate_asset_source(&self) -> Result<String> {
         let class_name = format!("U{}GraphAsset", self.graph.name);
-        let instance_class = format!("U{}GraphInstance", self.graph.name);
+        let instance_class = format!("U{}Instance", self.graph.name);
         
         let mut lines = Vec::new();
         
@@ -142,7 +142,7 @@ impl AssetGenerator {
         lines.push(String::new());
         lines.push(format!("#include \"{}GraphAsset.h\"", self.graph.name));
         lines.push(format!("#include \"{}GraphData.h\"", self.graph.name));
-        lines.push(format!("#include \"{}GraphInstance.h\"", self.graph.name));
+        lines.push(format!("#include \"{}Instance.h\"", self.graph.name));
         lines.push(String::new());
         
         // CreateInstance implementation
@@ -292,11 +292,11 @@ mod tests {
         let content = source.unwrap();
         
         // Check for implementation
-        assert!(content.contains("UCombatGraphInstance* UCombatGraphAsset::CreateInstance()"));
+        assert!(content.contains("UCombatInstance* UCombatGraphAsset::CreateInstance()"));
         assert!(content.contains("bool UCombatGraphAsset::ValidateGraph()"));
         assert!(content.contains("int32 UCombatGraphAsset::GetNodeCount()"));
         assert!(content.contains("IsValid(GraphData)"));
-        assert!(content.contains("NewObject<UCombatGraphInstance>"));
+        assert!(content.contains("NewObject<UCombatInstance>"));
     }
 
     #[test]
@@ -329,7 +329,7 @@ mod tests {
         // Check for includes
         assert!(content.contains("#include \"CombatGraphAsset.h\""));
         assert!(content.contains("#include \"CombatGraphData.h\""));
-        assert!(content.contains("#include \"CombatGraphInstance.h\""));
+        assert!(content.contains("#include \"CombatInstance.h\""));
     }
 
     #[test]
@@ -344,7 +344,7 @@ mod tests {
         
         // Check for forward declarations
         assert!(content.contains("class UCombatGraphData;"));
-        assert!(content.contains("class UCombatGraphInstance;"));
+        assert!(content.contains("class UCombatInstance;"));
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
         let content = source.unwrap();
         
         // Check for instance creation
-        assert!(content.contains("NewObject<UCombatGraphInstance>(this)"));
+        assert!(content.contains("NewObject<UCombatInstance>(this)"));
         assert!(content.contains("if (!IsValid(NewInstance))"));
         assert!(content.contains("return NewInstance;"));
     }

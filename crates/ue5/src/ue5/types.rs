@@ -517,7 +517,7 @@ impl TypeMapper {
         } else if self.registry.is_struct(name) {
             to_struct_name(name)
         } else if self.registry.is_actor(name) {
-            to_actor_name(name)
+            format!("{}*", to_actor_name(name))
         } else if name.ends_with("Graph") {
             // Runtime graph defs are generated as UObject instance classes.
             // Allow user-authored fields like `DialogueGraph` to bind to

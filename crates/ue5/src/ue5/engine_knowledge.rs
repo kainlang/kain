@@ -214,6 +214,52 @@ impl EngineKnowledge {
         // If validation passes, load normally
         self.load_metadata(json_data)
     }
+    
+    /// Load all extension metadata from the extensions directory
+    /// Extensions are JSON files in unreal/metadata/extensions/*.json
+    /// They follow the same schema as engine_knowledge.json
+    pub fn load_extensions(&mut self, extensions_dir: &std::path::Path) -> Result<usize, String> {
+        use std::fs;
+        
+        if !extensions_dir.exists() {
+            // Extensions directory doesn't exist yet, that's okay
+            return Ok(0);
+        }
+        
+        let mut loaded_count = 0;
+        
+        // Read all .json files in the extensions directory
+        let entries = fs::read_dir(extensions_dir)
+            .map_err(|e| format!("Failed to read extensions directory: {}", e))?;
+        
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+            let path = entry.path();
+            
+            // Only process .json files
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            
+            // Read the extension file
+            let json_data = fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read extension file {:?}: {}", path, e))?;
+            
+            // Load the extension metadata
+            match self.load_metadata(&json_data) {
+                Ok(_) => {
+                    loaded_count += 1;
+                    eprintln!("✅ Loaded extension: {:?}", path.file_name().unwrap());
+                }
+                Err(e) => {
+                    eprintln!("⚠️  Failed to load extension {:?}: {}", path.file_name().unwrap(), e);
+                    // Continue loading other extensions even if one fails
+                }
+            }
+        }
+        
+        Ok(loaded_count)
+    }
 
     fn ingest_metadata(&mut self, meta: EngineMetadata) {
         for class in meta.classes {

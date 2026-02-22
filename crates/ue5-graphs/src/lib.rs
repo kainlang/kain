@@ -99,8 +99,19 @@ pub fn generate_graph_editor(
         for line in content.lines() {
             let trimmed = line.trim();
             if trimmed == "#pragma once" || trimmed.starts_with("#include ") {
+                let is_local_fragment_include = if let Some(include_target) = trimmed
+                    .strip_prefix("#include ")
+                    .and_then(|s| s.trim().strip_prefix('"'))
+                    .and_then(|s| s.strip_suffix('"'))
+                {
+                    include_target.starts_with(&ast.name) && include_target.ends_with(".h")
+                } else {
+                    false
+                };
+
                 if trimmed.starts_with("#include ")
                     && !trimmed.contains(".generated.h")
+                    && !is_local_fragment_include
                     && !include_lines.iter().any(|existing| existing == trimmed)
                 {
                     include_lines.push(trimmed.to_string());
@@ -137,17 +148,58 @@ pub fn generate_graph_editor(
     header.push_str(&format!("#include \"{}Factory.generated.h\"\n\n", ast.name));
     header.push_str(&body_chunks.join("\n\n"));
     
-    // Combine all sources into one file (simplified for now)
-    let mut source = String::new();
-    source.push_str(&factory_output.base_node_source.1);
-    source.push_str("\n\n");
+    // Combine all sources into one translation unit.
+    // Important: Unreal requires this file's own header first.
+    let mut source_include_lines: Vec<String> = Vec::new();
+    let mut source_chunks: Vec<String> = Vec::new();
+    let mut collect_source_fragment = |content: &str| {
+        let mut body: Vec<&str> = Vec::new();
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("#include ") {
+                let is_local_fragment_include = if let Some(include_target) = trimmed
+                    .strip_prefix("#include ")
+                    .and_then(|s| s.trim().strip_prefix('"'))
+                    .and_then(|s| s.strip_suffix('"'))
+                {
+                    include_target.starts_with(&ast.name) && include_target.ends_with(".h")
+                } else {
+                    false
+                };
+
+                if !is_local_fragment_include
+                    && !source_include_lines.iter().any(|existing| existing == trimmed)
+                {
+                    source_include_lines.push(trimmed.to_string());
+                }
+                continue;
+            }
+            body.push(line);
+        }
+
+        let body_text = body.join("\n").trim().to_string();
+        if !body_text.is_empty() {
+            source_chunks.push(body_text);
+        }
+    };
+
+    collect_source_fragment(&factory_output.base_node_source.1);
     for (_, node_source) in &factory_output.node_sources {
-        source.push_str(node_source);
-        source.push_str("\n\n");
+        collect_source_fragment(node_source);
     }
-    source.push_str(&factory_output.schema_source.1);
-    source.push_str("\n\n");
-    source.push_str(&factory_output.graph_source.1);
+    collect_source_fragment(&factory_output.schema_source.1);
+    collect_source_fragment(&factory_output.graph_source.1);
+
+    let mut source = String::new();
+    source.push_str(&format!("#include \"{}Factory.h\"\n\n", ast.name));
+    for include in &source_include_lines {
+        source.push_str(include);
+        source.push('\n');
+    }
+    if !source_include_lines.is_empty() {
+        source.push('\n');
+    }
+    source.push_str(&source_chunks.join("\n\n"));
     
     // Generate binary .uasset (TODO: Implement binary serializer)
     let uasset = Vec::new();

@@ -120,8 +120,6 @@ impl FactoryGenerator {
         
         lines.push(format!("#include \"{}NodeBase.h\"", self.graph.name));
         lines.push(format!("#include \"{}Schema.h\"", self.graph.name));
-        lines.push(format!("#include \"Framework/Commands/GenericCommands.h\""));
-        lines.push(format!("#include \"GraphEditorActions.h\""));
         lines.push(String::new());
         
         // Constructor
@@ -134,11 +132,7 @@ impl FactoryGenerator {
         lines.push(format!("void {}::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const", class_name));
         lines.push(format!("{{"));
         lines.push(format!("\tSuper::GetNodeContextMenuActions(Menu, Context);"));
-        lines.push(String::new());
-        lines.push(format!("\tFToolMenuSection& Section = Menu->AddSection(TEXT(\"DefaultActions\"), FText::FromString(TEXT(\"Default actions\")));"));
-        lines.push(format!("\tSection.AddMenuEntry(FGenericCommands::Get().Delete);"));
-        lines.push(format!("\tSection.AddMenuEntry(FGenericCommands::Get().Duplicate);"));
-        lines.push(format!("\tSection.AddMenuEntry(FGraphEditorCommands::Get().BreakNodeLinks);"));
+        lines.push(format!("\t// Context menu entries are optional and module-dependent."));
         lines.push(format!("}}"));
         lines.push(String::new());
         
@@ -206,11 +200,11 @@ impl FactoryGenerator {
         lines.push(format!("\t// UEdGraphNode interface"));
         lines.push(format!("\tvirtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;"));
         lines.push(format!("\tvirtual FLinearColor GetNodeTitleColor() const override;"));
-        lines.push(format!("\tvirtual void CreateDefaultPins() override;"));
+        lines.push(format!("\tvirtual void AllocateDefaultPins() override;"));
         lines.push(format!("\tvirtual FText GetTooltipText() const override;"));
         
         if !node.category.is_empty() {
-            lines.push(format!("\tvirtual FText GetMenuCategory() const override;"));
+            lines.push(format!("\tvirtual FText GetMenuCategory() const;"));
         }
         
         lines.push(String::new());
@@ -251,8 +245,8 @@ impl FactoryGenerator {
         lines.push(format!("}}"));
         lines.push(String::new());
         
-        // CreateDefaultPins
-        lines.push(format!("void {}::CreateDefaultPins()", class_name));
+        // AllocateDefaultPins
+        lines.push(format!("void {}::AllocateDefaultPins()", class_name));
         lines.push(format!("{{"));
         
         // Create input pins
