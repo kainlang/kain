@@ -27,6 +27,8 @@ use std::collections::HashSet;
 
 // Import the UE5 support library
 use crate::ue5::{Ue5Context, TEMPLATES};
+use crate::network_sync_ir::convert_to_network_sync_ir;
+use crate::network_sync_codegen::generate_network_sync_code;
 use serde_json::json;
 
 // Trait to abstract over TypedProgram and MonomorphizedProgram
@@ -2601,6 +2603,40 @@ impl Ue5Gen {
             f.attributes.iter().any(|a| a.name == "replicated")
         });
         
+        // Check if component has advanced network sync (interpolation, extrapolation, compression)
+        let has_network_sync = has_replicated && struct_def.fields.iter().any(|f| {
+            f.attributes.iter().any(|a| {
+                if a.name == "replicated" {
+                    // Check if it has mode parameter (indicates advanced sync)
+                    a.args.iter().any(|arg| {
+                        if let Expr::Binary { op, left, .. } = arg {
+                            if *op == BinaryOp::Assign {
+                                if let Expr::Ident(name, _) = &**left {
+                                    return name == "mode";
+                                }
+                            }
+                        }
+                        false
+                    })
+                } else {
+                    false
+                }
+            })
+        });
+        
+        // Generate network sync code if needed
+        let network_sync_output = if has_network_sync {
+            match convert_to_network_sync_ir(struct_def, &self.context) {
+                Ok(ir) => Some(generate_network_sync_code(&ir, &class_name)),
+                Err(e) => {
+                    eprintln!("Warning: Failed to generate network sync code: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        
         // Get interface inheritance list
         let interface_list = self.context.get_interface_list(&struct_def.name);
         
@@ -2620,7 +2656,7 @@ impl Ue5Gen {
         if has_beginplay {
             self.write_header("virtual void BeginPlay() override;");
         }
-        if has_tick {
+        if has_tick || has_network_sync {
             self.write_header("virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;");
         }
         self.write_blank_header();
@@ -2628,6 +2664,17 @@ impl Ue5Gen {
         // Fields as UPROPERTY
         for field in &struct_def.fields {
             self.gen_uproperty_with_context(field, None, false);
+        }
+        
+        // Add network sync state buffers and helper fields
+        if let Some(ref sync_output) = network_sync_output {
+            if !sync_output.header_declarations.is_empty() {
+                self.write_blank_header();
+                self.write_header("// Network synchronization state");
+                for line in sync_output.header_declarations.lines() {
+                    self.write_header(line);
+                }
+            }
         }
         
         // Add GetLifetimeReplicatedProps if needed
@@ -2647,14 +2694,25 @@ impl Ue5Gen {
         self.write_source(&format!("{}::{}()", class_name, class_name));
         self.write_source("{");
         self.push_indent();
-        if has_tick {
+        if has_tick || has_network_sync {
             self.write_source("PrimaryComponentTick.bCanEverTick = true;");
         } else {
             self.write_source("PrimaryComponentTick.bCanEverTick = false;");
         }
-        if has_replicated {
+        
+        // Add network sync constructor initialization
+        if let Some(ref sync_output) = network_sync_output {
+            if !sync_output.constructor_body.is_empty() {
+                self.write_blank_source();
+                self.write_source("// Network synchronization initialization");
+                for line in sync_output.constructor_body.lines() {
+                    self.write_source(line);
+                }
+            }
+        } else if has_replicated {
             self.write_source("SetIsReplicatedByDefault(true);");
         }
+        
         self.pop_indent();
         self.write_source("}");
         self.write_blank_source();
@@ -2685,11 +2743,21 @@ impl Ue5Gen {
         }
         
         // TickComponent implementation — wire impl block body if available
-        if has_tick {
+        if has_tick || has_network_sync {
             self.write_source(&format!("void {}::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)", class_name));
             self.write_source("{");
             self.push_indent();
             self.write_source("Super::TickComponent(DeltaTime, TickType, ThisTickFunction);");
+            
+            // Add network sync tick logic first
+            if let Some(ref sync_output) = network_sync_output {
+                if !sync_output.tick_body.is_empty() {
+                    self.write_blank_source();
+                    for line in sync_output.tick_body.lines() {
+                        self.write_source(line);
+                    }
+                }
+            }
             
             // Look up tick method from impl block
             let tick_body = self.impl_methods.get(&struct_def.name)
@@ -2721,13 +2789,22 @@ impl Ue5Gen {
             self.write_source(&format!("void {}::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const", class_name));
             self.write_source("{");
             self.push_indent();
-            self.write_source("Super::GetLifetimeReplicatedProps(OutLifetimeProps);");
-            self.write_blank_source();
             
-            // Add DOREPLIFETIME for each replicated field
-            for field in &struct_def.fields {
-                if field.attributes.iter().any(|a| a.name == "replicated") {
-                    self.write_source(&format!("DOREPLIFETIME({}, {});", class_name, field.name));
+            // Use network sync replication setup if available
+            if let Some(ref sync_output) = network_sync_output {
+                for line in sync_output.replication_body.lines() {
+                    self.write_source(line);
+                }
+            } else {
+                // Fallback to simple replication
+                self.write_source("Super::GetLifetimeReplicatedProps(OutLifetimeProps);");
+                self.write_blank_source();
+                
+                // Add DOREPLIFETIME for each replicated field
+                for field in &struct_def.fields {
+                    if field.attributes.iter().any(|a| a.name == "replicated") {
+                        self.write_source(&format!("DOREPLIFETIME({}, {});", class_name, field.name));
+                    }
                 }
             }
             

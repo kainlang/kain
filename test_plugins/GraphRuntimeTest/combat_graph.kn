@@ -1,0 +1,45 @@
+@graph_runtime
+struct CombatGraph:
+    @node_data
+    struct ActionNode:
+        @property
+        action_class: Class
+        
+        @input_pin
+        execute: Exec
+        
+        @output_pin
+        success: Exec
+        
+        @output_pin
+        failure: Exec
+        
+        fn execute(instance: GraphInstance) -> NodeData:
+            return get_node(success)
+    
+    @node_data
+    struct ConditionNode:
+        @property
+        condition_value: Bool
+        
+        @input_pin
+        execute: Exec
+        
+        @output_pin
+        true_branch: Exec
+        
+        @output_pin
+        false_branch: Exec
+        
+        fn execute(instance: GraphInstance) -> NodeData:
+            if condition_value:
+                return get_node(true_branch)
+            else:
+                return get_node(false_branch)
+    
+    @instance
+    struct Instance:
+        current_node: NodeData
+        
+        fn trigger_action() -> Bool:
+            return try_proceed_graph()

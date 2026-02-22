@@ -24,6 +24,7 @@ pub mod slate;
 pub mod viewport;
 pub mod details;
 pub mod assets;
+pub mod asset_editor_ir;
 pub mod style;
 pub mod reactive;
 

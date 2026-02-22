@@ -1,0 +1,25 @@
+@graph_runtime
+struct CombatGraph:
+    @node_data
+    struct ActionNode:
+        @property
+        action_class: Class
+        
+        @input_pin
+        execute: Exec
+        
+        @output_pin
+        success: Exec
+        
+        @output_pin
+        failure: Exec
+        
+        fn execute(instance: GraphInstance) -> NodeData:
+            return get_node(success)
+    
+    @instance
+    struct Instance:
+        current_node: NodeData
+        
+        fn trigger_action() -> Bool:
+            return try_proceed_graph()

@@ -74,6 +74,12 @@ pub enum Item {
 
     /// `@graph_editor Name: node_types, schema`
     GraphEditor(GraphEditorDef),
+
+    /// `@graph_runtime Name: graph_data, node_data, instance, pins`
+    GraphRuntime(GraphRuntimeDef),
+
+    /// `@state_machine Name: states, transitions`
+    StateMachine(StateMachineDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1008,5 +1014,178 @@ pub struct GraphSchemaDef {
 pub struct SchemaRule {
     pub name: String,
     pub condition: Expr,
+    pub span: Span,
+}
+
+// === GRAPH RUNTIME (UE5 Runtime Graph System) ===
+
+/// Graph runtime definition: `@graph_runtime Name: graph_data, node_data, instance, pins`
+/// Generates runtime graph classes (GraphData, NodeData, Instance, PinData) for UE5.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphRuntimeDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub graph_data: Option<GraphDataDef>,
+    pub node_types: Vec<NodeDataDef>,
+    pub instance: Option<GraphInstanceDef>,
+    pub pin_config: Option<PinConfigDef>,
+    pub span: Span,
+}
+
+/// Graph data container definition
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphDataDef {
+    pub properties: Vec<Field>,
+    pub methods: Vec<Function>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Node data definition for runtime graph nodes
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeDataDef {
+    pub name: String,
+    pub base_class: Option<String>,  // Optional base node class
+    pub input_pins: Vec<PinDef>,
+    pub output_pins: Vec<PinDef>,
+    pub properties: Vec<Field>,
+    pub methods: Vec<Function>,
+    pub execute_logic: Option<Block>,  // Optional ExecuteNode() implementation
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Graph instance definition for runtime execution
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphInstanceDef {
+    pub state: Vec<Field>,
+    pub methods: Vec<Function>,
+    pub delegates: Vec<DelegateDef>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Pin configuration for graph connections
+#[derive(Debug, Clone, PartialEq)]
+pub struct PinConfigDef {
+    pub properties: Vec<Field>,
+    pub methods: Vec<Function>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Delegate definition for graph events
+#[derive(Debug, Clone, PartialEq)]
+pub struct DelegateDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+// === NETWORK SYNCHRONIZATION (UE5 Network Replication System) ===
+
+/// Network synchronization definition for replicated components
+/// Generates network replication code with interpolation, extrapolation, and compression
+#[derive(Debug, Clone, PartialEq)]
+pub struct NetworkSyncDef {
+    pub component_name: String,
+    pub replicated_properties: Vec<ReplicatedProperty>,
+    pub config: NetworkConfig,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Replicated property with synchronization mode
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReplicatedProperty {
+    pub name: String,
+    pub ty: Type,
+    pub mode: ReplicationMode,
+    pub compression: Option<CompressionSettings>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Replication mode for network synchronization
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReplicationMode {
+    /// Simple replication (no interpolation)
+    Simple,
+    
+    /// Interpolated replication with back_time buffer
+    Interpolated {
+        back_time: f32,
+    },
+    
+    /// Extrapolated replication for prediction
+    Extrapolated {
+        limit: f32,
+    },
+    
+    /// Compressed replication with threshold
+    Compressed {
+        threshold: f32,
+    },
+}
+
+/// Compression settings for replicated properties
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompressionSettings {
+    pub threshold: f32,
+    pub use_half_float: bool,
+}
+
+/// Network configuration for component
+#[derive(Debug, Clone, PartialEq)]
+pub struct NetworkConfig {
+    pub snap_threshold: Option<f32>,
+    pub send_rate: Option<f32>,
+    pub owner_time_sync: bool,
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            snap_threshold: Some(500.0),
+            send_rate: Some(10.0),
+            owner_time_sync: true,
+        }
+    }
+}
+
+// === ANIMATION STATE MACHINE (UE5 Animation System) ===
+
+/// State machine definition: `@state_machine struct Name: states`
+/// Generates state machine runtime class with state enum, transitions, and update logic
+#[derive(Debug, Clone, PartialEq)]
+pub struct StateMachineDef {
+    pub name: String,
+    pub states: Vec<StateDef>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// State definition within a state machine
+#[derive(Debug, Clone, PartialEq)]
+pub struct StateDef {
+    pub name: String,
+    pub is_entry: bool,
+    pub animation: Option<String>,
+    pub properties: Vec<Field>,
+    pub transitions: Vec<TransitionDef>,
+    pub on_enter: Option<Block>,
+    pub on_exit: Option<Block>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Transition definition between states
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransitionDef {
+    pub to_state: String,
+    pub condition: Option<Block>,
+    pub priority: i32,
+    pub attributes: Vec<Attribute>,
     pub span: Span,
 }

@@ -111,6 +111,17 @@ impl<'a> Parser<'a> {
         if attributes.iter().any(|a| a.name == "graph_editor") {
             return self.parse_graph_editor(attributes);
         }
+        
+        // Check for @graph_runtime attribute
+        if attributes.iter().any(|a| a.name == "graph_runtime") {
+            return self.parse_graph_runtime(attributes);
+        }
+        
+        // Check for @state_machine attribute
+        if attributes.iter().any(|a| a.name == "state_machine") {
+            return self.parse_state_machine(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -141,12 +152,34 @@ impl<'a> Parser<'a> {
             self.advance(); // consume @
             let name = self.parse_attribute_name()?;
             
-            // Optional args: @attr(arg1, arg2)
+            // Optional args: @attr(arg1, arg2) or @attr(name: value, name2: value2)
             let args = if self.check(TokenKind::LParen) {
                 self.advance();
                 let mut arg_list = Vec::new();
                 while !self.check(TokenKind::RParen) && !self.at_end() {
-                    arg_list.push(self.parse_expr()?);
+                    // Check if this is a named argument (name: value)
+                    if let TokenKind::Ident(param_name) = self.peek_kind() {
+                        let saved_pos = self.pos;
+                        self.advance(); // consume identifier
+                        
+                        if self.check(TokenKind::Colon) {
+                            // This is a named argument - represent as a tuple (name, value)
+                            self.advance(); // consume colon
+                            let value = self.parse_expr()?;
+                            
+                            // Create a tuple expression to represent name: value
+                            let name_expr = Expr::Ident(param_name.clone(), self.current_span());
+                            arg_list.push(Expr::Tuple(vec![name_expr, value], self.current_span()));
+                        } else {
+                            // Not a named argument, restore position and parse as normal expression
+                            self.pos = saved_pos;
+                            arg_list.push(self.parse_expr()?);
+                        }
+                    } else {
+                        // Not an identifier, parse as normal expression
+                        arg_list.push(self.parse_expr()?);
+                    }
+                    
                     if !self.check(TokenKind::RParen) {
                         self.expect(TokenKind::Comma)?;
                     }
@@ -169,6 +202,7 @@ impl<'a> Parser<'a> {
             TokenKind::Component => { self.advance(); Ok("component".to_string()) }
             TokenKind::Shader => { self.advance(); Ok("shader".to_string()) }
             TokenKind::Actor => { self.advance(); Ok("actor".to_string()) }
+            TokenKind::State => { self.advance(); Ok("state".to_string()) }
             TokenKind::AsyncKw => { self.advance(); Ok("async".to_string()) }
             TokenKind::Async => { self.advance(); Ok("Async".to_string()) }
             TokenKind::Gpu => { self.advance(); Ok("GPU".to_string()) }
@@ -783,12 +817,21 @@ impl<'a> Parser<'a> {
             let fname = self.parse_ident()?;
             self.expect(TokenKind::Colon)?;
             let ty = self.parse_type()?;
+            
+            // Check for default value
+            let default = if self.check(TokenKind::Eq) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            
             fields.push(Field { 
                 name: fname, 
                 ty, 
                 attributes: f_attrs, 
                 visibility: Visibility::Public, 
-                default: None, 
+                default, 
                 weak, 
                 span: self.current_span() 
             });
@@ -2951,4 +2994,718 @@ impl<'a> Parser<'a> {
         if self.check(k.clone()) { self.advance(); Ok(()) }
         else { Err(KainError::parser(format!("Expected {:?}, got {:?}", k, self.peek_kind()), self.current_span())) }
     }
+
+    // ===== GRAPH RUNTIME PARSING =====
+    
+    /// Parse @graph_runtime struct definition
+    fn parse_graph_runtime(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse graph data, node types, instance, and pin config
+        let mut graph_data = None;
+        let mut node_types = Vec::new();
+        let mut instance = None;
+        let mut pin_config = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for nested attributes
+            let nested_attrs = self.parse_attributes()?;
+            
+            if nested_attrs.iter().any(|a| a.name == "graph_data") {
+                graph_data = Some(self.parse_graph_data(nested_attrs)?);
+            } else if nested_attrs.iter().any(|a| a.name == "node_data") {
+                node_types.push(self.parse_node_data(nested_attrs)?);
+            } else if nested_attrs.iter().any(|a| a.name == "instance") {
+                instance = Some(self.parse_graph_instance(nested_attrs)?);
+            } else if nested_attrs.iter().any(|a| a.name == "pin_config") {
+                pin_config = Some(self.parse_pin_config(nested_attrs)?);
+            } else {
+                return Err(KainError::parser(
+                    "Expected @graph_data, @node_data, @instance, or @pin_config in graph runtime",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::GraphRuntime(GraphRuntimeDef {
+            name,
+            attributes,
+            graph_data,
+            node_types,
+            instance,
+            pin_config,
+            span: start.merge(self.current_span()),
+        }))
+    }
+    
+    /// Parse @graph_data struct definition
+    fn parse_graph_data(&mut self, attributes: Vec<Attribute>) -> KainResult<GraphDataDef> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Skip name (it's implicit)
+        let _ = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse properties and methods
+        let mut properties = Vec::new();
+        let mut methods = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let field_attrs = self.parse_attributes()?;
+            
+            if self.check(TokenKind::Fn) {
+                if let Item::Function(f) = self.parse_function(Visibility::Public)? {
+                    methods.push(f);
+                }
+            } else {
+                // Parse property
+                let prop_name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let prop_ty = self.parse_type()?;
+                
+                let default = if self.check(TokenKind::Eq) {
+                    self.advance();
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                
+                properties.push(Field {
+                    name: prop_name,
+                    ty: prop_ty,
+                    attributes: field_attrs,
+                    visibility: Visibility::Public,
+                    default,
+                    weak: false,
+                    span: self.current_span(),
+                });
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(GraphDataDef {
+            properties,
+            methods,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Parse @node_data struct definition
+    fn parse_node_data(&mut self, attributes: Vec<Attribute>) -> KainResult<NodeDataDef> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Check for base class (optional inheritance syntax)
+        let base_class = if self.check(TokenKind::LParen) {
+            self.advance();
+            let base = self.parse_ident()?;
+            self.expect(TokenKind::RParen)?;
+            Some(base)
+        } else {
+            None
+        };
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse input pins, output pins, properties, methods, and execute logic
+        let mut input_pins = Vec::new();
+        let mut output_pins = Vec::new();
+        let mut properties = Vec::new();
+        let mut methods = Vec::new();
+        let mut execute_logic = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let field_attrs = self.parse_attributes()?;
+            
+            if field_attrs.iter().any(|a| a.name == "input_pin") {
+                input_pins.push(self.parse_pin_def(field_attrs)?);
+            } else if field_attrs.iter().any(|a| a.name == "output_pin") {
+                output_pins.push(self.parse_pin_def(field_attrs)?);
+            } else if field_attrs.iter().any(|a| a.name == "property") {
+                // Parse property
+                let prop_name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let prop_ty = self.parse_type()?;
+                
+                let default = if self.check(TokenKind::Eq) {
+                    self.advance();
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                
+                properties.push(Field {
+                    name: prop_name,
+                    ty: prop_ty,
+                    attributes: field_attrs,
+                    visibility: Visibility::Public,
+                    default,
+                    weak: false,
+                    span: self.current_span(),
+                });
+            } else if self.check(TokenKind::Fn) {
+                // Check if this is the execute function
+                if let Item::Function(f) = self.parse_function(Visibility::Public)? {
+                    if f.name == "execute" {
+                        // Store as execute logic
+                        execute_logic = Some(f.body);
+                    } else {
+                        methods.push(f);
+                    }
+                }
+            } else {
+                return Err(KainError::parser(
+                    "Expected @input_pin, @output_pin, @property, or fn in node data",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(NodeDataDef {
+            name,
+            base_class,
+            input_pins,
+            output_pins,
+            properties,
+            methods,
+            execute_logic,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Parse pin definition (@input_pin or @output_pin)
+    fn parse_pin_def(&mut self, attributes: Vec<Attribute>) -> KainResult<PinDef> {
+        let start = self.current_span();
+        
+        // Parse pin name
+        let name = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse type
+        let ty = self.parse_type()?;
+        
+        // Check for array syntax
+        let is_array = matches!(&ty, Type::Named { name, .. } if name == "Array");
+        
+        // Check for default value
+        let default = if self.check(TokenKind::Eq) {
+            self.advance();
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+        
+        Ok(PinDef {
+            name,
+            ty,
+            is_array,
+            default,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Parse @instance struct definition
+    fn parse_graph_instance(&mut self, attributes: Vec<Attribute>) -> KainResult<GraphInstanceDef> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Skip name (it's implicit)
+        let _ = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse state fields, methods, and delegates
+        let mut state = Vec::new();
+        let mut methods = Vec::new();
+        let mut delegates = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let field_attrs = self.parse_attributes()?;
+            
+            if self.check(TokenKind::Fn) {
+                if let Item::Function(f) = self.parse_function(Visibility::Public)? {
+                    methods.push(f);
+                }
+            } else if let TokenKind::Ident(ref s) = self.peek_kind() {
+                if s == "delegate" {
+                    delegates.push(self.parse_delegate_def(field_attrs)?);
+                } else {
+                    // Parse state field
+                    let field_name = self.parse_ident()?;
+                    self.expect(TokenKind::Colon)?;
+                    let field_ty = self.parse_type()?;
+                    
+                    let default = if self.check(TokenKind::Eq) {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    
+                    state.push(Field {
+                        name: field_name,
+                        ty: field_ty,
+                        attributes: field_attrs,
+                        visibility: Visibility::Public,
+                        default,
+                        weak: false,
+                        span: self.current_span(),
+                    });
+                }
+            } else {
+                return Err(KainError::parser(
+                    "Expected fn, delegate, or field in instance",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(GraphInstanceDef {
+            state,
+            methods,
+            delegates,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Parse delegate definition
+    fn parse_delegate_def(&mut self, attributes: Vec<Attribute>) -> KainResult<DelegateDef> {
+        let start = self.current_span();
+        
+        // Expect 'delegate' keyword
+        if let TokenKind::Ident(ref s) = self.peek_kind() {
+            if s != "delegate" {
+                return Err(KainError::parser("Expected 'delegate' keyword", self.current_span()));
+            }
+            self.advance();
+        }
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Expect LParen
+        self.expect(TokenKind::LParen)?;
+        
+        // Parse parameters
+        let params = self.parse_params()?;
+        
+        // Expect RParen
+        self.expect(TokenKind::RParen)?;
+        
+        Ok(DelegateDef {
+            name,
+            params,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Parse @pin_config struct definition
+    fn parse_pin_config(&mut self, attributes: Vec<Attribute>) -> KainResult<PinConfigDef> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Skip name (it's implicit)
+        let _ = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse properties and methods
+        let mut properties = Vec::new();
+        let mut methods = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let field_attrs = self.parse_attributes()?;
+            
+            if self.check(TokenKind::Fn) {
+                if let Item::Function(f) = self.parse_function(Visibility::Public)? {
+                    methods.push(f);
+                }
+            } else {
+                // Parse property
+                let prop_name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let prop_ty = self.parse_type()?;
+                
+                let default = if self.check(TokenKind::Eq) {
+                    self.advance();
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                
+                properties.push(Field {
+                    name: prop_name,
+                    ty: prop_ty,
+                    attributes: field_attrs,
+                    visibility: Visibility::Public,
+                    default,
+                    weak: false,
+                    span: self.current_span(),
+                });
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(PinConfigDef {
+            properties,
+            methods,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    // ===== STATE MACHINE PARSING =====
+    
+    /// Parse @state_machine struct definition
+    fn parse_state_machine(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse name
+        let name = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse states
+        let mut states = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for @state attribute
+            let state_attrs = self.parse_attributes()?;
+            
+            if state_attrs.iter().any(|a| a.name == "state") {
+                states.push(self.parse_state(state_attrs)?);
+            } else {
+                return Err(KainError::parser(
+                    "Expected @state in state machine definition",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::StateMachine(StateMachineDef {
+            name,
+            states,
+            attributes,
+            span: start.merge(self.current_span()),
+        }))
+    }
+    
+    /// Parse @state struct definition
+    fn parse_state(&mut self, attributes: Vec<Attribute>) -> KainResult<StateDef> {
+        let start = self.current_span();
+        
+        // Check if this is an entry state by looking for entry: true in @state attribute
+        let is_entry = attributes.iter().any(|attr| {
+            if attr.name == "state" {
+                // Check for entry: true parameter (represented as Tuple(Ident("entry"), Bool(true)))
+                attr.args.iter().any(|arg| {
+                    if let Expr::Tuple(parts, _) = arg {
+                        if parts.len() == 2 {
+                            if let (Expr::Ident(name, _), Expr::Bool(true, _)) = (&parts[0], &parts[1]) {
+                                return name == "entry";
+                            }
+                        }
+                    }
+                    false
+                })
+            } else {
+                false
+            }
+        });
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse state name
+        let name = self.parse_ident()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Expect indent
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Parse state body (properties, transitions, on_enter, on_exit)
+        let mut animation = None;
+        let mut properties = Vec::new();
+        let mut transitions = Vec::new();
+        let mut on_enter = None;
+        let mut on_exit = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for attributes
+            let field_attrs = self.parse_attributes()?;
+            
+            // Check for @transition
+            if field_attrs.iter().any(|a| a.name == "transition") {
+                transitions.push(self.parse_transition(field_attrs)?);
+            } else if self.check(TokenKind::Fn) {
+                // Parse method (on_enter, on_exit, or transition condition)
+                let method_name = self.peek_next_ident()?;
+                
+                if method_name == "on_enter" {
+                    self.advance(); // consume 'fn'
+                    self.advance(); // consume 'on_enter'
+                    self.expect(TokenKind::LParen)?;
+                    self.expect(TokenKind::RParen)?;
+                    self.expect(TokenKind::Colon)?;
+                    on_enter = Some(self.parse_block()?);
+                } else if method_name == "on_exit" {
+                    self.advance(); // consume 'fn'
+                    self.advance(); // consume 'on_exit'
+                    self.expect(TokenKind::LParen)?;
+                    self.expect(TokenKind::RParen)?;
+                    self.expect(TokenKind::Colon)?;
+                    on_exit = Some(self.parse_block()?);
+                } else {
+                    // Regular property or unknown method
+                    return Err(KainError::parser(
+                        "Unexpected method in state definition. Use @transition for transitions.",
+                        self.current_span()
+                    ));
+                }
+            } else {
+                // Parse property (like animation: "Idle_Anim")
+                let prop_name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                
+                if prop_name == "animation" {
+                    // Parse animation string
+                    if let Expr::String(anim_name, _) = self.parse_expr()? {
+                        animation = Some(anim_name);
+                    } else {
+                        return Err(KainError::parser(
+                            "Expected string literal for animation property",
+                            self.current_span()
+                        ));
+                    }
+                } else {
+                    // Regular property
+                    let prop_ty = self.parse_type()?;
+                    let default = if self.check(TokenKind::Eq) {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    
+                    properties.push(Field {
+                        name: prop_name,
+                        ty: prop_ty,
+                        attributes: field_attrs,
+                        visibility: Visibility::Public,
+                        default,
+                        weak: false,
+                        span: self.current_span(),
+                    });
+                }
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(StateDef {
+            name,
+            is_entry,
+            animation,
+            properties,
+            transitions,
+            on_enter,
+            on_exit,
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Parse @transition function definition
+    fn parse_transition(&mut self, attributes: Vec<Attribute>) -> KainResult<TransitionDef> {
+        let start = self.current_span();
+        
+        // Extract 'to' parameter from @transition(to: "StateName")
+        // The parameter is represented as Tuple(Ident("to"), String("StateName"))
+        let to_state = attributes.iter()
+            .find(|a| a.name == "transition")
+            .and_then(|attr| {
+                // Look for 'to' parameter
+                attr.args.iter().find_map(|arg| {
+                    if let Expr::Tuple(parts, _) = arg {
+                        if parts.len() == 2 {
+                            if let (Expr::Ident(param_name, _), Expr::String(state_name, _)) = (&parts[0], &parts[1]) {
+                                if param_name == "to" {
+                                    return Some(state_name.clone());
+                                }
+                            }
+                        }
+                    }
+                    None
+                })
+            })
+            .ok_or_else(|| KainError::parser(
+                "Expected 'to' parameter in @transition attribute",
+                self.current_span()
+            ))?;
+        
+        // Expect 'fn' keyword
+        self.expect(TokenKind::Fn)?;
+        
+        // Parse function name (condition name)
+        let _condition_name = self.parse_ident()?;
+        
+        // Parse parameters (should be empty or just self)
+        self.expect(TokenKind::LParen)?;
+        self.expect(TokenKind::RParen)?;
+        
+        // Parse return type (should be Bool)
+        self.expect(TokenKind::Arrow)?;
+        let _return_type = self.parse_type()?;
+        
+        // Expect colon
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse condition body
+        let condition = Some(self.parse_block()?);
+        
+        Ok(TransitionDef {
+            to_state,
+            condition,
+            priority: 0, // Default priority
+            attributes,
+            span: start.merge(self.current_span()),
+        })
+    }
+    
+    /// Helper to peek at the next identifier without consuming tokens
+    fn peek_next_ident(&self) -> KainResult<String> {
+        if self.pos + 1 < self.tokens.len() {
+            if let TokenKind::Ident(name) = &self.tokens[self.pos + 1].kind {
+                Ok(name.clone())
+            } else {
+                Err(KainError::parser("Expected identifier", self.current_span()))
+            }
+        } else {
+            Err(KainError::parser("Unexpected end of input", self.current_span()))
+        }
+    }
 }
+

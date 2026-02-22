@@ -84,6 +84,7 @@ impl GraphEditorConverter {
             category: def.category.clone().unwrap_or_else(|| "Default".to_string()),
             inputs: Vec::new(),
             outputs: Vec::new(),
+            properties: Vec::new(),
             color: None,
             icon: None,
             tooltip: None,

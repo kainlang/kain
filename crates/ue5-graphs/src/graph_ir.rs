@@ -36,6 +36,9 @@ pub struct NodeType {
     /// Output pins
     pub outputs: Vec<PinDefinition>,
     
+    /// Node properties
+    pub properties: Vec<PropertyDefinition>,
+    
     /// Node color (RGBA)
     pub color: Option<[f32; 4]>,
     
@@ -47,6 +50,19 @@ pub struct NodeType {
     
     /// Execution logic (optional)
     pub execution_logic: Option<String>,
+}
+
+/// Property definition for node properties
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PropertyDefinition {
+    /// Property name
+    pub name: String,
+    
+    /// Property type
+    pub property_type: String,
+    
+    /// Default value (optional)
+    pub default_value: Option<String>,
 }
 
 /// Pin definition

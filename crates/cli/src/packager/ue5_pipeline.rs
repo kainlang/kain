@@ -43,7 +43,7 @@ pub fn build_ue5_plugin() -> KainResult<()> {
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors) =
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors, graph_runtimes) =
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
@@ -205,7 +205,12 @@ pub fn build_ue5_plugin() -> KainResult<()> {
             eprintln!("   ⚠️  Failed to create graphs content dir: {}", e);
         }
 
-        for graph_def in &graph_editors {
+        // Separate runtime graphs from editor graphs
+        let (runtime_graphs, editor_graphs): (Vec<_>, Vec<_>) = graph_editors.iter()
+            .partition(|g| g.attributes.iter().any(|a| a.name == "runtime_graph"));
+
+        // Generate editor graphs (traditional UEdGraph-based)
+        for graph_def in &editor_graphs {
             match ue5_graphs::generate_graph_editor(graph_def, &ue5_config.plugin_name) {
                 Ok(output) => {
                     // Write .uasset binary
@@ -248,6 +253,432 @@ pub fn build_ue5_plugin() -> KainResult<()> {
                 }
             }
         }
+
+        // Generate runtime graphs (C++ classes in Source/ directory)
+        if !runtime_graphs.is_empty() {
+            println!();
+            println!("⚡ Generating {} runtime graph(s)...", runtime_graphs.len());
+
+            for graph_def in &runtime_graphs {
+                match ue5_graphs::convert_runtime_graph(graph_def) {
+                    Ok(runtime_ir) => {
+                        // Convert runtime IR to GraphEditor IR for codegen
+                        let mut graph_editor = ue5_graphs::GraphEditor::new(&runtime_ir.name);
+                        
+                        for node_data in &runtime_ir.node_types {
+                            let node_type = ue5_graphs::NodeType {
+                                name: node_data.name.clone(),
+                                category: node_data.category.clone(),
+                                inputs: node_data.input_pins.iter().map(|p| {
+                                    ue5_graphs::PinDefinition {
+                                        name: p.name.clone(),
+                                        pin_type: match &p.pin_type {
+                                            ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
+                                            ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
+                                            ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
+                                            ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
+                                            ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
+                                            ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
+                                            ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
+                                            ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                            _ => ue5_graphs::PinType::Wildcard,
+                                        },
+                                        is_array: p.is_array,
+                                        default_value: p.default_value.clone(),
+                                        tooltip: p.tooltip.clone(),
+                                    }
+                                }).collect(),
+                                outputs: node_data.output_pins.iter().map(|p| {
+                                    ue5_graphs::PinDefinition {
+                                        name: p.name.clone(),
+                                        pin_type: match &p.pin_type {
+                                            ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
+                                            ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
+                                            ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
+                                            ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
+                                            ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
+                                            ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
+                                            ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
+                                            ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                            _ => ue5_graphs::PinType::Wildcard,
+                                        },
+                                        is_array: p.is_array,
+                                        default_value: p.default_value.clone(),
+                                        tooltip: p.tooltip.clone(),
+                                    }
+                                }).collect(),
+                                properties: node_data.properties.iter().map(|prop| {
+                                    ue5_graphs::PropertyDefinition {
+                                        name: prop.name.clone(),
+                                        property_type: format!("{:?}", prop.property_type),
+                                        default_value: prop.default_value.clone(),
+                                    }
+                                }).collect(),
+                                color: node_data.color,
+                                icon: node_data.icon.clone(),
+                                tooltip: node_data.tooltip.clone(),
+                                execution_logic: None,
+                            };
+                            graph_editor.add_node_type(node_type);
+                        }
+                        
+                        // Generate NodeData classes
+                        let node_gen = ue5_graphs::NodeDataGenerator::new(
+                            &graph_editor,
+                            &ue5_config.plugin_name,
+                        );
+
+                        match node_gen.generate() {
+                            Ok(node_output) => {
+                                // Write NodeData headers to Source/Public/
+                                let public_dir = layout.source_dir.join("Public");
+                                if let Err(e) = fs::create_dir_all(&public_dir) {
+                                    eprintln!("   ⚠️  Failed to create Public dir: {}", e);
+                                }
+
+                                let pin_data_path = public_dir.join(&node_output.pin_data_header.0);
+                                if let Err(e) = fs::write(&pin_data_path, &node_output.pin_data_header.1) {
+                                    eprintln!("   ⚠️  Failed to write pin data header: {}", e);
+                                } else {
+                                    println!("   ✓ Pin data: {}", node_output.pin_data_header.0);
+                                }
+
+                                for (filename, header) in &node_output.node_data_headers {
+                                    let path = public_dir.join(filename);
+                                    if let Err(e) = fs::write(&path, header) {
+                                        eprintln!("   ⚠️  Failed to write node data header {}: {}", filename, e);
+                                    } else {
+                                        println!("   ✓ Node data: {}", filename);
+                                    }
+                                }
+
+                                // Write NodeData sources to Source/Private/
+                                let private_dir = layout.source_dir.join("Private");
+                                if let Err(e) = fs::create_dir_all(&private_dir) {
+                                    eprintln!("   ⚠️  Failed to create Private dir: {}", e);
+                                }
+
+                                for (filename, source) in &node_output.node_data_sources {
+                                    let path = private_dir.join(filename);
+                                    if let Err(e) = fs::write(&path, source) {
+                                        eprintln!("   ⚠️  Failed to write node data source {}: {}", filename, e);
+                                    } else {
+                                        println!("   ✓ Node data: {}", filename);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("   ⚠️  Failed to generate node data for {}: {}", runtime_ir.name, e);
+                            }
+                        }
+
+                        // Generate GraphInstance class
+                        let instance_gen = ue5_graphs::InstanceGenerator::new(
+                            &graph_editor,
+                            &ue5_config.plugin_name,
+                        );
+
+                        match instance_gen.generate() {
+                            Ok(instance_output) => {
+                                let public_dir = layout.source_dir.join("Public");
+                                let private_dir = layout.source_dir.join("Private");
+
+                                let header_path = public_dir.join(&instance_output.instance_header.0);
+                                if let Err(e) = fs::write(&header_path, &instance_output.instance_header.1) {
+                                    eprintln!("   ⚠️  Failed to write instance header: {}", e);
+                                } else {
+                                    println!("   ✓ Instance: {}", instance_output.instance_header.0);
+                                }
+
+                                let source_path = private_dir.join(&instance_output.instance_source.0);
+                                if let Err(e) = fs::write(&source_path, &instance_output.instance_source.1) {
+                                    eprintln!("   ⚠️  Failed to write instance source: {}", e);
+                                } else {
+                                    println!("   ✓ Instance: {}", instance_output.instance_source.0);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("   ⚠️  Failed to generate instance for {}: {}", runtime_ir.name, e);
+                            }
+                        }
+
+                        // Generate GraphData class
+                        match ue5_graphs::generate_graph_data_header(
+                            &graph_editor,
+                            &ue5_config.plugin_name,
+                        ) {
+                            Ok(header) => {
+                                let public_dir = layout.source_dir.join("Public");
+                                let path = public_dir.join(format!("{}GraphData.h", runtime_ir.name));
+                                if let Err(e) = fs::write(&path, &header) {
+                                    eprintln!("   ⚠️  Failed to write graph data header: {}", e);
+                                } else {
+                                    println!("   ✓ Graph data: {}GraphData.h", runtime_ir.name);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("   ⚠️  Failed to generate graph data header: {}", e);
+                            }
+                        }
+
+                        match ue5_graphs::generate_graph_data_source(
+                            &graph_editor,
+                            &ue5_config.plugin_name,
+                        ) {
+                            Ok(source) => {
+                                let private_dir = layout.source_dir.join("Private");
+                                let path = private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
+                                if let Err(e) = fs::write(&path, &source) {
+                                    eprintln!("   ⚠️  Failed to write graph data source: {}", e);
+                                } else {
+                                    println!("   ✓ Graph data: {}GraphData.cpp", runtime_ir.name);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("   ⚠️  Failed to generate graph data source: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("   ⚠️  Failed to convert runtime graph {}: {}", graph_def.name, e);
+                    }
+                }
+            }
+        }
+
+        println!();
+    }
+
+    // STEP 2.7: Generate Graph Runtime Systems (C++ classes for runtime graph execution)
+    //
+    // Graph runtime definitions (@graph_runtime) generate C++ classes for runtime graph execution:
+    // - NodeData classes (base class for all node types in the graph)
+    // - GraphInstance class (manages graph execution state and node instances)
+    // - GraphData class (optional asset data container)
+    //
+    // These are placed in Source/{PluginName}/Public/ and Source/{PluginName}/Private/
+    #[cfg(feature = "ue5")]
+    if !graph_runtimes.is_empty() {
+        println!();
+        println!("⚡ Generating {} runtime graph system(s)...", graph_runtimes.is_empty());
+
+        for graph_runtime_def in &graph_runtimes {
+            println!("   📊 Processing runtime graph: {}", graph_runtime_def.name);
+
+            // Convert GraphRuntimeDef AST to RuntimeGraph IR
+            match ue5_graphs::convert_graph_runtime_to_ir(graph_runtime_def) {
+                Ok(runtime_ir) => {
+                    // Convert RuntimeGraph IR to GraphEditor IR (needed for codegen)
+                    let mut graph_editor = ue5_graphs::GraphEditor::new(&runtime_ir.name);
+                    
+                    // Convert node types from RuntimeNodeData to NodeType
+                    for node_data in &runtime_ir.node_types {
+                        let node_type = ue5_graphs::NodeType {
+                            name: node_data.name.clone(),
+                            category: node_data.category.clone(),
+                            inputs: node_data.input_pins.iter().map(|p| {
+                                ue5_graphs::PinDefinition {
+                                    name: p.name.clone(),
+                                    pin_type: match &p.pin_type {
+                                        ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
+                                        ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
+                                        ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
+                                        ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
+                                        ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
+                                        ue5_graphs::RuntimePinType::Vector => ue5_graphs::PinType::Struct("FVector".to_string()),
+                                        ue5_graphs::RuntimePinType::Rotator => ue5_graphs::PinType::Struct("FRotator".to_string()),
+                                        ue5_graphs::RuntimePinType::Transform => ue5_graphs::PinType::Struct("FTransform".to_string()),
+                                        ue5_graphs::RuntimePinType::Color => ue5_graphs::PinType::Struct("FLinearColor".to_string()),
+                                        ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
+                                        ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
+                                        ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                        _ => ue5_graphs::PinType::Wildcard,
+                                    },
+                                    is_array: p.is_array,
+                                    default_value: p.default_value.clone(),
+                                    tooltip: p.tooltip.clone(),
+                                }
+                            }).collect(),
+                            outputs: node_data.output_pins.iter().map(|p| {
+                                ue5_graphs::PinDefinition {
+                                    name: p.name.clone(),
+                                    pin_type: match &p.pin_type {
+                                        ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
+                                        ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
+                                        ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
+                                        ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
+                                        ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
+                                        ue5_graphs::RuntimePinType::Vector => ue5_graphs::PinType::Struct("FVector".to_string()),
+                                        ue5_graphs::RuntimePinType::Rotator => ue5_graphs::PinType::Struct("FRotator".to_string()),
+                                        ue5_graphs::RuntimePinType::Transform => ue5_graphs::PinType::Struct("FTransform".to_string()),
+                                        ue5_graphs::RuntimePinType::Color => ue5_graphs::PinType::Struct("FLinearColor".to_string()),
+                                        ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
+                                        ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
+                                        ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                        _ => ue5_graphs::PinType::Wildcard,
+                                    },
+                                    is_array: p.is_array,
+                                    default_value: p.default_value.clone(),
+                                    tooltip: p.tooltip.clone(),
+                                }
+                            }).collect(),
+                            properties: node_data.properties.iter().map(|prop| {
+                                ue5_graphs::PropertyDefinition {
+                                    name: prop.name.clone(),
+                                    property_type: format!("{:?}", prop.property_type),
+                                    default_value: prop.default_value.clone(),
+                                }
+                            }).collect(),
+                            color: node_data.color,
+                            icon: node_data.icon.clone(),
+                            tooltip: node_data.tooltip.clone(),
+                            execution_logic: None,
+                        };
+                        graph_editor.add_node_type(node_type);
+                    }
+                    
+                    // Generate NodeData classes
+                    let node_gen = ue5_graphs::NodeDataGenerator::new(
+                        &graph_editor,
+                        &ue5_config.plugin_name,
+                    );
+
+                    match node_gen.generate() {
+                        Ok(node_output) => {
+                            // Write PinData header
+                            let pin_data_path = layout.public_dir.join(&node_output.pin_data_header.0);
+                            if let Err(e) = fs::write(&pin_data_path, &node_output.pin_data_header.1) {
+                                eprintln!("      ⚠️  Failed to write pin data header: {}", e);
+                            } else {
+                                println!("      ✓ {}", node_output.pin_data_header.0);
+                            }
+
+                            // Write PinData source
+                            let pin_data_src_path = layout.private_dir.join(&node_output.pin_data_source.0);
+                            if let Err(e) = fs::write(&pin_data_src_path, &node_output.pin_data_source.1) {
+                                eprintln!("      ⚠️  Failed to write pin data source: {}", e);
+                            } else {
+                                println!("      ✓ {}", node_output.pin_data_source.0);
+                            }
+
+                            // Write base NodeData header
+                            let base_header_path = layout.public_dir.join(&node_output.base_header.0);
+                            if let Err(e) = fs::write(&base_header_path, &node_output.base_header.1) {
+                                eprintln!("      ⚠️  Failed to write base node data header: {}", e);
+                            } else {
+                                println!("      ✓ {}", node_output.base_header.0);
+                            }
+
+                            // Write base NodeData source
+                            let base_source_path = layout.private_dir.join(&node_output.base_source.0);
+                            if let Err(e) = fs::write(&base_source_path, &node_output.base_source.1) {
+                                eprintln!("      ⚠️  Failed to write base node data source: {}", e);
+                            } else {
+                                println!("      ✓ {}", node_output.base_source.0);
+                            }
+
+                            // Write NodeData subclass headers
+                            for (filename, header) in &node_output.node_data_headers {
+                                let path = layout.public_dir.join(filename);
+                                if let Err(e) = fs::write(&path, header) {
+                                    eprintln!("      ⚠️  Failed to write node data header {}: {}", filename, e);
+                                } else {
+                                    println!("      ✓ {}", filename);
+                                }
+                            }
+
+                            // Write NodeData subclass sources
+                            for (filename, source) in &node_output.node_data_sources {
+                                let path = layout.private_dir.join(filename);
+                                if let Err(e) = fs::write(&path, source) {
+                                    eprintln!("      ⚠️  Failed to write node data source {}: {}", filename, e);
+                                } else {
+                                    println!("      ✓ {}", filename);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("      ⚠️  Failed to generate node data for {}: {}", runtime_ir.name, e);
+                        }
+                    }
+
+                    // Generate GraphInstance class
+                    let instance_gen = ue5_graphs::InstanceGenerator::new(
+                        &graph_editor,
+                        &ue5_config.plugin_name,
+                    );
+
+                    match instance_gen.generate() {
+                        Ok(instance_output) => {
+                            // Write instance header
+                            let header_path = layout.public_dir.join(&instance_output.instance_header.0);
+                            if let Err(e) = fs::write(&header_path, &instance_output.instance_header.1) {
+                                eprintln!("      ⚠️  Failed to write instance header: {}", e);
+                            } else {
+                                println!("      ✓ {}", instance_output.instance_header.0);
+                            }
+
+                            // Write instance source
+                            let source_path = layout.private_dir.join(&instance_output.instance_source.0);
+                            if let Err(e) = fs::write(&source_path, &instance_output.instance_source.1) {
+                                eprintln!("      ⚠️  Failed to write instance source: {}", e);
+                            } else {
+                                println!("      ✓ {}", instance_output.instance_source.0);
+                            }
+
+                            // Note: NodeData files are already written above from node_gen.generate()
+                        }
+                        Err(e) => {
+                            eprintln!("      ⚠️  Failed to generate instance for {}: {}", runtime_ir.name, e);
+                        }
+                    }
+
+                    // Generate GraphData class (if graph_data is defined)
+                    if graph_runtime_def.graph_data.is_some() {
+                        match ue5_graphs::generate_graph_data_header(
+                            &graph_editor,
+                            &ue5_config.plugin_name,
+                        ) {
+                            Ok(header) => {
+                                let path = layout.public_dir.join(format!("{}GraphData.h", runtime_ir.name));
+                                if let Err(e) = fs::write(&path, &header) {
+                                    eprintln!("      ⚠️  Failed to write graph data header: {}", e);
+                                } else {
+                                    println!("      ✓ {}GraphData.h", runtime_ir.name);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("      ⚠️  Failed to generate graph data header: {}", e);
+                            }
+                        }
+
+                        match ue5_graphs::generate_graph_data_source(
+                            &graph_editor,
+                            &ue5_config.plugin_name,
+                        ) {
+                            Ok(source) => {
+                                let path = layout.private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
+                                if let Err(e) = fs::write(&path, &source) {
+                                    eprintln!("      ⚠️  Failed to write graph data source: {}", e);
+                                } else {
+                                    println!("      ✓ {}GraphData.cpp", runtime_ir.name);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("      ⚠️  Failed to generate graph data source: {}", e);
+                            }
+                        }
+                    }
+
+                    println!("      ✅ Runtime graph system complete: {}", runtime_ir.name);
+                }
+                Err(e) => {
+                    eprintln!("      ❌ Failed to convert runtime graph {} to IR: {}", graph_runtime_def.name, e);
+                    eprintln!("         Error: {}", e);
+                }
+            }
+        }
+
         println!();
     }
 
@@ -588,12 +1019,12 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 }
 
 /// Load stdlib + user source files, parse, validate, and type-check.
-/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors).
+/// Returns (typed_program, shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors, graph_runtimes).
 fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>)> {
+) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -770,12 +1201,24 @@ fn load_and_parse_sources(
         })
         .collect();
     
-    // Filter out material graphs, material functions, and graph editors from the program before type checking
+    // Extract graph runtimes BEFORE type checking
+    let graph_runtimes: Vec<kain_core::ast::GraphRuntimeDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::GraphRuntime(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    // Filter out material graphs, material functions, graph editors, and graph runtimes from the program before type checking
     // (they will be processed separately for generation)
     merged.items.retain(|item| !matches!(item, 
         kain_core::ast::Item::MaterialGraph(_) | 
         kain_core::ast::Item::MaterialFunction(_) |
-        kain_core::ast::Item::GraphEditor(_)
+        kain_core::ast::Item::GraphEditor(_) |
+        kain_core::ast::Item::GraphRuntime(_)
     ));
     
     // Type-check the MERGED program
@@ -830,7 +1273,7 @@ fn load_and_parse_sources(
     }
     println!();
     
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors))
+    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, material_graphs, material_functions, graph_editors, graph_runtimes))
 }
 
 /// Map an engine version string from KAIN.toml to a raw `EngineVersion` value.

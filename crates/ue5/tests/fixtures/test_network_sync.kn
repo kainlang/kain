@@ -1,0 +1,23 @@
+// Test network synchronization codegen
+
+@component
+struct NetworkedTransform:
+    @replicated(mode: Interpolated, back_time: 0.1, buffer_size: 32)
+    position: Vec3
+    
+    @replicated(mode: Interpolated, back_time: 0.1)
+    rotation: Quat
+    
+    @replicated(mode: Compressed, threshold: 0.01)
+    velocity: Vec3
+    
+    @replicated(mode: Simple)
+    health: Float
+
+@component
+struct PredictedMovement:
+    @replicated(mode: Extrapolated, limit: 100.0)
+    predicted_position: Vec3
+    
+    @replicated(mode: Simple)
+    speed: Float

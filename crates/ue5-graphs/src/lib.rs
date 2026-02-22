@@ -17,6 +17,7 @@
 //! - `binary_serializer`: Generates binary .uasset files
 //! - `node_types`: Built-in node type definitions
 //! - `schema_builder`: Graph schema generation
+//! - `runtime_codegen`: Runtime graph instance and node data generation
 
 pub mod graph_ir;
 pub mod ast_converter;
@@ -24,7 +25,12 @@ pub mod factory_generator;
 pub mod binary_serializer;
 pub mod node_types;
 pub mod schema_builder;
+pub mod runtime_codegen;
 pub mod error;
+
+// Runtime graph IR modules
+pub mod runtime_ir;
+pub mod runtime_converter;
 
 pub use graph_ir::*;
 pub use ast_converter::*;
@@ -32,7 +38,20 @@ pub use factory_generator::*;
 // pub use binary_serializer::*; // TODO: Fix binary serializer dependencies
 pub use node_types::*;
 pub use schema_builder::*;
+pub use runtime_codegen::*;
 pub use error::*;
+
+// Re-export runtime IR types
+pub use runtime_ir::{
+    RuntimeGraph, RuntimeNodeData, RuntimeInstance, RuntimePin,
+    RuntimePinType, RuntimeProperty, RuntimeMethod, RuntimeParam,
+    ExecuteLogic, RuntimeGraphProperties, ExecutionMode,
+    PropertySpecifier, FunctionSpecifier, PinDirection,
+};
+pub use runtime_converter::{convert_runtime_graph, convert_graph_runtime_to_ir};
+
+// Re-export runtime codegen types
+pub use runtime_codegen::{InstanceOutput, InstanceGenerator, generate_graph_instance};
 
 /// Output from graph editor generation
 #[derive(Debug, Clone)]
@@ -99,6 +118,53 @@ pub fn generate_graph_editor(
         uasset,
         header,
         source,
+    })
+}
+
+/// Output from runtime graph generation
+#[derive(Debug, Clone)]
+pub struct RuntimeOutput {
+    /// GraphInstance header and source
+    pub instance_files: InstanceOutput,
+    
+    /// GraphData header and source (optional)
+    pub graph_data_files: Option<(String, String, String, String)>,
+}
+
+/// Generate a complete runtime graph system from GraphEditor IR
+///
+/// This generates the runtime execution system for a graph:
+/// - GraphInstance class (manages graph execution state)
+/// - GraphNodeData class (base class for node data)
+/// - GraphData class (optional, for graph asset data)
+///
+/// # Example
+///
+/// ```ignore
+/// use ue5_graphs::{GraphEditor, generate_runtime_graph};
+///
+/// let graph = GraphEditor::new("CombatGraph");
+/// let output = generate_runtime_graph(&graph, "CombatPlugin")?;
+/// 
+/// // Write instance files
+/// std::fs::write("CombatGraphInstance.h", &output.instance_files.instance_header.1)?;
+/// std::fs::write("CombatGraphInstance.cpp", &output.instance_files.instance_source.1)?;
+/// std::fs::write("CombatGraphNodeData.h", &output.instance_files.node_data_header.1)?;
+/// std::fs::write("CombatGraphNodeData.cpp", &output.instance_files.node_data_source.1)?;
+/// ```
+pub fn generate_runtime_graph(
+    ast: &GraphEditor,
+    plugin_name: &str,
+) -> Result<RuntimeOutput> {
+    // Generate instance files
+    let instance_files = generate_graph_instance(ast, plugin_name)?;
+    
+    // TODO: Generate graph data files if needed
+    let graph_data_files = None;
+    
+    Ok(RuntimeOutput {
+        instance_files,
+        graph_data_files,
     })
 }
 

@@ -531,6 +531,7 @@ mod tests {
                     tooltip: Some("Execution output".to_string()),
                 },
             ],
+            properties: Vec::new(),
             color: Some([0.0, 1.0, 0.0, 1.0]),
             icon: None,
             tooltip: Some("Input node".to_string()),
