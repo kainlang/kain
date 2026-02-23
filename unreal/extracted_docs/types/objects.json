@@ -1,0 +1,854 @@
+[
+  {
+    "name": "Unregister Navigation Invoker",
+    "type_category": "Object",
+    "description": "Unregister Navigation Invoker",
+    "category": "AI"
+  },
+  {
+    "name": "Unclaim Task Resource",
+    "type_category": "Object",
+    "description": "Unclaim Task Resource",
+    "category": "AI"
+  },
+  {
+    "name": "Use Smart Object with Gameplay Behavior",
+    "type_category": "Object",
+    "description": "Use Smart Object with Gameplay Behavior",
+    "category": "AI"
+  },
+  {
+    "name": "Use Smart Object with Gameplay Interaction",
+    "type_category": "Object",
+    "description": "Use Smart Object with Gameplay Interaction",
+    "category": "AI"
+  },
+  {
+    "name": "Unlink Anim Class Layers",
+    "type_category": "Object",
+    "description": "Unlink Anim Class Layers",
+    "category": "Animation"
+  },
+  {
+    "name": "Unbind from Animation Finished",
+    "type_category": "Object",
+    "description": "Unbind from Animation Finished",
+    "category": "Animation"
+  },
+  {
+    "name": "Unlock AIResources with Animation",
+    "type_category": "Object",
+    "description": "Unlock AIResources with Animation",
+    "category": "Animation"
+  },
+  {
+    "name": "Update",
+    "type_category": "Object",
+    "description": "Target is Animated Sparse Volume Texture Controller",
+    "category": "Animation"
+  },
+  {
+    "name": "Unbind All from Animation Finished",
+    "type_category": "Object",
+    "description": "Unbind All from Animation Finished",
+    "category": "Animation"
+  },
+  {
+    "name": "Unbind All from Animation Started",
+    "type_category": "Object",
+    "description": "Unbind All from Animation Started",
+    "category": "Animation"
+  },
+  {
+    "name": "Unbind from Animation Started",
+    "type_category": "Object",
+    "description": "Unbind from Animation Started",
+    "category": "Animation"
+  },
+  {
+    "name": "Update Material Instance from Data Asset",
+    "type_category": "Object",
+    "description": "Update Material Instance from Data Asset",
+    "category": "AnimToTexture"
+  },
+  {
+    "name": "Update Camera Texture Param",
+    "type_category": "Object",
+    "description": "Update Camera Texture Param",
+    "category": "ARUtilities"
+  },
+  {
+    "name": "Update World to Meter Scale",
+    "type_category": "Object",
+    "description": "Update World to Meter Scale",
+    "category": "ARUtilities"
+  },
+  {
+    "name": "Update Scene Depth Texture",
+    "type_category": "Object",
+    "description": "Update Scene Depth Texture",
+    "category": "ARUtilities"
+  },
+  {
+    "name": "Unload Primary Asset",
+    "type_category": "Object",
+    "description": "Unload Primary Asset",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Unload Primary Asset List",
+    "type_category": "Object",
+    "description": "Unload Primary Asset List",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Use Filter to Exclude Assets (Message)",
+    "type_category": "Object",
+    "description": "Use Filter to Exclude Assets (Message)",
+    "category": "AssetRegistry"
+  },
+  {
+    "name": "Unregister Envelope Follower Listener",
+    "type_category": "Object",
+    "description": "Unregister Envelope Follower Listener",
+    "category": "Audio"
+  },
+  {
+    "name": "Unregister Source Builder",
+    "type_category": "Object",
+    "description": "Unregister Source Builder",
+    "category": "Audio"
+  },
+  {
+    "name": "Unregister Patch Builder",
+    "type_category": "Object",
+    "description": "Unregister Patch Builder",
+    "category": "Audio"
+  },
+  {
+    "name": "Unregister Builder",
+    "type_category": "Object",
+    "description": "Unregister Builder",
+    "category": "Audio"
+  },
+  {
+    "name": "Update Modulator",
+    "type_category": "Object",
+    "description": "Update Modulator",
+    "category": "Audio"
+  },
+  {
+    "name": "Update Control Bus Mix",
+    "type_category": "Object",
+    "description": "Update Control Bus Mix",
+    "category": "Audio"
+  },
+  {
+    "name": "Unbind All Events from on OSCAddress Pattern Matches Path",
+    "type_category": "Object",
+    "description": "Unbind All Events from on OSCAddress Pattern Matches Path",
+    "category": "Audio"
+  },
+  {
+    "name": "Unbind All Events from on OSCAddress Pattern Matching",
+    "type_category": "Object",
+    "description": "Unbind All Events from on OSCAddress Pattern Matching",
+    "category": "Audio"
+  },
+  {
+    "name": "Unbind Event from on OSCAddress Pattern Matches Path",
+    "type_category": "Object",
+    "description": "Unbind Event from on OSCAddress Pattern Matches Path",
+    "category": "Audio"
+  },
+  {
+    "name": "Un Retain All Sounds in Sound Class",
+    "type_category": "Object",
+    "description": "Un Retain All Sounds in Sound Class",
+    "category": "Audio"
+  },
+  {
+    "name": "Update Cloud Anchor Properties",
+    "type_category": "Object",
+    "description": "Update Cloud Anchor Properties",
+    "category": "AzureSpatialAnchors"
+  },
+  {
+    "name": "Upgrade Operator Nodes",
+    "type_category": "Object",
+    "description": "Upgrade Operator Nodes",
+    "category": "BlueprintUpgradeTools"
+  },
+  {
+    "name": "Update Bookmark Spline Mesh Indicator (Message)",
+    "type_category": "Object",
+    "description": "Update Bookmark Spline Mesh Indicator (Message)",
+    "category": "Bookmarks"
+  },
+  {
+    "name": "Update Bookmark Spline Mesh Indicator Implementation",
+    "type_category": "Object",
+    "description": "Update Bookmark Spline Mesh Indicator Implementation",
+    "category": "Bookmarks"
+  },
+  {
+    "name": "Update Resource",
+    "type_category": "Object",
+    "description": "Update Resource",
+    "category": "CanvasRenderTarget2D"
+  },
+  {
+    "name": "Unload Reference Skeletal Meshes",
+    "type_category": "Object",
+    "description": "Unload Reference Skeletal Meshes",
+    "category": "CustomizableObject"
+  },
+  {
+    "name": "Unload Mask Out Cache",
+    "type_category": "Object",
+    "description": "Unload Mask Out Cache",
+    "category": "CustomizableObject"
+  },
+  {
+    "name": "Updated Delegate",
+    "type_category": "Object",
+    "description": "Updated Delegate",
+    "category": "CustomizableObjectInstance"
+  },
+  {
+    "name": "Update Skeletal Mesh Async",
+    "type_category": "Object",
+    "description": "Update Skeletal Mesh Async",
+    "category": "CustomizableObjectInstance"
+  },
+  {
+    "name": "Update Skeletal Mesh Async Result",
+    "type_category": "Object",
+    "description": "Update Skeletal Mesh Async Result",
+    "category": "CustomizableObjectInstance"
+  },
+  {
+    "name": "Update All Actors Visibility",
+    "type_category": "Object",
+    "description": "Update All Actors Visibility",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Update Actor Visibility",
+    "type_category": "Object",
+    "description": "Update Actor Visibility",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Update Bookmark Color",
+    "type_category": "Object",
+    "description": "Update Bookmark Color",
+    "category": "Default"
+  },
+  {
+    "name": "Unregister Tab by ID",
+    "type_category": "Object",
+    "description": "Unregister Tab by ID",
+    "category": "Development"
+  },
+  {
+    "name": "Ungroup Actors",
+    "type_category": "Object",
+    "description": "Ungroup Actors",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Ungroup Selected",
+    "type_category": "Object",
+    "description": "Ungroup Selected",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Unlock Selected Groups",
+    "type_category": "Object",
+    "description": "Unlock Selected Groups",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Unregister All Sets",
+    "type_category": "Object",
+    "description": "Unregister All Sets",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Unregister Command Set",
+    "type_category": "Object",
+    "description": "Unregister Command Set",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Unregister Command",
+    "type_category": "Object",
+    "description": "Unregister Command",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Unload Packages",
+    "type_category": "Object",
+    "description": "Unload Packages",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Utilities",
+    "type_category": "Object",
+    "description": null,
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Unregister Input Mapping Context",
+    "type_category": "Object",
+    "description": "Unregister Input Mapping Context",
+    "category": "EnhancedInput"
+  },
+  {
+    "name": "Un Map Player Key",
+    "type_category": "Object",
+    "description": "Un Map Player Key",
+    "category": "EnhancedInput"
+  },
+  {
+    "name": "Unregister Input Mapping Contexts",
+    "type_category": "Object",
+    "description": "Unregister Input Mapping Contexts",
+    "category": "EnhancedInput"
+  },
+  {
+    "name": "Update Graph Variable Overrides",
+    "type_category": "Object",
+    "description": "Update Graph Variable Overrides",
+    "category": "Experimental"
+  },
+  {
+    "name": "Unregister Provider",
+    "type_category": "Object",
+    "description": "Unregister Provider",
+    "category": "FRigVMUserWorkflowRegistry"
+  },
+  {
+    "name": "Unload Stream Level (by Name)",
+    "type_category": "Object",
+    "description": "Unload Stream Level (by Name)",
+    "category": "Game"
+  },
+  {
+    "name": "Unload Stream Level (by Object Reference)",
+    "type_category": "Object",
+    "description": "Unload Stream Level (by Object Reference)",
+    "category": "Game"
+  },
+  {
+    "name": "Update Vertex Normal",
+    "type_category": "Object",
+    "description": "Update Vertex Normal",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Utility",
+    "type_category": "Object",
+    "description": null,
+    "category": "GeometryScript"
+  },
+  {
+    "name": "UVs",
+    "type_category": "Object",
+    "description": null,
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Utilities",
+    "type_category": "Object",
+    "description": null,
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "UpdateSplinePoint",
+    "type_category": "Object",
+    "description": "UpdateSplinePoint",
+    "category": "Input"
+  },
+  {
+    "name": "UpdateSplinePoint",
+    "type_category": "Object",
+    "description": "UpdateSplinePoint",
+    "category": "Input"
+  },
+  {
+    "name": "Update External Tracking HMDPosition",
+    "type_category": "Object",
+    "description": "Update External Tracking HMDPosition",
+    "category": "Input"
+  },
+  {
+    "name": "U",
+    "type_category": "Object",
+    "description": "Events for when the U key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Underscore",
+    "type_category": "Object",
+    "description": "Events for when the Underscore key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Up",
+    "type_category": "Object",
+    "description": "Events for when the Up key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "UDIMs",
+    "type_category": "Object",
+    "description": null,
+    "category": "Interchange"
+  },
+  {
+    "name": "User Defined Attribute",
+    "type_category": "Object",
+    "description": "User Defined Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Unset Force Node Reimport",
+    "type_category": "Object",
+    "description": "Unset Force Node Reimport",
+    "category": "Interchange"
+  },
+  {
+    "name": "Unset Skip Node Import",
+    "type_category": "Object",
+    "description": "Unset Skip Node Import",
+    "category": "Interchange"
+  },
+  {
+    "name": "Utilities",
+    "type_category": "Object",
+    "description": null,
+    "category": "Interchange"
+  },
+  {
+    "name": "Update All View Visibility",
+    "type_category": "Object",
+    "description": "Update All View Visibility",
+    "category": "Layers"
+  },
+  {
+    "name": "Update Actor All Views Visibility",
+    "type_category": "Object",
+    "description": "Update Actor All Views Visibility",
+    "category": "Layers"
+  },
+  {
+    "name": "Update All Actors Visibility",
+    "type_category": "Object",
+    "description": "Update All Actors Visibility",
+    "category": "Layers"
+  },
+  {
+    "name": "Update Actor Visibility",
+    "type_category": "Object",
+    "description": "Update Actor Visibility",
+    "category": "Layers"
+  },
+  {
+    "name": "Uniform Grid Slot",
+    "type_category": "Object",
+    "description": "Uniform Grid Slot",
+    "category": "Layout"
+  },
+  {
+    "name": "Use Critic from Asset",
+    "type_category": "Object",
+    "description": "Use Critic from Asset",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Use Recording Asset",
+    "type_category": "Object",
+    "description": "Use Recording Asset",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Use Policy from Asset",
+    "type_category": "Object",
+    "description": "Use Policy from Asset",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Unhide All",
+    "type_category": "Object",
+    "description": "Marks all points visible",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Update Virtual Subject Frame Data",
+    "type_category": "Object",
+    "description": "Update Virtual Subject Frame Data",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Update Virtual Subject Static Data",
+    "type_category": "Object",
+    "description": "Update Virtual Subject Static Data",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Unmap All Keys from Action",
+    "type_category": "Object",
+    "description": "Unmap All Keys from Action",
+    "category": "Mapping"
+  },
+  {
+    "name": "Unmap Key",
+    "type_category": "Object",
+    "description": "Unmap a key from an action within the mapping context.",
+    "category": "Mapping"
+  },
+  {
+    "name": "Unmap All",
+    "type_category": "Object",
+    "description": "Unmap everything within the mapping context.",
+    "category": "Mapping"
+  },
+  {
+    "name": "Update Material Instance",
+    "type_category": "Object",
+    "description": "Update Material Instance",
+    "category": "MaterialEditing"
+  },
+  {
+    "name": "UTC Now",
+    "type_category": "Object",
+    "description": "Returns the UTC date and time on this computer",
+    "category": "Math"
+  },
+  {
+    "name": "Unrotate Vector (Quat)",
+    "type_category": "Object",
+    "description": "Unrotate Vector (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Unrotate Vector",
+    "type_category": "Object",
+    "description": "Unrotate Vector",
+    "category": "Math"
+  },
+  {
+    "name": "Update Resource",
+    "type_category": "Object",
+    "description": "Update Resource",
+    "category": "Media"
+  },
+  {
+    "name": "Update Texture Render Target 2D",
+    "type_category": "Object",
+    "description": "Update Texture Render Target 2D",
+    "category": "Media"
+  },
+  {
+    "name": "Unregister Asset Classes in Directories",
+    "type_category": "Object",
+    "description": "Unregister Asset Classes in Directories",
+    "category": "MetaSounds"
+  },
+  {
+    "name": "Update Job Shot List from Sequence",
+    "type_category": "Object",
+    "description": "Update Job Shot List from Sequence",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Unsubscribe",
+    "type_category": "Object",
+    "description": "Unsubscribe",
+    "category": "MQTT"
+  },
+  {
+    "name": "Un Possess",
+    "type_category": "Object",
+    "description": "Called to unpossess our pawn for any reason that is not the pawn being destroyed (destruction handled by PawnDestroyed()).",
+    "category": "Pawn"
+  },
+  {
+    "name": "Update Stereo Atlas",
+    "type_category": "Object",
+    "description": "Update Stereo Atlas",
+    "category": "Pawn"
+  },
+  {
+    "name": "Unfreeze Frame",
+    "type_category": "Object",
+    "description": "Unfreeze Frame",
+    "category": "PixelStreaming"
+  },
+  {
+    "name": "Update Pose from Animation",
+    "type_category": "Object",
+    "description": "Update Pose from Animation",
+    "category": "PoseAsset"
+  },
+  {
+    "name": "Unsubscribe from All Time Divisions",
+    "type_category": "Object",
+    "description": "Unsubscribe from All Time Divisions",
+    "category": "QuartzClock"
+  },
+  {
+    "name": "Unsubscribe from Time Division",
+    "type_category": "Object",
+    "description": "Unsubscribe from Time Division",
+    "category": "QuartzClock"
+  },
+  {
+    "name": "Undo Modifier",
+    "type_category": "Object",
+    "description": "Undo Modifier",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Undo Preview",
+    "type_category": "Object",
+    "description": "Undo Preview",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Undo",
+    "type_category": "Object",
+    "description": "Un-does the last action on the stack.\nNote: This should really only be used for unit tests,\nuse the GEditor's main Undo method instead.",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Unbind Pin from Variable",
+    "type_category": "Object",
+    "description": "Unbind Pin from Variable",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Unresolve Template Nodes",
+    "type_category": "Object",
+    "description": "Unresolve Template Nodes",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Upgrade Nodes",
+    "type_category": "Object",
+    "description": "Upgrade Nodes",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Util",
+    "type_category": "Object",
+    "description": null,
+    "category": "ScriptableTool"
+  },
+  {
+    "name": "Update Console Variable Enable State",
+    "type_category": "Object",
+    "description": "Update Console Variable Enable State",
+    "category": "Settings"
+  },
+  {
+    "name": "Unregister User",
+    "type_category": "Object",
+    "description": "Unregister User",
+    "category": "SlateScreenReader"
+  },
+  {
+    "name": "Unmute Speech",
+    "type_category": "Object",
+    "description": "Unmute Speech",
+    "category": "SlateScreenReader"
+  },
+  {
+    "name": "Union With",
+    "type_category": "Object",
+    "description": "Returns a specialized data to union this with another data",
+    "category": "SpatialData"
+  },
+  {
+    "name": "Unload Config",
+    "type_category": "Object",
+    "description": "Unload Config",
+    "category": "Spawning"
+  },
+  {
+    "name": "Unlock",
+    "type_category": "Object",
+    "description": "Unlock this take if it is read-only, allowing it to be modified once again",
+    "category": "Take"
+  },
+  {
+    "name": "Unmute Channel",
+    "type_category": "Object",
+    "description": "Unmute Channel",
+    "category": "TextToSpeech"
+  },
+  {
+    "name": "Unregister Owner by Name",
+    "type_category": "Object",
+    "description": "Unregister Owner by Name",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Update State",
+    "type_category": "Object",
+    "description": "Update State",
+    "category": "Trigger"
+  },
+  {
+    "name": "UI Framework",
+    "type_category": "Object",
+    "description": "UI Framework",
+    "category": "UIFramework"
+  },
+  {
+    "name": "URig Hierarchy",
+    "type_category": "Object",
+    "description": "URig Hierarchy",
+    "category": "URigHierarchy"
+  },
+  {
+    "name": "Unset Curve Value",
+    "type_category": "Object",
+    "description": "Unset Curve Value",
+    "category": "URigHierarchy"
+  },
+  {
+    "name": "Unset Curve Value by Index",
+    "type_category": "Object",
+    "description": "Unset Curve Value by Index",
+    "category": "URigHierarchy"
+  },
+  {
+    "name": "URig Hierarchy Controller",
+    "type_category": "Object",
+    "description": "URig Hierarchy Controller",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "USD Foliage Exporter",
+    "type_category": "Object",
+    "description": "USD Foliage Exporter",
+    "category": "USDFoliageExporter"
+  },
+  {
+    "name": "User List Entry",
+    "type_category": "Object",
+    "description": "User List Entry",
+    "category": "UserListEntry"
+  },
+  {
+    "name": "User Object List Entry",
+    "type_category": "Object",
+    "description": "User Object List Entry",
+    "category": "UserObjectListEntry"
+  },
+  {
+    "name": "User Toolbox",
+    "type_category": "Object",
+    "description": "User Toolbox",
+    "category": "UserToolbox"
+  },
+  {
+    "name": "User Toolbox Library",
+    "type_category": "Object",
+    "description": "User Toolbox Library",
+    "category": "UserToolboxLibrary"
+  },
+  {
+    "name": "User Toolbox Subsystem",
+    "type_category": "Object",
+    "description": "User Toolbox Subsystem",
+    "category": "UserToolboxSubsystem"
+  },
+  {
+    "name": "Unregister for Remote Notifications",
+    "type_category": "Object",
+    "description": "Unregister for Remote Notifications",
+    "category": "Utilities"
+  },
+  {
+    "name": "Union",
+    "type_category": "Object",
+    "description": "Assigns Result to the union of two sets, A and B. That is, Result will contain\nall elements that are in Set A and in addition all elements in Set B. Note that\na Set is a collection of unique elements, so duplicates will be eliminated.",
+    "category": "Utilities"
+  },
+  {
+    "name": "Unpause Timer by Function Name",
+    "type_category": "Object",
+    "description": "Unpause Timer by Function Name",
+    "category": "Utilities"
+  },
+  {
+    "name": "Unpause Timer by Handle",
+    "type_category": "Object",
+    "description": "Unpause Timer by Handle",
+    "category": "Utilities"
+  },
+  {
+    "name": "Utility",
+    "type_category": "Object",
+    "description": null,
+    "category": "Utility"
+  },
+  {
+    "name": "Update Connection Targets",
+    "type_category": "Object",
+    "description": "Update Connection Targets",
+    "category": "VCamConnections"
+  },
+  {
+    "name": "Uninitialize Sources",
+    "type_category": "Object",
+    "description": "Uninitialize Sources",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Uninitialize Bindings",
+    "type_category": "Object",
+    "description": "Uninitialize Bindings",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Unlock Mouse",
+    "type_category": "Object",
+    "description": "Unlock Mouse",
+    "category": "Widget"
+  },
+  {
+    "name": "Unhandled",
+    "type_category": "Object",
+    "description": "The event reply to use when you choose not to handle an event.",
+    "category": "Widget"
+  },
+  {
+    "name": "Unload",
+    "type_category": "Object",
+    "description": "Unload this location volume",
+    "category": "WorldPartition"
+  },
+  {
+    "name": "Unload Actors",
+    "type_category": "Object",
+    "description": "Unload Actors",
+    "category": "WorldPartition"
+  },
+  {
+    "name": "Unpin Actors",
+    "type_category": "Object",
+    "description": "Unpin Actors",
+    "category": "WorldPartition"
+  },
+  {
+    "name": "Unregister Object for Input",
+    "type_category": "Object",
+    "description": "Unregister Object for Input",
+    "category": "XRCreative"
+  }
+]

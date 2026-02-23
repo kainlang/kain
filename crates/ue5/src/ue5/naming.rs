@@ -2,8 +2,101 @@
 //! 
 //! The Authority on Naming - centralizes all naming transformations.
 //! If we change how a class is named, it changes everywhere automatically.
+//! 
+//! Also validates against UE5 reserved engine names loaded from
+//! `unreal/metadata/reserved_engine_names.json` (data-driven!).
 
 use kain_core::error::{KainError, KainResult};
+use std::collections::HashSet;
+use std::sync::OnceLock;
+
+/// Data-driven reserved engine names — loaded once from JSON.
+/// UHT rejects types whose "engine name" (name without A/U/F/E/I prefix)
+/// matches a built-in engine class, interface, struct, or enum.
+#[derive(Debug, Default, serde::Deserialize)]
+struct ReservedEngineNames {
+    #[serde(default)]
+    reserved_component_names: Vec<String>,
+    #[serde(default)]
+    reserved_actor_names: Vec<String>,
+    #[serde(default)]
+    reserved_struct_names: Vec<String>,
+    #[serde(default)]
+    reserved_enum_names: Vec<String>,
+    #[serde(default)]
+    reserved_interface_names: Vec<String>,
+}
+
+/// Global cache — loaded exactly once from the JSON metadata file.
+static RESERVED_NAMES: OnceLock<HashSet<String>> = OnceLock::new();
+
+/// Load the reserved engine names set (all categories merged into one HashSet).
+fn reserved_engine_names() -> &'static HashSet<String> {
+    RESERVED_NAMES.get_or_init(|| {
+        let mut set = HashSet::new();
+
+        // Search for the JSON file using the same strategy as other metadata files
+        let relative = std::path::Path::new("unreal")
+            .join("metadata")
+            .join("reserved_engine_names.json");
+
+        // 1. KAIN_ROOT env var
+        let from_env = std::env::var("KAIN_ROOT")
+            .ok()
+            .map(|root| std::path::PathBuf::from(root).join(&relative))
+            .filter(|p| p.exists());
+
+        // 2. Walk up from CWD
+        let from_walk = {
+            let mut found = None;
+            if let Ok(mut dir) = std::env::current_dir() {
+                for _ in 0..10 {
+                    let candidate = dir.join(&relative);
+                    if candidate.exists() {
+                        found = Some(candidate);
+                        break;
+                    }
+                    match dir.parent() {
+                        Some(p) => dir = p.to_path_buf(),
+                        None => break,
+                    }
+                }
+            }
+            found
+        };
+
+        let path = from_env.or(from_walk);
+
+        if let Some(path) = path {
+            if let Ok(data) = std::fs::read_to_string(&path) {
+                if let Ok(names) = serde_json::from_str::<ReservedEngineNames>(&data) {
+                    set.extend(names.reserved_component_names);
+                    set.extend(names.reserved_actor_names);
+                    set.extend(names.reserved_struct_names);
+                    set.extend(names.reserved_enum_names);
+                    set.extend(names.reserved_interface_names);
+                }
+            }
+        }
+
+        set
+    })
+}
+
+/// Check if a name (engine name, i.e. without prefix) clashes with a UE5 built-in.
+/// Returns Err with a helpful message if it does.
+pub fn check_engine_name_collision(engine_name: &str, kain_name: &str) -> KainResult<()> {
+    let reserved = reserved_engine_names();
+    if reserved.contains(engine_name) {
+        Err(KainError::validation_error(format!(
+            "Name '{}' (engine name '{}') collides with a built-in UE5 type. \
+             UHT will reject this. Consider renaming to 'Kain{}' or '{}_Custom'.",
+            kain_name, engine_name, kain_name, kain_name
+        )))
+    } else {
+        Ok(())
+    }
+}
 
 /// C++ keywords that cannot be used as identifiers
 const CPP_KEYWORDS: &[&str] = &[
@@ -79,6 +172,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
 /// Returns error if name is invalid
 pub fn to_actor_name_checked(name: &str) -> KainResult<String> {
     validate_identifier(name)?;
+    check_engine_name_collision(name, name)?;
     
     if name.starts_with('A') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
         Ok(name.to_string())
@@ -99,6 +193,7 @@ pub fn to_actor_name(name: &str) -> String {
 /// Returns error if name is invalid
 pub fn to_struct_name_checked(name: &str) -> KainResult<String> {
     validate_identifier(name)?;
+    check_engine_name_collision(name, name)?;
     
     if name.starts_with('F') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
         Ok(name.to_string())
@@ -119,6 +214,7 @@ pub fn to_struct_name(name: &str) -> String {
 /// Returns error if name is invalid
 pub fn to_enum_name_checked(name: &str) -> KainResult<String> {
     validate_identifier(name)?;
+    check_engine_name_collision(name, name)?;
     
     if name.starts_with('E') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
         Ok(name.to_string())
@@ -160,6 +256,7 @@ pub fn to_uobject_name(name: &str) -> String {
 /// Returns error if name is invalid
 pub fn to_component_name_checked(name: &str) -> KainResult<String> {
     validate_identifier(name)?;
+    check_engine_name_collision(name, name)?;
     
     // If name already ends with "Component", just add U prefix
     if name.ends_with("Component") {

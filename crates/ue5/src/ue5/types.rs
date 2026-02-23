@@ -92,6 +92,16 @@ pub fn map_type_with_knowledge(ty: &Type, config: &TypeMapConfig, kb: Option<&En
                 "Component" => "UActorComponent*",
                 "Class" => "TSubclassOf<UObject>",
                 
+                // Stdlib material/mesh/texture types → UE5 pointer types
+                "Material" => "UMaterialInstanceDynamic*",
+                "TextureObject" => "UTexture2D*",
+                "MeshComponent" => "UMeshComponent*",
+                "MaterialParameterCollection" => "UMaterialParameterCollection*",
+                
+                // Color and Transform (aliases defined in math.kn)
+                "Color" => if config.use_float_precision { "FVector4f" } else { "FVector4" },
+                "Transform" => "FTransform",
+                
                 // Everything else - query EngineKnowledge or user-defined types
                 _ => {
                     // Try EngineKnowledge first (data-driven!)
@@ -429,11 +439,21 @@ impl TypeMapper {
                     "Component" => return "UActorComponent*".to_string(),
                     "Class" => return "TSubclassOf<UObject>".to_string(),
                     
-                    // Hardcoded fixes for common UObject types that are missing pointers
+                    // Common UObject types that need pointer syntax
                     "AnimSequence" => return "UAnimSequence*".to_string(),
                     "AnimMontage" => return "UAnimMontage*".to_string(),
                     "SkeletalMesh" => return "USkeletalMesh*".to_string(),
                     "StaticMesh" => return "UStaticMesh*".to_string(),
+                    
+                    // Stdlib material/mesh/texture types → UE5 pointer types
+                    "Material" => return "UMaterialInstanceDynamic*".to_string(),
+                    "TextureObject" => return "UTexture2D*".to_string(),
+                    "MeshComponent" => return "UMeshComponent*".to_string(),
+                    "MaterialParameterCollection" => return "UMaterialParameterCollection*".to_string(),
+                    
+                    // Color and Transform (aliases defined in stdlib math.kn)
+                    "Color" => return if self.config.use_float_precision { "FVector4f".to_string() } else { "FVector4".to_string() },
+                    "Transform" => return "FTransform".to_string(),
                     
                     // Everything else - query EngineKnowledge or user-defined types
                     _ => {

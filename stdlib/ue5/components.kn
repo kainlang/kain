@@ -1,7 +1,9 @@
 # Component Definitions
 # Common component struct definitions for UE5 systems
+# These are marked @stdlib_optional to prevent generation unless explicitly used
 
 # Timer handle for managing delayed and repeating function calls
+@stdlib_optional
 struct KainTimerHandle:
     handle_id: Int
     is_active: Bool
@@ -9,6 +11,7 @@ struct KainTimerHandle:
     elapsed_time: Float
 
 # Input action data for enhanced input system
+@stdlib_optional
 struct KainInputAction:
     action_name: String
     key_binding: String
@@ -16,6 +19,7 @@ struct KainInputAction:
     trigger_value: Float
 
 # Health component data for managing health, damage, and healing
+@stdlib_optional
 struct HealthComponentData:
     current_health: Float
     max_health: Float
@@ -24,6 +28,7 @@ struct HealthComponentData:
     last_damage_time: Float
 
 # Inventory component data for managing item storage
+@stdlib_optional
 struct InventoryComponentData:
     max_capacity: Int
     current_weight: Float
@@ -31,6 +36,7 @@ struct InventoryComponentData:
     gold: Int
 
 # Movement component data for character movement
+@stdlib_optional
 struct MovementComponentData:
     max_walk_speed: Float
     max_sprint_speed: Float
@@ -39,6 +45,7 @@ struct MovementComponentData:
     is_sprinting: Bool
 
 # Combat component data for managing combat state
+@stdlib_optional
 struct CombatComponentData:
     base_damage: Float
     attack_speed: Float
@@ -47,6 +54,7 @@ struct CombatComponentData:
     last_attack_time: Float
 
 # Interaction component data for object interaction
+@stdlib_optional
 struct InteractionComponentData:
     interaction_range: Float
     interaction_prompt: String
@@ -55,12 +63,14 @@ struct InteractionComponentData:
     key_id: Int
 
 # Quest component data for managing active quests
+@stdlib_optional
 struct QuestComponentData:
     active_quest_count: Int
     completed_quest_count: Int
     total_experience: Int
 
 # Dialogue component data for conversation systems
+@stdlib_optional
 struct DialogueComponentData:
     current_dialogue_id: Int
     dialogue_state: Int
@@ -68,6 +78,7 @@ struct DialogueComponentData:
     npc_name: String
 
 # Crafting component data for crafting systems
+@stdlib_optional
 struct CraftingComponentData:
     known_recipes: Array<Int>
     crafting_level: Int
@@ -75,6 +86,7 @@ struct CraftingComponentData:
     is_crafting: Bool
 
 # Stats component data for RPG character stats
+@stdlib_optional
 struct StatsComponentData:
     strength: Int
     dexterity: Int
@@ -84,6 +96,7 @@ struct StatsComponentData:
     level: Int
 
 # Status effect component data for buffs/debuffs
+@stdlib_optional
 struct StatusEffectComponentData:
     active_effect_count: Int
     max_effect_slots: Int

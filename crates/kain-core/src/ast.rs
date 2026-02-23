@@ -1289,3 +1289,653 @@ pub enum ToolbarPosition {
     Start,
     End,
 }
+
+// ============================================================================
+// STDLIB TREE-SHAKING: AST Type Reference Collector
+// ============================================================================
+//
+// Recursively walks an AST Item and collects every type name it references.
+// Used by the merge phase in ue5_pipeline.rs to determine which stdlib items
+// are actually needed by user code (transitive dependency analysis).
+
+use std::collections::HashSet;
+
+/// Collect all type names referenced by an AST Item.
+/// Returns a set of raw type name strings (e.g. "Vec3", "QuestStatus", "Actor").
+pub fn collect_referenced_type_names(item: &Item) -> HashSet<String> {
+    let mut names = HashSet::new();
+    collect_type_names_from_item(item, &mut names);
+    names
+}
+
+/// Master dispatcher: walks all fields of an Item variant that may contain type references.
+fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
+    match item {
+        Item::Function(f) => {
+            for p in &f.params {
+                collect_type_names_from_type(&p.ty, out);
+                if let Some(default) = &p.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            if let Some(ret) = &f.return_type {
+                collect_type_names_from_type(ret, out);
+            }
+            collect_type_names_from_block(&f.body, out);
+            for attr in &f.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::Struct(s) => {
+            for f in &s.fields {
+                collect_type_names_from_type(&f.ty, out);
+                if let Some(default) = &f.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            for method in &s.methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+        }
+        Item::Enum(e) => {
+            for v in &e.variants {
+                match &v.fields {
+                    VariantFields::Unit => {}
+                    VariantFields::Tuple(types) => {
+                        for ty in types {
+                            collect_type_names_from_type(ty, out);
+                        }
+                    }
+                    VariantFields::Struct(fields) => {
+                        for f in fields {
+                            collect_type_names_from_type(&f.ty, out);
+                        }
+                    }
+                }
+            }
+        }
+        Item::Actor(a) => {
+            for s in &a.state {
+                collect_type_names_from_type(&s.ty, out);
+                collect_type_names_from_expr(&s.initial, out);
+            }
+            for handler in &a.handlers {
+                out.insert(handler.message_type.clone());
+                for p in &handler.params {
+                    collect_type_names_from_type(&p.ty, out);
+                }
+                collect_type_names_from_block(&handler.body, out);
+            }
+            for method in &a.methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+        }
+        Item::Component(c) => {
+            for p in &c.props {
+                collect_type_names_from_type(&p.ty, out);
+            }
+            for s in &c.state {
+                collect_type_names_from_type(&s.ty, out);
+                collect_type_names_from_expr(&s.initial, out);
+            }
+            for method in &c.methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+            collect_type_names_from_jsx(&c.body, out);
+        }
+        Item::Shader(s) => {
+            for p in &s.inputs {
+                collect_type_names_from_type(&p.ty, out);
+            }
+            collect_type_names_from_type(&s.outputs, out);
+            for u in &s.uniforms {
+                collect_type_names_from_type(&u.ty, out);
+            }
+            collect_type_names_from_block(&s.body, out);
+        }
+        Item::TypeAlias(ta) => {
+            collect_type_names_from_type(&ta.target, out);
+        }
+        Item::Const(c) => {
+            collect_type_names_from_type(&c.ty, out);
+            collect_type_names_from_expr(&c.value, out);
+        }
+        Item::Trait(t) => {
+            for method in &t.methods {
+                for p in &method.params {
+                    collect_type_names_from_type(&p.ty, out);
+                }
+                if let Some(ret) = &method.return_type {
+                    collect_type_names_from_type(ret, out);
+                }
+                if let Some(body) = &method.default_impl {
+                    collect_type_names_from_block(body, out);
+                }
+            }
+        }
+        Item::Impl(i) => {
+            if let Some(trait_name) = &i.trait_name {
+                out.insert(trait_name.clone());
+            }
+            collect_type_names_from_type(&i.target_type, out);
+            for method in &i.methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+        }
+        Item::Comptime(b) => {
+            collect_type_names_from_block(&b.body, out);
+        }
+        Item::Macro(m) => {
+            match &m.body {
+                MacroBody::Block(block) => collect_type_names_from_block(block, out),
+                MacroBody::Tokens(_) => {} // Tokens don't contain resolved type refs
+            }
+        }
+        Item::Test(t) => {
+            collect_type_names_from_block(&t.body, out);
+        }
+        Item::MaterialGraph(mg) => {
+            for input in &mg.inputs {
+                collect_type_names_from_type(&input.ty, out);
+                if let Some(default) = &input.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            for stmt in &mg.body {
+                match stmt {
+                    MaterialStatement::Let { value, .. } => {
+                        collect_type_names_from_expr(value, out);
+                    }
+                }
+            }
+            for output in &mg.outputs {
+                collect_type_names_from_expr(&output.value, out);
+            }
+        }
+        Item::MaterialFunction(mf) => {
+            for input in &mf.inputs {
+                collect_type_names_from_type(&input.ty, out);
+                if let Some(default) = &input.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            for stmt in &mf.body {
+                match stmt {
+                    MaterialStatement::Let { value, .. } => {
+                        collect_type_names_from_expr(value, out);
+                    }
+                }
+            }
+            collect_type_names_from_expr(&mf.output, out);
+        }
+        Item::GraphEditor(ge) => {
+            for nt in &ge.node_types {
+                for pin in &nt.inputs {
+                    collect_type_names_from_type(&pin.ty, out);
+                    if let Some(default) = &pin.default {
+                        collect_type_names_from_expr(default, out);
+                    }
+                }
+                for pin in &nt.outputs {
+                    collect_type_names_from_type(&pin.ty, out);
+                    if let Some(default) = &pin.default {
+                        collect_type_names_from_expr(default, out);
+                    }
+                }
+                for prop in &nt.properties {
+                    collect_type_names_from_type(&prop.ty, out);
+                    if let Some(default) = &prop.default {
+                        collect_type_names_from_expr(default, out);
+                    }
+                }
+            }
+            if let Some(schema) = &ge.schema {
+                for rule in &schema.rules {
+                    collect_type_names_from_expr(&rule.condition, out);
+                }
+            }
+        }
+        Item::GraphRuntime(gr) => {
+            if let Some(gd) = &gr.graph_data {
+                for f in &gd.properties {
+                    collect_type_names_from_type(&f.ty, out);
+                }
+                for method in &gd.methods {
+                    collect_type_names_from_item(&Item::Function(method.clone()), out);
+                }
+            }
+            for nd in &gr.node_types {
+                if let Some(base) = &nd.base_class {
+                    out.insert(base.clone());
+                }
+                for pin in &nd.input_pins {
+                    collect_type_names_from_type(&pin.ty, out);
+                }
+                for pin in &nd.output_pins {
+                    collect_type_names_from_type(&pin.ty, out);
+                }
+                for f in &nd.properties {
+                    collect_type_names_from_type(&f.ty, out);
+                }
+                for method in &nd.methods {
+                    collect_type_names_from_item(&Item::Function(method.clone()), out);
+                }
+                if let Some(logic) = &nd.execute_logic {
+                    collect_type_names_from_block(logic, out);
+                }
+            }
+            if let Some(inst) = &gr.instance {
+                for f in &inst.state {
+                    collect_type_names_from_type(&f.ty, out);
+                }
+                for method in &inst.methods {
+                    collect_type_names_from_item(&Item::Function(method.clone()), out);
+                }
+                for delegate in &inst.delegates {
+                    for p in &delegate.params {
+                        collect_type_names_from_type(&p.ty, out);
+                    }
+                }
+            }
+            if let Some(pc) = &gr.pin_config {
+                for f in &pc.properties {
+                    collect_type_names_from_type(&f.ty, out);
+                }
+                for method in &pc.methods {
+                    collect_type_names_from_item(&Item::Function(method.clone()), out);
+                }
+            }
+        }
+        Item::StateMachine(sm) => {
+            for state in &sm.states {
+                for f in &state.properties {
+                    collect_type_names_from_type(&f.ty, out);
+                }
+                for transition in &state.transitions {
+                    if let Some(cond) = &transition.condition {
+                        collect_type_names_from_block(cond, out);
+                    }
+                }
+                if let Some(on_enter) = &state.on_enter {
+                    collect_type_names_from_block(on_enter, out);
+                }
+                if let Some(on_exit) = &state.on_exit {
+                    collect_type_names_from_block(on_exit, out);
+                }
+            }
+        }
+        Item::AsyncTask(at) => {
+            for f in &at.input_fields {
+                collect_type_names_from_type(&f.ty, out);
+            }
+            for f in &at.output_fields {
+                collect_type_names_from_type(&f.ty, out);
+            }
+            if let Some(do_work) = &at.do_work {
+                collect_type_names_from_block(do_work, out);
+            }
+            if let Some(callback) = &at.callback {
+                for p in &callback.params {
+                    collect_type_names_from_type(&p.ty, out);
+                }
+                collect_type_names_from_block(&callback.body, out);
+            }
+        }
+        Item::EditorModule(em) => {
+            for entry in &em.menu_entries {
+                collect_type_names_from_item(&Item::Function(entry.method.clone()), out);
+            }
+            for btn in &em.toolbar_buttons {
+                collect_type_names_from_item(&Item::Function(btn.method.clone()), out);
+            }
+        }
+        Item::Use(_) | Item::Mod(_) => {
+            // Uses and mods don't contain type references we can extract
+        }
+    }
+}
+
+/// Recursively collect type names from a Type AST node.
+fn collect_type_names_from_type(ty: &Type, out: &mut HashSet<String>) {
+    match ty {
+        Type::Named { name, generics, .. } => {
+            out.insert(name.clone());
+            for g in generics {
+                collect_type_names_from_type(g, out);
+            }
+        }
+        Type::Tuple(types, _) => {
+            for t in types {
+                collect_type_names_from_type(t, out);
+            }
+        }
+        Type::Array(inner, _, _) => {
+            collect_type_names_from_type(inner, out);
+        }
+        Type::Slice(inner, _) => {
+            collect_type_names_from_type(inner, out);
+        }
+        Type::Ref { inner, .. } => {
+            collect_type_names_from_type(inner, out);
+        }
+        Type::Function { params, return_type, .. } => {
+            for p in params {
+                collect_type_names_from_type(p, out);
+            }
+            collect_type_names_from_type(return_type, out);
+        }
+        Type::Option(inner, _) => {
+            collect_type_names_from_type(inner, out);
+        }
+        Type::Result(ok, err, _) => {
+            collect_type_names_from_type(ok, out);
+            collect_type_names_from_type(err, out);
+        }
+        Type::Impl { trait_name, generics, .. } => {
+            out.insert(trait_name.clone());
+            for g in generics {
+                collect_type_names_from_type(g, out);
+            }
+        }
+        Type::Infer(_) | Type::Never(_) | Type::Unit(_) => {}
+    }
+}
+
+/// Recursively collect type names from an Expr AST node.
+fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
+    match expr {
+        Expr::Cast { value, target, .. } => {
+            collect_type_names_from_expr(value, out);
+            collect_type_names_from_type(target, out);
+        }
+        Expr::Struct { name, fields, .. } => {
+            out.insert(name.clone());
+            for (_, field_expr) in fields {
+                collect_type_names_from_expr(field_expr, out);
+            }
+        }
+        Expr::EnumVariant { enum_name, fields, .. } => {
+            out.insert(enum_name.clone());
+            match fields {
+                EnumVariantFields::Unit => {}
+                EnumVariantFields::Tuple(exprs) => {
+                    for e in exprs {
+                        collect_type_names_from_expr(e, out);
+                    }
+                }
+                EnumVariantFields::Struct(field_pairs) => {
+                    for (_, e) in field_pairs {
+                        collect_type_names_from_expr(e, out);
+                    }
+                }
+            }
+        }
+        Expr::Spawn { actor, init, .. } => {
+            out.insert(actor.clone());
+            for (_, init_expr) in init {
+                collect_type_names_from_expr(init_expr, out);
+            }
+        }
+        Expr::Call { callee, args, .. } => {
+            collect_type_names_from_expr(callee, out);
+            for arg in args {
+                collect_type_names_from_expr(&arg.value, out);
+            }
+        }
+        Expr::MethodCall { receiver, args, .. } => {
+            collect_type_names_from_expr(receiver, out);
+            for arg in args {
+                collect_type_names_from_expr(&arg.value, out);
+            }
+        }
+        Expr::Field { object, .. } => {
+            collect_type_names_from_expr(object, out);
+        }
+        Expr::Index { object, index, .. } => {
+            collect_type_names_from_expr(object, out);
+            collect_type_names_from_expr(index, out);
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_type_names_from_expr(left, out);
+            collect_type_names_from_expr(right, out);
+        }
+        Expr::Unary { operand, .. } => {
+            collect_type_names_from_expr(operand, out);
+        }
+        Expr::Assign { target, value, .. } => {
+            collect_type_names_from_expr(target, out);
+            collect_type_names_from_expr(value, out);
+        }
+        Expr::If { condition, then_branch, else_branch, .. } => {
+            collect_type_names_from_expr(condition, out);
+            collect_type_names_from_block(then_branch, out);
+            if let Some(else_b) = else_branch {
+                collect_type_names_from_else_branch(else_b, out);
+            }
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            collect_type_names_from_expr(scrutinee, out);
+            for arm in arms {
+                collect_type_names_from_pattern(&arm.pattern, out);
+                if let Some(guard) = &arm.guard {
+                    collect_type_names_from_expr(guard, out);
+                }
+                collect_type_names_from_expr(&arm.body, out);
+            }
+        }
+        Expr::Lambda { params, return_type, body, .. } => {
+            for p in params {
+                collect_type_names_from_type(&p.ty, out);
+            }
+            if let Some(ret) = return_type {
+                collect_type_names_from_type(ret, out);
+            }
+            collect_type_names_from_expr(body, out);
+        }
+        Expr::Array(exprs, _) | Expr::Tuple(exprs, _) | Expr::FString(exprs, _) => {
+            for e in exprs {
+                collect_type_names_from_expr(e, out);
+            }
+        }
+        Expr::MacroCall { args, .. } => {
+            for arg in args {
+                collect_type_names_from_expr(arg, out);
+            }
+        }
+        Expr::SendMsg { target, data, .. } => {
+            collect_type_names_from_expr(target, out);
+            for (_, data_expr) in data {
+                collect_type_names_from_expr(data_expr, out);
+            }
+        }
+        Expr::Block(block, _) => {
+            collect_type_names_from_block(block, out);
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(s) = start { collect_type_names_from_expr(s, out); }
+            if let Some(e) = end { collect_type_names_from_expr(e, out); }
+        }
+        Expr::Ref { value, .. } => {
+            collect_type_names_from_expr(value, out);
+        }
+        Expr::Deref(inner, _) | Expr::Try(inner, _) | Expr::Await(inner, _)
+        | Expr::Comptime(inner, _) | Expr::Paren(inner, _) => {
+            collect_type_names_from_expr(inner, out);
+        }
+        Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
+            collect_type_names_from_expr(inner, out);
+        }
+        Expr::JSX(node, _) => {
+            collect_type_names_from_jsx(node, out);
+        }
+        // Terminals with no type references
+        Expr::Int(_, _) | Expr::Float(_, _) | Expr::String(_, _)
+        | Expr::Bool(_, _) | Expr::None(_) | Expr::Ident(_, _)
+        | Expr::Return(None, _) | Expr::Break(None, _) | Expr::Continue(_) => {}
+    }
+}
+
+/// Recursively collect type names from a Block.
+fn collect_type_names_from_block(block: &Block, out: &mut HashSet<String>) {
+    for stmt in &block.stmts {
+        collect_type_names_from_stmt(stmt, out);
+    }
+}
+
+/// Recursively collect type names from a Stmt.
+fn collect_type_names_from_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
+    match stmt {
+        Stmt::Let { ty, value, pattern, .. } => {
+            if let Some(ty) = ty {
+                collect_type_names_from_type(ty, out);
+            }
+            if let Some(val) = value {
+                collect_type_names_from_expr(val, out);
+            }
+            collect_type_names_from_pattern(pattern, out);
+        }
+        Stmt::Expr(expr) => {
+            collect_type_names_from_expr(expr, out);
+        }
+        Stmt::Return(Some(expr), _) => {
+            collect_type_names_from_expr(expr, out);
+        }
+        Stmt::For { iter, body, binding, .. } => {
+            collect_type_names_from_pattern(binding, out);
+            collect_type_names_from_expr(iter, out);
+            collect_type_names_from_block(body, out);
+        }
+        Stmt::While { condition, body, .. } => {
+            collect_type_names_from_expr(condition, out);
+            collect_type_names_from_block(body, out);
+        }
+        Stmt::Loop { body, .. } => {
+            collect_type_names_from_block(body, out);
+        }
+        Stmt::Item(item) => {
+            collect_type_names_from_item(item, out);
+        }
+        Stmt::Return(None, _) | Stmt::Break(_, _) | Stmt::Continue(_) => {}
+    }
+}
+
+/// Collect type names from else branches.
+fn collect_type_names_from_else_branch(branch: &ElseBranch, out: &mut HashSet<String>) {
+    match branch {
+        ElseBranch::Else(block) => {
+            collect_type_names_from_block(block, out);
+        }
+        ElseBranch::ElseIf(cond, block, next) => {
+            collect_type_names_from_expr(cond, out);
+            collect_type_names_from_block(block, out);
+            if let Some(next_else) = next {
+                collect_type_names_from_else_branch(next_else, out);
+            }
+        }
+    }
+}
+
+/// Collect type names from patterns (destructuring may reference types).
+fn collect_type_names_from_pattern(pattern: &Pattern, out: &mut HashSet<String>) {
+    match pattern {
+        Pattern::Variant { enum_name, fields, .. } => {
+            if let Some(name) = enum_name {
+                out.insert(name.clone());
+            }
+            match fields {
+                VariantPatternFields::Unit => {}
+                VariantPatternFields::Tuple(patterns) => {
+                    for p in patterns {
+                        collect_type_names_from_pattern(p, out);
+                    }
+                }
+                VariantPatternFields::Struct(field_pairs) => {
+                    for (_, p) in field_pairs {
+                        collect_type_names_from_pattern(p, out);
+                    }
+                }
+            }
+        }
+        Pattern::Struct { name, fields, .. } => {
+            out.insert(name.clone());
+            for (_, p) in fields {
+                collect_type_names_from_pattern(p, out);
+            }
+        }
+        Pattern::Tuple(patterns, _) => {
+            for p in patterns {
+                collect_type_names_from_pattern(p, out);
+            }
+        }
+        Pattern::Or(patterns, _) => {
+            for p in patterns {
+                collect_type_names_from_pattern(p, out);
+            }
+        }
+        Pattern::Slice { patterns, .. } => {
+            for p in patterns {
+                collect_type_names_from_pattern(p, out);
+            }
+        }
+        Pattern::Range { start, end, .. } => {
+            if let Some(s) = start { collect_type_names_from_expr(s, out); }
+            if let Some(e) = end { collect_type_names_from_expr(e, out); }
+        }
+        Pattern::Literal(expr) => {
+            collect_type_names_from_expr(expr, out);
+        }
+        // Terminals with no type references
+        Pattern::Wildcard(_) | Pattern::Binding { .. } => {}
+    }
+}
+
+/// Collect type names from JSX nodes.
+fn collect_type_names_from_jsx(node: &JSXNode, out: &mut HashSet<String>) {
+    match node {
+        JSXNode::Element { children, attributes, .. } => {
+            for attr in attributes {
+                match &attr.value {
+                    JSXAttrValue::Expr(e) => collect_type_names_from_expr(e, out),
+                    _ => {}
+                }
+            }
+            for child in children {
+                collect_type_names_from_jsx(child, out);
+            }
+        }
+        JSXNode::ComponentCall { name, props, children, .. } => {
+            out.insert(name.clone());
+            for prop in props {
+                match &prop.value {
+                    JSXAttrValue::Expr(e) => collect_type_names_from_expr(e, out),
+                    _ => {}
+                }
+            }
+            for child in children {
+                collect_type_names_from_jsx(child, out);
+            }
+        }
+        JSXNode::Expression(expr) => {
+            collect_type_names_from_expr(expr, out);
+        }
+        JSXNode::For { iter, body, .. } => {
+            collect_type_names_from_expr(iter, out);
+            collect_type_names_from_jsx(body, out);
+        }
+        JSXNode::If { condition, then_branch, else_branch, .. } => {
+            collect_type_names_from_expr(condition, out);
+            collect_type_names_from_jsx(then_branch, out);
+            if let Some(else_b) = else_branch {
+                collect_type_names_from_jsx(else_b, out);
+            }
+        }
+        JSXNode::Fragment(children, _) => {
+            for child in children {
+                collect_type_names_from_jsx(child, out);
+            }
+        }
+        JSXNode::Text(_, _) => {}
+    }
+}

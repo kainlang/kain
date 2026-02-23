@@ -1,0 +1,20 @@
+[
+  {
+    "name": "To Soft Class Path",
+    "type_category": "Template",
+    "description": "To Soft Class Path",
+    "category": "Utilities"
+  },
+  {
+    "name": "To Soft Class Reference",
+    "type_category": "Template",
+    "description": "To Soft Class Reference",
+    "category": "Utilities"
+  },
+  {
+    "name": "To String (SoftClassReference)",
+    "type_category": "Template",
+    "description": "To String (SoftClassReference)",
+    "category": "Utilities"
+  }
+]

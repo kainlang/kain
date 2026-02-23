@@ -16,7 +16,7 @@ const RESERVED_KEYWORDS: &[&str] = &[
     "fn", "let", "mut", "var", "const", "if", "else", "elif", "match", "for", "while", "loop",
     "break", "continue", "return", "await", "in", "with", "as", "type", "struct", "enum", "trait",
     "impl", "pub", "mod", "use", "self", "Self", "true", "false", "none",
-    "component", "shader", "actor", "spawn", "send", "receive", "emit", "comptime", "macro",
+    "component", "actor", "spawn", "send", "receive", "emit", "comptime", "macro",
     "vertex", "fragment", "test",
     "Pure", "IO", "async", "Async", "GPU", "Reactive", "Unsafe",
     
@@ -24,9 +24,10 @@ const RESERVED_KEYWORDS: &[&str] = &[
     // Note: HLSL type names like RWBuffer, Texture2D, etc. are NOT reserved keywords
     // because they are only valid as type annotations, not as variable names.
     // The type system will handle validation of type names separately.
+    // Note: Shader stage abbreviations (vs, ps, gs, hs, ds, cs) are NOT reserved
+    // because they are only meaningful in HLSL shader profile strings, not as variable names.
     "line", "compile", "pass", "technique", "register", "packoffset",
-    "typedef", "sampler", "texture", "vs", "ps", "gs", "hs", "ds", "cs",
-    "row_major", "column_major", "out", "inout", "inline",
+    "typedef", "sampler", "row_major", "column_major", "out", "inout", "inline",
     "cbuffer", "tbuffer", "uniform", "precise", "volatile", "extern",
     "shared", "groupshared", "half", "min16float", "min10float",
     "min16int", "min12int", "min16uint", "interface", "namespace",
@@ -60,6 +61,7 @@ pub struct Parser<'a> {
     injected_tokens: Vec<Token>, // Buffer for synthetic tokens (e.g., splitting >> into > >)
     span_mapper: &'a SpanMapper,
     filename: &'a str,
+    errors: Vec<KainError>,      // Accumulated parse errors for multi-error recovery
 }
 
 impl<'a> Parser<'a> {
@@ -70,6 +72,7 @@ impl<'a> Parser<'a> {
             injected_tokens: Vec::new(),
             span_mapper,
             filename,
+            errors: Vec::new(),
         }
     }
     
@@ -139,7 +142,13 @@ impl<'a> Parser<'a> {
                 TokenKind::Comptime |
                 TokenKind::Macro |
                 TokenKind::Test => {
-                    items.push(self.parse_item()?);
+                    match self.parse_item() {
+                        Ok(item) => items.push(item),
+                        Err(e) => {
+                            self.errors.push(e);
+                            self.synchronize();
+                        }
+                    }
                 }
                 
                 // TODO: Future token kinds for advanced features:
@@ -150,7 +159,13 @@ impl<'a> Parser<'a> {
                 // - TokenKind::Class (if we add class keyword separate from struct)
                 
                 _ => {
-                    top_level_stmts.push(self.parse_stmt()?);
+                    match self.parse_stmt() {
+                        Ok(stmt) => top_level_stmts.push(stmt),
+                        Err(e) => {
+                            self.errors.push(e);
+                            self.synchronize();
+                        }
+                    }
                 }
             }
         }
@@ -170,8 +185,66 @@ impl<'a> Parser<'a> {
             items.push(main_fn);
         }
         
+        // If any errors accumulated during parsing, return them all
+        if !self.errors.is_empty() {
+            return Err(KainError::multi(std::mem::take(&mut self.errors)));
+        }
+
         let end = self.current_span();
         Ok(Program { items, span: start.merge(end) })
+    }
+
+    /// Skip tokens until we find a safe synchronization point (next top-level item boundary).
+    /// This enables error recovery — after a parse error, we skip the broken item
+    /// and resume parsing at the next recognizable top-level construct.
+    fn synchronize(&mut self) {
+        // First, skip past any remaining indented content to get back to indent level 0.
+        // We track indent depth — when we see an item-start token at depth 0, we stop.
+        let mut depth: i32 = 0;
+        while !self.at_end() {
+            match self.peek_kind() {
+                TokenKind::Indent => { depth += 1; self.advance(); }
+                TokenKind::Dedent => {
+                    depth -= 1;
+                    self.advance();
+                    // If we've returned to the top level, check if next token is an item start
+                    if depth <= 0 {
+                        self.skip_newlines();
+                        if self.is_item_start() || self.at_end() {
+                            return;
+                        }
+                    }
+                }
+                TokenKind::Newline(_) => {
+                    self.advance();
+                    // At top level (depth 0), check if the next token starts a new item
+                    if depth <= 0 {
+                        if self.is_item_start() || self.at_end() {
+                            return;
+                        }
+                    }
+                }
+                _ => {
+                    // At top level and found an item start — stop
+                    if depth <= 0 && self.is_item_start() {
+                        return;
+                    }
+                    self.advance();
+                }
+            }
+        }
+    }
+
+    /// Check if the current token could start a new top-level item.
+    fn is_item_start(&self) -> bool {
+        matches!(self.peek_kind(),
+            TokenKind::At | TokenKind::Fn | TokenKind::Struct | TokenKind::Enum |
+            TokenKind::Actor | TokenKind::Component | TokenKind::Shader |
+            TokenKind::Pub | TokenKind::Const | TokenKind::Mod | TokenKind::Use |
+            TokenKind::Impl | TokenKind::Macro | TokenKind::Test |
+            TokenKind::AsyncKw | TokenKind::TypeKw | TokenKind::Trait |
+            TokenKind::Comptime
+        )
     }
 
     fn parse_item(&mut self) -> KainResult<Item> {
@@ -3037,6 +3110,11 @@ impl<'a> Parser<'a> {
             }
             TokenKind::SelfLower => { self.advance(); Ok("self".to_string()) }
             TokenKind::SelfUpper => { self.advance(); Ok("Self".to_string()) }
+            // Contextual keywords - allowed as identifiers in non-declaration contexts
+            TokenKind::Component => { self.advance(); Ok("component".to_string()) }
+            TokenKind::Shader => { self.advance(); Ok("shader".to_string()) }
+            TokenKind::Actor => { self.advance(); Ok("actor".to_string()) }
+            TokenKind::State => { self.advance(); Ok("state".to_string()) }
             // Special handling for keyword tokens that users might try to use as identifiers
             // Generate clear error messages for all KAIN keyword tokens
             k @ (TokenKind::Fn | TokenKind::Let | TokenKind::Mut | TokenKind::Var | TokenKind::Const |
@@ -3045,7 +3123,6 @@ impl<'a> Parser<'a> {
                  TokenKind::Await | TokenKind::In | TokenKind::With | TokenKind::As | TokenKind::TypeKw |
                  TokenKind::Struct | TokenKind::Enum | TokenKind::Trait | TokenKind::Impl | TokenKind::Pub |
                  TokenKind::Mod | TokenKind::Use | TokenKind::True | TokenKind::False | TokenKind::None |
-                 TokenKind::Component | TokenKind::Shader | TokenKind::Actor | TokenKind::State |
                  TokenKind::Spawn | TokenKind::Send | TokenKind::Receive | TokenKind::Emit |
                  TokenKind::Comptime | TokenKind::Macro | TokenKind::Vertex | TokenKind::Fragment |
                  TokenKind::Test | TokenKind::Pure | TokenKind::Io | TokenKind::AsyncKw | TokenKind::Async |

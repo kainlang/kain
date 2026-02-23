@@ -596,11 +596,9 @@ fn generate_editor_types_header(
             }
         }
         
-        // Skip delegates (they're in the delegate header)
-        if let kain_core::types::TypedItem::TypeAlias(alias) = item {
-            if matches!(alias.ast.target, kain_core::ast::Type::Function { .. }) {
-                continue;
-            }
+        // Skip all type aliases (delegates are in delegate header, type mappings have no headers)
+        if matches!(item, kain_core::types::TypedItem::TypeAlias(_)) {
+            continue;
         }
         
         let header_name = match item {
@@ -667,11 +665,13 @@ pub fn generate_runtime_items(
             }
         }
         
-        // Skip delegates - they're already in master header
-        if let kain_core::types::TypedItem::TypeAlias(alias) = item {
-            if matches!(alias.ast.target, kain_core::ast::Type::Function { .. }) {
-                continue; // Skip delegates
-            }
+        // Skip ALL type aliases — delegates are in the delegate header, and non-delegate
+        // type aliases (e.g. `type Vec2 = vec2`) are pure codegen-time type mappings that
+        // resolve to built-in UE5 types like FVector2D. They produce no UHT-annotated content
+        // (no USTRUCT/GENERATED_BODY), so UHT never creates a .generated.h for them, causing
+        // fatal C1083 "Cannot open include file" errors.
+        if matches!(item, kain_core::types::TypedItem::TypeAlias(_)) {
+            continue;
         }
 
         let is_state_machine = matches!(item, kain_core::types::TypedItem::StateMachine(_));
@@ -684,7 +684,6 @@ pub fn generate_runtime_items(
             kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name)),
             kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone()),
             kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone()),
-            kain_core::types::TypedItem::TypeAlias(a) => (&a.ast.name, format!("F{}", a.ast.name)),
             _ => continue,
         };
 
@@ -695,7 +694,6 @@ pub fn generate_runtime_items(
             kain_core::types::TypedItem::Enum(_) => "enums",
             kain_core::types::TypedItem::StateMachine(_) => "state_machines",
             kain_core::types::TypedItem::AsyncTask(_) => "async_tasks",
-            kain_core::types::TypedItem::TypeAlias(_) => "types",
             _ => "runtime",
         };
         let route = item_route(layout, config, item_name, false, bucket, symbol_source_map);

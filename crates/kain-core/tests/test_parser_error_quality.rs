@@ -76,23 +76,56 @@ fn test_reserved_keyword_buffer_in_parameter() {
 }
 
 #[test]
-fn test_reserved_keyword_texture_in_parameter() {
+#[test]
+fn test_texture_is_now_allowed_as_variable() {
+    // After fix: 'texture' should be allowed as a variable name
     let source = "fn sample_color(texture: Sampler2D):\n    return texture";
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
     
     match parser.parse() {
-        Ok(_) => panic!("Expected parse error for reserved keyword 'texture' but got success"),
+        Ok(_) => {
+            println!("Success: 'texture' is now allowed as a variable name");
+        }
         Err(e) => {
-            let error_str = e.to_string();
-            println!("Error message: {}", error_str);
-            
-            assert!(
-                error_str.contains("texture") && error_str.contains("reserved"),
-                "Error should mention 'texture' is reserved but got: {}",
-                error_str
-            );
+            panic!("'texture' should be allowed as a variable name but got error: {}", e);
+        }
+    }
+}
+
+#[test]
+fn test_cs_is_now_allowed_as_variable() {
+    // After fix: 'cs' should be allowed as a variable name
+    let source = "fn compute_step(cs: Int):\n    return cs + 1";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
+    
+    match parser.parse() {
+        Ok(_) => {
+            println!("Success: 'cs' is now allowed as a variable name");
+        }
+        Err(e) => {
+            panic!("'cs' should be allowed as a variable name but got error: {}", e);
+        }
+    }
+}
+
+#[test]
+fn test_shader_keyword_only_reserved_at_top_level() {
+    // 'shader' is only a keyword when declaring shaders, not as a variable
+    let source = "fn process_shader(shader: String):\n    return shader";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
+    
+    match parser.parse() {
+        Ok(_) => {
+            println!("Success: 'shader' is now allowed as a variable name");
+        }
+        Err(e) => {
+            panic!("'shader' should be allowed as a variable name but got error: {}", e);
         }
     }
 }

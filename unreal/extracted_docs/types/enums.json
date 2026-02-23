@@ -1,0 +1,2126 @@
+[
+  {
+    "name": "Evaluate Attribute Value with Tags",
+    "type_category": "Enum",
+    "description": "Evaluate Attribute Value with Tags",
+    "category": "Ability"
+  },
+  {
+    "name": "Evaluate Attribute Value with Tags and Base",
+    "type_category": "Enum",
+    "description": "Evaluate Attribute Value with Tags and Base",
+    "category": "Ability"
+  },
+  {
+    "name": "End Action",
+    "type_category": "Enum",
+    "description": "Explicitly end the action, will disable any callbacks and allow action to be destroyed",
+    "category": "Ability"
+  },
+  {
+    "name": "Effect Context",
+    "type_category": "Enum",
+    "description": "Effect Context",
+    "category": "Ability"
+  },
+  {
+    "name": "End Ability Locally",
+    "type_category": "Enum",
+    "description": "End Ability Locally",
+    "category": "Ability"
+  },
+  {
+    "name": "End Ability",
+    "type_category": "Enum",
+    "description": "End Ability",
+    "category": "Ability"
+  },
+  {
+    "name": "End Ability State",
+    "type_category": "Enum",
+    "description": "End Ability State",
+    "category": "Ability"
+  },
+  {
+    "name": "Execute GameplayCue On Owner",
+    "type_category": "Enum",
+    "description": "Execute GameplayCue On Owner",
+    "category": "Ability"
+  },
+  {
+    "name": "Execute GameplayCueWithParams On Owner",
+    "type_category": "Enum",
+    "description": "Execute GameplayCueWithParams On Owner",
+    "category": "Ability"
+  },
+  {
+    "name": "End Task by Instance Name",
+    "type_category": "Enum",
+    "description": "End Task by Instance Name",
+    "category": "Ability"
+  },
+  {
+    "name": "Event OnBecomeViewTarget",
+    "type_category": "Enum",
+    "description": "Event OnBecomeViewTarget",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event OnReset",
+    "type_category": "Enum",
+    "description": "Event OnReset",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event ActorBeginOverlap",
+    "type_category": "Enum",
+    "description": "Event ActorBeginOverlap",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event BeginPlay",
+    "type_category": "Enum",
+    "description": "Event BeginPlay",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event Async Physics Tick",
+    "type_category": "Enum",
+    "description": "Event Async Physics Tick",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event ActorEndOverlap",
+    "type_category": "Enum",
+    "description": "Event ActorEndOverlap",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event End Play",
+    "type_category": "Enum",
+    "description": "Event End Play",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event Run",
+    "type_category": "Enum",
+    "description": "Standard function to execute",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event Destroyed",
+    "type_category": "Enum",
+    "description": "Event Destroyed",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event Tick",
+    "type_category": "Enum",
+    "description": "Event called every frame, if ticking is enabled",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event Hit",
+    "type_category": "Enum",
+    "description": "Event when this actor bumps into a blocking object, or blocks another actor that bumps into it.\nThis could happen due to things like Character movement, using Set Location with 'sweep' enabled, or physics simulation.\nFor events when objects overlap (e.g. walking into a trigger) see the 'Overlap' event.",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event GameplayCue",
+    "type_category": "Enum",
+    "description": "Event GameplayCue",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event AnyDamage",
+    "type_category": "Enum",
+    "description": "Event AnyDamage",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event ActorEndCursorOver",
+    "type_category": "Enum",
+    "description": "Event ActorEndCursorOver",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event ActorOnClicked",
+    "type_category": "Enum",
+    "description": "Event ActorOnClicked",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event ActorBeginCursorOver",
+    "type_category": "Enum",
+    "description": "Event ActorBeginCursorOver",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event OnEndViewTarget",
+    "type_category": "Enum",
+    "description": "Event OnEndViewTarget",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event BeginInputTouch",
+    "type_category": "Enum",
+    "description": "Event BeginInputTouch",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event PointDamage",
+    "type_category": "Enum",
+    "description": "Event PointDamage",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event RadialDamage",
+    "type_category": "Enum",
+    "description": "Event RadialDamage",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event TouchEnter",
+    "type_category": "Enum",
+    "description": "Event TouchEnter",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event ActorOnReleased",
+    "type_category": "Enum",
+    "description": "Event ActorOnReleased",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event EndInputTouch",
+    "type_category": "Enum",
+    "description": "Event EndInputTouch",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Event TouchLeave",
+    "type_category": "Enum",
+    "description": "Event TouchLeave",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Enable Debug Drawing",
+    "type_category": "Enum",
+    "description": "Enable Debug Drawing",
+    "category": "AI"
+  },
+  {
+    "name": "EQS",
+    "type_category": "Enum",
+    "description": null,
+    "category": "AI"
+  },
+  {
+    "name": "Enable Recalculation on Invalidation",
+    "type_category": "Enum",
+    "description": "Enable Recalculation on Invalidation",
+    "category": "AI"
+  },
+  {
+    "name": "End Session",
+    "type_category": "Enum",
+    "description": "End Session",
+    "category": "Analytics"
+  },
+  {
+    "name": "Evaluate Chooser",
+    "type_category": "Enum",
+    "description": "Evaluate Chooser",
+    "category": "Animation"
+  },
+  {
+    "name": "Evaluate Proxy",
+    "type_category": "Enum",
+    "description": "Evaluate Proxy",
+    "category": "Animation"
+  },
+  {
+    "name": "Evaluate Animation Blueprint with Input Pose",
+    "type_category": "Enum",
+    "description": "Evaluate Animation Blueprint with Input Pose",
+    "category": "Animation"
+  },
+  {
+    "name": "End Profiling Timer",
+    "type_category": "Enum",
+    "description": "End Profiling Timer",
+    "category": "Animation"
+  },
+  {
+    "name": "Evaluate Root Bone Timecode Attributes at Time",
+    "type_category": "Enum",
+    "description": "Evaluate Root Bone Timecode Attributes at Time",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Evaluate Root Bone Timecode Subframe Attribute at Time",
+    "type_category": "Enum",
+    "description": "Evaluate Root Bone Timecode Subframe Attribute at Time",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Enable Animation Budget",
+    "type_category": "Enum",
+    "description": "Enable Animation Budget",
+    "category": "AnimationBudget"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Appearance"
+  },
+  {
+    "name": "Environment Capture Probe",
+    "type_category": "Enum",
+    "description": "Environment Capture Probe",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "ExtractFilenames",
+    "type_category": "Enum",
+    "description": "ExtractFilenames",
+    "category": "AssetImportData"
+  },
+  {
+    "name": "Empty Collection",
+    "type_category": "Enum",
+    "description": "Empty Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Effects",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Audio"
+  },
+  {
+    "name": "Envelope Following",
+    "type_category": "Enum",
+    "description": "Envelope Following",
+    "category": "Audio"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Audio"
+  },
+  {
+    "name": "Execute Trigger Parameter",
+    "type_category": "Enum",
+    "description": "Execute Trigger Parameter",
+    "category": "Audio"
+  },
+  {
+    "name": "Execute Trigger Parameter (Message)",
+    "type_category": "Enum",
+    "description": "Execute Trigger Parameter (Message)",
+    "category": "Audio"
+  },
+  {
+    "name": "Enable Virtualization",
+    "type_category": "Enum",
+    "description": "Enable Virtualization",
+    "category": "AudioComponentGroup"
+  },
+  {
+    "name": "Enable Stat Group",
+    "type_category": "Enum",
+    "description": "Enable Stat Group",
+    "category": "Automation"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Button"
+  },
+  {
+    "name": "Enable Playback",
+    "type_category": "Enum",
+    "description": "Enable Playback",
+    "category": "Caching"
+  },
+  {
+    "name": "Enable Playback by Cache",
+    "type_category": "Enum",
+    "description": "Enable Playback by Cache",
+    "category": "Caching"
+  },
+  {
+    "name": "Enable Modifier",
+    "type_category": "Enum",
+    "description": "Enable Modifier",
+    "category": "CameraModifier"
+  },
+  {
+    "name": "End Auto Scrolling",
+    "type_category": "Enum",
+    "description": "End Auto Scrolling",
+    "category": "Carousel"
+  },
+  {
+    "name": "Enable Debug Camera",
+    "type_category": "Enum",
+    "description": "Enable Debug Camera",
+    "category": "CheatManager"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "CheckBox"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "CinematicPrestreaming"
+  },
+  {
+    "name": "Export Image Async",
+    "type_category": "Enum",
+    "description": "Export Image Async",
+    "category": "Class"
+  },
+  {
+    "name": "Enable Gravity Override",
+    "type_category": "Enum",
+    "description": "Enable Gravity Override",
+    "category": "ClothingSimulation"
+  },
+  {
+    "name": "Execute Command",
+    "type_category": "Enum",
+    "description": "Execute Command",
+    "category": "CommandUI"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "CommonButtonInternal"
+  },
+  {
+    "name": "Element",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Composure"
+  },
+  {
+    "name": "Export",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Composure"
+  },
+  {
+    "name": "Export Scene Capture Buffers",
+    "type_category": "Enum",
+    "description": "Export Scene Capture Buffers",
+    "category": "Composure"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Composure"
+  },
+  {
+    "name": "Execute",
+    "type_category": "Enum",
+    "description": "Target is Composure Post Processing Pass Proxy",
+    "category": "Composure"
+  },
+  {
+    "name": "Execute Saved Commands",
+    "type_category": "Enum",
+    "description": "Execute Saved Commands",
+    "category": "ConsoleVariablesAsset"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "DataLayer"
+  },
+  {
+    "name": "Evaluate Terminal Node by Name",
+    "type_category": "Enum",
+    "description": "Evaluate Terminal Node by Name",
+    "category": "Dataflow"
+  },
+  {
+    "name": "Editing Operation",
+    "type_category": "Enum",
+    "description": "Editing Operation",
+    "category": "Dataprep"
+  },
+  {
+    "name": "Equal (DataRegistryId)",
+    "type_category": "Enum",
+    "description": "Equal (DataRegistryId)",
+    "category": "DataRegistry"
+  },
+  {
+    "name": "Evaluate Data Registry Curve",
+    "type_category": "Enum",
+    "description": "Evaluate Data Registry Curve",
+    "category": "DataRegistry"
+  },
+  {
+    "name": "Equal (DataRegistryType)",
+    "type_category": "Enum",
+    "description": "Equal (DataRegistryType)",
+    "category": "DataRegistry"
+  },
+  {
+    "name": "Element",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Datasmith"
+  },
+  {
+    "name": "Evaluate Curve Table Row",
+    "type_category": "Enum",
+    "description": "Evaluate Curve Table Row",
+    "category": "DataTable"
+  },
+  {
+    "name": "Enable VisLog Recording",
+    "type_category": "Enum",
+    "description": "Enable VisLog Recording",
+    "category": "Debug"
+  },
+  {
+    "name": "Enqueue Trigger Graph",
+    "type_category": "Enum",
+    "description": "Enqueue Trigger Graph",
+    "category": "Deformer"
+  },
+  {
+    "name": "Execute Test",
+    "type_category": "Enum",
+    "description": "Execute Test",
+    "category": "Determinism"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Development"
+  },
+  {
+    "name": "Execute Console Command",
+    "type_category": "Enum",
+    "description": "Execute Console Command",
+    "category": "Development"
+  },
+  {
+    "name": "Emit Tracked Mesh Change",
+    "type_category": "Enum",
+    "description": "Emit Tracked Mesh Change",
+    "category": "DynamicMesh"
+  },
+  {
+    "name": "Enable Complex as Simple Collision",
+    "type_category": "Enum",
+    "description": "Enable Complex as Simple Collision",
+    "category": "DynamicMeshComponent"
+  },
+  {
+    "name": "Editor Lock Location",
+    "type_category": "Enum",
+    "description": "Editor Lock Location",
+    "category": "Editor"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Editor"
+  },
+  {
+    "name": "Editor Scripting",
+    "type_category": "Enum",
+    "description": "Editor Scripting",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Assets",
+    "type_category": "Enum",
+    "description": "Export Assets",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Assets (Message)",
+    "type_category": "Enum",
+    "description": "Export Assets (Message)",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Assets with Dialog (Message)",
+    "type_category": "Enum",
+    "description": "Export Assets with Dialog (Message)",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Assets with Dialog",
+    "type_category": "Enum",
+    "description": "Export Assets with Dialog",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Execute Dataprep",
+    "type_category": "Enum",
+    "description": "Execute Dataprep",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Loading And Saving",
+    "type_category": "Enum",
+    "description": "Editor Loading And Saving",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Scene",
+    "type_category": "Enum",
+    "description": "Export Scene",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Revision Control Helpers",
+    "type_category": "Enum",
+    "description": "Editor Revision Control Helpers",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor End Play",
+    "type_category": "Enum",
+    "description": "Editor End Play",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Invalidate Viewports",
+    "type_category": "Enum",
+    "description": "Editor Invalidate Viewports",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Get Game View",
+    "type_category": "Enum",
+    "description": "Editor Get Game View",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Play Simulate",
+    "type_category": "Enum",
+    "description": "Editor Play Simulate",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Request End Play",
+    "type_category": "Enum",
+    "description": "Editor Request End Play",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Set Game View",
+    "type_category": "Enum",
+    "description": "Editor Set Game View",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Eject Pilot Level Actor",
+    "type_category": "Enum",
+    "description": "Eject Pilot Level Actor",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Empty Viewport Capture",
+    "type_category": "Enum",
+    "description": "Empty Viewport Capture",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Empty Render Target Capture",
+    "type_category": "Enum",
+    "description": "Empty Render Target Capture",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Anim Sequence",
+    "type_category": "Enum",
+    "description": "Export Anim Sequence",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export Level Sequence FBX",
+    "type_category": "Enum",
+    "description": "Export Level Sequence FBX",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export FBXFrom Control Rig Section",
+    "type_category": "Enum",
+    "description": "Export FBXFrom Control Rig Section",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Export FBXFrom Control Rig",
+    "type_category": "Enum",
+    "description": "Export FBXFrom Control Rig",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Editor Scripting",
+    "type_category": "Enum",
+    "description": "Editor Scripting",
+    "category": "EditorScripting_1"
+  },
+  {
+    "name": "Editor Utility Test",
+    "type_category": "Enum",
+    "description": "Editor Utility Test",
+    "category": "EditorUtilityTest"
+  },
+  {
+    "name": "Expect False",
+    "type_category": "Enum",
+    "description": "Expect False",
+    "category": "EditorUtilityTest"
+  },
+  {
+    "name": "Expect True",
+    "type_category": "Enum",
+    "description": "Expect True",
+    "category": "EditorUtilityTest"
+  },
+  {
+    "name": "Effects",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Effects"
+  },
+  {
+    "name": "End Trails",
+    "type_category": "Enum",
+    "description": "Ends all trail emitters in this component.",
+    "category": "Effects"
+  },
+  {
+    "name": "Engine Scripting",
+    "type_category": "Enum",
+    "description": "Engine Scripting",
+    "category": "EngineScripting"
+  },
+  {
+    "name": "Engine Subsystems",
+    "type_category": "Enum",
+    "description": "Engine Subsystems",
+    "category": "EngineSubsystems"
+  },
+  {
+    "name": "Enhanced Input",
+    "type_category": "Enum",
+    "description": "Enhanced Input",
+    "category": "EnhancedInput"
+  },
+  {
+    "name": "EQS",
+    "type_category": "Enum",
+    "description": null,
+    "category": "EQS"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Event"
+  },
+  {
+    "name": "Event Received",
+    "type_category": "Enum",
+    "description": "Event Received",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Event Dispatchers",
+    "type_category": "Enum",
+    "description": "Event Dispatchers",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Events",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Events"
+  },
+  {
+    "name": "Expandable Area",
+    "type_category": "Enum",
+    "description": "Expandable Area",
+    "category": "ExpandableArea"
+  },
+  {
+    "name": "Expansion",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Expansion"
+  },
+  {
+    "name": "Execute",
+    "type_category": "Enum",
+    "description": "Execute the operation",
+    "category": "Execution"
+  },
+  {
+    "name": "Execution",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Execution"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "ExpandableArea"
+  },
+  {
+    "name": "Experimental",
+    "type_category": "Enum",
+    "description": "Experimental",
+    "category": "Experimental"
+  },
+  {
+    "name": "Export Context",
+    "type_category": "Enum",
+    "description": "Export Context",
+    "category": "ExportContext"
+  },
+  {
+    "name": "Eye Tracking",
+    "type_category": "Enum",
+    "description": "Eye Tracking",
+    "category": "EyeTracking"
+  },
+  {
+    "name": "Eval Physics Scalar Field",
+    "type_category": "Enum",
+    "description": "Eval Physics Scalar Field",
+    "category": "Field"
+  },
+  {
+    "name": "Eval Physics Integer Field",
+    "type_category": "Enum",
+    "description": "Eval Physics Integer Field",
+    "category": "Field"
+  },
+  {
+    "name": "Eval Physics Vector Field",
+    "type_category": "Enum",
+    "description": "Eval Physics Vector Field",
+    "category": "Field"
+  },
+  {
+    "name": "Enable Self Righting",
+    "type_category": "Enum",
+    "description": "Enable Self Righting",
+    "category": "Game"
+  },
+  {
+    "name": "Enable Wheel Friction",
+    "type_category": "Enum",
+    "description": "Enable Wheel Friction",
+    "category": "Game"
+  },
+  {
+    "name": "Enable Suspension",
+    "type_category": "Enum",
+    "description": "Enable Suspension",
+    "category": "Game"
+  },
+  {
+    "name": "Enable Mechanical Sim",
+    "type_category": "Enum",
+    "description": "Enable Mechanical Sim",
+    "category": "Game"
+  },
+  {
+    "name": "End Match",
+    "type_category": "Enum",
+    "description": "Transition from InProgress to WaitingPostMatch. You can call this manually, will also get called if ReadyToEndMatch returns true",
+    "category": "Game"
+  },
+  {
+    "name": "Enable Live Streaming",
+    "type_category": "Enum",
+    "description": "Enable Live Streaming",
+    "category": "Game"
+  },
+  {
+    "name": "EndBehavior",
+    "type_category": "Enum",
+    "description": "EndBehavior",
+    "category": "GameplayBehavior"
+  },
+  {
+    "name": "End (Recycle) GameplayCue",
+    "type_category": "Enum",
+    "description": "End (Recycle) GameplayCue",
+    "category": "GameplayCueNotify"
+  },
+  {
+    "name": "Execute GameplayCue On Actor (Burst)",
+    "type_category": "Enum",
+    "description": "Execute GameplayCue On Actor (Burst)",
+    "category": "GameplayCue"
+  },
+  {
+    "name": "End Task",
+    "type_category": "Enum",
+    "description": "Called explicitly to end the task (usually by the task itself). Calls OnDestroy.\nNote:: you need to call EndTask before sending out any \"on completed\" delegates.\nIf you don't the task will still be in an \"active\" state while the event receivers may\nassume it's already \"finished\"",
+    "category": "GameplayTasks"
+  },
+  {
+    "name": "Experimental",
+    "type_category": "Enum",
+    "description": "Experimental",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Extract Color List Channels",
+    "type_category": "Enum",
+    "description": "Extract Color List Channels",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Extract Color List Channel",
+    "type_category": "Enum",
+    "description": "Extract Color List Channel",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Enable Material IDs",
+    "type_category": "Enum",
+    "description": "Enable Material IDs",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Expand Mesh Selection to Connected",
+    "type_category": "Enum",
+    "description": "Expand Mesh Selection to Connected",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Expand Contract Mesh Selection",
+    "type_category": "Enum",
+    "description": "Expand Contract Mesh Selection",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "EnablePolyGroups",
+    "type_category": "Enum",
+    "description": "EnablePolyGroups",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Ellipsoid",
+    "type_category": "Enum",
+    "description": null,
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "ENU",
+    "type_category": "Enum",
+    "description": null,
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "ECEF To Engine",
+    "type_category": "Enum",
+    "description": "ECEF To Engine",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "ECEF To Geographic",
+    "type_category": "Enum",
+    "description": "ECEF To Geographic",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "ECEF To Projected",
+    "type_category": "Enum",
+    "description": "ECEF To Projected",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "Engine To ECEF",
+    "type_category": "Enum",
+    "description": "Engine To ECEF",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "Engine to Geographic",
+    "type_category": "Enum",
+    "description": "Engine to Geographic",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "Engine To Projected",
+    "type_category": "Enum",
+    "description": "Engine To Projected",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "End Recording Visible Tiles",
+    "type_category": "Enum",
+    "description": "End Recording Visible Tiles",
+    "category": "GPULightmass"
+  },
+  {
+    "name": "Enhanced Input Events",
+    "type_category": "Enum",
+    "description": "Enhanced Input Events",
+    "category": "Input"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Input"
+  },
+  {
+    "name": "Enable Input",
+    "type_category": "Enum",
+    "description": "Enable Input",
+    "category": "Input"
+  },
+  {
+    "name": "ExposureCompensation",
+    "type_category": "Enum",
+    "description": "ExposureCompensation",
+    "category": "Input"
+  },
+  {
+    "name": "ExposureCompensationReset",
+    "type_category": "Enum",
+    "description": "ExposureCompensationReset",
+    "category": "Input"
+  },
+  {
+    "name": "Enhanced Action Events",
+    "type_category": "Enum",
+    "description": "Enhanced Action Events",
+    "category": "Input"
+  },
+  {
+    "name": "ExposureCompensation",
+    "type_category": "Enum",
+    "description": "ExposureCompensation",
+    "category": "Input"
+  },
+  {
+    "name": "ExposureCompensationReset",
+    "type_category": "Enum",
+    "description": "ExposureCompensationReset",
+    "category": "Input"
+  },
+  {
+    "name": "Enhanced Action Values",
+    "type_category": "Enum",
+    "description": "Enhanced Action Values",
+    "category": "Input"
+  },
+  {
+    "name": "Enhanced Input Events",
+    "type_category": "Enum",
+    "description": "Enhanced Input Events",
+    "category": "Input"
+  },
+  {
+    "name": "External Tracking",
+    "type_category": "Enum",
+    "description": "External Tracking",
+    "category": "Input"
+  },
+  {
+    "name": "Enable HMD",
+    "type_category": "Enum",
+    "description": "Switches to/from using HMD and stereo rendering.",
+    "category": "Input"
+  },
+  {
+    "name": "Enter",
+    "type_category": "Enum",
+    "description": "Events for when the Enter key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Equals",
+    "type_category": "Enum",
+    "description": "Events for when the Equals key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "End",
+    "type_category": "Enum",
+    "description": "Events for when the End key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Exclamation",
+    "type_category": "Enum",
+    "description": "Exclamation",
+    "category": "Input"
+  },
+  {
+    "name": "Escape",
+    "type_category": "Enum",
+    "description": "Events for when the Escape key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "E",
+    "type_category": "Enum",
+    "description": "Events for when the E key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Enable Motion Tracking for Component",
+    "type_category": "Enum",
+    "description": "Enable Motion Tracking for Component",
+    "category": "Input"
+  },
+  {
+    "name": "Enumerate Motion Sources",
+    "type_category": "Enum",
+    "description": "Enumerate Motion Sources",
+    "category": "Input"
+  },
+  {
+    "name": "Enable Motion Tracking Of Source",
+    "type_category": "Enum",
+    "description": "Enable Motion Tracking Of Source",
+    "category": "Input"
+  },
+  {
+    "name": "End XRSession",
+    "type_category": "Enum",
+    "description": "End XRSession",
+    "category": "Input"
+  },
+  {
+    "name": "Enumerate Tracked Devices",
+    "type_category": "Enum",
+    "description": "Enumerate Tracked Devices",
+    "category": "Input"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Interaction"
+  },
+  {
+    "name": "Export Manager",
+    "type_category": "Enum",
+    "description": "Export Manager",
+    "category": "Interchange"
+  },
+  {
+    "name": "Export Asset",
+    "type_category": "Enum",
+    "description": "Export Asset",
+    "category": "Interchange"
+  },
+  {
+    "name": "Export Scene",
+    "type_category": "Enum",
+    "description": "Export Scene",
+    "category": "Interchange"
+  },
+  {
+    "name": "Editor",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Landscape"
+  },
+  {
+    "name": "Editor Get Paint Layer Weight by Name at Location",
+    "type_category": "Enum",
+    "description": "Editor Get Paint Layer Weight by Name at Location",
+    "category": "Landscape"
+  },
+  {
+    "name": "Editor Get Paint Layer Weight at Location",
+    "type_category": "Enum",
+    "description": "Editor Get Paint Layer Weight at Location",
+    "category": "Landscape"
+  },
+  {
+    "name": "Editor Apply Spline",
+    "type_category": "Enum",
+    "description": "Editor Apply Spline",
+    "category": "Landscape"
+  },
+  {
+    "name": "Editor Map Change",
+    "type_category": "Enum",
+    "description": "Editor Map Change",
+    "category": "Layers"
+  },
+  {
+    "name": "Editor Refresh Layer Browser",
+    "type_category": "Enum",
+    "description": "Editor Refresh Layer Browser",
+    "category": "Layers"
+  },
+  {
+    "name": "Encode Actions",
+    "type_category": "Enum",
+    "description": "Encode Actions",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Encode Observations",
+    "type_category": "Enum",
+    "description": "Encode Observations",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "End Recording",
+    "type_category": "Enum",
+    "description": "End Recording",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "End Training",
+    "type_category": "Enum",
+    "description": "End Training",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Evaluate Critic",
+    "type_category": "Enum",
+    "description": "Evaluate Critic",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Evaluate Rewards",
+    "type_category": "Enum",
+    "description": "Evaluate Rewards",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Evaluate Policy",
+    "type_category": "Enum",
+    "description": "Evaluate Policy",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Evaluate Completions",
+    "type_category": "Enum",
+    "description": "Evaluate Completions",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Empty Selection",
+    "type_category": "Enum",
+    "description": "Empty Selection",
+    "category": "LevelSequenceEditor"
+  },
+  {
+    "name": "Export",
+    "type_category": "Enum",
+    "description": "Exports this Point Cloud to the given filename.\nConsult supported export formats.\nReturns true if successful",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Export Point Cloud to File",
+    "type_category": "Enum",
+    "description": "Export Point Cloud to File",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Evaluate Live Link Frame",
+    "type_category": "Enum",
+    "description": "Evaluate Live Link Frame",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Evaluate Live Link Frame at Scene Time",
+    "type_category": "Enum",
+    "description": "Evaluate Live Link Frame at Scene Time",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Evaluate Live Link Frame at World Time",
+    "type_category": "Enum",
+    "description": "Evaluate Live Link Frame at World Time",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Enable",
+    "type_category": "Enum",
+    "description": "Registers the component with the owner effectively turning it on. Calling it multiple times won't break anything",
+    "category": "Mass"
+  },
+  {
+    "name": "Equal (DateTime)",
+    "type_category": "Enum",
+    "description": "Equal (DateTime)",
+    "category": "Math"
+  },
+  {
+    "name": "Exp",
+    "type_category": "Enum",
+    "description": "Returns exponential(e) to the power A (e^A)",
+    "category": "Math"
+  },
+  {
+    "name": "Ease",
+    "type_category": "Enum",
+    "description": "Interpolates from value A to value B using a user specified easing function",
+    "category": "Math"
+  },
+  {
+    "name": "Equal (IntPoint)",
+    "type_category": "Enum",
+    "description": "Equal (IntPoint)",
+    "category": "Math"
+  },
+  {
+    "name": "Euler (Quat)",
+    "type_category": "Enum",
+    "description": "Euler (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Ensure Shortest Arc To (Quat)",
+    "type_category": "Enum",
+    "description": "Ensure Shortest Arc To (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Exp (Quat)",
+    "type_category": "Enum",
+    "description": "Used in combination with Log().\nAssumes a quaternion with W=0 and V=theta*v (where |v| = 1).\nExp(q) = (sin(theta)*v, cos(theta))",
+    "category": "Math"
+  },
+  {
+    "name": "Equal Exactly (Vector)",
+    "type_category": "Enum",
+    "description": "Equal Exactly (Vector)",
+    "category": "Math"
+  },
+  {
+    "name": "Equal Exactly (Vector2D)",
+    "type_category": "Enum",
+    "description": "Equal Exactly (Vector2D)",
+    "category": "Math"
+  },
+  {
+    "name": "Equal Exactly (Vector4)",
+    "type_category": "Enum",
+    "description": "Equal Exactly (Vector4)",
+    "category": "Math"
+  },
+  {
+    "name": "Enumerate Audio Capture Devices",
+    "type_category": "Enum",
+    "description": "Enumerate Audio Capture Devices",
+    "category": "Media"
+  },
+  {
+    "name": "Enumerate Webcam Capture Devices",
+    "type_category": "Enum",
+    "description": "Enumerate Webcam Capture Devices",
+    "category": "Media"
+  },
+  {
+    "name": "Enumerate Video Capture Devices",
+    "type_category": "Enum",
+    "description": "Enumerate Video Capture Devices",
+    "category": "Media"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "MenuAnchor"
+  },
+  {
+    "name": "Empty",
+    "type_category": "Enum",
+    "description": "Empty the mesh description",
+    "category": "MeshDescription"
+  },
+  {
+    "name": "Export to GLTF",
+    "type_category": "Enum",
+    "description": "Export to GLTF",
+    "category": "Miscellaneous"
+  },
+  {
+    "name": "Empty",
+    "type_category": "Enum",
+    "description": "Clear the network, getting rid of all layers.",
+    "category": "MLDeformer"
+  },
+  {
+    "name": "Extract Root Motion from Animation",
+    "type_category": "Enum",
+    "description": "Extract Root Motion from Animation",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Ensure Job Has Default Settings",
+    "type_category": "Enum",
+    "description": "Ensure Job Has Default Settings",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Execute",
+    "type_category": "Enum",
+    "description": "Execute the provided Queue. You are responsible for deciding how to handle each job\nin the queue and processing them. OnExecutorFinished should be called when all jobs\nare completed, which can report both success, warning, cancel, or error.",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Export Config to Asset",
+    "type_category": "Enum",
+    "description": "Export Config to Asset",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Emit binary cluster event (Message)",
+    "type_category": "Enum",
+    "description": "Emit binary cluster event (Message)",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Emit JSON cluster event",
+    "type_category": "Enum",
+    "description": "Emit JSON cluster event",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Emit JSON cluster event (Message)",
+    "type_category": "Enum",
+    "description": "Emit JSON cluster event (Message)",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Emit binary cluster event",
+    "type_category": "Enum",
+    "description": "Emit binary cluster event",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Enable Interpolation Mode",
+    "type_category": "Enum",
+    "description": "Enable Interpolation Mode",
+    "category": "Networking"
+  },
+  {
+    "name": "Entitlement",
+    "type_category": "Enum",
+    "description": "Entitlement",
+    "category": "Oculus"
+  },
+  {
+    "name": "End Match",
+    "type_category": "Enum",
+    "description": "End a match that is in progress while it is the current player's turn",
+    "category": "Online"
+  },
+  {
+    "name": "End Turn",
+    "type_category": "Enum",
+    "description": "Ends the turn for the current player",
+    "category": "Online"
+  },
+  {
+    "name": "Experimental",
+    "type_category": "Enum",
+    "description": "Experimental",
+    "category": "OpenXR"
+  },
+  {
+    "name": "Expand Collapsed Nodes",
+    "type_category": "Enum",
+    "description": "Expand Collapsed Nodes",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Ensure at Least One Rig Element Selected",
+    "type_category": "Enum",
+    "description": "Ensure at Least One Rig Element Selected",
+    "category": "Options"
+  },
+  {
+    "name": "Execution",
+    "type_category": "Enum",
+    "description": null,
+    "category": "PCG"
+  },
+  {
+    "name": "Execute",
+    "type_category": "Enum",
+    "description": "Target is PCGBlueprint Element",
+    "category": "PCG"
+  },
+  {
+    "name": "End Recording Baseline",
+    "type_category": "Enum",
+    "description": "End Recording Baseline",
+    "category": "Perf_1"
+  },
+  {
+    "name": "End Recording",
+    "type_category": "Enum",
+    "description": "End Recording",
+    "category": "Perf_1"
+  },
+  {
+    "name": "End Stats File",
+    "type_category": "Enum",
+    "description": "End Stats File",
+    "category": "Perf_1"
+  },
+  {
+    "name": "Export Static Mesh to PFM file",
+    "type_category": "Enum",
+    "description": "Export Static Mesh to PFM file",
+    "category": "PFMExporter"
+  },
+  {
+    "name": "Export Static Mesh to PFM file (Message)",
+    "type_category": "Enum",
+    "description": "Export Static Mesh to PFM file (Message)",
+    "category": "PFMExporter"
+  },
+  {
+    "name": "Enable Simulation from Actor",
+    "type_category": "Enum",
+    "description": "Enable Simulation from Actor",
+    "category": "Physics"
+  },
+  {
+    "name": "Enable Simulation",
+    "type_category": "Enum",
+    "description": "Enable Simulation",
+    "category": "Physics"
+  },
+  {
+    "name": "Extract Closest Physics Object Results",
+    "type_category": "Enum",
+    "description": "Extract Closest Physics Object Results",
+    "category": "PhysicsObject"
+  },
+  {
+    "name": "Execution",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Python"
+  },
+  {
+    "name": "Execute Python Script",
+    "type_category": "Enum",
+    "description": "Execute Python Script",
+    "category": "Python"
+  },
+  {
+    "name": "Execute Python Command",
+    "type_category": "Enum",
+    "description": "Execute Python Command",
+    "category": "Python"
+  },
+  {
+    "name": "Execute Python Command (Advanced)",
+    "type_category": "Enum",
+    "description": "Execute Python Command (Advanced)",
+    "category": "Python"
+  },
+  {
+    "name": "Eval",
+    "type_category": "Enum",
+    "description": "Target is Nearest Neighbor Model Instance",
+    "category": "Python"
+  },
+  {
+    "name": "Emit Script Error",
+    "type_category": "Enum",
+    "description": "Emit Script Error",
+    "category": "Python"
+  },
+  {
+    "name": "Emit Script Warning",
+    "type_category": "Enum",
+    "description": "Emit Script Warning",
+    "category": "Python"
+  },
+  {
+    "name": "Execute",
+    "type_category": "Enum",
+    "description": "Target is RCBehaviour on Value Changed Node",
+    "category": "RemoteControlBehaviour"
+  },
+  {
+    "name": "Expose Actor",
+    "type_category": "Enum",
+    "description": "Expose Actor",
+    "category": "RemoteControlPreset"
+  },
+  {
+    "name": "Expose Function",
+    "type_category": "Enum",
+    "description": "Expose Function",
+    "category": "RemoteControlPreset"
+  },
+  {
+    "name": "Expose Property",
+    "type_category": "Enum",
+    "description": "Expose Property",
+    "category": "RemoteControlPreset"
+  },
+  {
+    "name": "Exponential Height Fog",
+    "type_category": "Enum",
+    "description": "Exponential Height Fog",
+    "category": "Rendering"
+  },
+  {
+    "name": "Enable Path Tracing",
+    "type_category": "Enum",
+    "description": "Enable Path Tracing",
+    "category": "Rendering"
+  },
+  {
+    "name": "End Draw Canvas to Render Target",
+    "type_category": "Enum",
+    "description": "End Draw Canvas to Render Target",
+    "category": "Rendering"
+  },
+  {
+    "name": "Export Render Target",
+    "type_category": "Enum",
+    "description": "Export Render Target",
+    "category": "Rendering"
+  },
+  {
+    "name": "Export Texture 2D",
+    "type_category": "Enum",
+    "description": "Export Texture 2D",
+    "category": "Rendering"
+  },
+  {
+    "name": "End Work",
+    "type_category": "Enum",
+    "description": "Indicates the end of the work",
+    "category": "Report"
+  },
+  {
+    "name": "Effect",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Retainer"
+  },
+  {
+    "name": "Execute Event",
+    "type_category": "Enum",
+    "description": "Execute Event",
+    "category": "RigVM"
+  },
+  {
+    "name": "Execute",
+    "type_category": "Enum",
+    "description": "Executes the VM.\nYou can optionally provide external memory to the execution\nand provide optional additional operands.",
+    "category": "RigVM"
+  },
+  {
+    "name": "Enable Reporting",
+    "type_category": "Enum",
+    "description": "Enable Reporting",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Eject Node from Pin",
+    "type_category": "Enum",
+    "description": "Eject Node from Pin",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Expand Library Node",
+    "type_category": "Enum",
+    "description": "Expand Library Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Export Selected Nodes to Text",
+    "type_category": "Enum",
+    "description": "Export Selected Nodes to Text",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Export Nodes to Text",
+    "type_category": "Enum",
+    "description": "Export Nodes to Text",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Execution Is Halted at This Node",
+    "type_category": "Enum",
+    "description": "Execution Is Halted at This Node",
+    "category": "RigVMNode"
+  },
+  {
+    "name": "End Inertial Scrolling",
+    "type_category": "Enum",
+    "description": "End Inertial Scrolling",
+    "category": "Scroll"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Sequencer"
+  },
+  {
+    "name": "Evaluate Keys (Float)",
+    "type_category": "Enum",
+    "description": "Evaluate Keys (Float)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Evaluate Keys (Bool)",
+    "type_category": "Enum",
+    "description": "Evaluate Keys (Bool)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Evaluate Keys (Double)",
+    "type_category": "Enum",
+    "description": "Evaluate Keys (Double)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Enable HDR Display Output",
+    "type_category": "Enum",
+    "description": "Enable HDR Display Output",
+    "category": "Settings"
+  },
+  {
+    "name": "Events",
+    "type_category": "Enum",
+    "description": null,
+    "category": "SpinBox"
+  },
+  {
+    "name": "Enable Section Cast Shadow",
+    "type_category": "Enum",
+    "description": "Enable Section Cast Shadow",
+    "category": "StaticMeshUtilities"
+  },
+  {
+    "name": "Enable Section Collision",
+    "type_category": "Enum",
+    "description": "Enable Section Collision",
+    "category": "StaticMeshUtilities"
+  },
+  {
+    "name": "Enable Streaming Source",
+    "type_category": "Enum",
+    "description": "Enable Streaming Source",
+    "category": "Streaming"
+  },
+  {
+    "name": "Execute Targeting Request",
+    "type_category": "Enum",
+    "description": "Execute Targeting Request",
+    "category": "TargetingSystem"
+  },
+  {
+    "name": "Enable Custom Tests",
+    "type_category": "Enum",
+    "description": "Enable Custom Tests",
+    "category": "Test"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "TextBox"
+  },
+  {
+    "name": "Export to Disk",
+    "type_category": "Enum",
+    "description": "Export to Disk",
+    "category": "Texture"
+  },
+  {
+    "name": "Editor Tick",
+    "type_category": "Enum",
+    "description": "Editor Tick",
+    "category": "Tick"
+  },
+  {
+    "name": "Extend Menu",
+    "type_category": "Enum",
+    "description": "Extend Menu",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "End Transaction",
+    "type_category": "Enum",
+    "description": "End Transaction",
+    "category": "Transactions"
+  },
+  {
+    "name": "Expand All",
+    "type_category": "Enum",
+    "description": "Expands all items with children",
+    "category": "TreeView"
+  },
+  {
+    "name": "Equal (TypedElementHandle)",
+    "type_category": "Enum",
+    "description": "Equal (TypedElementHandle)",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Empty",
+    "type_category": "Enum",
+    "description": "Remove all entries from this element list, potentially leaving space allocated for the given number of entries.",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Export Selection to Text",
+    "type_category": "Enum",
+    "description": "Export Selection to Text",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Export to Text",
+    "type_category": "Enum",
+    "description": "Export to Text",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Export Selected Layers",
+    "type_category": "Enum",
+    "description": "Export Selected Layers",
+    "category": "USD"
+  },
+  {
+    "name": "Extension",
+    "type_category": "Enum",
+    "description": null,
+    "category": "UserInterface"
+  },
+  {
+    "name": "Editor Destroyed",
+    "type_category": "Enum",
+    "description": "Editor Destroyed",
+    "category": "Utilities"
+  },
+  {
+    "name": "Equal (Enum)",
+    "type_category": "Enum",
+    "description": "Equal (Enum)",
+    "category": "Utilities"
+  },
+  {
+    "name": "Enum",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Utilities"
+  },
+  {
+    "name": "Enum to Name",
+    "type_category": "Enum",
+    "description": "Enum to Name",
+    "category": "Utilities"
+  },
+  {
+    "name": "Equal",
+    "type_category": "Enum",
+    "description": null,
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Config Dir",
+    "type_category": "Enum",
+    "description": "Engine Config Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Content Dir",
+    "type_category": "Enum",
+    "description": "Engine Content Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Intermediate Dir",
+    "type_category": "Enum",
+    "description": "Engine Intermediate Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Plugins Dir",
+    "type_category": "Enum",
+    "description": "Engine Plugins Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Dir",
+    "type_category": "Enum",
+    "description": "Returns the base directory of the \"core\" engine that can be shared across\nseveral games or across games & mods. Shaders and base localization files\ne.g. reside in the engine directory.",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Saved Dir",
+    "type_category": "Enum",
+    "description": "Engine Saved Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine User Dir",
+    "type_category": "Enum",
+    "description": "Engine User Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Version Agnostic User Dir",
+    "type_category": "Enum",
+    "description": "Engine Version Agnostic User Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Enterprise Dir",
+    "type_category": "Enum",
+    "description": "Enterprise Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Enterprise Feature Pack Dir",
+    "type_category": "Enum",
+    "description": "Enterprise Feature Pack Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Engine Source Dir",
+    "type_category": "Enum",
+    "description": "Engine Source Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Enterprise Plugins Dir",
+    "type_category": "Enum",
+    "description": "Enterprise Plugins Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Enum to String",
+    "type_category": "Enum",
+    "description": "Enum to String",
+    "category": "Utilities"
+  },
+  {
+    "name": "Ends With",
+    "type_category": "Enum",
+    "description": "Test whether this string ends with given string.",
+    "category": "Utilities"
+  },
+  {
+    "name": "Equal Exactly (String)",
+    "type_category": "Enum",
+    "description": "Equal Exactly (String)",
+    "category": "Utilities"
+  },
+  {
+    "name": "Equal, Case Insensitive (String)",
+    "type_category": "Enum",
+    "description": "Equal, Case Insensitive (String)",
+    "category": "Utilities"
+  },
+  {
+    "name": "Equal, Case Insensitive (Text)",
+    "type_category": "Enum",
+    "description": "Equal, Case Insensitive (Text)",
+    "category": "Utilities"
+  },
+  {
+    "name": "Equal Exactly (Text)",
+    "type_category": "Enum",
+    "description": "Equal Exactly (Text)",
+    "category": "Utilities"
+  },
+  {
+    "name": "Evaluate Focal Length",
+    "type_category": "Enum",
+    "description": "Evaluate Focal Length",
+    "category": "Utility"
+  },
+  {
+    "name": "Evaluate Image Center Parameters",
+    "type_category": "Enum",
+    "description": "Evaluate Image Center Parameters",
+    "category": "Utility"
+  },
+  {
+    "name": "Evaluate Nodal Point Offset",
+    "type_category": "Enum",
+    "description": "Evaluate Nodal Point Offset",
+    "category": "Utility"
+  },
+  {
+    "name": "Evaluate Normalized Focus",
+    "type_category": "Enum",
+    "description": "Evaluate Normalized Focus",
+    "category": "Utility"
+  },
+  {
+    "name": "Evaluate Normalized Iris",
+    "type_category": "Enum",
+    "description": "Evaluate Normalized Iris",
+    "category": "Utility"
+  },
+  {
+    "name": "Evaluate Distortion Parameters",
+    "type_category": "Enum",
+    "description": "Evaluate Distortion Parameters",
+    "category": "Utility"
+  },
+  {
+    "name": "Evaluate Distortion Data",
+    "type_category": "Enum",
+    "description": "Evaluate Distortion Data",
+    "category": "Utility"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "View"
+  },
+  {
+    "name": "Editor Load Asset",
+    "type_category": "Enum",
+    "description": "Editor Load Asset",
+    "category": "VirtualCamera"
+  },
+  {
+    "name": "Editor Save Asset",
+    "type_category": "Enum",
+    "description": "Editor Save Asset",
+    "category": "VirtualCamera"
+  },
+  {
+    "name": "Editor Set Game View",
+    "type_category": "Enum",
+    "description": "Editor Set Game View",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Enable Debug Focus Plane",
+    "type_category": "Enum",
+    "description": "Enable Debug Focus Plane",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Editor Delete Selected Objects",
+    "type_category": "Enum",
+    "description": "Editor Delete Selected Objects",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Editor Undo",
+    "type_category": "Enum",
+    "description": "Editor Undo",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Editor Duplicate",
+    "type_category": "Enum",
+    "description": "Editor Duplicate",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Editor Redo",
+    "type_category": "Enum",
+    "description": "Editor Redo",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Exit VRMode",
+    "type_category": "Enum",
+    "description": "Exit VRMode",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Enter VRMode",
+    "type_category": "Enum",
+    "description": "Enter VRMode",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Event",
+    "type_category": "Enum",
+    "description": null,
+    "category": "WebBrowser"
+  },
+  {
+    "name": "Execute Javascript",
+    "type_category": "Enum",
+    "description": "Execute Javascript",
+    "category": "WebBrowser"
+  },
+  {
+    "name": "Enforce Max Influences",
+    "type_category": "Enum",
+    "description": "Enforce Max Influences",
+    "category": "Weights"
+  },
+  {
+    "name": "Event Reply",
+    "type_category": "Enum",
+    "description": "Event Reply",
+    "category": "Widget"
+  },
+  {
+    "name": "End Drag Drop",
+    "type_category": "Enum",
+    "description": "End Drag Drop",
+    "category": "Widget"
+  },
+  {
+    "name": "Event Reply",
+    "type_category": "Enum",
+    "description": "Event Reply",
+    "category": "Widget"
+  },
+  {
+    "name": "Enter VRMode",
+    "type_category": "Enum",
+    "description": "Enter VRMode",
+    "category": "XRCreative"
+  },
+  {
+    "name": "Exit VRMode",
+    "type_category": "Enum",
+    "description": "Exit VRMode",
+    "category": "XRCreative"
+  }
+]

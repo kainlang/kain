@@ -286,6 +286,12 @@ fn diagnostic_from_error(text: &str, err: &KainError) -> Vec<Diagnostic> {
         KainError::CodegenWithLocation { message, span, .. } => (message.clone(), *span),
         KainError::Runtime { message } => (message.clone(), Span::default()),
         KainError::Io(_) => return vec![],
+        KainError::Multi(errors) => {
+            // Handle multiple errors by recursively converting each
+            return errors.iter()
+                .flat_map(|e| diagnostic_from_error(text, e))
+                .collect();
+        }
         KainError::Enhanced { message, location, .. } => {
             // Convert location to span if available
             let span = if let Some((line, col)) = location {

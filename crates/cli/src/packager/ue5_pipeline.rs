@@ -1241,13 +1241,15 @@ fn load_and_parse_sources(
     let mut all_shader_names = Vec::new();
     let mut symbol_source_map: HashMap<String, PathBuf> = HashMap::new();
     let mut all_span_mappers: Vec<(String, kain_core::diagnostics::SpanMapper)> = Vec::new();
+    let mut all_parse_errors: Vec<String> = Vec::new(); // Collect errors across all files
     
     println!("🔍 Validating source files...");
     for source_path in &all_source_files {
         if !source_path.exists() {
-            return Err(KainError::runtime(format!(
-                "Source file not found: {}", source_path.display()
-            )));
+            all_parse_errors.push(format!(
+                "❌ Source file not found: {}", source_path.display()
+            ));
+            continue;
         }
         
         let file_source = fs::read_to_string(&source_path).map_err(|e| KainError::Io(e))?;
@@ -1256,9 +1258,10 @@ fn load_and_parse_sources(
         let tokens = match kain_core::Lexer::new(&file_source).tokenize() {
             Ok(t) => t,
             Err(e) => {
-                return Err(KainError::runtime(format!(
+                all_parse_errors.push(format!(
                     "❌ Syntax error in {}: {}", source_path.display(), e
-                )));
+                ));
+                continue; // Don't abort — keep parsing remaining files
             }
         };
         
@@ -1273,12 +1276,23 @@ fn load_and_parse_sources(
                 let file_name_str = source_path.file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| source_path.display().to_string());
-                let formatted_error = post_process::format_error_with_location(
-                    &file_source, &e.to_string(), file_name_str
-                );
-                return Err(KainError::runtime(format!(
-                    "❌ Parse error in {}:{}", source_path.display(), formatted_error
-                )));
+                // Handle Multi variant (multiple errors from one file)
+                let error_string = e.to_string();
+                let individual_errors: Vec<&str> = if error_string.contains("[1/") {
+                    // Multi-error: each sub-error is already formatted, split and format each
+                    vec![&error_string]
+                } else {
+                    vec![&error_string]
+                };
+                for err_str in individual_errors {
+                    let formatted_error = post_process::format_error_with_location(
+                        &file_source, err_str, file_name_str.clone()
+                    );
+                    all_parse_errors.push(format!(
+                        "❌ Parse error in {}:{}", source_path.display(), formatted_error
+                    ));
+                }
+                continue; // Don't abort — keep parsing remaining files
             }
         };
         
@@ -1300,12 +1314,117 @@ fn load_and_parse_sources(
         all_span_mappers.push((file_name.to_string(), span_mapper));
         all_asts.push(ast);
     }
+    
+    // Report all parse errors together
+    if !all_parse_errors.is_empty() {
+        let count = all_parse_errors.len();
+        let body = all_parse_errors.join("\n\n");
+        return Err(KainError::runtime(format!(
+            "{} parse error(s) found:\n\n{}", count, body
+        )));
+    }
     println!();
     
-    // MERGE all ASTs into a single program
+    // MERGE all ASTs into a single program with:
+    //   1. Stdlib deduplication (user code shadows stdlib items with same name)
+    //   2. Stdlib tree-shaking (only include stdlib items transitively referenced by user code)
+    //
+    // Stdlib files are parsed first (indices 0..stdlib_files.len()), user files come after.
     let mut merged = kain_core::ast::Program { items: Vec::new(), span: kain_core::Span { start: 0, end: 0 } };
-    for ast in all_asts {
-        merged.items.extend(ast.items);
+    let stdlib_ast_count = stdlib_files.len();
+    {
+        // Phase 1: Collect all user-defined symbol names (for dedup — user shadows stdlib)
+        let mut user_defined_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for ast in all_asts.iter().skip(stdlib_ast_count) {
+            for item in &ast.items {
+                if let Some(name) = ast_item_symbol_name(item) {
+                    user_defined_names.insert(name);
+                }
+            }
+        }
+
+        // Phase 2: Collect all type names referenced by user code (tree-shaking seeds)
+        let mut user_type_refs: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for ast in all_asts.iter().skip(stdlib_ast_count) {
+            for item in &ast.items {
+                let refs = kain_core::ast::collect_referenced_type_names(item);
+                user_type_refs.extend(refs);
+            }
+        }
+
+        // Phase 3: Build stdlib dependency graph (item name → set of type names it references)
+        let mut stdlib_item_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut stdlib_deps: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+        for ast in all_asts.iter().take(stdlib_ast_count) {
+            for item in &ast.items {
+                if let Some(name) = ast_item_symbol_name(item) {
+                    stdlib_item_names.insert(name.clone());
+                    let refs = kain_core::ast::collect_referenced_type_names(item);
+                    stdlib_deps.insert(name, refs);
+                }
+            }
+        }
+
+        // Phase 4: Transitive closure — expand user_type_refs to include all
+        // stdlib items that are transitively needed.
+        let mut reachable: std::collections::HashSet<String> = std::collections::HashSet::new();
+        // Seed: all user type refs that match a stdlib item name
+        let mut worklist: Vec<String> = user_type_refs.iter()
+            .filter(|name| stdlib_item_names.contains(*name))
+            .cloned()
+            .collect();
+        // Also seed: all user-defined names (they're always reachable)
+        for name in &user_defined_names {
+            reachable.insert(name.clone());
+        }
+
+        while let Some(name) = worklist.pop() {
+            if !reachable.insert(name.clone()) {
+                continue; // Already visited
+            }
+            // If this stdlib item references other stdlib items, add them to worklist
+            if let Some(deps) = stdlib_deps.get(&name) {
+                for dep in deps {
+                    if stdlib_item_names.contains(dep) && !reachable.contains(dep) {
+                        worklist.push(dep.clone());
+                    }
+                }
+            }
+        }
+
+        // Phase 5: Merge stdlib ASTs, applying both dedup AND tree-shaking filters
+        let total_stdlib_items: usize = all_asts.iter().take(stdlib_ast_count)
+            .map(|ast| ast.items.len()).sum();
+        let mut stdlib_deduped = 0usize;
+        let mut stdlib_pruned = 0usize;
+        for ast in all_asts.iter().take(stdlib_ast_count) {
+            for item in &ast.items {
+                if let Some(name) = ast_item_symbol_name(item) {
+                    // Dedup: user code shadows this stdlib item
+                    if user_defined_names.contains(&name) {
+                        stdlib_deduped += 1;
+                        continue;
+                    }
+                    // Tree-shake: this stdlib item is not reachable from user code
+                    if !reachable.contains(&name) {
+                        stdlib_pruned += 1;
+                        continue;
+                    }
+                }
+                merged.items.push(item.clone());
+            }
+        }
+
+        // Phase 6: Merge all user ASTs (always kept in full)
+        for ast in all_asts.iter().skip(stdlib_ast_count) {
+            merged.items.extend(ast.items.iter().cloned());
+        }
+
+        let stdlib_kept = total_stdlib_items - stdlib_deduped - stdlib_pruned;
+        if stdlib_deduped > 0 || stdlib_pruned > 0 {
+            println!("   ℹ️  Stdlib merge: {} total → {} kept ({} pruned by tree-shake, {} shadowed by user code)",
+                total_stdlib_items, stdlib_kept, stdlib_pruned, stdlib_deduped);
+        }
     }
     
     // Extract material graphs BEFORE type checking (since MaterialGraph not yet in TypedItem)

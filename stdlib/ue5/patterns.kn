@@ -1,7 +1,9 @@
 # KAIN UE5 Standard Library - Common Type Patterns
 # Type definitions used across gameplay systems
+# These are marked @stdlib_optional to prevent generation unless explicitly used
 
 # Loot rarity levels for item drops and rewards
+@stdlib_optional
 enum LootRarity:
     Common
     Uncommon
@@ -12,6 +14,7 @@ enum LootRarity:
     LootRarity_MAX
 
 # Buff types for status effect systems
+@stdlib_optional
 enum BuffType:
     Damage
     Defense
@@ -20,18 +23,21 @@ enum BuffType:
     BuffType_MAX
 
 # Inventory slot data structure
+@stdlib_optional
 struct KainInventorySlot:
     item_id: Int
     quantity: Int
     max_stack: Int
 
 # Health component data structure
+@stdlib_optional
 struct KainHealthComponent:
     current_health: Float
     max_health: Float
     is_invulnerable: Bool
 
 # Damage type classification for combat systems
+@stdlib_optional
 enum DamageType:
     Physical
     Fire
@@ -43,6 +49,7 @@ enum DamageType:
     DamageType_MAX
 
 # Quest status tracking
+@stdlib_optional
 enum QuestStatus:
     NotStarted
     InProgress

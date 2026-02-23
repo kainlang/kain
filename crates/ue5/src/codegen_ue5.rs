@@ -1391,6 +1391,21 @@ impl Ue5Gen {
                 _ => "",
             };
 
+            // STDLIB POLLUTION FIX: Skip items marked @stdlib_optional unless they're explicitly referenced
+            // This prevents stdlib pattern types (EBuffType, ELootRarity, etc.) from polluting every plugin
+            let has_stdlib_optional = match item {
+                TypedItem::Struct(s) => s.ast.attributes.iter().any(|a| a.name == "stdlib_optional"),
+                // Note: Enum doesn't have attributes field in AST, so we can't filter enums this way
+                // TODO: Add attributes support to Enum in parser
+                _ => false,
+            };
+            
+            if has_stdlib_optional {
+                // Check if this type is actually referenced by user code
+                // For now, skip all @stdlib_optional types (they'll be added back if needed via tree-shaking)
+                continue;
+            }
+
             if let Some(target) = &self.target_item {
                 // If we're in blueprint-library-only mode, only collect blueprint functions
                 if blueprint_library_only {

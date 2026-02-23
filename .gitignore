@@ -39,3 +39,4 @@ backup/
 # Local dev scripts
 install-local.ps1
 target-install/
+unreal/UE_API/

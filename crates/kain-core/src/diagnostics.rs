@@ -111,6 +111,14 @@ impl<'a> Diagnostics<'a> {
                 // Enhanced errors format themselves via Display trait
                 format!("\n{}\n", error)
             }
+            KainError::Multi(errors) => {
+                let mut output = format!("\n\x1b[1;31merror\x1b[0m: {} error(s) found:\n", errors.len());
+                for (i, err) in errors.iter().enumerate() {
+                    output.push_str(&format!("\n--- [{}/{}] ---\n", i + 1, errors.len()));
+                    output.push_str(&self.format_error(err));
+                }
+                output
+            }
         }
     }
     

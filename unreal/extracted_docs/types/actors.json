@@ -1,0 +1,6530 @@
+[
+  {
+    "name": "Abilities",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Abilities"
+  },
+  {
+    "name": "Add GameplayCue To Owner",
+    "type_category": "Actor",
+    "description": "Add GameplayCue To Owner",
+    "category": "Ability"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Ability"
+  },
+  {
+    "name": "Add GameplayCueWithParams To Owner",
+    "type_category": "Actor",
+    "description": "Add GameplayCueWithParams To Owner",
+    "category": "Ability"
+  },
+  {
+    "name": "Ability",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Ability"
+  },
+  {
+    "name": "ApplyGameplayEffectSpecToOwner",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectSpecToOwner",
+    "category": "Ability"
+  },
+  {
+    "name": "Async",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Ability"
+  },
+  {
+    "name": "Attribute",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Ability"
+  },
+  {
+    "name": "ApplyGameplayEffectSpecToTarget",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectSpecToTarget",
+    "category": "Ability"
+  },
+  {
+    "name": "ApplyGameplayEffectToTarget",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectToTarget",
+    "category": "Ability"
+  },
+  {
+    "name": "ApplyGameplayEffectToOwner",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectToOwner",
+    "category": "Ability"
+  },
+  {
+    "name": "AddHitResult",
+    "type_category": "Actor",
+    "description": "AddHitResult",
+    "category": "Ability"
+  },
+  {
+    "name": "Add Granted Tag",
+    "type_category": "Actor",
+    "description": "Add Granted Tag",
+    "category": "Ability"
+  },
+  {
+    "name": "Add Granted Tags",
+    "type_category": "Actor",
+    "description": "Add Granted Tags",
+    "category": "Ability"
+  },
+  {
+    "name": "Add Asset Tag",
+    "type_category": "Actor",
+    "description": "Add Asset Tag",
+    "category": "Ability"
+  },
+  {
+    "name": "Add Asset Tags",
+    "type_category": "Actor",
+    "description": "Add Asset Tags",
+    "category": "Ability"
+  },
+  {
+    "name": "Assign Tag Set by Caller Magnitude",
+    "type_category": "Actor",
+    "description": "Assign Tag Set by Caller Magnitude",
+    "category": "Ability"
+  },
+  {
+    "name": "Assign Set by Caller Magnitude",
+    "type_category": "Actor",
+    "description": "Assign Set by Caller Magnitude",
+    "category": "Ability"
+  },
+  {
+    "name": "Add Loose Gameplay Tags",
+    "type_category": "Actor",
+    "description": "Add Loose Gameplay Tags",
+    "category": "Ability"
+  },
+  {
+    "name": "Ability Target Data from Hit Result",
+    "type_category": "Actor",
+    "description": "Ability Target Data from Hit Result",
+    "category": "Ability"
+  },
+  {
+    "name": "Ability Target Data from Actor",
+    "type_category": "Actor",
+    "description": "Ability Target Data from Actor",
+    "category": "Ability"
+  },
+  {
+    "name": "Ability Target Data from Actor Array",
+    "type_category": "Actor",
+    "description": "Ability Target Data from Actor Array",
+    "category": "Ability"
+  },
+  {
+    "name": "Ability Target Data from Locations",
+    "type_category": "Actor",
+    "description": "Ability Target Data from Locations",
+    "category": "Ability"
+  },
+  {
+    "name": "Append Target Data Handle",
+    "type_category": "Actor",
+    "description": "Append Target Data Handle",
+    "category": "Ability"
+  },
+  {
+    "name": "Apply Root Motion Move to Force",
+    "type_category": "Actor",
+    "description": "Apply Root Motion Move to Force",
+    "category": "Ability"
+  },
+  {
+    "name": "Apply Root Motion Constant Force",
+    "type_category": "Actor",
+    "description": "Apply Root Motion Constant Force",
+    "category": "Ability"
+  },
+  {
+    "name": "Apply Root Motion Jump Force",
+    "type_category": "Actor",
+    "description": "Apply Root Motion Jump Force",
+    "category": "Ability"
+  },
+  {
+    "name": "Apply Root Motion Move to Target Data Actor Force",
+    "type_category": "Actor",
+    "description": "Apply Root Motion Move to Target Data Actor Force",
+    "category": "Ability"
+  },
+  {
+    "name": "Apply Root Motion Radial Force",
+    "type_category": "Actor",
+    "description": "Apply Root Motion Radial Force",
+    "category": "Ability"
+  },
+  {
+    "name": "Apply Root Motion Move to Actor Force",
+    "type_category": "Actor",
+    "description": "Apply Root Motion Move to Actor Force",
+    "category": "Ability"
+  },
+  {
+    "name": "Accessibility",
+    "type_category": "Actor",
+    "description": "Accessibility",
+    "category": "Accessibility"
+  },
+  {
+    "name": "Activatable Widget",
+    "type_category": "Actor",
+    "description": "Activatable Widget",
+    "category": "ActivatableWidget"
+  },
+  {
+    "name": "Activate Widget",
+    "type_category": "Actor",
+    "description": "Activate Widget",
+    "category": "ActivatableWidget"
+  },
+  {
+    "name": "Announce Accessible String",
+    "type_category": "Actor",
+    "description": "Announce Accessible String",
+    "category": "Accessibility"
+  },
+  {
+    "name": "Activatable Widget Container",
+    "type_category": "Actor",
+    "description": "Activatable Widget Container",
+    "category": "ActivatableWidgetContainer"
+  },
+  {
+    "name": "Activatable Widget Stack",
+    "type_category": "Actor",
+    "description": "Activatable Widget Stack",
+    "category": "ActivatableWidgetStack"
+  },
+  {
+    "name": "Active VCam Update",
+    "type_category": "Actor",
+    "description": "Active VCam Update",
+    "category": "ActiveVCamUpdate"
+  },
+  {
+    "name": "Actor Has Tag",
+    "type_category": "Actor",
+    "description": "Actor Has Tag",
+    "category": "Actor"
+  },
+  {
+    "name": "Actor",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Actor"
+  },
+  {
+    "name": "Add Tick Prerequisite Component",
+    "type_category": "Actor",
+    "description": "Add Tick Prerequisite Component",
+    "category": "Actor"
+  },
+  {
+    "name": "Add Comment...",
+    "type_category": "Actor",
+    "description": "Add Comment...",
+    "category": "AddComment"
+  },
+  {
+    "name": "Actor",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AddEvent"
+  },
+  {
+    "name": "Add Event",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AddEvent"
+  },
+  {
+    "name": "Add Tick Prerequisite Actor",
+    "type_category": "Actor",
+    "description": "Add Tick Prerequisite Actor",
+    "category": "Actor"
+  },
+  {
+    "name": "Add Custom Event...",
+    "type_category": "Actor",
+    "description": "Add Custom Event...",
+    "category": "AddEvent"
+  },
+  {
+    "name": "Add Math Expression...",
+    "type_category": "Actor",
+    "description": "Add Math Expression...",
+    "category": "AddMathExpression"
+  },
+  {
+    "name": "Add Return Node...",
+    "type_category": "Actor",
+    "description": "The node terminates the function's execution. It returns output parameters.",
+    "category": "AddReturnNode"
+  },
+  {
+    "name": "Add Snap Container...",
+    "type_category": "Actor",
+    "description": "Add Snap Container...",
+    "category": "AddSnapContainer"
+  },
+  {
+    "name": "Advanced",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Advanced"
+  },
+  {
+    "name": "Add Timeline...",
+    "type_category": "Actor",
+    "description": "Add Timeline...",
+    "category": "AddTimeline"
+  },
+  {
+    "name": "Add Gameplay Tag Filter to Blackboard Key Selector",
+    "type_category": "Actor",
+    "description": "Add Gameplay Tag Filter to Blackboard Key Selector",
+    "category": "AI"
+  },
+  {
+    "name": "Add Reroute Node...",
+    "type_category": "Actor",
+    "description": "Add Reroute Node...",
+    "category": "AddRerouteNode"
+  },
+  {
+    "name": "AI MoveTo",
+    "type_category": "Actor",
+    "description": "Simple order for Pawn with AIController to move to a specific location",
+    "category": "AI"
+  },
+  {
+    "name": "AI",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AI"
+  },
+  {
+    "name": "Add Cooldown Tag Duration",
+    "type_category": "Actor",
+    "description": "Add Cooldown Tag Duration",
+    "category": "AI"
+  },
+  {
+    "name": "Add Local Navigation Grid for Box",
+    "type_category": "Actor",
+    "description": "Add Local Navigation Grid for Box",
+    "category": "AI"
+  },
+  {
+    "name": "Add Local Navigation Grid for Capsule",
+    "type_category": "Actor",
+    "description": "Add Local Navigation Grid for Capsule",
+    "category": "AI"
+  },
+  {
+    "name": "Add Local Navigation Grid for Points",
+    "type_category": "Actor",
+    "description": "Add Local Navigation Grid for Points",
+    "category": "AI"
+  },
+  {
+    "name": "Add Local Navigation Grid for Point",
+    "type_category": "Actor",
+    "description": "Add Local Navigation Grid for Point",
+    "category": "AI"
+  },
+  {
+    "name": "Alignment",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Alignment"
+  },
+  {
+    "name": "Analytics",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Analytics"
+  },
+  {
+    "name": "Android File Server",
+    "type_category": "Actor",
+    "description": "Android File Server",
+    "category": "AndroidFileServer"
+  },
+  {
+    "name": "Android Permission",
+    "type_category": "Actor",
+    "description": "Android Permission",
+    "category": "AndroidPermission"
+  },
+  {
+    "name": "Attributes",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Animation"
+  },
+  {
+    "name": "ACL",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Animation"
+  },
+  {
+    "name": "Add Node Asset Override",
+    "type_category": "Actor",
+    "description": "Add Node Asset Override",
+    "category": "Animation"
+  },
+  {
+    "name": "Add Socket",
+    "type_category": "Actor",
+    "description": "Add a skeletal socket object to this SkeletalMesh, and optionally promotes it to USkeleton socket.",
+    "category": "Animation"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Animation"
+  },
+  {
+    "name": "Advance Time",
+    "type_category": "Actor",
+    "description": "Advance Time",
+    "category": "Animation"
+  },
+  {
+    "name": "Animation Asset",
+    "type_category": "Actor",
+    "description": "Animation Asset",
+    "category": "AnimationAsset"
+  },
+  {
+    "name": "Animation Attributes",
+    "type_category": "Actor",
+    "description": "Animation Attributes",
+    "category": "AnimationAttributes"
+  },
+  {
+    "name": "Additive",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Animation Blueprint Library",
+    "type_category": "Actor",
+    "description": "Animation Blueprint Library",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Animation Notify Track",
+    "type_category": "Actor",
+    "description": "Add Animation Notify Track",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Curve",
+    "type_category": "Actor",
+    "description": "Adds an Animation Curve by Type and Name to the given Animation Sequence",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Float Curve Key",
+    "type_category": "Actor",
+    "description": "Add Float Curve Key",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Float Curve Keys",
+    "type_category": "Actor",
+    "description": "Add Float Curve Keys",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Transformation Curve Keys",
+    "type_category": "Actor",
+    "description": "Add Transformation Curve Keys",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Vector Curve Key",
+    "type_category": "Actor",
+    "description": "Add Vector Curve Key",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Transformation Curve Key",
+    "type_category": "Actor",
+    "description": "Add Transformation Curve Key",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Animation Notifies",
+    "type_category": "Actor",
+    "description": "Animation Notifies",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Animation Sync Marker",
+    "type_category": "Actor",
+    "description": "Add Animation Sync Marker",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Meta Data",
+    "type_category": "Actor",
+    "description": "Add Meta Data",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Meta Data Object",
+    "type_category": "Actor",
+    "description": "Add Meta Data Object",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Vector Curve Keys",
+    "type_category": "Actor",
+    "description": "Add Vector Curve Keys",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Animation Notify Event Object",
+    "type_category": "Actor",
+    "description": "Add Animation Notify Event Object",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Animation Notify State Event Object",
+    "type_category": "Actor",
+    "description": "Add Animation Notify State Event Object",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Virtual Bone",
+    "type_category": "Actor",
+    "description": "Add Virtual Bone",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Animation Budget",
+    "type_category": "Actor",
+    "description": "Animation Budget",
+    "category": "AnimationBudget"
+  },
+  {
+    "name": "Add Animation Notify State Event",
+    "type_category": "Actor",
+    "description": "Add Animation Notify State Event",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Add Bone Curve",
+    "type_category": "Actor",
+    "description": "Add Bone Curve",
+    "category": "AnimationData"
+  },
+  {
+    "name": "Add Animation Notify Event",
+    "type_category": "Actor",
+    "description": "Add Animation Notify Event",
+    "category": "AnimationBlueprintLibrary"
+  },
+  {
+    "name": "Animation Character Movement",
+    "type_category": "Actor",
+    "description": "Animation Character Movement",
+    "category": "AnimationCharacterMovement"
+  },
+  {
+    "name": "Add Bone Curve (Message)",
+    "type_category": "Actor",
+    "description": "Add Bone Curve (Message)",
+    "category": "AnimationData"
+  },
+  {
+    "name": "Animation Data",
+    "type_category": "Actor",
+    "description": "Animation Data",
+    "category": "AnimationData"
+  },
+  {
+    "name": "Animation Data Model",
+    "type_category": "Actor",
+    "description": "Animation Data Model",
+    "category": "AnimationDataModel"
+  },
+  {
+    "name": "Animation Editor Extensions",
+    "type_category": "Actor",
+    "description": "Animation Editor Extensions",
+    "category": "AnimationEditorExtensions"
+  },
+  {
+    "name": "Animation Graph",
+    "type_category": "Actor",
+    "description": "Animation Graph",
+    "category": "AnimationGraph"
+  },
+  {
+    "name": "Animation Sharing Enabled",
+    "type_category": "Actor",
+    "description": "Animation Sharing Enabled",
+    "category": "AnimationSharing"
+  },
+  {
+    "name": "Animation Sharing",
+    "type_category": "Actor",
+    "description": "Animation Sharing",
+    "category": "AnimationSharing"
+  },
+  {
+    "name": "Anim Next",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AnimNext"
+  },
+  {
+    "name": "Add Binding",
+    "type_category": "Actor",
+    "description": "Add Binding",
+    "category": "AnimNext"
+  },
+  {
+    "name": "Add Binding Reference",
+    "type_category": "Actor",
+    "description": "Add Binding Reference",
+    "category": "AnimNext"
+  },
+  {
+    "name": "Add Parameter",
+    "type_category": "Actor",
+    "description": "Add Parameter",
+    "category": "AnimNext"
+  },
+  {
+    "name": "Anim Notify",
+    "type_category": "Actor",
+    "description": "Anim Notify",
+    "category": "AnimNotify"
+  },
+  {
+    "name": "Anim To Texture",
+    "type_category": "Actor",
+    "description": "Anim To Texture",
+    "category": "AnimToTexture"
+  },
+  {
+    "name": "Animation to Texture",
+    "type_category": "Actor",
+    "description": "Animation to Texture",
+    "category": "AnimToTexture"
+  },
+  {
+    "name": "Appearance",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Appearance"
+  },
+  {
+    "name": "Apple Vision",
+    "type_category": "Actor",
+    "description": "Apple Vision",
+    "category": "AppleVision"
+  },
+  {
+    "name": "Azure Spatial Anchors",
+    "type_category": "Actor",
+    "description": "Azure Spatial Anchors",
+    "category": "AR"
+  },
+  {
+    "name": "AR",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AR"
+  },
+  {
+    "name": "Add Tracked Point with Name",
+    "type_category": "Actor",
+    "description": "Add Tracked Point with Name",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "AR Augmented Reality",
+    "type_category": "Actor",
+    "description": "AR Augmented Reality",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "Alignment",
+    "type_category": "Actor",
+    "description": null,
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "Add Geo Anchor at Location",
+    "type_category": "Actor",
+    "description": "Add Geo Anchor at Location",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "Add Geo Anchor at Location with Altitude",
+    "type_category": "Actor",
+    "description": "Add Geo Anchor at Location with Altitude",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "ARPin",
+    "type_category": "Actor",
+    "description": null,
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "Add Runtime Candidate Image from Rawbytes",
+    "type_category": "Actor",
+    "description": "Add Runtime Candidate Image from Rawbytes",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "Add Runtime Candidate Image",
+    "type_category": "Actor",
+    "description": "Add Runtime Candidate Image",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "Add AR Environment Probe",
+    "type_category": "Actor",
+    "description": "Add AR Environment Probe",
+    "category": "ARAugmentedReality"
+  },
+  {
+    "name": "AR Gameplay",
+    "type_category": "Actor",
+    "description": "AR Gameplay",
+    "category": "ARGameplay"
+  },
+  {
+    "name": "AR Gameplay",
+    "type_category": "Actor",
+    "description": "AR Gameplay",
+    "category": "ARGameplay_1"
+  },
+  {
+    "name": "Add ARComponent",
+    "type_category": "Actor",
+    "description": "Add ARComponent",
+    "category": "ARGameplay_1"
+  },
+  {
+    "name": "Add Candidate Image",
+    "type_category": "Actor",
+    "description": "Add Candidate Image",
+    "category": "ARSettings"
+  },
+  {
+    "name": "Add Candidate Object",
+    "type_category": "Actor",
+    "description": "Add Candidate Object",
+    "category": "ARSettings"
+  },
+  {
+    "name": "AR Settings",
+    "type_category": "Actor",
+    "description": "AR Settings",
+    "category": "ARSettings"
+  },
+  {
+    "name": "AR Shared World",
+    "type_category": "Actor",
+    "description": "AR Shared World",
+    "category": "ARSharedWorld"
+  },
+  {
+    "name": "AR Utilities",
+    "type_category": "Actor",
+    "description": "AR Utilities",
+    "category": "ARUtilities"
+  },
+  {
+    "name": "Assert Equal (Bool)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Bool)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Double)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Double)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Box2D)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Box2D)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Asserts",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Float)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Float)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Integer)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Integer)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (FName)",
+    "type_category": "Actor",
+    "description": "Assert Equal (FName)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Matrix)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Matrix)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Object)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Object)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Plane)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Plane)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (String)",
+    "type_category": "Actor",
+    "description": "Assert Equal (String)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Quat)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Quat)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Transform)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Transform)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Vector2D)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Vector2D)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert False",
+    "type_category": "Actor",
+    "description": "Assert False",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Vector)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Vector)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (Vector4)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Vector4)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Equal (TraceQuery)",
+    "type_category": "Actor",
+    "description": "Assert Equal (TraceQuery)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Is Valid",
+    "type_category": "Actor",
+    "description": "Assert Is Valid",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Plane)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Plane)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Box2D)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Box2D)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Quat)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Quat)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (String)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (String)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Vector4)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Vector4)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert True",
+    "type_category": "Actor",
+    "description": "Assert True",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Rotator)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Rotator)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Asset Data",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AssetData"
+  },
+  {
+    "name": "Assert Not Equal (Vector2D)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Vector2D)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Transform)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Transform)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Value (Float)",
+    "type_category": "Actor",
+    "description": "Assert Value (Float)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Value (Double)",
+    "type_category": "Actor",
+    "description": "Assert Value (Double)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Value (DateTime)",
+    "type_category": "Actor",
+    "description": "Assert Value (DateTime)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Matrix)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Matrix)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Value (Integer)",
+    "type_category": "Actor",
+    "description": "Assert Value (Integer)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Asset Import Data",
+    "type_category": "Actor",
+    "description": "Asset Import Data",
+    "category": "AssetImportData"
+  },
+  {
+    "name": "Asset Import Task",
+    "type_category": "Actor",
+    "description": "Asset Import Task",
+    "category": "AssetImportTask"
+  },
+  {
+    "name": "Async Change Bundle State for Matching Primary Assets",
+    "type_category": "Actor",
+    "description": "Async Change Bundle State for Matching Primary Assets",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Asset Manager",
+    "type_category": "Actor",
+    "description": "Asset Manager",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Async Change Bundle State for Primary Asset List",
+    "type_category": "Actor",
+    "description": "Async Change Bundle State for Primary Asset List",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Async Load Primary Asset",
+    "type_category": "Actor",
+    "description": "Async Load Primary Asset",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Async Load Primary Asset Class",
+    "type_category": "Actor",
+    "description": "Async Load Primary Asset Class",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Assert Equal (Rotator)",
+    "type_category": "Actor",
+    "description": "Assert Equal (Rotator)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Assert Not Equal (Vector)",
+    "type_category": "Actor",
+    "description": "Assert Not Equal (Vector)",
+    "category": "Asserts"
+  },
+  {
+    "name": "Async Load Primary Asset Class List",
+    "type_category": "Actor",
+    "description": "Async Load Primary Asset Class List",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Asset Registry",
+    "type_category": "Actor",
+    "description": "Asset Registry",
+    "category": "AssetRegistry"
+  },
+  {
+    "name": "Async Load Primary Asset List",
+    "type_category": "Actor",
+    "description": "Async Load Primary Asset List",
+    "category": "AssetManager"
+  },
+  {
+    "name": "Assets",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Assets"
+  },
+  {
+    "name": "Add Asset Datas to Collection",
+    "type_category": "Actor",
+    "description": "Add Asset Datas to Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Asset Data to Collection",
+    "type_category": "Actor",
+    "description": "Add Asset Data to Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Asset Ptr to Collection",
+    "type_category": "Actor",
+    "description": "Add Asset Ptr to Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Asset Ptrs to Collection",
+    "type_category": "Actor",
+    "description": "Add Asset Ptrs to Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Asset to Collection",
+    "type_category": "Actor",
+    "description": "Add Asset to Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Asset To Collection",
+    "type_category": "Actor",
+    "description": "Add Asset To Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Assets To Collection",
+    "type_category": "Actor",
+    "description": "Add Assets To Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Add Assets to Collection",
+    "type_category": "Actor",
+    "description": "Add Assets to Collection",
+    "category": "AssetTags"
+  },
+  {
+    "name": "Asset Validation",
+    "type_category": "Actor",
+    "description": "Asset Validation",
+    "category": "AssetValidation"
+  },
+  {
+    "name": "Asset Tags",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AssetTags"
+  },
+  {
+    "name": "Asset Passes",
+    "type_category": "Actor",
+    "description": "Asset Passes",
+    "category": "AssetValidation"
+  },
+  {
+    "name": "Asset Warning",
+    "type_category": "Actor",
+    "description": "Asset Warning",
+    "category": "AssetValidation"
+  },
+  {
+    "name": "Async Action",
+    "type_category": "Actor",
+    "description": "Async Action",
+    "category": "AsyncAction"
+  },
+  {
+    "name": "Asset Fails",
+    "type_category": "Actor",
+    "description": "Asset Fails",
+    "category": "AssetValidation"
+  },
+  {
+    "name": "Attribute",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Attribute"
+  },
+  {
+    "name": "Attribute Data",
+    "type_category": "Actor",
+    "description": "Attribute Data",
+    "category": "AttributeData"
+  },
+  {
+    "name": "Add Attribute",
+    "type_category": "Actor",
+    "description": "Add Attribute",
+    "category": "AttributeData"
+  },
+  {
+    "name": "Add Attribute (Message)",
+    "type_category": "Actor",
+    "description": "Add Attribute (Message)",
+    "category": "AttributeData"
+  },
+  {
+    "name": "Attributes",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Attributes"
+  },
+  {
+    "name": "Analysis",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Audio"
+  },
+  {
+    "name": "Audio Output Device Info To String",
+    "type_category": "Actor",
+    "description": "Audio Output Device Info To String",
+    "category": "Audio"
+  },
+  {
+    "name": "Are Any Listeners Within Range",
+    "type_category": "Actor",
+    "description": "Are Any Listeners Within Range",
+    "category": "Audio"
+  },
+  {
+    "name": "Activate Reverb Effect",
+    "type_category": "Actor",
+    "description": "Activate Reverb Effect",
+    "category": "Audio"
+  },
+  {
+    "name": "Audio",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Audio"
+  },
+  {
+    "name": "Add Transform Attribute",
+    "type_category": "Actor",
+    "description": "Add Transform Attribute",
+    "category": "Attributes"
+  },
+  {
+    "name": "Adjust Attenuation",
+    "type_category": "Actor",
+    "description": "Adjust Attenuation",
+    "category": "Audio"
+  },
+  {
+    "name": "Audio Input Device Info To String",
+    "type_category": "Actor",
+    "description": "Audio Input Device Info To String",
+    "category": "Audio"
+  },
+  {
+    "name": "Audio",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Audio"
+  },
+  {
+    "name": "Add Master Submix Effect",
+    "type_category": "Actor",
+    "description": "Add Master Submix Effect",
+    "category": "Audio"
+  },
+  {
+    "name": "Adjust Volume",
+    "type_category": "Actor",
+    "description": "Adjust Volume",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Source Effect to Preset Chain",
+    "type_category": "Actor",
+    "description": "Add Source Effect to Preset Chain",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Submix Effect",
+    "type_category": "Actor",
+    "description": "Add Submix Effect",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Tap",
+    "type_category": "Actor",
+    "description": "Adds a dynamic tap delay with the given settings. Returns the tap id.",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Graph Input Node",
+    "type_category": "Actor",
+    "description": "Add Graph Input Node",
+    "category": "Audio"
+  },
+  {
+    "name": "Audition",
+    "type_category": "Actor",
+    "description": "Target is Meta Sound Source Builder",
+    "category": "Audio"
+  },
+  {
+    "name": "Add MetaSound Node From Asset Class",
+    "type_category": "Actor",
+    "description": "Add MetaSound Node From Asset Class",
+    "category": "Audio"
+  },
+  {
+    "name": "Add MetaSound Node By ClassName",
+    "type_category": "Actor",
+    "description": "Add MetaSound Node By ClassName",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Interface",
+    "type_category": "Actor",
+    "description": "Add Interface",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Graph Output Node",
+    "type_category": "Actor",
+    "description": "Add Graph Output Node",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Envelope Follower Delegate",
+    "type_category": "Actor",
+    "description": "Add Envelope Follower Delegate",
+    "category": "Audio"
+  },
+  {
+    "name": "Activate Control Bus",
+    "type_category": "Actor",
+    "description": "Activate Control Bus",
+    "category": "Audio"
+  },
+  {
+    "name": "Activate Control Bus Mix",
+    "type_category": "Actor",
+    "description": "Activate Control Bus Mix",
+    "category": "Audio"
+  },
+  {
+    "name": "Activate Modulation Generator",
+    "type_category": "Actor",
+    "description": "Activate Modulation Generator",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Allowlisted Client",
+    "type_category": "Actor",
+    "description": "Add Allowlisted Client",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Blob to OSC Message",
+    "type_category": "Actor",
+    "description": "Add Blob to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Float to OSC Message",
+    "type_category": "Actor",
+    "description": "Add Float to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Add OSC Address (As String) to OSC Message",
+    "type_category": "Actor",
+    "description": "Add OSC Address (As String) to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Integer (64-bit) to OSC Message",
+    "type_category": "Actor",
+    "description": "Add Integer (64-bit) to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Add OSC Bundle to Bundle",
+    "type_category": "Actor",
+    "description": "Add OSC Bundle to Bundle",
+    "category": "Audio"
+  },
+  {
+    "name": "Add OSC Message to Bundle",
+    "type_category": "Actor",
+    "description": "Add OSC Message to Bundle",
+    "category": "Audio"
+  },
+  {
+    "name": "Add String to OSC Message",
+    "type_category": "Actor",
+    "description": "Add String to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Integer to OSC Message",
+    "type_category": "Actor",
+    "description": "Add Integer to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Bool to OSC Message",
+    "type_category": "Actor",
+    "description": "Add Bool to OSC Message",
+    "category": "Audio"
+  },
+  {
+    "name": "Are Subtitles Enabled",
+    "type_category": "Actor",
+    "description": "Are Subtitles Enabled",
+    "category": "Audio"
+  },
+  {
+    "name": "Add Spectral Analysis Delegate",
+    "type_category": "Actor",
+    "description": "Add Spectral Analysis Delegate",
+    "category": "Audio"
+  },
+  {
+    "name": "Audio Analyzer",
+    "type_category": "Actor",
+    "description": "Audio Analyzer",
+    "category": "AudioAnalyzer"
+  },
+  {
+    "name": "Add Extension",
+    "type_category": "Actor",
+    "description": "Add Extension",
+    "category": "AudioComponentGroup"
+  },
+  {
+    "name": "Audio Capture",
+    "type_category": "Actor",
+    "description": "Audio Capture",
+    "category": "AudioCapture"
+  },
+  {
+    "name": "Add External Component",
+    "type_category": "Actor",
+    "description": "Add External Component",
+    "category": "AudioComponentGroup"
+  },
+  {
+    "name": "Audio Component Group",
+    "type_category": "Actor",
+    "description": "Audio Component Group",
+    "category": "AudioComponentGroup"
+  },
+  {
+    "name": "Audio Delegates",
+    "type_category": "Actor",
+    "description": "Audio Delegates",
+    "category": "AudioDelegates"
+  },
+  {
+    "name": "Audio Engine Subsystems",
+    "type_category": "Actor",
+    "description": "Audio Engine Subsystems",
+    "category": "AudioEngineSubsystems"
+  },
+  {
+    "name": "Audio Gameplay",
+    "type_category": "Actor",
+    "description": "Audio Gameplay",
+    "category": "AudioGameplay"
+  },
+  {
+    "name": "Audio Gameplay Condition",
+    "type_category": "Actor",
+    "description": "Audio Gameplay Condition",
+    "category": "AudioGameplayCondition"
+  },
+  {
+    "name": "Audio Gameplay Volume",
+    "type_category": "Actor",
+    "description": "Audio Gameplay Volume",
+    "category": "AudioGameplayVolume"
+  },
+  {
+    "name": "Audio Link",
+    "type_category": "Actor",
+    "description": null,
+    "category": "AudioLink"
+  },
+  {
+    "name": "Audio Motor Sim",
+    "type_category": "Actor",
+    "description": "Audio Motor Sim",
+    "category": "AudioMotorSim"
+  },
+  {
+    "name": "Audio Volume",
+    "type_category": "Actor",
+    "description": "Audio Volume",
+    "category": "AudioVolume"
+  },
+  {
+    "name": "Augmented Reality",
+    "type_category": "Actor",
+    "description": "Augmented Reality",
+    "category": "AugmentedReality"
+  },
+  {
+    "name": "Are Automated Tests Running",
+    "type_category": "Actor",
+    "description": "Are Automated Tests Running",
+    "category": "Automation"
+  },
+  {
+    "name": "Automation Wait for Loading",
+    "type_category": "Actor",
+    "description": "Automation Wait for Loading",
+    "category": "Automation"
+  },
+  {
+    "name": "Add Test Telemetry Data",
+    "type_category": "Actor",
+    "description": "Add Test Telemetry Data",
+    "category": "Automation"
+  },
+  {
+    "name": "Add Expected Log Error",
+    "type_category": "Actor",
+    "description": "Add Expected Log Error",
+    "category": "Automation"
+  },
+  {
+    "name": "Automation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Automation"
+  },
+  {
+    "name": "Auto Player Activation",
+    "type_category": "Actor",
+    "description": "Auto Player Activation",
+    "category": "AutoPlayerActivation"
+  },
+  {
+    "name": "Azure Spatial Anchors",
+    "type_category": "Actor",
+    "description": "Azure Spatial Anchors",
+    "category": "AzureSpatialAnchors"
+  },
+  {
+    "name": "Add Function Graph",
+    "type_category": "Actor",
+    "description": "Add Function Graph",
+    "category": "BlueprintUpgradeTools"
+  },
+  {
+    "name": "Appearance",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Button"
+  },
+  {
+    "name": "Add Bookmark at Current Level Editor Position",
+    "type_category": "Actor",
+    "description": "Add Bookmark at Current Level Editor Position",
+    "category": "Bookmarks"
+  },
+  {
+    "name": "Add Asset Reference",
+    "type_category": "Actor",
+    "description": "Add Asset Reference",
+    "category": "Caching"
+  },
+  {
+    "name": "Add Generic Camera Lens Effect",
+    "type_category": "Actor",
+    "description": "Add Generic Camera Lens Effect",
+    "category": "Camera"
+  },
+  {
+    "name": "Add Child to Canvas",
+    "type_category": "Actor",
+    "description": "Add Child to Canvas",
+    "category": "CanvasPanel"
+  },
+  {
+    "name": "Apply Angular Velocity",
+    "type_category": "Actor",
+    "description": "Apply Angular Velocity",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Apply Asset Defaults",
+    "type_category": "Actor",
+    "description": "Apply Asset Defaults",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Apply Breaking Linear Velocity",
+    "type_category": "Actor",
+    "description": "Apply Breaking Linear Velocity",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Apply Breaking Angular Velocity",
+    "type_category": "Actor",
+    "description": "Apply Breaking Angular Velocity",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Apply Linear Velocity",
+    "type_category": "Actor",
+    "description": "Apply Linear Velocity",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Apply Internal Strain",
+    "type_category": "Actor",
+    "description": "Apply Internal Strain",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Apply External Strain",
+    "type_category": "Actor",
+    "description": "Apply External Strain",
+    "category": "ChaosPhysics"
+  },
+  {
+    "name": "Add Spline Data at Position",
+    "type_category": "Actor",
+    "description": "Add Spline Data at Position",
+    "category": "CineSpline"
+  },
+  {
+    "name": "ARDependency Handler",
+    "type_category": "Actor",
+    "description": "ARDependency Handler",
+    "category": "Class"
+  },
+  {
+    "name": "Async Capture Scene",
+    "type_category": "Actor",
+    "description": "Async Capture Scene",
+    "category": "Class"
+  },
+  {
+    "name": "Async Editor Delay",
+    "type_category": "Actor",
+    "description": "Async Editor Delay",
+    "category": "Class"
+  },
+  {
+    "name": "Async Editor Wait For Game World",
+    "type_category": "Actor",
+    "description": "Async Editor Wait For Game World",
+    "category": "Class"
+  },
+  {
+    "name": "Async Editor Open Map And Focus Actor",
+    "type_category": "Actor",
+    "description": "Async Editor Open Map And Focus Actor",
+    "category": "Class"
+  },
+  {
+    "name": "Async Image Export",
+    "type_category": "Actor",
+    "description": "Async Image Export",
+    "category": "Class"
+  },
+  {
+    "name": "Async Editor Open Map and Focus Actor",
+    "type_category": "Actor",
+    "description": "Async Editor Open Map and Focus Actor",
+    "category": "Class"
+  },
+  {
+    "name": "Async Register And Execute Task",
+    "type_category": "Actor",
+    "description": "Async Register And Execute Task",
+    "category": "Class"
+  },
+  {
+    "name": "Async Editor Delay",
+    "type_category": "Actor",
+    "description": "Async Editor Delay",
+    "category": "Class"
+  },
+  {
+    "name": "Async Task Download Image",
+    "type_category": "Actor",
+    "description": "Async Task Download Image",
+    "category": "Class"
+  },
+  {
+    "name": "Async Wait for Game World",
+    "type_category": "Actor",
+    "description": "Async Wait for Game World",
+    "category": "Class"
+  },
+  {
+    "name": "Async Action Perform Targeting",
+    "type_category": "Actor",
+    "description": "Async Action Perform Targeting",
+    "category": "Class"
+  },
+  {
+    "name": "Assign Render Targets",
+    "type_category": "Actor",
+    "description": "Assign Render Targets",
+    "category": "Class"
+  },
+  {
+    "name": "Add Component to Cluster",
+    "type_category": "Actor",
+    "description": "Add Component to Cluster",
+    "category": "ClusterUnion"
+  },
+  {
+    "name": "Add Option",
+    "type_category": "Actor",
+    "description": "Target is ComboBox (String)",
+    "category": "ComboBox"
+  },
+  {
+    "name": "Activate Visible Slot",
+    "type_category": "Actor",
+    "description": "Activate Visible Slot",
+    "category": "CommonVisibilitySwitcher"
+  },
+  {
+    "name": "Activate Previous Widget",
+    "type_category": "Actor",
+    "description": "Activate Previous Widget",
+    "category": "CommonWidgetSwitcher"
+  },
+  {
+    "name": "Activate Next Widget",
+    "type_category": "Actor",
+    "description": "Activate Next Widget",
+    "category": "CommonWidgetSwitcher"
+  },
+  {
+    "name": "Activate",
+    "type_category": "Actor",
+    "description": "Activates the SceneComponent, should be overridden by native child classes.",
+    "category": "Components"
+  },
+  {
+    "name": "Activation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Components"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Components"
+  },
+  {
+    "name": "ARFace Mesh",
+    "type_category": "Actor",
+    "description": "ARFace Mesh",
+    "category": "Components"
+  },
+  {
+    "name": "Arrow",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Components"
+  },
+  {
+    "name": "Add Custom Mesh Triangles",
+    "type_category": "Actor",
+    "description": "Add Custom Mesh Triangles",
+    "category": "Components"
+  },
+  {
+    "name": "Apply Damage",
+    "type_category": "Actor",
+    "description": "Apply Damage",
+    "category": "Components"
+  },
+  {
+    "name": "Apply Radius Damage",
+    "type_category": "Actor",
+    "description": "Apply Radius Damage",
+    "category": "Components"
+  },
+  {
+    "name": "Add Instance",
+    "type_category": "Actor",
+    "description": "Add Instance",
+    "category": "Components"
+  },
+  {
+    "name": "Add Instances",
+    "type_category": "Actor",
+    "description": "Add Instances",
+    "category": "Components"
+  },
+  {
+    "name": "Apply Rendering Parameters",
+    "type_category": "Actor",
+    "description": "Apply Rendering Parameters",
+    "category": "Components"
+  },
+  {
+    "name": "Add Collision Convex Mesh",
+    "type_category": "Actor",
+    "description": "Add Collision Convex Mesh",
+    "category": "Components"
+  },
+  {
+    "name": "Animation Blueprint Linking",
+    "type_category": "Actor",
+    "description": "Animation Blueprint Linking",
+    "category": "Components"
+  },
+  {
+    "name": "Allow Anim Curve Evaluation",
+    "type_category": "Actor",
+    "description": "Allow Anim Curve Evaluation",
+    "category": "Components"
+  },
+  {
+    "name": "Add Instance",
+    "type_category": "Actor",
+    "description": "Add Instance",
+    "category": "Components"
+  },
+  {
+    "name": "Add Tick Prerequisite Actor",
+    "type_category": "Actor",
+    "description": "Add Tick Prerequisite Actor",
+    "category": "Components"
+  },
+  {
+    "name": "Add Event",
+    "type_category": "Actor",
+    "description": "Add a callback event to the timeline",
+    "category": "Components"
+  },
+  {
+    "name": "Add Tick Prerequisite Component",
+    "type_category": "Actor",
+    "description": "Add Tick Prerequisite Component",
+    "category": "Components"
+  },
+  {
+    "name": "Add Interp Linear Color",
+    "type_category": "Actor",
+    "description": "Add Interp Linear Color",
+    "category": "Components"
+  },
+  {
+    "name": "Add Interp Float",
+    "type_category": "Actor",
+    "description": "Add Interp Float",
+    "category": "Components"
+  },
+  {
+    "name": "Add Interp Vector",
+    "type_category": "Actor",
+    "description": "Add Interp Vector",
+    "category": "Components"
+  },
+  {
+    "name": "Attach Composure Element",
+    "type_category": "Actor",
+    "description": "Attach Composure Element",
+    "category": "Composure"
+  },
+  {
+    "name": "Add Sound Waves to Template",
+    "type_category": "Actor",
+    "description": "Add Sound Waves to Template",
+    "category": "Config"
+  },
+  {
+    "name": "Add or Set Console Object Saved Data",
+    "type_category": "Actor",
+    "description": "Add or Set Console Object Saved Data",
+    "category": "ConsoleVariablesAsset"
+  },
+  {
+    "name": "Add Validated Command to Current Preset",
+    "type_category": "Actor",
+    "description": "Add Validated Command to Current Preset",
+    "category": "ConsoleVariablesEditor"
+  },
+  {
+    "name": "Activate Data Source",
+    "type_category": "Actor",
+    "description": "Activate Data Source",
+    "category": "ContentBrowser"
+  },
+  {
+    "name": "Activate All Data Sources",
+    "type_category": "Actor",
+    "description": "Activate All Data Sources",
+    "category": "ContentBrowser"
+  },
+  {
+    "name": "Add Or Update Warp Targets For Bindings",
+    "type_category": "Actor",
+    "description": "Add Or Update Warp Targets For Bindings",
+    "category": "ContextualAnim"
+  },
+  {
+    "name": "Add Control Point Position",
+    "type_category": "Actor",
+    "description": "Add Control Point Position",
+    "category": "Control"
+  },
+  {
+    "name": "Add Mapped Skeletal Mesh",
+    "type_category": "Actor",
+    "description": "Add Mapped Skeletal Mesh",
+    "category": "ControlRig_1"
+  },
+  {
+    "name": "Add Mapped Elements",
+    "type_category": "Actor",
+    "description": "Add Mapped Elements",
+    "category": "ControlRig_1"
+  },
+  {
+    "name": "Add Mapped Skeletal Mesh Bone Array",
+    "type_category": "Actor",
+    "description": "Add Mapped Skeletal Mesh Bone Array",
+    "category": "ControlRig_1"
+  },
+  {
+    "name": "Add Mapped Components",
+    "type_category": "Actor",
+    "description": "Add Mapped Components",
+    "category": "ControlRig_1"
+  },
+  {
+    "name": "Abort Conversation",
+    "type_category": "Actor",
+    "description": "Abort Conversation",
+    "category": "Conversation"
+  },
+  {
+    "name": "Advance Conversation",
+    "type_category": "Actor",
+    "description": "Advance Conversation",
+    "category": "Conversation"
+  },
+  {
+    "name": "Advance Conversation with Choice",
+    "type_category": "Actor",
+    "description": "Advance Conversation with Choice",
+    "category": "Conversation"
+  },
+  {
+    "name": "Add Curve",
+    "type_category": "Actor",
+    "description": "Adds a new curve with the provided information. Broadcasts a EAnimDataModelNotifyType::CurveAdded notify if successful.",
+    "category": "CurveData"
+  },
+  {
+    "name": "Add Curve (Message)",
+    "type_category": "Actor",
+    "description": "Add Curve (Message)",
+    "category": "CurveData"
+  },
+  {
+    "name": "Add Value to Float Range",
+    "type_category": "Actor",
+    "description": "Add Value to Float Range",
+    "category": "CustomizableObjectInstance"
+  },
+  {
+    "name": "Add Value to Projector Range",
+    "type_category": "Actor",
+    "description": "Add Value to Projector Range",
+    "category": "CustomizableObjectInstance"
+  },
+  {
+    "name": "Add Value to Int Range",
+    "type_category": "Actor",
+    "description": "Add Value to Int Range",
+    "category": "CustomizableObjectInstance"
+  },
+  {
+    "name": "Add to Collection",
+    "type_category": "Actor",
+    "description": "Add to Collection",
+    "category": "Data"
+  },
+  {
+    "name": "Add Actors to Data Layers",
+    "type_category": "Actor",
+    "description": "Add Actors to Data Layers",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Add Actor to Data Layer",
+    "type_category": "Actor",
+    "description": "Add Actor to Data Layer",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Append Actors from Data Layer",
+    "type_category": "Actor",
+    "description": "Append Actors from Data Layer",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Add Actor to Data Layers",
+    "type_category": "Actor",
+    "description": "Add Actor to Data Layers",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Append Actors from Data Layers",
+    "type_category": "Actor",
+    "description": "Append Actors from Data Layers",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Add Selected Actors to Data Layer",
+    "type_category": "Actor",
+    "description": "Add Selected Actors to Data Layer",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Add Actors to Data Layer",
+    "type_category": "Actor",
+    "description": "Add Actors to Data Layer",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Add Selected Actors to Data Layers",
+    "type_category": "Actor",
+    "description": "Add Selected Actors to Data Layers",
+    "category": "DataLayers"
+  },
+  {
+    "name": "Add Asset",
+    "type_category": "Actor",
+    "description": "DUplicate and add an asset to the Dataprep's and action's working set",
+    "category": "Dataprep"
+  },
+  {
+    "name": "Add Tags",
+    "type_category": "Actor",
+    "description": "Add tags to a set of actors",
+    "category": "Dataprep"
+  },
+  {
+    "name": "Add Metadata",
+    "type_category": "Actor",
+    "description": "Add Metadata",
+    "category": "Dataprep"
+  },
+  {
+    "name": "Assets Modified",
+    "type_category": "Actor",
+    "description": "Assets Modified",
+    "category": "Dataprep"
+  },
+  {
+    "name": "Add to Layer",
+    "type_category": "Actor",
+    "description": "Add to Layer",
+    "category": "Dataprep"
+  },
+  {
+    "name": "Acquire Data Registry Item (experimental)",
+    "type_category": "Actor",
+    "description": "Acquire Data Registry Item (experimental)",
+    "category": "DataRegistry"
+  },
+  {
+    "name": "Add Child",
+    "type_category": "Actor",
+    "description": "Adds a child to the Actor Element",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Actor Binding",
+    "type_category": "Actor",
+    "description": "Add Actor Binding",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Property",
+    "type_category": "Actor",
+    "description": "Add Property",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Material Override",
+    "type_category": "Actor",
+    "description": "Add Material Override",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Property Capture",
+    "type_category": "Actor",
+    "description": "Add Property Capture",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Variant Set",
+    "type_category": "Actor",
+    "description": "Add Variant Set",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Variant",
+    "type_category": "Actor",
+    "description": "Add Variant",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Attach Actor to Scene Root",
+    "type_category": "Actor",
+    "description": "Attach Actor to Scene Root",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Attach Actor",
+    "type_category": "Actor",
+    "description": "Attach Actor",
+    "category": "Datasmith"
+  },
+  {
+    "name": "Add Chaos Solver Actor",
+    "type_category": "Actor",
+    "description": "Add Chaos Solver Actor",
+    "category": "DestructionListener"
+  },
+  {
+    "name": "Add Geometry Collection Actor",
+    "type_category": "Actor",
+    "description": "Add Geometry Collection Actor",
+    "category": "DestructionListener"
+  },
+  {
+    "name": "Add Public Destination",
+    "type_category": "Actor",
+    "description": "Add Public Destination",
+    "category": "DirectLink"
+  },
+  {
+    "name": "Add Public Source",
+    "type_category": "Actor",
+    "description": "Add Public Source",
+    "category": "DirectLink"
+  },
+  {
+    "name": "Advance Time by Distance Matching",
+    "type_category": "Actor",
+    "description": "Advance Time by Distance Matching",
+    "category": "DistanceMatching"
+  },
+  {
+    "name": "Add All Patches",
+    "type_category": "Actor",
+    "description": "Add All Patches",
+    "category": "DMX"
+  },
+  {
+    "name": "Add Documentation Node...",
+    "type_category": "Actor",
+    "description": "Add Documentation Node...",
+    "category": "Documentation"
+  },
+  {
+    "name": "Allocate Compute Mesh",
+    "type_category": "Actor",
+    "description": "Allocate Compute Mesh",
+    "category": "DynamicMeshActor"
+  },
+  {
+    "name": "Actor Editing",
+    "type_category": "Actor",
+    "description": "Actor Editing",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Actor Grouping",
+    "type_category": "Actor",
+    "description": "Actor Grouping",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Selected to Group",
+    "type_category": "Actor",
+    "description": "Add Selected to Group",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Asset",
+    "type_category": "Actor",
+    "description": null,
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Asset Tools",
+    "type_category": "Actor",
+    "description": "Asset Tools",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add on Extract Asset from File",
+    "type_category": "Actor",
+    "description": "Add on Extract Asset from File",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Asset",
+    "type_category": "Actor",
+    "description": null,
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Action",
+    "type_category": "Actor",
+    "description": "Add an action to a dataprep asset",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Action by Duplication",
+    "type_category": "Actor",
+    "description": "Add Action by Duplication",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Step",
+    "type_category": "Actor",
+    "description": "Add a step to a dataprep action",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Step by Duplication",
+    "type_category": "Actor",
+    "description": "Add Step by Duplication",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Actions",
+    "type_category": "Actor",
+    "description": null,
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Producer Automated",
+    "type_category": "Actor",
+    "description": "Add Producer Automated",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Producer",
+    "type_category": "Actor",
+    "description": "Add Producer",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Data Table Row",
+    "type_category": "Actor",
+    "description": "Add Data Table Row",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Async Query File State",
+    "type_category": "Actor",
+    "description": "Async Query File State",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Level to World",
+    "type_category": "Actor",
+    "description": "Add Level to World",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Level to World with Transform",
+    "type_category": "Actor",
+    "description": "Add Level to World with Transform",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Render Target Capture",
+    "type_category": "Actor",
+    "description": "Add Render Target Capture",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Viewport Capture",
+    "type_category": "Actor",
+    "description": "Add Viewport Capture",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Constraint",
+    "type_category": "Actor",
+    "description": "Add Constraint",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Constraint",
+    "type_category": "Actor",
+    "description": "Add Constraint",
+    "category": "EditorScripting"
+  },
+  {
+    "name": "Add Error",
+    "type_category": "Actor",
+    "description": "Target is Editor Utility Test",
+    "category": "EditorUtilityTest"
+  },
+  {
+    "name": "Add Warning",
+    "type_category": "Actor",
+    "description": "Add Warning",
+    "category": "EditorUtilityTest"
+  },
+  {
+    "name": "Add Info",
+    "type_category": "Actor",
+    "description": "Target is Editor Utility Test",
+    "category": "EditorUtilityTest"
+  },
+  {
+    "name": "Async Save Settings",
+    "type_category": "Actor",
+    "description": "Async Save Settings",
+    "category": "EnhancedInput"
+  },
+  {
+    "name": "Apply Settings",
+    "type_category": "Actor",
+    "description": "Apply Settings",
+    "category": "EnhancedInput"
+  },
+  {
+    "name": "Add Generated Actor",
+    "type_category": "Actor",
+    "description": "Add Generated Actor",
+    "category": "EQS"
+  },
+  {
+    "name": "Add Generated Vector",
+    "type_category": "Actor",
+    "description": "Add Generated Vector",
+    "category": "EQS"
+  },
+  {
+    "name": "Added",
+    "type_category": "Actor",
+    "description": null,
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Received Screen Orientation Changed Notification Delegate",
+    "type_category": "Actor",
+    "description": "Application Received Screen Orientation Changed Notification Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Has Reactivated Delegate",
+    "type_category": "Actor",
+    "description": "Application Has Reactivated Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Received Remote Notification Delegate",
+    "type_category": "Actor",
+    "description": "Application Received Remote Notification Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Registered for Remote Notifications Delegate",
+    "type_category": "Actor",
+    "description": "Application Registered for Remote Notifications Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Failed to Register for Remote Notifications Delegate",
+    "type_category": "Actor",
+    "description": "Application Failed to Register for Remote Notifications Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Received Startup Arguments Delegate",
+    "type_category": "Actor",
+    "description": "Application Received Startup Arguments Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Should Unload Resources Delegate",
+    "type_category": "Actor",
+    "description": "Application Should Unload Resources Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Received Local Notification Delegate",
+    "type_category": "Actor",
+    "description": "Application Received Local Notification Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Will Deactivate Delegate",
+    "type_category": "Actor",
+    "description": "Application Will Deactivate Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Registered for User Notifications Delegate",
+    "type_category": "Actor",
+    "description": "Application Registered for User Notifications Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Will Enter Background Delegate",
+    "type_category": "Actor",
+    "description": "Application Will Enter Background Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Has Entered Foreground Delegate",
+    "type_category": "Actor",
+    "description": "Application Has Entered Foreground Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Application Will Terminate Delegate",
+    "type_category": "Actor",
+    "description": "Application Will Terminate Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "ASASession Updated Delegate",
+    "type_category": "Actor",
+    "description": "ASASession Updated Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "ASAAnchor Located Delegate",
+    "type_category": "Actor",
+    "description": "ASAAnchor Located Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "ASALocate Anchors Complete Delegate",
+    "type_category": "Actor",
+    "description": "ASALocate Anchors Complete Delegate",
+    "category": "EventDispatchers"
+  },
+  {
+    "name": "Add Variable",
+    "type_category": "Actor",
+    "description": "Add Variable",
+    "category": "Experimental"
+  },
+  {
+    "name": "Add Physics Field",
+    "type_category": "Actor",
+    "description": "Add Physics Field",
+    "category": "Field"
+  },
+  {
+    "name": "Add Construction Field",
+    "type_category": "Actor",
+    "description": "Add Construction Field",
+    "category": "Field"
+  },
+  {
+    "name": "Apply Radial Force",
+    "type_category": "Actor",
+    "description": "Apply Radial Force",
+    "category": "Field"
+  },
+  {
+    "name": "Add Transient Field",
+    "type_category": "Actor",
+    "description": "Add Transient Field",
+    "category": "Field"
+  },
+  {
+    "name": "Apply Uniform Force",
+    "type_category": "Actor",
+    "description": "Apply Uniform Force",
+    "category": "Field"
+  },
+  {
+    "name": "Add Persistent Field",
+    "type_category": "Actor",
+    "description": "Add Persistent Field",
+    "category": "Field"
+  },
+  {
+    "name": "Apply External Strain",
+    "type_category": "Actor",
+    "description": "Apply External Strain",
+    "category": "Field"
+  },
+  {
+    "name": "Add Field Value Changed Delegate",
+    "type_category": "Actor",
+    "description": "Add Field Value Changed Delegate",
+    "category": "FieldNotify"
+  },
+  {
+    "name": "Add Instances",
+    "type_category": "Actor",
+    "description": "Add Instances",
+    "category": "Foliage"
+  },
+  {
+    "name": "Adjust Attenuation",
+    "type_category": "Actor",
+    "description": "Adjust Attenuation",
+    "category": "ForceFeedback"
+  },
+  {
+    "name": "Add Rerun",
+    "type_category": "Actor",
+    "description": "Causes the test to be rerun for a specific named reason.",
+    "category": "FunctionalTesting"
+  },
+  {
+    "name": "Add Empty Emitter",
+    "type_category": "Actor",
+    "description": "Add Empty Emitter",
+    "category": "FXConverterUtilities"
+  },
+  {
+    "name": "Add Module Script",
+    "type_category": "Actor",
+    "description": "Add Module Script",
+    "category": "FXConverterUtilities"
+  },
+  {
+    "name": "Add Event Handler",
+    "type_category": "Actor",
+    "description": "Add Event Handler",
+    "category": "FXConverterUtilities"
+  },
+  {
+    "name": "Add Module Event Script",
+    "type_category": "Actor",
+    "description": "Add Module Event Script",
+    "category": "FXConverterUtilities"
+  },
+  {
+    "name": "Add Renderer",
+    "type_category": "Actor",
+    "description": "Add Renderer",
+    "category": "FXConverterUtilities"
+  },
+  {
+    "name": "Audio",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Game"
+  },
+  {
+    "name": "Add Component by Class",
+    "type_category": "Actor",
+    "description": "Add Component by Class",
+    "category": "Game"
+  },
+  {
+    "name": "Abort Match",
+    "type_category": "Actor",
+    "description": "Abort Match",
+    "category": "Game"
+  },
+  {
+    "name": "Apply Point Damage",
+    "type_category": "Actor",
+    "description": "Apply Point Damage",
+    "category": "Game"
+  },
+  {
+    "name": "Apply Damage",
+    "type_category": "Actor",
+    "description": "Apply Damage",
+    "category": "Game"
+  },
+  {
+    "name": "Apply Radial Damage",
+    "type_category": "Actor",
+    "description": "Apply Radial Damage",
+    "category": "Game"
+  },
+  {
+    "name": "Apply Radial Damage with Falloff",
+    "type_category": "Actor",
+    "description": "Apply Radial Damage with Falloff",
+    "category": "Game"
+  },
+  {
+    "name": "Activate Touch Interface",
+    "type_category": "Actor",
+    "description": "Activate Touch Interface",
+    "category": "Game"
+  },
+  {
+    "name": "Add Pitch Input",
+    "type_category": "Actor",
+    "description": "Add Pitch Input",
+    "category": "Game"
+  },
+  {
+    "name": "Add New Camera Modifier",
+    "type_category": "Actor",
+    "description": "Add New Camera Modifier",
+    "category": "Game"
+  },
+  {
+    "name": "Add Yaw Input",
+    "type_category": "Actor",
+    "description": "Add Yaw Input",
+    "category": "Game"
+  },
+  {
+    "name": "Add Roll Input",
+    "type_category": "Actor",
+    "description": "Add Roll Input",
+    "category": "Game"
+  },
+  {
+    "name": "Add Receiver",
+    "type_category": "Actor",
+    "description": "Add Receiver",
+    "category": "Gameplay"
+  },
+  {
+    "name": "Add Max Move Speed",
+    "type_category": "Actor",
+    "description": "Add Max Move Speed",
+    "category": "Gameplay"
+  },
+  {
+    "name": "AbortBehavior",
+    "type_category": "Actor",
+    "description": "AbortBehavior",
+    "category": "GameplayBehavior"
+  },
+  {
+    "name": "Add GameplayCue On Actor (Looping)",
+    "type_category": "Actor",
+    "description": "Add GameplayCue On Actor (Looping)",
+    "category": "GameplayCue"
+  },
+  {
+    "name": "ApplyGameplayEffectSpecToSelf",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectSpecToSelf",
+    "category": "GameplayEffects"
+  },
+  {
+    "name": "ApplyGameplayEffectSpecToTarget",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectSpecToTarget",
+    "category": "GameplayEffects"
+  },
+  {
+    "name": "ApplyGameplayEffectToSelf",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectToSelf",
+    "category": "GameplayEffects"
+  },
+  {
+    "name": "ApplyGameplayEffectToTarget",
+    "type_category": "Actor",
+    "description": "ApplyGameplayEffectToTarget",
+    "category": "GameplayEffects"
+  },
+  {
+    "name": "Append Gameplay Tag Containers",
+    "type_category": "Actor",
+    "description": "Append Gameplay Tag Containers",
+    "category": "GameplayTags"
+  },
+  {
+    "name": "Add Gameplay Tag",
+    "type_category": "Actor",
+    "description": "Add Gameplay Tag",
+    "category": "GameplayTags"
+  },
+  {
+    "name": "Asset Management",
+    "type_category": "Actor",
+    "description": "Asset Management",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Plane Slice",
+    "type_category": "Actor",
+    "description": "Apply Mesh Plane Slice",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Plane Cut",
+    "type_category": "Actor",
+    "description": "Apply Mesh Plane Cut",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Mirror",
+    "type_category": "Actor",
+    "description": "Apply Mesh Mirror",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Boolean",
+    "type_category": "Actor",
+    "description": "Apply Mesh Boolean",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Self Union",
+    "type_category": "Actor",
+    "description": "Apply Mesh Self Union",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Extrude Compatibility 5p 0",
+    "type_category": "Actor",
+    "description": "Apply Mesh Extrude Compatibility 5p 0",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Rectangle Compatibility 5 0",
+    "type_category": "Actor",
+    "description": "Append Rectangle Compatibility 5 0",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Round Rectangle Compatibility 5 0",
+    "type_category": "Actor",
+    "description": "Append Round Rectangle Compatibility 5 0",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Iterative Smoothing to Mesh",
+    "type_category": "Actor",
+    "description": "Apply Iterative Smoothing to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Bend Warp to Mesh",
+    "type_category": "Actor",
+    "description": "Apply Bend Warp to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Flare Warp to Mesh",
+    "type_category": "Actor",
+    "description": "Apply Flare Warp to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Perlin Noise to Mesh",
+    "type_category": "Actor",
+    "description": "Apply Perlin Noise to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Math Warp to Mesh",
+    "type_category": "Actor",
+    "description": "Apply Math Warp to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Displace from Texture Map",
+    "type_category": "Actor",
+    "description": "Apply Displace from Texture Map",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Twist Warp to Mesh",
+    "type_category": "Actor",
+    "description": "Apply Twist Warp to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Displace from Per Vertex Vectors",
+    "type_category": "Actor",
+    "description": "Apply Displace from Per Vertex Vectors",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Add Vertex to Mesh",
+    "type_category": "Actor",
+    "description": "Add Vertex to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Add Vertices to Mesh",
+    "type_category": "Actor",
+    "description": "Add Vertices to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Add Triangles to Mesh",
+    "type_category": "Actor",
+    "description": "Add Triangles to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Buffers to Mesh",
+    "type_category": "Actor",
+    "description": "Append Buffers to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Mesh Repeated",
+    "type_category": "Actor",
+    "description": "Append Mesh Repeated",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Mesh Transformed",
+    "type_category": "Actor",
+    "description": "Append Mesh Transformed",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Mesh",
+    "type_category": "Actor",
+    "description": "Append Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Add Triangle to Mesh",
+    "type_category": "Actor",
+    "description": "Add Triangle to Mesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Duplicate Faces",
+    "type_category": "Actor",
+    "description": "Apply Mesh Duplicate Faces",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Bevel Selection",
+    "type_category": "Actor",
+    "description": "Apply Mesh Bevel Selection",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Inset Outset Faces",
+    "type_category": "Actor",
+    "description": "Apply Mesh Inset Outset Faces",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Offset Faces",
+    "type_category": "Actor",
+    "description": "Apply Mesh Offset Faces",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Disconnect Faces",
+    "type_category": "Actor",
+    "description": "Apply Mesh Disconnect Faces",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "ApplyMeshPolyGroupBevel",
+    "type_category": "Actor",
+    "description": "ApplyMeshPolyGroupBevel",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Auto Repair Normals",
+    "type_category": "Actor",
+    "description": "Auto Repair Normals",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Linear Extrude Faces",
+    "type_category": "Actor",
+    "description": "Apply Mesh Linear Extrude Faces",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "ApplyPolyGroupCatmullClarkSubD",
+    "type_category": "Actor",
+    "description": "ApplyPolyGroupCatmullClarkSubD",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Triangle Loop Sub D",
+    "type_category": "Actor",
+    "description": "Apply Triangle Loop Sub D",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Offset",
+    "type_category": "Actor",
+    "description": "Apply Mesh Offset",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Polygon List",
+    "type_category": "Actor",
+    "description": "Append Polygon List",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Add Polygon to List",
+    "type_category": "Actor",
+    "description": "Add Polygon to List",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Shell",
+    "type_category": "Actor",
+    "description": "Apply Mesh Shell",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Array Of Vector2D To PolyPath",
+    "type_category": "Actor",
+    "description": "Array Of Vector2D To PolyPath",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Array Of Vector To PolyPath",
+    "type_category": "Actor",
+    "description": "Array Of Vector To PolyPath",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Bounding Box",
+    "type_category": "Actor",
+    "description": "Append Bounding Box",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Capsule",
+    "type_category": "Actor",
+    "description": "Append Capsule",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Delaunay Triangulation 2D",
+    "type_category": "Actor",
+    "description": "Append Delaunay Triangulation 2D",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Polygon List Triangulation",
+    "type_category": "Actor",
+    "description": "Append Polygon List Triangulation",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Cylinder",
+    "type_category": "Actor",
+    "description": "Append Cylinder",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Box",
+    "type_category": "Actor",
+    "description": "Appends a 3D box to the Target Mesh.",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Curved Stairs",
+    "type_category": "Actor",
+    "description": "Append Curved Stairs",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Linear Stairs",
+    "type_category": "Actor",
+    "description": "Append Linear Stairs",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Cone",
+    "type_category": "Actor",
+    "description": "Append Cone",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Disc",
+    "type_category": "Actor",
+    "description": "Append Disc",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Rectangle XY",
+    "type_category": "Actor",
+    "description": "Append Rectangle XY",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Revolve Polygon",
+    "type_category": "Actor",
+    "description": "Append Revolve Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Revolve Path",
+    "type_category": "Actor",
+    "description": "Append Revolve Path",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Sphere Lat Long",
+    "type_category": "Actor",
+    "description": "Append Sphere Lat Long",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Triangulated Polygon",
+    "type_category": "Actor",
+    "description": "Append Triangulated Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Simple Extrude Polygon",
+    "type_category": "Actor",
+    "description": "Append Simple Extrude Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Sphere Box",
+    "type_category": "Actor",
+    "description": "Append Sphere Box",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Torus",
+    "type_category": "Actor",
+    "description": "Append Torus",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Voronoi Diagram 2D",
+    "type_category": "Actor",
+    "description": "Append Voronoi Diagram 2D",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Sweep Polygon",
+    "type_category": "Actor",
+    "description": "Append Sweep Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Spiral Revolve Polygon",
+    "type_category": "Actor",
+    "description": "Append Spiral Revolve Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Simple Swept Polygon",
+    "type_category": "Actor",
+    "description": "Append Simple Swept Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Sweep Polyline",
+    "type_category": "Actor",
+    "description": "Append Sweep Polyline",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Append Round Rectangle XY",
+    "type_category": "Actor",
+    "description": "Append Round Rectangle XY",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Array Of Vector To Simple Polygon",
+    "type_category": "Actor",
+    "description": "Array Of Vector To Simple Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Add Polygon Vertex",
+    "type_category": "Actor",
+    "description": "Add Polygon Vertex",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Array Of Vector2D To Simple Polygon",
+    "type_category": "Actor",
+    "description": "Array Of Vector2D To Simple Polygon",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Simplify to Planar",
+    "type_category": "Actor",
+    "description": "Apply Simplify to Planar",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "ApplySimplifyToPolyGroupTopology",
+    "type_category": "Actor",
+    "description": "ApplySimplifyToPolyGroupTopology",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Simplify to Triangle Count",
+    "type_category": "Actor",
+    "description": "Apply Simplify to Triangle Count",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Uniform Remesh",
+    "type_category": "Actor",
+    "description": "Apply Uniform Remesh",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Simplify to Vertex Count",
+    "type_category": "Actor",
+    "description": "Apply Simplify to Vertex Count",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply PNTessellation",
+    "type_category": "Actor",
+    "description": "Apply PNTessellation",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Uniform Tessellation",
+    "type_category": "Actor",
+    "description": "Apply Uniform Tessellation",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Simplify to Tolerance",
+    "type_category": "Actor",
+    "description": "Apply Simplify to Tolerance",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Selective Tessellation",
+    "type_category": "Actor",
+    "description": "Apply Selective Tessellation",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Auto Generate XAtlas Mesh UVs",
+    "type_category": "Actor",
+    "description": "Auto Generate XAtlas Mesh UVs",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Auto Generate Patch Builder Mesh UVs",
+    "type_category": "Actor",
+    "description": "Auto Generate Patch Builder Mesh UVs",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Solidify",
+    "type_category": "Actor",
+    "description": "Apply Mesh Solidify",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Mesh Morphology",
+    "type_category": "Actor",
+    "description": "Apply Mesh Morphology",
+    "category": "GeometryScript"
+  },
+  {
+    "name": "Apply Runtime Changes",
+    "type_category": "Actor",
+    "description": "Apply Runtime Changes",
+    "category": "GeoReferencing"
+  },
+  {
+    "name": "Augmented Image",
+    "type_category": "Actor",
+    "description": "Augmented Image",
+    "category": "GoogleARCore"
+  },
+  {
+    "name": "Add Edge",
+    "type_category": "Actor",
+    "description": "Adds a directed edge in the graph. Returns the \"To\" node for easy chaining",
+    "category": "Graph"
+  },
+  {
+    "name": "Add Node Instance",
+    "type_category": "Actor",
+    "description": "Add Node Instance",
+    "category": "Graph"
+  },
+  {
+    "name": "Add Node Copy",
+    "type_category": "Actor",
+    "description": "Add Node Copy",
+    "category": "Graph"
+  },
+  {
+    "name": "Add Node Of Type",
+    "type_category": "Actor",
+    "description": "Add Node Of Type",
+    "category": "Graph"
+  },
+  {
+    "name": "Advanded",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Graph"
+  },
+  {
+    "name": "Add Widget",
+    "type_category": "Actor",
+    "description": "Target is Common Widget Group Base",
+    "category": "Group"
+  },
+  {
+    "name": "Add Header",
+    "type_category": "Actor",
+    "description": "Target is Http Blueprint Function Library",
+    "category": "Http"
+  },
+  {
+    "name": "Add Hit Box",
+    "type_category": "Actor",
+    "description": "Add Hit Box",
+    "category": "HUD"
+  },
+  {
+    "name": "Auto Map Chains",
+    "type_category": "Actor",
+    "description": "Auto Map Chains",
+    "category": "IKRetargeter"
+  },
+  {
+    "name": "Add New Goal",
+    "type_category": "Actor",
+    "description": "Add New Goal",
+    "category": "IKRig"
+  },
+  {
+    "name": "Add Bone Setting",
+    "type_category": "Actor",
+    "description": "Add Bone Setting",
+    "category": "IKRig"
+  },
+  {
+    "name": "Add Retarget Chain",
+    "type_category": "Actor",
+    "description": "Add Retarget Chain",
+    "category": "IKRig"
+  },
+  {
+    "name": "Add Solver",
+    "type_category": "Actor",
+    "description": "Add a new solver of the given type to the bottom of the stack. Returns the stack index.",
+    "category": "IKRig"
+  },
+  {
+    "name": "Add IKGoals (Message)",
+    "type_category": "Actor",
+    "description": "Add IKGoals (Message)",
+    "category": "IKRigGoals"
+  },
+  {
+    "name": "Add IKGoals",
+    "type_category": "Actor",
+    "description": "Add IKGoals",
+    "category": "IKRigGoals"
+  },
+  {
+    "name": "Add Target Object",
+    "type_category": "Actor",
+    "description": "Add Target Object",
+    "category": "ImgMedia"
+  },
+  {
+    "name": "Add Mapping Context (Message)",
+    "type_category": "Actor",
+    "description": "Add Mapping Context (Message)",
+    "category": "Input"
+  },
+  {
+    "name": "Add Mapping Context",
+    "type_category": "Actor",
+    "description": "Add Mapping Context",
+    "category": "Input"
+  },
+  {
+    "name": "Analog Event",
+    "type_category": "Actor",
+    "description": "Analog Event",
+    "category": "Input"
+  },
+  {
+    "name": "Android Back",
+    "type_category": "Actor",
+    "description": "Android Back",
+    "category": "Input"
+  },
+  {
+    "name": "Android Events",
+    "type_category": "Actor",
+    "description": "Android Events",
+    "category": "Input"
+  },
+  {
+    "name": "Android Menu",
+    "type_category": "Actor",
+    "description": "Android Menu",
+    "category": "Input"
+  },
+  {
+    "name": "Android Volume Down",
+    "type_category": "Actor",
+    "description": "Android Volume Down",
+    "category": "Input"
+  },
+  {
+    "name": "Android Volume Up",
+    "type_category": "Actor",
+    "description": "Android Volume Up",
+    "category": "Input"
+  },
+  {
+    "name": "Android Events",
+    "type_category": "Actor",
+    "description": "Android Events",
+    "category": "Input"
+  },
+  {
+    "name": "AddKeyframe",
+    "type_category": "Actor",
+    "description": "AddKeyframe",
+    "category": "Input"
+  },
+  {
+    "name": "Aim",
+    "type_category": "Actor",
+    "description": "Event for when 'InputAction /VirtualCamera/Modifiers/TeleportModifier/Input/Aim.Aim' triggers.",
+    "category": "Input"
+  },
+  {
+    "name": "AppendSplinePoint",
+    "type_category": "Actor",
+    "description": "AppendSplinePoint",
+    "category": "Input"
+  },
+  {
+    "name": "AddKeyframe",
+    "type_category": "Actor",
+    "description": "AddKeyframe",
+    "category": "Input"
+  },
+  {
+    "name": "Aim",
+    "type_category": "Actor",
+    "description": "Returns the current value of InputAction /VirtualCamera/Modifiers/TeleportModifier/Input/Aim.Aim.  If input is disabled for the actor the value will be 0.",
+    "category": "Input"
+  },
+  {
+    "name": "AppendSplinePoint",
+    "type_category": "Actor",
+    "description": "AppendSplinePoint",
+    "category": "Input"
+  },
+  {
+    "name": "Add Loading Screen Splash",
+    "type_category": "Actor",
+    "description": "Add Loading Screen Splash",
+    "category": "Input"
+  },
+  {
+    "name": "A",
+    "type_category": "Actor",
+    "description": "Events for when the A key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Apostrophe",
+    "type_category": "Actor",
+    "description": "Events for when the Apostrophe key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Asterisk",
+    "type_category": "Actor",
+    "description": "Events for when the Asterisk key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Any Key",
+    "type_category": "Actor",
+    "description": "Events for when the Any Key key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Ampersand",
+    "type_category": "Actor",
+    "description": "Events for when the Ampersand key is pressed or released.",
+    "category": "Input"
+  },
+  {
+    "name": "Acceleration",
+    "type_category": "Actor",
+    "description": "Acceleration",
+    "category": "Input"
+  },
+  {
+    "name": "Add Actor Input Component",
+    "type_category": "Actor",
+    "description": "Add Actor Input Component",
+    "category": "Input"
+  },
+  {
+    "name": "Activate Device Property Of Class",
+    "type_category": "Actor",
+    "description": "Activate Device Property Of Class",
+    "category": "InputDevices"
+  },
+  {
+    "name": "Add Type to Packing",
+    "type_category": "Actor",
+    "description": "Add Type to Packing",
+    "category": "InstancePacking"
+  },
+  {
+    "name": "Asset Import Data",
+    "type_category": "Actor",
+    "description": "Asset Import Data",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Lod Data Unique Id",
+    "type_category": "Actor",
+    "description": "Add Lod Data Unique Id",
+    "category": "Interchange"
+  },
+  {
+    "name": "Actor Factory",
+    "type_category": "Actor",
+    "description": "Actor Factory",
+    "category": "Interchange"
+  },
+  {
+    "name": "Animation Track",
+    "type_category": "Actor",
+    "description": "Animation Track",
+    "category": "Interchange"
+  },
+  {
+    "name": "Animation Track Set",
+    "type_category": "Actor",
+    "description": "Animation Track Set",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Custom Animation Track Uid",
+    "type_category": "Actor",
+    "description": "Add Custom Animation Track Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Custom Animation Track Uid",
+    "type_category": "Actor",
+    "description": "Add Custom Animation Track Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Animation Track Set Instance",
+    "type_category": "Actor",
+    "description": "Animation Track Set Instance",
+    "category": "Interchange"
+  },
+  {
+    "name": "Anim Sequence",
+    "type_category": "Actor",
+    "description": "Anim Sequence",
+    "category": "Interchange"
+  },
+  {
+    "name": "Animation Track Set Factory",
+    "type_category": "Actor",
+    "description": "Animation Track Set Factory",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Static Switch Parameter Value",
+    "type_category": "Actor",
+    "description": "Add Static Switch Parameter Value",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Texture Parameter Value",
+    "type_category": "Actor",
+    "description": "Add Texture Parameter Value",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Vector Parameter Value",
+    "type_category": "Actor",
+    "description": "Add Vector Parameter Value",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Scalar Parameter Value",
+    "type_category": "Actor",
+    "description": "Add Scalar Parameter Value",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Specialized Type",
+    "type_category": "Actor",
+    "description": "Add Specialized Type",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Custom Dependency Uid",
+    "type_category": "Actor",
+    "description": "Add Custom Dependency Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Custom Variant Set Uid",
+    "type_category": "Actor",
+    "description": "Add Custom Variant Set Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Custom Variant Set Uid",
+    "type_category": "Actor",
+    "description": "Add Custom Variant Set Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Mesh Uid",
+    "type_category": "Actor",
+    "description": "Add Mesh Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Socket Uid",
+    "type_category": "Actor",
+    "description": "Add Socket Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Socket Uids",
+    "type_category": "Actor",
+    "description": "Add Socket Uids",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Box Collision Mesh Uid",
+    "type_category": "Actor",
+    "description": "Add Box Collision Mesh Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Capsule Collision Mesh Uid",
+    "type_category": "Actor",
+    "description": "Add Capsule Collision Mesh Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Mesh Uid",
+    "type_category": "Actor",
+    "description": "Add Mesh Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Convex Collision Mesh Uid",
+    "type_category": "Actor",
+    "description": "Add Convex Collision Mesh Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Sphere Collision Mesh Uid",
+    "type_category": "Actor",
+    "description": "Add Sphere Collision Mesh Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Node",
+    "type_category": "Actor",
+    "description": "Add a node in the container, the node will be add into a TMap.",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Boolean Attribute",
+    "type_category": "Actor",
+    "description": "Add Boolean Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Float Attribute",
+    "type_category": "Actor",
+    "description": "Add Float Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Linear Color Attribute",
+    "type_category": "Actor",
+    "description": "Add Linear Color Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Int 32Attribute",
+    "type_category": "Actor",
+    "description": "Add Int 32Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Guid Attribute",
+    "type_category": "Actor",
+    "description": "Add Guid Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Target Node Uid",
+    "type_category": "Actor",
+    "description": "Add Target Node Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Factory Dependency Uid",
+    "type_category": "Actor",
+    "description": "Add Factory Dependency Uid",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add String Attribute",
+    "type_category": "Actor",
+    "description": "Add String Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Vector 2Attribute",
+    "type_category": "Actor",
+    "description": "Add Vector 2Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Double Attribute",
+    "type_category": "Actor",
+    "description": "Add Double Attribute",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Pipeline",
+    "type_category": "Actor",
+    "description": "Add Pipeline",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Python Pipeline",
+    "type_category": "Actor",
+    "description": "Add Python Pipeline",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Blueprint Pipeline",
+    "type_category": "Actor",
+    "description": "Add Blueprint Pipeline",
+    "category": "Interchange"
+  },
+  {
+    "name": "Add Weight Patch",
+    "type_category": "Actor",
+    "description": "Add Weight Patch",
+    "category": "LandscapePatch"
+  },
+  {
+    "name": "Add Actor to Layer",
+    "type_category": "Actor",
+    "description": "Add Actor to Layer",
+    "category": "Layer"
+  },
+  {
+    "name": "Add Actors to Layer",
+    "type_category": "Actor",
+    "description": "Add Actors to Layer",
+    "category": "Layers"
+  },
+  {
+    "name": "Add All Layer Names To",
+    "type_category": "Actor",
+    "description": "Add All Layer Names To",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Actor to Layer",
+    "type_category": "Actor",
+    "description": "Add Actor to Layer",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Level Layer Information",
+    "type_category": "Actor",
+    "description": "Add Level Layer Information",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Actor to Layers",
+    "type_category": "Actor",
+    "description": "Add Actor to Layers",
+    "category": "Layers"
+  },
+  {
+    "name": "Add All Layers To",
+    "type_category": "Actor",
+    "description": "Add All Layers To",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Selected Actors to Layer",
+    "type_category": "Actor",
+    "description": "Add Selected Actors to Layer",
+    "category": "Layers"
+  },
+  {
+    "name": "Append Actors from Layer",
+    "type_category": "Actor",
+    "description": "Append Actors from Layer",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Selected Actors to Layers",
+    "type_category": "Actor",
+    "description": "Add Selected Actors to Layers",
+    "category": "Layers"
+  },
+  {
+    "name": "Append Actors from Layers",
+    "type_category": "Actor",
+    "description": "Append Actors from Layers",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Payload",
+    "type_category": "Actor",
+    "description": "Add Payload",
+    "category": "LayerUtils"
+  },
+  {
+    "name": "Add Actors to Layers",
+    "type_category": "Actor",
+    "description": "Add Actors to Layers",
+    "category": "Layers"
+  },
+  {
+    "name": "Add Reference",
+    "type_category": "Actor",
+    "description": "Add Reference",
+    "category": "LayerUtils"
+  },
+  {
+    "name": "Add Agents",
+    "type_category": "Actor",
+    "description": "Adds the given objects as an agents to the manager.",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Agent",
+    "type_category": "Actor",
+    "description": "Adds the given object as an agent to the manager.",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Agents as Tick Prerequisite Of Manager",
+    "type_category": "Actor",
+    "description": "Add Agents as Tick Prerequisite Of Manager",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Angle Observation",
+    "type_category": "Actor",
+    "description": "Add Angle Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Angle Array Observation",
+    "type_category": "Actor",
+    "description": "Add Angle Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Angular Velocity Observation",
+    "type_category": "Actor",
+    "description": "Add Angular Velocity Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Conditional Completion",
+    "type_category": "Actor",
+    "description": "Add Conditional Completion",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Angular Velocity Array Observation",
+    "type_category": "Actor",
+    "description": "Add Angular Velocity Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Conditional Reward",
+    "type_category": "Actor",
+    "description": "Add Conditional Reward",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Experience",
+    "type_category": "Actor",
+    "description": "Add Experience",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Direction Observation",
+    "type_category": "Actor",
+    "description": "Add Direction Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Direction Array Observation",
+    "type_category": "Actor",
+    "description": "Add Direction Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Enum Array Observation",
+    "type_category": "Actor",
+    "description": "Add Enum Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Enum Observation",
+    "type_category": "Actor",
+    "description": "Add Enum Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Float Action",
+    "type_category": "Actor",
+    "description": "Add Float Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Float Array Action",
+    "type_category": "Actor",
+    "description": "Add Float Array Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Float Array Observation",
+    "type_category": "Actor",
+    "description": "Add Float Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Mesh Component Helper",
+    "type_category": "Actor",
+    "description": "Add Mesh Component Helper",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Manager as Tick Prerequisite Of Agents",
+    "type_category": "Actor",
+    "description": "Add Manager as Tick Prerequisite Of Agents",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Float Reward",
+    "type_category": "Actor",
+    "description": "Add Float Reward",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Position Difference Completion",
+    "type_category": "Actor",
+    "description": "Add Planar Position Difference Completion",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Direction Observation",
+    "type_category": "Actor",
+    "description": "Add Planar Direction Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Direction Array Observation",
+    "type_category": "Actor",
+    "description": "Add Planar Direction Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Local Directional Velocity Reward",
+    "type_category": "Actor",
+    "description": "Add Local Directional Velocity Reward",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Position Observation",
+    "type_category": "Actor",
+    "description": "Add Planar Position Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Velocity Action",
+    "type_category": "Actor",
+    "description": "Add Planar Velocity Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Position Difference Penalty",
+    "type_category": "Actor",
+    "description": "Add Planar Position Difference Penalty",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Position Similarity Completion",
+    "type_category": "Actor",
+    "description": "Add Planar Position Similarity Completion",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Velocity Array Observation",
+    "type_category": "Actor",
+    "description": "Add Planar Velocity Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Position Array Similarity Reward",
+    "type_category": "Actor",
+    "description": "Add Position Array Similarity Reward",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Projection Helper",
+    "type_category": "Actor",
+    "description": "Add Projection Helper",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Collision Monitor Helper",
+    "type_category": "Actor",
+    "description": "Add Collision Monitor Helper",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Position Array Observation",
+    "type_category": "Actor",
+    "description": "Add Position Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Rotation Action",
+    "type_category": "Actor",
+    "description": "Add Rotation Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Position Observation",
+    "type_category": "Actor",
+    "description": "Add Position Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Rotation Array Action",
+    "type_category": "Actor",
+    "description": "Add Rotation Array Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Position Array Observation",
+    "type_category": "Actor",
+    "description": "Add Planar Position Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Rotation Array Observation",
+    "type_category": "Actor",
+    "description": "Add Rotation Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Rotation Observation",
+    "type_category": "Actor",
+    "description": "Add Rotation Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Angular Velocity Observation",
+    "type_category": "Actor",
+    "description": "Add Scalar Angular Velocity Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Position Array Observation",
+    "type_category": "Actor",
+    "description": "Add Scalar Position Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Float Observation",
+    "type_category": "Actor",
+    "description": "Add Float Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Velocity Observation",
+    "type_category": "Actor",
+    "description": "Add Scalar Velocity Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Velocity Array Observation",
+    "type_category": "Actor",
+    "description": "Add Scalar Velocity Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Position Observation",
+    "type_category": "Actor",
+    "description": "Add Scalar Position Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Spline Component Helper",
+    "type_category": "Actor",
+    "description": "Add Spline Component Helper",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Time Elapsed Completion",
+    "type_category": "Actor",
+    "description": "Add Time Elapsed Completion",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Time Observation",
+    "type_category": "Actor",
+    "description": "Add Time Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Vector Array Observation",
+    "type_category": "Actor",
+    "description": "Add Vector Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Velocity Reward",
+    "type_category": "Actor",
+    "description": "Add Scalar Velocity Reward",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Vector Array Action",
+    "type_category": "Actor",
+    "description": "Add Vector Array Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Append Recording from File",
+    "type_category": "Actor",
+    "description": "Append Recording from File",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Velocity Observation",
+    "type_category": "Actor",
+    "description": "Add Velocity Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Velocity Array Observation",
+    "type_category": "Actor",
+    "description": "Add Velocity Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Vector Observation",
+    "type_category": "Actor",
+    "description": "Add Vector Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Append Recording to Asset",
+    "type_category": "Actor",
+    "description": "Append Recording to Asset",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Vector Action",
+    "type_category": "Actor",
+    "description": "Add Vector Action",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Planar Velocity Observation",
+    "type_category": "Actor",
+    "description": "Add Planar Velocity Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Ray Cast Helper",
+    "type_category": "Actor",
+    "description": "Add Ray Cast Helper",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Scalar Angular Velocity Array Observation",
+    "type_category": "Actor",
+    "description": "Add Scalar Angular Velocity Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Add Time Array Observation",
+    "type_category": "Actor",
+    "description": "Add Time Array Observation",
+    "category": "LearningAgents"
+  },
+  {
+    "name": "Apply Nodal Offset",
+    "type_category": "Actor",
+    "description": "Apply Nodal Offset",
+    "category": "LensComponent"
+  },
+  {
+    "name": "Add Image Center Point",
+    "type_category": "Actor",
+    "description": "Add Image Center Point",
+    "category": "LensTable"
+  },
+  {
+    "name": "Add Nodal Offset Point",
+    "type_category": "Actor",
+    "description": "Add Nodal Offset Point",
+    "category": "LensTable"
+  },
+  {
+    "name": "Add STMap Point",
+    "type_category": "Actor",
+    "description": "Add STMap Point",
+    "category": "LensTable"
+  },
+  {
+    "name": "Add Focal Length Point",
+    "type_category": "Actor",
+    "description": "Add Focal Length Point",
+    "category": "LensTable"
+  },
+  {
+    "name": "Add Distortion Point",
+    "type_category": "Actor",
+    "description": "Add Distortion Point",
+    "category": "LensTable"
+  },
+  {
+    "name": "Add Actors",
+    "type_category": "Actor",
+    "description": "Add existing actors to Sequencer. Tracks will be automatically added based on default track settings.",
+    "category": "LevelSequenceEditor"
+  },
+  {
+    "name": "Add Actors to Binding",
+    "type_category": "Actor",
+    "description": "Add Actors to Binding",
+    "category": "LevelSequenceEditor"
+  },
+  {
+    "name": "Add Child",
+    "type_category": "Actor",
+    "description": "Adds a child you already created to this filter",
+    "category": "LevelSnapshots"
+  },
+  {
+    "name": "Apply Snapshot to World",
+    "type_category": "Actor",
+    "description": "Apply Snapshot to World",
+    "category": "LevelSnapshots"
+  },
+  {
+    "name": "Apply Color to All Points",
+    "type_category": "Actor",
+    "description": "Apply Color to All Points",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Apply Color to First Point by Ray",
+    "type_category": "Actor",
+    "description": "Apply Color to First Point by Ray",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Apply Color to Points by Ray",
+    "type_category": "Actor",
+    "description": "Apply Color to Points by Ray",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Apply Color to Points in Box",
+    "type_category": "Actor",
+    "description": "Apply Color to Points in Box",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Are Points in Sphere",
+    "type_category": "Actor",
+    "description": "Are Points in Sphere",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Are Points in Box",
+    "type_category": "Actor",
+    "description": "Are Points in Box",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Apply Color to Points in Sphere",
+    "type_category": "Actor",
+    "description": "Apply Color to Points in Sphere",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Are Points by Ray",
+    "type_category": "Actor",
+    "description": "Are Points by Ray",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Align Clouds",
+    "type_category": "Actor",
+    "description": "Align Clouds",
+    "category": "LidarPointCloud"
+  },
+  {
+    "name": "Add Item",
+    "type_category": "Actor",
+    "description": "Adds an the item to the list",
+    "category": "ListView"
+  },
+  {
+    "name": "Add to Client",
+    "type_category": "Actor",
+    "description": "Add to Client",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "LiveLink"
+  },
+  {
+    "name": "Apply to Client",
+    "type_category": "Actor",
+    "description": "Apply to Client",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Apply to Client Latent",
+    "type_category": "Actor",
+    "description": "Apply to Client Latent",
+    "category": "LiveLink"
+  },
+  {
+    "name": "Actor Pooling",
+    "type_category": "Actor",
+    "description": "Actor Pooling",
+    "category": "Mass"
+  },
+  {
+    "name": "AND Boolean",
+    "type_category": "Actor",
+    "description": "AND Boolean",
+    "category": "Math"
+  },
+  {
+    "name": "Absolute (Float)",
+    "type_category": "Actor",
+    "description": "Absolute (Float)",
+    "category": "Math"
+  },
+  {
+    "name": "Absolute (Integer)",
+    "type_category": "Actor",
+    "description": "Absolute (Integer)",
+    "category": "Math"
+  },
+  {
+    "name": "Average Of Int Array",
+    "type_category": "Actor",
+    "description": "Average Of Int Array",
+    "category": "Math"
+  },
+  {
+    "name": "Absolute (Integer64)",
+    "type_category": "Actor",
+    "description": "Absolute (Integer64)",
+    "category": "Math"
+  },
+  {
+    "name": "Apply Scale (Matrix)",
+    "type_category": "Actor",
+    "description": "Apply Scale (Matrix)",
+    "category": "Math"
+  },
+  {
+    "name": "Angle (Quat)",
+    "type_category": "Actor",
+    "description": "Angle (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Axis X (Quat)",
+    "type_category": "Actor",
+    "description": "Axis X (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Angular Distance (Quat)",
+    "type_category": "Actor",
+    "description": "Angular Distance (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Axis Z (Quat)",
+    "type_category": "Actor",
+    "description": "Axis Z (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Axis Y (Quat)",
+    "type_category": "Actor",
+    "description": "Axis Y (Quat)",
+    "category": "Math"
+  },
+  {
+    "name": "Acos (Radians)",
+    "type_category": "Actor",
+    "description": "Acos (Radians)",
+    "category": "Math"
+  },
+  {
+    "name": "Acos (Degrees)",
+    "type_category": "Actor",
+    "description": "Acos (Degrees)",
+    "category": "Math"
+  },
+  {
+    "name": "Asin (Radians)",
+    "type_category": "Actor",
+    "description": "Asin (Radians)",
+    "category": "Math"
+  },
+  {
+    "name": "Atan2 (Degrees)",
+    "type_category": "Actor",
+    "description": "Atan2 (Degrees)",
+    "category": "Math"
+  },
+  {
+    "name": "Asin (Degrees)",
+    "type_category": "Actor",
+    "description": "Asin (Degrees)",
+    "category": "Math"
+  },
+  {
+    "name": "Atan (Degrees)",
+    "type_category": "Actor",
+    "description": "Atan (Degrees)",
+    "category": "Math"
+  },
+  {
+    "name": "Atan (Radians)",
+    "type_category": "Actor",
+    "description": "Atan (Radians)",
+    "category": "Math"
+  },
+  {
+    "name": "Atan2 (Radians)",
+    "type_category": "Actor",
+    "description": "Atan2 (Radians)",
+    "category": "Math"
+  },
+  {
+    "name": "Add Url",
+    "type_category": "Actor",
+    "description": "Add a media URL to the play list.",
+    "category": "Media"
+  },
+  {
+    "name": "Add",
+    "type_category": "Actor",
+    "description": "Add a media source to the play list.",
+    "category": "Media"
+  },
+  {
+    "name": "Add File",
+    "type_category": "Actor",
+    "description": "Add a media file path to the play list.",
+    "category": "Media"
+  },
+  {
+    "name": "Apply Parameter Pack",
+    "type_category": "Actor",
+    "description": "Apply Parameter Pack",
+    "category": "MetaSoundParameterPack"
+  },
+  {
+    "name": "Add Layer",
+    "type_category": "Actor",
+    "description": "Target is Nearest Neighbor Optimized Network",
+    "category": "MLDeformer"
+  },
+  {
+    "name": "Add Parameter",
+    "type_category": "Actor",
+    "description": "Add Parameter",
+    "category": "MLDeformer"
+  },
+  {
+    "name": "Are Headphones Plugged In",
+    "type_category": "Actor",
+    "description": "Are Headphones Plugged In",
+    "category": "Mobile"
+  },
+  {
+    "name": "Add or Update Warp Target",
+    "type_category": "Actor",
+    "description": "Add or Update Warp Target",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Add or Update Warp Target from Location",
+    "type_category": "Actor",
+    "description": "Add or Update Warp Target from Location",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Add or Update Warp Target from Component",
+    "type_category": "Actor",
+    "description": "Add or Update Warp Target from Component",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Add Root Motion Modifier Scale",
+    "type_category": "Actor",
+    "description": "Add Root Motion Modifier Scale",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Add or Update Warp Target from Location and Rotation",
+    "type_category": "Actor",
+    "description": "Add or Update Warp Target from Location and Rotation",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Add or Update Warp Target from Transform",
+    "type_category": "Actor",
+    "description": "Add or Update Warp Target from Transform",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Add Motor Audio Component",
+    "type_category": "Actor",
+    "description": "Add Motor Audio Component",
+    "category": "MotorModel"
+  },
+  {
+    "name": "Add Motor Sim Component",
+    "type_category": "Actor",
+    "description": "Add Motor Sim Component",
+    "category": "MotorModel"
+  },
+  {
+    "name": "Add Root Motion Modifier Skew Warp",
+    "type_category": "Actor",
+    "description": "Add Root Motion Modifier Skew Warp",
+    "category": "MotionWarping"
+  },
+  {
+    "name": "Allocate New Shot Override Config",
+    "type_category": "Actor",
+    "description": "Allocate New Shot Override Config",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Allocate New Job",
+    "type_category": "Actor",
+    "description": "Allocate New Job",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Allocate Job",
+    "type_category": "Actor",
+    "description": "Allocate Job",
+    "category": "MovieRenderPipeline"
+  },
+  {
+    "name": "Add Fixture Patch",
+    "type_category": "Actor",
+    "description": "Add Fixture Patch",
+    "category": "MovieScene"
+  },
+  {
+    "name": "Add cluster event listener (Message)",
+    "type_category": "Actor",
+    "description": "Add cluster event listener (Message)",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Assign Postprocess",
+    "type_category": "Actor",
+    "description": "Assign Postprocess",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Add cluster event listener",
+    "type_category": "Actor",
+    "description": "Add cluster event listener",
+    "category": "NDisplay"
+  },
+  {
+    "name": "Acquire Niagara GPURay Traced Collision Group",
+    "type_category": "Actor",
+    "description": "Acquire Niagara GPURay Traced Collision Group",
+    "category": "Niagara"
+  },
+  {
+    "name": "Advance Simulation",
+    "type_category": "Actor",
+    "description": "Advance Simulation",
+    "category": "Niagara"
+  },
+  {
+    "name": "Advance Simulation by Time",
+    "type_category": "Actor",
+    "description": "Advance Simulation by Time",
+    "category": "Niagara"
+  },
+  {
+    "name": "Add Edge To",
+    "type_category": "Actor",
+    "description": "Add Edge To",
+    "category": "Node"
+  },
+  {
+    "name": "Achievements",
+    "type_category": "Actor",
+    "description": "Achievements",
+    "category": "Online"
+  },
+  {
+    "name": "Apply Color Space Transform to Texture Compressed",
+    "type_category": "Actor",
+    "description": "Apply Color Space Transform to Texture Compressed",
+    "category": "OpenColorIO"
+  },
+  {
+    "name": "Apply Color Space Transform",
+    "type_category": "Actor",
+    "description": "Apply Color Space Transform",
+    "category": "OpenColorIO"
+  },
+  {
+    "name": "Apply Color Space Transform to Texture",
+    "type_category": "Actor",
+    "description": "Apply Color Space Transform to Texture",
+    "category": "OpenColorIO"
+  },
+  {
+    "name": "Ar Uco",
+    "type_category": "Actor",
+    "description": null,
+    "category": "OpenCV"
+  },
+  {
+    "name": "Add Component Binding Get Node",
+    "type_category": "Actor",
+    "description": "Add Component Binding Get Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Data Interface Node",
+    "type_category": "Actor",
+    "description": "Add Data Interface Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Node",
+    "type_category": "Actor",
+    "description": "TODO: Add magic connection from a pin.",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Resource Node",
+    "type_category": "Actor",
+    "description": "Add Resource Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Value Node",
+    "type_category": "Actor",
+    "description": "Add Value Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Resource Set Node",
+    "type_category": "Actor",
+    "description": "Add Resource Set Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Variable Get Node",
+    "type_category": "Actor",
+    "description": "Add Variable Get Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Link",
+    "type_category": "Actor",
+    "description": "Target is Optimus Node Graph",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Resource Get Node",
+    "type_category": "Actor",
+    "description": "Add Resource Get Node",
+    "category": "OptimusNodeGraph"
+  },
+  {
+    "name": "Add Child to Wrap Box",
+    "type_category": "Actor",
+    "description": "Add Child to Wrap Box",
+    "category": "Panel"
+  },
+  {
+    "name": "Add Child to Stack Box",
+    "type_category": "Actor",
+    "description": "Add Child to Stack Box",
+    "category": "Panel"
+  },
+  {
+    "name": "Add Child to Vertical Box",
+    "type_category": "Actor",
+    "description": "Add Child to Vertical Box",
+    "category": "Panel"
+  },
+  {
+    "name": "Add Affected Component",
+    "type_category": "Actor",
+    "description": "Add Affected Component",
+    "category": "Passthrough"
+  },
+  {
+    "name": "Add Impulse",
+    "type_category": "Actor",
+    "description": "Add Impulse",
+    "category": "Pawn"
+  },
+  {
+    "name": "Add Force",
+    "type_category": "Actor",
+    "description": "Add force to character. Forces are accumulated each tick and applied together\nso multiple calls to this function will accumulate.\nForces are scaled depending on timestep, so they can be applied each frame. If you want an\ninstantaneous force, use AddImpulse.\nAdding a force always takes the actor's mass into account.\nNote that changing the momentum of characters like this can change the movement mode.",
+    "category": "Pawn"
+  },
+  {
+    "name": "Add Input Vector",
+    "type_category": "Actor",
+    "description": "Add Input Vector",
+    "category": "Pawn"
+  },
+  {
+    "name": "Add Controller Pitch Input",
+    "type_category": "Actor",
+    "description": "Add Controller Pitch Input",
+    "category": "Pawn"
+  },
+  {
+    "name": "Add Controller Roll Input",
+    "type_category": "Actor",
+    "description": "Add Controller Roll Input",
+    "category": "Pawn"
+  },
+  {
+    "name": "Add Controller Yaw Input",
+    "type_category": "Actor",
+    "description": "Add Controller Yaw Input",
+    "category": "Pawn"
+  },
+  {
+    "name": "Advanced",
+    "type_category": "Actor",
+    "description": null,
+    "category": "PCG"
+  },
+  {
+    "name": "Alembic Import",
+    "type_category": "Actor",
+    "description": "Alembic Import",
+    "category": "PCG"
+  },
+  {
+    "name": "Add to Managed Resources",
+    "type_category": "Actor",
+    "description": "Add to Managed Resources",
+    "category": "PCG"
+  },
+  {
+    "name": "Add Movement Input",
+    "type_category": "Actor",
+    "description": "Add Movement Input",
+    "category": "Pawn"
+  },
+  {
+    "name": "Advanced",
+    "type_category": "Actor",
+    "description": null,
+    "category": "PCG"
+  },
+  {
+    "name": "Add Attributes",
+    "type_category": "Actor",
+    "description": "Add Attributes",
+    "category": "PCG"
+  },
+  {
+    "name": "Accumulate Point Weighted Attributes",
+    "type_category": "Actor",
+    "description": "Accumulate Point Weighted Attributes",
+    "category": "PCG"
+  },
+  {
+    "name": "Accumulate Weighted Attributes by Key",
+    "type_category": "Actor",
+    "description": "Accumulate Weighted Attributes by Key",
+    "category": "PCG"
+  },
+  {
+    "name": "Add Attributes Filtered",
+    "type_category": "Actor",
+    "description": "Add Attributes Filtered",
+    "category": "PCG"
+  },
+  {
+    "name": "Add Entry",
+    "type_category": "Actor",
+    "description": "Adds a unique entry key to the metadata",
+    "category": "PCG"
+  },
+  {
+    "name": "Add Attribute",
+    "type_category": "Actor",
+    "description": "Add Attribute",
+    "category": "PCG"
+  },
+  {
+    "name": "Apply Physical Animation Settings",
+    "type_category": "Actor",
+    "description": "Apply Physical Animation Settings",
+    "category": "PhysicalAnimation"
+  },
+  {
+    "name": "Apply Physical Animation Settings Below",
+    "type_category": "Actor",
+    "description": "Apply Physical Animation Settings Below",
+    "category": "PhysicalAnimation"
+  },
+  {
+    "name": "Apply Physical Animation Profile Below",
+    "type_category": "Actor",
+    "description": "Apply Physical Animation Profile Below",
+    "category": "PhysicalAnimation"
+  },
+  {
+    "name": "Accumulate All Bodies Below Physics Blend Weight",
+    "type_category": "Actor",
+    "description": "Accumulate All Bodies Below Physics Blend Weight",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Angular Impulse in Degrees",
+    "type_category": "Actor",
+    "description": "Add Angular Impulse in Degrees",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Angular Impulse in Radians",
+    "type_category": "Actor",
+    "description": "Add Angular Impulse in Radians",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Force",
+    "type_category": "Actor",
+    "description": "Add a force to a single rigid body.\nThis is like a 'thruster'. Good for adding a burst over some (non zero) time. Should be called every frame for the duration of the force.",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Static Mesh Component",
+    "type_category": "Actor",
+    "description": "Add Static Mesh Component",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Force at Location Local",
+    "type_category": "Actor",
+    "description": "Add Force at Location Local",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Impulse at Location",
+    "type_category": "Actor",
+    "description": "Add Impulse at Location",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Force to All Bodies Below",
+    "type_category": "Actor",
+    "description": "Add Force to All Bodies Below",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Impulse to All Bodies Below",
+    "type_category": "Actor",
+    "description": "Add Impulse to All Bodies Below",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Radial Impulse",
+    "type_category": "Actor",
+    "description": "Add Radial Impulse",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Torque in Degrees",
+    "type_category": "Actor",
+    "description": "Add Torque in Degrees",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Radial Force",
+    "type_category": "Actor",
+    "description": "Add Radial Force",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Torque in Radians",
+    "type_category": "Actor",
+    "description": "Add Torque in Radians",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Impulse",
+    "type_category": "Actor",
+    "description": "Add Impulse",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Velocity Change Impulse at Location",
+    "type_category": "Actor",
+    "description": "Add Velocity Change Impulse at Location",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Force at Location",
+    "type_category": "Actor",
+    "description": "Add Force at Location",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Object Type to Affect",
+    "type_category": "Actor",
+    "description": "Add Object Type to Affect",
+    "category": "Physics"
+  },
+  {
+    "name": "Add Body Modifiers to Set",
+    "type_category": "Actor",
+    "description": "Add Body Modifiers to Set",
+    "category": "PhysicsControl"
+  },
+  {
+    "name": "Add Body Modifier to Set",
+    "type_category": "Actor",
+    "description": "Add Body Modifier to Set",
+    "category": "PhysicsControl"
+  },
+  {
+    "name": "Add Controls to Set",
+    "type_category": "Actor",
+    "description": "Add Controls to Set",
+    "category": "PhysicsControl"
+  },
+  {
+    "name": "Add Control to Set",
+    "type_category": "Actor",
+    "description": "Add Control to Set",
+    "category": "PhysicsControl"
+  },
+  {
+    "name": "Apply Radial Impulse",
+    "type_category": "Actor",
+    "description": "Apply Radial Impulse",
+    "category": "PhysicsObject"
+  },
+  {
+    "name": "Add Json String Value",
+    "type_category": "Actor",
+    "description": "Add Json String Value",
+    "category": "PixelStreamingInput"
+  },
+  {
+    "name": "Activate Previews",
+    "type_category": "Actor",
+    "description": "Activate Previews",
+    "category": "Preview"
+  },
+  {
+    "name": "Add Float",
+    "type_category": "Actor",
+    "description": "Target is Py Test Struct Library",
+    "category": "Python"
+  },
+  {
+    "name": "Add Int",
+    "type_category": "Actor",
+    "description": "Target is Py Test Struct Library",
+    "category": "Python"
+  },
+  {
+    "name": "Add Str",
+    "type_category": "Actor",
+    "description": "Target is Py Test Struct Library",
+    "category": "Python"
+  },
+  {
+    "name": "Apply Color Grading Wheel Delta",
+    "type_category": "Actor",
+    "description": "Apply Color Grading Wheel Delta",
+    "category": "RemoteControlColor"
+  },
+  {
+    "name": "Add Render Grid Job",
+    "type_category": "Actor",
+    "description": "Add Render Grid Job",
+    "category": "RenderGrid"
+  },
+  {
+    "name": "Apply Color Wheel Delta",
+    "type_category": "Actor",
+    "description": "Apply Color Wheel Delta",
+    "category": "RemoteControlColor"
+  },
+  {
+    "name": "Add Job",
+    "type_category": "Actor",
+    "description": "Queues the given job.",
+    "category": "RenderGridQueue"
+  },
+  {
+    "name": "Add or Update Blendable",
+    "type_category": "Actor",
+    "description": "Add or Update Blendable",
+    "category": "Rendering"
+  },
+  {
+    "name": "Atmospheric Fog",
+    "type_category": "Actor",
+    "description": "Atmospheric Fog",
+    "category": "Rendering"
+  },
+  {
+    "name": "Add Element",
+    "type_category": "Actor",
+    "description": "Add Element",
+    "category": "Rendering"
+  },
+  {
+    "name": "Add Float History Sample",
+    "type_category": "Actor",
+    "description": "Add Float History Sample",
+    "category": "Rendering"
+  },
+  {
+    "name": "Add Collection",
+    "type_category": "Actor",
+    "description": "Add Collection",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Apply Modifier",
+    "type_category": "Actor",
+    "description": "Apply Modifier",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Add Render Layer",
+    "type_category": "Actor",
+    "description": "Add Render Layer",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Add Query",
+    "type_category": "Actor",
+    "description": "Target is Movie Pipeline Collection",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Add Modifier",
+    "type_category": "Actor",
+    "description": "Add Modifier",
+    "category": "RenderLayers"
+  },
+  {
+    "name": "Add Error",
+    "type_category": "Actor",
+    "description": "Target is Functional Test",
+    "category": "Reporting"
+  },
+  {
+    "name": "Add Warning",
+    "type_category": "Actor",
+    "description": "Add Warning",
+    "category": "Reporting"
+  },
+  {
+    "name": "Add Info",
+    "type_category": "Actor",
+    "description": "Target is Functional Test",
+    "category": "Reporting"
+  },
+  {
+    "name": "Add Aggregate Pin",
+    "type_category": "Actor",
+    "description": "Add Aggregate Pin",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Branch Node",
+    "type_category": "Actor",
+    "description": "Add Branch Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Enum Node",
+    "type_category": "Actor",
+    "description": "Add Enum Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Comment Node",
+    "type_category": "Actor",
+    "description": "Add Comment Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Exposed Pin",
+    "type_category": "Actor",
+    "description": "Add Exposed Pin",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Array Node",
+    "type_category": "Actor",
+    "description": "Add Array Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Decorator",
+    "type_category": "Actor",
+    "description": "Add Decorator",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Array Node from Object Path",
+    "type_category": "Actor",
+    "description": "Add Array Node from Object Path",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add External Function Reference Node",
+    "type_category": "Actor",
+    "description": "Add External Function Reference Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Function Reference Node from Description",
+    "type_category": "Actor",
+    "description": "Add Function Reference Node from Description",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Free Reroute Node",
+    "type_category": "Actor",
+    "description": "Add Free Reroute Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Function Reference Node",
+    "type_category": "Actor",
+    "description": "Add Function Reference Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Array Pin",
+    "type_category": "Actor",
+    "description": "Add Array Pin",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Function to Library",
+    "type_category": "Actor",
+    "description": "Add Function to Library",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add if Node",
+    "type_category": "Actor",
+    "description": "Add if Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add if Node from Struct",
+    "type_category": "Actor",
+    "description": "Add if Node from Struct",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Local Variable",
+    "type_category": "Actor",
+    "description": "Add Local Variable",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Injected Node",
+    "type_category": "Actor",
+    "description": "Add Injected Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Reroute Node on Link",
+    "type_category": "Actor",
+    "description": "Add Reroute Node on Link",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Injected Node from Struct Path",
+    "type_category": "Actor",
+    "description": "Add Injected Node from Struct Path",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Local Variable from Object Path",
+    "type_category": "Actor",
+    "description": "Add Local Variable from Object Path",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Reroute Node on Link Path",
+    "type_category": "Actor",
+    "description": "Add Reroute Node on Link Path",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Reroute Node on Pin",
+    "type_category": "Actor",
+    "description": "Add Reroute Node on Pin",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Link",
+    "type_category": "Actor",
+    "description": "Adds a link to the graph.\nThis causes a LinkAdded modified event.",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Select Node",
+    "type_category": "Actor",
+    "description": "Add Select Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Invoke Entry Node",
+    "type_category": "Actor",
+    "description": "Add Invoke Entry Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Select Node from Struct",
+    "type_category": "Actor",
+    "description": "Add Select Node from Struct",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Template Node",
+    "type_category": "Actor",
+    "description": "Add Template Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Unit Node from Struct Path",
+    "type_category": "Actor",
+    "description": "Add Unit Node from Struct Path",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Unit Node",
+    "type_category": "Actor",
+    "description": "Add Unit Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Unit Node with Defaults",
+    "type_category": "Actor",
+    "description": "Add Unit Node with Defaults",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Variable Node from Object Path",
+    "type_category": "Actor",
+    "description": "Add Variable Node from Object Path",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Add Variable Node",
+    "type_category": "Actor",
+    "description": "Add Variable Node",
+    "category": "RigVMController"
+  },
+  {
+    "name": "Async Save Game to Slot",
+    "type_category": "Actor",
+    "description": "Async Save Game to Slot",
+    "category": "SaveGame"
+  },
+  {
+    "name": "Async Load Game from Slot",
+    "type_category": "Actor",
+    "description": "Async Load Game from Slot",
+    "category": "SaveGame"
+  },
+  {
+    "name": "Async Save Game to Slot for Local Player",
+    "type_category": "Actor",
+    "description": "Async Save Game to Slot for Local Player",
+    "category": "SaveGame"
+  },
+  {
+    "name": "Async Load or Create Save Game for Local Player",
+    "type_category": "Actor",
+    "description": "Async Load or Create Save Game for Local Player",
+    "category": "SaveGame"
+  },
+  {
+    "name": "Add Log Message",
+    "type_category": "Actor",
+    "description": "Add Log Message",
+    "category": "ScriptableTool"
+  },
+  {
+    "name": "Add Property Set Of Type",
+    "type_category": "Actor",
+    "description": "Add Property Set Of Type",
+    "category": "ScriptableTool"
+  },
+  {
+    "name": "As Bool",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Color",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Enum",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Linked Value",
+    "type_category": "Actor",
+    "description": "As Linked Value",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Vec 2",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Vec 3",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Quat",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Float",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Int",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "As Vec 4",
+    "type_category": "Actor",
+    "description": "Target is Niagara Python Script Module Input",
+    "category": "Scripting"
+  },
+  {
+    "name": "Actor Selection Changed",
+    "type_category": "Actor",
+    "description": "Actor Selection Changed",
+    "category": "Selection"
+  },
+  {
+    "name": "Add Key (Actor Reference)",
+    "type_category": "Actor",
+    "description": "Add Key (Actor Reference)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Double)",
+    "type_category": "Actor",
+    "description": "Add Key (Double)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Float)",
+    "type_category": "Actor",
+    "description": "Add Key (Float)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Enum)",
+    "type_category": "Actor",
+    "description": "Add Key (Enum)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Event)",
+    "type_category": "Actor",
+    "description": "Add Key (Event)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Bool)",
+    "type_category": "Actor",
+    "description": "Add Key (Bool)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Integer)",
+    "type_category": "Actor",
+    "description": "Add Key (Integer)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (String)",
+    "type_category": "Actor",
+    "description": "Add Key (String)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Key (Object Path)",
+    "type_category": "Actor",
+    "description": "Add Key (Object Path)",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Binding by Tag",
+    "type_category": "Actor",
+    "description": "Add Binding by Tag",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Binding",
+    "type_category": "Actor",
+    "description": "Add Binding",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Fixture Patches",
+    "type_category": "Actor",
+    "description": "Add Fixture Patches",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Bool Parameter Key",
+    "type_category": "Actor",
+    "description": "Add Bool Parameter Key",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Color Parameter Key",
+    "type_category": "Actor",
+    "description": "Add Color Parameter Key",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Transform Parameter Key",
+    "type_category": "Actor",
+    "description": "Add Transform Parameter Key",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Vector Parameter Key",
+    "type_category": "Actor",
+    "description": "Add Vector Parameter Key",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Scalar Parameter Key",
+    "type_category": "Actor",
+    "description": "Add Scalar Parameter Key",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Vector 2DParameter Key",
+    "type_category": "Actor",
+    "description": "Add Vector 2DParameter Key",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Child Track",
+    "type_category": "Actor",
+    "description": "Add Child Track",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Child Folder",
+    "type_category": "Actor",
+    "description": "Add Child Folder",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Child Object Binding",
+    "type_category": "Actor",
+    "description": "Add Child Object Binding",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Root Folder to Sequence",
+    "type_category": "Actor",
+    "description": "Add Root Folder to Sequence",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Track",
+    "type_category": "Actor",
+    "description": "Add a new track of the specified type",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Marked Frame",
+    "type_category": "Actor",
+    "description": "Add Marked Frame",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Spawnable from Instance",
+    "type_category": "Actor",
+    "description": "Add Spawnable from Instance",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Are Marked Frames Locked",
+    "type_category": "Actor",
+    "description": "Are Marked Frames Locked",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Spawnable from Class",
+    "type_category": "Actor",
+    "description": "Add Spawnable from Class",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Possessable",
+    "type_category": "Actor",
+    "description": "Add Possessable",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Event Trigger Section",
+    "type_category": "Actor",
+    "description": "Add Event Trigger Section",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Event Repeater Section",
+    "type_category": "Actor",
+    "description": "Add Event Repeater Section",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Add Section",
+    "type_category": "Actor",
+    "description": "Add Section",
+    "category": "Sequencer"
+  },
+  {
+    "name": "Are Location Services Enabled",
+    "type_category": "Actor",
+    "description": "Are Location Services Enabled",
+    "category": "Services"
+  },
+  {
+    "name": "Apply Hardware Benchmark Results",
+    "type_category": "Actor",
+    "description": "Apply Hardware Benchmark Results",
+    "category": "Settings"
+  },
+  {
+    "name": "Add Action Mapping",
+    "type_category": "Actor",
+    "description": "Add Action Mapping",
+    "category": "Settings"
+  },
+  {
+    "name": "Apply Non Resolution Settings",
+    "type_category": "Actor",
+    "description": "Apply Non Resolution Settings",
+    "category": "Settings"
+  },
+  {
+    "name": "Add Axis Mapping",
+    "type_category": "Actor",
+    "description": "Add Axis Mapping",
+    "category": "Settings"
+  },
+  {
+    "name": "Add or Update Console Variable",
+    "type_category": "Actor",
+    "description": "Add or Update Console Variable",
+    "category": "Settings"
+  },
+  {
+    "name": "Apply Settings",
+    "type_category": "Actor",
+    "description": "Apply Settings",
+    "category": "Settings"
+  },
+  {
+    "name": "Apply Resolution Settings",
+    "type_category": "Actor",
+    "description": "Apply Resolution Settings",
+    "category": "Settings"
+  },
+  {
+    "name": "Add Console Variable",
+    "type_category": "Actor",
+    "description": "Add Console Variable",
+    "category": "Settings"
+  },
+  {
+    "name": "Add Collision Component",
+    "type_category": "Actor",
+    "description": "Add Collision Component",
+    "category": "Simulation"
+  },
+  {
+    "name": "Add Bone",
+    "type_category": "Actor",
+    "description": "Creates a new bone in the skeleton hierarchy at desired transform",
+    "category": "Skeleton"
+  },
+  {
+    "name": "Add Bones",
+    "type_category": "Actor",
+    "description": "Target is Skeleton Modifier",
+    "category": "Skeleton"
+  },
+  {
+    "name": "Add Compatible Skeleton",
+    "type_category": "Actor",
+    "description": "Add Compatible Skeleton",
+    "category": "Skeleton"
+  },
+  {
+    "name": "AddCompatibleSkeleton",
+    "type_category": "Actor",
+    "description": "AddCompatibleSkeleton",
+    "category": "Skeleton"
+  },
+  {
+    "name": "Activate Screen Reader",
+    "type_category": "Actor",
+    "description": "Activate Screen Reader",
+    "category": "SlateScreenReader"
+  },
+  {
+    "name": "Activate User",
+    "type_category": "Actor",
+    "description": "Activate User",
+    "category": "SlateScreenReader"
+  },
+  {
+    "name": "Add or Remove Multiple Smart Objects",
+    "type_category": "Actor",
+    "description": "Add or Remove Multiple Smart Objects",
+    "category": "SmartObject"
+  },
+  {
+    "name": "Add Smart Object",
+    "type_category": "Actor",
+    "description": "Add Smart Object",
+    "category": "SmartObject"
+  },
+  {
+    "name": "Add Tag to Instance",
+    "type_category": "Actor",
+    "description": "Add Tag to Instance",
+    "category": "SmartObject"
+  },
+  {
+    "name": "Add Multiple Smart Objects",
+    "type_category": "Actor",
+    "description": "Add Multiple Smart Objects",
+    "category": "SmartObject"
+  },
+  {
+    "name": "Add or Remove Smart Object",
+    "type_category": "Actor",
+    "description": "Add or Remove Smart Object",
+    "category": "SmartObject"
+  },
+  {
+    "name": "Add Tag to Slot",
+    "type_category": "Actor",
+    "description": "Add Tag to Slot",
+    "category": "SmartObject"
+  },
+  {
+    "name": "Add Color Point Collection",
+    "type_category": "Actor",
+    "description": "Add Color Point Collection",
+    "category": "Soundscape"
+  },
+  {
+    "name": "Add Palette Collection",
+    "type_category": "Actor",
+    "description": "Add Palette Collection",
+    "category": "Soundscape"
+  },
+  {
+    "name": "Add Difference",
+    "type_category": "Actor",
+    "description": "Add Difference",
+    "category": "SpatialData"
+  },
+  {
+    "name": "Add Data",
+    "type_category": "Actor",
+    "description": "Target is PCGUnion Data",
+    "category": "SpatialData"
+  },
+  {
+    "name": "Add Spline Point",
+    "type_category": "Actor",
+    "description": "Add Spline Point",
+    "category": "Spline"
+  },
+  {
+    "name": "Add Points",
+    "type_category": "Actor",
+    "description": "Adds an array of FSplinePoints to the spline.",
+    "category": "Spline"
+  },
+  {
+    "name": "Add Spline Point at Index",
+    "type_category": "Actor",
+    "description": "Add Spline Point at Index",
+    "category": "Spline"
+  },
+  {
+    "name": "Add Point",
+    "type_category": "Actor",
+    "description": "Adds an FSplinePoint to the spline. This contains its input key, position, tangent, rotation and scale.",
+    "category": "Spline"
+  },
+  {
+    "name": "Add New Layer",
+    "type_category": "Actor",
+    "description": "Add New Layer",
+    "category": "Sprite"
+  },
+  {
+    "name": "Add Socket",
+    "type_category": "Actor",
+    "description": "Add a socket object in this StaticMesh.",
+    "category": "StaticMesh"
+  },
+  {
+    "name": "Add Material",
+    "type_category": "Actor",
+    "description": "Add Material",
+    "category": "StaticMesh"
+  },
+  {
+    "name": "Add Simple Collisions",
+    "type_category": "Actor",
+    "description": "Add Simple Collisions",
+    "category": "StaticMeshUtilities"
+  },
+  {
+    "name": "Add UVChannel",
+    "type_category": "Actor",
+    "description": "Add UVChannel",
+    "category": "StaticMeshUtilities"
+  },
+  {
+    "name": "Add Simple Collisions with Notification",
+    "type_category": "Actor",
+    "description": "Add Simple Collisions with Notification",
+    "category": "StaticMeshUtilities"
+  },
+  {
+    "name": "Add New Subobject",
+    "type_category": "Actor",
+    "description": "Add New Subobject",
+    "category": "SubobjectDataSubsystem"
+  },
+  {
+    "name": "Attach Subobject",
+    "type_category": "Actor",
+    "description": "Attach Subobject",
+    "category": "SubobjectDataSubsystem"
+  },
+  {
+    "name": "Audio",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Synth"
+  },
+  {
+    "name": "Add Modular Synth Preset to Bank Asset",
+    "type_category": "Actor",
+    "description": "Add Modular Synth Preset to Bank Asset",
+    "category": "Synthesis"
+  },
+  {
+    "name": "Add Source",
+    "type_category": "Actor",
+    "description": "Add a new source to this source list of the templated type",
+    "category": "TakeRecorder"
+  },
+  {
+    "name": "Add Source for Actor",
+    "type_category": "Actor",
+    "description": "Add Source for Actor",
+    "category": "TakeRecorder"
+  },
+  {
+    "name": "Async Request",
+    "type_category": "Actor",
+    "description": "Async Request",
+    "category": "TargetingSystem"
+  },
+  {
+    "name": "Activate All Channels",
+    "type_category": "Actor",
+    "description": "Activate All Channels",
+    "category": "TextToSpeech"
+  },
+  {
+    "name": "Add Custom Channel",
+    "type_category": "Actor",
+    "description": "Add Custom Channel",
+    "category": "TextToSpeech"
+  },
+  {
+    "name": "Add Default Channel",
+    "type_category": "Actor",
+    "description": "Add Default Channel",
+    "category": "TextToSpeech"
+  },
+  {
+    "name": "Activate Channel",
+    "type_category": "Actor",
+    "description": "Activate Channel",
+    "category": "TextToSpeech"
+  },
+  {
+    "name": "Apply Time Correction",
+    "type_category": "Actor",
+    "description": "Apply Time Correction",
+    "category": "TimedDataMonitor"
+  },
+  {
+    "name": "Add Entry Object",
+    "type_category": "Actor",
+    "description": "Add Entry Object",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Entry",
+    "type_category": "Actor",
+    "description": "Target is Tool Menu Section Extensions",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Dynamic Section",
+    "type_category": "Actor",
+    "description": "Add Dynamic Section",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Menu Entry Object",
+    "type_category": "Actor",
+    "description": "Add Menu Entry Object",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Section",
+    "type_category": "Actor",
+    "description": "Add Section",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Menu Entry",
+    "type_category": "Actor",
+    "description": "Add Menu Entry",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Sub Menu Script",
+    "type_category": "Actor",
+    "description": "Add Sub Menu Script",
+    "category": "ToolMenus"
+  },
+  {
+    "name": "Add Objects to Transaction",
+    "type_category": "Actor",
+    "description": "Add Objects to Transaction",
+    "category": "Transaction"
+  },
+  {
+    "name": "Add Object to Transaction",
+    "type_category": "Actor",
+    "description": "Add Object to Transaction",
+    "category": "Transaction"
+  },
+  {
+    "name": "Add Actor Local Offset",
+    "type_category": "Actor",
+    "description": "Add Actor Local Offset",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Actor Local Transform",
+    "type_category": "Actor",
+    "description": "Add Actor Local Transform",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Actor Local Rotation",
+    "type_category": "Actor",
+    "description": "Add Actor Local Rotation",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Actor World Transform",
+    "type_category": "Actor",
+    "description": "Add Actor World Transform",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Actor World Offset",
+    "type_category": "Actor",
+    "description": "Add Actor World Offset",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Actor World Rotation",
+    "type_category": "Actor",
+    "description": "Add Actor World Rotation",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Actor World Transform Keep Scale",
+    "type_category": "Actor",
+    "description": "Add Actor World Transform Keep Scale",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Local Rotation",
+    "type_category": "Actor",
+    "description": "Add Local Rotation",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Local Offset",
+    "type_category": "Actor",
+    "description": "Add Local Offset",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Local Transform",
+    "type_category": "Actor",
+    "description": "Add Local Transform",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Relative Location",
+    "type_category": "Actor",
+    "description": "Add Relative Location",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add World Transform",
+    "type_category": "Actor",
+    "description": "Add World Transform",
+    "category": "Transformation"
+  },
+  {
+    "name": "Attach Component To Component",
+    "type_category": "Actor",
+    "description": "Attach Component To Component",
+    "category": "Transformation"
+  },
+  {
+    "name": "Attach Actor To Actor",
+    "type_category": "Actor",
+    "description": "Attach Actor To Actor",
+    "category": "Transformation"
+  },
+  {
+    "name": "Attach Actor To Component",
+    "type_category": "Actor",
+    "description": "Attach Actor To Component",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add World Offset",
+    "type_category": "Actor",
+    "description": "Add World Offset",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add World Transform Keep Scale",
+    "type_category": "Actor",
+    "description": "Add World Transform Keep Scale",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add Relative Rotation",
+    "type_category": "Actor",
+    "description": "Add Relative Rotation",
+    "category": "Transformation"
+  },
+  {
+    "name": "Add World Rotation",
+    "type_category": "Actor",
+    "description": "Add World Rotation",
+    "category": "Transformation"
+  },
+  {
+    "name": "Actor",
+    "type_category": "Actor",
+    "description": null,
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Acquire Editor Actor Element Handle",
+    "type_category": "Actor",
+    "description": "Acquire Editor Actor Element Handle",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Acquire Editor Component Element Handle",
+    "type_category": "Actor",
+    "description": "Acquire Editor Component Element Handle",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Append",
+    "type_category": "Actor",
+    "description": "Append the given element handles to this element list.",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Append List",
+    "type_category": "Actor",
+    "description": "Append List",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Add",
+    "type_category": "Actor",
+    "description": "Add the given element handle to this element list, if it isn't already in the list.",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Acquire Editor Object Element Handle",
+    "type_category": "Actor",
+    "description": "Acquire Editor Object Element Handle",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Allow Selection Modifiers",
+    "type_category": "Actor",
+    "description": "Allow Selection Modifiers",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Acquire Editor SMInstance Element Handle",
+    "type_category": "Actor",
+    "description": "Acquire Editor SMInstance Element Handle",
+    "category": "TypedElementFramework"
+  },
+  {
+    "name": "Allow Selection Modifiers (Message)",
+    "type_category": "Actor",
+    "description": "Allow Selection Modifiers (Message)",
+    "category": "TypedElementInterfaces"
+  },
+  {
+    "name": "Asset Data",
+    "type_category": "Actor",
+    "description": null,
+    "category": "TypedElementInterfaces"
+  },
+  {
+    "name": "Allow Selection Modifiers",
+    "type_category": "Actor",
+    "description": "Allow Selection Modifiers",
+    "category": "TypedElementInterfaces"
+  },
+  {
+    "name": "Add Widget",
+    "type_category": "Actor",
+    "description": "Target is StackBox UIFramework",
+    "category": "UIFramework"
+  },
+  {
+    "name": "Add Curve",
+    "type_category": "Actor",
+    "description": "Adds a curve to the hierarchy",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Add Control",
+    "type_category": "Actor",
+    "description": "Add Control",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Add Parent",
+    "type_category": "Actor",
+    "description": "Adds a new parent to an element. For elements that allow only one parent the parent will be replaced (Same as ::SetParent).",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Add Bone",
+    "type_category": "Actor",
+    "description": "Adds a bone to the hierarchy",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Add Rigid Body",
+    "type_category": "Actor",
+    "description": "Add Rigid Body",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Add Null",
+    "type_category": "Actor",
+    "description": "Adds a null to the hierarchy",
+    "category": "URigHierarchyController"
+  },
+  {
+    "name": "Actions Import",
+    "type_category": "Actor",
+    "description": "Actions Import",
+    "category": "USD"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "UserInterface"
+  },
+  {
+    "name": "Add Widget for Player",
+    "type_category": "Actor",
+    "description": "Add Widget for Player",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Add Widget",
+    "type_category": "Actor",
+    "description": "Adds it to the game's viewport.",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Add Extension",
+    "type_category": "Actor",
+    "description": "Add Extension",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Absolute to Viewport",
+    "type_category": "Actor",
+    "description": "Absolute to Viewport",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Absolute to Local",
+    "type_category": "Actor",
+    "description": "Absolute to Local",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Add to Player Screen",
+    "type_category": "Actor",
+    "description": "Add to Player Screen",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Add to Viewport",
+    "type_category": "Actor",
+    "description": "Add to Viewport",
+    "category": "UserInterface"
+  },
+  {
+    "name": "Animation",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Utilities"
+  },
+  {
+    "name": "Add Force",
+    "type_category": "Actor",
+    "description": "Add a force to a single rigid body.\nThis is like a 'thruster'. Good for adding a burst over some (non zero) time. Should be called every frame for the duration of the force.",
+    "category": "Utilities"
+  },
+  {
+    "name": "Add",
+    "type_category": "Actor",
+    "description": "Target is Kismet Array Library",
+    "category": "Utilities"
+  },
+  {
+    "name": "Append Array",
+    "type_category": "Actor",
+    "description": "Append Array",
+    "category": "Utilities"
+  },
+  {
+    "name": "Array",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Utilities"
+  },
+  {
+    "name": "Add Unique",
+    "type_category": "Actor",
+    "description": "Add item to array (unique)",
+    "category": "Utilities"
+  },
+  {
+    "name": "Async Load Asset",
+    "type_category": "Actor",
+    "description": "Async Load Asset",
+    "category": "Utilities"
+  },
+  {
+    "name": "Async Load Class Asset",
+    "type_category": "Actor",
+    "description": "Async Load Class Asset",
+    "category": "Utilities"
+  },
+  {
+    "name": "Assign",
+    "type_category": "Actor",
+    "description": "Assigns Value to Variable",
+    "category": "Utilities"
+  },
+  {
+    "name": "Add",
+    "type_category": "Actor",
+    "description": "Adds a key and value to the map. If something already uses the provided key it will be overwritten with the new value.\nAfter calling Key is guaranteed to be associated with Value until a subsequent mutation of the Map.",
+    "category": "Utilities"
+  },
+  {
+    "name": "Add",
+    "type_category": "Actor",
+    "description": null,
+    "category": "Utilities"
+  },
+  {
+    "name": "Automation Log Dir",
+    "type_category": "Actor",
+    "description": "Automation Log Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Automation Dir",
+    "type_category": "Actor",
+    "description": "Automation Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Automation Transient Dir",
+    "type_category": "Actor",
+    "description": "Automation Transient Dir",
+    "category": "Utilities"
+  },
+  {
+    "name": "Add",
+    "type_category": "Actor",
+    "description": "Target is Blueprint Set Library",
+    "category": "Utilities"
+  },
+  {
+    "name": "Add Items",
+    "type_category": "Actor",
+    "description": "Adds all elements from an Array to a Set",
+    "category": "Utilities"
+  },
+  {
+    "name": "Append",
+    "type_category": "Actor",
+    "description": "Concatenates two strings together to make a new string",
+    "category": "Utilities"
+  },
+  {
+    "name": "As DateTime",
+    "type_category": "Actor",
+    "description": "As DateTime",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Date",
+    "type_category": "Actor",
+    "description": "Converts a passed in date & time to a text, formatted as a date using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone.",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Currency",
+    "type_category": "Actor",
+    "description": "As Currency",
+    "category": "Utilities"
+  },
+  {
+    "name": "As DateTime (from UTC)",
+    "type_category": "Actor",
+    "description": "As DateTime (from UTC)",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Date (from UTC)",
+    "type_category": "Actor",
+    "description": "As Date (from UTC)",
+    "category": "Utilities"
+  },
+  {
+    "name": "AsCurrency (float) - DEPRECATED (use AsCurrency)",
+    "type_category": "Actor",
+    "description": "AsCurrency (float) - DEPRECATED (use AsCurrency)",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Timespan",
+    "type_category": "Actor",
+    "description": "As Timespan",
+    "category": "Utilities"
+  },
+  {
+    "name": "AsCurrency (integer) - DEPRECATED (use AsCurrency)",
+    "type_category": "Actor",
+    "description": "AsCurrency (integer) - DEPRECATED (use AsCurrency)",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Time (from UTC)",
+    "type_category": "Actor",
+    "description": "As Time (from UTC)",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Percent",
+    "type_category": "Actor",
+    "description": "Converts a passed in float to a text, formatted as a percent",
+    "category": "Utilities"
+  },
+  {
+    "name": "As Time",
+    "type_category": "Actor",
+    "description": "Converts a passed in date & time to a text, formatted as a time using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone.",
+    "category": "Utilities"
+  },
+  {
+    "name": "Add Validator",
+    "type_category": "Actor",
+    "description": "Add Validator",
+    "category": "Validation"
+  },
+  {
+    "name": "Add Actor Binding",
+    "type_category": "Actor",
+    "description": "Add Actor Binding",
+    "category": "VariantManager"
+  },
+  {
+    "name": "Add Variant Set",
+    "type_category": "Actor",
+    "description": "Add Variant Set",
+    "category": "VariantManager"
+  },
+  {
+    "name": "Add Variant",
+    "type_category": "Actor",
+    "description": "Add Variant",
+    "category": "VariantManager"
+  },
+  {
+    "name": "Apply",
+    "type_category": "Actor",
+    "description": "Applies the recorded data from PropVal to the actor from which it was captured",
+    "category": "VariantManager"
+  },
+  {
+    "name": "Add Dependency",
+    "type_category": "Actor",
+    "description": "Add Dependency",
+    "category": "VariantManager"
+  },
+  {
+    "name": "Add Input Profile with Currently Active Mappings",
+    "type_category": "Actor",
+    "description": "Add Input Profile with Currently Active Mappings",
+    "category": "VCamInput"
+  },
+  {
+    "name": "Are Bindings Initialized",
+    "type_category": "Actor",
+    "description": "Are Bindings Initialized",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Are Sources Initialized",
+    "type_category": "Actor",
+    "description": "Are Sources Initialized",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Add View Model",
+    "type_category": "Actor",
+    "description": "Add View Model",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Add View Model Instance",
+    "type_category": "Actor",
+    "description": "Add View Model Instance",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Add Binding",
+    "type_category": "Actor",
+    "description": "Add Binding",
+    "category": "Viewmodel"
+  },
+  {
+    "name": "Add Display Delegate",
+    "type_category": "Actor",
+    "description": "Add Display Delegate",
+    "category": "ViewportStatsSubsystem"
+  },
+  {
+    "name": "Add Actor to Exclude from Hit Tests",
+    "type_category": "Actor",
+    "description": "Add Actor to Exclude from Hit Tests",
+    "category": "ViewportWorldInteraction"
+  },
+  {
+    "name": "Add Timed Display",
+    "type_category": "Actor",
+    "description": "Add Timed Display",
+    "category": "ViewportStatsSubsystem"
+  },
+  {
+    "name": "Add Interactor",
+    "type_category": "Actor",
+    "description": "Add Interactor",
+    "category": "ViewportWorldInteraction"
+  },
+  {
+    "name": "Activate Game Viewport",
+    "type_category": "Actor",
+    "description": "Activate Game Viewport",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add Blendable to Camera",
+    "type_category": "Actor",
+    "description": "Add Blendable to Camera",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add on Virtual Camera Updated Delegate (Message)",
+    "type_category": "Actor",
+    "description": "Add on Virtual Camera Updated Delegate (Message)",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add Blendable to Camera (Message)",
+    "type_category": "Actor",
+    "description": "Add Blendable to Camera (Message)",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add on Virtual Camera Updated Delegate",
+    "type_category": "Actor",
+    "description": "Add on Virtual Camera Updated Delegate",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add Modifier",
+    "type_category": "Actor",
+    "description": "Add Modifier",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Aperture",
+    "type_category": "Actor",
+    "description": null,
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add Blendable to Camera",
+    "type_category": "Actor",
+    "description": "Add Blendable to Camera",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Add Output Provider",
+    "type_category": "Actor",
+    "description": "Add Output Provider",
+    "category": "VirtualCamera_1"
+  },
+  {
+    "name": "Append Virtual Production Log",
+    "type_category": "Actor",
+    "description": "Append Virtual Production Log",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Add Role",
+    "type_category": "Actor",
+    "description": "Add a new virtual production role.",
+    "category": "VirtualProduction"
+  },
+  {
+    "name": "Add Constraint",
+    "type_category": "Actor",
+    "description": "Add Constraint",
+    "category": "WaveFunctionCollapse"
+  },
+  {
+    "name": "Add to Adjacency to Options Map",
+    "type_category": "Actor",
+    "description": "Add to Adjacency to Options Map",
+    "category": "WaveFunctionCollapse"
+  },
+  {
+    "name": "Accessibility",
+    "type_category": "Actor",
+    "description": "Accessibility",
+    "category": "Widget"
+  },
+  {
+    "name": "Add Child to Grid",
+    "type_category": "Actor",
+    "description": "Add Child to Grid",
+    "category": "Widget"
+  },
+  {
+    "name": "Add Child to Overlay",
+    "type_category": "Actor",
+    "description": "Add Child to Overlay",
+    "category": "Widget"
+  },
+  {
+    "name": "Add Child to Uniform Grid",
+    "type_category": "Actor",
+    "description": "Add Child to Uniform Grid",
+    "category": "Widget"
+  },
+  {
+    "name": "Add Child to Horizontal Box",
+    "type_category": "Actor",
+    "description": "Add Child to Horizontal Box",
+    "category": "Widget"
+  },
+  {
+    "name": "Add Child",
+    "type_category": "Actor",
+    "description": "Adds a new child widget to the container.  Returns the base slot type,\nrequires casting to turn it into the type specific to the container.",
+    "category": "Widget"
+  },
+  {
+    "name": "Add Input Mapping Context",
+    "type_category": "Actor",
+    "description": "Add Input Mapping Context",
+    "category": "XRCreative"
+  },
+  {
+    "name": "Add Device Visualization Component Blocking",
+    "type_category": "Actor",
+    "description": "Add Device Visualization Component Blocking",
+    "category": "XR"
+  },
+  {
+    "name": "Add Named Device Visualization Component Blocking",
+    "type_category": "Actor",
+    "description": "Add Named Device Visualization Component Blocking",
+    "category": "XR"
+  },
+  {
+    "name": "Add Named Device Visualization Component Async",
+    "type_category": "Actor",
+    "description": "Add Named Device Visualization Component Async",
+    "category": "XR"
+  },
+  {
+    "name": "Add Device Visualization Component Async",
+    "type_category": "Actor",
+    "description": "Add Device Visualization Component Async",
+    "category": "XR"
+  }
+]

@@ -50,6 +50,10 @@ pub enum KainError {
         message: String,
         suggestion: Option<String>,
     },
+
+    /// Multiple errors collected during error-recovery parsing
+    #[error("{}", format_multi_errors(.0))]
+    Multi(Vec<KainError>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -114,6 +118,15 @@ fn format_enhanced_error(
     output
 }
 
+fn format_multi_errors(errors: &[KainError]) -> String {
+    let mut output = String::new();
+    output.push_str(&format!("Found {} error(s):\n", errors.len()));
+    for (i, err) in errors.iter().enumerate() {
+        output.push_str(&format!("\n[{}/{}] {}\n", i + 1, errors.len(), err));
+    }
+    output
+}
+
 impl KainError {
     pub fn lexer(message: impl Into<String>, span: Span) -> Self {
         KainError::Lexer {
@@ -171,6 +184,12 @@ impl KainError {
         KainError::Runtime {
             message: message.into(),
         }
+    }
+
+    /// Create a multi-error from collected parse errors
+    pub fn multi(errors: Vec<KainError>) -> Self {
+        debug_assert!(!errors.is_empty(), "Multi error must contain at least one error");
+        KainError::Multi(errors)
     }
     
     // New enhanced error constructors
