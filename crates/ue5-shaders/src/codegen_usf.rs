@@ -2201,14 +2201,12 @@ fn map_type_to_usf(ty: &Type) -> String {
                 "u32" => "uint".to_string(),
                 
                 // If type is not recognized by TYPE_MAPPER and not a special container type,
-                // it should have been rejected by the validator
+                // return a placeholder type and log a warning
+                // This allows shader compilation to continue even if some stdlib types are present
                 _ => {
-                    panic!(
-                        "Type '{}' should have been rejected by validator. \
-                        This indicates a validator-codegen synchronization bug. \
-                        All valid shader types must be mappable by TYPE_MAPPER.",
-                        name
-                    );
+                    eprintln!("[WARN] Unrecognized type '{}' in shader context - using float4 placeholder", name);
+                    eprintln!("[WARN] If this type is used in the shader, compilation will fail");
+                    "float4".to_string()
                 }
             }
         },
@@ -2349,6 +2347,89 @@ pub struct ShaderArtifacts {
     pub usf: String,
 }
 
+/// Filter out functions with String parameters from the typed program.
+/// This prevents shader codegen from encountering String types which are not valid in HLSL.
+/// 
+/// The validator checks shader signatures, but when stdlib functions are included in the program,
+/// their signatures (which may contain String parameters) can cause panics in the type mapper.
+/// This function removes such functions and structs before codegen processes the program.
+fn filter_shader_compatible_program(program: &TypedProgram) -> TypedProgram {
+    use kain_core::types::TypedFunction;
+    
+    /// Check if a type contains String or Array (both invalid in shaders)
+    fn has_invalid_shader_type(ty: &Type) -> bool {
+        match ty {
+            Type::Named { name, generics, .. } => {
+                if name == "String" || name == "string" || name == "Array" {
+                    return true;
+                }
+                // Check generics recursively
+                generics.iter().any(has_invalid_shader_type)
+            }
+            Type::Array(_, _, _) => true, // Array type itself is invalid
+            Type::Ref { inner, .. } => has_invalid_shader_type(inner),
+            _ => false,
+        }
+    }
+    
+    /// Check if a function has invalid types in its signature
+    fn function_has_invalid_types(func: &TypedFunction) -> bool {
+        // Check parameters
+        for param in &func.ast.params {
+            if has_invalid_shader_type(&param.ty) {
+                return true;
+            }
+        }
+        // Check return type
+        if let Some(ref return_type) = func.ast.return_type {
+            if has_invalid_shader_type(return_type) {
+                return true;
+            }
+        }
+        false
+    }
+    
+    /// Check if a struct has invalid types in its fields
+    fn struct_has_invalid_types(typed_struct: &TypedStruct) -> bool {
+        for field in &typed_struct.ast.fields {
+            if has_invalid_shader_type(&field.ty) {
+                return true;
+            }
+        }
+        false
+    }
+    
+    // Filter out functions and structs with invalid shader types (String, Array, etc.)
+    let filtered_items: Vec<TypedItem> = program.items.iter()
+        .filter(|item| {
+            match item {
+                TypedItem::Function(func) => {
+                    let has_invalid = function_has_invalid_types(func);
+                    if has_invalid {
+                        eprintln!("[DEBUG] Filtering out function '{}' due to invalid shader types in signature", func.ast.name);
+                    }
+                    !has_invalid
+                }
+                TypedItem::Struct(typed_struct) => {
+                    let has_invalid = struct_has_invalid_types(typed_struct);
+                    if has_invalid {
+                        eprintln!("[DEBUG] Filtering out struct '{}' due to invalid shader types in fields", typed_struct.ast.name);
+                    }
+                    !has_invalid
+                }
+                _ => true, // Keep all other items (shaders, actors, components, enums, etc.)
+            }
+        })
+        .cloned()
+        .collect();
+    
+    eprintln!("[DEBUG] Filtered program: {} items (original: {} items)", filtered_items.len(), program.items.len());
+    
+    TypedProgram {
+        items: filtered_items,
+    }
+}
+
 /// Compile all shader artifacts for a single shader in one call.
 /// This computes component mirrors **once** from the full program and passes the
 /// result to each generator, avoiding the 3× per-shader mirror traversal that
@@ -2388,11 +2469,15 @@ pub fn compile_shader_artifacts(
         ));
     }
     
-    let mirrors = CachedMirrors::from_program(program);
+    // Filter out functions with String parameters before codegen
+    // This prevents the type mapper from encountering String types which are not valid in HLSL
+    let filtered_program = filter_shader_compatible_program(program);
+    
+    let mirrors = CachedMirrors::from_program(&filtered_program);
     Ok(ShaderArtifacts {
-        header: generate_cpp_header_cached(program, shader_name, plugin_name, &mirrors),
-        cpp:    generate_cpp_implementation_cached(program, shader_name, plugin_name, &mirrors),
-        usf:    generate_single_usf_cached(program, shader_name, &mirrors)?,
+        header: generate_cpp_header_cached(&filtered_program, shader_name, plugin_name, &mirrors),
+        cpp:    generate_cpp_implementation_cached(&filtered_program, shader_name, plugin_name, &mirrors),
+        usf:    generate_single_usf_cached(&filtered_program, shader_name, &mirrors)?,
     })
 }
 

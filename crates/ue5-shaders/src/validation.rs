@@ -326,6 +326,17 @@ impl ShaderValidator {
                 // Check if it's a known HLSL type or texture/sampler type
                 let type_name = name.as_str();
                 
+                // Reject String types explicitly - they are not supported in shaders
+                if type_name == "String" || type_name == "string" {
+                    errors.push(format!(
+                        "Shader '{}': Uniform '{}' has String type. \
+                        String types are not supported in shaders. \
+                        Shaders can only use HLSL-compatible types (scalars, vectors, matrices, textures, samplers, buffers).",
+                        shader_name, uniform_name
+                    ));
+                    return; // Early return to avoid further validation
+                }
+                
                 // First check if TYPE_MAPPER can map this type (KAIN types like Vec3, UVec2, Mat4, etc.)
                 if TYPE_MAPPER.can_map(type_name) {
                     return; // Valid KAIN type that maps to HLSL
