@@ -468,6 +468,14 @@ impl EngineKnowledge {
     pub fn get_cpp_type(&self, kain_name: &str) -> Option<String> {
         // Check type aliases first (Vec3 -> FVector, etc.)
         if let Some(ue_type) = self.resolve_type_alias(kain_name) {
+            // Debug output
+            eprintln!("[DEBUG] get_cpp_type: {} -> {} (from alias)", kain_name, ue_type);
+            // Check if the resolved type is UObject-derived and needs a pointer
+            if self.is_uobject_derived(ue_type) {
+                eprintln!("[DEBUG] get_cpp_type: {} is UObject-derived, adding pointer", ue_type);
+                return Some(format!("{}*", ue_type));
+            }
+            eprintln!("[DEBUG] get_cpp_type: {} is NOT UObject-derived", ue_type);
             return Some(ue_type.to_string());
         }
         

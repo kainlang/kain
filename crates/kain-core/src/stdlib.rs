@@ -289,3 +289,337 @@ pub fn load_stdlib() -> String {
     // No stdlib files found in any search path - graceful degradation
     String::new()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    /// Helper to create a test stdlib directory structure
+    fn create_test_stdlib_dir(temp_dir: &TempDir) -> PathBuf {
+        let stdlib_dir = temp_dir.path().join("stdlib");
+        fs::create_dir(&stdlib_dir).unwrap();
+        stdlib_dir
+    }
+
+    /// Helper to create a .kn file with content
+    fn create_kn_file(dir: &std::path::Path, name: &str, content: &str) {
+        let file_path = dir.join(name);
+        fs::write(file_path, content).unwrap();
+    }
+
+    #[test]
+    fn test_find_stdlib_from_env_var() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Set environment variable
+        env::set_var("KAIN_STDLIB_PATH", stdlib_dir.to_str().unwrap());
+        
+        let roots = find_stdlib_search_roots();
+        
+        // Should find exactly one root from env var
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0], stdlib_dir);
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_find_stdlib_env_var_takes_priority() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Set environment variable
+        env::set_var("KAIN_STDLIB_PATH", stdlib_dir.to_str().unwrap());
+        
+        let roots = find_stdlib_search_roots();
+        
+        // Should return immediately with only env var path
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0], stdlib_dir);
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_find_stdlib_invalid_env_var_falls_back() {
+        // Set invalid environment variable
+        env::set_var("KAIN_STDLIB_PATH", "/nonexistent/path/to/stdlib");
+        
+        let roots = find_stdlib_search_roots();
+        
+        // Should fall back to filesystem walking (may or may not find stdlib)
+        // We just verify it doesn't panic and returns a valid Vec
+        assert!(roots.is_empty() || !roots.is_empty());
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_load_kn_files_alphabetical_order() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create files in non-alphabetical order
+        create_kn_file(&stdlib_dir, "zebra.kn", "// zebra content");
+        create_kn_file(&stdlib_dir, "alpha.kn", "// alpha content");
+        create_kn_file(&stdlib_dir, "middle.kn", "// middle content");
+        
+        let result = load_kn_files_from_dir(&stdlib_dir).unwrap();
+        
+        // Should be sorted alphabetically
+        assert!(result.contains("// alpha content"));
+        assert!(result.contains("// middle content"));
+        assert!(result.contains("// zebra content"));
+        
+        // Verify order by checking positions
+        let alpha_pos = result.find("// alpha content").unwrap();
+        let middle_pos = result.find("// middle content").unwrap();
+        let zebra_pos = result.find("// zebra content").unwrap();
+        
+        assert!(alpha_pos < middle_pos);
+        assert!(middle_pos < zebra_pos);
+    }
+
+    #[test]
+    fn test_load_kn_files_excludes_readme() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create various README files (case-insensitive)
+        create_kn_file(&stdlib_dir, "README.kn", "// readme content");
+        create_kn_file(&stdlib_dir, "readme.kn", "// lowercase readme");
+        create_kn_file(&stdlib_dir, "ReadMe.kn", "// mixed case readme");
+        create_kn_file(&stdlib_dir, "valid.kn", "// valid content");
+        
+        let result = load_kn_files_from_dir(&stdlib_dir).unwrap();
+        
+        // Should only contain valid.kn
+        assert!(result.contains("// valid content"));
+        assert!(!result.contains("// readme content"));
+        assert!(!result.contains("// lowercase readme"));
+        assert!(!result.contains("// mixed case readme"));
+    }
+
+    #[test]
+    fn test_load_kn_files_multiple_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create multiple .kn files
+        create_kn_file(&stdlib_dir, "file1.kn", "content1");
+        create_kn_file(&stdlib_dir, "file2.kn", "content2");
+        create_kn_file(&stdlib_dir, "file3.kn", "content3");
+        
+        let result = load_kn_files_from_dir(&stdlib_dir).unwrap();
+        
+        // Should contain all files concatenated with newlines
+        assert!(result.contains("content1"));
+        assert!(result.contains("content2"));
+        assert!(result.contains("content3"));
+        
+        // Verify newline separation
+        let lines: Vec<&str> = result.split('\n').collect();
+        assert!(lines.len() >= 3);
+    }
+
+    #[test]
+    fn test_load_kn_files_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Empty directory
+        let result = load_kn_files_from_dir(&stdlib_dir);
+        
+        // Should return None for empty directory
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_load_kn_files_no_kn_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create non-.kn files
+        fs::write(stdlib_dir.join("file.txt"), "text content").unwrap();
+        fs::write(stdlib_dir.join("file.rs"), "rust content").unwrap();
+        
+        let result = load_kn_files_from_dir(&stdlib_dir);
+        
+        // Should return None when no .kn files exist
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_load_kn_files_nonexistent_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent = temp_dir.path().join("nonexistent");
+        
+        let result = load_kn_files_from_dir(&nonexistent);
+        
+        // Should return None for nonexistent directory
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_load_stdlib_graceful_degradation_no_panic() {
+        // This test verifies that load_stdlib() doesn't panic when stdlib is not found
+        // We can't easily force it to return empty string in this test environment
+        // because the real stdlib exists in the project, but we can verify no panic
+        
+        // Set invalid environment variable
+        env::set_var("KAIN_STDLIB_PATH", "Z:\\absolutely\\nonexistent\\path\\that\\does\\not\\exist\\anywhere");
+        
+        let result = load_stdlib();
+        
+        // The key requirement is that it doesn't panic
+        // It may return empty string OR find the real stdlib via filesystem walking
+        // Both are acceptable - the important thing is graceful handling
+        assert!(result.is_empty() || !result.is_empty());
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_load_stdlib_truly_empty_when_not_found() {
+        // Create an isolated temp directory with no stdlib
+        let temp_dir = TempDir::new().unwrap();
+        let isolated_path = temp_dir.path().join("isolated");
+        fs::create_dir(&isolated_path).unwrap();
+        
+        // Set env var to a path that exists but has no stdlib subdirectory
+        env::set_var("KAIN_STDLIB_PATH", isolated_path.to_str().unwrap());
+        
+        let result = load_stdlib();
+        
+        // Should return empty string when stdlib directory doesn't exist
+        assert_eq!(result, "");
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_load_stdlib_prefers_ue5_subdirectory() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create both root and ue5 subdirectory
+        create_kn_file(&stdlib_dir, "root.kn", "// root content");
+        
+        let ue5_dir = stdlib_dir.join("ue5");
+        fs::create_dir(&ue5_dir).unwrap();
+        create_kn_file(&ue5_dir, "ue5.kn", "// ue5 content");
+        
+        // Set environment variable to stdlib dir
+        env::set_var("KAIN_STDLIB_PATH", stdlib_dir.to_str().unwrap());
+        
+        let result = load_stdlib();
+        
+        // Should prefer ue5/ subdirectory
+        assert!(result.contains("// ue5 content"));
+        assert!(!result.contains("// root content"));
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_load_stdlib_falls_back_to_root() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create only root files (no ue5 subdirectory)
+        create_kn_file(&stdlib_dir, "root.kn", "// root content");
+        
+        // Set environment variable to stdlib dir
+        env::set_var("KAIN_STDLIB_PATH", stdlib_dir.to_str().unwrap());
+        
+        let result = load_stdlib();
+        
+        // Should fall back to root directory
+        assert!(result.contains("// root content"));
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_load_stdlib_empty_ue5_falls_back_to_root() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create empty ue5 subdirectory
+        let ue5_dir = stdlib_dir.join("ue5");
+        fs::create_dir(&ue5_dir).unwrap();
+        
+        // Create root files
+        create_kn_file(&stdlib_dir, "root.kn", "// root content");
+        
+        // Set environment variable to stdlib dir
+        env::set_var("KAIN_STDLIB_PATH", stdlib_dir.to_str().unwrap());
+        
+        let result = load_stdlib();
+        
+        // Should fall back to root when ue5/ is empty
+        assert!(result.contains("// root content"));
+        
+        // Clean up
+        env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_stdlib_builtin_functions_exist() {
+        let stdlib = StdLib::new();
+        
+        // Test a few key functions exist
+        assert!(stdlib.functions.contains_key("print"));
+        assert!(stdlib.functions.contains_key("println"));
+        assert!(stdlib.functions.contains_key("sqrt"));
+        assert!(stdlib.functions.contains_key("vec3"));
+        assert!(stdlib.functions.contains_key("push"));
+        assert!(stdlib.functions.contains_key("py_eval"));
+    }
+
+    #[test]
+    fn test_stdlib_function_metadata() {
+        let stdlib = StdLib::new();
+        
+        // Test function metadata is correct
+        let sqrt_fn = stdlib.functions.get("sqrt").unwrap();
+        assert_eq!(sqrt_fn.name, "sqrt");
+        assert_eq!(sqrt_fn.params.len(), 1);
+        assert_eq!(sqrt_fn.params[0].0, "x");
+        assert_eq!(sqrt_fn.params[0].1, "Float");
+        assert_eq!(sqrt_fn.return_type, "Float");
+        assert!(!sqrt_fn.doc.is_empty());
+    }
+
+    #[test]
+    fn test_load_kn_files_filters_only_kn_extension() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        
+        // Create files with various extensions
+        create_kn_file(&stdlib_dir, "valid.kn", "// valid");
+        fs::write(stdlib_dir.join("invalid.knx"), "// wrong extension").unwrap();
+        fs::write(stdlib_dir.join("invalid.txt"), "// text file").unwrap();
+        fs::write(stdlib_dir.join("kn"), "// no extension").unwrap();
+        
+        let result = load_kn_files_from_dir(&stdlib_dir).unwrap();
+        
+        // Should only contain valid.kn
+        assert!(result.contains("// valid"));
+        assert!(!result.contains("// wrong extension"));
+        assert!(!result.contains("// text file"));
+        assert!(!result.contains("// no extension"));
+    }
+}

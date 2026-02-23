@@ -422,20 +422,23 @@ impl TypeMapper {
                     
                     // Everything else - query EngineKnowledge or user-defined types
                     _ => {
+                        eprintln!("[DEBUG TypeMapper] Looking up type: {}", name);
                         // Try EngineKnowledge first (data-driven!)
                         if let Some(knowledge) = &self.knowledge {
-                            // Check if it's a type alias (Vec3 -> FVector, Transform -> FTransform, etc.)
-                            if let Some(alias) = knowledge.resolve_type_alias(name) {
-                                return alias.to_string();
-                            }
-                            
+                            eprintln!("[DEBUG TypeMapper] EngineKnowledge available");
                             // Check if it's a known engine type with automatic C++ mapping
+                            // This handles both type aliases and direct lookups with pointer detection
                             if let Some(cpp_type) = knowledge.get_cpp_type(name) {
+                                eprintln!("[DEBUG TypeMapper] Got cpp_type from knowledge: {}", cpp_type);
                                 return cpp_type;
                             }
+                            eprintln!("[DEBUG TypeMapper] No cpp_type from knowledge for: {}", name);
+                        } else {
+                            eprintln!("[DEBUG TypeMapper] EngineKnowledge NOT available!");
                         }
                         
                         // Fallback to user-defined types with prefix detection
+                        eprintln!("[DEBUG TypeMapper] Falling back to apply_prefix_with_detection for: {}", name);
                         return self.apply_prefix_with_detection(name);
                     }
                 };
@@ -506,12 +509,9 @@ impl TypeMapper {
             // Subsystems are UObject-derived classes and should keep explicit subsystem suffix.
             format!("{}*", to_subsystem_name(name))
         } else if self.registry.is_component(name) {
-            // Components get U prefix and Component suffix if not already present
-            if name.ends_with("Component") {
-                format!("U{}*", name)
-            } else {
-                format!("U{}Component*", name)
-            }
+            // Components get U prefix only (no automatic Component suffix)
+            // User-defined components keep their original names
+            format!("U{}*", name)
         } else if self.registry.is_enum(name) {
             to_enum_name(name)
         } else if self.registry.is_struct(name) {

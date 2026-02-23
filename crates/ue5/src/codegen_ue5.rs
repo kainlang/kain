@@ -1739,14 +1739,14 @@ impl Ue5Gen {
                 props.join(", "),
                 category
             ));
+            
             let mut cpp_type = self.map_type(&state_decl.ty);
             
             // Components must be pointers in actor state
+            // Use to_component_name for consistent naming
             if let Type::Named { name, .. } = &state_decl.ty {
                 if self.context.is_component(name) || name.ends_with("Component") {
-                    if !cpp_type.ends_with('*') {
-                        cpp_type.push('*');
-                    }
+                    cpp_type = format!("{}*", to_component_name(name));
                 }
             }
             
@@ -4462,17 +4462,61 @@ impl Ue5Gen {
                     return format!("{}.Num()", obj);
                 }
                 
-                // Remap vector component field names: .x -> .X, .y -> .Y, etc.
-                let ue5_field = match field.as_str() {
-                    "x" => "X",
-                    "y" => "Y",
-                    "z" => "Z",
-                    "w" => "W",
-                    "r" => "X",  // Color aliases
-                    "g" => "Y",
-                    "b" => "Z",
-                    "a" => "W",
-                    _ => field.as_str(),
+                // Remap vector component field names ONLY for UE5 vector types
+                // For user-defined structs, keep lowercase field names
+                // Check if this is accessing x/y/z/w fields
+                let is_component_field = matches!(field.as_str(), "x" | "y" | "z" | "w" | "r" | "g" | "b" | "a");
+                
+                let should_capitalize = if is_component_field {
+                    if let Expr::Ident(obj_name, _) = object.as_ref() {
+                        // Debug logging to file
+                        use std::io::Write;
+                        if let Ok(mut file) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("codegen_debug.log") {
+                            let _ = writeln!(file, "Field access: {}.{}", obj_name, field);
+                            let _ = writeln!(file, "  var_types contains {} entries", self.var_types.len());
+                            if let Some(type_name) = self.var_types.get(obj_name) {
+                                let _ = writeln!(file, "  Found type: {}", type_name);
+                            } else {
+                                let _ = writeln!(file, "  NOT in var_types");
+                                let _ = writeln!(file, "  Available vars: {:?}", self.var_types.keys().collect::<Vec<_>>());
+                            }
+                        }
+                        
+                        // Check if this is a variable with a known type
+                        if let Some(type_name) = self.var_types.get(obj_name) {
+                            // Only capitalize if it's a known UE5 vector type
+                            // If it's a user-defined struct, keep lowercase
+                            let is_ue5_vector = matches!(type_name.as_str(), 
+                                "Vec2" | "Vec3" | "Vec4" | 
+                                "FVector" | "FVector2D" | "FVector4" | 
+                                "FIntVector" | "FIntPoint"
+                            );
+                            is_ue5_vector
+                        } else {
+                            // Not in var_types - default to NOT capitalizing
+                            // This matches gen_expr_string behavior and handles user-defined structs
+                            false
+                        }
+                    } else {
+                        // Complex expression - default to capitalizing for backward compatibility
+                        true
+                    }
+                } else {
+                    // Not a component field - keep as-is
+                    false
+                };
+
+                let ue5_field = if should_capitalize {
+                    match field.as_str() {
+                        "x" => "X", "y" => "Y", "z" => "Z", "w" => "W",
+                        "r" => "X", "g" => "Y", "b" => "Z", "a" => "W",
+                        _ => field.as_str(),
+                    }
+                } else {
+                    field.as_str()
                 };
                 
                 if obj == "self" {
