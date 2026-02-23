@@ -94,3 +94,89 @@ fn format_number(value: Float, decimals: Int) -> String:
     let multiplier = pow(10.0, decimals)
     let rounded = round(value * multiplier) / multiplier
     return "{rounded}"
+
+# Advanced Math Utilities
+@blueprint
+fn remap_clamped(value: Float, in_min: Float, in_max: Float, out_min: Float, out_max: Float) -> Float:
+    let clamped = clamp(value, in_min, in_max)
+    let normalized = (clamped - in_min) / (in_max - in_min)
+    return out_min + normalized * (out_max - out_min)
+
+@blueprint
+fn inverse_lerp(a: Float, b: Float, value: Float) -> Float:
+    if abs(b - a) < 0.0001:
+        return 0.0
+    return (value - a) / (b - a)
+
+@blueprint
+fn ease_in_out(t: Float) -> Float:
+    let clamped = clamp_01(t)
+    return clamped * clamped * (3.0 - 2.0 * clamped)
+
+# Vector Utilities
+@blueprint
+fn random_unit_vector() -> Vec3:
+    let theta = random() * 6.28318530718
+    let phi = acos(2.0 * random() - 1.0)
+    let x = sin(phi) * cos(theta)
+    let y = sin(phi) * sin(theta)
+    let z = cos(phi)
+    return vec3(x, y, z)
+
+@blueprint
+fn random_point_in_sphere(radius: Float) -> Vec3:
+    let dir = random_unit_vector()
+    let r = pow(random(), 0.333333) * radius
+    return vec3(dir.x * r, dir.y * r, dir.z * r)
+
+@blueprint
+fn clamp_vector(v: Vec3, min_val: Float, max_val: Float) -> Vec3:
+    let x = clamp(v.x, min_val, max_val)
+    let y = clamp(v.y, min_val, max_val)
+    let z = clamp(v.z, min_val, max_val)
+    return vec3(x, y, z)
+
+@blueprint
+fn clamp_angle(angle: Float, min_angle: Float, max_angle: Float) -> Float:
+    let normalized = normalize_angle(angle)
+    return clamp(normalized, min_angle, max_angle)
+
+# Numeric Utilities
+@blueprint
+fn sign(value: Float) -> Float:
+    if value > 0.0:
+        return 1.0
+    if value < 0.0:
+        return -1.0
+    return 0.0
+
+@blueprint
+fn wrap(value: Float, min_val: Float, max_val: Float) -> Float:
+    let range = max_val - min_val
+    if range <= 0.0:
+        return min_val
+    let offset = value - min_val
+    return min_val + (offset - floor(offset / range) * range)
+
+@blueprint
+fn ping_pong(t: Float, length: Float) -> Float:
+    let t_mod = t - floor(t / length) * length
+    return length - abs(t_mod - length)
+
+# String Formatting Utilities
+@blueprint
+fn format_vector(v: Vec3) -> String:
+    return "({v.x}, {v.y}, {v.z})"
+
+@blueprint
+fn format_percentage(value: Float) -> String:
+    let percent = value * 100.0
+    return "{percent}%"
+
+@blueprint
+fn parse_float(str: String) -> Float:
+    return 0.0
+
+@blueprint
+fn parse_int(str: String) -> Int:
+    return 0

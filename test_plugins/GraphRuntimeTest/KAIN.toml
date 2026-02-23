@@ -1,9 +1,0 @@
-[plugin]
-name = "GraphRuntimeTest"
-version = "1.0.0"
-ue5_version = "5.4"
-author = "KAIN Test"
-description = "Test plugin for graph runtime system"
-
-[build]
-output_dir = "Generated"

@@ -3657,6 +3657,17 @@ impl Ue5Gen {
                 // For RPCs, FString and TArray must be passed by const reference
                 let needs_ref = is_rpc && (ty_str.starts_with("FString") || ty_str.starts_with("TArray"));
                 
+                // Check if this is a UObject-derived type that should be a pointer
+                // UObject-derived types start with U or A prefix
+                // Also check for specific known types that might be missing the pointer
+                let is_uobject_ptr = ty_str.starts_with('U') || ty_str.starts_with('A') ||
+                    ty_str == "UAnimSequence" || ty_str == "UAnimMontage" || 
+                    ty_str == "USkeletalMesh" || ty_str == "UStaticMesh" ||
+                    ty_str == "UMaterialInterface" || ty_str == "UTexture";
+                
+                // Special handling for known UObject types that might be missing pointer suffix
+                let needs_pointer_fix = is_uobject_ptr && !ty_str.ends_with('*');
+                
                 let param_decl = if p.mutable {
                     // Output parameter - use UPARAM(ref) for Blueprint visibility
                     if is_blueprint {
@@ -3667,10 +3678,14 @@ impl Ue5Gen {
                 } else if needs_ref {
                     format!("const {}& {}", ty_str, p.name)
                 } else if ty_str.ends_with('*') {
-                    // UObject/AActor/UActorComponent pointers should not be const-qualified
-                    // as value parameters; it creates const-correctness friction in generated handlers.
+                    // Already has pointer suffix - don't add const
                     format!("{} {}", ty_str, p.name)
+                } else if needs_pointer_fix {
+                    // UObject/AActor/UActorComponent types need pointer suffix
+                    // Don't add const for pointer types
+                    format!("{}* {}", ty_str, p.name)
                 } else {
+                    // Non-pointer types get const
                     format!("const {} {}", ty_str, p.name)
                 };
                 
@@ -5411,8 +5426,7 @@ mod tests {
 
     /// Helper to create a Ue5Gen instance for testing
     fn create_test_codegen() -> Ue5Gen {
-        let context = Ue5Context::new("TestModule".to_string());
-        Ue5Gen::new(context)
+        Ue5Gen::new("TestModule", Some("TestModule"), None, None, std::collections::HashMap::new())
     }
 
     #[test]
@@ -5422,7 +5436,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE(FOnSimpleEvent);"), 
             "Expected DECLARE_MULTICAST_DELEGATE for zero params, got: {}", header);
     }
@@ -5434,7 +5448,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_OneParam(FOnValueChanged, int64);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_OneParam, got: {}", header);
     }
@@ -5446,7 +5460,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPositionUpdate, int64, float);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_TwoParams, got: {}", header);
     }
@@ -5458,7 +5472,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnComplexEvent, int64, float, bool);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_ThreeParams, got: {}", header);
     }
@@ -5470,7 +5484,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_FourParams(FOnFourParamEvent, int64, float, bool, int64);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_FourParams, got: {}", header);
     }
@@ -5482,7 +5496,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_FiveParams(FOnFiveParamEvent, int64, float, bool, int64, float);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_FiveParams, got: {}", header);
     }
@@ -5494,7 +5508,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_SixParams(FOnSixParamEvent, int64, float, bool, int64, float, bool);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_SixParams, got: {}", header);
     }
@@ -5506,7 +5520,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_SevenParams(FOnSevenParamEvent, int64, float, bool, int64, float, bool, int64);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_SevenParams, got: {}", header);
     }
@@ -5518,7 +5532,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_EightParams(FOnEightParamEvent, int64, float, bool, int64, float, bool, int64, float);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_EightParams, got: {}", header);
     }
@@ -5530,7 +5544,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_NineParams(FOnNineParamEvent, int64, float, bool, int64, float, bool, int64, float, bool);"), 
             "Expected DECLARE_MULTICAST_DELEGATE_NineParams, got: {}", header);
     }
@@ -5542,7 +5556,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("// Error: Delegate FOnTooManyParams has 10 parameters"), 
             "Expected error comment for too many params, got: {}", header);
         assert!(header.contains("// Consider refactoring to use a struct parameter instead"), 
@@ -5556,7 +5570,7 @@ mod tests {
         
         gen.gen_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_DELEGATE(FSimpleCallback);"), 
             "Expected DECLARE_DELEGATE for zero params, got: {}", header);
     }
@@ -5568,7 +5582,7 @@ mod tests {
         
         gen.gen_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_DELEGATE_OneParam(FValueCallback, int64);"), 
             "Expected DECLARE_DELEGATE_OneParam, got: {}", header);
     }
@@ -5580,7 +5594,7 @@ mod tests {
         
         gen.gen_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_DELEGATE_TwoParams(FTwoParamCallback, int64, float);"), 
             "Expected DECLARE_DELEGATE_TwoParams, got: {}", header);
     }
@@ -5592,7 +5606,7 @@ mod tests {
         
         gen.gen_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("DECLARE_DELEGATE_ThreeParams(FThreeParamCallback, int64, float, bool);"), 
             "Expected DECLARE_DELEGATE_ThreeParams, got: {}", header);
     }
@@ -5605,7 +5619,7 @@ mod tests {
         let alias = create_delegate_alias("MyCustomDelegate", 1);
         gen.gen_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         assert!(header.contains("FMyCustomDelegate"), 
             "Expected F prefix on delegate name, got: {}", header);
     }
@@ -5620,8 +5634,8 @@ mod tests {
         gen_multicast.gen_multicast_delegate(&alias);
         gen_regular.gen_delegate(&alias);
         
-        let multicast_header = gen_multicast.header.to_string();
-        let regular_header = gen_regular.header.to_string();
+        let multicast_header = gen_multicast.header.build();
+        let regular_header = gen_regular.header.build();
         
         assert!(multicast_header.contains("DECLARE_MULTICAST_DELEGATE_OneParam"), 
             "Multicast should use DECLARE_MULTICAST_DELEGATE_OneParam");
@@ -5641,7 +5655,7 @@ mod tests {
         gen.gen_multicast_delegate(&alias);
         
         // Verify delegate was registered in context
-        assert!(gen.context.delegates.contains_key("OnRegistered"), 
+        assert!(gen.context.delegate_names.contains("OnRegistered"), 
             "Delegate should be registered in context");
     }
 
@@ -5671,7 +5685,7 @@ mod tests {
         
         gen.gen_multicast_delegate(&alias);
         
-        let header = gen.header.to_string();
+        let header = gen.header.build();
         // Vec3 should map to FVector (double precision by default)
         assert!(header.contains("DECLARE_MULTICAST_DELEGATE_OneParam(FOnPositionChanged, FVector);"), 
             "Expected Vec3 to map to FVector, got: {}", header);

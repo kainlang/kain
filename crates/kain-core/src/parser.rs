@@ -21,6 +21,9 @@ const RESERVED_KEYWORDS: &[&str] = &[
     "Pure", "IO", "async", "Async", "GPU", "Reactive", "Unsafe",
     
     // HLSL keywords (from ue5-shaders/src/codegen_usf.rs)
+    // Note: HLSL type names like RWBuffer, Texture2D, etc. are NOT reserved keywords
+    // because they are only valid as type annotations, not as variable names.
+    // The type system will handle validation of type names separately.
     "line", "compile", "pass", "technique", "register", "packoffset",
     "typedef", "sampler", "texture", "vs", "ps", "gs", "hs", "ds", "cs",
     "row_major", "column_major", "out", "inout", "inline",
@@ -30,8 +33,6 @@ const RESERVED_KEYWORDS: &[&str] = &[
     "static", "void", "bool", "int", "uint", "float", "double",
     "float2", "float3", "float4", "int2", "int3", "int4", "uint2", "uint3", "uint4",
     "float2x2", "float3x3", "float4x4", "matrix",
-    "Texture2D", "Texture3D", "TextureCube", "SamplerState", "SamplerComparisonState",
-    "RWTexture2D", "RWTexture3D", "RWBuffer", "StructuredBuffer", "RWStructuredBuffer",
     "numthreads", "SV_Position", "SV_Target", "SV_DispatchThreadID", "SV_GroupID", "SV_GroupThreadID",
     
     // C++ keywords
@@ -44,15 +45,13 @@ const RESERVED_KEYWORDS: &[&str] = &[
     "union", "asm", "export", "thread_local", "static_assert",
     
     // UE5 macros and types
+    // Note: UE5 type names like FVector, TArray, etc. are NOT reserved keywords
+    // because they are only valid as type annotations, not as variable names.
+    // The type system will handle validation of type names separately.
     "UCLASS", "USTRUCT", "UENUM", "UFUNCTION", "UPROPERTY", "UPARAM", "UMETA",
     "GENERATED_BODY", "GENERATED_USTRUCT_BODY", "GENERATED_UCLASS_BODY",
     "UINTERFACE", "RIGVM_METHOD", "FORCEINLINE", "FORCENOINLINE",
     "TEXT", "LOCTEXT", "NSLOCTEXT", "TEXTVIEW",
-    "UObject", "AActor", "UActorComponent", "USceneComponent", "APawn", "ACharacter", "APlayerController",
-    "FVector", "FRotator", "FTransform", "FQuat", "FVector2D", "FIntPoint", "FLinearColor", "FColor",
-    "FString", "FName", "FText", "TArray", "TMap", "TSet", "TSharedPtr", "TWeakPtr", "TUniquePtr",
-    "int32", "uint32", "int64", "uint64", "int8", "uint8", "int16", "uint16",
-    "TCHAR", "ANSICHAR", "UCS2CHAR",
 ];
 
 pub struct Parser<'a> {

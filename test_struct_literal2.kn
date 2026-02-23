@@ -1,6 +1,0 @@
-struct Point:
-    x: Int
-    y: Int
-
-fn test():
-    let p = Point { x: 10, y: 20 }

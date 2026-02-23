@@ -50,3 +50,63 @@ fn SetMorphTarget(mesh: SkeletalMesh, morph_name: String, value: Float)
 
 @extern
 fn GetMorphTarget(mesh: SkeletalMesh, morph_name: String) -> Float
+
+# Animation Montage
+@extern
+fn PlayAnimMontage(mesh: SkeletalMesh, montage_name: String, play_rate: Float) -> Float
+
+@extern
+fn StopAnimMontage(mesh: SkeletalMesh, montage_name: String)
+
+@extern
+fn GetCurrentMontage(mesh: SkeletalMesh) -> String
+
+@extern
+fn IsPlayingMontage(mesh: SkeletalMesh) -> Bool
+
+# Advanced Bone Manipulation
+@extern
+fn SetBoneLocationByName(mesh: SkeletalMesh, bone_name: String, location: Vec3)
+
+@extern
+fn SetBoneRotationByName(mesh: SkeletalMesh, bone_name: String, rotation: Rotator)
+
+@extern
+fn SetBoneTransformByName(mesh: SkeletalMesh, bone_name: String, location: Vec3, rotation: Rotator, scale: Vec3)
+
+@extern
+fn GetBoneIndex(mesh: SkeletalMesh, bone_name: String) -> Int
+
+# Socket Queries
+@extern
+fn GetSocketByName(mesh: SkeletalMesh, socket_name: String) -> Socket
+
+@extern
+fn GetAllSocketNames(mesh: SkeletalMesh) -> Array<String>
+
+@extern
+fn DoesSocketExist(mesh: SkeletalMesh, socket_name: String) -> Bool
+
+# Animation Blueprint
+@extern
+fn GetAnimInstance(mesh: SkeletalMesh) -> AnimInstance
+
+@extern
+fn SetAnimInstanceClass(mesh: SkeletalMesh, anim_class: String)
+
+# Morph Target Management
+@extern
+fn ClearMorphTargets(mesh: SkeletalMesh)
+
+@extern
+fn GetAllMorphTargetNames(mesh: SkeletalMesh) -> Array<String>
+
+# Physics Simulation
+@extern
+fn SetAllBodiesSimulatePhysics(mesh: SkeletalMesh, simulate: Bool)
+
+@extern
+fn SetAllBodiesPhysicsBlendWeight(mesh: SkeletalMesh, weight: Float)
+
+@extern
+fn AddForceToAllBodiesBelow(mesh: SkeletalMesh, bone_name: String, force: Vec3)

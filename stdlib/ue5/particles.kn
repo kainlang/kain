@@ -30,3 +30,52 @@ fn SetActorParameter(niagara: Actor, param_name: String, target: Actor)
 
 @extern
 fn SetBoolParameter(niagara: Actor, param_name: String, value: Bool)
+
+# Additional Niagara Parameters
+@extern
+fn SetNiagaraVariableVec2(niagara: Actor, param_name: String, value: Vec2)
+
+@extern
+fn SetNiagaraVariableVec4(niagara: Actor, param_name: String, value: Vec4)
+
+@extern
+fn SetNiagaraVariableQuat(niagara: Actor, param_name: String, value: Quat)
+
+@extern
+fn SetNiagaraVariableLinearColor(niagara: Actor, param_name: String, color: Vec4)
+
+@extern
+fn GetNiagaraVariableFloat(niagara: Actor, param_name: String) -> Float
+
+@extern
+fn GetNiagaraVariableVec3(niagara: Actor, param_name: String) -> Vec3
+
+# Particle System State
+@extern
+fn ResetNiagaraSystem(niagara: Actor)
+
+@extern
+fn SeekNiagaraSystem(niagara: Actor, time: Float)
+
+@extern
+fn SetNiagaraSystemAge(niagara: Actor, age: Float)
+
+@extern
+fn GetNiagaraSystemAge(niagara: Actor) -> Float
+
+# Advanced Parameters
+@extern
+fn SetNiagaraVariableActor(niagara: Actor, param_name: String, target: Actor)
+
+@extern
+fn SetNiagaraVariableObject(niagara: Actor, param_name: String, obj: Object)
+
+@extern
+fn SetNiagaraVariableInt(niagara: Actor, param_name: String, value: Int)
+
+# Particle System Queries
+@extern
+fn IsNiagaraSystemActive(niagara: Actor) -> Bool
+
+@extern
+fn GetNiagaraParticleCount(niagara: Actor) -> Int

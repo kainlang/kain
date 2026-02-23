@@ -1128,10 +1128,21 @@ fn load_and_parse_sources(
         // Walk up from current working directory
         if let Ok(mut current) = std::env::current_dir() {
             loop {
+                // Check for Kain/stdlib first (highest priority for sibling pattern)
+                let kain_stdlib = current.join("Kain").join("stdlib");
+                if kain_stdlib.exists() && kain_stdlib.is_dir() {
+                    roots.push(kain_stdlib);
+                    break;
+                }
+                
+                // Check for stdlib in current directory (but only if it has ue5/ subdirectory)
                 let stdlib_dir = current.join("stdlib");
                 if stdlib_dir.exists() && stdlib_dir.is_dir() {
-                    roots.push(stdlib_dir);
-                    break;
+                    let ue5_subdir = stdlib_dir.join("ue5");
+                    if ue5_subdir.exists() && ue5_subdir.is_dir() {
+                        roots.push(stdlib_dir);
+                        break;
+                    }
                 }
                 
                 // Move to parent directory

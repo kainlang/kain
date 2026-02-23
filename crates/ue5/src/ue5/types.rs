@@ -374,6 +374,15 @@ impl TypeMapper {
     /// Map a KAIN type to UE5 C++ type string with prefix detection
     /// This method implements the core type mapping logic with double-prefix prevention
     pub fn map_type_string(&self, ty: &Type) -> String {
+        // Debug output at the very start
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("C:/temp/kain_type_debug.txt") {
+            let _ = writeln!(file, "[DEBUG map_type_string] Called with type: {:?}", ty);
+        }
+        
         match ty {
             Type::Named { name, generics, .. } => {
                 // First, check primitives and built-in types (these are always the same)
@@ -420,29 +429,45 @@ impl TypeMapper {
                     "Component" => return "UActorComponent*".to_string(),
                     "Class" => return "TSubclassOf<UObject>".to_string(),
                     
+                    // Hardcoded fixes for common UObject types that are missing pointers
+                    "AnimSequence" => return "UAnimSequence*".to_string(),
+                    "AnimMontage" => return "UAnimMontage*".to_string(),
+                    "SkeletalMesh" => return "USkeletalMesh*".to_string(),
+                    "StaticMesh" => return "UStaticMesh*".to_string(),
+                    
                     // Everything else - query EngineKnowledge or user-defined types
                     _ => {
                         // Debug to file
-                        let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] Looking up type: {}\n", name));
+                        use std::io::Write;
+                        if let Ok(mut file) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("C:/temp/kain_debug.txt") {
+                            let _ = writeln!(file, "[DEBUG TypeMapper] Looking up type: {}", name);
                         
-                        // Try EngineKnowledge first (data-driven!)
-                        if let Some(knowledge) = &self.knowledge {
-                            let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] EngineKnowledge available for: {}\n", name));
-                            // Check if it's a known engine type with automatic C++ mapping
-                            // This handles both type aliases and direct lookups with pointer detection
-                            if let Some(cpp_type) = knowledge.get_cpp_type(name) {
-                                let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] Got cpp_type: {} -> {}\n", name, cpp_type));
-                                return cpp_type;
+                            // Try EngineKnowledge first (data-driven!)
+                            if let Some(knowledge) = &self.knowledge {
+                                let _ = writeln!(file, "[DEBUG TypeMapper] EngineKnowledge available for: {}", name);
+                                // Check if it's a known engine type with automatic C++ mapping
+                                // This handles both type aliases and direct lookups with pointer detection
+                                if let Some(cpp_type) = knowledge.get_cpp_type(name) {
+                                    let _ = writeln!(file, "[DEBUG TypeMapper] Got cpp_type: {} -> {}", name, cpp_type);
+                                    return cpp_type;
+                                }
+                                let _ = writeln!(file, "[DEBUG TypeMapper] No cpp_type from knowledge for: {}", name);
+                            } else {
+                                let _ = writeln!(file, "[DEBUG TypeMapper] EngineKnowledge NOT available!");
                             }
-                            let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] No cpp_type from knowledge for: {}\n", name));
-                        } else {
-                            let _ = std::fs::write("C:/temp/kain_debug.txt", "[DEBUG TypeMapper] EngineKnowledge NOT available!\n".to_string());
                         }
                         
                         // Fallback to user-defined types with prefix detection
-                        let result = self.apply_prefix_with_detection(name);
-                        let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] Fallback result for {}: {}\n", name, result));
-                        return result;
+                        // If debug file fails, continue with normal logic
+                        if let Some(knowledge) = &self.knowledge {
+                            if let Some(cpp_type) = knowledge.get_cpp_type(name) {
+                                return cpp_type;
+                            }
+                        }
+                        return self.apply_prefix_with_detection(name);
                     }
                 };
 

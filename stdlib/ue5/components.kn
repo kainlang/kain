@@ -2,15 +2,89 @@
 # Common component struct definitions for UE5 systems
 
 # Timer handle for managing delayed and repeating function calls
-struct TimerHandle:
+struct KainTimerHandle:
     handle_id: Int
     is_active: Bool
     loop_count: Int
     elapsed_time: Float
 
 # Input action data for enhanced input system
-struct InputAction:
+struct KainInputAction:
     action_name: String
     key_binding: String
     is_pressed: Bool
     trigger_value: Float
+
+# Health component data for managing health, damage, and healing
+struct HealthComponentData:
+    current_health: Float
+    max_health: Float
+    is_invulnerable: Bool
+    regeneration_rate: Float
+    last_damage_time: Float
+
+# Inventory component data for managing item storage
+struct InventoryComponentData:
+    max_capacity: Int
+    current_weight: Float
+    max_weight: Float
+    gold: Int
+
+# Movement component data for character movement
+struct MovementComponentData:
+    max_walk_speed: Float
+    max_sprint_speed: Float
+    jump_velocity: Float
+    air_control: Float
+    is_sprinting: Bool
+
+# Combat component data for managing combat state
+struct CombatComponentData:
+    base_damage: Float
+    attack_speed: Float
+    crit_chance: Float
+    crit_multiplier: Float
+    last_attack_time: Float
+
+# Interaction component data for object interaction
+struct InteractionComponentData:
+    interaction_range: Float
+    interaction_prompt: String
+    can_interact: Bool
+    requires_key: Bool
+    key_id: Int
+
+# Quest component data for managing active quests
+struct QuestComponentData:
+    active_quest_count: Int
+    completed_quest_count: Int
+    total_experience: Int
+
+# Dialogue component data for conversation systems
+struct DialogueComponentData:
+    current_dialogue_id: Int
+    dialogue_state: Int
+    available_choices: Array<Int>
+    npc_name: String
+
+# Crafting component data for crafting systems
+struct CraftingComponentData:
+    known_recipes: Array<Int>
+    crafting_level: Int
+    crafting_experience: Int
+    is_crafting: Bool
+
+# Stats component data for RPG character stats
+struct StatsComponentData:
+    strength: Int
+    dexterity: Int
+    intelligence: Int
+    vitality: Int
+    luck: Int
+    level: Int
+
+# Status effect component data for buffs/debuffs
+struct StatusEffectComponentData:
+    active_effect_count: Int
+    max_effect_slots: Int
+    immunity_flags: Int

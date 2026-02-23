@@ -1,48 +1,172 @@
 # KAIN UE5 Standard Library - Gameplay Helpers
 # High-level gameplay functions
 
+# ============================================================================
 # Health Management
+# ============================================================================
+
+/// Apply damage to a character with armor mitigation
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+/// - damage: Float - The raw damage amount before mitigation
+/// - armor: Float - The character's armor value (0-100 scale)
+///
+/// # Returns
+/// Float - The new health value after damage (clamped to 0)
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Formula
+/// mitigated_damage = damage * (1 - armor / 100)
+/// new_health = max(current_health - mitigated_damage, 0)
 @blueprint
 fn apply_damage(current_health: Float, max_health: Float, damage: Float, armor: Float) -> Float:
     let mitigated_damage = damage * (1.0 - armor / 100.0)
     let new_health = current_health - mitigated_damage
     return max(new_health, 0.0)
 
+/// Apply healing to a character
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+/// - heal_amount: Float - The amount of health to restore
+///
+/// # Returns
+/// Float - The new health value after healing (clamped to max_health)
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn apply_healing(current_health: Float, max_health: Float, heal_amount: Float) -> Float:
     let new_health = current_health + heal_amount
     return min(new_health, max_health)
 
+/// Calculate health as a percentage
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+///
+/// # Returns
+/// Float - Health percentage (0-100), or 0 if max_health is 0
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn get_health_percentage(current_health: Float, max_health: Float) -> Float:
     if max_health <= 0.0:
         return 0.0
     return (current_health / max_health) * 100.0
 
+/// Check if character health is below a threshold
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+/// - threshold: Float - The percentage threshold (0-100)
+///
+/// # Returns
+/// Bool - True if health percentage is below threshold
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn is_low_health(current_health: Float, max_health: Float, threshold: Float) -> Bool:
     return get_health_percentage(current_health, max_health) < threshold
 
+# ============================================================================
 # Combat Calculations
+# ============================================================================
+
+/// Calculate critical hit damage
+///
+/// # Parameters
+/// - base_damage: Float - The base damage amount
+/// - crit_multiplier: Float - The critical hit multiplier (e.g., 2.0 for 2x damage)
+///
+/// # Returns
+/// Float - The critical damage amount
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn calculate_crit_damage(base_damage: Float, crit_multiplier: Float) -> Float:
     return base_damage * crit_multiplier
 
+/// Determine if an attack should critically hit
+///
+/// # Parameters
+/// - crit_chance: Float - The critical hit chance percentage (0-100)
+///
+/// # Returns
+/// Bool - True if attack should crit (random roll)
+///
+/// # Side Effects
+/// Uses random number generation
 @blueprint
 fn should_crit(crit_chance: Float) -> Bool:
     return random() < (crit_chance / 100.0)
 
+/// Calculate damage reduction from armor
+///
+/// # Parameters
+/// - damage: Float - The raw damage amount
+/// - armor: Float - The armor value
+///
+/// # Returns
+/// Float - The mitigated damage amount
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Formula
+/// Standard armor formula: damage * (1 - armor / (armor + 100))
 @blueprint
 fn calculate_armor_mitigation(damage: Float, armor: Float) -> Float:
     # Standard armor formula: damage * (1 - armor / (armor + 100))
     return damage * (1.0 - armor / (armor + 100.0))
 
+# ============================================================================
 # Level & XP
+# ============================================================================
+
+/// Calculate experience points required for a level
+///
+/// # Parameters
+/// - level: Int - The target level
+///
+/// # Returns
+/// Int - The total XP required to reach that level
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Formula
+/// Standard RPG XP curve: level^2 * 100
 @blueprint
 fn calculate_experience_for_level(level: Int) -> Int:
     # Standard RPG XP curve: level^2 * 100
     return level * level * 100
 
+/// Add experience points and handle level-up overflow
+///
+/// # Parameters
+/// - current_xp: Int - The character's current XP
+/// - xp_to_add: Int - The XP amount to add
+/// - current_level: Int - The character's current level
+///
+/// # Returns
+/// Int - The new XP value (overflow subtracted if leveled up)
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Note
+/// Returns XP minus next level requirement if leveled up
 @blueprint
 fn add_experience(current_xp: Int, xp_to_add: Int, current_level: Int) -> Int:
     let new_xp = current_xp + xp_to_add
@@ -53,6 +177,17 @@ fn add_experience(current_xp: Int, xp_to_add: Int, current_level: Int) -> Int:
         return new_xp - xp_for_next_level
     return new_xp
 
+/// Calculate XP progress toward next level as percentage
+///
+/// # Parameters
+/// - current_xp: Int - The character's current XP
+/// - current_level: Int - The character's current level
+///
+/// # Returns
+/// Float - Progress percentage (0-100)
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn get_xp_progress(current_xp: Int, current_level: Int) -> Float:
     let xp_for_current = calculate_experience_for_level(current_level)
@@ -61,13 +196,44 @@ fn get_xp_progress(current_xp: Int, current_level: Int) -> Float:
     let xp_progress = current_xp - xp_for_current
     return (xp_progress / xp_needed) * 100.0
 
+# ============================================================================
 # Inventory Management
+# ============================================================================
+
+/// Check if an item can be added to inventory
+///
+/// # Parameters
+/// - current_count: Int - Current number of items in inventory
+/// - max_capacity: Int - Maximum inventory capacity
+/// - item_stack_size: Int - Size of the item stack to add
+///
+/// # Returns
+/// Bool - True if item can be added without exceeding capacity
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn can_add_item_to_inventory(current_count: Int, max_capacity: Int, item_stack_size: Int) -> Bool:
     return current_count + item_stack_size <= max_capacity
 
+/// Calculate total weight of inventory items
+///
+/// # Parameters
+/// - items: Array<KainInventorySlot> - Array of inventory slots
+/// - item_weights: Array<Float> - Array of item weights by item ID
+///
+/// # Returns
+/// Float - Total weight of all items in inventory
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Example
+/// items = [InventorySlot(item_id: 0, quantity: 5), InventorySlot(item_id: 1, quantity: 2)]
+/// item_weights = [1.5, 3.0]
+/// result = 5 * 1.5 + 2 * 3.0 = 13.5
 @blueprint
-fn calculate_inventory_weight(items: Array<InventorySlot>, item_weights: Array<Float>) -> Float:
+fn calculate_inventory_weight(items: Array<KainInventorySlot>, item_weights: Array<Float>) -> Float:
     var total_weight = 0.0
     var i = 0
     while i < items.len():
@@ -77,23 +243,80 @@ fn calculate_inventory_weight(items: Array<InventorySlot>, item_weights: Array<F
         i = i + 1
     return total_weight
 
+# ============================================================================
 # Cooldown Management
+# ============================================================================
+
+/// Check if an ability cooldown is ready
+///
+/// # Parameters
+/// - last_use_time: Float - The time when ability was last used
+/// - cooldown_duration: Float - The cooldown duration in seconds
+/// - current_time: Float - The current game time
+///
+/// # Returns
+/// Bool - True if cooldown has elapsed
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn is_cooldown_ready(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Bool:
     return current_time - last_use_time >= cooldown_duration
 
+/// Get remaining cooldown time
+///
+/// # Parameters
+/// - last_use_time: Float - The time when ability was last used
+/// - cooldown_duration: Float - The cooldown duration in seconds
+/// - current_time: Float - The current game time
+///
+/// # Returns
+/// Float - Remaining cooldown time in seconds (0 if ready)
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn get_cooldown_remaining(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Float:
     let elapsed = current_time - last_use_time
     let remaining = cooldown_duration - elapsed
     return max(remaining, 0.0)
 
+/// Get cooldown progress as percentage
+///
+/// # Parameters
+/// - last_use_time: Float - The time when ability was last used
+/// - cooldown_duration: Float - The cooldown duration in seconds
+/// - current_time: Float - The current game time
+///
+/// # Returns
+/// Float - Cooldown progress percentage (0-100, 100 = ready)
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn get_cooldown_percentage(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Float:
     let elapsed = current_time - last_use_time
     return min((elapsed / cooldown_duration) * 100.0, 100.0)
 
+# ============================================================================
 # Status Effects
+# ============================================================================
+
+/// Apply a buff to a base value
+///
+/// # Parameters
+/// - base_value: Float - The base stat value
+/// - buff_magnitude: Float - The buff strength percentage
+/// - buff_type: BuffType - The type of buff (Damage, Defense, Speed)
+///
+/// # Returns
+/// Float - The modified value with buff applied
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Example
+/// apply_buff(100.0, 25.0, BuffType::Damage) = 125.0 (25% increase)
 @blueprint
 fn apply_buff(base_value: Float, buff_magnitude: Float, buff_type: BuffType) -> Float:
     match buff_type:
@@ -102,19 +325,71 @@ fn apply_buff(base_value: Float, buff_magnitude: Float, buff_type: BuffType) -> 
         BuffType::Speed => base_value * (1.0 + buff_magnitude / 100.0)
         _ => base_value
 
+/// Update buff duration by subtracting delta time
+///
+/// # Parameters
+/// - remaining_time: Float - Current remaining buff duration
+/// - delta_time: Float - Time elapsed since last update
+///
+/// # Returns
+/// Float - New remaining time (clamped to 0)
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn update_buff_duration(remaining_time: Float, delta_time: Float) -> Float:
     return max(remaining_time - delta_time, 0.0)
 
+/// Check if a buff is still active
+///
+/// # Parameters
+/// - remaining_time: Float - Current remaining buff duration
+///
+/// # Returns
+/// Bool - True if buff has time remaining
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn is_buff_active(remaining_time: Float) -> Bool:
     return remaining_time > 0.0
 
+# ============================================================================
 # Loot Generation
+# ============================================================================
+
+/// Roll for loot drop based on drop chance
+///
+/// # Parameters
+/// - drop_chance: Float - The drop chance percentage (0-100)
+///
+/// # Returns
+/// Bool - True if loot should drop (random roll)
+///
+/// # Side Effects
+/// Uses random number generation
 @blueprint
 fn roll_loot_drop(drop_chance: Float) -> Bool:
     return random() < (drop_chance / 100.0)
 
+/// Determine loot rarity based on luck stat
+///
+/// # Parameters
+/// - luck_stat: Float - The character's luck stat (bonus to roll)
+///
+/// # Returns
+/// LootRarity - The determined rarity (Common, Uncommon, Rare, Epic, Legendary, Mythic)
+///
+/// # Side Effects
+/// Uses random number generation
+///
+/// # Rarity Thresholds
+/// - Mythic: 95+ (5% base chance)
+/// - Legendary: 85-94 (10% base chance)
+/// - Epic: 70-84 (15% base chance)
+/// - Rare: 50-69 (20% base chance)
+/// - Uncommon: 25-49 (25% base chance)
+/// - Common: 0-24 (25% base chance)
 @blueprint
 fn determine_loot_rarity(luck_stat: Float) -> LootRarity:
     let roll = random() * 100.0 + luck_stat
@@ -132,16 +407,53 @@ fn determine_loot_rarity(luck_stat: Float) -> LootRarity:
         return LootRarity::Uncommon
     return LootRarity::Common
 
+# ============================================================================
 # Quest Progress
+# ============================================================================
+
+/// Update quest objective progress
+///
+/// # Parameters
+/// - current_progress: Int - Current objective progress
+/// - increment: Int - Amount to increment progress by
+/// - required_progress: Int - Total progress required for completion
+///
+/// # Returns
+/// Int - New progress value (clamped to required_progress)
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn update_quest_objective(current_progress: Int, increment: Int, required_progress: Int) -> Int:
     let new_progress = current_progress + increment
     return min(new_progress, required_progress)
 
+/// Check if quest objective is complete
+///
+/// # Parameters
+/// - current_progress: Int - Current objective progress
+/// - required_progress: Int - Total progress required for completion
+///
+/// # Returns
+/// Bool - True if objective is complete
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn is_quest_objective_complete(current_progress: Int, required_progress: Int) -> Bool:
     return current_progress >= required_progress
 
+/// Calculate quest progress as percentage
+///
+/// # Parameters
+/// - current_progress: Int - Current objective progress
+/// - required_progress: Int - Total progress required for completion
+///
+/// # Returns
+/// Float - Progress percentage (0-100), or 0 if required_progress is 0
+///
+/// # Side Effects
+/// None (pure calculation)
 @blueprint
 fn get_quest_progress_percentage(current_progress: Int, required_progress: Int) -> Float:
     if required_progress <= 0:

@@ -469,13 +469,27 @@ impl EngineKnowledge {
         // Check type aliases first (Vec3 -> FVector, etc.)
         if let Some(ue_type) = self.resolve_type_alias(kain_name) {
             // Debug output
-            eprintln!("[DEBUG] get_cpp_type: {} -> {} (from alias)", kain_name, ue_type);
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("C:/temp/kain_debug.txt")
+                .ok()?;
+            let _ = writeln!(file, "[DEBUG get_cpp_type] {} -> {} (from alias)", kain_name, ue_type);
+            
             // Check if the resolved type is UObject-derived and needs a pointer
             if self.is_uobject_derived(ue_type) {
-                eprintln!("[DEBUG] get_cpp_type: {} is UObject-derived, adding pointer", ue_type);
+                let _ = writeln!(file, "[DEBUG get_cpp_type] {} is UObject-derived, adding pointer", ue_type);
                 return Some(format!("{}*", ue_type));
             }
-            eprintln!("[DEBUG] get_cpp_type: {} is NOT UObject-derived", ue_type);
+            
+            // Fallback: if it starts with U or A, it's probably UObject-derived even if not in the database
+            if ue_type.starts_with('U') || ue_type.starts_with('A') {
+                let _ = writeln!(file, "[DEBUG get_cpp_type] {} starts with U/A, adding pointer (fallback)", ue_type);
+                return Some(format!("{}*", ue_type));
+            }
+            
+            let _ = writeln!(file, "[DEBUG get_cpp_type] {} is NOT UObject-derived", ue_type);
             return Some(ue_type.to_string());
         }
         
