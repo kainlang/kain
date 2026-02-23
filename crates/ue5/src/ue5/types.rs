@@ -422,24 +422,27 @@ impl TypeMapper {
                     
                     // Everything else - query EngineKnowledge or user-defined types
                     _ => {
-                        eprintln!("[DEBUG TypeMapper] Looking up type: {}", name);
+                        // Debug to file
+                        let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] Looking up type: {}\n", name));
+                        
                         // Try EngineKnowledge first (data-driven!)
                         if let Some(knowledge) = &self.knowledge {
-                            eprintln!("[DEBUG TypeMapper] EngineKnowledge available");
+                            let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] EngineKnowledge available for: {}\n", name));
                             // Check if it's a known engine type with automatic C++ mapping
                             // This handles both type aliases and direct lookups with pointer detection
                             if let Some(cpp_type) = knowledge.get_cpp_type(name) {
-                                eprintln!("[DEBUG TypeMapper] Got cpp_type from knowledge: {}", cpp_type);
+                                let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] Got cpp_type: {} -> {}\n", name, cpp_type));
                                 return cpp_type;
                             }
-                            eprintln!("[DEBUG TypeMapper] No cpp_type from knowledge for: {}", name);
+                            let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] No cpp_type from knowledge for: {}\n", name));
                         } else {
-                            eprintln!("[DEBUG TypeMapper] EngineKnowledge NOT available!");
+                            let _ = std::fs::write("C:/temp/kain_debug.txt", "[DEBUG TypeMapper] EngineKnowledge NOT available!\n".to_string());
                         }
                         
                         // Fallback to user-defined types with prefix detection
-                        eprintln!("[DEBUG TypeMapper] Falling back to apply_prefix_with_detection for: {}", name);
-                        return self.apply_prefix_with_detection(name);
+                        let result = self.apply_prefix_with_detection(name);
+                        let _ = std::fs::write("C:/temp/kain_debug.txt", format!("[DEBUG TypeMapper] Fallback result for {}: {}\n", name, result));
+                        return result;
                     }
                 };
 
@@ -523,6 +526,10 @@ impl TypeMapper {
             // Allow user-authored fields like `DialogueGraph` to bind to
             // `UDialogueGraphInstance*` without requiring source-level renames.
             format!("U{}Instance*", name)
+        } else if self.is_pointer_type_by_name(name) {
+            // Check if it's a known UObject-derived type that needs a pointer
+            // This handles engine types like AnimSequence that aren't in the registry
+            format!("U{}*", name)
         } else {
             // Unknown type - return as-is
             name.to_string()
@@ -566,7 +573,9 @@ impl TypeMapper {
             "UStaticMesh" | "USkeletalMesh" | "UAnimSequence" | "UAnimMontage" |
             "USoundBase" | "USoundWave" | "USoundCue" |
             "UParticleSystem" | "UParticleSystemComponent" |
-            "UWidget" | "UUserWidget" | "UWidgetComponent"
+            "UWidget" | "UUserWidget" | "UWidgetComponent" |
+            // Add AnimSequence without U prefix as fallback
+            "AnimSequence"
         )
     }
     

@@ -823,12 +823,32 @@ impl Ue5Gen {
     /// Used to determine whether to use `->`(pointer) or `.`(value) for member access.
     /// In UE5, components (U*Component*), actors (A*), and UObject-derived types
     /// (UMaterialInstanceDynamic*, UTexture2D*, etc.) are always heap-allocated pointers.
+    /// 
+    /// This method determines whether to use -> or . for member access by checking
+    /// if the expression evaluates to a pointer type.
     fn is_pointer_receiver(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Ident(name, _) => {
                 self.is_pointer_type_by_name(name)
             }
             Expr::Field { object, field, .. } => {
+                // For field access, we need to determine the type of the field being accessed
+                // First, resolve the type of the object
+                if let Some(obj_type) = self.infer_expr_type(object) {
+                    // Look up the field type in type_fields_map
+                    if let Some(fields) = self.type_fields_map.get(&obj_type) {
+                        for (field_name, field_type) in fields {
+                            if field_name == field {
+                                // Found the field - check if its type is a pointer type
+                                if let Type::Named { name, .. } = field_type {
+                                    return self.is_pointer_type_by_name(name);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback: handle self.field case
                 if let Expr::Ident(ref obj_name, _) = object.as_ref() {
                     if obj_name == "self" {
                         return self.is_pointer_type_by_name(field);
@@ -837,6 +857,42 @@ impl Ue5Gen {
                 false
             }
             _ => false,
+        }
+    }
+    
+    /// Infer the type name of an expression for member access resolution.
+    /// Returns the KAIN type name (e.g., "HealthComponent", "Vec3", "Actor").
+    fn infer_expr_type(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Ident(name, _) => {
+                // Check if it's a variable with a known type
+                if let Some(type_name) = self.var_types.get(name) {
+                    return Some(type_name.clone());
+                }
+                // Check if it's "self" - need to determine current context type
+                if name == "self" {
+                    // This would require tracking the current actor/struct being generated
+                    // For now, return None and rely on fallback logic
+                    return None;
+                }
+                None
+            }
+            Expr::Field { object, field, .. } => {
+                // Recursively resolve the object type, then look up the field type
+                if let Some(obj_type) = self.infer_expr_type(object) {
+                    if let Some(fields) = self.type_fields_map.get(&obj_type) {
+                        for (field_name, field_type) in fields {
+                            if field_name == field {
+                                if let Type::Named { name, .. } = field_type {
+                                    return Some(name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
         }
     }
 
@@ -4942,38 +4998,109 @@ impl Ue5Gen {
             // Track this delegate name
             self.context.register_delegate(alias.name.clone(), format!("{}.h", self.context.output_name));
             
-            // Determine if it has parameters
-            if params.is_empty() {
-                // No parameters - simple delegate
-                self.write_header(&format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE({});", delegate_name));
-            } else if params.len() == 1 {
-                // One parameter
-                let param_type = self.map_type(&params[0]);
-                let param_name = format!("Param{}", 0);
-                self.write_header(&format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam({}, {}, {});", 
-                    delegate_name, param_type, param_name));
-            } else if params.len() == 2 {
-                // Two parameters
-                let param1_type = self.map_type(&params[0]);
-                let param1_name = format!("Param{}", 0);
-                let param2_type = self.map_type(&params[1]);
-                let param2_name = format!("Param{}", 1);
-                self.write_header(&format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams({}, {}, {}, {}, {});", 
-                    delegate_name, param1_type, param1_name, param2_type, param2_name));
-            } else if params.len() == 3 {
-                // Three parameters
-                let param1_type = self.map_type(&params[0]);
-                let param1_name = format!("Param{}", 0);
-                let param2_type = self.map_type(&params[1]);
-                let param2_name = format!("Param{}", 1);
-                let param3_type = self.map_type(&params[2]);
-                let param3_name = format!("Param{}", 2);
-                self.write_header(&format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams({}, {}, {}, {}, {}, {}, {});", 
-                    delegate_name, param1_type, param1_name, param2_type, param2_name, param3_type, param3_name));
-            } else {
-                // More than 3 parameters - use generic macro
-                self.write_header(&format!("// TODO: Delegate {} has {} parameters - UE5 supports up to 9 with DECLARE_DYNAMIC_MULTICAST_DELEGATE_<N>Params", 
-                    delegate_name, params.len()));
+            // Generate native C++ multicast delegate (not dynamic/blueprint)
+            // Use DECLARE_MULTICAST_DELEGATE_* macros based on parameter count
+            match params.len() {
+                0 => {
+                    // No parameters
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE({});", delegate_name));
+                }
+                1 => {
+                    // One parameter
+                    let param_type = self.map_type(&params[0]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_OneParam({}, {});", 
+                        delegate_name, param_type));
+                }
+                2 => {
+                    // Two parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_TwoParams({}, {}, {});", 
+                        delegate_name, param1_type, param2_type));
+                }
+                3 => {
+                    // Three parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_ThreeParams({}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type));
+                }
+                4 => {
+                    // Four parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_FourParams({}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type));
+                }
+                5 => {
+                    // Five parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_FiveParams({}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type));
+                }
+                6 => {
+                    // Six parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_SixParams({}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type));
+                }
+                7 => {
+                    // Seven parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    let param7_type = self.map_type(&params[6]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_SevenParams({}, {}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type, param7_type));
+                }
+                8 => {
+                    // Eight parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    let param7_type = self.map_type(&params[6]);
+                    let param8_type = self.map_type(&params[7]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_EightParams({}, {}, {}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type, param7_type, param8_type));
+                }
+                9 => {
+                    // Nine parameters (maximum supported by UE5)
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    let param7_type = self.map_type(&params[6]);
+                    let param8_type = self.map_type(&params[7]);
+                    let param9_type = self.map_type(&params[8]);
+                    self.write_header(&format!("DECLARE_MULTICAST_DELEGATE_NineParams({}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type, param7_type, param8_type, param9_type));
+                }
+                _ => {
+                    // More than 9 parameters - not supported by UE5 delegate macros
+                    self.write_header(&format!("// Error: Delegate {} has {} parameters - UE5 supports up to 9 parameters", 
+                        delegate_name, params.len()));
+                    self.write_header(&format!("// Consider refactoring to use a struct parameter instead"));
+                }
             }
             
             self.write_blank_header();
@@ -4988,23 +5115,109 @@ impl Ue5Gen {
             // Track this delegate name
             self.context.register_delegate(alias.name.clone(), format!("{}.h", self.context.output_name));
             
-            // Similar to multicast but use DECLARE_DYNAMIC_DELEGATE
-            if params.is_empty() {
-                self.write_header(&format!("DECLARE_DYNAMIC_DELEGATE({});", delegate_name));
-            } else if params.len() == 1 {
-                let param_type = self.map_type(&params[0]);
-                let param_name = format!("Param{}", 0);
-                self.write_header(&format!("DECLARE_DYNAMIC_DELEGATE_OneParam({}, {}, {});", 
-                    delegate_name, param_type, param_name));
-            } else if params.len() == 2 {
-                let param1_type = self.map_type(&params[0]);
-                let param1_name = format!("Param{}", 0);
-                let param2_type = self.map_type(&params[1]);
-                let param2_name = format!("Param{}", 1);
-                self.write_header(&format!("DECLARE_DYNAMIC_DELEGATE_TwoParams({}, {}, {}, {}, {});", 
-                    delegate_name, param1_type, param1_name, param2_type, param2_name));
-            } else {
-                self.write_header(&format!("// TODO: Delegate {} has {} parameters", delegate_name, params.len()));
+            // Generate native C++ delegate (not dynamic/blueprint)
+            // Use DECLARE_DELEGATE_* macros based on parameter count
+            match params.len() {
+                0 => {
+                    // No parameters
+                    self.write_header(&format!("DECLARE_DELEGATE({});", delegate_name));
+                }
+                1 => {
+                    // One parameter
+                    let param_type = self.map_type(&params[0]);
+                    self.write_header(&format!("DECLARE_DELEGATE_OneParam({}, {});", 
+                        delegate_name, param_type));
+                }
+                2 => {
+                    // Two parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    self.write_header(&format!("DECLARE_DELEGATE_TwoParams({}, {}, {});", 
+                        delegate_name, param1_type, param2_type));
+                }
+                3 => {
+                    // Three parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    self.write_header(&format!("DECLARE_DELEGATE_ThreeParams({}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type));
+                }
+                4 => {
+                    // Four parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    self.write_header(&format!("DECLARE_DELEGATE_FourParams({}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type));
+                }
+                5 => {
+                    // Five parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    self.write_header(&format!("DECLARE_DELEGATE_FiveParams({}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type));
+                }
+                6 => {
+                    // Six parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    self.write_header(&format!("DECLARE_DELEGATE_SixParams({}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type));
+                }
+                7 => {
+                    // Seven parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    let param7_type = self.map_type(&params[6]);
+                    self.write_header(&format!("DECLARE_DELEGATE_SevenParams({}, {}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type, param7_type));
+                }
+                8 => {
+                    // Eight parameters
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    let param7_type = self.map_type(&params[6]);
+                    let param8_type = self.map_type(&params[7]);
+                    self.write_header(&format!("DECLARE_DELEGATE_EightParams({}, {}, {}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type, param7_type, param8_type));
+                }
+                9 => {
+                    // Nine parameters (maximum supported by UE5)
+                    let param1_type = self.map_type(&params[0]);
+                    let param2_type = self.map_type(&params[1]);
+                    let param3_type = self.map_type(&params[2]);
+                    let param4_type = self.map_type(&params[3]);
+                    let param5_type = self.map_type(&params[4]);
+                    let param6_type = self.map_type(&params[5]);
+                    let param7_type = self.map_type(&params[6]);
+                    let param8_type = self.map_type(&params[7]);
+                    let param9_type = self.map_type(&params[8]);
+                    self.write_header(&format!("DECLARE_DELEGATE_NineParams({}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
+                        delegate_name, param1_type, param2_type, param3_type, param4_type, param5_type, param6_type, param7_type, param8_type, param9_type));
+                }
+                _ => {
+                    // More than 9 parameters - not supported by UE5 delegate macros
+                    self.write_header(&format!("// Error: Delegate {} has {} parameters - UE5 supports up to 9 parameters", 
+                        delegate_name, params.len()));
+                    self.write_header(&format!("// Consider refactoring to use a struct parameter instead"));
+                }
             }
             
             self.write_blank_header();
@@ -5155,5 +5368,312 @@ fn default_cpp_value(ty_str: &str) -> Option<&'static str> {
         ty if ty.ends_with('*') => Some("nullptr"),
         // FString, FText, TArray, TMap, TSet — default-construct to empty, no initializer needed.
         _ => None,
+    }
+}
+
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kain_core::ast::{TypeAlias, Visibility};
+    use kain_core::span::Span;
+    use kain_core::ast::Type;
+
+    /// Helper to create a test TypeAlias for delegate testing
+    fn create_delegate_alias(name: &str, param_count: usize) -> TypeAlias {
+        let params: Vec<Type> = (0..param_count)
+            .map(|i| Type::Named {
+                name: if i % 3 == 0 { "Int".to_string() } 
+                      else if i % 3 == 1 { "Float".to_string() }
+                      else { "Bool".to_string() },
+                generics: vec![],
+                span: Span::default(),
+            })
+            .collect();
+
+        TypeAlias {
+            name: name.to_string(),
+            generics: vec![],
+            target: Type::Function {
+                params,
+                return_type: Box::new(Type::Unit(Span::default())),
+                effects: vec![],
+                span: Span::default(),
+            },
+            visibility: Visibility::Public,
+            span: Span::default(),
+        }
+    }
+
+    /// Helper to create a Ue5Gen instance for testing
+    fn create_test_codegen() -> Ue5Gen {
+        let context = Ue5Context::new("TestModule".to_string());
+        Ue5Gen::new(context)
+    }
+
+    #[test]
+    fn test_multicast_delegate_zero_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnSimpleEvent", 0);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE(FOnSimpleEvent);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE for zero params, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_one_param() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnValueChanged", 1);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_OneParam(FOnValueChanged, int64);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_OneParam, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_two_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnPositionUpdate", 2);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPositionUpdate, int64, float);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_TwoParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_three_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnComplexEvent", 3);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnComplexEvent, int64, float, bool);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_ThreeParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_four_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnFourParamEvent", 4);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_FourParams(FOnFourParamEvent, int64, float, bool, int64);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_FourParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_five_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnFiveParamEvent", 5);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_FiveParams(FOnFiveParamEvent, int64, float, bool, int64, float);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_FiveParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_six_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnSixParamEvent", 6);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_SixParams(FOnSixParamEvent, int64, float, bool, int64, float, bool);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_SixParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_seven_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnSevenParamEvent", 7);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_SevenParams(FOnSevenParamEvent, int64, float, bool, int64, float, bool, int64);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_SevenParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_eight_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnEightParamEvent", 8);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_EightParams(FOnEightParamEvent, int64, float, bool, int64, float, bool, int64, float);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_EightParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_nine_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnNineParamEvent", 9);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_NineParams(FOnNineParamEvent, int64, float, bool, int64, float, bool, int64, float, bool);"), 
+            "Expected DECLARE_MULTICAST_DELEGATE_NineParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_delegate_too_many_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnTooManyParams", 10);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("// Error: Delegate FOnTooManyParams has 10 parameters"), 
+            "Expected error comment for too many params, got: {}", header);
+        assert!(header.contains("// Consider refactoring to use a struct parameter instead"), 
+            "Expected refactoring suggestion, got: {}", header);
+    }
+
+    #[test]
+    fn test_delegate_zero_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("SimpleCallback", 0);
+        
+        gen.gen_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_DELEGATE(FSimpleCallback);"), 
+            "Expected DECLARE_DELEGATE for zero params, got: {}", header);
+    }
+
+    #[test]
+    fn test_delegate_one_param() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("ValueCallback", 1);
+        
+        gen.gen_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_DELEGATE_OneParam(FValueCallback, int64);"), 
+            "Expected DECLARE_DELEGATE_OneParam, got: {}", header);
+    }
+
+    #[test]
+    fn test_delegate_two_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("TwoParamCallback", 2);
+        
+        gen.gen_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_DELEGATE_TwoParams(FTwoParamCallback, int64, float);"), 
+            "Expected DECLARE_DELEGATE_TwoParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_delegate_three_params() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("ThreeParamCallback", 3);
+        
+        gen.gen_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("DECLARE_DELEGATE_ThreeParams(FThreeParamCallback, int64, float, bool);"), 
+            "Expected DECLARE_DELEGATE_ThreeParams, got: {}", header);
+    }
+
+    #[test]
+    fn test_delegate_naming_convention() {
+        let mut gen = create_test_codegen();
+        
+        // Test that delegate names get F prefix
+        let alias = create_delegate_alias("MyCustomDelegate", 1);
+        gen.gen_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        assert!(header.contains("FMyCustomDelegate"), 
+            "Expected F prefix on delegate name, got: {}", header);
+    }
+
+    #[test]
+    fn test_multicast_vs_regular_delegate_distinction() {
+        let mut gen_multicast = create_test_codegen();
+        let mut gen_regular = create_test_codegen();
+        
+        let alias = create_delegate_alias("TestEvent", 1);
+        
+        gen_multicast.gen_multicast_delegate(&alias);
+        gen_regular.gen_delegate(&alias);
+        
+        let multicast_header = gen_multicast.header.to_string();
+        let regular_header = gen_regular.header.to_string();
+        
+        assert!(multicast_header.contains("DECLARE_MULTICAST_DELEGATE_OneParam"), 
+            "Multicast should use DECLARE_MULTICAST_DELEGATE_OneParam");
+        assert!(regular_header.contains("DECLARE_DELEGATE_OneParam"), 
+            "Regular should use DECLARE_DELEGATE_OneParam");
+        assert!(!multicast_header.contains("DECLARE_DELEGATE_OneParam("), 
+            "Multicast should not use regular DECLARE_DELEGATE");
+        assert!(!regular_header.contains("DECLARE_MULTICAST_DELEGATE_OneParam("), 
+            "Regular should not use DECLARE_MULTICAST_DELEGATE");
+    }
+
+    #[test]
+    fn test_delegate_registration() {
+        let mut gen = create_test_codegen();
+        let alias = create_delegate_alias("OnRegistered", 0);
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        // Verify delegate was registered in context
+        assert!(gen.context.delegates.contains_key("OnRegistered"), 
+            "Delegate should be registered in context");
+    }
+
+    #[test]
+    fn test_delegate_with_complex_types() {
+        let mut gen = create_test_codegen();
+        
+        // Create delegate with Vec3 parameter
+        let alias = TypeAlias {
+            name: "OnPositionChanged".to_string(),
+            generics: vec![],
+            target: Type::Function {
+                params: vec![
+                    Type::Named {
+                        name: "Vec3".to_string(),
+                        generics: vec![],
+                        span: Span::default(),
+                    }
+                ],
+                return_type: Box::new(Type::Unit(Span::default())),
+                effects: vec![],
+                span: Span::default(),
+            },
+            visibility: Visibility::Public,
+            span: Span::default(),
+        };
+        
+        gen.gen_multicast_delegate(&alias);
+        
+        let header = gen.header.to_string();
+        // Vec3 should map to FVector (double precision by default)
+        assert!(header.contains("DECLARE_MULTICAST_DELEGATE_OneParam(FOnPositionChanged, FVector);"), 
+            "Expected Vec3 to map to FVector, got: {}", header);
     }
 }

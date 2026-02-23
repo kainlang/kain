@@ -568,6 +568,15 @@ impl StdLibResolver {
                     Some(format!("FVector(FMath::RoundToFloat(({}).X), FMath::RoundToFloat(({}).Y), FMath::RoundToFloat(({}).Z))", arg, arg, arg))
                 }
             }
+            "sqrt" => {
+                if is_vec2 {
+                    Some(format!("FVector2D(FMath::Sqrt(({}).X), FMath::Sqrt(({}).Y))", arg, arg))
+                } else if is_vec4 {
+                    Some(format!("FVector4(FMath::Sqrt(({}).X), FMath::Sqrt(({}).Y), FMath::Sqrt(({}).Z), FMath::Sqrt(({}).W))", arg, arg, arg, arg))
+                } else {
+                    Some(format!("FVector(FMath::Sqrt(({}).X), FMath::Sqrt(({}).Y), FMath::Sqrt(({}).Z))", arg, arg, arg))
+                }
+            }
             _ => None
         }
     }
@@ -1135,5 +1144,126 @@ mod tests {
             resolver.resolve("round", &["FVector(3.5, 2.4, 1.6)".to_string()]),
             Ok("FVector(FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).X), FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).Y), FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).Z))".to_string())
         );
+    }
+
+    #[test]
+    fn test_vector_sqrt() {
+        let resolver = StdLibResolver::new();
+
+        // Vec2
+        assert_eq!(
+            resolver.resolve("sqrt", &["FVector2D(4.0, 9.0)".to_string()]),
+            Ok("FVector2D(FMath::Sqrt((FVector2D(4.0, 9.0)).X), FMath::Sqrt((FVector2D(4.0, 9.0)).Y))".to_string())
+        );
+
+        // Vec3
+        assert_eq!(
+            resolver.resolve("sqrt", &["FVector(4.0, 9.0, 16.0)".to_string()]),
+            Ok("FVector(FMath::Sqrt((FVector(4.0, 9.0, 16.0)).X), FMath::Sqrt((FVector(4.0, 9.0, 16.0)).Y), FMath::Sqrt((FVector(4.0, 9.0, 16.0)).Z))".to_string())
+        );
+
+        // Vec4
+        assert_eq!(
+            resolver.resolve("sqrt", &["FVector4(4.0, 9.0, 16.0, 25.0)".to_string()]),
+            Ok("FVector4(FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).X), FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).Y), FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).Z), FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).W))".to_string())
+        );
+
+        // Scalar should still work
+        assert_eq!(
+            resolver.resolve("sqrt", &["16.0".to_string()]),
+            Ok("FMath::Sqrt(16.0)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_all_vector_operations_vec2() {
+        let resolver = StdLibResolver::new();
+
+        // Test all vector operations on Vec2
+        let operations = vec![
+            ("floor", "FVector2D(3.7, 2.3)", "FVector2D(FMath::FloorToFloat((FVector2D(3.7, 2.3)).X), FMath::FloorToFloat((FVector2D(3.7, 2.3)).Y))"),
+            ("ceil", "FVector2D(3.2, 2.7)", "FVector2D(FMath::CeilToFloat((FVector2D(3.2, 2.7)).X), FMath::CeilToFloat((FVector2D(3.2, 2.7)).Y))"),
+            ("round", "FVector2D(3.5, 2.4)", "FVector2D(FMath::RoundToFloat((FVector2D(3.5, 2.4)).X), FMath::RoundToFloat((FVector2D(3.5, 2.4)).Y))"),
+            ("abs", "FVector2D(-1.0, 2.0)", "FVector2D(FMath::Abs((FVector2D(-1.0, 2.0)).X), FMath::Abs((FVector2D(-1.0, 2.0)).Y))"),
+            ("frac", "FVector2D(3.7, 2.3)", "FVector2D(FMath::Frac((FVector2D(3.7, 2.3)).X), FMath::Frac((FVector2D(3.7, 2.3)).Y))"),
+            ("sqrt", "FVector2D(4.0, 9.0)", "FVector2D(FMath::Sqrt((FVector2D(4.0, 9.0)).X), FMath::Sqrt((FVector2D(4.0, 9.0)).Y))"),
+        ];
+
+        for (op, input, expected) in operations {
+            assert_eq!(
+                resolver.resolve(op, &[input.to_string()]),
+                Ok(expected.to_string()),
+                "Failed for operation: {} on Vec2", op
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_vector_operations_vec3() {
+        let resolver = StdLibResolver::new();
+
+        // Test all vector operations on Vec3
+        let operations = vec![
+            ("floor", "FVector(3.7, 2.3, 1.9)", "FVector(FMath::FloorToFloat((FVector(3.7, 2.3, 1.9)).X), FMath::FloorToFloat((FVector(3.7, 2.3, 1.9)).Y), FMath::FloorToFloat((FVector(3.7, 2.3, 1.9)).Z))"),
+            ("ceil", "FVector(3.2, 2.7, 1.1)", "FVector(FMath::CeilToFloat((FVector(3.2, 2.7, 1.1)).X), FMath::CeilToFloat((FVector(3.2, 2.7, 1.1)).Y), FMath::CeilToFloat((FVector(3.2, 2.7, 1.1)).Z))"),
+            ("round", "FVector(3.5, 2.4, 1.6)", "FVector(FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).X), FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).Y), FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).Z))"),
+            ("abs", "FVector(-1.0, 2.0, -3.0)", "FVector(FMath::Abs((FVector(-1.0, 2.0, -3.0)).X), FMath::Abs((FVector(-1.0, 2.0, -3.0)).Y), FMath::Abs((FVector(-1.0, 2.0, -3.0)).Z))"),
+            ("frac", "FVector(3.7, 2.3, 1.9)", "FVector(FMath::Frac((FVector(3.7, 2.3, 1.9)).X), FMath::Frac((FVector(3.7, 2.3, 1.9)).Y), FMath::Frac((FVector(3.7, 2.3, 1.9)).Z))"),
+            ("sqrt", "FVector(4.0, 9.0, 16.0)", "FVector(FMath::Sqrt((FVector(4.0, 9.0, 16.0)).X), FMath::Sqrt((FVector(4.0, 9.0, 16.0)).Y), FMath::Sqrt((FVector(4.0, 9.0, 16.0)).Z))"),
+        ];
+
+        for (op, input, expected) in operations {
+            assert_eq!(
+                resolver.resolve(op, &[input.to_string()]),
+                Ok(expected.to_string()),
+                "Failed for operation: {} on Vec3", op
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_vector_operations_vec4() {
+        let resolver = StdLibResolver::new();
+
+        // Test all vector operations on Vec4
+        let operations = vec![
+            ("floor", "FVector4(3.7, 2.3, 1.9, 0.5)", "FVector4(FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).X), FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).Y), FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).Z), FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).W))"),
+            ("ceil", "FVector4(3.2, 2.7, 1.1, 0.3)", "FVector4(FMath::CeilToFloat((FVector4(3.2, 2.7, 1.1, 0.3)).X), FMath::CeilToFloat((FVector4(3.2, 2.7, 1.1, 0.3)).Y), FMath::CeilToFloat((FVector4(3.2, 2.7, 1.1, 0.3)).Z), FMath::CeilToFloat((FVector4(3.2, 2.7, 1.1, 0.3)).W))"),
+            ("round", "FVector4(3.5, 2.4, 1.6, 0.7)", "FVector4(FMath::RoundToFloat((FVector4(3.5, 2.4, 1.6, 0.7)).X), FMath::RoundToFloat((FVector4(3.5, 2.4, 1.6, 0.7)).Y), FMath::RoundToFloat((FVector4(3.5, 2.4, 1.6, 0.7)).Z), FMath::RoundToFloat((FVector4(3.5, 2.4, 1.6, 0.7)).W))"),
+            ("abs", "FVector4(-1.0, 2.0, -3.0, 4.0)", "FVector4(FMath::Abs((FVector4(-1.0, 2.0, -3.0, 4.0)).X), FMath::Abs((FVector4(-1.0, 2.0, -3.0, 4.0)).Y), FMath::Abs((FVector4(-1.0, 2.0, -3.0, 4.0)).Z), FMath::Abs((FVector4(-1.0, 2.0, -3.0, 4.0)).W))"),
+            ("frac", "FVector4(3.7, 2.3, 1.9, 0.5)", "FVector4(FMath::Frac((FVector4(3.7, 2.3, 1.9, 0.5)).X), FMath::Frac((FVector4(3.7, 2.3, 1.9, 0.5)).Y), FMath::Frac((FVector4(3.7, 2.3, 1.9, 0.5)).Z), FMath::Frac((FVector4(3.7, 2.3, 1.9, 0.5)).W))"),
+            ("sqrt", "FVector4(4.0, 9.0, 16.0, 25.0)", "FVector4(FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).X), FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).Y), FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).Z), FMath::Sqrt((FVector4(4.0, 9.0, 16.0, 25.0)).W))"),
+        ];
+
+        for (op, input, expected) in operations {
+            assert_eq!(
+                resolver.resolve(op, &[input.to_string()]),
+                Ok(expected.to_string()),
+                "Failed for operation: {} on Vec4", op
+            );
+        }
+    }
+
+    #[test]
+    fn test_vector_operations_preserve_scalar_behavior() {
+        let resolver = StdLibResolver::new();
+
+        // Ensure scalar operations still work correctly
+        let scalar_operations = vec![
+            ("floor", "3.7", "FMath::FloorToFloat(3.7)"),
+            ("ceil", "3.2", "FMath::CeilToFloat(3.2)"),
+            ("round", "3.5", "FMath::RoundToFloat(3.5)"),
+            ("abs", "-5.0", "FMath::Abs(-5.0)"),
+            ("frac", "3.7", "FMath::Frac(3.7)"),
+            ("sqrt", "16.0", "FMath::Sqrt(16.0)"),
+        ];
+
+        for (op, input, expected) in scalar_operations {
+            assert_eq!(
+                resolver.resolve(op, &[input.to_string()]),
+                Ok(expected.to_string()),
+                "Failed for scalar operation: {}", op
+            );
+        }
     }
 }

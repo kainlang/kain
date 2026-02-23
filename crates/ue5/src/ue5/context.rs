@@ -108,6 +108,10 @@ use super::resolver::StdLibResolver;
 impl Ue5Context {
     /// Create a new context with the given output name
     pub fn new(output_name: &str, copyright: Option<&str>) -> Self {
+        // Debug to file
+        let _ = std::fs::create_dir_all("C:/temp");
+        let _ = std::fs::write("C:/temp/kain_context_debug.txt", format!("Ue5Context::new called with: {}\nCWD: {:?}\n", output_name, std::env::current_dir()));
+        
         let module_api = format!("{}_API", output_name.to_uppercase());
         let mut resolver = StdLibResolver::new();
         let mut knowledge = EngineKnowledge::new();
@@ -119,9 +123,77 @@ impl Ue5Context {
         let mut virtual_obligations = VirtualObligations::new();
         
         // Load all metadata from unreal/metadata/*.json into both systems
-        let metadata_dir = std::path::Path::new("unreal/metadata");
+        // Use the same search logic as the CLI to find metadata directory
+        let metadata_dir = {
+            let relative = std::path::Path::new("unreal").join("metadata");
+            
+            eprintln!("[DEBUG] Looking for metadata directory...");
+            
+            // 1. Check KAIN_ROOT env var
+            if let Ok(root) = std::env::var("KAIN_ROOT") {
+                eprintln!("[DEBUG] KAIN_ROOT env var: {}", root);
+                let candidate = std::path::PathBuf::from(root).join(&relative);
+                if candidate.exists() {
+                    eprintln!("[DEBUG] Found metadata at KAIN_ROOT: {:?}", candidate);
+                    candidate
+                } else {
+                    eprintln!("[DEBUG] KAIN_ROOT candidate doesn't exist: {:?}", candidate);
+                    // 2. Walk up from CWD
+                    let mut found = None;
+                    if let Ok(mut dir) = std::env::current_dir() {
+                        eprintln!("[DEBUG] Walking up from CWD: {:?}", dir);
+                        for i in 0..10 {
+                            let candidate = dir.join(&relative);
+                            eprintln!("[DEBUG] Checking: {:?}", candidate);
+                            if candidate.exists() {
+                                eprintln!("[DEBUG] Found metadata at level {}: {:?}", i, candidate);
+                                found = Some(candidate);
+                                break;
+                            }
+                            match dir.parent() {
+                                Some(p) => dir = p.to_path_buf(),
+                                None => break,
+                            }
+                        }
+                    }
+                    found.unwrap_or_else(|| {
+                        eprintln!("[DEBUG] Fallback to relative path");
+                        std::path::Path::new("unreal/metadata").to_path_buf()
+                    })
+                }
+            } else {
+                eprintln!("[DEBUG] No KAIN_ROOT env var");
+                // 2. Walk up from CWD
+                let mut found = None;
+                if let Ok(mut dir) = std::env::current_dir() {
+                    eprintln!("[DEBUG] Walking up from CWD: {:?}", dir);
+                    for i in 0..10 {
+                        let candidate = dir.join(&relative);
+                        eprintln!("[DEBUG] Checking: {:?}", candidate);
+                        if candidate.exists() {
+                            eprintln!("[DEBUG] Found metadata at level {}: {:?}", i, candidate);
+                            found = Some(candidate);
+                            break;
+                        }
+                        match dir.parent() {
+                            Some(p) => dir = p.to_path_buf(),
+                            None => break,
+                        }
+                    }
+                }
+                found.unwrap_or_else(|| {
+                    eprintln!("[DEBUG] Fallback to relative path");
+                    std::path::Path::new("unreal/metadata").to_path_buf()
+                })
+            }
+        };
+        
+        eprintln!("[DEBUG] Final metadata_dir: {:?}", metadata_dir);
+        eprintln!("[DEBUG] metadata_dir.exists(): {}", metadata_dir.exists());
+        
         if metadata_dir.exists() && metadata_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(metadata_dir) {
+            eprintln!("[DEBUG] Loading metadata from: {:?}", metadata_dir);
+            if let Ok(entries) = std::fs::read_dir(&metadata_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.extension().map_or(false, |e| e == "json") {
