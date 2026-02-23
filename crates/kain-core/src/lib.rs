@@ -17,6 +17,9 @@ pub mod monomorphize;
 pub mod runtime;
 pub mod shader_analysis;
 
+#[cfg(test)]
+mod stdlib_tests;
+
 // Re-exports for convenience
 pub use lexer::Lexer;
 pub use parser::Parser;
@@ -76,13 +79,14 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
     let tokens = Lexer::new(&full_source).tokenize()?;
     
     // 2. Parse
-    let mut ast = Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(&full_source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
     
     // 2.5 Comptime
     comptime::eval_program(&mut ast)?;
     
     // 3. Type check
-    let typed_ast = types::check(&ast)?;
+    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
     
     // 4. Codegen (handled by backend crates)
     // This is just a placeholder - actual codegen happens in cli/

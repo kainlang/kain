@@ -7,3 +7,4 @@ edition = "2021"
 kain-core = { path = "../kain-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+once_cell = "1.19"

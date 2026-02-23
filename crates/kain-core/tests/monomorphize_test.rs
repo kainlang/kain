@@ -2,9 +2,10 @@ use kain_core::*;
 
 fn parse_and_typecheck(source: &str) -> Result<types::TypedProgram, error::KainError> {
     let tokens = lexer::Lexer::new(source).tokenize()?;
-    let mut ast = parser::Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut ast = parser::Parser::new(&tokens, &span_mapper, "<test>").parse()?;
     comptime::eval_program(&mut ast)?;
-    types::check(&ast)
+    types::check(&ast, &span_mapper, "<test>")
 }
 
 #[test]

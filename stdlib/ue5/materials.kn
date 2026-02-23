@@ -1,0 +1,30 @@
+# Material Functions
+# Material parameter control for dynamic material instances
+
+# Scalar Parameters
+@extern
+fn SetScalarParameter(material: Material, param_name: String, value: Float)
+
+@extern
+fn GetScalarParameter(material: Material, param_name: String) -> Float
+
+# Vector Parameters
+@extern
+fn SetVectorParameter(material: Material, param_name: String, value: Vec3)
+
+@extern
+fn GetVectorParameter(material: Material, param_name: String) -> Vec3
+
+# Texture Parameters
+@extern
+fn SetTextureParameter(material: Material, param_name: String, texture: Texture2D)
+
+# Material Instance Management
+@extern
+fn CreateDynamicMaterialInstance(material: Material) -> Material
+
+@extern
+fn SetMaterial(mesh: MeshComponent, slot: Int, material: Material)
+
+@extern
+fn GetMaterial(mesh: MeshComponent, slot: Int) -> Material

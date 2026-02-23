@@ -1299,6 +1299,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
 ]
@@ -2921,6 +2922,7 @@ name = "ue5-shaders"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "once_cell",
  "serde",
  "serde_json",
 ]

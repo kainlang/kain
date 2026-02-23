@@ -1,0 +1,15 @@
+# Test actor that uses stdlib types to verify loading
+
+actor TestActor:
+    # Use a type from patterns.kn to verify stdlib is loaded
+    state inventory_slot: InventorySlot = InventorySlot {
+        item_id: 0,
+        quantity: 0,
+        max_stack: 99
+    }
+    
+    state health: HealthComponent = HealthComponent {
+        current_health: 100.0,
+        max_health: 100.0,
+        is_invulnerable: false
+    }

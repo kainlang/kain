@@ -1,0 +1,13 @@
+# Test file to validate stdlib loading
+# This file uses functions from stdlib to verify they are loaded correctly
+
+fn test_stdlib_functions():
+    # Test gameplay functions from stdlib/ue5/gameplay.kn
+    let new_health = apply_damage(100.0, 100.0, 25.0, 10.0)
+    println("Health after damage: ")
+    println(new_health)
+    
+    # Test health percentage calculation
+    let health_pct = get_health_percentage(75.0, 100.0)
+    println("Health percentage: ")
+    println(health_pct)

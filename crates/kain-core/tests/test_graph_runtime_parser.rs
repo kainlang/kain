@@ -1,4 +1,4 @@
-use kain_core::{lexer::Lexer, parser::Parser, ast::*};
+use kain_core::{lexer::Lexer, parser::Parser, ast::*, diagnostics::SpanMapper};
 
 #[test]
 fn test_parse_graph_runtime_basic() {
@@ -19,7 +19,7 @@ struct CombatGraph:
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().expect("Failed to tokenize");
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Failed to parse");
     
     assert_eq!(program.items.len(), 1);
@@ -54,7 +54,7 @@ struct TestGraph:
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().expect("Failed to tokenize");
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Failed to parse");
     
     assert_eq!(program.items.len(), 1);
@@ -94,7 +94,7 @@ struct TestGraph:
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().expect("Failed to tokenize");
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Failed to parse");
     
     match &program.items[0] {

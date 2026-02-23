@@ -2594,12 +2594,29 @@ impl Ue5Gen {
                     return format!("{}.Num()", self.gen_expr_string(object));
                 }
 
-                // Remap vector component field names: .x -> .X, .y -> .Y, etc.
-                let ue5_field = match field.as_str() {
-                    "x" => "X", "y" => "Y", "z" => "Z", "w" => "W",
-                    "r" => "X", "g" => "Y", "b" => "Z", "a" => "W",
-                    _ => field.as_str(),
+                // Remap vector component field names ONLY for UE5 vector types
+                // Check if the object is a known vector type before capitalizing
+                let should_capitalize = if let Expr::Ident(obj_name, _) = object.as_ref() {
+                    // Check if this is a variable with a vector type
+                    if let Some(type_name) = self.var_types.get(obj_name) {
+                        matches!(type_name.as_str(), "Vec2" | "Vec3" | "Vec4" | "FVector" | "FVector2D" | "FVector4" | "FIntVector" | "FIntPoint")
+                    } else {
+                        false
+                    }
+                } else {
+                    false
                 };
+
+                let ue5_field = if should_capitalize {
+                    match field.as_str() {
+                        "x" => "X", "y" => "Y", "z" => "Z", "w" => "W",
+                        "r" => "X", "g" => "Y", "b" => "Z", "a" => "W",
+                        _ => field.as_str(),
+                    }
+                } else {
+                    field.as_str()
+                };
+                
                 let access_op = if self.is_pointer_receiver(object) { "->" } else { "." };
                 format!("{}{}{}", self.gen_expr_string(object), access_op, ue5_field)
             }

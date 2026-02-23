@@ -1,4 +1,4 @@
-use kain_core::{lexer::Lexer, parser::Parser, ast::*};
+use kain_core::{lexer::Lexer, parser::Parser, ast::*, diagnostics::SpanMapper};
 
 #[test]
 fn test_parse_replicated_attribute_basic() {
@@ -11,7 +11,7 @@ struct NetworkedTransform:
     
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -55,7 +55,7 @@ struct NetworkedTransform:
     
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -89,7 +89,7 @@ struct NetworkedTransform:
     
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);

@@ -1,0 +1,96 @@
+# Utility Functions
+# Pure KAIN helper functions for common operations
+
+# Math Utilities
+@blueprint
+fn remap(value: Float, in_min: Float, in_max: Float, out_min: Float, out_max: Float) -> Float:
+    let normalized = (value - in_min) / (in_max - in_min)
+    return out_min + normalized * (out_max - out_min)
+
+@blueprint
+fn smooth_step(edge0: Float, edge1: Float, x: Float) -> Float:
+    let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+@blueprint
+fn lerp_color(a: Vec3, b: Vec3, alpha: Float) -> Vec3:
+    let r = a.x + (b.x - a.x) * alpha
+    let g = a.y + (b.y - a.y) * alpha
+    let b_val = a.z + (b.z - a.z) * alpha
+    return vec3(r, g, b_val)
+
+@blueprint
+fn distance_2d(a: Vec2, b: Vec2) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    return sqrt(dx * dx + dy * dy)
+
+# Random Utilities
+@blueprint
+fn random_range(min: Float, max: Float) -> Float:
+    let rand_val = random()
+    return min + rand_val * (max - min)
+
+@blueprint
+fn random_int_range(min: Int, max: Int) -> Int:
+    let range = max - min + 1
+    let rand_val = random()
+    return min + floor(rand_val * range)
+
+@blueprint
+fn random_bool(probability: Float) -> Bool:
+    return random() < probability
+
+@blueprint
+fn weighted_random(weights: Array<Float>) -> Int:
+    let total_weight = 0.0
+    let i = 0
+    while i < weights.len():
+        total_weight = total_weight + weights[i]
+        i = i + 1
+    
+    let rand_val = random() * total_weight
+    let cumulative = 0.0
+    let j = 0
+    while j < weights.len():
+        cumulative = cumulative + weights[j]
+        if rand_val <= cumulative:
+            return j
+        j = j + 1
+    
+    return weights.len() - 1
+
+# Clamping and Normalization
+@blueprint
+fn clamp_01(value: Float) -> Float:
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+@blueprint
+fn normalize_angle(angle: Float) -> Float:
+    let normalized = angle
+    while normalized > 180.0:
+        normalized = normalized - 360.0
+    while normalized < -180.0:
+        normalized = normalized + 360.0
+    return normalized
+
+# Formatting Utilities
+@blueprint
+fn format_time(seconds: Float) -> String:
+    let total_seconds = floor(seconds)
+    let minutes = floor(total_seconds / 60.0)
+    let remaining_seconds = total_seconds - (minutes * 60.0)
+    
+    if minutes > 0.0:
+        return "{minutes}m {remaining_seconds}s"
+    return "{remaining_seconds}s"
+
+@blueprint
+fn format_number(value: Float, decimals: Int) -> String:
+    let multiplier = pow(10.0, decimals)
+    let rounded = round(value * multiplier) / multiplier
+    return "{rounded}"

@@ -1,0 +1,16 @@
+actor StdlibTestActor:
+    state position: Vec3 = vec3(0.0, 0.0, 0.0)
+    
+    on BeginPlay():
+        # Test actor.kn stdlib functions
+        let current_loc = GetActorLocation()
+        SetActorLocation(vec3(100.0, 200.0, 300.0))
+        
+        # Test world.kn stdlib functions
+        let time = GetWorldTimeSeconds()
+        let delta = GetWorldDeltaSeconds()
+        
+        # Test utilities.kn stdlib functions
+        let remapped = remap(0.5, 0.0, 1.0, 10.0, 20.0)
+        
+        println("Stdlib test complete")

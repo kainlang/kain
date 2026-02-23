@@ -8,13 +8,14 @@ use ue5::{generate, Ue5Output};
 fn compile_ue5(source: &str) -> Result<Ue5Output, error::KainError> {
     // Parse
     let tokens = lexer::Lexer::new(source).tokenize()?;
-    let mut ast = parser::Parser::new(&tokens).parse()?;
+    let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+    let mut ast = parser::Parser::new(&tokens, &span_mapper, "<test>").parse()?;
     
     // Compile-time evaluation
     comptime::eval_program(&mut ast)?;
     
     // Type checking
-    let typed = types::check(&ast)?;
+    let typed = types::check(&ast, &span_mapper, "<test>")?;
     
     // Monomorphization
     let mono = monomorphize::monomorphize(&typed)?;

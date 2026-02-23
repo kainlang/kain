@@ -30,5 +30,8 @@
       "Type": "UncookedOnly",
       "LoadingPhase": "PostDefault"
     }
+  ],
+  "Plugins": [
+
   ]
 }

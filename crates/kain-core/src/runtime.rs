@@ -1903,7 +1903,9 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
 
     let lexer = Lexer::new(&source);
     let tokens = lexer.tokenize()?;
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = crate::diagnostics::SpanMapper::new(&source);
+    let filename = file_path.to_string_lossy().to_string();
+    let mut parser = Parser::new(&tokens, &span_mapper, &filename);
     let program = parser.parse()?;
 
     // Register items

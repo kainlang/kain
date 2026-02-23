@@ -2,6 +2,7 @@ pub mod codegen_usf;
 pub mod shader_knowledge;
 pub mod pod_mirror;
 pub mod validation;
+pub mod type_mapping;
 
 pub use codegen_usf::generate as generate_usf;
 pub use codegen_usf::generate_single_usf_from_program;
@@ -11,3 +12,4 @@ pub use codegen_usf::{CachedMirrors, ShaderArtifacts, compile_shader_artifacts, 
 pub use shader_knowledge::ShaderKnowledge;
 pub use pod_mirror::{PodMirrorStruct, PodField, collect_component_mirrors};
 pub use validation::ShaderValidator;
+pub use type_mapping::{TypeMapper, TYPE_MAPPER};

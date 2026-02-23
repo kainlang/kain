@@ -1,0 +1,2 @@
+fn test():
+    let x = Foo { a: 1 }

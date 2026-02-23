@@ -1,0 +1,78 @@
+# Actor Functions
+# Common AActor functions for UE5 actors
+
+# Location and Transform
+@extern
+fn GetActorLocation() -> Vec3
+
+@extern
+fn SetActorLocation(location: Vec3)
+
+@extern
+fn GetActorRotation() -> Rotator
+
+@extern
+fn SetActorRotation(rotation: Rotator)
+
+@extern
+fn GetActorScale() -> Vec3
+
+@extern
+fn SetActorScale(scale: Vec3)
+
+# Direction Vectors
+@extern
+fn GetActorForwardVector() -> Vec3
+
+@extern
+fn GetActorRightVector() -> Vec3
+
+@extern
+fn GetActorUpVector() -> Vec3
+
+# Actor Lifecycle
+@extern
+fn DestroyActor()
+
+@extern
+fn GetDistanceTo(other: Actor) -> Float
+
+@extern
+fn SetActorHiddenInGame(hidden: Bool)
+
+@extern
+fn SetActorEnableCollision(enable: Bool)
+
+# Actor Properties
+@extern
+fn GetActorBounds() -> Vec3
+
+@extern
+fn IsActorBeingDestroyed() -> Bool
+
+# Movement
+@extern
+fn AddActorWorldOffset(offset: Vec3)
+
+@extern
+fn AddActorWorldRotation(rotation: Rotator)
+
+# Lifetime Management
+@extern
+fn SetLifeSpan(seconds: Float)
+
+@extern
+fn GetLifeSpan() -> Float
+
+# Attachment
+@extern
+fn AttachToActor(parent: Actor)
+
+@extern
+fn DetachFromActor()
+
+@extern
+fn GetAttachedActors() -> Array<Actor>
+
+@extern
+fn GetAttachParentActor() -> Actor

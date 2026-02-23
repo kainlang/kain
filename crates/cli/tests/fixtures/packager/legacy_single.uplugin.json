@@ -20,5 +20,8 @@
       "Type": "Runtime",
       "LoadingPhase": "PostConfigInit"
     }
+  ],
+  "Plugins": [
+
   ]
 }

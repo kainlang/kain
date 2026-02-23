@@ -52,14 +52,22 @@ pub fn inject_into_plugin(
     println!("🔨 Parsing and type-checking...");
     
     let mut merged_items = Vec::new();
+    let mut all_span_mappers = Vec::new();
+    
     for (path, source) in &all_sources {
         let tokens = kain_core::Lexer::new(source).tokenize()
             .map_err(|e| KainError::parse_error(format!("Lexer error in {}: {}", path.display(), e)))?;
         
-        let ast = kain_core::Parser::new(&tokens).parse()
+        let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+        let file_name = path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<unknown>");
+        
+        let ast = kain_core::Parser::new(&tokens, &span_mapper, file_name).parse()
             .map_err(|e| KainError::parse_error(format!("Parse error in {}: {}", path.display(), e)))?;
         
         merged_items.extend(ast.items);
+        all_span_mappers.push((file_name.to_string(), span_mapper));
     }
     
     // Create merged program
@@ -68,8 +76,11 @@ pub fn inject_into_plugin(
         span: kain_core::Span::default(),
     };
     
-    // Type check
-    let typed_program = kain_core::types::check(&merged_ast)
+    // Type check - use first span_mapper for merged program
+    let (first_filename, first_span_mapper) = all_span_mappers.first()
+        .ok_or_else(|| KainError::runtime("No source files to compile"))?;
+    
+    let typed_program = kain_core::types::check(&merged_ast, first_span_mapper, first_filename)
         .map_err(|e| KainError::runtime(format!("Type check failed: {}", e)))?;
     
     // Oracle validation
@@ -77,7 +88,7 @@ pub fn inject_into_plugin(
     println!();
     println!("🔍 Running Oracle validation...");
     
-    ue5::ue5::oracle::validate_program(&typed_program)
+    ue5::ue5::oracle::validate_program(&typed_program, first_span_mapper, first_filename)
         .map_err(|e| KainError::runtime(format!("Oracle validation failed: {}", e)))?;
     
     println!("   ✓ Validation passed");

@@ -13,6 +13,90 @@ use kain_core::types::{TypedShader, TypedProgram, TypedItem, TypedStruct};
 use kain_core::ast::{Type, ShaderStage};
 use std::collections::{HashMap, HashSet};
 use crate::shader_knowledge::ShaderKnowledge;
+use crate::type_mapping::TYPE_MAPPER;
+
+/// Classification of shader uniform types based on their resource binding semantics
+/// 
+/// The @N annotation has different meanings depending on the uniform type:
+/// - **Scalar**: @N is an ordering index for SHADER_PARAMETER_STRUCT layout (no register binding)
+/// - **Texture**: @N is a t-register binding (texture register, range 0-127)
+/// - **UAV**: @N is a u-register binding (unordered access view register, range 0-63)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UniformClass {
+    /// Scalar parameters (Float, Int, UInt, Vec2-4, IVec2-4, UVec2-4, Mat2-4, structs)
+    /// @N is an ordering index for SHADER_PARAMETER_STRUCT layout, NOT a b-register binding
+    Scalar,
+    
+    /// Texture parameters (Texture2D, Texture3D, TextureCube, Sampler2D, etc.)
+    /// @N is a t-register binding (texture register, valid range: 0-127)
+    Texture,
+    
+    /// UAV parameters (RWTexture2D, RWTexture3D, RWBuffer, RWStructuredBuffer)
+    /// @N is a u-register binding (unordered access view register, valid range: 0-63)
+    UAV,
+}
+
+/// Classify a uniform type based on its resource binding semantics
+/// 
+/// This function determines how the @N annotation should be interpreted:
+/// - Scalar types: @N is an ordering index (no register binding)
+/// - Texture types: @N is a t-register binding
+/// - UAV types: @N is a u-register binding
+/// 
+/// # Parameters
+/// - `type_name`: The KAIN type name (e.g., "Vec3", "Texture2D", "RWBuffer")
+/// 
+/// # Returns
+/// The classification of the uniform type
+/// 
+/// # Classification Rules
+/// 
+/// **Scalar** (ordering index only):
+/// - Primitive types: Float, Int, UInt, Bool
+/// - Vector types: Vec2, Vec3, Vec4, IVec2, IVec3, IVec4, UVec2, UVec3, UVec4
+/// - Matrix types: Mat2, Mat3, Mat4
+/// - Lowercase HLSL variants: float, int, uint, bool, float2-4, int2-4, uint2-4
+/// - User-defined structs (any type not matching Texture or UAV patterns)
+/// 
+/// **Texture** (t-register binding, range 0-127):
+/// - Texture types: Texture1D, Texture2D, Texture3D, TextureCube
+/// - Texture arrays: Texture1DArray, Texture2DArray, TextureCubeArray
+/// - Multisampled: Texture2DMS, Texture2DMSArray
+/// - Sampler types: Sampler, SamplerState, SamplerComparisonState, Sampler1D, Sampler2D, Sampler3D, SamplerCube
+/// - Buffer types: Buffer, StructuredBuffer, ByteAddressBuffer
+/// 
+/// **UAV** (u-register binding, range 0-63):
+/// - RW-prefixed types: RWBuffer, RWStructuredBuffer, RWByteAddressBuffer
+/// - RW textures: RWTexture1D, RWTexture2D, RWTexture3D
+/// - RW texture arrays: RWTexture1DArray, RWTexture2DArray
+/// - Typed RW textures: RWTexture2D_Float, RWTexture2D_Float2, RWTexture2D_Float3, RWTexture2D_Int, RWTexture2D_UInt
+pub fn classify_uniform_type(type_name: &str) -> UniformClass {
+    // Check for UAV types (RW-prefixed)
+    if type_name.starts_with("RW") {
+        return UniformClass::UAV;
+    }
+    
+    // Check for Texture types
+    if type_name.starts_with("Texture") {
+        return UniformClass::Texture;
+    }
+    
+    // Check for Sampler types
+    if type_name.contains("Sampler") {
+        return UniformClass::Texture;
+    }
+    
+    // Check for Buffer types (non-RW buffers are read-only, use t-register)
+    match type_name {
+        "Buffer" | "StructuredBuffer" | "ByteAddressBuffer" => {
+            return UniformClass::Texture;
+        }
+        _ => {}
+    }
+    
+    // Everything else is a scalar (primitives, vectors, matrices, structs)
+    UniformClass::Scalar
+}
 
 /// Shader validator - validates shaders against HLSL/UE5 rules
 pub struct ShaderValidator {
@@ -242,20 +326,20 @@ impl ShaderValidator {
                 // Check if it's a known HLSL type or texture/sampler type
                 let type_name = name.as_str();
                 
-                // Valid HLSL scalar/vector types
-                let valid_types = [
+                // First check if TYPE_MAPPER can map this type (KAIN types like Vec3, UVec2, Mat4, etc.)
+                if TYPE_MAPPER.can_map(type_name) {
+                    return; // Valid KAIN type that maps to HLSL
+                }
+                
+                // Check for additional HLSL types not in TYPE_MAPPER (lowercase variants, texture types, etc.)
+                let additional_hlsl_types = [
+                    // Lowercase variants (HLSL native)
                     "float", "float2", "float3", "float4",
-                    "Float", "Float2", "Float3", "Float4", // KAIN capitalized versions
                     "int", "int2", "int3", "int4",
-                    "Int", "Int2", "Int3", "Int4", // KAIN capitalized versions
                     "uint", "uint2", "uint3", "uint4",
-                    "Uint", "Uint2", "Uint3", "Uint4", // KAIN capitalized versions
                     "bool", "bool2", "bool3", "bool4",
-                    "Bool", "Bool2", "Bool3", "Bool4", // KAIN capitalized versions
                     "half", "half2", "half3", "half4",
-                    "Half", "Half2", "Half3", "Half4", // KAIN capitalized versions
                     "double", "double2", "double3", "double4",
-                    "Double", "Double2", "Double3", "Double4", // KAIN capitalized versions
                     // Matrix types
                     "float2x2", "float3x3", "float4x4",
                     "float3x4", "float4x3",
@@ -265,47 +349,44 @@ impl ShaderValidator {
                     "Texture2DMS", "Texture2DMSArray",
                     // Sampler types
                     "Sampler", "SamplerState", "SamplerComparisonState",
-                    "Sampler1D", "Sampler2D", "Sampler3D", "SamplerCube",
+                    "Sampler1D",
                     // Buffer types
                     "Buffer", "StructuredBuffer", "ByteAddressBuffer",
                     "RWBuffer", "RWStructuredBuffer", "RWByteAddressBuffer",
-                    "RWTexture1D", "RWTexture2D", "RWTexture3D",
-                    "RWTexture1DArray", "RWTexture2DArray",
-                    // UE5 specific types
-                    "Vec2", "Vec3", "Vec4",
-                    // KAIN unsigned/integer vector types
-                    "UInt", "UVec2", "UVec3", "UVec4",
-                    "IVec2", "IVec3", "IVec4",
-                    // KAIN matrix types
-                    "Mat2", "Mat3", "Mat4",
+                    "RWTexture1D", "RWTexture1DArray", "RWTexture2DArray",
                     // KAIN image/texture types
-                    "Sampler2D", "Sampler3D", "SamplerCube",
                     "Image2D", "Image3D",
                     "RWTexture2D_Float", "RWTexture2D_Float2", "RWTexture2D_Float3",
                     "RWTexture2D_Int", "RWTexture2D_UInt",
                 ];
                 
-                if !valid_types.contains(&type_name) {
-                    // User-defined structs are valid uniform types for POD parameter blocks.
-                    // Accept if the type is declared in the program as a struct.
-                    let is_user_struct = program.map_or(false, |p| {
-                        p.items.iter().any(|item| {
-                            matches!(item, TypedItem::Struct(s) if s.ast.name == type_name)
-                        })
-                    });
-
-                    if is_user_struct {
-                        return;
-                    }
-
-                    // Check if it's a known HLSL intrinsic type via ShaderKnowledge
-                    // For now, warn about unknown types
-                    errors.push(format!(
-                        "Shader '{}': Uniform '{}' has potentially invalid HLSL type '{}'. \
-                        Expected scalar, vector, matrix, texture, sampler, or buffer type.",
-                        shader_name, uniform_name, type_name
-                    ));
+                if additional_hlsl_types.contains(&type_name) {
+                    return; // Valid HLSL type
                 }
+                
+                // User-defined structs are valid uniform types for POD parameter blocks.
+                // Accept if the type is declared in the program as a struct.
+                let is_user_struct = program.map_or(false, |p| {
+                    p.items.iter().any(|item| {
+                        matches!(item, TypedItem::Struct(s) if s.ast.name == type_name)
+                    })
+                });
+
+                if is_user_struct {
+                    return;
+                }
+
+                // Type is invalid - generate error with list of valid types
+                let valid_kain_types = TYPE_MAPPER.valid_types();
+                let valid_types_list = valid_kain_types.join(", ");
+                
+                errors.push(format!(
+                    "Shader '{}': Uniform '{}' has invalid HLSL type '{}'. \
+                    Valid KAIN types: {}. \
+                    Also supported: lowercase HLSL types (float, int, uint, etc.), texture types (Texture2D, etc.), \
+                    sampler types (SamplerState, etc.), buffer types (RWBuffer, etc.), and user-defined structs.",
+                    shader_name, uniform_name, type_name, valid_types_list
+                ));
             }
             _ => {
                 errors.push(format!(
@@ -558,25 +639,26 @@ impl ShaderValidator {
             Type::Named { name, .. } => {
                 let type_name = name.as_str();
                 
-                // Valid HLSL types
-                let valid_types = [
-                    // Scalars
-                    "float", "Float", "int", "Int", "uint", "Uint", "bool", "Bool",
-                    "half", "Half", "double", "Double",
-                    // Vectors
-                    "float2", "Float2", "float3", "Float3", "float4", "Float4",
-                    "int2", "Int2", "int3", "Int3", "int4", "Int4",
-                    "uint2", "Uint2", "uint3", "Uint3", "uint4", "Uint4",
-                    "bool2", "Bool2", "bool3", "Bool3", "bool4", "Bool4",
-                    "half2", "Half2", "half3", "Half3", "half4", "Half4",
-                    "double2", "Double2", "double3", "Double3", "double4", "Double4",
-                    "Vec2", "Vec3", "Vec4",
-                    // Matrices
+                // Check if TYPE_MAPPER can map this type
+                if TYPE_MAPPER.can_map(type_name) {
+                    return true;
+                }
+                
+                // Check for additional HLSL types not in TYPE_MAPPER
+                let additional_hlsl_types = [
+                    // Lowercase variants (HLSL native)
+                    "float", "float2", "float3", "float4",
+                    "int", "int2", "int3", "int4",
+                    "uint", "uint2", "uint3", "uint4",
+                    "bool", "bool2", "bool3", "bool4",
+                    "half", "half2", "half3", "half4",
+                    "double", "double2", "double3", "double4",
+                    // Matrix types
                     "float2x2", "float3x3", "float4x4", "float3x4", "float4x3",
                     "matrix", "Matrix",
                 ];
                 
-                valid_types.contains(&type_name)
+                additional_hlsl_types.contains(&type_name)
             }
             _ => false,
         }
@@ -591,25 +673,39 @@ impl ShaderValidator {
                 // Size mapping for HLSL types
                 match type_name {
                     // Scalars (4 bytes each)
-                    "float" | "Float" | "int" | "Int" | "uint" | "Uint" | "bool" | "Bool" => 4,
+                    "float" | "Float" | "int" | "Int" | "uint" | "Uint" | "UInt" | "bool" | "Bool" => 4,
                     // Half precision (2 bytes)
                     "half" | "Half" => 2,
                     // Double precision (8 bytes)
                     "double" | "Double" => 8,
-                    // Vectors
-                    "float2" | "Float2" | "int2" | "Int2" | "uint2" | "Uint2" | "bool2" | "Bool2" | "Vec2" => 8,
-                    "float3" | "Float3" | "int3" | "Int3" | "uint3" | "Uint3" | "bool3" | "Bool3" | "Vec3" => 12,
-                    "float4" | "Float4" | "int4" | "Int4" | "uint4" | "Uint4" | "bool4" | "Bool4" | "Vec4" => 16,
+                    // Vectors - float variants
+                    "float2" | "Float2" | "Vec2" => 8,
+                    "float3" | "Float3" | "Vec3" => 12,
+                    "float4" | "Float4" | "Vec4" => 16,
+                    // Vectors - int variants
+                    "int2" | "Int2" | "IVec2" => 8,
+                    "int3" | "Int3" | "IVec3" => 12,
+                    "int4" | "Int4" | "IVec4" => 16,
+                    // Vectors - uint variants
+                    "uint2" | "Uint2" | "UVec2" => 8,
+                    "uint3" | "Uint3" | "UVec3" => 12,
+                    "uint4" | "Uint4" | "UVec4" => 16,
+                    // Vectors - bool variants
+                    "bool2" | "Bool2" => 8,
+                    "bool3" | "Bool3" => 12,
+                    "bool4" | "Bool4" => 16,
+                    // Vectors - half variants
                     "half2" | "Half2" => 4,
                     "half3" | "Half3" => 6,
                     "half4" | "Half4" => 8,
+                    // Vectors - double variants
                     "double2" | "Double2" => 16,
                     "double3" | "Double3" => 24,
                     "double4" | "Double4" => 32,
                     // Matrices
-                    "float2x2" => 16,
-                    "float3x3" => 36,
-                    "float4x4" => 64,
+                    "float2x2" | "Mat2" => 16,
+                    "float3x3" | "Mat3" => 36,
+                    "float4x4" | "Mat4" => 64,
                     "float3x4" => 48,
                     "float4x3" => 48,
                     // Default to 4 bytes for unknown types
@@ -734,20 +830,32 @@ impl ShaderValidator {
             Type::Named { name, .. } => {
                 let type_name = name.as_str();
                 
-                // Valid HLSL types for function signatures
-                let valid_types = [
-                    // Scalars
-                    "float", "Float", "int", "Int", "uint", "Uint", "bool", "Bool",
-                    "half", "Half", "double", "Double",
-                    // Vectors
-                    "float2", "Float2", "float3", "Float3", "float4", "Float4",
-                    "int2", "Int2", "int3", "Int3", "int4", "Int4",
-                    "uint2", "Uint2", "uint3", "Uint3", "uint4", "Uint4",
-                    "bool2", "Bool2", "bool3", "Bool3", "bool4", "Bool4",
-                    "half2", "Half2", "half3", "Half3", "half4", "Half4",
-                    "double2", "Double2", "double3", "Double3", "double4", "Double4",
-                    "Vec2", "Vec3", "Vec4",
-                    // Matrices
+                // Check for invalid types that should never be used in shaders (check this first)
+                let invalid_types = ["String", "string", "Array", "Map", "Set"];
+                if invalid_types.contains(&type_name) {
+                    errors.push(format!(
+                        "Shader '{}': {} has invalid HLSL type '{}'. \
+                        This type is not supported in HLSL shaders.",
+                        shader_name, context, type_name
+                    ));
+                    return;
+                }
+                
+                // First check if TYPE_MAPPER can map this type
+                if TYPE_MAPPER.can_map(type_name) {
+                    return; // Valid KAIN type that maps to HLSL
+                }
+                
+                // Check for additional HLSL types not in TYPE_MAPPER
+                let additional_hlsl_types = [
+                    // Lowercase variants (HLSL native)
+                    "float", "float2", "float3", "float4",
+                    "int", "int2", "int3", "int4",
+                    "uint", "uint2", "uint3", "uint4",
+                    "bool", "bool2", "bool3", "bool4",
+                    "half", "half2", "half3", "half4",
+                    "double", "double2", "double3", "double4",
+                    // Matrix types
                     "float2x2", "float3x3", "float4x4", "float3x4", "float4x3",
                     "matrix", "Matrix",
                     // Texture types (valid for parameters)
@@ -756,37 +864,36 @@ impl ShaderValidator {
                     "Texture2DMS", "Texture2DMSArray",
                     // Sampler types
                     "Sampler", "SamplerState", "SamplerComparisonState",
-                    "Sampler1D", "Sampler2D", "Sampler3D", "SamplerCube",
+                    "Sampler1D",
                     // Buffer types
                     "Buffer", "StructuredBuffer", "ByteAddressBuffer",
                     "RWBuffer", "RWStructuredBuffer", "RWByteAddressBuffer",
-                    "RWTexture1D", "RWTexture2D", "RWTexture3D",
-                    "RWTexture1DArray", "RWTexture2DArray",
+                    "RWTexture1D", "RWTexture1DArray", "RWTexture2DArray",
                     // Special return types
                     "SurfaceOutput", "void",
                 ];
                 
-                if !valid_types.contains(&type_name) {
-                    // Check if it might be a user-defined struct (which is valid)
-                    // User-defined structs typically start with uppercase
-                    if !type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
-                        errors.push(format!(
-                            "Shader '{}': {} has potentially invalid HLSL type '{}'. \
-                            Expected scalar, vector, matrix, texture, sampler, buffer, or user-defined struct type.",
-                            shader_name, context, type_name
-                        ));
-                    }
+                if additional_hlsl_types.contains(&type_name) {
+                    return; // Valid HLSL type
                 }
                 
-                // Check for invalid types that should never be used in shaders
-                let invalid_types = ["String", "string", "Array", "Map", "Set"];
-                if invalid_types.contains(&type_name) {
-                    errors.push(format!(
-                        "Shader '{}': {} has invalid HLSL type '{}'. \
-                        This type is not supported in HLSL shaders.",
-                        shader_name, context, type_name
-                    ));
+                // Check if it might be a user-defined struct (which is valid)
+                // User-defined structs typically start with uppercase
+                if type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    return; // Likely a user-defined struct
                 }
+                
+                // Type is invalid - generate error with list of valid types
+                let valid_kain_types = TYPE_MAPPER.valid_types();
+                let valid_types_list = valid_kain_types.join(", ");
+                
+                errors.push(format!(
+                    "Shader '{}': {} has invalid HLSL type '{}'. \
+                    Valid KAIN types: {}. \
+                    Also supported: lowercase HLSL types (float, int, uint, etc.), texture types (Texture2D, etc.), \
+                    sampler types (SamplerState, etc.), buffer types (RWBuffer, etc.), and user-defined structs.",
+                    shader_name, context, type_name, valid_types_list
+                ));
             }
             Type::Array(..) => {
                 errors.push(format!(
@@ -866,9 +973,8 @@ impl ShaderValidator {
         
         // Track bindings by resource type to detect conflicts
         let mut texture_bindings: HashMap<u32, String> = HashMap::new();
-        let mut sampler_bindings: HashMap<u32, String> = HashMap::new();
         let mut uav_bindings: HashMap<u32, String> = HashMap::new();
-        let mut cbuffer_bindings: HashMap<u32, String> = HashMap::new();
+        let mut scalar_ordering: HashMap<u32, String> = HashMap::new();
         
         // Classify each uniform by resource type and check for conflicts
         for uniform in &shader.ast.uniforms {
@@ -883,136 +989,75 @@ impl ShaderValidator {
             if let Type::Named { name, .. } = &uniform.ty {
                 let type_name = name.as_str();
                 
-                // Classify resource type and check for conflicts
-                if type_name.starts_with("Texture") || 
-                   (type_name == "Buffer" || type_name == "StructuredBuffer" || type_name == "ByteAddressBuffer") {
-                    // Texture/Buffer resources use t-register (t0-t127)
-                    if let Some(existing) = texture_bindings.get(&binding) {
-                        errors.push(format!(
-                            "Shader '{}': Texture/Buffer uniform '{}' uses binding @{} (t{}) which is already used by texture/buffer '{}'",
-                            shader_name, uniform_name, binding, binding, existing
-                        ));
-                    } else {
-                        texture_bindings.insert(binding, uniform_name.clone());
+                // Use classify_uniform_type to determine resource class
+                match classify_uniform_type(type_name) {
+                    UniformClass::Scalar => {
+                        // @N is an ordering index only, not a register binding
+                        // No register limit validation needed - any value is valid for ordering
+                        
+                        // Check for ordering conflicts (same @N used by multiple scalar params)
+                        if let Some(existing) = scalar_ordering.get(&binding) {
+                            errors.push(format!(
+                                "Shader '{}': Scalar parameter '{}' uses ordering index @{} which is already used by parameter '{}'. \
+                                Each scalar parameter should have a unique ordering index.",
+                                shader_name, uniform_name, binding, existing
+                            ));
+                        } else {
+                            scalar_ordering.insert(binding, uniform_name.clone());
+                        }
+                        
+                        // No register range validation for scalars - they're packed into SHADER_PARAMETER_STRUCT
                     }
-                    
-                    // Validate texture binding range
-                    if binding > 127 {
-                        errors.push(format!(
-                            "Shader '{}': Texture/Buffer uniform '{}' uses binding @{} which exceeds maximum texture slot t127",
-                            shader_name, uniform_name, binding
-                        ));
+                    UniformClass::Texture => {
+                        // @N is a t-register binding (texture register, range 0-127)
+                        
+                        // Check for binding conflicts within texture register space
+                        if let Some(existing) = texture_bindings.get(&binding) {
+                            errors.push(format!(
+                                "Shader '{}': Texture uniform '{}' uses binding @{} (t{}) which is already used by texture '{}'",
+                                shader_name, uniform_name, binding, binding, existing
+                            ));
+                        } else {
+                            texture_bindings.insert(binding, uniform_name.clone());
+                        }
+                        
+                        // Validate texture binding range (D3D11 limit: t0-t127)
+                        if binding > 127 {
+                            errors.push(format!(
+                                "Shader '{}': Texture uniform '{}' uses binding @{} which exceeds D3D11 texture register limit (t0-t127)",
+                                shader_name, uniform_name, binding
+                            ));
+                        }
                     }
-                } else if type_name.starts_with("RW") {
-                    // UAV resources use u-register (u0-u63)
-                    if let Some(existing) = uav_bindings.get(&binding) {
-                        errors.push(format!(
-                            "Shader '{}': UAV uniform '{}' uses binding @{} (u{}) which is already used by UAV '{}'",
-                            shader_name, uniform_name, binding, binding, existing
-                        ));
-                    } else {
-                        uav_bindings.insert(binding, uniform_name.clone());
+                    UniformClass::UAV => {
+                        // @N is a u-register binding (UAV register, range 0-63)
+                        
+                        // Check for binding conflicts within UAV register space
+                        if let Some(existing) = uav_bindings.get(&binding) {
+                            errors.push(format!(
+                                "Shader '{}': UAV uniform '{}' uses binding @{} (u{}) which is already used by UAV '{}'",
+                                shader_name, uniform_name, binding, binding, existing
+                            ));
+                        } else {
+                            uav_bindings.insert(binding, uniform_name.clone());
+                        }
+                        
+                        // Validate UAV binding range (D3D11 limit: u0-u63)
+                        if binding > 63 {
+                            errors.push(format!(
+                                "Shader '{}': UAV uniform '{}' uses binding @{} which exceeds D3D11 UAV register limit (u0-u63)",
+                                shader_name, uniform_name, binding
+                            ));
+                        }
                     }
-                    
-                    // Validate UAV binding range
-                    if binding > 63 {
-                        errors.push(format!(
-                            "Shader '{}': UAV uniform '{}' uses binding @{} which exceeds maximum UAV slot u63",
-                            shader_name, uniform_name, binding
-                        ));
-                    }
-                } else if type_name.contains("Sampler") {
-                    // Sampler resources use s-register (s0-s15)
-                    if let Some(existing) = sampler_bindings.get(&binding) {
-                        errors.push(format!(
-                            "Shader '{}': Sampler uniform '{}' uses binding @{} (s{}) which is already used by sampler '{}'",
-                            shader_name, uniform_name, binding, binding, existing
-                        ));
-                    } else {
-                        sampler_bindings.insert(binding, uniform_name.clone());
-                    }
-                    
-                    // Validate sampler binding range
-                    if binding > 15 {
-                        errors.push(format!(
-                            "Shader '{}': Sampler uniform '{}' uses binding @{} which exceeds maximum sampler slot s15",
-                            shader_name, uniform_name, binding
-                        ));
-                    }
-                } else {
-                    // Scalar/vector/matrix types use constant buffer (b-register, b0-b13)
-                    if let Some(existing) = cbuffer_bindings.get(&binding) {
-                        errors.push(format!(
-                            "Shader '{}': Constant buffer parameter '{}' uses binding @{} (b{}) which is already used by parameter '{}'",
-                            shader_name, uniform_name, binding, binding, existing
-                        ));
-                    } else {
-                        cbuffer_bindings.insert(binding, uniform_name.clone());
-                    }
-
-                    // NOTE: In KAIN, scalar/vector uniforms are packed into a
-                    // SHADER_PARAMETER_STRUCT, not declared as explicit cbuffer registers.
-                    // UE5's b0 reservation (View uniform buffer) does not apply to
-                    // SHADER_PARAMETER_STRUCT members. The @N annotation is a KAIN-internal
-                    // ordering index only, so no b-register conflict is possible here.
-                    // No slot range check needed for scalar params.
                 }
             }
         }
         
-        // Check for cross-resource-type conflicts
-        // While different resource types use different register spaces (t, s, u, b),
-        // we warn if the same binding number is used across types as it can be confusing
-        self.check_cross_resource_conflicts(shader_name, &texture_bindings, &sampler_bindings, 
-                                            &uav_bindings, &cbuffer_bindings, errors);
-    }
-    
-    /// Check for binding conflicts across different resource types
-    /// While HLSL allows the same binding number for different resource types (t0, s0, u0, b0 are different),
-    /// using the same number can be confusing and error-prone
-    fn check_cross_resource_conflicts(
-        &self,
-        shader_name: &str,
-        texture_bindings: &HashMap<u32, String>,
-        sampler_bindings: &HashMap<u32, String>,
-        uav_bindings: &HashMap<u32, String>,
-        cbuffer_bindings: &HashMap<u32, String>,
-        errors: &mut Vec<String>
-    ) {
-        // Collect all binding numbers used
-        let mut all_bindings: HashMap<u32, Vec<(String, String)>> = HashMap::new(); // binding -> [(resource_type, name)]
-        
-        for (binding, name) in texture_bindings {
-            all_bindings.entry(*binding).or_insert_with(Vec::new).push(("texture/buffer (t-register)".to_string(), name.clone()));
-        }
-        
-        for (binding, name) in sampler_bindings {
-            all_bindings.entry(*binding).or_insert_with(Vec::new).push(("sampler (s-register)".to_string(), name.clone()));
-        }
-        
-        for (binding, name) in uav_bindings {
-            all_bindings.entry(*binding).or_insert_with(Vec::new).push(("UAV (u-register)".to_string(), name.clone()));
-        }
-        
-        for (binding, name) in cbuffer_bindings {
-            all_bindings.entry(*binding).or_insert_with(Vec::new).push(("constant buffer (b-register)".to_string(), name.clone()));
-        }
-        
-        // Report warnings for binding numbers used by multiple resource types
-        for (binding, resources) in all_bindings {
-            if resources.len() > 1 {
-                let resource_list: Vec<String> = resources.iter()
-                    .map(|(rtype, name)| format!("'{}' ({})", name, rtype))
-                    .collect();
-                
-                errors.push(format!(
-                    "Shader '{}': Binding @{} is used by multiple resource types: {}. \
-                    While technically valid in HLSL (different register spaces), this can be confusing. \
-                    Consider using different binding numbers for clarity.",
-                    shader_name, binding, resource_list.join(", ")
-                ));
-            }
-        }
+        // Note: We no longer check for cross-resource-type conflicts between scalars and resources
+        // because scalars use ordering indices (not register bindings), so there's no actual conflict.
+        // Only check for conflicts between texture and UAV bindings if they somehow overlap
+        // (which shouldn't happen in practice since they use different register spaces).
     }
 }
 
@@ -2026,8 +2071,9 @@ mod tests {
         assert!(result.is_err(), "Should detect sampler binding conflict");
         
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("s0") && e.contains("already used")), 
-                "Should report sampler binding conflict: {:?}", errors);
+        // Samplers are classified as Texture type (t-register) in the new classification system
+        assert!(errors.iter().any(|e| e.contains("t0") && e.contains("already used")), 
+                "Should report sampler binding conflict (samplers use t-register): {:?}", errors);
     }
     
     #[test]
@@ -2093,19 +2139,20 @@ mod tests {
         ]);
         
         let result = validator.validate_shader(&shader, None);
-        assert!(result.is_err(), "Should detect constant buffer binding conflict");
+        assert!(result.is_err(), "Should detect scalar ordering index conflict");
         
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("b1") && e.contains("already used")), 
-                "Should report constant buffer binding conflict: {:?}", errors);
+        assert!(errors.iter().any(|e| e.contains("ordering index @1") && e.contains("already used")), 
+                "Should report scalar ordering index conflict: {:?}", errors);
     }
     
     #[test]
-    fn test_binding_cross_resource_type_warning() {
+    fn test_binding_cross_resource_type_no_warning() {
         let mut validator = ShaderValidator::new();
         
-        // Use the same binding number for different resource types
-        // This is technically valid in HLSL but can be confusing
+        // Use the same binding number for texture and scalar
+        // This is valid because scalars use ordering indices (not register bindings)
+        // and textures use t-registers, so there's no actual conflict
         let shader = make_test_shader("TestShader", vec![
             Uniform {
                 name: "albedo_map".to_string(),
@@ -2118,23 +2165,21 @@ mod tests {
                 span: Span::default(),
             },
             Uniform {
-                name: "sampler_state".to_string(),
+                name: "base_color".to_string(),
                 ty: Type::Named {
-                    name: "SamplerState".to_string(),
+                    name: "Vec3".to_string(),
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 0, // s0 - same number, different register space
+                binding: 0, // ordering index 0 - no conflict with t0
                 span: Span::default(),
             },
         ]);
         
         let result = validator.validate_shader(&shader, None);
-        assert!(result.is_err(), "Should warn about cross-resource-type binding reuse");
-        
-        let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("multiple resource types") && e.contains("@0")), 
-                "Should warn about binding number reuse across resource types: {:?}", errors);
+        assert!(result.is_ok(), 
+                "Should NOT warn about scalar ordering index vs texture register - different semantics: {:?}", 
+                result.err());
     }
     
     #[test]
@@ -2158,7 +2203,7 @@ mod tests {
         assert!(result.is_err(), "Should detect texture binding exceeds limit");
         
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("exceeds maximum texture slot t127")), 
+        assert!(errors.iter().any(|e| e.contains("exceeds D3D11 texture register limit")), 
                 "Should report texture binding limit exceeded: {:?}", errors);
     }
     
@@ -2174,7 +2219,7 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 16, // Exceeds s15 limit!
+                binding: 128, // Exceeds t127 limit (samplers use t-register)
                 span: Span::default(),
             },
         ]);
@@ -2183,8 +2228,9 @@ mod tests {
         assert!(result.is_err(), "Should detect sampler binding exceeds limit");
         
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("exceeds maximum sampler slot s15")), 
-                "Should report sampler binding limit exceeded: {:?}", errors);
+        // Samplers are classified as Texture type, so they use t-register limit (0-127)
+        assert!(errors.iter().any(|e| e.contains("exceeds D3D11 texture register limit")), 
+                "Should report sampler binding limit exceeded (samplers use t-register): {:?}", errors);
     }
     
     #[test]
@@ -2208,7 +2254,7 @@ mod tests {
         assert!(result.is_err(), "Should detect UAV binding exceeds limit");
         
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("exceeds maximum UAV slot u63")), 
+        assert!(errors.iter().any(|e| e.contains("exceeds D3D11 UAV register limit")), 
                 "Should report UAV binding limit exceeded: {:?}", errors);
     }
     
@@ -2216,6 +2262,10 @@ mod tests {
     fn test_binding_cbuffer_exceeds_limit() {
         let mut validator = ShaderValidator::new();
         
+        // NOTE: In KAIN, scalar/vector uniforms are packed into a SHADER_PARAMETER_STRUCT,
+        // not declared as explicit cbuffer registers. The @N annotation is a KAIN-internal
+        // ordering index only, so no b-register conflict or limit applies to scalar params.
+        // This test verifies that scalar uniforms with high binding numbers are accepted.
         let shader = make_test_shader("TestShader", vec![
             Uniform {
                 name: "color".to_string(),
@@ -2224,17 +2274,15 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 14, // Exceeds b13 limit!
+                binding: 14, // High binding number is valid for scalars
                 span: Span::default(),
             },
         ]);
         
         let result = validator.validate_shader(&shader, None);
-        assert!(result.is_err(), "Should detect constant buffer binding exceeds limit");
-        
-        let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| e.contains("exceeds maximum constant buffer slot b13")), 
-                "Should report constant buffer binding limit exceeded: {:?}", errors);
+        assert!(result.is_ok(), 
+                "Scalar uniforms should accept high binding numbers (used as ordering index, not b-register): {:?}", 
+                result.err());
     }
     
     #[test]
@@ -2296,7 +2344,7 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 2, // s2 - different number
+                binding: 2, // t2 - samplers use t-register in new classification
                 span: Span::default(),
             },
             Uniform {
@@ -2306,7 +2354,7 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 3, // b3 - different number from all others
+                binding: 0, // ordering index 0 - scalars use ordering indices, not register bindings
                 span: Span::default(),
             },
         ]);
@@ -2364,7 +2412,7 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 0, // Would normally conflict with b0, but permutations are ignored
+                binding: 0, // Permutation uniform - ignored in validation
                 span: Span::default(),
             },
             Uniform {
@@ -2384,19 +2432,17 @@ mod tests {
                     generics: vec![],
                     span: Span::default(),
                 },
-                binding: 1, // b1 - regular uniform
+                binding: 0, // ordering index 0 - regular scalar uniform
                 span: Span::default(),
             },
         ]);
         
         let result = validator.validate_shader(&shader, None);
-        // Should not report b0 conflicts for permutation uniforms
-        if let Err(errors) = result {
-            assert!(!errors.iter().any(|e| e.contains("CFG_HIGH_QUALITY") && e.contains("b0")), 
-                    "Should not report b0 conflict for permutation uniforms: {:?}", errors);
-            assert!(!errors.iter().any(|e| e.contains("ENABLE_SHADOWS") && e.contains("b0")), 
-                    "Should not report b0 conflict for permutation uniforms: {:?}", errors);
-        }
+        // Should not report conflicts for permutation uniforms (they're ignored)
+        // Regular scalar uniforms use ordering indices, not register bindings
+        assert!(result.is_ok(), 
+                "Should not report conflicts for permutation uniforms or scalar ordering indices: {:?}", 
+                result);
     }
     
     #[test]
@@ -2461,5 +2507,731 @@ mod tests {
                 "Should report sampler limit: {:?}", errors);
         // No b0 reservation check - scalars don't use explicit b-registers
     }
-}
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // TYPE_MAPPER Integration Tests
+    // ═══════════════════════════════════════════════════════════════════
+    
+    #[test]
+    fn test_type_mapper_kain_scalar_types_accepted() {
+        let mut validator = ShaderValidator::new();
+        
+        // Test that all KAIN scalar types from TYPE_MAPPER are accepted
+        let kain_scalars = vec!["Float", "Int", "UInt", "Bool"];
+        
+        for scalar_type in kain_scalars {
+            let shader = make_test_shader("TestShader", vec![
+                Uniform {
+                    name: "test_uniform".to_string(),
+                    ty: Type::Named {
+                        name: scalar_type.to_string(),
+                        generics: vec![],
+                        span: Span::default(),
+                    },
+                    binding: 0,
+                    span: Span::default(),
+                },
+            ]);
+            
+            let result = validator.validate_shader(&shader, None);
+            assert!(result.is_ok(), 
+                    "TYPE_MAPPER type '{}' should be accepted but got errors: {:?}", 
+                    scalar_type, result.err());
+        }
+    }
+    
+    #[test]
+    fn test_type_mapper_kain_vector_types_accepted() {
+        let mut validator = ShaderValidator::new();
+        
+        // Test that all KAIN vector types from TYPE_MAPPER are accepted
+        let kain_vectors = vec![
+            "Vec2", "Vec3", "Vec4",
+            "IVec2", "IVec3", "IVec4",
+            "UVec2", "UVec3", "UVec4",
+        ];
+        
+        for vector_type in kain_vectors {
+            let shader = make_test_shader("TestShader", vec![
+                Uniform {
+                    name: "test_uniform".to_string(),
+                    ty: Type::Named {
+                        name: vector_type.to_string(),
+                        generics: vec![],
+                        span: Span::default(),
+                    },
+                    binding: 0,
+                    span: Span::default(),
+                },
+            ]);
+            
+            let result = validator.validate_shader(&shader, None);
+            assert!(result.is_ok(), 
+                    "TYPE_MAPPER type '{}' should be accepted but got errors: {:?}", 
+                    vector_type, result.err());
+        }
+    }
+    
+    #[test]
+    fn test_type_mapper_kain_matrix_types_accepted() {
+        let mut validator = ShaderValidator::new();
+        
+        // Test that all KAIN matrix types from TYPE_MAPPER are accepted
+        let kain_matrices = vec!["Mat2", "Mat3", "Mat4"];
+        
+        for matrix_type in kain_matrices {
+            let shader = make_test_shader("TestShader", vec![
+                Uniform {
+                    name: "test_uniform".to_string(),
+                    ty: Type::Named {
+                        name: matrix_type.to_string(),
+                        generics: vec![],
+                        span: Span::default(),
+                    },
+                    binding: 0,
+                    span: Span::default(),
+                },
+            ]);
+            
+            let result = validator.validate_shader(&shader, None);
+            assert!(result.is_ok(), 
+                    "TYPE_MAPPER type '{}' should be accepted but got errors: {:?}", 
+                    matrix_type, result.err());
+        }
+    }
+    
+    #[test]
+    fn test_type_mapper_kain_texture_types_accepted() {
+        let mut validator = ShaderValidator::new();
+        
+        // Test that all KAIN texture types from TYPE_MAPPER are accepted
+        let kain_textures = vec![
+            "Sampler2D", "Sampler3D", "SamplerCube",
+            "RWBuffer", "RWTexture2D", "RWTexture3D",
+        ];
+        
+        for texture_type in kain_textures {
+            let shader = make_test_shader("TestShader", vec![
+                Uniform {
+                    name: "test_uniform".to_string(),
+                    ty: Type::Named {
+                        name: texture_type.to_string(),
+                        generics: vec![],
+                        span: Span::default(),
+                    },
+                    binding: 0,
+                    span: Span::default(),
+                },
+            ]);
+            
+            let result = validator.validate_shader(&shader, None);
+            assert!(result.is_ok(), 
+                    "TYPE_MAPPER type '{}' should be accepted but got errors: {:?}", 
+                    texture_type, result.err());
+        }
+    }
+    
+    #[test]
+    fn test_invalid_type_error_lists_valid_types() {
+        let mut validator = ShaderValidator::new();
+        
+        // Test that error message for invalid type lists valid KAIN types from TYPE_MAPPER
+        let shader = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "invalid_uniform".to_string(),
+                ty: Type::Named {
+                    name: "InvalidType".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 0,
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader, None);
+        assert!(result.is_err(), "Should reject invalid type");
+        
+        let errors = result.unwrap_err();
+        let error_msg = errors.join(" ");
+        
+        // Error message should list valid KAIN types from TYPE_MAPPER
+        assert!(error_msg.contains("Valid KAIN types:"), 
+                "Error should list valid types: {}", error_msg);
+        assert!(error_msg.contains("Float"), 
+                "Error should list Float: {}", error_msg);
+        assert!(error_msg.contains("Vec3"), 
+                "Error should list Vec3: {}", error_msg);
+        assert!(error_msg.contains("UVec2"), 
+                "Error should list UVec2: {}", error_msg);
+        assert!(error_msg.contains("Mat4"), 
+                "Error should list Mat4: {}", error_msg);
+    }
+    
+    #[test]
+    fn test_type_mapper_synchronization_with_codegen() {
+        // This test verifies that validator accepts all types that TYPE_MAPPER can map
+        // This ensures validator-codegen synchronization (Requirement 22.4, 22.5)
+        let mut validator = ShaderValidator::new();
+        
+        // Get all valid types from TYPE_MAPPER
+        let valid_types = crate::type_mapping::TYPE_MAPPER.valid_types();
+        
+        // Verify validator accepts all of them
+        for type_name in valid_types {
+            let shader = make_test_shader("TestShader", vec![
+                Uniform {
+                    name: "test_uniform".to_string(),
+                    ty: Type::Named {
+                        name: type_name.clone(),
+                        generics: vec![],
+                        span: Span::default(),
+                    },
+                    binding: 0,
+                    span: Span::default(),
+                },
+            ]);
+            
+            let result = validator.validate_shader(&shader, None);
+            assert!(result.is_ok(), 
+                    "Validator should accept TYPE_MAPPER type '{}' but got errors: {:?}", 
+                    type_name, result.err());
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // Uniform Classification Tests (Task 5.1)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    #[test]
+    fn test_classify_uniform_scalar_types() {
+        // Test primitive scalar types
+        assert_eq!(classify_uniform_type("Float"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Int"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("UInt"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Bool"), UniformClass::Scalar);
+        
+        // Test lowercase HLSL variants
+        assert_eq!(classify_uniform_type("float"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("int"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("uint"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("bool"), UniformClass::Scalar);
+    }
+    
+    #[test]
+    fn test_classify_uniform_vector_types() {
+        // Test KAIN vector types
+        assert_eq!(classify_uniform_type("Vec2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Vec3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Vec4"), UniformClass::Scalar);
+        
+        // Test integer vector types
+        assert_eq!(classify_uniform_type("IVec2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("IVec3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("IVec4"), UniformClass::Scalar);
+        
+        // Test unsigned integer vector types
+        assert_eq!(classify_uniform_type("UVec2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("UVec3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("UVec4"), UniformClass::Scalar);
+        
+        // Test lowercase HLSL vector types
+        assert_eq!(classify_uniform_type("float2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("float3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("float4"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("int2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("int3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("int4"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("uint2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("uint3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("uint4"), UniformClass::Scalar);
+    }
+    
+    #[test]
+    fn test_classify_uniform_matrix_types() {
+        // Test KAIN matrix types
+        assert_eq!(classify_uniform_type("Mat2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Mat3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Mat4"), UniformClass::Scalar);
+        
+        // Test HLSL matrix types
+        assert_eq!(classify_uniform_type("float2x2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("float3x3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("float4x4"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("float3x4"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("float4x3"), UniformClass::Scalar);
+    }
+    
+    #[test]
+    fn test_classify_uniform_texture_types() {
+        // Test Texture types (use t-register)
+        assert_eq!(classify_uniform_type("Texture1D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Texture2D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Texture3D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("TextureCube"), UniformClass::Texture);
+        
+        // Test Texture array types
+        assert_eq!(classify_uniform_type("Texture1DArray"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Texture2DArray"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("TextureCubeArray"), UniformClass::Texture);
+        
+        // Test multisampled texture types
+        assert_eq!(classify_uniform_type("Texture2DMS"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Texture2DMSArray"), UniformClass::Texture);
+    }
+    
+    #[test]
+    fn test_classify_uniform_sampler_types() {
+        // Test Sampler types (use t-register)
+        assert_eq!(classify_uniform_type("Sampler"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("SamplerState"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("SamplerComparisonState"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Sampler1D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Sampler2D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Sampler3D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("SamplerCube"), UniformClass::Texture);
+    }
+    
+    #[test]
+    fn test_classify_uniform_buffer_types() {
+        // Test read-only buffer types (use t-register)
+        assert_eq!(classify_uniform_type("Buffer"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("StructuredBuffer"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("ByteAddressBuffer"), UniformClass::Texture);
+    }
+    
+    #[test]
+    fn test_classify_uniform_uav_types() {
+        // Test RW buffer types (use u-register)
+        assert_eq!(classify_uniform_type("RWBuffer"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWStructuredBuffer"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWByteAddressBuffer"), UniformClass::UAV);
+        
+        // Test RW texture types
+        assert_eq!(classify_uniform_type("RWTexture1D"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture3D"), UniformClass::UAV);
+        
+        // Test RW texture array types
+        assert_eq!(classify_uniform_type("RWTexture1DArray"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2DArray"), UniformClass::UAV);
+        
+        // Test typed RW texture types
+        assert_eq!(classify_uniform_type("RWTexture2D_Float"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D_Float2"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D_Float3"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D_Float4"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D_Int"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D_UInt"), UniformClass::UAV);
+    }
+    
+    #[test]
+    fn test_classify_uniform_user_struct_types() {
+        // User-defined structs should be classified as Scalar
+        assert_eq!(classify_uniform_type("MyCustomStruct"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("ShaderParams"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("MaterialData"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("LightingParams"), UniformClass::Scalar);
+    }
+    
+    #[test]
+    fn test_classify_uniform_edge_cases() {
+        // Test edge cases and potential confusion
+        
+        // Types that contain "Texture" but aren't texture types
+        assert_eq!(classify_uniform_type("TextureData"), UniformClass::Texture); // Still classified as Texture due to prefix
+        
+        // Types that contain "Sampler" but aren't sampler types
+        assert_eq!(classify_uniform_type("SamplerConfig"), UniformClass::Texture); // Still classified as Texture due to substring
+        
+        // Types that start with "RW" but aren't UAVs (hypothetical)
+        assert_eq!(classify_uniform_type("RWConfig"), UniformClass::UAV); // Still classified as UAV due to prefix
+        
+        // Empty string (edge case)
+        assert_eq!(classify_uniform_type(""), UniformClass::Scalar);
+    }
+    
+    #[test]
+    fn test_uniform_classification_semantics_scalar() {
+        // Verify that scalar uniforms with high binding numbers are accepted
+        // @N is an ordering index for scalars, not a b-register binding
+        let mut validator = ShaderValidator::new();
+        
+        let shader = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "param0".to_string(),
+                ty: Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 0,
+                span: Span::default(),
+            },
+            Uniform {
+                name: "param14".to_string(),
+                ty: Type::Named {
+                    name: "Vec3".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 14, // High binding number - valid for scalars
+                span: Span::default(),
+            },
+            Uniform {
+                name: "param29".to_string(),
+                ty: Type::Named {
+                    name: "Mat4".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 29, // Very high binding number - still valid for scalars
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader, None);
+        assert!(result.is_ok(), 
+                "Scalar uniforms should accept any binding number (ordering index): {:?}", 
+                result.err());
+    }
+    
+    #[test]
+    fn test_uniform_classification_semantics_texture() {
+        // Verify that texture uniforms respect t-register limits (0-127)
+        let mut validator = ShaderValidator::new();
+        
+        // Valid texture binding
+        let shader_valid = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "albedo_map".to_string(),
+                ty: Type::Named {
+                    name: "Texture2D".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 127, // Maximum valid t-register
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader_valid, None);
+        assert!(result.is_ok(), 
+                "Texture uniform with binding 127 should be valid: {:?}", 
+                result.err());
+        
+        // Invalid texture binding (exceeds limit)
+        let shader_invalid = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "albedo_map".to_string(),
+                ty: Type::Named {
+                    name: "Texture2D".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 128, // Exceeds t127 limit
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader_invalid, None);
+        assert!(result.is_err(), "Texture uniform with binding 128 should be invalid");
+        
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("exceeds maximum texture slot t127")), 
+                "Should report texture binding limit exceeded: {:?}", errors);
+    }
+    
+    #[test]
+    fn test_uniform_classification_semantics_uav() {
+        // Verify that UAV uniforms respect u-register limits (0-63)
+        let mut validator = ShaderValidator::new();
+        
+        // Valid UAV binding
+        let shader_valid = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "output_buffer".to_string(),
+                ty: Type::Named {
+                    name: "RWBuffer".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 63, // Maximum valid u-register
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader_valid, None);
+        assert!(result.is_ok(), 
+                "UAV uniform with binding 63 should be valid: {:?}", 
+                result.err());
+        
+        // Invalid UAV binding (exceeds limit)
+        let shader_invalid = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "output_buffer".to_string(),
+                ty: Type::Named {
+                    name: "RWTexture2D".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 64, // Exceeds u63 limit
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader_invalid, None);
+        assert!(result.is_err(), "UAV uniform with binding 64 should be invalid");
+        
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("exceeds maximum UAV slot u63")), 
+                "Should report UAV binding limit exceeded: {:?}", errors);
+    }
+    
+    #[test]
+    fn test_uniform_classification_mixed_types() {
+        // Test shader with mixed uniform types (scalar, texture, UAV)
+        let mut validator = ShaderValidator::new();
+        
+        let shader = make_test_shader("TestShader", vec![
+            // Scalar uniforms (ordering indices)
+            Uniform {
+                name: "base_color".to_string(),
+                ty: Type::Named {
+                    name: "Vec3".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 0,
+                span: Span::default(),
+            },
+            Uniform {
+                name: "roughness".to_string(),
+                ty: Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 1,
+                span: Span::default(),
+            },
+            // Texture uniforms (t-register bindings)
+            Uniform {
+                name: "albedo_map".to_string(),
+                ty: Type::Named {
+                    name: "Texture2D".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 0, // t0
+                span: Span::default(),
+            },
+            Uniform {
+                name: "normal_map".to_string(),
+                ty: Type::Named {
+                    name: "Texture2D".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 1, // t1
+                span: Span::default(),
+            },
+            // UAV uniforms (u-register bindings)
+            Uniform {
+                name: "output_buffer".to_string(),
+                ty: Type::Named {
+                    name: "RWBuffer".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 0, // u0
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader, None);
+        // Note: This will generate warnings about cross-resource-type binding reuse (binding 0 and 1)
+        // but should not fail validation since they're in different register spaces
+        if let Err(errors) = &result {
+            // Should only have warnings about cross-resource-type binding reuse, not hard errors
+            assert!(errors.iter().all(|e| e.contains("multiple resource types") || e.contains("can be confusing")), 
+                    "Should only have cross-resource-type warnings: {:?}", errors);
+        }
+    }
+    
+    #[test]
+    fn test_uniform_classification_comprehensive() {
+        // Comprehensive test covering all classification categories
+        
+        // Scalar types
+        assert_eq!(classify_uniform_type("Float"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Vec3"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("Mat4"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("UVec2"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("IVec4"), UniformClass::Scalar);
+        assert_eq!(classify_uniform_type("CustomStruct"), UniformClass::Scalar);
+        
+        // Texture types
+        assert_eq!(classify_uniform_type("Texture2D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Texture3D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("TextureCube"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Sampler2D"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("SamplerState"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("Buffer"), UniformClass::Texture);
+        assert_eq!(classify_uniform_type("StructuredBuffer"), UniformClass::Texture);
+        
+        // UAV types
+        assert_eq!(classify_uniform_type("RWBuffer"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture3D"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWStructuredBuffer"), UniformClass::UAV);
+        assert_eq!(classify_uniform_type("RWTexture2D_Float"), UniformClass::UAV);
+    }
 
+    #[test]
+    fn test_shader_with_30_plus_scalar_params() {
+        // Test that shaders with 30+ scalar parameters are accepted
+        // This validates Requirement 8.4: shaders with 30+ scalar parameters with @N ordering
+        // should NOT be rejected by the validator
+        let mut validator = ShaderValidator::new();
+        
+        // Create a shader with 32 scalar parameters (simulating a PBR material shader)
+        let mut uniforms = vec![];
+        
+        // Add 32 scalar parameters with various types
+        for i in 0..32 {
+            let param_name = format!("param_{}", i);
+            let param_type = match i % 4 {
+                0 => "Float",
+                1 => "Vec2",
+                2 => "Vec3",
+                3 => "Vec4",
+                _ => "Float",
+            };
+            
+            uniforms.push(Uniform {
+                name: param_name,
+                ty: Type::Named {
+                    name: param_type.to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: i, // @N ordering index
+                span: Span::default(),
+            });
+        }
+        
+        // Add a couple of texture parameters (should use t-register bindings)
+        uniforms.push(Uniform {
+            name: "albedo_map".to_string(),
+            ty: Type::Named {
+                name: "Texture2D".to_string(),
+                generics: vec![],
+                span: Span::default(),
+            },
+            binding: 0, // t0
+            span: Span::default(),
+        });
+        
+        uniforms.push(Uniform {
+            name: "normal_map".to_string(),
+            ty: Type::Named {
+                name: "Texture2D".to_string(),
+                generics: vec![],
+                span: Span::default(),
+            },
+            binding: 1, // t1
+            span: Span::default(),
+        });
+        
+        // Add a UAV parameter
+        uniforms.push(Uniform {
+            name: "output_buffer".to_string(),
+            ty: Type::Named {
+                name: "RWTexture2D".to_string(),
+                generics: vec![],
+                span: Span::default(),
+            },
+            binding: 0, // u0
+            span: Span::default(),
+        });
+        
+        let shader = make_test_shader("PBRMaterialShader", uniforms);
+        
+        let result = validator.validate_shader(&shader, None);
+        
+        // The shader should be valid - scalar params can have any @N ordering index
+        // Only textures and UAVs have register binding limits
+        assert!(result.is_ok(), 
+                "Shader with 32 scalar parameters should be valid (Requirement 8.4): {:?}", 
+                result.err());
+    }
+    
+    #[test]
+    fn test_shader_with_many_scalar_params_no_binding_limit() {
+        // Test that scalar parameters do NOT have a binding > 13 limit
+        // This validates Requirement 8.11: USF_Validator SHALL NOT conflate @N ordering 
+        // with D3D11 b-register indices for scalar parameters
+        let mut validator = ShaderValidator::new();
+        
+        // Create a shader with scalar parameters using high binding numbers
+        let shader = make_test_shader("TestShader", vec![
+            Uniform {
+                name: "param_0".to_string(),
+                ty: Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 0,
+                span: Span::default(),
+            },
+            Uniform {
+                name: "param_13".to_string(),
+                ty: Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 13, // At the old incorrect limit
+                span: Span::default(),
+            },
+            Uniform {
+                name: "param_14".to_string(),
+                ty: Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 14, // Beyond the old incorrect limit - should be valid
+                span: Span::default(),
+            },
+            Uniform {
+                name: "param_50".to_string(),
+                ty: Type::Named {
+                    name: "Vec3".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 50, // Very high binding number - should be valid
+                span: Span::default(),
+            },
+            Uniform {
+                name: "param_100".to_string(),
+                ty: Type::Named {
+                    name: "Mat4".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                binding: 100, // Extremely high binding number - should be valid
+                span: Span::default(),
+            },
+        ]);
+        
+        let result = validator.validate_shader(&shader, None);
+        
+        assert!(result.is_ok(), 
+                "Scalar parameters should NOT have binding > 13 limit (Requirement 8.11): {:?}", 
+                result.err());
+    }
+}

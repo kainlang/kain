@@ -42,13 +42,14 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
     let tokens = Lexer::new(&full_source).tokenize()?;
     
     // 2. Parse
-    let mut ast = Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(&full_source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
     
     // 2.5 Comptime
     comptime::eval_program(&mut ast)?;
     
     // 3. Type check
-    let typed_ast = types::check(&ast)?;
+    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
     
     // 3.5 Monomorphize (NEW: Instantiate generic functions with concrete types)
     let mono_ast = monomorphize::monomorphize(&typed_ast)?;
@@ -163,9 +164,10 @@ pub fn compile_ue5_with_context(
     
     // Parse and type-check
     let tokens = Lexer::new(&full_source).tokenize()?;
-    let mut ast = Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(&full_source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
     comptime::eval_program(&mut ast)?;
-    let typed_ast = types::check(&ast)?;
+    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
     
     // Monomorphize (instantiate generic functions)
     let mono_ast = monomorphize::monomorphize(&typed_ast)?;
@@ -220,7 +222,7 @@ pub fn compile_ue5_with_context(
     }
     
     // Run Oracle validation
-    ue5::oracle::validate_program_full(&typed_for_codegen, &context.knowledge, &context.uht_rules)?;
+    ue5::oracle::validate_program_full(&typed_for_codegen, &context.knowledge, &context.uht_rules, &span_mapper, "<input>")?;
     
     // Generate with context
     ue5::generate_with_context_typed(&typed_for_codegen, output_name, copyright, &context)
@@ -267,9 +269,10 @@ pub fn generate_usf_header(source: &str, shader_name: &str) -> Result<String, Ka
     let stdlib = stdlib::load_stdlib();
     let full_source = format!("{}\n{}", stdlib, source);
     let tokens = Lexer::new(&full_source).tokenize()?;
-    let mut ast = Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(&full_source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
     comptime::eval_program(&mut ast)?;
-    let typed_ast = types::check(&ast)?;
+    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
     let mono_ast = monomorphize::monomorphize(&typed_ast)?;
     let typed_for_codegen = TypedProgram { items: mono_ast.items };
     Ok(ue5_shaders::generate_cpp_header(&typed_for_codegen, shader_name))
@@ -280,9 +283,10 @@ pub fn generate_usf_implementation(source: &str, shader_name: &str, plugin_name:
     let stdlib = stdlib::load_stdlib();
     let full_source = format!("{}\n{}", stdlib, source);
     let tokens = Lexer::new(&full_source).tokenize()?;
-    let mut ast = Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(&full_source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
     comptime::eval_program(&mut ast)?;
-    let typed_ast = types::check(&ast)?;
+    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
     let mono_ast = monomorphize::monomorphize(&typed_ast)?;
     let typed_for_codegen = TypedProgram { items: mono_ast.items };
     Ok(ue5_shaders::generate_cpp_implementation(&typed_for_codegen, shader_name, plugin_name))
@@ -293,9 +297,10 @@ pub fn compile_ue5editor(source: &str, plugin_name: &str, copyright: Option<&str
     let stdlib = stdlib::load_stdlib();
     let full_source = format!("{}\n{}", stdlib, source);
     let tokens = Lexer::new(&full_source).tokenize()?;
-    let mut ast = Parser::new(&tokens).parse()?;
+    let span_mapper = diagnostics::SpanMapper::new(&full_source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
     comptime::eval_program(&mut ast)?;
-    let typed_ast = types::check(&ast)?;
+    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
     let mono_ast = monomorphize::monomorphize(&typed_ast)?;
     let typed_for_codegen = TypedProgram { items: mono_ast.items };
     ue5_editor::generate(&typed_for_codegen, plugin_name, copyright)

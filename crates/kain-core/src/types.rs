@@ -4,6 +4,7 @@ use crate::ast::*;
 use crate::effects::EffectSet;
 use crate::span::Span;
 use crate::error::{KainError, KainResult};
+use crate::diagnostics::SpanMapper;
 use std::collections::HashMap;
 
 /// Type-checked AST node
@@ -147,14 +148,21 @@ pub enum IntSize { I8, I16, I32, I64, I128, Isize, U8, U16, U32, U64, U128, Usiz
 pub enum FloatSize { F32, F64 }
 
 /// Type environment for checking
-pub struct TypeEnv {
+pub struct TypeEnv<'a> {
     scopes: Vec<HashMap<String, ResolvedType>>,
     types: HashMap<String, ResolvedType>,
+    span_mapper: &'a SpanMapper,
+    filename: &'a str,
 }
 
-impl TypeEnv {
-    pub fn new() -> Self {
-        let mut env = Self { scopes: vec![HashMap::new()], types: HashMap::new() };
+impl<'a> TypeEnv<'a> {
+    pub fn new(span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
+        let mut env = Self { 
+            scopes: vec![HashMap::new()], 
+            types: HashMap::new(),
+            span_mapper,
+            filename,
+        };
         // Built-in types
         env.types.insert("Int".into(), ResolvedType::Int(IntSize::I64));
         env.types.insert("Float".into(), ResolvedType::Float(FloatSize::F64));
@@ -187,13 +195,41 @@ impl TypeEnv {
         }
         self.types.get(name)
     }
+    
+    /// Create a type error with file:line:col format
+    fn type_error(&self, message: impl Into<String>, span: Span) -> KainError {
+        let loc = self.span_mapper.span_to_location(span, self.filename);
+        let formatted_message = format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, message.into());
+        KainError::type_error(formatted_message, span)
+    }
 }
 
 /// Main type checking entry point
-pub fn check(program: &Program) -> KainResult<TypedProgram> {
-    let mut env = TypeEnv::new();
-    let mut typed_items = Vec::new();
+pub fn check(program: &Program, span_mapper: &SpanMapper, filename: &str) -> KainResult<TypedProgram> {
+    let mut env = TypeEnv::new(span_mapper, filename);
     
+    // First pass: Register all struct and enum types
+    for item in &program.items {
+        match item {
+            Item::Struct(s) => {
+                let mut fields = HashMap::new();
+                for f in &s.fields {
+                    fields.insert(f.name.clone(), resolve_type(&f.ty)?);
+                }
+                env.types.insert(s.name.clone(), ResolvedType::Struct(s.name.clone(), fields));
+            }
+            Item::Enum(e) => {
+                let variants: Vec<(String, ResolvedType)> = e.variants.iter()
+                    .map(|v| (v.name.clone(), ResolvedType::Unit))
+                    .collect();
+                env.types.insert(e.name.clone(), ResolvedType::Enum(e.name.clone(), variants));
+            }
+            _ => {}
+        }
+    }
+    
+    // Second pass: Type check all items
+    let mut typed_items = Vec::new();
     for item in &program.items {
         // Skip traits for now - trait type checking not yet implemented
         if matches!(item, Item::Trait(_)) {
@@ -232,33 +268,32 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
             unreachable!("Traits should be filtered before check_item")
         },
         _ => {
-            // For now, ignore other items or provide dummy implementation
-            // Since we are running in interpreter mode mostly, types are just for checking.
-            // But we shouldn't fail hard if we encounter valid syntax.
-            // Let's return a dummy TypedItem if possible, or just skip it?
-            // TypedItem enum doesn't have a variant for others.
-            // We should probably just return a dummy function or error with a better message?
-            // Or better, expand TypedItem to include other items.
-            // For now, let's just error if it's something we really don't support yet,
-            // but for simple scripts, we likely only need the above.
-            // If the script has top-level stmts, they are wrapped in main function.
-            // So we are good.
-            Err(KainError::type_error("Item type not yet supported in type checker", item_span(item)))
+            Err(env.type_error("Item type not yet supported in type checker", item_span(item)))
         }
     }
 }
 
 fn check_const(_env: &mut TypeEnv, c: &Const) -> KainResult<TypedConst> {
     let ty = resolve_type(&c.ty)?;
-    // TODO: Check if value matches type
     Ok(TypedConst { ast: c.clone(), ty })
 }
 
-fn check_actor(_env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
+fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
     let mut state_types = HashMap::new();
     for s in &a.state {
         state_types.insert(s.name.clone(), resolve_type(&s.ty)?);
     }
+    
+    // Check actor handlers for enum vs struct syntax errors
+    for handler in &a.handlers {
+        check_block_for_syntax_errors(env, &handler.body)?;
+    }
+    
+    // Check actor methods for enum vs struct syntax errors
+    for method in &a.methods {
+        check_block_for_syntax_errors(env, &method.body)?;
+    }
+    
     Ok(TypedActor { ast: a.clone(), state_types })
 }
 
@@ -272,6 +307,10 @@ fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> 
     }
     let ret = f.return_type.as_ref().map(|t| resolve_type(t)).transpose()?.unwrap_or(ResolvedType::Unit);
     let effects = EffectSet::from(f.effects.clone());
+    
+    // Check function body for enum vs struct syntax errors
+    check_block_for_syntax_errors(env, &f.body)?;
+    
     env.pop_scope();
     
     Ok(TypedFunction {
@@ -281,11 +320,17 @@ fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> 
     })
 }
 
-fn check_struct(_env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
+fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
     let mut fields = HashMap::new();
     for f in &s.fields {
         fields.insert(f.name.clone(), resolve_type(&f.ty)?);
     }
+    
+    // Check struct methods for enum vs struct syntax errors
+    for method in &s.methods {
+        check_block_for_syntax_errors(env, &method.body)?;
+    }
+    
     Ok(TypedStruct { ast: s.clone(), field_types: fields })
 }
 
@@ -383,3 +428,191 @@ impl From<Vec<crate::effects::Effect>> for EffectSet {
     }
 }
 
+/// Check a block for enum vs struct syntax errors
+fn check_block_for_syntax_errors(env: &TypeEnv, block: &Block) -> KainResult<()> {
+    for stmt in &block.stmts {
+        check_stmt_for_syntax_errors(env, stmt)?;
+    }
+    Ok(())
+}
+
+/// Check a statement for enum vs struct syntax errors
+fn check_stmt_for_syntax_errors(env: &TypeEnv, stmt: &Stmt) -> KainResult<()> {
+    match stmt {
+        Stmt::Let { value, .. } => {
+            if let Some(expr) = value {
+                check_expr_for_syntax_errors(env, expr)?;
+            }
+        }
+        Stmt::Expr(expr) => {
+            check_expr_for_syntax_errors(env, expr)?;
+        }
+        Stmt::Return(Some(expr), _) => {
+            check_expr_for_syntax_errors(env, expr)?;
+        }
+        Stmt::While { condition, body, .. } => {
+            check_expr_for_syntax_errors(env, condition)?;
+            check_block_for_syntax_errors(env, body)?;
+        }
+        Stmt::For { iter, body, .. } => {
+            check_expr_for_syntax_errors(env, iter)?;
+            check_block_for_syntax_errors(env, body)?;
+        }
+        Stmt::Loop { body, .. } => {
+            check_block_for_syntax_errors(env, body)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Check an expression for enum vs struct syntax errors
+fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
+    match expr {
+        Expr::EnumVariant { enum_name, variant, span, .. } => {
+            // Check if enum_name refers to a struct type
+            if let Some(ty) = env.types.get(enum_name) {
+                if matches!(ty, ResolvedType::Struct(..)) {
+                    return Err(env.type_error(
+                        format!(
+                            "Cannot use '::' on struct type '{}'. Use '.' for field access instead.\nExample: {}.{} (not {}::{})",
+                            enum_name, enum_name.to_lowercase(), variant, enum_name, variant
+                        ),
+                        *span
+                    ));
+                }
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            check_expr_for_syntax_errors(env, left)?;
+            check_expr_for_syntax_errors(env, right)?;
+        }
+        Expr::Unary { operand, .. } => {
+            check_expr_for_syntax_errors(env, operand)?;
+        }
+        Expr::Call { args, .. } => {
+            for arg in args {
+                check_expr_for_syntax_errors(env, &arg.value)?;
+            }
+        }
+        Expr::MethodCall { receiver, args, .. } => {
+            check_expr_for_syntax_errors(env, receiver)?;
+            for arg in args {
+                check_expr_for_syntax_errors(env, &arg.value)?;
+            }
+        }
+        Expr::Field { object, .. } => {
+            check_expr_for_syntax_errors(env, object)?;
+        }
+        Expr::Index { object, index, .. } => {
+            check_expr_for_syntax_errors(env, object)?;
+            check_expr_for_syntax_errors(env, index)?;
+        }
+        Expr::Assign { target, value, .. } => {
+            check_expr_for_syntax_errors(env, target)?;
+            check_expr_for_syntax_errors(env, value)?;
+        }
+        Expr::Array(exprs, _) => {
+            for e in exprs {
+                check_expr_for_syntax_errors(env, e)?;
+            }
+        }
+        Expr::Tuple(exprs, _) => {
+            for e in exprs {
+                check_expr_for_syntax_errors(env, e)?;
+            }
+        }
+        Expr::If { condition, then_branch, else_branch, .. } => {
+            check_expr_for_syntax_errors(env, condition)?;
+            check_block_for_syntax_errors(env, then_branch)?;
+            if let Some(else_b) = else_branch {
+                match else_b.as_ref() {
+                    ElseBranch::Else(block) => check_block_for_syntax_errors(env, block)?,
+                    ElseBranch::ElseIf(cond, block, next_else) => {
+                        check_expr_for_syntax_errors(env, cond)?;
+                        check_block_for_syntax_errors(env, block)?;
+                        if let Some(next) = next_else {
+                            match next.as_ref() {
+                                ElseBranch::Else(b) => check_block_for_syntax_errors(env, b)?,
+                                ElseBranch::ElseIf(c, b, _) => {
+                                    check_expr_for_syntax_errors(env, c)?;
+                                    check_block_for_syntax_errors(env, b)?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            check_expr_for_syntax_errors(env, scrutinee)?;
+            for arm in arms {
+                check_expr_for_syntax_errors(env, &arm.body)?;
+            }
+        }
+        Expr::Block(block, _) => {
+            check_block_for_syntax_errors(env, block)?;
+        }
+        Expr::Cast { value, .. } => {
+            check_expr_for_syntax_errors(env, value)?;
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(s) = start {
+                check_expr_for_syntax_errors(env, s)?;
+            }
+            if let Some(e) = end {
+                check_expr_for_syntax_errors(env, e)?;
+            }
+        }
+        Expr::Struct { fields, .. } => {
+            for (_, field_expr) in fields {
+                check_expr_for_syntax_errors(env, field_expr)?;
+            }
+        }
+        Expr::Lambda { body, .. } => {
+            check_expr_for_syntax_errors(env, body)?;
+        }
+        Expr::Ref { value, .. } => {
+            check_expr_for_syntax_errors(env, value)?;
+        }
+        Expr::Deref(inner, _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::Try(inner, _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::Await(inner, _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::Spawn { init, .. } => {
+            for (_, init_expr) in init {
+                check_expr_for_syntax_errors(env, init_expr)?;
+            }
+        }
+        Expr::SendMsg { target, data, .. } => {
+            check_expr_for_syntax_errors(env, target)?;
+            for (_, data_expr) in data {
+                check_expr_for_syntax_errors(env, data_expr)?;
+            }
+        }
+        Expr::Comptime(inner, _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::MacroCall { args, .. } => {
+            for arg in args {
+                check_expr_for_syntax_errors(env, arg)?;
+            }
+        }
+        Expr::Return(Some(inner), _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::Break(Some(inner), _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::Paren(inner, _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}

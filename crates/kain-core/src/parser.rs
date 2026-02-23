@@ -5,16 +5,98 @@ use crate::ast::*;
 use crate::span::Span;
 use crate::effects::Effect;
 use crate::error::{KainError, KainResult};
+use crate::diagnostics::SpanMapper;
+
+/// Reserved keywords that cannot be used as identifiers.
+/// This includes KAIN keywords, HLSL keywords, C++ keywords, and UE5 macros.
+/// Note: Contextual keywords like "state", "compute", "weak" are NOT included here
+/// as they are only keywords in specific contexts and can be used as identifiers elsewhere.
+const RESERVED_KEYWORDS: &[&str] = &[
+    // KAIN core keywords (always reserved)
+    "fn", "let", "mut", "var", "const", "if", "else", "elif", "match", "for", "while", "loop",
+    "break", "continue", "return", "await", "in", "with", "as", "type", "struct", "enum", "trait",
+    "impl", "pub", "mod", "use", "self", "Self", "true", "false", "none",
+    "component", "shader", "actor", "spawn", "send", "receive", "emit", "comptime", "macro",
+    "vertex", "fragment", "test",
+    "Pure", "IO", "async", "Async", "GPU", "Reactive", "Unsafe",
+    
+    // HLSL keywords (from ue5-shaders/src/codegen_usf.rs)
+    "line", "compile", "pass", "technique", "register", "packoffset",
+    "typedef", "sampler", "texture", "vs", "ps", "gs", "hs", "ds", "cs",
+    "row_major", "column_major", "out", "inout", "inline",
+    "cbuffer", "tbuffer", "uniform", "precise", "volatile", "extern",
+    "shared", "groupshared", "half", "min16float", "min10float",
+    "min16int", "min12int", "min16uint", "interface", "namespace",
+    "static", "void", "bool", "int", "uint", "float", "double",
+    "float2", "float3", "float4", "int2", "int3", "int4", "uint2", "uint3", "uint4",
+    "float2x2", "float3x3", "float4x4", "matrix",
+    "Texture2D", "Texture3D", "TextureCube", "SamplerState", "SamplerComparisonState",
+    "RWTexture2D", "RWTexture3D", "RWBuffer", "StructuredBuffer", "RWStructuredBuffer",
+    "numthreads", "SV_Position", "SV_Target", "SV_DispatchThreadID", "SV_GroupID", "SV_GroupThreadID",
+    
+    // C++ keywords
+    "class", "virtual", "override", "final", "explicit", "operator", "template", "typename",
+    "private", "protected", "public", "friend", "this", "new", "delete", "nullptr",
+    "try", "catch", "throw", "noexcept", "constexpr", "decltype", "auto",
+    "signed", "unsigned", "short", "long", "char", "wchar_t", "char16_t", "char32_t",
+    "sizeof", "alignof", "alignas", "typeid", "dynamic_cast", "static_cast", "reinterpret_cast", "const_cast",
+    "goto", "switch", "case", "default", "do", "volatile", "mutable", "register",
+    "union", "asm", "export", "thread_local", "static_assert",
+    
+    // UE5 macros and types
+    "UCLASS", "USTRUCT", "UENUM", "UFUNCTION", "UPROPERTY", "UPARAM", "UMETA",
+    "GENERATED_BODY", "GENERATED_USTRUCT_BODY", "GENERATED_UCLASS_BODY",
+    "UINTERFACE", "RIGVM_METHOD", "FORCEINLINE", "FORCENOINLINE",
+    "TEXT", "LOCTEXT", "NSLOCTEXT", "TEXTVIEW",
+    "UObject", "AActor", "UActorComponent", "USceneComponent", "APawn", "ACharacter", "APlayerController",
+    "FVector", "FRotator", "FTransform", "FQuat", "FVector2D", "FIntPoint", "FLinearColor", "FColor",
+    "FString", "FName", "FText", "TArray", "TMap", "TSet", "TSharedPtr", "TWeakPtr", "TUniquePtr",
+    "int32", "uint32", "int64", "uint64", "int8", "uint8", "int16", "uint16",
+    "TCHAR", "ANSICHAR", "UCS2CHAR",
+];
 
 pub struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
     injected_tokens: Vec<Token>, // Buffer for synthetic tokens (e.g., splitting >> into > >)
+    span_mapper: &'a SpanMapper,
+    filename: &'a str,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens, pos: 0, injected_tokens: Vec::new() }
+    pub fn new(tokens: &'a [Token], span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
+        Self { 
+            tokens, 
+            pos: 0, 
+            injected_tokens: Vec::new(),
+            span_mapper,
+            filename,
+        }
+    }
+    
+    /// Create a parser error with file:line:col format
+    fn parser_error(&self, message: impl Into<String>, span: Span) -> KainError {
+        let loc = self.span_mapper.span_to_location(span, self.filename);
+        let formatted_message = format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, message.into());
+        KainError::parser(formatted_message, span)
+    }
+    
+    /// Validate that an identifier is not a reserved keyword.
+    /// Returns an error if the identifier conflicts with a reserved keyword.
+    fn validate_identifier(&self, name: &str, span: Span) -> KainResult<()> {
+        if RESERVED_KEYWORDS.contains(&name) {
+            return Err(self.parser_error(
+                format!(
+                    "Identifier '{}' conflicts with reserved keyword. Please choose a different name.\n\
+                     Reserved keywords include KAIN keywords (fn, let, struct, etc.), \
+                     HLSL keywords (cbuffer, register, etc.), C++ keywords (class, virtual, etc.), \
+                     and UE5 macros (UCLASS, UPROPERTY, etc.)",
+                    name
+                ),
+                span
+            ));
+        }
+        Ok(())
     }
 
     pub fn parse(&mut self) -> KainResult<Program> {
@@ -145,7 +227,7 @@ impl<'a> Parser<'a> {
             // TokenKind::Trait => self.parse_trait(vis), // TODO: Agent 4 will implement this
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
-            _ => Err(KainError::parser("Expected item", self.current_span())),
+            _ => Err(self.parser_error("Expected item", self.current_span())),
         }
     }
 
@@ -212,7 +294,7 @@ impl<'a> Parser<'a> {
             TokenKind::Async => { self.advance(); Ok("Async".to_string()) }
             TokenKind::Gpu => { self.advance(); Ok("GPU".to_string()) }
             TokenKind::Reactive => { self.advance(); Ok("Reactive".to_string()) }
-            k => Err(KainError::parser(format!("Expected attribute name, got {:?}", k), self.current_span())),
+            k => Err(self.parser_error(format!("Expected attribute name, got {:?}", k), self.current_span())),
         }
     }
 
@@ -329,7 +411,7 @@ impl<'a> Parser<'a> {
                     methods.push(f);
                 }
             } else {
-                return Err(KainError::parser("Expected fn in impl block", self.current_span()));
+                return Err(self.parser_error("Expected fn in impl block", self.current_span()));
             }
             self.skip_newlines();
         }
@@ -422,7 +504,7 @@ impl<'a> Parser<'a> {
                 "ident" => MacroParamKind::Ident,
                 "block" => MacroParamKind::Block,
                 "token" => MacroParamKind::Token,
-                _ => return Err(KainError::parser("Unknown macro param kind", self.current_span())),
+                _ => return Err(self.parser_error("Unknown macro param kind", self.current_span())),
             };
             params.push(MacroParam { name: p_name, kind, span: self.current_span() });
             
@@ -590,7 +672,7 @@ impl<'a> Parser<'a> {
                          let initial = self.parse_expr()?;
                          state.push(StateDecl { name, ty, initial, weak: true, attributes: vec![], span: self.current_span() });
                      } else {
-                         return Err(KainError::parser("Expected 'state' after 'weak' in component", self.current_span()));
+                         return Err(self.parser_error("Expected 'state' after 'weak' in component", self.current_span()));
                      }
                 } else if s == "render" {
                      self.advance();
@@ -616,20 +698,20 @@ impl<'a> Parser<'a> {
                          body = Some(self.parse_jsx_element()?);
                      }
                 } else {
-                    return Err(KainError::parser(format!("Unexpected identifier in component: {}", s), self.current_span()));
+                    return Err(self.parser_error(format!("Unexpected identifier in component: {}", s), self.current_span()));
                 }
             } else if self.check(TokenKind::Lt) {
                 // Direct JSX element (implicit render)
                 body = Some(self.parse_jsx_element()?);
             } else {
-                return Err(KainError::parser(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
+                return Err(self.parser_error(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
             }
             self.skip_newlines();
         }
         
         if self.check(TokenKind::Dedent) { self.advance(); }
         
-        let body = body.ok_or_else(|| KainError::parser("Component must have a render body (JSX element)", self.current_span()))?;
+        let body = body.ok_or_else(|| self.parser_error("Component must have a render body (JSX element)", self.current_span()))?;
         
         Ok(Item::Component(Component {
             name, props, state, methods, effects, body, visibility: vis,
@@ -686,18 +768,18 @@ impl<'a> Parser<'a> {
                         body = Some(self.parse_jsx_element()?);
                     }
                 } else {
-                    return Err(KainError::parser(format!("Unexpected identifier in component: {}", s), self.current_span()));
+                    return Err(self.parser_error(format!("Unexpected identifier in component: {}", s), self.current_span()));
                 }
             } else if self.check(TokenKind::Lt) {
                 body = Some(self.parse_jsx_element()?);
             } else {
-                return Err(KainError::parser(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
+                return Err(self.parser_error(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
             }
             self.skip_newlines();
         }
         
         if self.check(TokenKind::Dedent) { self.advance(); }
-        let body = body.ok_or_else(|| KainError::parser("Component must have a render body", self.current_span()))?;
+        let body = body.ok_or_else(|| self.parser_error("Component must have a render body", self.current_span()))?;
         
         Ok(Item::Component(Component {
             name, props, state, methods, effects, body, visibility: vis,
@@ -763,7 +845,7 @@ impl<'a> Parser<'a> {
                     self.advance();
                     n as u32
                 } else {
-                    return Err(KainError::parser("Expected integer binding", self.current_span()));
+                    return Err(self.parser_error("Expected integer binding", self.current_span()));
                 };
 
                 uniforms.push(Uniform { name: u_name, ty: u_ty, binding, span: self.current_span() });
@@ -1022,10 +1104,10 @@ impl<'a> Parser<'a> {
                     let body = self.parse_block()?;
                     handlers.push(MessageHandler { message_type, params, body, span: self.current_span() });
                 } else {
-                     return Err(KainError::parser(format!("Unexpected item in actor: {}", s), self.current_span()));
+                     return Err(self.parser_error(format!("Unexpected item in actor: {}", s), self.current_span()));
                 }
             } else {
-                 return Err(KainError::parser("Expected 'state', 'var', 'fn', or 'on' in actor definition.", self.current_span()));
+                 return Err(self.parser_error("Expected 'state', 'var', 'fn', or 'on' in actor definition.", self.current_span()));
             }
             
             self.skip_newlines();
@@ -1081,11 +1163,11 @@ impl<'a> Parser<'a> {
         // Expect 'material' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "material" {
-                return Err(KainError::parser("Expected 'material' keyword after @material_graph", self.current_span()));
+                return Err(self.parser_error("Expected 'material' keyword after @material_graph", self.current_span()));
             }
             self.advance(); // consume 'material'
         } else {
-            return Err(KainError::parser("Expected 'material' keyword after @material_graph", self.current_span()));
+            return Err(self.parser_error("Expected 'material' keyword after @material_graph", self.current_span()));
         }
         
         // Parse name
@@ -1144,7 +1226,7 @@ impl<'a> Parser<'a> {
                         });
                     }
                     _ => {
-                        return Err(KainError::parser(
+                        return Err(self.parser_error(
                             format!("Unexpected identifier in material graph: {}. Expected 'input', 'let', or 'output'", s),
                             self.current_span()
                         ));
@@ -1163,7 +1245,7 @@ impl<'a> Parser<'a> {
                     span: self.current_span(),
                 });
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected 'input', 'let', or 'output' in material graph body",
                     self.current_span()
                 ));
@@ -1193,7 +1275,7 @@ impl<'a> Parser<'a> {
         if self.check(TokenKind::Fn) {
             self.advance(); // consume 'fn'
         } else {
-            return Err(KainError::parser("Expected 'fn' keyword after @material_function", self.current_span()));
+            return Err(self.parser_error("Expected 'fn' keyword after @material_function", self.current_span()));
         }
         
         // Parse name
@@ -1262,7 +1344,7 @@ impl<'a> Parser<'a> {
                 output = Some(self.parse_expr()?);
                 break; // return must be last statement
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected 'let' or 'return' in material function body",
                     self.current_span()
                 ));
@@ -1280,7 +1362,7 @@ impl<'a> Parser<'a> {
         }
         
         let output = output.ok_or_else(|| {
-            KainError::parser("Material function must have a 'return' statement", self.current_span())
+            self.parser_error("Material function must have a 'return' statement", self.current_span())
         })?;
         
         Ok(Item::MaterialFunction(MaterialFunctionDef {
@@ -1299,11 +1381,11 @@ impl<'a> Parser<'a> {
         // Expect 'graph' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "graph" {
-                return Err(KainError::parser("Expected 'graph' keyword after @graph_editor", self.current_span()));
+                return Err(self.parser_error("Expected 'graph' keyword after @graph_editor", self.current_span()));
             }
             self.advance(); // consume 'graph'
         } else {
-            return Err(KainError::parser("Expected 'graph' keyword after @graph_editor", self.current_span()));
+            return Err(self.parser_error("Expected 'graph' keyword after @graph_editor", self.current_span()));
         }
         
         // Parse name
@@ -1332,7 +1414,7 @@ impl<'a> Parser<'a> {
             } else if node_attrs.iter().any(|a| a.name == "schema") {
                 schema = Some(self.parse_graph_schema(node_attrs)?);
             } else {
-                return Err(KainError::parser("Expected @node_type or @schema in graph editor", self.current_span()));
+                return Err(self.parser_error("Expected @node_type or @schema in graph editor", self.current_span()));
             }
             
             self.skip_newlines();
@@ -1357,11 +1439,11 @@ impl<'a> Parser<'a> {
         // Expect 'node' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "node" {
-                return Err(KainError::parser("Expected 'node' keyword after @node_type", self.current_span()));
+                return Err(self.parser_error("Expected 'node' keyword after @node_type", self.current_span()));
             }
             self.advance();
         } else {
-            return Err(KainError::parser("Expected 'node' keyword after @node_type", self.current_span()));
+            return Err(self.parser_error("Expected 'node' keyword after @node_type", self.current_span()));
         }
         
         // Parse name
@@ -1414,7 +1496,7 @@ impl<'a> Parser<'a> {
                         properties = self.parse_property_list()?;
                     }
                     _ => {
-                        return Err(KainError::parser("Expected 'inputs', 'outputs', or 'properties'", self.current_span()));
+                        return Err(self.parser_error("Expected 'inputs', 'outputs', or 'properties'", self.current_span()));
                     }
                 }
             }
@@ -1545,7 +1627,7 @@ impl<'a> Parser<'a> {
         // Expect 'schema' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "schema" {
-                return Err(KainError::parser("Expected 'schema' keyword after @schema", self.current_span()));
+                return Err(self.parser_error("Expected 'schema' keyword after @schema", self.current_span()));
             }
             self.advance();
         }
@@ -2009,15 +2091,15 @@ impl<'a> Parser<'a> {
                             if let Some(name) = arg.name {
                                 data.push((name, arg.value));
                             } else {
-                                return Err(KainError::parser("Send requires named arguments", arg.span));
+                                return Err(self.parser_error("Send requires named arguments", arg.span));
                             }
                         }
                         Ok(Expr::SendMsg { target: object, message: field, data, span: start.merge(span) })
                     } else {
-                        Err(KainError::parser("Expected method call after send (e.g., actor.message())", span))
+                        Err(self.parser_error("Expected method call after send (e.g., actor.message())", span))
                     }
                 } else {
-                    Err(KainError::parser("Expected message call after send", expr.span()))
+                    Err(self.parser_error("Expected message call after send", expr.span()))
                 }
             }
             _ => self.parse_postfix(),
@@ -2033,6 +2115,35 @@ impl<'a> Parser<'a> {
                     let args = self.parse_call_args()?; 
                     self.expect(TokenKind::RParen)?; 
                     let s = expr.span().merge(self.current_span()); 
+                    
+                    // Check if this looks like struct initialization with named arguments
+                    // Pattern: TypeName(field = val, ...) where TypeName starts with uppercase
+                    if let Expr::Ident(name, ident_span) = &expr {
+                        // Check if identifier starts with uppercase (likely a type name)
+                        let starts_with_uppercase = name.chars().next()
+                            .map(|c| c.is_uppercase())
+                            .unwrap_or(false);
+                        
+                        // Check if all arguments are named (using = syntax in KAIN)
+                        let all_named = !args.is_empty() && args.iter().all(|arg| arg.name.is_some());
+                        
+                        if starts_with_uppercase && all_named {
+                            // This looks like struct initialization - emit error
+                            return Err(self.parser_error(
+                                format!(
+                                    "Struct initialization with named arguments is not supported in KAIN. Found '{}(...)'.\n\
+                                     Use field-by-field assignment instead:\n\
+                                     \n\
+                                     Example:\n\
+                                       let obj = {}()\n\
+                                       obj.field1 = value1\n\
+                                       obj.field2 = value2",
+                                    name, name
+                                ),
+                                s
+                            ));
+                        }
+                    }
                     
                     if let Expr::Field { object, field, span: _ } = expr {
                         expr = Expr::MethodCall { receiver: object, method: field, args, span: s };
@@ -2073,7 +2184,7 @@ impl<'a> Parser<'a> {
                      // Maybe unary not? But we are in postfix. Unary not is handled in parse_unary.
                      // Postfix ! usually means macro or maybe future features (like factorial?).
                      // For now, only support macros on identifiers.
-                     return Err(KainError::parser("Macro invocation only allowed on identifiers", self.current_span()));
+                     return Err(self.parser_error("Macro invocation only allowed on identifiers", self.current_span()));
                 }
             }
             _ => break,
@@ -2119,12 +2230,13 @@ impl<'a> Parser<'a> {
                         if depth == 0 {
                             let expr_str = &s[expr_start..expr_end];
                             let tokens = Lexer::new(expr_str).tokenize()?;
-                            let mut parser = Parser::new(&tokens);
+                            let expr_span_mapper = SpanMapper::new(expr_str);
+                            let mut parser = Parser::new(&tokens, &expr_span_mapper, "<f-string>");
                             let expr = parser.parse_expr()?;
                             parts.push(expr);
                             last_idx = expr_end + 1;
                         } else {
-                             return Err(KainError::parser("Unclosed '{' in f-string", span));
+                             return Err(self.parser_error("Unclosed '{' in f-string", span));
                         }
                     }
                 }
@@ -2214,50 +2326,36 @@ impl<'a> Parser<'a> {
                 }
                 
                 // Check if this is a struct literal: Name { field: value, ... }
+                // KAIN does not support struct literals - always emit error when we see Ident {
+                // Skip formatting (newlines and indents) to handle multi-line struct literals
+                let saved_pos_for_check = self.pos;
+                self.skip_formatting();
+                
                 if self.check(TokenKind::LBrace) {
-                    self.advance(); // consume {
-                    let mut fields = Vec::new();
+                    // Restore position before emitting error
+                    self.pos = saved_pos_for_check;
                     
-                    self.skip_newlines();
-                    let indented = if self.check(TokenKind::Indent) {
-                        self.advance();
-                        true
-                    } else {
-                        false
-                    };
-                    
-                    while !self.check(TokenKind::RBrace) && !self.at_end() {
-                        if indented && self.check(TokenKind::Dedent) {
-                            break;
-                        }
-                        
-                        let field_name = self.parse_ident()?;
-                        self.expect(TokenKind::Colon)?;
-                        let field_value = self.parse_expr()?;
-                        fields.push((field_name, field_value));
-                        
-                        // Optional comma if not closing
-                        if !self.check(TokenKind::RBrace) && (!indented || !self.check(TokenKind::Dedent)) {
-                            if self.check(TokenKind::Comma) {
-                                self.advance();
-                            }
-                        }
-                        self.skip_newlines();
-                    }
-                    
-                    if indented {
-                        self.expect(TokenKind::Dedent)?;
-                    }
-                    self.expect(TokenKind::RBrace)?;
-                    
-                    Ok(Expr::Struct { 
-                        name, 
-                        fields, 
-                        span: span.merge(self.current_span()) 
-                    })
-                } else {
-                    Ok(Expr::Ident(name, span))
+                    // This looks like a struct literal - emit error
+                    return Err(self.parser_error(
+                        format!(
+                            "Struct literal syntax is not supported in KAIN. Found '{} {{ ... }}'.\n\
+                             Use field-by-field assignment instead:\n\
+                             \n\
+                             Example:\n\
+                               let obj = {}()\n\
+                               obj.field1 = value1\n\
+                               obj.field2 = value2",
+                            name, name
+                        ),
+                        span
+                    ));
                 }
+                
+                // Restore position if not a struct literal
+                self.pos = saved_pos_for_check;
+                
+                // Just an identifier
+                Ok(Expr::Ident(name, span))
             }
             TokenKind::SelfLower => { 
                 self.advance(); 
@@ -2366,7 +2464,7 @@ impl<'a> Parser<'a> {
                     if let Some(name) = arg.name {
                         init.push((name, arg.value));
                     } else {
-                         return Err(KainError::parser("Spawn requires named arguments", arg.span));
+                         return Err(self.parser_error("Spawn requires named arguments", arg.span));
                     }
                 }
                 Ok(Expr::Spawn { actor, init, span: span.merge(self.current_span()) })
@@ -2474,7 +2572,7 @@ impl<'a> Parser<'a> {
                 };
                 Ok(Expr::Break(value, span))
             }
-            _ => Err(KainError::parser(format!("Unexpected token: {:?}", self.peek_kind()), span)),
+            _ => Err(self.parser_error(format!("Unexpected token: {:?}", self.peek_kind()), span)),
         }
     }
 
@@ -2573,7 +2671,7 @@ impl<'a> Parser<'a> {
                     Some(Box::new(ElseBranch::ElseIf(condition, then_branch, nested_else)))
                 } else {
                     // Shouldn't happen, but fallback
-                    return Err(KainError::parser("Expected if expression after else", self.current_span()));
+                    return Err(self.parser_error("Expected if expression after else", self.current_span()));
                 }
             } else {
                 self.expect(TokenKind::Colon)?;
@@ -2595,9 +2693,13 @@ impl<'a> Parser<'a> {
             TokenKind::Ident(ref s) if s == "_" => { self.advance(); Ok(Pattern::Wildcard(span)) }
             TokenKind::Ident(ref s) => { 
                 let name = s.clone(); 
-                self.advance(); 
+                self.advance();
+                
+                // Validate identifier if it's used as a binding (not an enum name)
+                // We'll validate after determining if it's a binding or enum reference
                 
                 if self.check(TokenKind::ColonColon) {
+                    // This is an enum name, not a binding, so no validation needed here
                     self.advance(); // consume ::
                     let variant = self.parse_ident()?;
                     
@@ -2656,6 +2758,8 @@ impl<'a> Parser<'a> {
                         span: span.merge(self.current_span()),
                     })
                 } else {
+                    // This is a binding, validate it
+                    self.validate_identifier(&name, span)?;
                     Ok(Pattern::Binding { name, mutable: false, span }) 
                 }
             }
@@ -2692,7 +2796,7 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::RBracket)?;
                 Ok(Pattern::Slice { patterns, rest: None, span: span.merge(self.current_span()) })
             }
-            _ => Err(KainError::parser("Expected pattern", span)),
+            _ => Err(self.parser_error("Expected pattern", span)),
         }
     }
 
@@ -2724,7 +2828,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 JSXAttrValue::String(s)
             } else {
-                return Err(KainError::parser("Expected attribute value", self.current_span()));
+                return Err(self.parser_error("Expected attribute value", self.current_span()));
             };
             attrs.push(JSXAttribute { name, value, span: self.current_span() });
         }
@@ -2863,7 +2967,7 @@ impl<'a> Parser<'a> {
                      TokenKind::Vertex => consumed_text = Some("vertex".to_string()),
                      TokenKind::Fragment => consumed_text = Some("fragment".to_string()),
                      _ => {
-                         return Err(KainError::parser(format!("Unexpected token in JSX child: {:?}. Use strings or {{}} for text.", self.peek_kind()), self.current_span()));
+                         return Err(self.parser_error(format!("Unexpected token in JSX child: {:?}. Use strings or {{}} for text.", self.peek_kind()), self.current_span()));
                      }
                  }
                  
@@ -2886,7 +2990,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::LtSlash)?;
         let closing_tag = self.parse_ident()?;
         if closing_tag != tag {
-            return Err(KainError::parser(format!("Expected closing tag </{}>, found </{}>", tag, closing_tag), self.current_span()));
+            return Err(self.parser_error(format!("Expected closing tag </{}>, found </{}>", tag, closing_tag), self.current_span()));
         }
         self.expect(TokenKind::Gt)?;
         
@@ -2925,11 +3029,34 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_ident(&mut self) -> KainResult<String> {
+        let span = self.current_span();
         match self.peek_kind() {
-            TokenKind::Ident(s) => { self.advance(); Ok(s) }
+            TokenKind::Ident(s) => { 
+                self.advance(); 
+                self.validate_identifier(&s, span)?;
+                Ok(s) 
+            }
             TokenKind::SelfLower => { self.advance(); Ok("self".to_string()) }
             TokenKind::SelfUpper => { self.advance(); Ok("Self".to_string()) }
-            k => Err(KainError::parser(format!("Expected identifier, got {:?}", k), self.current_span())),
+            // Special handling for keyword tokens that users might try to use as identifiers
+            // Generate clear error messages for all KAIN keyword tokens
+            k @ (TokenKind::Fn | TokenKind::Let | TokenKind::Mut | TokenKind::Var | TokenKind::Const |
+                 TokenKind::If | TokenKind::Else | TokenKind::Elif | TokenKind::Match | TokenKind::For |
+                 TokenKind::While | TokenKind::Loop | TokenKind::Break | TokenKind::Continue | TokenKind::Return |
+                 TokenKind::Await | TokenKind::In | TokenKind::With | TokenKind::As | TokenKind::TypeKw |
+                 TokenKind::Struct | TokenKind::Enum | TokenKind::Trait | TokenKind::Impl | TokenKind::Pub |
+                 TokenKind::Mod | TokenKind::Use | TokenKind::True | TokenKind::False | TokenKind::None |
+                 TokenKind::Component | TokenKind::Shader | TokenKind::Actor | TokenKind::State |
+                 TokenKind::Spawn | TokenKind::Send | TokenKind::Receive | TokenKind::Emit |
+                 TokenKind::Comptime | TokenKind::Macro | TokenKind::Vertex | TokenKind::Fragment |
+                 TokenKind::Test | TokenKind::Pure | TokenKind::Io | TokenKind::AsyncKw | TokenKind::Async |
+                 TokenKind::Gpu | TokenKind::Reactive | TokenKind::Unsafe) => {
+                Err(self.parser_error(
+                    format!("{:?} is a reserved keyword and cannot be used as an identifier. Please choose a different name.", k),
+                    span
+                ))
+            }
+            k => Err(self.parser_error(format!("Expected identifier, got {:?}", k), span)),
         }
     }
 
@@ -2997,7 +3124,7 @@ impl<'a> Parser<'a> {
 
     fn expect(&mut self, k: TokenKind) -> KainResult<()> {
         if self.check(k.clone()) { self.advance(); Ok(()) }
-        else { Err(KainError::parser(format!("Expected {:?}, got {:?}", k, self.peek_kind()), self.current_span())) }
+        else { Err(self.parser_error(format!("Expected {:?}, got {:?}", k, self.peek_kind()), self.current_span())) }
     }
 
     // ===== GRAPH RUNTIME PARSING =====
@@ -3041,7 +3168,7 @@ impl<'a> Parser<'a> {
             } else if nested_attrs.iter().any(|a| a.name == "pin_config") {
                 pin_config = Some(self.parse_pin_config(nested_attrs)?);
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected @graph_data, @node_data, @instance, or @pin_config in graph runtime",
                     self.current_span()
                 ));
@@ -3212,7 +3339,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected @input_pin, @output_pin, @property, or fn in node data",
                     self.current_span()
                 ));
@@ -3331,7 +3458,7 @@ impl<'a> Parser<'a> {
                     });
                 }
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected fn, delegate, or field in instance",
                     self.current_span()
                 ));
@@ -3360,7 +3487,7 @@ impl<'a> Parser<'a> {
         // Expect 'delegate' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "delegate" {
-                return Err(KainError::parser("Expected 'delegate' keyword", self.current_span()));
+                return Err(self.parser_error("Expected 'delegate' keyword", self.current_span()));
             }
             self.advance();
         }
@@ -3487,7 +3614,7 @@ impl<'a> Parser<'a> {
             if state_attrs.iter().any(|a| a.name == "state") {
                 states.push(self.parse_state(state_attrs)?);
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected @state in state machine definition",
                     self.current_span()
                 ));
@@ -3581,7 +3708,7 @@ impl<'a> Parser<'a> {
                     on_exit = Some(self.parse_block()?);
                 } else {
                     // Regular property or unknown method
-                    return Err(KainError::parser(
+                    return Err(self.parser_error(
                         "Unexpected method in state definition. Use @transition for transitions.",
                         self.current_span()
                     ));
@@ -3596,7 +3723,7 @@ impl<'a> Parser<'a> {
                     if let Expr::String(anim_name, _) = self.parse_expr()? {
                         animation = Some(anim_name);
                     } else {
-                        return Err(KainError::parser(
+                        return Err(self.parser_error(
                             "Expected string literal for animation property",
                             self.current_span()
                         ));
@@ -3666,7 +3793,7 @@ impl<'a> Parser<'a> {
                     None
                 })
             })
-            .ok_or_else(|| KainError::parser(
+            .ok_or_else(|| self.parser_error(
                 "Expected 'to' parameter in @transition attribute",
                 self.current_span()
             ))?;
@@ -3706,10 +3833,10 @@ impl<'a> Parser<'a> {
             if let TokenKind::Ident(name) = &self.tokens[self.pos + 1].kind {
                 Ok(name.clone())
             } else {
-                Err(KainError::parser("Expected identifier", self.current_span()))
+                Err(self.parser_error("Expected identifier", self.current_span()))
             }
         } else {
-            Err(KainError::parser("Unexpected end of input", self.current_span()))
+            Err(self.parser_error("Unexpected end of input", self.current_span()))
         }
     }
     
@@ -3777,7 +3904,7 @@ impl<'a> Parser<'a> {
                     methods.push(func);
                 }
             } else {
-                return Err(KainError::parser(
+                return Err(self.parser_error(
                     "Expected @menu_entry, @toolbar_button, @toolbar_widget, or fn in editor module",
                     self.current_span()
                 ));
@@ -3808,7 +3935,7 @@ impl<'a> Parser<'a> {
         // Extract parameters from @menu_entry attribute
         let menu_attr = attributes.iter()
             .find(|a| a.name == "menu_entry")
-            .ok_or_else(|| KainError::parser("Expected @menu_entry attribute", self.current_span()))?;
+            .ok_or_else(|| self.parser_error("Expected @menu_entry attribute", self.current_span()))?;
         
         let mut path = None;
         let mut label = None;
@@ -3832,8 +3959,8 @@ impl<'a> Parser<'a> {
             }
         }
         
-        let path = path.ok_or_else(|| KainError::parser("@menu_entry requires 'path' parameter", self.current_span()))?;
-        let label = label.ok_or_else(|| KainError::parser("@menu_entry requires 'label' parameter", self.current_span()))?;
+        let path = path.ok_or_else(|| self.parser_error("@menu_entry requires 'path' parameter", self.current_span()))?;
+        let label = label.ok_or_else(|| self.parser_error("@menu_entry requires 'label' parameter", self.current_span()))?;
         
         // Parse the method
         if let Item::Function(method) = self.parse_function_with_attrs(Visibility::Public, vec![])? {
@@ -3847,7 +3974,7 @@ impl<'a> Parser<'a> {
                 span: start.merge(self.current_span()),
             })
         } else {
-            Err(KainError::parser("Expected function after @menu_entry", self.current_span()))
+            Err(self.parser_error("Expected function after @menu_entry", self.current_span()))
         }
     }
     
@@ -3858,7 +3985,7 @@ impl<'a> Parser<'a> {
         // Extract parameters from @toolbar_button attribute
         let toolbar_attr = attributes.iter()
             .find(|a| a.name == "toolbar_button")
-            .ok_or_else(|| KainError::parser("Expected @toolbar_button attribute", self.current_span()))?;
+            .ok_or_else(|| self.parser_error("Expected @toolbar_button attribute", self.current_span()))?;
         
         let mut section = None;
         let mut label = None;
@@ -3882,8 +4009,8 @@ impl<'a> Parser<'a> {
             }
         }
         
-        let section = section.ok_or_else(|| KainError::parser("@toolbar_button requires 'section' parameter", self.current_span()))?;
-        let icon = icon.ok_or_else(|| KainError::parser("@toolbar_button requires 'icon' parameter", self.current_span()))?;
+        let section = section.ok_or_else(|| self.parser_error("@toolbar_button requires 'section' parameter", self.current_span()))?;
+        let icon = icon.ok_or_else(|| self.parser_error("@toolbar_button requires 'icon' parameter", self.current_span()))?;
         
         // Parse the method
         if let Item::Function(method) = self.parse_function_with_attrs(Visibility::Public, vec![])? {
@@ -3897,7 +4024,7 @@ impl<'a> Parser<'a> {
                 span: start.merge(self.current_span()),
             })
         } else {
-            Err(KainError::parser("Expected function after @toolbar_button", self.current_span()))
+            Err(self.parser_error("Expected function after @toolbar_button", self.current_span()))
         }
     }
     
@@ -3908,7 +4035,7 @@ impl<'a> Parser<'a> {
         // Extract parameters from @toolbar_widget attribute
         let widget_attr = attributes.iter()
             .find(|a| a.name == "toolbar_widget")
-            .ok_or_else(|| KainError::parser("Expected @toolbar_widget attribute", self.current_span()))?;
+            .ok_or_else(|| self.parser_error("Expected @toolbar_widget attribute", self.current_span()))?;
         
         let mut section = None;
         let mut position = None;
@@ -3948,9 +4075,9 @@ impl<'a> Parser<'a> {
             }
         }
         
-        let section = section.ok_or_else(|| KainError::parser("@toolbar_widget requires 'section' parameter", self.current_span()))?;
+        let section = section.ok_or_else(|| self.parser_error("@toolbar_widget requires 'section' parameter", self.current_span()))?;
         let position = position.unwrap_or(ToolbarPosition::After);
-        let widget_type = widget_type.ok_or_else(|| KainError::parser("@toolbar_widget requires 'widget_type' parameter", self.current_span()))?;
+        let widget_type = widget_type.ok_or_else(|| self.parser_error("@toolbar_widget requires 'widget_type' parameter", self.current_span()))?;
         
         Ok(ToolbarWidgetDef {
             section,

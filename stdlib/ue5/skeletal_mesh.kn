@@ -1,0 +1,52 @@
+# Skeletal Mesh Functions
+# Animation and skeletal mesh control for character systems
+
+# Animation Playback
+@extern
+fn PlayAnimation(mesh: SkeletalMesh, anim_name: String)
+
+@extern
+fn StopAnimation(mesh: SkeletalMesh)
+
+@extern
+fn SetAnimationSpeed(mesh: SkeletalMesh, speed: Float)
+
+@extern
+fn IsAnimationPlaying(mesh: SkeletalMesh) -> Bool
+
+# Bone Manipulation
+@extern
+fn GetBoneLocation(mesh: SkeletalMesh, bone_name: String) -> Vec3
+
+@extern
+fn GetBoneRotation(mesh: SkeletalMesh, bone_name: String) -> Rotator
+
+@extern
+fn SetBoneTransform(mesh: SkeletalMesh, bone_name: String, location: Vec3, rotation: Rotator)
+
+# Socket Operations
+@extern
+fn AttachToSocket(mesh: SkeletalMesh, socket_name: String, target: Actor)
+
+@extern
+fn GetSocketLocation(mesh: SkeletalMesh, socket_name: String) -> Vec3
+
+@extern
+fn GetSocketRotation(mesh: SkeletalMesh, socket_name: String) -> Rotator
+
+# Physics and Ragdoll
+@extern
+fn EnableRagdoll(mesh: SkeletalMesh)
+
+@extern
+fn DisableRagdoll(mesh: SkeletalMesh)
+
+@extern
+fn AddImpulseToBone(mesh: SkeletalMesh, bone_name: String, impulse: Vec3)
+
+# Morph Targets
+@extern
+fn SetMorphTarget(mesh: SkeletalMesh, morph_name: String, value: Float)
+
+@extern
+fn GetMorphTarget(mesh: SkeletalMesh, morph_name: String) -> Float

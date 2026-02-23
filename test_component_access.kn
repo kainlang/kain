@@ -1,0 +1,11 @@
+@component
+struct HealthComponent:
+    current: Float
+    max: Float
+
+actor Player:
+    state health_comp: HealthComponent
+
+    fn tick(self, dt: Float):
+        let hp = health_comp.current
+        println("Health: {hp}")

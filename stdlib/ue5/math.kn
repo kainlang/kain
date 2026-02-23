@@ -9,6 +9,59 @@ type Color = vec4
 type Rotation = rotation
 type Transform = transform
 
+// --- SCALAR MATH ---
+
+@extern
+fn max(a: Float, b: Float) -> Float
+
+@extern
+fn min(a: Float, b: Float) -> Float
+
+@extern
+fn abs(x: Float) -> Float
+
+@extern
+fn sqrt(x: Float) -> Float
+
+@extern
+fn pow(base: Float, exp: Float) -> Float
+
+@extern
+fn floor(x: Float) -> Float
+
+@extern
+fn ceil(x: Float) -> Float
+
+@extern
+fn round(x: Float) -> Float
+
+@extern
+fn clamp(value: Float, min_val: Float, max_val: Float) -> Float
+
+@extern
+fn sin(x: Float) -> Float
+
+@extern
+fn cos(x: Float) -> Float
+
+@extern
+fn tan(x: Float) -> Float
+
+@extern
+fn asin(x: Float) -> Float
+
+@extern
+fn acos(x: Float) -> Float
+
+@extern
+fn atan(x: Float) -> Float
+
+@extern
+fn atan2(y: Float, x: Float) -> Float
+
+@extern
+fn random() -> Float
+
 // --- VECTOR MATH ---
 
 @extern

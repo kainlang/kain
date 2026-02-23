@@ -1,0 +1,32 @@
+# Particle Functions
+# Niagara particle system control and parameter management
+
+# Particle System Spawning
+@extern
+fn SpawnEmitterAtLocation(system_name: String, location: Vec3) -> Actor
+
+@extern
+fn SpawnEmitterAttached(system_name: String, attach_to: SceneComponent, socket_name: String) -> Actor
+
+# Particle System Control
+@extern
+fn ActivateSystem(niagara: Actor)
+
+@extern
+fn DeactivateSystem(niagara: Actor)
+
+# Particle System Parameters
+@extern
+fn SetFloatParameter(niagara: Actor, param_name: String, value: Float)
+
+@extern
+fn SetVectorParameter(niagara: Actor, param_name: String, value: Vec3)
+
+@extern
+fn SetColorParameter(niagara: Actor, param_name: String, color: Vec4)
+
+@extern
+fn SetActorParameter(niagara: Actor, param_name: String, target: Actor)
+
+@extern
+fn SetBoolParameter(niagara: Actor, param_name: String, value: Bool)

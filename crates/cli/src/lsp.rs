@@ -283,6 +283,7 @@ fn diagnostic_from_error(text: &str, err: &KainError) -> Vec<Diagnostic> {
         KainError::Effect { message, span } => (message.clone(), *span),
         KainError::Borrow { message, span } => (message.clone(), *span),
         KainError::Codegen { message, span } => (message.clone(), *span),
+        KainError::CodegenWithLocation { message, span, .. } => (message.clone(), *span),
         KainError::Runtime { message } => (message.clone(), Span::default()),
         KainError::Io(_) => return vec![],
         KainError::Enhanced { message, location, .. } => {
@@ -509,7 +510,9 @@ impl Backend {
             }
         };
 
-        let mut parser = Parser::new(&tokens);
+        let span_mapper = kain_core::diagnostics::SpanMapper::new(&text);
+        let file_name = uri.path();
+        let mut parser = Parser::new(&tokens, &span_mapper, file_name);
         
         let program = match parser.parse() {
             Ok(p) => p,
@@ -522,7 +525,7 @@ impl Backend {
         };
 
         // Type check for richer diagnostics
-        if let Err(e) = types::check(&program) {
+        if let Err(e) = types::check(&program, &span_mapper, file_name) {
             let diag = diagnostic_from_error(&text, &e);
             self.client.publish_diagnostics(uri.clone(), diag, None).await;
             self.docs.update_analysis(&uri, None).await;

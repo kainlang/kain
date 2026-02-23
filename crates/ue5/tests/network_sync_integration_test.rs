@@ -15,13 +15,14 @@ struct NetworkedTransform:
 
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
-    let mut ast = Parser::new(&tokens).parse().expect("Failed to parse");
+    let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
     
     // Comptime evaluation
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
     
     // Type check
-    let typed_program = types::check(&ast).expect("Failed to type check");
+    let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
     
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
@@ -60,9 +61,10 @@ struct CompressedComponent:
 
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
-    let mut ast = Parser::new(&tokens).parse().expect("Failed to parse");
+    let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
-    let typed_program = types::check(&ast).expect("Failed to type check");
+    let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
     
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
@@ -85,9 +87,10 @@ struct PredictedMovement:
 
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
-    let mut ast = Parser::new(&tokens).parse().expect("Failed to parse");
+    let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
-    let typed_program = types::check(&ast).expect("Failed to type check");
+    let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
     
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
@@ -113,9 +116,10 @@ struct SimpleComponent:
 
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
-    let mut ast = Parser::new(&tokens).parse().expect("Failed to parse");
+    let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
-    let typed_program = types::check(&ast).expect("Failed to type check");
+    let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
     
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
@@ -140,9 +144,10 @@ struct TeleportableTransform:
 
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
-    let mut ast = Parser::new(&tokens).parse().expect("Failed to parse");
+    let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
-    let typed_program = types::check(&ast).expect("Failed to type check");
+    let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
     
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);

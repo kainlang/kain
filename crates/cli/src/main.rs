@@ -216,7 +216,8 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                         // Parse the source to get the actual shader name
                         match kain_core::Lexer::new(&source).tokenize() {
                             Ok(tokens) => {
-                                match kain_core::Parser::new(&tokens).parse() {
+                                let span_mapper = kain_core::diagnostics::SpanMapper::new(&source);
+                                match kain_core::Parser::new(&tokens, &span_mapper, input.to_str().unwrap_or("<unknown>")).parse() {
                                     Ok(ast) => {
                                         // Find the first shader in the AST
                                         ast.items.iter()

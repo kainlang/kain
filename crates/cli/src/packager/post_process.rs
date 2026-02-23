@@ -171,7 +171,8 @@ fn get_line_content(source: &str, line_num: usize) -> String {
 pub fn extract_shader_names(source: &str) -> KainResult<Vec<String>> {
     match kain_core::Lexer::new(source).tokenize() {
         Ok(tokens) => {
-            match kain_core::Parser::new(&tokens).parse() {
+            let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
+            match kain_core::Parser::new(&tokens, &span_mapper, "<shader_extract>").parse() {
                 Ok(ast) => {
                     let names: Vec<String> = ast.items.iter()
                         .filter_map(|item| {

@@ -24,6 +24,16 @@ pub enum KainError {
 
     #[error("Codegen error at {span:?}: {message}")]
     Codegen { message: String, span: Span },
+    
+    /// Codegen error with file:line:col location information
+    #[error("{file}:{line}:{col}: {message}")]
+    CodegenWithLocation {
+        message: String,
+        file: String,
+        line: usize,
+        col: usize,
+        span: Span,
+    },
 
     #[error("Runtime error: {message}")]
     Runtime { message: String },
@@ -143,6 +153,16 @@ impl KainError {
     pub fn codegen(message: impl Into<String>, span: Span) -> Self {
         KainError::Codegen {
             message: message.into(),
+            span,
+        }
+    }
+    
+    pub fn codegen_with_location(message: impl Into<String>, file: impl Into<String>, line: usize, col: usize, span: Span) -> Self {
+        KainError::CodegenWithLocation {
+            message: message.into(),
+            file: file.into(),
+            line,
+            col,
             span,
         }
     }
@@ -294,6 +314,16 @@ impl<T> ErrorContext<T> for Result<T, KainError> {
                     suggestion: None,
                 }
             }
+            KainError::CodegenWithLocation { message, file, line, col, span: _ } => {
+                KainError::Enhanced {
+                    kind: ErrorKind::Codegen,
+                    file: Some(PathBuf::from(file)),
+                    location: Some((line, col)),
+                    context: String::new(),
+                    message,
+                    suggestion: None,
+                }
+            }
             KainError::Io(io_err) => {
                 KainError::Enhanced {
                     kind: ErrorKind::Io,
@@ -372,6 +402,16 @@ impl<T> ErrorContext<T> for Result<T, KainError> {
                     kind: ErrorKind::Codegen,
                     file: None,
                     location: Some((span.start, span.end)),
+                    context: ctx.into(),
+                    message,
+                    suggestion: None,
+                }
+            }
+            KainError::CodegenWithLocation { message, file, line, col, span: _ } => {
+                KainError::Enhanced {
+                    kind: ErrorKind::Codegen,
+                    file: Some(PathBuf::from(file)),
+                    location: Some((line, col)),
                     context: ctx.into(),
                     message,
                     suggestion: None,

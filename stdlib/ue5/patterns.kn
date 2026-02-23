@@ -1,0 +1,32 @@
+# KAIN UE5 Standard Library - Common Type Patterns
+# Type definitions used across gameplay systems
+
+# Loot rarity levels for item drops and rewards
+enum LootRarity:
+    Common
+    Uncommon
+    Rare
+    Epic
+    Legendary
+    Mythic
+    LootRarity_MAX
+
+# Buff types for status effect systems
+enum BuffType:
+    Damage
+    Defense
+    Speed
+    Healing
+    BuffType_MAX
+
+# Inventory slot data structure
+struct InventorySlot:
+    item_id: Int
+    quantity: Int
+    max_stack: Int
+
+# Health component data structure
+struct HealthComponent:
+    current_health: Float
+    max_health: Float
+    is_invulnerable: Bool

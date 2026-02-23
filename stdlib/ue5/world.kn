@@ -1,0 +1,62 @@
+# World Functions
+# Common UWorld functions for time, spawning, and world queries
+
+# Time Functions
+@extern
+fn GetWorldTimeSeconds() -> Float
+
+@extern
+fn GetWorldDeltaSeconds() -> Float
+
+# Network Context
+@extern
+fn IsServer() -> Bool
+
+@extern
+fn IsClient() -> Bool
+
+@extern
+fn IsStandalone() -> Bool
+
+# Actor Spawning
+@extern
+fn SpawnActor(class_name: String, location: Vec3, rotation: Rotator) -> Actor
+
+@extern
+fn SpawnActorDeferred(class_name: String, location: Vec3, rotation: Rotator) -> Actor
+
+@extern
+fn FinishSpawningActor(spawned: Actor)
+
+# Debug Output
+@extern
+fn PrintToScreen(message: String)
+
+@extern
+fn PrintToLog(message: String)
+
+# Game Framework
+@extern
+fn GetGameMode() -> Actor
+
+@extern
+fn GetGameState() -> Actor
+
+@extern
+fn GetPlayerController() -> Actor
+
+@extern
+fn GetPlayerPawn() -> Actor
+
+# Line Traces
+@extern
+fn LineTraceSingle(start: Vec3, end: Vec3, channel: Int) -> Bool
+
+@extern
+fn LineTraceMulti(start: Vec3, end: Vec3, channel: Int) -> Array<Actor>
+
+@extern
+fn SphereTraceSingle(start: Vec3, end: Vec3, radius: Float, channel: Int) -> Bool
+
+@extern
+fn BoxTraceSingle(start: Vec3, end: Vec3, half_size: Vec3, channel: Int) -> Bool

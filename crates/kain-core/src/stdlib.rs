@@ -131,9 +131,161 @@ impl Default for StdLib {
 
 
 
+/// Find prioritized list of directories to search for stdlib
+pub(crate) fn find_stdlib_search_roots() -> Vec<std::path::PathBuf> {
+    use std::env;
+    use std::path::PathBuf;
+    
+    let mut roots = Vec::new();
+    
+    // Priority 1: KAIN_STDLIB_PATH environment variable (highest priority)
+    if let Ok(env_path) = env::var("KAIN_STDLIB_PATH") {
+        let path = PathBuf::from(env_path);
+        if path.exists() {
+            roots.push(path);
+            return roots; // If env var is set and valid, use only that
+        }
+    }
+    
+    // Priority 2: Walk up from executable location
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(mut current) = exe_path.parent() {
+            loop {
+                let stdlib_dir = current.join("stdlib");
+                if stdlib_dir.exists() && stdlib_dir.is_dir() {
+                    roots.push(stdlib_dir);
+                    break;
+                }
+                
+                // Move to parent directory
+                if let Some(parent) = current.parent() {
+                    current = parent;
+                } else {
+                    break; // Reached filesystem root
+                }
+            }
+        }
+    }
+    
+    // Priority 3: Walk up from current working directory
+    if let Ok(mut current) = env::current_dir() {
+        loop {
+            let stdlib_dir = current.join("stdlib");
+            if stdlib_dir.exists() && stdlib_dir.is_dir() {
+                // Avoid duplicates
+                if !roots.iter().any(|r| r == &stdlib_dir) {
+                    roots.push(stdlib_dir);
+                }
+                break;
+            }
+            
+            // Move to parent directory
+            if let Some(parent) = current.parent() {
+                current = parent.to_path_buf();
+            } else {
+                break; // Reached filesystem root
+            }
+        }
+    }
+    
+    roots
+}
+
+/// Load all .kn files from a directory, excluding README files
+pub(crate) fn load_kn_files_from_dir(path: &std::path::Path) -> Option<String> {
+    use std::fs;
+    
+    // Read directory entries
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return None,
+    };
+    
+    // Collect .kn files, excluding READMEs
+    let mut kn_files: Vec<(String, String)> = Vec::new();
+    
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue, // Skip unreadable entries
+        };
+        
+        let path = entry.path();
+        
+        // Check if it's a file with .kn extension
+        if path.is_file() {
+            if let Some(filename) = path.file_name() {
+                let filename_str = filename.to_string_lossy();
+                
+                // Filter for .kn extension
+                if filename_str.ends_with(".kn") {
+                    // Exclude README files (case-insensitive)
+                    if filename_str.to_lowercase().contains("readme") {
+                        continue;
+                    }
+                    
+                    // Read file contents
+                    match fs::read_to_string(&path) {
+                        Ok(content) => {
+                            kn_files.push((filename_str.to_string(), content));
+                        }
+                        Err(_) => {
+                            // Skip unreadable files, log warning
+                            eprintln!("Warning: Could not read stdlib file: {}", path.display());
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Return None if no files found
+    if kn_files.is_empty() {
+        return None;
+    }
+    
+    // Sort files alphabetically for deterministic ordering
+    kn_files.sort_by(|a, b| a.0.cmp(&b.0));
+    
+    // Concatenate file contents with newlines
+    let concatenated = kn_files
+        .into_iter()
+        .map(|(_, content)| content)
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    Some(concatenated)
+}
+
 /// Load the standard library source code
 pub fn load_stdlib() -> String {
-    // For now, return empty string
-    // TODO: Load actual stdlib .kn files from stdlib/ directory
+    // Get prioritized search roots
+    let search_roots = find_stdlib_search_roots();
+    
+    if search_roots.is_empty() {
+        // No stdlib directory found - graceful degradation
+        return String::new();
+    }
+    
+    // Try each root, checking ue5/ subdirectory first, then root
+    for root in search_roots {
+        // Try <root>/ue5/ first (UE5-specific stdlib)
+        let ue5_path = root.join("ue5");
+        if ue5_path.exists() && ue5_path.is_dir() {
+            if let Some(stdlib_source) = load_kn_files_from_dir(&ue5_path) {
+                eprintln!("Loaded stdlib from: {}", ue5_path.display());
+                return stdlib_source;
+            }
+        }
+        
+        // Fall back to root directory
+        if let Some(stdlib_source) = load_kn_files_from_dir(&root) {
+            eprintln!("Loaded stdlib from: {}", root.display());
+            return stdlib_source;
+        }
+    }
+    
+    // No stdlib files found in any search path - graceful degradation
     String::new()
 }

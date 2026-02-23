@@ -1,0 +1,8 @@
+[package]
+name = "TestComponentAccess"
+version = "1.0.0"
+
+[ue5]
+plugin_name = "TestComponentAccess"
+engine_version = "5.4"
+category = "Testing"

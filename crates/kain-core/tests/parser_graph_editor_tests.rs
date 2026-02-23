@@ -1,6 +1,7 @@
 use kain_core::parser::Parser;
 use kain_core::lexer::Lexer;
 use kain_core::ast::*;
+use kain_core::diagnostics::SpanMapper;
 
 // Helper function to check if a Type is a simple named type
 fn is_named_type(ty: &Type, expected_name: &str) -> bool {
@@ -27,7 +28,8 @@ graph CombatGraph:
     
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -75,7 +77,7 @@ graph TestGraph:
     
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -113,7 +115,7 @@ graph PropertyGraph:
     
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -154,7 +156,7 @@ graph ArrayGraph:
     
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -193,7 +195,7 @@ graph SchemaGraph:
     
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -247,7 +249,7 @@ graph ComplexGraph:
     
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);

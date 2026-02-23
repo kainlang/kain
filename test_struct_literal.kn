@@ -1,0 +1,8 @@
+struct Point:
+    x: Int
+    y: Int
+
+fn test_struct_literal():
+    # This should trigger an error - brace-style struct literal
+    let p = Point { x: 10, y: 20 }
+    println("Point created")

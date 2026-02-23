@@ -16,12 +16,5 @@
 //     reliable: Bool
 // }
 
-/// Map KAIN's world-level utilities
-@extern
-fn GetWorldDeltaSeconds() -> Float
-
-@extern
-fn GetActorLocation(self: ActorRef) -> Vec3
-
-@extern
-fn SetActorLocation(self: ActorRef, new_location: Vec3) -> Unit
+/// Common type definitions and utilities
+/// Note: World functions moved to world.kn, Actor functions moved to actor.kn

@@ -68,11 +68,11 @@ fn can_add_item_to_inventory(current_count: Int, max_capacity: Int, item_stack_s
 
 @blueprint
 fn calculate_inventory_weight(items: Array<InventorySlot>, item_weights: Array<Float>) -> Float:
-    var total_weight = 0.0
-    var i = 0
+    let total_weight = 0.0
+    let i = 0
     while i < items.len():
         let slot = items[i]
-        if slot.item_id >= 0 && slot.item_id < item_weights.len():
+        if slot.item_id >= 0 and slot.item_id < item_weights.len():
             total_weight = total_weight + item_weights[slot.item_id] * slot.quantity
         i = i + 1
     return total_weight

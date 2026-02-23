@@ -15,6 +15,7 @@ fn test_uplugin_without_shaders() {
         false,
         false,
         false, // no shaders
+        &[], // no plugin dependencies
     );
 
     // Should have CanContainContent: false
@@ -30,6 +31,7 @@ fn test_uplugin_with_shaders() {
         false,
         false,
         true, // has shaders
+        &[], // no plugin dependencies
     );
 
     // Should have CanContainContent: true
@@ -45,6 +47,7 @@ fn test_uplugin_split_mode_with_shaders() {
         true,
         true, // split mode
         true, // has shaders
+        &[], // no plugin dependencies
     );
 
     // Should have CanContainContent: true
@@ -66,6 +69,7 @@ fn test_uplugin_editor_only_with_shaders() {
         true,  // has editor items
         false, // no split
         true,  // has shaders
+        &[], // no plugin dependencies
     );
 
     // Should have CanContainContent: true
@@ -85,6 +89,7 @@ fn test_uplugin_structure() {
         false,
         false,
         true,
+        &[], // no plugin dependencies
     );
 
     // Verify JSON structure

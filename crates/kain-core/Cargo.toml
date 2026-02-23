@@ -21,3 +21,6 @@ reqwest = { workspace = true }
 [features]
 default = ["runtime"]
 runtime = []
+
+[dev-dependencies]
+tempfile = "3.8"

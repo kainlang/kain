@@ -12,31 +12,53 @@ use kain_core::types::{TypedProgram, TypedItem, TypedFunction, TypedStruct, Type
 use kain_core::error::{KainError, KainResult};
 use kain_core::ast::{Type, Attribute};
 use kain_core::ast::Visibility;
+use kain_core::diagnostics::SpanMapper;
+use kain_core::span::Span;
 use super::engine_knowledge::EngineKnowledge;
 use super::uht_rules::UhtRules;
 use super::validation_rules::{ValidationRules, ValidationRule, RuleCondition, Severity};
 use std::collections::{HashMap, HashSet};
 
 /// Validation context for tracking state during validation
-pub struct ValidationContext {
+pub struct ValidationContext<'a> {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    span_mapper: &'a SpanMapper,
+    filename: &'a str,
 }
 
-impl ValidationContext {
-    pub fn new() -> Self {
+impl<'a> ValidationContext<'a> {
+    pub fn new(span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
         Self {
             errors: Vec::new(),
             warnings: Vec::new(),
+            span_mapper,
+            filename,
         }
     }
 
+    /// Report an error with file:line:col format
     pub fn error(&mut self, msg: String) {
         self.errors.push(msg);
     }
+    
+    /// Report an error with span information in file:line:col format
+    pub fn error_with_span(&mut self, msg: String, span: Span) {
+        let loc = self.span_mapper.span_to_location(span, self.filename);
+        let formatted = format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, msg);
+        self.errors.push(formatted);
+    }
 
+    /// Report a warning with file:line:col format
     pub fn warning(&mut self, msg: String) {
         self.warnings.push(msg);
+    }
+    
+    /// Report a warning with span information in file:line:col format
+    pub fn warning_with_span(&mut self, msg: String, span: Span) {
+        let loc = self.span_mapper.span_to_location(span, self.filename);
+        let formatted = format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, msg);
+        self.warnings.push(formatted);
     }
 
     pub fn has_errors(&self) -> bool {
@@ -65,19 +87,19 @@ impl ValidationContext {
 }
 
 /// Main validation entry point - runs BEFORE C++ codegen
-pub fn validate_program(program: &TypedProgram) -> KainResult<()> {
+pub fn validate_program(program: &TypedProgram, span_mapper: &SpanMapper, filename: &str) -> KainResult<()> {
     let kb = EngineKnowledge::new();
-    validate_program_with_knowledge(program, &kb)
+    validate_program_with_knowledge(program, &kb, span_mapper, filename)
 }
 
 /// Validation with explicit EngineKnowledge (used when context already has one)
-pub fn validate_program_with_knowledge(program: &TypedProgram, kb: &EngineKnowledge) -> KainResult<()> {
+pub fn validate_program_with_knowledge(program: &TypedProgram, kb: &EngineKnowledge, span_mapper: &SpanMapper, filename: &str) -> KainResult<()> {
     let uht = UhtRules::new();
-    validate_program_full(program, kb, &uht)
+    validate_program_full(program, kb, &uht, span_mapper, filename)
 }
 
 /// Full validation with EngineKnowledge + UHT rules (used when Ue5Context is available)
-pub fn validate_program_full(program: &TypedProgram, kb: &EngineKnowledge, uht: &UhtRules) -> KainResult<()> {
+pub fn validate_program_full(program: &TypedProgram, kb: &EngineKnowledge, uht: &UhtRules, span_mapper: &SpanMapper, filename: &str) -> KainResult<()> {
     // Load custom validation rules (if available)
     let custom_rules = ValidationRules::load("unreal/metadata/validation_rules.json")
         .unwrap_or_else(|_| ValidationRules {
@@ -85,7 +107,7 @@ pub fn validate_program_full(program: &TypedProgram, kb: &EngineKnowledge, uht: 
             rules: Vec::new(),
         });
     
-    validate_program_with_custom_rules(program, kb, uht, &custom_rules)
+    validate_program_with_custom_rules(program, kb, uht, &custom_rules, span_mapper, filename)
 }
 
 /// Full validation with custom rules support
@@ -94,8 +116,10 @@ pub fn validate_program_with_custom_rules(
     kb: &EngineKnowledge,
     uht: &UhtRules,
     custom_rules: &ValidationRules,
+    span_mapper: &SpanMapper,
+    filename: &str,
 ) -> KainResult<()> {
-    let mut ctx = ValidationContext::new();
+    let mut ctx = ValidationContext::new(span_mapper, filename);
     
     // Check for rule conflicts before validation
     let conflicts = custom_rules.detect_conflicts();
@@ -160,6 +184,7 @@ pub fn validate_program_with_custom_rules(
 /// Validate function specifiers (UFUNCTION rules)
 fn validate_function(ctx: &mut ValidationContext, func: &TypedFunction) {
     let func_name = &func.ast.name;
+    let func_span = func.ast.span;
     let mut flags = FunctionFlags::new();
     
     // Parse function attributes/specifiers from AST
@@ -209,50 +234,50 @@ fn validate_function(ctx: &mut ValidationContext, func: &TypedFunction) {
     // RULE: Private functions cannot be BlueprintImplementableEvent or BlueprintNativeEvent
     let is_private = func.ast.visibility == Visibility::Private;
     if is_private && flags.blueprint_event {
-        ctx.error(format!(
+        ctx.error_with_span(format!(
             "Function '{}': A Private function cannot be a BlueprintImplementableEvent or BlueprintNativeEvent.",
             func_name
-        ));
+        ), func_span);
     }
 
     // RULE: BlueprintEvent cannot be a BlueprintGetter
     if flags.blueprint_event && flags.blueprint_getter {
-        ctx.error(format!(
+        ctx.error_with_span(format!(
             "Function '{}': Function cannot be a blueprint event and a blueprint getter.",
             func_name
-        ));
+        ), func_span);
     }
     
     // RULE 1: BlueprintImplementableEvent cannot be replicated
     if flags.blueprint_implementable && flags.net {
-        ctx.error(format!(
+        ctx.error_with_span(format!(
             "Function '{}': BlueprintImplementableEvent functions cannot be replicated (Server/Client/Multicast)",
             func_name
-        ));
+        ), func_span);
     }
     
     // RULE 2: BlueprintNativeEvent cannot be replicated
     if flags.blueprint_native && flags.net {
-        ctx.error(format!(
+        ctx.error_with_span(format!(
             "Function '{}': BlueprintNativeEvent functions cannot be replicated (Server/Client/Multicast)",
             func_name
-        ));
+        ), func_span);
     }
     
     // RULE 3: Cannot be both BlueprintImplementableEvent and BlueprintNativeEvent
     if flags.blueprint_implementable && flags.blueprint_native {
-        ctx.error(format!(
+        ctx.error_with_span(format!(
             "Function '{}': Cannot be both BlueprintImplementableEvent and BlueprintNativeEvent",
             func_name
-        ));
+        ), func_span);
     }
     
     // RULE 4: Exec functions cannot be replicated
     if flags.exec && flags.net {
-        ctx.error(format!(
+        ctx.error_with_span(format!(
             "Function '{}': Exec functions cannot be replicated",
             func_name
-        ));
+        ), func_span);
     }
 
     // RULE: RigVM methods cannot have parameters (UE 5.2+ Rule)
@@ -556,10 +581,14 @@ impl FunctionFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kain_core::diagnostics::SpanMapper;
+    use kain_core::span::Span;
     
     #[test]
     fn test_validation_context() {
-        let mut ctx = ValidationContext::new();
+        let source = "test source";
+        let span_mapper = SpanMapper::new(source);
+        let mut ctx = ValidationContext::new(&span_mapper, "test.kn");
         assert!(!ctx.has_errors());
         
         ctx.error("Test error".to_string());
@@ -567,6 +596,24 @@ mod tests {
         
         let report = ctx.report();
         assert!(report.contains("Test error"));
+    }
+    
+    #[test]
+    fn test_validation_context_with_span() {
+        let source = "line1\nline2\nline3";
+        let span_mapper = SpanMapper::new(source);
+        let mut ctx = ValidationContext::new(&span_mapper, "test.kn");
+        
+        // Error on line 2 (starts at byte 6)
+        let span = Span::new(6, 11);
+        ctx.error_with_span("Test error on line 2".to_string(), span);
+        
+        assert!(ctx.has_errors());
+        let report = ctx.report();
+        
+        // Should contain file:line:col format
+        assert!(report.contains("test.kn:2:1:"), "Report should contain 'test.kn:2:1:' but got: {}", report);
+        assert!(report.contains("Test error on line 2"));
     }
 }
 

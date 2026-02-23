@@ -21,14 +21,14 @@ fn normalize(s: &str) -> String {
 
 #[test]
 fn legacy_single_uplugin_fixture_matches() {
-    let actual = generate_uplugin_file("DemoPlugin", &None, false, false, false);
+    let actual = generate_uplugin_file("DemoPlugin", &None, false, false, false, &[]);
     let expected = fixture("legacy_single.uplugin.json");
     assert_eq!(normalize(&actual), normalize(&expected));
 }
 
 #[test]
 fn legacy_split_uplugin_fixture_matches() {
-    let actual = generate_uplugin_file("DemoPlugin", &None, false, true, false);
+    let actual = generate_uplugin_file("DemoPlugin", &None, false, true, false, &[]);
     let expected = fixture("legacy_split.uplugin.json");
     assert_eq!(normalize(&actual), normalize(&expected));
 }
@@ -71,7 +71,7 @@ fn multimodule_uplugin_fixture_matches() {
         },
     ];
 
-    let actual = generate_uplugin_file_from_modules("DemoPlugin", &None, true, &modules);
+    let actual = generate_uplugin_file_from_modules("DemoPlugin", &None, true, &modules, &[]);
     let expected = fixture("multimodule.uplugin.json");
     assert_eq!(normalize(&actual), normalize(&expected));
 }

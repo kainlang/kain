@@ -1,6 +1,7 @@
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::ast::Item;
+use kain_core::diagnostics::SpanMapper;
 
 #[test]
 fn test_material_graph_parsing() {
@@ -18,7 +19,7 @@ material HologramMaterial:
 "#;
 
     let tokens = Lexer::new(source).tokenize().expect("Lexer should succeed");
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Parser should succeed");
     
     assert_eq!(program.items.len(), 1, "Should have 1 item");
@@ -53,7 +54,7 @@ material SimpleMaterial:
 "#;
 
     let tokens = Lexer::new(source).tokenize().expect("Lexer should succeed");
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Parser should succeed");
     
     assert_eq!(program.items.len(), 1);

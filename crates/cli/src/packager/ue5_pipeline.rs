@@ -2,8 +2,19 @@ use std::fs;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use crate::error::{KainError, KainResult};
+use kain_core::diagnostics::{SpanMapper, enhance_error_with_location};
 use super::config::Ue5Config;
 use super::post_process;
+
+/// Helper function to enhance codegen errors with file:line:col location information
+/// Takes a Result from codegen and enhances any KainError::Codegen with location data
+fn enhance_codegen_result<T>(
+    result: KainResult<T>,
+    span_mapper: &SpanMapper,
+    file_path: &str,
+) -> KainResult<T> {
+    result.map_err(|e| enhance_error_with_location(e, span_mapper, file_path))
+}
 
 /// Metadata for a single generated binary asset, collected during the build
 /// for bulk-registration into AssetRegistry.bin.
@@ -1103,27 +1114,57 @@ fn load_and_parse_sources(
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
     
-    // Determine stdlib path from config or use defaults
-    // STDLIB IS NOW DISABLED BY DEFAULT - only load if explicitly configured
+    // Determine stdlib path with prioritized search strategy
     let stdlib_search_paths: Vec<PathBuf> = if let Some(custom_path) = &ue5_config.stdlib_path {
-        // Use custom path from KAIN.toml (only if user explicitly wants stdlib)
+        // Priority 1: Explicit path from KAIN.toml (highest priority)
         vec![custom_path.clone()]
+    } else if let Ok(env_path) = std::env::var("KAIN_STDLIB_PATH") {
+        // Priority 2: KAIN_STDLIB_PATH environment variable
+        vec![PathBuf::from(env_path)]
     } else {
-        // STDLIB DISABLED BY DEFAULT - return empty vec
-        vec![]
+        // Priority 3: Auto-discovery via filesystem walking
+        let mut roots = Vec::new();
+        
+        // Walk up from current working directory
+        if let Ok(mut current) = std::env::current_dir() {
+            loop {
+                let stdlib_dir = current.join("stdlib");
+                if stdlib_dir.exists() && stdlib_dir.is_dir() {
+                    roots.push(stdlib_dir);
+                    break;
+                }
+                
+                // Move to parent directory
+                if let Some(parent) = current.parent() {
+                    current = parent.to_path_buf();
+                } else {
+                    break; // Reached filesystem root
+                }
+            }
+        }
+        
+        roots
     };
     
-    // Try each search path
-    for stdlib_path in stdlib_search_paths {
-        if stdlib_path.exists() {
-            if let Ok(entries) = fs::read_dir(&stdlib_path) {
+    // Try each search path, checking ue5/ subdirectory first
+    for stdlib_root in stdlib_search_paths {
+        // Try <root>/ue5/ first (UE5-specific stdlib)
+        let ue5_path = stdlib_root.join("ue5");
+        let search_path = if ue5_path.exists() && ue5_path.is_dir() {
+            ue5_path
+        } else {
+            stdlib_root.clone()
+        };
+        
+        if search_path.exists() {
+            if let Ok(entries) = fs::read_dir(&search_path) {
                 for entry in entries {
                     if let Ok(entry) = entry {
                         let path = entry.path();
                         if path.extension().map_or(false, |e| e == "kn") {
-                            // Skip README files
+                            // Skip README files (case-insensitive)
                             if let Some(name) = path.file_name() {
-                                if name.to_string_lossy().to_uppercase().contains("README") {
+                                if name.to_string_lossy().to_lowercase().contains("readme") {
                                     continue;
                                 }
                             }
@@ -1134,7 +1175,7 @@ fn load_and_parse_sources(
             }
             // Found stdlib, stop searching
             if !stdlib_files.is_empty() {
-                println!("📚 Loaded stdlib from: {}", stdlib_path.display());
+                println!("📚 Loaded stdlib from: {}", search_path.display());
                 break;
             }
         }
@@ -1188,6 +1229,7 @@ fn load_and_parse_sources(
     let mut all_asts = Vec::new();
     let mut all_shader_names = Vec::new();
     let mut symbol_source_map: HashMap<String, PathBuf> = HashMap::new();
+    let mut all_span_mappers: Vec<(String, kain_core::diagnostics::SpanMapper)> = Vec::new();
     
     println!("🔍 Validating source files...");
     for source_path in &all_source_files {
@@ -1209,14 +1251,19 @@ fn load_and_parse_sources(
             }
         };
         
-        let ast = match kain_core::Parser::new(&tokens).parse() {
+        let span_mapper = kain_core::diagnostics::SpanMapper::new(&file_source);
+        let file_name = source_path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<unknown>");
+        
+        let ast = match kain_core::Parser::new(&tokens, &span_mapper, file_name).parse() {
             Ok(a) => a,
             Err(e) => {
-                let file_name = source_path.file_name()
+                let file_name_str = source_path.file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| source_path.display().to_string());
                 let formatted_error = post_process::format_error_with_location(
-                    &file_source, &e.to_string(), file_name
+                    &file_source, &e.to_string(), file_name_str
                 );
                 return Err(KainError::runtime(format!(
                     "❌ Parse error in {}:{}", source_path.display(), formatted_error
@@ -1239,6 +1286,7 @@ fn load_and_parse_sources(
             }
         }
         
+        all_span_mappers.push((file_name.to_string(), span_mapper));
         all_asts.push(ast);
     }
     println!();
@@ -1304,7 +1352,12 @@ fn load_and_parse_sources(
     
     // Type-check the MERGED program
     println!("🔍 Type checking merged program...");
-    let typed_program = match kain_core::types::check(&merged) {
+    
+    // Use first span_mapper for merged program type checking
+    let (first_filename, first_span_mapper) = all_span_mappers.first()
+        .ok_or_else(|| KainError::runtime("No source files to compile"))?;
+    
+    let typed_program = match kain_core::types::check(&merged, first_span_mapper, first_filename) {
         Ok(tp) => {
             println!("   ✓ Type checking passed");
             tp
@@ -1344,7 +1397,7 @@ fn load_and_parse_sources(
             let _ = uht.load(&data);
         }
     }
-    match ue5::ue5::oracle::validate_program_full(&typed_program, &kb, &uht) {
+    match ue5::ue5::oracle::validate_program_full(&typed_program, &kb, &uht, first_span_mapper, first_filename) {
         Ok(()) => {
             println!("   ✓ Oracle validation passed");
         }

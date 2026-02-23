@@ -4,12 +4,22 @@ use std::path::{Path, PathBuf};
 use chrono::Datelike;
 use serde::Serialize;
 use crate::error::{KainError, KainResult};
+use kain_core::diagnostics::{SpanMapper, enhance_error_with_location};
 use super::config::Ue5Config;
 use super::plugin_layout::PluginLayout;
 
 extern crate ue5;
 extern crate ue5_editor;
 extern crate ue5_shaders;
+
+/// Helper function to enhance codegen errors with file:line:col location information
+fn enhance_codegen_result<T>(
+    result: KainResult<T>,
+    span_mapper: &SpanMapper,
+    file_path: &str,
+) -> KainResult<T> {
+    result.map_err(|e| enhance_error_with_location(e, span_mapper, file_path))
+}
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct SymbolRoutingManifest {

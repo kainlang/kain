@@ -1,0 +1,144 @@
+# Shader Functions
+# Shader-specific functions for PBR, noise, and color operations
+#
+# NOTE: These functions are marked with @blueprint as a workaround.
+# Future implementation should use @shader_fn annotation for proper shader inlining.
+# Migration path: When @shader_fn is implemented, replace @blueprint with @shader_fn
+# and update USF codegen to inline function bodies instead of emitting calls.
+
+# PBR Functions
+@blueprint
+fn fresnel_schlick(cos_theta: Float, f0: Vec3) -> Vec3:
+    let one_minus_cos = 1.0 - cos_theta
+    let factor = pow(one_minus_cos, 5.0)
+    let one_vec = vec3(1.0, 1.0, 1.0)
+    return f0 + (one_vec - f0) * factor
+
+@blueprint
+fn distribution_ggx(n: Vec3, h: Vec3, roughness: Float) -> Float:
+    let a = roughness * roughness
+    let a2 = a * a
+    let n_dot_h = max(dot(n, h), 0.0)
+    let n_dot_h2 = n_dot_h * n_dot_h
+    
+    let denom = n_dot_h2 * (a2 - 1.0) + 1.0
+    let pi = 3.14159265359
+    return a2 / (pi * denom * denom)
+
+@blueprint
+fn geometry_schlick_ggx(n_dot_v: Float, roughness: Float) -> Float:
+    let r = roughness + 1.0
+    let k = (r * r) / 8.0
+    let denom = n_dot_v * (1.0 - k) + k
+    return n_dot_v / denom
+
+# Noise Functions
+@blueprint
+fn hash(p: Vec2) -> Float:
+    let dot_val = dot(p, vec2(127.1, 311.7))
+    let sin_val = sin(dot_val)
+    return frac(sin_val * 43758.5453123)
+
+@blueprint
+fn perlin_noise(uv: Vec2) -> Float:
+    let i = floor(uv)
+    let f = frac(uv)
+    
+    let a = hash(i)
+    let b = hash(i + vec2(1.0, 0.0))
+    let c = hash(i + vec2(0.0, 1.0))
+    let d = hash(i + vec2(1.0, 1.0))
+    
+    let u = f * f * (3.0 - 2.0 * f)
+    
+    let ab = a + (b - a) * u.x
+    let cd = c + (d - c) * u.x
+    return ab + (cd - ab) * u.y
+
+@blueprint
+fn fbm(uv: Vec2, octaves: Int) -> Float:
+    let value = 0.0
+    let amplitude = 0.5
+    let frequency = 1.0
+    
+    let i = 0
+    while i < octaves:
+        let scaled_uv = vec2(uv.x * frequency, uv.y * frequency)
+        value = value + amplitude * perlin_noise(scaled_uv)
+        frequency = frequency * 2.0
+        amplitude = amplitude * 0.5
+        i = i + 1
+    
+    return value
+
+# Color Grading Functions
+@blueprint
+fn apply_contrast(color: Vec3, contrast: Float) -> Vec3:
+    let adjusted_r = (color.x - 0.5) * contrast + 0.5
+    let adjusted_g = (color.y - 0.5) * contrast + 0.5
+    let adjusted_b = (color.z - 0.5) * contrast + 0.5
+    return vec3(adjusted_r, adjusted_g, adjusted_b)
+
+@blueprint
+fn apply_saturation(color: Vec3, saturation: Float) -> Vec3:
+    let gray = 0.299 * color.x + 0.587 * color.y + 0.114 * color.z
+    let r = gray + (color.x - gray) * saturation
+    let g = gray + (color.y - gray) * saturation
+    let b = gray + (color.z - gray) * saturation
+    return vec3(r, g, b)
+
+@blueprint
+fn tonemap_aces(color: Vec3) -> Vec3:
+    let a = 2.51
+    let b = 0.03
+    let c = 2.43
+    let d = 0.59
+    let e = 0.14
+    
+    let numerator_r = color.x * (a * color.x + b)
+    let numerator_g = color.y * (a * color.y + b)
+    let numerator_b = color.z * (a * color.z + b)
+    
+    let denom_r = color.x * (c * color.x + d) + e
+    let denom_g = color.y * (c * color.y + d) + e
+    let denom_b = color.z * (c * color.z + d) + e
+    
+    return vec3(numerator_r / denom_r, numerator_g / denom_g, numerator_b / denom_b)
+
+@blueprint
+fn tonemap_reinhard(color: Vec3) -> Vec3:
+    let r = color.x / (1.0 + color.x)
+    let g = color.y / (1.0 + color.y)
+    let b = color.z / (1.0 + color.z)
+    return vec3(r, g, b)
+
+# UV Manipulation Functions
+@blueprint
+fn rotate_uv(uv: Vec2, angle: Float) -> Vec2:
+    let cos_angle = cos(angle)
+    let sin_angle = sin(angle)
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let rotated_x = centered.x * cos_angle - centered.y * sin_angle
+    let rotated_y = centered.x * sin_angle + centered.y * cos_angle
+    return vec2(rotated_x + 0.5, rotated_y + 0.5)
+
+@blueprint
+fn polar_coordinates(uv: Vec2) -> Vec2:
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let radius = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let angle = atan2(centered.y, centered.x)
+    return vec2(radius, angle)
+
+@blueprint
+fn vignette(uv: Vec2, intensity: Float) -> Float:
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let dist = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let vignette_val = 1.0 - dist * intensity
+    return clamp(vignette_val, 0.0, 1.0)
+
+@blueprint
+fn chromatic_aberration(uv: Vec2, offset: Float) -> Vec2:
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let dist = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let direction = vec2(centered.x / dist, centered.y / dist)
+    return vec2(direction.x * offset, direction.y * offset)

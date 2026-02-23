@@ -1,0 +1,13 @@
+@component
+struct HealthComponent:
+    current_health: Float = 100.0
+    max_health: Float = 100.0
+
+actor TestActor:
+    state health_comp: HealthComponent = HealthComponent()
+    state items: Array<Int> = []
+
+    fn tick(self, dt: Float):
+        let hp = health_comp.current_health
+        let count = items.len()
+        println("Health: {hp}, Items: {count}")

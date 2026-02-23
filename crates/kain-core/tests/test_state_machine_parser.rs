@@ -1,6 +1,7 @@
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::ast::Item;
+use kain_core::diagnostics::SpanMapper;
 
 #[test]
 fn test_parse_state_machine_basic() {
@@ -26,7 +27,7 @@ struct CharacterAnimations:
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     assert_eq!(program.items.len(), 1);
@@ -73,7 +74,7 @@ struct CombatStateMachine:
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     match &program.items[0] {
@@ -107,7 +108,7 @@ struct MovementStateMachine:
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let mut parser = Parser::new(&tokens);
+    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
     
     match &program.items[0] {

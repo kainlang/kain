@@ -504,6 +504,74 @@ impl StdLibResolver {
         self.mappings.insert(name.to_string(), mapping);
     }
 
+    /// Check if a C++ expression is a vector type
+    fn is_vector_expr(expr: &str) -> bool {
+        expr.starts_with("FVector(") 
+            || expr.starts_with("FVector2D(")
+            || expr.starts_with("FVector4(")
+            || expr.contains(".GetSafeNormal()")
+            || expr.contains("::CrossProduct")
+            || expr.contains("::DotProduct")
+            || (expr.contains('.') && (expr.contains(".X") || expr.contains(".Y") || expr.contains(".Z")))
+    }
+
+    /// Generate component-wise vector operation
+    fn gen_vector_componentwise(fn_name: &str, arg: &str) -> Option<String> {
+        // Determine vector type from the expression
+        let is_vec2 = arg.starts_with("FVector2D(");
+        let is_vec4 = arg.starts_with("FVector4(");
+        
+        match fn_name {
+            "floor" => {
+                if is_vec2 {
+                    Some(format!("FVector2D(FMath::FloorToFloat(({}).X), FMath::FloorToFloat(({}).Y))", arg, arg))
+                } else if is_vec4 {
+                    Some(format!("FVector4(FMath::FloorToFloat(({}).X), FMath::FloorToFloat(({}).Y), FMath::FloorToFloat(({}).Z), FMath::FloorToFloat(({}).W))", arg, arg, arg, arg))
+                } else {
+                    // Default to Vec3
+                    Some(format!("FVector(FMath::FloorToFloat(({}).X), FMath::FloorToFloat(({}).Y), FMath::FloorToFloat(({}).Z))", arg, arg, arg))
+                }
+            }
+            "frac" | "fract" => {
+                if is_vec2 {
+                    Some(format!("FVector2D(FMath::Frac(({}).X), FMath::Frac(({}).Y))", arg, arg))
+                } else if is_vec4 {
+                    Some(format!("FVector4(FMath::Frac(({}).X), FMath::Frac(({}).Y), FMath::Frac(({}).Z), FMath::Frac(({}).W))", arg, arg, arg, arg))
+                } else {
+                    Some(format!("FVector(FMath::Frac(({}).X), FMath::Frac(({}).Y), FMath::Frac(({}).Z))", arg, arg, arg))
+                }
+            }
+            "abs" => {
+                if is_vec2 {
+                    Some(format!("FVector2D(FMath::Abs(({}).X), FMath::Abs(({}).Y))", arg, arg))
+                } else if is_vec4 {
+                    Some(format!("FVector4(FMath::Abs(({}).X), FMath::Abs(({}).Y), FMath::Abs(({}).Z), FMath::Abs(({}).W))", arg, arg, arg, arg))
+                } else {
+                    Some(format!("FVector(FMath::Abs(({}).X), FMath::Abs(({}).Y), FMath::Abs(({}).Z))", arg, arg, arg))
+                }
+            }
+            "ceil" => {
+                if is_vec2 {
+                    Some(format!("FVector2D(FMath::CeilToFloat(({}).X), FMath::CeilToFloat(({}).Y))", arg, arg))
+                } else if is_vec4 {
+                    Some(format!("FVector4(FMath::CeilToFloat(({}).X), FMath::CeilToFloat(({}).Y), FMath::CeilToFloat(({}).Z), FMath::CeilToFloat(({}).W))", arg, arg, arg, arg))
+                } else {
+                    Some(format!("FVector(FMath::CeilToFloat(({}).X), FMath::CeilToFloat(({}).Y), FMath::CeilToFloat(({}).Z))", arg, arg, arg))
+                }
+            }
+            "round" => {
+                if is_vec2 {
+                    Some(format!("FVector2D(FMath::RoundToFloat(({}).X), FMath::RoundToFloat(({}).Y))", arg, arg))
+                } else if is_vec4 {
+                    Some(format!("FVector4(FMath::RoundToFloat(({}).X), FMath::RoundToFloat(({}).Y), FMath::RoundToFloat(({}).Z), FMath::RoundToFloat(({}).W))", arg, arg, arg, arg))
+                } else {
+                    Some(format!("FVector(FMath::RoundToFloat(({}).X), FMath::RoundToFloat(({}).Y), FMath::RoundToFloat(({}).Z))", arg, arg, arg))
+                }
+            }
+            _ => None
+        }
+    }
+
     /// Resolve a function call to UE5 code
     ///
     /// # Arguments
@@ -526,6 +594,13 @@ impl StdLibResolver {
                 mapping.param_count,
                 args.len()
             ));
+        }
+
+        // Check if this is a vector operation that needs component-wise handling
+        if args.len() == 1 && Self::is_vector_expr(&args[0]) {
+            if let Some(vector_code) = Self::gen_vector_componentwise(fn_name, &args[0]) {
+                return Ok(vector_code);
+            }
         }
 
         // Substitute $0, $1, ... with actual args
@@ -975,5 +1050,90 @@ mod tests {
 
         // Verify we have at least 47 unique functions (20 math + 12 collection + 15 string)
         assert!(functions.len() >= 47, "Expected at least 47 stdlib functions, got {}", functions.len());
+    }
+
+    #[test]
+    fn test_vector_floor() {
+        let resolver = StdLibResolver::new();
+
+        // Vec2
+        assert_eq!(
+            resolver.resolve("floor", &["FVector2D(3.7, 2.3)".to_string()]),
+            Ok("FVector2D(FMath::FloorToFloat((FVector2D(3.7, 2.3)).X), FMath::FloorToFloat((FVector2D(3.7, 2.3)).Y))".to_string())
+        );
+
+        // Vec3
+        assert_eq!(
+            resolver.resolve("floor", &["FVector(3.7, 2.3, 1.9)".to_string()]),
+            Ok("FVector(FMath::FloorToFloat((FVector(3.7, 2.3, 1.9)).X), FMath::FloorToFloat((FVector(3.7, 2.3, 1.9)).Y), FMath::FloorToFloat((FVector(3.7, 2.3, 1.9)).Z))".to_string())
+        );
+
+        // Vec4
+        assert_eq!(
+            resolver.resolve("floor", &["FVector4(3.7, 2.3, 1.9, 0.5)".to_string()]),
+            Ok("FVector4(FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).X), FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).Y), FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).Z), FMath::FloorToFloat((FVector4(3.7, 2.3, 1.9, 0.5)).W))".to_string())
+        );
+
+        // Scalar should still work
+        assert_eq!(
+            resolver.resolve("floor", &["3.7".to_string()]),
+            Ok("FMath::FloorToFloat(3.7)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_vector_frac() {
+        let resolver = StdLibResolver::new();
+
+        // Vec3
+        assert_eq!(
+            resolver.resolve("frac", &["FVector(3.7, 2.3, 1.9)".to_string()]),
+            Ok("FVector(FMath::Frac((FVector(3.7, 2.3, 1.9)).X), FMath::Frac((FVector(3.7, 2.3, 1.9)).Y), FMath::Frac((FVector(3.7, 2.3, 1.9)).Z))".to_string())
+        );
+
+        // Scalar should still work
+        assert_eq!(
+            resolver.resolve("frac", &["3.7".to_string()]),
+            Ok("FMath::Frac(3.7)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_vector_abs() {
+        let resolver = StdLibResolver::new();
+
+        // Vec3
+        assert_eq!(
+            resolver.resolve("abs", &["FVector(-1.0, 2.0, -3.0)".to_string()]),
+            Ok("FVector(FMath::Abs((FVector(-1.0, 2.0, -3.0)).X), FMath::Abs((FVector(-1.0, 2.0, -3.0)).Y), FMath::Abs((FVector(-1.0, 2.0, -3.0)).Z))".to_string())
+        );
+
+        // Scalar should still work
+        assert_eq!(
+            resolver.resolve("abs", &["-5.0".to_string()]),
+            Ok("FMath::Abs(-5.0)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_vector_ceil() {
+        let resolver = StdLibResolver::new();
+
+        // Vec3
+        assert_eq!(
+            resolver.resolve("ceil", &["FVector(3.2, 2.7, 1.1)".to_string()]),
+            Ok("FVector(FMath::CeilToFloat((FVector(3.2, 2.7, 1.1)).X), FMath::CeilToFloat((FVector(3.2, 2.7, 1.1)).Y), FMath::CeilToFloat((FVector(3.2, 2.7, 1.1)).Z))".to_string())
+        );
+    }
+
+    #[test]
+    fn test_vector_round() {
+        let resolver = StdLibResolver::new();
+
+        // Vec3
+        assert_eq!(
+            resolver.resolve("round", &["FVector(3.5, 2.4, 1.6)".to_string()]),
+            Ok("FVector(FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).X), FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).Y), FMath::RoundToFloat((FVector(3.5, 2.4, 1.6)).Z))".to_string())
+        );
     }
 }
