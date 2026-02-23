@@ -1177,6 +1177,12 @@ impl Ue5Gen {
         // Add discovered headers to includes list
         if !blueprint_library_only {
             for header in self.context.get_needed_headers() {
+                // Never include the module master header from generated leaf headers.
+                // It causes recursive include cycles (leaf -> Plugin.h -> leafs) which
+                // can surface as unknown type / missing ';' pointer errors.
+                if header == format!("{}.h", self.module_name) {
+                    continue;
+                }
                 if !includes.contains(&header.as_str()) {
                     includes.push(Box::leak(header.into_boxed_str())); // Keep it simple for now
                 }
@@ -3834,11 +3840,11 @@ impl Ue5Gen {
                         .unwrap_or_else(|| "auto".to_string());
                     
                     if let Some(val) = value {
-                        if *mutable {
-                            self.write_source(&format!("{} {} = {};", ty_str, name, self.gen_expr(val)));
-                        } else {
-                            self.write_source(&format!("const {} {} = {};", ty_str, name, self.gen_expr(val)));
-                        }
+                        // KAIN `let` bindings are frequently field-mutated later in the same
+                        // scope (e.g. settings.foo = ...). Emitting const here causes large
+                        // C3892/C2678 cascades in generated UE C++.
+                        let _ = mutable; // retained for future mutability-specific lowering
+                        self.write_source(&format!("{} {} = {};", ty_str, name, self.gen_expr(val)));
                     } else {
                         self.write_source(&format!("{} {};", ty_str, name));
                     }
@@ -4386,6 +4392,13 @@ impl Ue5Gen {
                     "Color" | "color" => return format!("FLinearColor({})", arg_strs.join(", ")),
                     "rotation" | "Rotation" | "rotator" | "Rotator" => return format!("FRotator({})", arg_strs.join(", ")),
                     "transform" | "Transform" => return format!("FTransform({})", arg_strs.join(", ")),
+                    "string" => return {
+                        if arg_strs.len() == 1 {
+                            format!("LexToString({})", arg_strs[0])
+                        } else {
+                            format!("LexToString({})", arg_strs.join(", "))
+                        }
+                    },
                     _ => {}
                 }
                 
@@ -4582,9 +4595,10 @@ impl Ue5Gen {
                             );
                             is_ue5_vector
                         } else {
-                            // Not in var_types - default to NOT capitalizing
-                            // This matches gen_expr_string behavior and handles user-defined structs
-                            false
+                            // Not in var_types (common for inferred local temporaries like
+                            // `let local_pos = ...`). Default to capitalizing component access
+                            // to preserve UE vector semantics (.X/.Y/.Z/.W).
+                            true
                         }
                     } else {
                         // Complex expression - default to capitalizing for backward compatibility

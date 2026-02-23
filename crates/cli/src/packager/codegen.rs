@@ -820,13 +820,13 @@ pub fn generate_stdlib_functions(
                 fs::write(&stdlib_header_path, &stdlib_output.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ KainStdlib.h (stdlib utility functions)");
                 
-                // Add include to master header
+                // Add include to master header.
+                // Keep this after module includes to avoid circular include-order issues
+                // when stdlib helpers reference generated runtime types.
                 let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
-                // Insert KainStdlib include BEFORE the individual module includes
-                master = master.replace(
-                    "// Module includes\n",
-                    "// Stdlib functions\n#include \"KainStdlib.h\"\n\n// Module includes\n"
-                );
+                if !master.contains("#include \"KainStdlib.h\"") {
+                    master.push_str("\n// Stdlib functions\n#include \"KainStdlib.h\"\n");
+                }
                 fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
             } else {
                 println!("      ℹ️  No stdlib functions to generate (skipped)");

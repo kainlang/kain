@@ -229,27 +229,43 @@ pub fn compile_ue5_with_context(
 }
 
 /// Find metadata directory by searching in order:
-/// 1. KAIN_ROOT env var
-/// 2. Walk up from CWD looking for unreal/metadata/
-/// 3. Fallback to unreal/metadata relative to CWD
+/// 1. KAIN_METADATA_DIR env var
+/// 2. KAIN_ROOT env var + known suffixes
+/// 3. Walk up from CWD with known suffixes
+/// 4. Fallback to unreal/metadata relative to CWD
 #[cfg(feature = "ue5")]
 fn find_metadata_dir() -> std::path::PathBuf {
-    let relative = std::path::Path::new("unreal").join("metadata");
-    
-    // 1. Check KAIN_ROOT env var
-    if let Ok(root) = std::env::var("KAIN_ROOT") {
-        let candidate = std::path::PathBuf::from(root).join(&relative);
+    if let Ok(explicit) = std::env::var("KAIN_METADATA_DIR") {
+        let candidate = std::path::PathBuf::from(explicit);
         if candidate.exists() {
             return candidate;
         }
     }
+
+    let suffixes = [
+        std::path::Path::new("unreal").join("metadata"),
+        std::path::Path::new("Kain").join("unreal").join("metadata"),
+    ];
     
-    // 2. Walk up from CWD
-    if let Ok(mut dir) = std::env::current_dir() {
-        for _ in 0..10 {
-            let candidate = dir.join(&relative);
+    // 1. Check KAIN_ROOT env var with candidate suffixes
+    if let Ok(root) = std::env::var("KAIN_ROOT") {
+        let base = std::path::PathBuf::from(root);
+        for suffix in &suffixes {
+            let candidate = base.join(suffix);
             if candidate.exists() {
                 return candidate;
+            }
+        }
+    }
+    
+    // 2. Walk up from CWD with candidate suffixes
+    if let Ok(mut dir) = std::env::current_dir() {
+        for _ in 0..10 {
+            for suffix in &suffixes {
+                let candidate = dir.join(suffix);
+                if candidate.exists() {
+                    return candidate;
+                }
             }
             match dir.parent() {
                 Some(p) => dir = p.to_path_buf(),
@@ -261,7 +277,7 @@ fn find_metadata_dir() -> std::path::PathBuf {
     // 3. Fallback to CWD-relative
     std::env::current_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        .join(&relative)
+        .join(std::path::Path::new("unreal").join("metadata"))
 }
 
 #[cfg(feature = "ue5")]

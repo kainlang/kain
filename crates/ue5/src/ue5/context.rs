@@ -6,6 +6,7 @@
 
 use std::collections::{HashSet, HashMap};
 use std::cell::RefCell;
+use std::sync::OnceLock;
 use super::project::BuildFile;
 use super::engine_knowledge::EngineKnowledge;
 use super::widget_registry::WidgetRegistry;
@@ -14,6 +15,146 @@ use ue5_shaders::ShaderKnowledge;
 use super::uht_rules::UhtRules;
 use super::module_graph::ModuleGraph;
 use super::virtual_obligations::VirtualObligations;
+
+fn metadata_candidate_suffixes() -> Vec<std::path::PathBuf> {
+    vec![
+        std::path::Path::new("unreal").join("metadata"),
+        std::path::Path::new("Kain").join("unreal").join("metadata"),
+    ]
+}
+
+#[derive(Clone)]
+struct LoadedMetadata {
+    resolver: StdLibResolver,
+    knowledge: EngineKnowledge,
+    widget_registry: WidgetRegistry,
+    editor_attributes: EditorAttributesRegistry,
+    shader_knowledge: ShaderKnowledge,
+    uht_rules: UhtRules,
+    module_graph: ModuleGraph,
+    virtual_obligations: VirtualObligations,
+}
+
+fn compute_metadata_dir() -> std::path::PathBuf {
+    if let Ok(explicit) = std::env::var("KAIN_METADATA_DIR") {
+        let candidate = std::path::PathBuf::from(explicit);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+
+    let suffixes = metadata_candidate_suffixes();
+
+    let mut base_dirs: Vec<std::path::PathBuf> = Vec::new();
+
+    if let Ok(root) = std::env::var("KAIN_ROOT") {
+        base_dirs.push(std::path::PathBuf::from(root));
+    }
+
+    if let Ok(mut dir) = std::env::current_dir() {
+        for _ in 0..10 {
+            base_dirs.push(dir.clone());
+            match dir.parent() {
+                Some(p) => dir = p.to_path_buf(),
+                None => break,
+            }
+        }
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
+            for _ in 0..8 {
+                base_dirs.push(dir.clone());
+                match dir.parent() {
+                    Some(p) => dir = p.to_path_buf(),
+                    None => break,
+                }
+            }
+        }
+    }
+
+    for base in &base_dirs {
+        for suffix in &suffixes {
+            let candidate = base.join(suffix);
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+    }
+
+    std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join(std::path::Path::new("unreal").join("metadata"))
+}
+
+fn resolve_metadata_dir() -> std::path::PathBuf {
+    static METADATA_DIR_CACHE: OnceLock<std::path::PathBuf> = OnceLock::new();
+    METADATA_DIR_CACHE
+        .get_or_init(compute_metadata_dir)
+        .clone()
+}
+
+fn load_metadata_bundle() -> LoadedMetadata {
+    let mut resolver = StdLibResolver::new();
+    let mut knowledge = EngineKnowledge::new();
+    let mut widget_registry = WidgetRegistry::new();
+    let mut editor_attributes = EditorAttributesRegistry::new();
+    let mut shader_knowledge = ShaderKnowledge::new();
+    let mut uht_rules = UhtRules::new();
+    let mut module_graph = ModuleGraph::new();
+    let mut virtual_obligations = VirtualObligations::new();
+
+    let metadata_dir = resolve_metadata_dir();
+    if metadata_dir.exists() && metadata_dir.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&metadata_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |e| e == "json") {
+                    if let Ok(data) = std::fs::read_to_string(&path) {
+                        let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+                        if filename == "widget_registry.json" {
+                            let _ = widget_registry.load(&data);
+                        } else if filename == "editor_attributes.json" {
+                            let _ = editor_attributes.load(&data);
+                        } else if filename == "shader_knowledge.json" {
+                            let _ = shader_knowledge.load(&data);
+                        } else if filename == "uht_rules.json" {
+                            let _ = uht_rules.load(&data);
+                        } else if filename == "module_graph.json" {
+                            let _ = module_graph.load(&data);
+                        } else if filename == "virtual_obligations.json" {
+                            let _ = virtual_obligations.load(&data);
+                        } else {
+                            let _ = knowledge.load_metadata(&data);
+                            let _ = resolver.load_from_metadata(&data);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let extensions_dir = metadata_dir.join("extensions");
+    let _ = knowledge.load_extensions(&extensions_dir);
+
+    LoadedMetadata {
+        resolver,
+        knowledge,
+        widget_registry,
+        editor_attributes,
+        shader_knowledge,
+        uht_rules,
+        module_graph,
+        virtual_obligations,
+    }
+}
+
+fn get_loaded_metadata() -> LoadedMetadata {
+    static METADATA_BUNDLE_CACHE: OnceLock<LoadedMetadata> = OnceLock::new();
+    METADATA_BUNDLE_CACHE
+        .get_or_init(load_metadata_bundle)
+        .clone()
+}
 
 /// Shared compilation context for UE5 code generation
 /// 
@@ -108,128 +249,16 @@ use super::resolver::StdLibResolver;
 impl Ue5Context {
     /// Create a new context with the given output name
     pub fn new(output_name: &str, copyright: Option<&str>) -> Self {
-        // Debug to file
-        let _ = std::fs::create_dir_all("C:/temp");
-        let _ = std::fs::write("C:/temp/kain_context_debug.txt", format!("Ue5Context::new called with: {}\nCWD: {:?}\n", output_name, std::env::current_dir()));
-        
         let module_api = format!("{}_API", output_name.to_uppercase());
-        let mut resolver = StdLibResolver::new();
-        let mut knowledge = EngineKnowledge::new();
-        let mut widget_registry = WidgetRegistry::new();
-        let mut editor_attributes = EditorAttributesRegistry::new();
-        let mut shader_knowledge = ShaderKnowledge::new();
-        let mut uht_rules = UhtRules::new();
-        let mut module_graph = ModuleGraph::new();
-        let mut virtual_obligations = VirtualObligations::new();
-        
-        // Load all metadata from unreal/metadata/*.json into both systems
-        // Use the same search logic as the CLI to find metadata directory
-        let metadata_dir = {
-            let relative = std::path::Path::new("unreal").join("metadata");
-            
-            eprintln!("[DEBUG] Looking for metadata directory...");
-            
-            // 1. Check KAIN_ROOT env var
-            if let Ok(root) = std::env::var("KAIN_ROOT") {
-                eprintln!("[DEBUG] KAIN_ROOT env var: {}", root);
-                let candidate = std::path::PathBuf::from(root).join(&relative);
-                if candidate.exists() {
-                    eprintln!("[DEBUG] Found metadata at KAIN_ROOT: {:?}", candidate);
-                    candidate
-                } else {
-                    eprintln!("[DEBUG] KAIN_ROOT candidate doesn't exist: {:?}", candidate);
-                    // 2. Walk up from CWD
-                    let mut found = None;
-                    if let Ok(mut dir) = std::env::current_dir() {
-                        eprintln!("[DEBUG] Walking up from CWD: {:?}", dir);
-                        for i in 0..10 {
-                            let candidate = dir.join(&relative);
-                            eprintln!("[DEBUG] Checking: {:?}", candidate);
-                            if candidate.exists() {
-                                eprintln!("[DEBUG] Found metadata at level {}: {:?}", i, candidate);
-                                found = Some(candidate);
-                                break;
-                            }
-                            match dir.parent() {
-                                Some(p) => dir = p.to_path_buf(),
-                                None => break,
-                            }
-                        }
-                    }
-                    found.unwrap_or_else(|| {
-                        eprintln!("[DEBUG] Fallback to relative path");
-                        std::path::Path::new("unreal/metadata").to_path_buf()
-                    })
-                }
-            } else {
-                eprintln!("[DEBUG] No KAIN_ROOT env var");
-                // 2. Walk up from CWD
-                let mut found = None;
-                if let Ok(mut dir) = std::env::current_dir() {
-                    eprintln!("[DEBUG] Walking up from CWD: {:?}", dir);
-                    for i in 0..10 {
-                        let candidate = dir.join(&relative);
-                        eprintln!("[DEBUG] Checking: {:?}", candidate);
-                        if candidate.exists() {
-                            eprintln!("[DEBUG] Found metadata at level {}: {:?}", i, candidate);
-                            found = Some(candidate);
-                            break;
-                        }
-                        match dir.parent() {
-                            Some(p) => dir = p.to_path_buf(),
-                            None => break,
-                        }
-                    }
-                }
-                found.unwrap_or_else(|| {
-                    eprintln!("[DEBUG] Fallback to relative path");
-                    std::path::Path::new("unreal/metadata").to_path_buf()
-                })
-            }
-        };
-        
-        eprintln!("[DEBUG] Final metadata_dir: {:?}", metadata_dir);
-        eprintln!("[DEBUG] metadata_dir.exists(): {}", metadata_dir.exists());
-        
-        if metadata_dir.exists() && metadata_dir.is_dir() {
-            eprintln!("[DEBUG] Loading metadata from: {:?}", metadata_dir);
-            if let Ok(entries) = std::fs::read_dir(&metadata_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.extension().map_or(false, |e| e == "json") {
-                        if let Ok(data) = std::fs::read_to_string(&path) {
-                            let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
-                            if filename == "widget_registry.json" {
-                                let _ = widget_registry.load(&data);
-                            } else if filename == "editor_attributes.json" {
-                                let _ = editor_attributes.load(&data);
-                            } else if filename == "shader_knowledge.json" {
-                                let _ = shader_knowledge.load(&data);
-                            } else if filename == "uht_rules.json" {
-                                let _ = uht_rules.load(&data);
-                            } else if filename == "module_graph.json" {
-                                let _ = module_graph.load(&data);
-                            } else if filename == "virtual_obligations.json" {
-                                let _ = virtual_obligations.load(&data);
-                            } else {
-                                // Feed into EngineKnowledge system
-                                let _ = knowledge.load_metadata(&data);
-                                // Legacy: also feed into StdLibResolver
-                                let _ = resolver.load_from_metadata(&data);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Load all extensions from unreal/metadata/extensions/*.json
-        let extensions_dir = std::path::Path::new("unreal/metadata/extensions");
-        if let Ok(count) = knowledge.load_extensions(extensions_dir) {
-            if count > 0 {
-                eprintln!("📦 Loaded {} extension(s)", count);
-            }
-        }
+        let metadata = get_loaded_metadata();
+        let resolver = metadata.resolver;
+        let knowledge = metadata.knowledge;
+        let widget_registry = metadata.widget_registry;
+        let editor_attributes = metadata.editor_attributes;
+        let shader_knowledge = metadata.shader_knowledge;
+        let uht_rules = metadata.uht_rules;
+        let module_graph = metadata.module_graph;
+        let virtual_obligations = metadata.virtual_obligations;
 
         let copyright = copyright.map(|s| s.to_string()).unwrap_or_else(|| {
             format!("Copyright {} Zentako. All Rights Reserved.", 

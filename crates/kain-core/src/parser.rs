@@ -2644,6 +2644,23 @@ impl<'a> Parser<'a> {
                 };
                 Ok(Expr::Break(value, span))
             }
+            // Contextual keywords - allowed as identifiers in expression context
+            TokenKind::Component => {
+                self.advance();
+                Ok(Expr::Ident("component".to_string(), span))
+            }
+            TokenKind::Shader => {
+                self.advance();
+                Ok(Expr::Ident("shader".to_string(), span))
+            }
+            TokenKind::Actor => {
+                self.advance();
+                Ok(Expr::Ident("actor".to_string(), span))
+            }
+            TokenKind::State => {
+                self.advance();
+                Ok(Expr::Ident("state".to_string(), span))
+            }
             _ => Err(self.parser_error(format!("Unexpected token: {:?}", self.peek_kind()), span)),
         }
     }

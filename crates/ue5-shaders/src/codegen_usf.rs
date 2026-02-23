@@ -30,6 +30,78 @@ impl CachedMirrors {
     }
 }
 
+/// Best-effort type mapping used when building broad program metadata (e.g. struct maps)
+/// that may include many non-shader types. Unlike `map_type_to_usf`, this never emits
+/// warnings for unknown types.
+fn try_map_type_to_usf_silent(ty: &Type) -> Option<String> {
+    match ty {
+        Type::Named { name, generics, .. } => {
+            let inner_hlsl = if !generics.is_empty() {
+                try_map_type_to_usf_silent(&generics[0])
+            } else {
+                None
+            };
+
+            if let Some(hlsl_type) = TYPE_MAPPER.map_to_hlsl(name.as_str()) {
+                return Some(hlsl_type);
+            }
+
+            match name.as_str() {
+                "Image2D" => Some("RWTexture2D<float4>".to_string()),
+                "Image3D" => Some("RWTexture3D<float4>".to_string()),
+
+                "Buffer" => Some(format!(
+                    "StructuredBuffer<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+                "RWBuffer" => Some(format!(
+                    "RWStructuredBuffer<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+                "RWTexture2D" => Some(format!(
+                    "RWTexture2D<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+                "RWTexture3D" => Some(format!(
+                    "RWTexture3D<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+                "Texture2D" => Some(format!(
+                    "Texture2D<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+                "Texture3D" => Some(format!(
+                    "Texture3D<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+
+                "RWTexture2D_Float" => Some("RWTexture2D<float>".to_string()),
+                "RWTexture2D_Float2" => Some("RWTexture2D<float2>".to_string()),
+                "RWTexture2D_Float3" => Some("RWTexture2D<float3>".to_string()),
+                "RWTexture2D_Int" => Some("RWTexture2D<int>".to_string()),
+                "RWTexture2D_UInt" => Some("RWTexture2D<uint>".to_string()),
+
+                "StructuredBuffer" => Some(format!(
+                    "StructuredBuffer<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+                "RWStructuredBuffer" => Some(format!(
+                    "RWStructuredBuffer<{}>",
+                    inner_hlsl.unwrap_or_else(|| "float4".to_string())
+                )),
+
+                "f32" => Some("float".to_string()),
+                "f64" => Some("double".to_string()),
+                "i32" => Some("int".to_string()),
+                "u32" => Some("uint".to_string()),
+
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Generate C++ reflection header for UE5 shader parameter binding.
 /// Creates a .h file with SHADER_PARAMETER_STRUCT compatible bindings.
 pub fn generate_cpp_header(program: &TypedProgram, shader_name: &str) -> String {
@@ -586,7 +658,21 @@ fn map_usf_type_to_cpp(usf_type: &str) -> String {
         "uint4" => "FUintVector4".to_string(),
         "float4x4" => "FMatrix44f".to_string(),
         "float3x3" => "FMatrix33f".to_string(),
-        _ => usf_type.to_string(),
+        _ => {
+            // User-defined struct uniforms arrive here as raw KAIN names
+            // (e.g. PhysicsShaderParams). In UE C++, generated struct names
+            // are F-prefixed (FPhysicsShaderParams), so normalize them.
+            if usf_type.ends_with("ShaderParams")
+                && !usf_type.starts_with('F')
+                && !usf_type.starts_with('U')
+                && !usf_type.starts_with('A')
+                && !usf_type.starts_with('E')
+            {
+                format!("F{}", usf_type)
+            } else {
+                usf_type.to_string()
+            }
+        }
     }
 }
 
@@ -2200,14 +2286,9 @@ fn map_type_to_usf(ty: &Type) -> String {
                 "i32" => "int".to_string(),
                 "u32" => "uint".to_string(),
                 
-                // If type is not recognized by TYPE_MAPPER and not a special container type,
-                // return a placeholder type and log a warning
-                // This allows shader compilation to continue even if some stdlib types are present
-                _ => {
-                    eprintln!("[WARN] Unrecognized type '{}' in shader context - using float4 placeholder", name);
-                    eprintln!("[WARN] If this type is used in the shader, compilation will fail");
-                    "float4".to_string()
-                }
+                // Pass through unknown named types as user-defined structs.
+                // Validation is responsible for rejecting truly invalid types.
+                _ => name.clone()
             }
         },
         _ => {
@@ -4076,14 +4157,18 @@ fn build_struct_map(program: &TypedProgram) -> HashMap<String, HashMap<String, S
             TypedItem::Struct(s) => {
                 let mut fields = HashMap::new();
                 for f in &s.ast.fields {
-                    fields.insert(f.name.clone(), map_type_to_usf(&f.ty));
+                    if let Some(mapped) = try_map_type_to_usf_silent(&f.ty) {
+                        fields.insert(f.name.clone(), mapped);
+                    }
                 }
                 type_db.insert(s.ast.name.clone(), fields);
             }
             TypedItem::Component(c) => {
                 let mut props = HashMap::new();
                 for p in &c.ast.props {
-                    props.insert(p.name.clone(), map_type_to_usf(&p.ty));
+                    if let Some(mapped) = try_map_type_to_usf_silent(&p.ty) {
+                        props.insert(p.name.clone(), mapped);
+                    }
                 }
                 type_db.insert(c.ast.name.clone(), props.clone());
                 type_db.insert(format!("F{}ComponentData", c.ast.name), props);
@@ -4091,7 +4176,9 @@ fn build_struct_map(program: &TypedProgram) -> HashMap<String, HashMap<String, S
             TypedItem::Actor(a) => {
                 let mut state = HashMap::new();
                 for s in &a.ast.state {
-                    state.insert(s.name.clone(), map_type_to_usf(&s.ty));
+                    if let Some(mapped) = try_map_type_to_usf_silent(&s.ty) {
+                        state.insert(s.name.clone(), mapped);
+                    }
                 }
                 type_db.insert(a.ast.name.clone(), state);
             }

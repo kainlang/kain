@@ -538,6 +538,13 @@ impl TypeMapper {
     /// Apply UE5 prefix to a type name with detection to prevent double-prefixing
     /// This is the key method that solves the EEHealthStatus bug
     fn apply_prefix_with_detection(&self, name: &str) -> String {
+        // If this is a registered enum, always normalize through enum naming rules.
+        // This avoids false "already-prefixed" positives for enum names like
+        // `FSIMethod` that begin with F + Uppercase but are not struct types.
+        if self.registry.is_enum(name) {
+            return to_enum_name(name);
+        }
+
         // Check if name already has a UE5 prefix
         if name.len() >= 2 {
             let first_char = name.chars().next().unwrap();
@@ -680,5 +687,25 @@ impl TypeMapper {
 impl Default for TypeMapper {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kain_core::span::Span;
+
+    #[test]
+    fn maps_enum_names_that_start_with_f_prefix_pattern() {
+        let mut mapper = TypeMapper::new();
+        mapper.register_enum("FSIMethod".to_string());
+
+        let ty = Type::Named {
+            name: "FSIMethod".to_string(),
+            generics: vec![],
+            span: Span::new(0, 0),
+        };
+
+        assert_eq!(mapper.map_type_string(&ty), "EFSIMethod");
     }
 }

@@ -249,7 +249,6 @@ impl EngineKnowledge {
             match self.load_metadata(&json_data) {
                 Ok(_) => {
                     loaded_count += 1;
-                    eprintln!("✅ Loaded extension: {:?}", path.file_name().unwrap());
                 }
                 Err(e) => {
                     eprintln!("⚠️  Failed to load extension {:?}: {}", path.file_name().unwrap(), e);
