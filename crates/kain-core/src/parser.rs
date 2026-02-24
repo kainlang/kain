@@ -291,6 +291,11 @@ impl<'a> Parser<'a> {
             return self.parse_gameplay_ability(attributes);
         }
         
+        // Check for @gameplay_effect attribute
+        if attributes.iter().any(|a| a.name == "gameplay_effect") {
+            return self.parse_gameplay_effect(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -4651,5 +4656,426 @@ impl<'a> Parser<'a> {
         
         Ok(strings)
     }
-}
 
+    /// Parse gameplay effect definition
+    /// Syntax:
+    /// ```kain
+    /// @gameplay_effect
+    /// struct BurnEffect:
+    ///     @duration(type: "HasDuration")
+    ///     duration: 5.0
+    ///     
+    ///     @period
+    ///     period: 1.0
+    ///     execute_on_application: true
+    ///     
+    ///     @modifier(attribute: "Health", operation: "Add")
+    ///     damage_per_tick: -10.0
+    ///     
+    ///     @stacking
+    ///     type: "AggregateBySource"
+    ///     limit: 5
+    ///     
+    ///     @owned_tags
+    ///     tags: ["Effect.Burn"]
+    ///     
+    ///     @granted_tags
+    ///     tags: ["Status.Burning"]
+    ///     
+    ///     @application_tag_requirements
+    ///     require: ["Weakness.Fire"]
+    ///     ignore: ["Immunity.Fire"]
+    /// ```
+    fn parse_gameplay_effect(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse effect name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse effect body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Initialize fields
+        let mut duration_policy: Option<String> = None;
+        let mut duration_magnitude: Option<f32> = None;
+        let mut period: Option<f32> = None;
+        let mut execute_on_application = false;
+        let mut modifiers: Vec<GameplayEffectModifier> = Vec::new();
+        let mut stacking_type: Option<String> = None;
+        let mut stacking_limit: Option<i32> = None;
+        let mut owned_tags: Vec<String> = Vec::new();
+        let mut granted_tags: Vec<String> = Vec::new();
+        let mut application_required_tags: Vec<String> = Vec::new();
+        let mut application_ignored_tags: Vec<String> = Vec::new();
+        let mut ongoing_required_tags: Vec<String> = Vec::new();
+        let mut ongoing_ignored_tags: Vec<String> = Vec::new();
+        let mut removal_required_tags: Vec<String> = Vec::new();
+        let mut removal_ignored_tags: Vec<String> = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for attributes or fields
+            if self.check(TokenKind::At) {
+                // Parse attribute
+                let attr_start = self.current_span();
+                self.advance(); // consume '@'
+                let attr_name = self.parse_attribute_name()?;
+                
+                match attr_name.as_str() {
+                    "duration" => {
+                        // @duration(type: "HasDuration")
+                        self.expect(TokenKind::LParen)?;
+                        
+                        // Expect "type:"
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "type" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse type value (string)
+                                if let TokenKind::String(policy_str) = self.peek_kind() {
+                                    duration_policy = Some(policy_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for duration type", self.current_span()));
+                                }
+                            } else {
+                                return Err(self.parser_error("Expected 'type' parameter in @duration", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'type' parameter in @duration", self.current_span()));
+                        }
+                        
+                        self.expect(TokenKind::RParen)?;
+                        
+                        // Next line should be duration: 5.0
+                        self.skip_newlines();
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "duration" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse float value
+                                if let TokenKind::Float(val) = self.peek_kind() {
+                                    duration_magnitude = Some(val as f32);
+                                    self.advance();
+                                } else if let TokenKind::Int(val) = self.peek_kind() {
+                                    duration_magnitude = Some(val as f32);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected numeric value for duration", self.current_span()));
+                                }
+                            }
+                        }
+                    }
+                    "period" => {
+                        // @period
+                        // period: 1.0
+                        // execute_on_application: true
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "period" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse float value
+                                if let TokenKind::Float(val) = self.peek_kind() {
+                                    period = Some(val as f32);
+                                    self.advance();
+                                } else if let TokenKind::Int(val) = self.peek_kind() {
+                                    period = Some(val as f32);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected numeric value for period", self.current_span()));
+                                }
+                            }
+                        }
+                        
+                        // Check for execute_on_application
+                        self.skip_newlines();
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "execute_on_application" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse bool value
+                                if let TokenKind::True = self.peek_kind() {
+                                    execute_on_application = true;
+                                    self.advance();
+                                } else if let TokenKind::False = self.peek_kind() {
+                                    execute_on_application = false;
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected boolean value for execute_on_application", self.current_span()));
+                                }
+                            }
+                        }
+                    }
+                    "modifier" => {
+                        // @modifier(attribute: "Health", operation: "Add")
+                        // damage_per_tick: -10.0
+                        self.expect(TokenKind::LParen)?;
+                        
+                        let mut modifier_attribute: Option<String> = None;
+                        let mut modifier_operation: Option<String> = None;
+                        
+                        // Parse attribute parameter
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "attribute" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                if let TokenKind::String(attr_str) = self.peek_kind() {
+                                    modifier_attribute = Some(attr_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for attribute", self.current_span()));
+                                }
+                            }
+                        }
+                        
+                        self.expect(TokenKind::Comma)?;
+                        
+                        // Parse operation parameter
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "operation" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                if let TokenKind::String(op_str) = self.peek_kind() {
+                                    modifier_operation = Some(op_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for operation", self.current_span()));
+                                }
+                            }
+                        }
+                        
+                        self.expect(TokenKind::RParen)?;
+                        
+                        // Next line should be magnitude field
+                        self.skip_newlines();
+                        let _field_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        
+                        // Parse magnitude value
+                        let magnitude = if let TokenKind::Float(val) = self.peek_kind() {
+                            self.advance();
+                            val as f32
+                        } else if let TokenKind::Int(val) = self.peek_kind() {
+                            self.advance();
+                            val as f32
+                        } else if let TokenKind::Minus = self.peek_kind() {
+                            self.advance();
+                            if let TokenKind::Float(val) = self.peek_kind() {
+                                self.advance();
+                                -(val as f32)
+                            } else if let TokenKind::Int(val) = self.peek_kind() {
+                                self.advance();
+                                -(val as f32)
+                            } else {
+                                return Err(self.parser_error("Expected numeric value after minus", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected numeric value for magnitude", self.current_span()));
+                        };
+                        
+                        if let (Some(attr), Some(op)) = (modifier_attribute, modifier_operation) {
+                            modifiers.push(GameplayEffectModifier {
+                                attribute: attr,
+                                operation: op,
+                                magnitude,
+                                span: attr_start,
+                            });
+                        }
+                    }
+                    "stacking" => {
+                        // @stacking
+                        // type: "AggregateBySource"
+                        // limit: 5
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "type" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                if let TokenKind::String(type_str) = self.peek_kind() {
+                                    stacking_type = Some(type_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for stacking type", self.current_span()));
+                                }
+                            }
+                        }
+                        
+                        self.skip_newlines();
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "limit" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                if let TokenKind::Int(val) = self.peek_kind() {
+                                    stacking_limit = Some(val as i32);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected integer value for stacking limit", self.current_span()));
+                                }
+                            }
+                        }
+                    }
+                    "owned_tags" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "tags" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                owned_tags = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'tags' field after @owned_tags", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'tags' field after @owned_tags", self.current_span()));
+                        }
+                    }
+                    "granted_tags" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "tags" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                granted_tags = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'tags' field after @granted_tags", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'tags' field after @granted_tags", self.current_span()));
+                        }
+                    }
+                    "application_tag_requirements" => {
+                        self.skip_newlines();
+                        
+                        // Parse require and ignore arrays
+                        while !self.check(TokenKind::At) && !self.check(TokenKind::Dedent) && !self.at_end() {
+                            if let TokenKind::Ident(ref s) = self.peek_kind() {
+                                if s == "require" {
+                                    self.advance();
+                                    self.expect(TokenKind::Colon)?;
+                                    application_required_tags = self.parse_string_array()?;
+                                } else if s == "ignore" {
+                                    self.advance();
+                                    self.expect(TokenKind::Colon)?;
+                                    application_ignored_tags = self.parse_string_array()?;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                            self.skip_newlines();
+                        }
+                    }
+                    "ongoing_tag_requirements" => {
+                        self.skip_newlines();
+                        
+                        while !self.check(TokenKind::At) && !self.check(TokenKind::Dedent) && !self.at_end() {
+                            if let TokenKind::Ident(ref s) = self.peek_kind() {
+                                if s == "require" {
+                                    self.advance();
+                                    self.expect(TokenKind::Colon)?;
+                                    ongoing_required_tags = self.parse_string_array()?;
+                                } else if s == "ignore" {
+                                    self.advance();
+                                    self.expect(TokenKind::Colon)?;
+                                    ongoing_ignored_tags = self.parse_string_array()?;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                            self.skip_newlines();
+                        }
+                    }
+                    "removal_tag_requirements" => {
+                        self.skip_newlines();
+                        
+                        while !self.check(TokenKind::At) && !self.check(TokenKind::Dedent) && !self.at_end() {
+                            if let TokenKind::Ident(ref s) = self.peek_kind() {
+                                if s == "require" {
+                                    self.advance();
+                                    self.expect(TokenKind::Colon)?;
+                                    removal_required_tags = self.parse_string_array()?;
+                                } else if s == "ignore" {
+                                    self.advance();
+                                    self.expect(TokenKind::Colon)?;
+                                    removal_ignored_tags = self.parse_string_array()?;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                            self.skip_newlines();
+                        }
+                    }
+                    _ => {
+                        // Unknown attribute - skip for now (could be @gameplay_cues, @immunity, etc.)
+                        // These will be handled in future phases
+                        if self.check(TokenKind::LParen) {
+                            self.advance();
+                            while !self.check(TokenKind::RParen) && !self.at_end() {
+                                self.advance();
+                            }
+                            if self.check(TokenKind::RParen) {
+                                self.advance();
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Skip unknown fields for now
+                self.advance();
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::GameplayEffect(GameplayEffectDef {
+            name,
+            duration_policy,
+            duration_magnitude,
+            period,
+            execute_on_application,
+            modifiers,
+            stacking_type,
+            stacking_limit,
+            owned_tags,
+            granted_tags,
+            application_required_tags,
+            application_ignored_tags,
+            ongoing_required_tags,
+            ongoing_ignored_tags,
+            removal_required_tags,
+            removal_ignored_tags,
+            attributes,
+            span: start.merge(self.current_span()),
+        }))
+    }
+}

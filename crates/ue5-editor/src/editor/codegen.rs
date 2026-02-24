@@ -501,9 +501,14 @@ impl Ue5EditorGen {
                 cond_include!("Widgets/Input/SSpinBox.h",      "SpinBox", "SSpinBox");
                 cond_include!("Widgets/Text/STextBlock.h",     "TextBlock", "STextBlock", "Text", "Label");
                 cond_include!("Widgets/Images/SImage.h",       "Image", "SImage", "shader_image");
+                cond_include!("Widgets/SNullWidget.h",         "SNullWidget", "NullWidget", "SMultiColumnTableRow", "table_row", "multi_column_row");
                 cond_include!("Widgets/Layout/SScrollBox.h",   "ScrollBox", "SScrollBox");
                 cond_include!("Widgets/Layout/SSplitter.h",    "Splitter", "SSplitter", "HSplitter", "VSplitter");
                 cond_include!("Widgets/Layout/SBorder.h",      "Border", "SBorder");
+                cond_include!("Widgets/SToolTip.h",            "ToolTip", "SToolTip");
+                cond_include!("Widgets/Views/STableRow.h",     "TableRow", "STableRow");
+                cond_include!("Widgets/Views/SMultiColumnTableRow.h", "SMultiColumnTableRow", "MultiColumnTableRow", "table_row", "multi_column_row");
+                cond_include!("Widgets/Views/SHeaderRow.h",    "SHeaderRow", "HeaderRow");
                 cond_include!(
                     "Widgets/Colors/SColorBlock.h",
                     "ColorBlock",
@@ -1153,7 +1158,44 @@ fn collect_callee_names_from_block(block: &Block, out: &mut HashSet<String>) {
 /// The result is used to decide which Slate widget headers to include.
 fn collect_widget_names_from_struct(st: &kain_core::ast::Struct) -> HashSet<String> {
     let mut names = HashSet::new();
+
+    for attr in &st.attributes {
+        match attr.name.as_str() {
+            "table_row" | "multi_column_row" => {
+                names.insert("SMultiColumnTableRow".to_string());
+                names.insert("table_row".to_string());
+            }
+            "tooltip_widget" | "slate_tooltip" => {
+                names.insert("SToolTip".to_string());
+            }
+            "base" | "slate_base" => {
+                if let Some(first_arg) = attr.args.first() {
+                    match first_arg {
+                        Expr::String(s, _) | Expr::Ident(s, _) => {
+                            if s.contains("SMultiColumnTableRow") {
+                                names.insert("SMultiColumnTableRow".to_string());
+                                names.insert("table_row".to_string());
+                            }
+                            if s.contains("SToolTip") {
+                                names.insert("SToolTip".to_string());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     for method in &st.methods {
+        if method.name == "GenerateWidgetForColumn" {
+            names.insert("SMultiColumnTableRow".to_string());
+            names.insert("SNullWidget".to_string());
+        }
+        if method.name == "OnOpening" {
+            names.insert("SToolTip".to_string());
+        }
         collect_callee_names_from_block(&method.body, &mut names);
     }
     names

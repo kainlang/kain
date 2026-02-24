@@ -8,7 +8,7 @@
 //! - Slot configuration (padding, alignment, fill)
 //! - Event handler generation
 
-use kain_core::ast::{Expr, Stmt, Block, Struct, Type, Pattern};
+use kain_core::ast::{Expr, Stmt, Block, Struct, Type, Pattern, Attribute, ElseBranch, Function};
 use kain_core::types::TypedStruct;
 use std::collections::HashMap;
 
@@ -200,6 +200,34 @@ struct MethodCallInfo {
     args: Vec<kain_core::ast::CallArg>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SlateConstructKind {
+    Compound,
+    TableRow,
+    ToolTip,
+}
+
+#[derive(Debug, Clone)]
+struct SlateWidgetModel {
+    base_class: String,
+    construct_kind: SlateConstructKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpecialSlateMethodKind {
+    GenerateWidgetForColumn,
+    OnOpening,
+}
+
+impl SlateWidgetModel {
+    fn compound() -> Self {
+        Self {
+            base_class: "SCompoundWidget".to_string(),
+            construct_kind: SlateConstructKind::Compound,
+        }
+    }
+}
+
 /// Slate widget generator with hierarchy tracking
 pub struct SlateGenerator {
     /// Stack of parent widget types for slot generation
@@ -227,6 +255,9 @@ pub struct SlateGenerator {
     /// Bug-2 fix: maps array field name -> element C++ type for SListView<T> template args.
     /// Populated in generate_list_view_support() before generate_compose_body() runs.
     list_item_types: HashMap<String, String>,
+    /// Current generated widget class name (e.g. SInventoryPanel).
+    /// Used for CreateSP bindings instead of emitting invalid `Self::` references.
+    widget_class_name: Option<String>,
 }
 
 impl SlateGenerator {
@@ -242,12 +273,68 @@ impl SlateGenerator {
             field_type_map: HashMap::new(),
             delegate_param_map: HashMap::new(),
             list_item_types: HashMap::new(),
+            widget_class_name: None,
         }
     }
     
     pub fn with_context(mut self, context: ue5::ue5::Ue5Context) -> Self {
         self.context = Some(context);
         self
+    }
+
+    fn resolve_widget_model(&self, st: &Struct) -> SlateWidgetModel {
+        let mut model = SlateWidgetModel::compound();
+
+        if let Some(base_attr) = st.attributes.iter().find(|a| a.name == "base" || a.name == "slate_base") {
+            if let Some(base_name) = Self::attr_first_arg_text(base_attr) {
+                model.base_class = base_name;
+            }
+        }
+
+        if let Some(row_attr) = st.attributes.iter().find(|a| a.name == "table_row" || a.name == "multi_column_row") {
+            let item_type = row_attr
+                .args
+                .first()
+                .and_then(|arg| match arg {
+                    Expr::String(s, _) => Some(s.clone()),
+                    Expr::Ident(name, _) => {
+                        if name.starts_with('F') || name.starts_with('T') || name.contains("::") {
+                            Some(name.clone())
+                        } else {
+                            Some(naming::to_struct_name(name))
+                        }
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| "FString".to_string());
+
+            model.base_class = format!("SMultiColumnTableRow<TSharedPtr<{}>>", item_type);
+            model.construct_kind = SlateConstructKind::TableRow;
+            return model;
+        }
+
+        if st.attributes.iter().any(|a| a.name == "tooltip_widget" || a.name == "slate_tooltip") {
+            model.base_class = "SToolTip".to_string();
+            model.construct_kind = SlateConstructKind::ToolTip;
+            return model;
+        }
+
+        if model.base_class.contains("SMultiColumnTableRow") {
+            model.construct_kind = SlateConstructKind::TableRow;
+        } else if model.base_class.ends_with("SToolTip") || model.base_class == "SToolTip" {
+            model.construct_kind = SlateConstructKind::ToolTip;
+        }
+
+        model
+    }
+
+    fn attr_first_arg_text(attr: &Attribute) -> Option<String> {
+        let first = attr.args.first()?;
+        match first {
+            Expr::String(s, _) => Some(s.clone()),
+            Expr::Ident(name, _) => Some(name.clone()),
+            _ => None,
+        }
     }
     
     /// Register delegate parameter types from the program's type aliases.
@@ -315,18 +402,30 @@ impl SlateGenerator {
         self.lines.clear();
         
         let widget_name = format!("S{}", st.ast.name);
+        self.widget_class_name = Some(widget_name.clone());
+        let widget_model = self.resolve_widget_model(&st.ast);
         
         // Generate class declaration
-        self.push_line(&format!("class {} : public SCompoundWidget", widget_name));
+        self.push_line(&format!("class {} : public {}", widget_name, widget_model.base_class));
         self.push_line("{");
         self.push_line("public:");
         self.indent += 1;
+
+        if widget_model.construct_kind == SlateConstructKind::TableRow {
+            self.push_line(&format!("using FSuperRowType = {};", widget_model.base_class));
+            self.push_line("");
+        }
         
         // Generate SLATE_BEGIN_ARGS
         self.generate_slate_args(&st.ast, &widget_name);
         
         // Generate Construct declaration
-        self.push_line("void Construct(const FArguments& InArgs);");
+        match widget_model.construct_kind {
+            SlateConstructKind::TableRow => {
+                self.push_line("void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView);");
+            }
+            _ => self.push_line("void Construct(const FArguments& InArgs);"),
+        }
         
         // Generate event handlers if any
         self.generate_event_handlers(&st.ast);
@@ -354,6 +453,8 @@ impl SlateGenerator {
     
     pub fn generate_construct_impl(&mut self, st: &TypedStruct, widget_name: &str) -> String {
         self.lines.clear();
+        self.widget_class_name = Some(widget_name.to_string());
+        let widget_model = self.resolve_widget_model(&st.ast);
         
         // Populate struct field names so format_expr can resolve field references
         // to InArgs._fieldname during Construct body generation
@@ -363,7 +464,15 @@ impl SlateGenerator {
         }
         
         self.push_line("BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION");
-        self.push_line(&format!("void {}::Construct(const FArguments& InArgs)", widget_name));
+        match widget_model.construct_kind {
+            SlateConstructKind::TableRow => {
+                self.push_line(&format!(
+                    "void {}::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)",
+                    widget_name
+                ));
+            }
+            _ => self.push_line(&format!("void {}::Construct(const FArguments& InArgs)", widget_name)),
+        }
         self.push_line("{");
         self.indent += 1;
         
@@ -377,6 +486,10 @@ impl SlateGenerator {
                 "ShaderBrush_{} = MakeShareable(new FSlateImageBrush({}, {}));",
                 brush.id, mat_code, size_code
             ));
+        }
+
+        if widget_model.construct_kind == SlateConstructKind::TableRow {
+            self.push_line("FSuperRowType::Construct(FSuperRowType::FArguments(), InOwnerTableView);");
         }
 
         // Find Compose method and build widget tree
@@ -393,24 +506,401 @@ impl SlateGenerator {
                 };
 
                 if let Some(expr) = expr_opt {
-                    self.push_line("ChildSlot");
-                    self.push_line("[");
-                    self.indent += 1;
-                    // Generate widget tree with symbol table for identifier resolution
-                    self.generate_widget_tree_with_context(expr, st, &symbol_table);
-                    self.indent -= 1;
-                    self.push_line("];");
+                    match widget_model.construct_kind {
+                        SlateConstructKind::Compound => {
+                            self.push_line("ChildSlot");
+                            self.push_line("[");
+                            self.indent += 1;
+                            // Generate widget tree with symbol table for identifier resolution
+                            self.generate_widget_tree_with_context(expr, st, &symbol_table);
+                            self.indent -= 1;
+                            self.push_line("];");
+                        }
+                        SlateConstructKind::ToolTip => {
+                            self.push_line("SToolTip::FArguments ToolTipArgs = SToolTip::FArguments();");
+                            self.push_line("ToolTipArgs.Content()");
+                            self.push_line("[");
+                            self.indent += 1;
+                            self.generate_widget_tree_with_context(expr, st, &symbol_table);
+                            self.indent -= 1;
+                            self.push_line("];");
+                            self.push_line("SToolTip::Construct(ToolTipArgs);");
+                        }
+                        SlateConstructKind::TableRow => {
+                            self.push_line("// Compose() ignored for SMultiColumnTableRow; override GenerateWidgetForColumn instead.");
+                        }
+                    }
                 }
             }
         } else {
-            self.push_line("// No Compose() method found");
+            if widget_model.construct_kind == SlateConstructKind::ToolTip {
+                self.push_line("SToolTip::Construct(SToolTip::FArguments());");
+            } else {
+                self.push_line("// No Compose() method found");
+            }
         }
         
         self.indent -= 1;
         self.push_line("}");
         self.push_line("END_SLATE_FUNCTION_BUILD_OPTIMIZATION");
+
+        self.generate_special_method_impls(st, widget_name);
         
         self.lines.join("\n")
+    }
+
+    fn generate_special_method_impls(&mut self, st: &TypedStruct, widget_name: &str) {
+        let widget_model = self.resolve_widget_model(&st.ast);
+        let has_generate_widget_for_column =
+            widget_model.construct_kind == SlateConstructKind::TableRow
+                && st.ast.methods.iter().any(|m| m.name == "GenerateWidgetForColumn");
+        let has_on_opening =
+            widget_model.construct_kind == SlateConstructKind::ToolTip
+                && st.ast.methods.iter().any(|m| m.name == "OnOpening");
+
+        if has_generate_widget_for_column {
+            if let Some(method) = st.ast.methods.iter().find(|m| m.name == "GenerateWidgetForColumn") {
+                self.emit_special_method_impl(
+                    st,
+                    widget_name,
+                    method,
+                    SpecialSlateMethodKind::GenerateWidgetForColumn,
+                );
+            }
+        }
+
+        if has_on_opening {
+            if let Some(method) = st.ast.methods.iter().find(|m| m.name == "OnOpening") {
+                self.emit_special_method_impl(
+                    st,
+                    widget_name,
+                    method,
+                    SpecialSlateMethodKind::OnOpening,
+                );
+            }
+        }
+    }
+
+    fn emit_special_method_impl(
+        &mut self,
+        st: &TypedStruct,
+        widget_name: &str,
+        method: &Function,
+        kind: SpecialSlateMethodKind,
+    ) {
+        let symbol_table = self.build_symbol_table(&method.body);
+
+        self.push_line("");
+        match kind {
+            SpecialSlateMethodKind::GenerateWidgetForColumn => {
+                self.push_line(&format!(
+                    "TSharedRef<SWidget> {}::GenerateWidgetForColumn(const FName& ColumnName)",
+                    widget_name
+                ));
+            }
+            SpecialSlateMethodKind::OnOpening => {
+                self.push_line(&format!("void {}::OnOpening()", widget_name));
+            }
+        }
+        self.push_line("{");
+        self.indent += 1;
+
+        if kind == SpecialSlateMethodKind::OnOpening {
+            self.push_line("SToolTip::OnOpening();");
+        }
+
+        for stmt in &method.body.stmts {
+            self.emit_special_stmt(stmt, st, &symbol_table, kind);
+        }
+
+        if kind == SpecialSlateMethodKind::GenerateWidgetForColumn {
+            self.push_line("return SNullWidget::NullWidget;");
+        }
+
+        self.indent -= 1;
+        self.push_line("}");
+    }
+
+    fn emit_special_stmt(
+        &mut self,
+        stmt: &Stmt,
+        st: &TypedStruct,
+        symbol_table: &HashMap<String, WidgetInfo>,
+        kind: SpecialSlateMethodKind,
+    ) {
+        match stmt {
+            Stmt::Let { pattern, ty, value, .. } => {
+                if let Pattern::Binding { name, .. } = pattern {
+                    let cpp_ty = ty
+                        .as_ref()
+                        .map(|t| self.map_type(t))
+                        .unwrap_or_else(|| "auto".to_string());
+                    if let Some(expr) = value {
+                        if self.is_widget_expr(expr) {
+                            self.push_line(&format!("{} {} =", cpp_ty, name));
+                            self.indent += 1;
+                            self.generate_widget_tree_with_context(expr, st, symbol_table);
+                            self.indent -= 1;
+                            self.push_line(";");
+                        } else {
+                            self.push_line(&format!("{} {} = {};", cpp_ty, name, self.format_method_expr(expr)));
+                        }
+                    } else {
+                        self.push_line(&format!("{} {};", cpp_ty, name));
+                    }
+                }
+            }
+            Stmt::Expr(expr) => self.emit_special_expr_stmt(expr, st, symbol_table, kind),
+            Stmt::Return(Some(expr), _) => self.emit_special_return_expr(expr, st, symbol_table, kind),
+            Stmt::Return(None, _) => self.push_line("return;"),
+            Stmt::Break(Some(expr), _) => self.push_line(&format!("break /* {} */;", self.format_method_expr(expr))),
+            Stmt::Break(None, _) => self.push_line("break;"),
+            Stmt::Continue(_) => self.push_line("continue;"),
+            Stmt::For { binding, iter, body, .. } => {
+                if let Pattern::Binding { name, .. } = binding {
+                    self.push_line(&format!("for (auto {} : {})", name, self.format_method_expr(iter)));
+                } else {
+                    self.push_line(&format!("for (auto _ : {})", self.format_method_expr(iter)));
+                }
+                self.push_line("{");
+                self.indent += 1;
+                for s in &body.stmts {
+                    self.emit_special_stmt(s, st, symbol_table, kind);
+                }
+                self.indent -= 1;
+                self.push_line("}");
+            }
+            Stmt::While { condition, body, .. } => {
+                self.push_line(&format!("while ({})", self.format_method_expr(condition)));
+                self.push_line("{");
+                self.indent += 1;
+                for s in &body.stmts {
+                    self.emit_special_stmt(s, st, symbol_table, kind);
+                }
+                self.indent -= 1;
+                self.push_line("}");
+            }
+            Stmt::Loop { body, .. } => {
+                self.push_line("while (true)");
+                self.push_line("{");
+                self.indent += 1;
+                for s in &body.stmts {
+                    self.emit_special_stmt(s, st, symbol_table, kind);
+                }
+                self.indent -= 1;
+                self.push_line("}");
+            }
+            Stmt::Item(_) => {}
+        }
+    }
+
+    fn emit_special_expr_stmt(
+        &mut self,
+        expr: &Expr,
+        st: &TypedStruct,
+        symbol_table: &HashMap<String, WidgetInfo>,
+        kind: SpecialSlateMethodKind,
+    ) {
+        match expr {
+            Expr::If { condition, then_branch, else_branch, .. } => {
+                self.emit_special_if_stmt(condition, then_branch, else_branch.as_deref(), st, symbol_table, kind);
+            }
+            Expr::Match { scrutinee, arms, .. } => {
+                self.emit_special_match_stmt(scrutinee, arms, false, st, symbol_table, kind);
+            }
+            Expr::Call { callee, args, .. } => {
+                if args.len() == 1 && self.is_widget_expr(&args[0].value) {
+                    self.push_line(&format!("{}(", self.format_method_expr(callee)));
+                    self.indent += 1;
+                    self.generate_widget_tree_with_context(&args[0].value, st, symbol_table);
+                    self.indent -= 1;
+                    self.push_line(");");
+                } else {
+                    self.push_line(&format!("{};", self.format_method_expr(expr)));
+                }
+            }
+            Expr::MethodCall { receiver, method, args, .. } => {
+                if args.len() == 1 && self.is_widget_expr(&args[0].value) {
+                    self.push_line(&format!("{}.{}(", self.format_method_expr(receiver), method));
+                    self.indent += 1;
+                    self.generate_widget_tree_with_context(&args[0].value, st, symbol_table);
+                    self.indent -= 1;
+                    self.push_line(");");
+                } else {
+                    self.push_line(&format!("{};", self.format_method_expr(expr)));
+                }
+            }
+            _ => self.push_line(&format!("{};", self.format_method_expr(expr))),
+        }
+    }
+
+    fn emit_special_return_expr(
+        &mut self,
+        expr: &Expr,
+        st: &TypedStruct,
+        symbol_table: &HashMap<String, WidgetInfo>,
+        kind: SpecialSlateMethodKind,
+    ) {
+        match expr {
+            Expr::If { condition, then_branch, else_branch, .. } => {
+                self.emit_special_if_stmt(condition, then_branch, else_branch.as_deref(), st, symbol_table, kind);
+            }
+            Expr::Match { scrutinee, arms, .. } => {
+                self.emit_special_match_stmt(scrutinee, arms, true, st, symbol_table, kind);
+            }
+            _ if kind == SpecialSlateMethodKind::GenerateWidgetForColumn && self.is_widget_expr(expr) => {
+                self.push_line("return");
+                self.indent += 1;
+                self.generate_widget_tree_with_context(expr, st, symbol_table);
+                self.indent -= 1;
+                self.push_line(";");
+            }
+            _ => self.push_line(&format!("return {};", self.format_method_expr(expr))),
+        }
+    }
+
+    fn emit_special_if_stmt(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Block,
+        else_branch: Option<&ElseBranch>,
+        st: &TypedStruct,
+        symbol_table: &HashMap<String, WidgetInfo>,
+        kind: SpecialSlateMethodKind,
+    ) {
+        self.push_line(&format!("if ({})", self.format_method_expr(condition)));
+        self.push_line("{");
+        self.indent += 1;
+        for s in &then_branch.stmts {
+            self.emit_special_stmt(s, st, symbol_table, kind);
+        }
+        self.indent -= 1;
+        self.push_line("}");
+
+        if let Some(else_branch) = else_branch {
+            self.emit_special_else_branch(else_branch, st, symbol_table, kind);
+        }
+    }
+
+    fn emit_special_else_branch(
+        &mut self,
+        else_branch: &ElseBranch,
+        st: &TypedStruct,
+        symbol_table: &HashMap<String, WidgetInfo>,
+        kind: SpecialSlateMethodKind,
+    ) {
+        match else_branch {
+            ElseBranch::Else(block) => {
+                self.push_line("else");
+                self.push_line("{");
+                self.indent += 1;
+                for s in &block.stmts {
+                    self.emit_special_stmt(s, st, symbol_table, kind);
+                }
+                self.indent -= 1;
+                self.push_line("}");
+            }
+            ElseBranch::ElseIf(cond, block, tail) => {
+                self.push_line(&format!("else if ({})", self.format_method_expr(cond)));
+                self.push_line("{");
+                self.indent += 1;
+                for s in &block.stmts {
+                    self.emit_special_stmt(s, st, symbol_table, kind);
+                }
+                self.indent -= 1;
+                self.push_line("}");
+                if let Some(next) = tail.as_deref() {
+                    self.emit_special_else_branch(next, st, symbol_table, kind);
+                }
+            }
+        }
+    }
+
+    fn emit_special_match_stmt(
+        &mut self,
+        scrutinee: &Expr,
+        arms: &[kain_core::ast::MatchArm],
+        as_return: bool,
+        st: &TypedStruct,
+        symbol_table: &HashMap<String, WidgetInfo>,
+        kind: SpecialSlateMethodKind,
+    ) {
+        let scrutinee_str = self.format_method_expr(scrutinee);
+        let mut is_first = true;
+
+        for arm in arms {
+            let mut cond = self.match_pattern_condition(&scrutinee_str, &arm.pattern);
+            if let Some(guard) = &arm.guard {
+                let guard_str = self.format_method_expr(guard);
+                cond = match cond {
+                    Some(c) => Some(format!("({}) && ({})", c, guard_str)),
+                    None => Some(guard_str),
+                };
+            }
+
+            match cond {
+                Some(cond_str) => {
+                    if is_first {
+                        self.push_line(&format!("if ({})", cond_str));
+                    } else {
+                        self.push_line(&format!("else if ({})", cond_str));
+                    }
+                }
+                None => {
+                    if is_first {
+                        self.push_line("if (true)");
+                    } else {
+                        self.push_line("else");
+                    }
+                }
+            }
+
+            self.push_line("{");
+            self.indent += 1;
+            if as_return {
+                self.emit_special_return_expr(&arm.body, st, symbol_table, kind);
+            } else {
+                self.emit_special_expr_stmt(&arm.body, st, symbol_table, kind);
+            }
+            self.indent -= 1;
+            self.push_line("}");
+            is_first = false;
+        }
+    }
+
+    fn match_pattern_condition(&self, scrutinee: &str, pattern: &Pattern) -> Option<String> {
+        match pattern {
+            Pattern::Wildcard(_) => None,
+            Pattern::Literal(expr) => Some(format!("{} == {}", scrutinee, self.format_method_expr(expr))),
+            Pattern::Variant { enum_name, variant, fields, .. } => {
+                if matches!(fields, kain_core::ast::VariantPatternFields::Unit) {
+                    let variant_ref = if let Some(en) = enum_name {
+                        format!("{}::{}", naming::to_enum_name(en), variant)
+                    } else {
+                        variant.clone()
+                    };
+                    Some(format!("{} == {}", scrutinee, variant_ref))
+                } else {
+                    Some("false /* unsupported non-unit variant pattern */".to_string())
+                }
+            }
+            Pattern::Binding { .. } => Some("true".to_string()),
+            _ => Some("false /* unsupported pattern */".to_string()),
+        }
+    }
+
+    fn is_widget_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call { callee, .. } => {
+                if let Expr::Ident(name, _) = &**callee {
+                    !matches!(WidgetType::from_name(name), WidgetType::Unknown(_))
+                } else {
+                    false
+                }
+            }
+            Expr::MethodCall { receiver, .. } => self.is_widget_expr(receiver),
+            _ => false,
+        }
     }
     
     /// Build a symbol table from the Compose() method body
@@ -488,7 +978,8 @@ impl SlateGenerator {
                     // Generate the widget construction (SNew(...))
                     let slate_class = widget_type.to_slate_class();
                     if widget_type.is_list_widget() {
-                        self.push_line(&self.list_widget_stype(&slate_class));
+                        let inferred_item_type = self.infer_list_item_type_from_method_calls(&widget_info.method_calls);
+                        self.push_line(&self.list_widget_stype_for(&slate_class, inferred_item_type.as_deref()));
                     } else {
                         self.push_line(&format!("SNew({})", slate_class));
                     }
@@ -569,6 +1060,7 @@ impl SlateGenerator {
                         self.push_line("SNew(SImage)");
                         self.push_line(&format!(".Image(ShaderBrush_{}.Get())", id));
                         self.parent_stack.push(WidgetType::Image);
+                        self.parent_stack.pop();
                         return;
                     }
                 }
@@ -578,7 +1070,7 @@ impl SlateGenerator {
                 let slate_class = widget_type.to_slate_class();
                 
                 if widget_type.is_list_widget() {
-                    self.push_line(&self.list_widget_stype(&slate_class));
+                    self.push_line(&self.list_widget_stype_for(&slate_class, None));
                 } else {
                     self.push_line(&format!("SNew({})", slate_class));
                 }
@@ -591,7 +1083,11 @@ impl SlateGenerator {
                     "AutoWidth" | "AutoHeight" | "MaxWidth" | "MaxHeight" |
                     "Column" | "Row" | "ColumnSpan" | "RowSpan" => {
                         self.generate_widget_tree_with_context(receiver, st, symbol_table);
-                        self.generate_slot_property(method, args);
+                        if self.is_slot_context_expr(receiver) {
+                            self.generate_slot_property(method, args);
+                        } else {
+                            self.generate_widget_property(method, args);
+                        }
                     }
                     "Content" => {
                         self.generate_widget_tree_with_context(receiver, st, symbol_table);
@@ -730,6 +1226,7 @@ impl SlateGenerator {
                         
                         // Push dummy parent so children don't attach weirdly (though SImage has no children)
                         self.parent_stack.push(WidgetType::Image);
+                        self.parent_stack.pop();
                         return; // SImage has no children from shader_image args
                     }
                 }
@@ -740,7 +1237,7 @@ impl SlateGenerator {
                 
                 // List widgets need the item-pointer type argument.
                 if widget_type.is_list_widget() {
-                    self.push_line(&self.list_widget_stype(&slate_class));
+                    self.push_line(&self.list_widget_stype_for(&slate_class, None));
                 } else {
                     self.push_line(&format!("SNew({})", slate_class));
                 }
@@ -760,7 +1257,11 @@ impl SlateGenerator {
                     "AutoWidth" | "AutoHeight" | "MaxWidth" | "MaxHeight" |
                     "Column" | "Row" | "ColumnSpan" | "RowSpan" => {
                         self.generate_widget_tree(receiver, st);
-                        self.generate_slot_property(method, args);
+                        if self.is_slot_context_expr(receiver) {
+                            self.generate_slot_property(method, args);
+                        } else {
+                            self.generate_widget_property(method, args);
+                        }
                     }
                     // Content slot (Border, Button, ToolTip)
                     "Content" => {
@@ -875,6 +1376,9 @@ impl SlateGenerator {
                     }
                 }
                 self.push_line(&format!(".ToolTipText({})", formatted_args));
+            }
+            "ToolTip" => {
+                self.push_line(&format!(".ToolTip({})", formatted_args));
             }
             
             // === Delegate properties (click, value change, text, etc.) ===
@@ -1206,6 +1710,110 @@ impl SlateGenerator {
             _ => format!("/* unsupported expr: {:?} */", std::mem::discriminant(expr)),
         }
     }
+
+    fn format_method_expr(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::String(s, _) => format!("TEXT(\"{}\")", s),
+            Expr::Int(n, _) => n.to_string(),
+            Expr::Float(f, _) => {
+                if f.fract() == 0.0 {
+                    format!("{:.1}f", f)
+                } else {
+                    format!("{}f", f)
+                }
+            }
+            Expr::Bool(b, _) => b.to_string(),
+            Expr::Ident(name, _) => name.clone(),
+            Expr::Call { callee, args, .. } => {
+                let callee_str = self.format_method_expr(callee);
+                let formatted_args: Vec<String> = args.iter().map(|a| self.format_method_expr(&a.value)).collect();
+                format!("{}({})", callee_str, formatted_args.join(", "))
+            }
+            Expr::MethodCall { receiver, method, args, .. } => {
+                let recv = self.format_method_expr(receiver);
+                let formatted_args: Vec<String> = args.iter().map(|a| self.format_method_expr(&a.value)).collect();
+                if formatted_args.is_empty() {
+                    format!("{}.{}()", recv, method)
+                } else {
+                    format!("{}.{}({})", recv, method, formatted_args.join(", "))
+                }
+            }
+            Expr::Field { object, field, .. } => {
+                if let Expr::Ident(obj_name, _) = &**object {
+                    let looks_type_like = obj_name.contains("::")
+                        || obj_name.starts_with('S')
+                        || obj_name.starts_with('F')
+                        || obj_name.starts_with('E')
+                        || obj_name.starts_with('U')
+                        || obj_name.starts_with('A')
+                        || obj_name.starts_with('T');
+                    if looks_type_like {
+                        return format!("{}::{}", obj_name, field);
+                    }
+                }
+                format!("{}.{}", self.format_method_expr(object), field)
+            }
+            Expr::Unary { op, operand, .. } => {
+                let operand_str = self.format_method_expr(operand);
+                let op_str = match op {
+                    kain_core::ast::UnaryOp::Neg => "-",
+                    kain_core::ast::UnaryOp::Not => "!",
+                    kain_core::ast::UnaryOp::BitNot => "~",
+                    kain_core::ast::UnaryOp::Ref => "&",
+                    kain_core::ast::UnaryOp::RefMut => "&",
+                    kain_core::ast::UnaryOp::Deref => "*",
+                };
+                format!("{}{}", op_str, operand_str)
+            }
+            Expr::Binary { left, op, right, .. } => {
+                let l = self.format_method_expr(left);
+                let r = self.format_method_expr(right);
+                let op_str = match op {
+                    kain_core::ast::BinaryOp::Add => "+",
+                    kain_core::ast::BinaryOp::Sub => "-",
+                    kain_core::ast::BinaryOp::Mul => "*",
+                    kain_core::ast::BinaryOp::Div => "/",
+                    kain_core::ast::BinaryOp::Mod => "%",
+                    kain_core::ast::BinaryOp::Eq => "==",
+                    kain_core::ast::BinaryOp::Ne => "!=",
+                    kain_core::ast::BinaryOp::Lt => "<",
+                    kain_core::ast::BinaryOp::Le => "<=",
+                    kain_core::ast::BinaryOp::Gt => ">",
+                    kain_core::ast::BinaryOp::Ge => ">=",
+                    kain_core::ast::BinaryOp::And => "&&",
+                    kain_core::ast::BinaryOp::Or => "||",
+                    kain_core::ast::BinaryOp::BitAnd => "&",
+                    kain_core::ast::BinaryOp::BitOr => "|",
+                    kain_core::ast::BinaryOp::BitXor => "^",
+                    kain_core::ast::BinaryOp::Shl => "<<",
+                    kain_core::ast::BinaryOp::Shr => ">>",
+                    kain_core::ast::BinaryOp::Pow => "/* pow */",
+                    kain_core::ast::BinaryOp::Assign => "=",
+                    kain_core::ast::BinaryOp::AddAssign => "+=",
+                    kain_core::ast::BinaryOp::SubAssign => "-=",
+                    kain_core::ast::BinaryOp::MulAssign => "*=",
+                    kain_core::ast::BinaryOp::DivAssign => "/=",
+                    kain_core::ast::BinaryOp::Range => "/* range */",
+                    kain_core::ast::BinaryOp::RangeInclusive => "/* range_inclusive */",
+                };
+                format!("({} {} {})", l, op_str, r)
+            }
+            Expr::EnumVariant { enum_name, variant, .. } => {
+                let cpp_enum = if let Some(ref ctx) = self.context {
+                    if ctx.enum_names.contains(enum_name) {
+                        naming::to_enum_name(enum_name)
+                    } else {
+                        enum_name.clone()
+                    }
+                } else {
+                    naming::to_enum_name(enum_name)
+                };
+                format!("{}::{}", cpp_enum, variant)
+            }
+            Expr::None(_) => "nullptr".to_string(),
+            _ => self.format_expr(expr),
+        }
+    }
     
     /// Check if a formatted argument string references an InArgs field (delegate pass-through)
     /// When true, the delegate value should be passed directly (it's already bound).
@@ -1394,9 +2002,18 @@ impl SlateGenerator {
 
     /// Get the current widget class name for CreateSP bindings
     fn current_widget_class(&self) -> String {
-        // The widget class name is tracked via the lines we've already generated
-        // Fall back to a generic name if we can't determine it
-        "Self".to_string()
+        self.widget_class_name.clone().unwrap_or_else(|| "Self".to_string())
+    }
+
+    /// Return true when a property method call is being applied to a slot expression
+    /// (e.g. `VerticalBox().Add(...).Padding(...)`) instead of to a widget expression.
+    fn is_slot_context_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall { method, receiver, .. } => {
+                method == "Add" || method == "Slot" || self.is_slot_context_expr(receiver)
+            }
+            _ => false,
+        }
     }
 
     fn generate_slate_args(&mut self, st: &Struct, widget_name: &str) {
@@ -1558,7 +2175,7 @@ impl SlateGenerator {
             "OnTextChanged" | "on_text_changed" => "FOnTextChanged".to_string(),
             "OnValueChanged" | "on_value_changed" => "FOnFloatValueChanged".to_string(),
             "OnCheckStateChanged" | "on_check_state_changed" => "FOnCheckStateChanged".to_string(),
-            "OnSelectionChanged" | "on_selection_changed" => "FSimpleDelegate".to_string(),
+            "OnSelectionChanged" | "on_selection_changed" => "FOnSelectionChanged".to_string(),
             "OnGenerateRow" | "on_generate_row" => "FOnGenerateRow".to_string(),
             "OnGetChildren" | "on_get_children" => "FOnGetChildren".to_string(),
             "OnMouseButtonDown" | "OnMouseButtonUp" => "FPointerEventHandler".to_string(),
@@ -1595,6 +2212,7 @@ impl SlateGenerator {
                 | "FOnTextCommitted"
                 | "FOnTextChanged"
                 | "FOnCheckStateChanged"
+                | "FOnSelectionChanged"
                 | "FOnLinearColorValueChanged"
                 | "FPointerEventHandler"
                 | "FKeyEventHandler"
@@ -1627,48 +2245,87 @@ impl SlateGenerator {
     }
     
     fn generate_event_handlers(&mut self, st: &Struct) {
+        let widget_model = self.resolve_widget_model(st);
+
         // Generate properly-typed handler declarations
         for field in &st.fields {
             if field.name.starts_with("On") || field.name.starts_with("on_") {
+                let cpp_type = self.map_type(&field.ty);
+                let delegate_type = self.map_event_delegate_type(&field.name, &cpp_type);
                 self.push_line("");
-                match field.name.as_str() {
-                    "OnClicked" | "on_clicked" => {
-                        self.push_line(&format!("FReply Handle{}();", field.name));
-                    }
-                    "OnTextCommitted" | "on_text_committed" => {
-                        self.push_line(&format!("void Handle{}(const FText& InText, ETextCommit::Type CommitType);", field.name));
-                    }
-                    "OnTextChanged" | "on_text_changed" => {
-                        self.push_line(&format!("void Handle{}(const FText& InText);", field.name));
-                    }
-                    "OnValueChanged" | "on_value_changed" => {
-                        self.push_line(&format!("void Handle{}(float NewValue);", field.name));
-                    }
-                    "OnCheckStateChanged" | "on_check_state_changed" => {
-                        self.push_line(&format!("void Handle{}(ECheckBoxState NewState);", field.name));
-                    }
-                    _ => {
-                        self.push_line(&format!("FReply Handle{}();", field.name));
-                    }
-                }
+                self.push_line(&self.handler_decl_for_delegate(&delegate_type, &field.name));
             }
         }
         
         // Generate handler methods for explicit @event functions
         for method in &st.methods {
-            if method.name != "Compose" {
+            if method.name != "Compose" && method.name != "Construct" {
+                if method.name == "GenerateWidgetForColumn" && widget_model.construct_kind == SlateConstructKind::TableRow {
+                    self.push_line("");
+                    self.push_line("virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;");
+                    continue;
+                }
+                if method.name == "OnOpening" && widget_model.construct_kind == SlateConstructKind::ToolTip {
+                    self.push_line("");
+                    self.push_line("virtual void OnOpening() override;");
+                    continue;
+                }
+
                 let params = method.params.iter()
                     .map(|p| format!("{} {}", self.map_type(&p.ty), p.name))
                     .collect::<Vec<_>>()
                     .join(", ");
-                let ret_type = if method.name.starts_with("On") || method.name.starts_with("Handle") {
-                    "FReply"
+                let ret_type = if let Some(ret_ty) = &method.return_type {
+                    self.map_type(ret_ty)
+                } else if method.name == "OnOpening" {
+                    "void".to_string()
+                } else if method.name.starts_with("On") || method.name.starts_with("Handle") {
+                    "FReply".to_string()
                 } else {
-                    "void"
+                    "void".to_string()
                 };
                 self.push_line("");
                 self.push_line(&format!("{} {}({});", ret_type, method.name, params));
             }
+        }
+    }
+
+    /// Build a handler declaration from a resolved delegate type.
+    fn handler_decl_for_delegate(&self, delegate_type: &str, field_name: &str) -> String {
+        match delegate_type {
+            "FOnClicked" => format!("FReply Handle{}();", field_name),
+            "FSimpleDelegate" => format!("void Handle{}();", field_name),
+            "FOnFloatValueChanged" => format!("void Handle{}(float NewValue);", field_name),
+            "FOnTextCommitted" => {
+                format!("void Handle{}(const FText& InText, ETextCommit::Type CommitType);", field_name)
+            }
+            "FOnTextChanged" => format!("void Handle{}(const FText& InText);", field_name),
+            "FOnCheckStateChanged" => format!("void Handle{}(ECheckBoxState NewState);", field_name),
+            "FOnSelectionChanged" => {
+                format!("void Handle{}(TSharedPtr<FString> InItem, ESelectInfo::Type SelectInfo);", field_name)
+            }
+            "FOnLinearColorValueChanged" => {
+                format!("void Handle{}(FLinearColor NewColor);", field_name)
+            }
+            "FPointerEventHandler" => {
+                format!("FReply Handle{}(const FGeometry& Geometry, const FPointerEvent& MouseEvent);", field_name)
+            }
+            "FKeyEventHandler" => {
+                format!("FReply Handle{}(const FGeometry& Geometry, const FKeyEvent& KeyEvent);", field_name)
+            }
+            "FOnGenerateRow" => {
+                format!(
+                    "TSharedRef<ITableRow> Handle{}(TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& OwnerTable);",
+                    field_name
+                )
+            }
+            "FOnGetChildren" => {
+                format!(
+                    "void Handle{}(TSharedPtr<FString> InItem, TArray<TSharedPtr<FString>>& OutChildren);",
+                    field_name
+                )
+            }
+            _ => format!("void Handle{}();", field_name),
         }
     }
     
@@ -1727,15 +2384,54 @@ impl SlateGenerator {
         }
     }
 
+    fn infer_list_item_type_from_method_calls(&self, method_calls: &[MethodCallInfo]) -> Option<String> {
+        for call in method_calls {
+            if call.method == "ListItemsSource" {
+                if let Some(arg) = call.args.first() {
+                    if let Some(item_ty) = self.infer_list_item_type_from_expr(&arg.value) {
+                        return Some(item_ty);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn infer_list_item_type_from_expr(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Ident(name, _) => self.list_item_types.get(name).cloned(),
+            Expr::Field { object, field, .. } => {
+                if let Expr::Ident(base, _) = &**object {
+                    if base == "InArgs" {
+                        return self.list_item_types.get(field).cloned();
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
     /// Return the SNew type string for a list widget, including the `<ItemPtr>` template arg
     /// when an item type is known from a previous `generate_list_view_support()` call.
     fn list_widget_stype(&self, slate_class: &str) -> String {
-        if let Some(elem) = self.list_item_types.values().next() {
-            format!("SNew({}<TSharedPtr<{}>>)", slate_class, elem)
-        } else {
-            // Fallback to a valid list item type accepted by Slate traits.
-            format!("SNew({}<TSharedPtr<FString>>)", slate_class)
+        self.list_widget_stype_for(slate_class, None)
+    }
+
+    fn list_widget_stype_for(&self, slate_class: &str, preferred_item_type: Option<&str>) -> String {
+        if let Some(elem) = preferred_item_type {
+            return format!("SNew({}<TSharedPtr<{}>>)", slate_class, elem);
         }
+
+        // Deterministic fallback: only use implicit list type when there is exactly one list source.
+        if self.list_item_types.len() == 1 {
+            if let Some(elem) = self.list_item_types.values().next() {
+                return format!("SNew({}<TSharedPtr<{}>>)", slate_class, elem);
+            }
+        }
+
+        // Final fallback to a valid list item type accepted by Slate traits.
+        format!("SNew({}<TSharedPtr<FString>>)", slate_class)
     }
     
     fn map_type(&self, ty: &Type) -> String {

@@ -389,6 +389,7 @@ dependencies = [
  "ue5-asset-utils",
  "ue5-blueprints",
  "ue5-editor",
+ "ue5-gas",
  "ue5-graphs",
  "ue5-materials",
  "ue5-shaders",

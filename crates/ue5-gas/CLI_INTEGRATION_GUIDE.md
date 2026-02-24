@@ -1,356 +1,359 @@
-# CLI Integration Guide — ue5-gas
+# CLI Integration Guide for Phase 3 (Gameplay Abilities)
 
-> **Step-by-step guide for integrating Phase 1 & 2 into the KAIN CLI packager**
-
-**Status:** Ready for integration  
-**Phases:** Phase 1 (Tags) + Phase 2 (Attribute Sets)  
-**Estimated time:** 2-3 hours
+**Status:** ✅ COMPLETE  
+**Date:** February 24, 2026
 
 ---
 
-## Prerequisites
+## Integration Summary
 
-- ✅ Phase 1 complete (18/18 tests passing)
-- ✅ Phase 2 complete (20/20 tests passing)
-- ✅ ue5-gas crate compiles without errors
-- ✅ All documentation up to date
+Phase 3 (Gameplay Abilities) has been successfully integrated into the CLI packager. The `kain build --ue5` command now supports `@ability` definitions and generates complete UE5 C++ code.
 
 ---
 
-## Step 1: Add Dependency to CLI
+## Changes Made
+
+### 1. Cargo.toml Updates
 
 **File:** `Kain/crates/cli/Cargo.toml`
 
-**Add:**
+Added `ue5-gas` dependency:
 ```toml
-[dependencies]
-# ... existing dependencies ...
-ue5-gas = { path = "../ue5-gas" }
+ue5-gas = { path = "../ue5-gas", optional = true }
 ```
 
-**Verify:**
-```bash
-cargo build --package cli
+Added to `ue5` feature:
+```toml
+ue5 = ["dep:ue5", ..., "dep:ue5-gas", ...]
 ```
 
----
-
-## Step 2: Import in UE5 Pipeline
+### 2. Packager Integration
 
 **File:** `Kain/crates/cli/src/packager/ue5_pipeline.rs`
 
-**Add imports at top:**
+#### Extraction Before Type Checking (lines ~1660-1680)
 ```rust
-use ue5_gas::{
-    GameplayTagsIR, 
-    generate_tags,
-    AttributeSetIR,
-    generate_attribute_set,
-};
+// Extract GameplayTags BEFORE type checking
+let gameplay_tags: Vec<kain_core::ast::GameplayTagsNamespace> = merged.items.iter()
+    .filter_map(|item| {
+        if let kain_core::ast::Item::GameplayTags(def) = item {
+            Some(def.clone())
+        } else {
+            None
+        }
+    })
+    .collect();
+
+// Extract GameplayAbilities BEFORE type checking
+let gameplay_abilities: Vec<kain_core::ast::GameplayAbilityDef> = merged.items.iter()
+    .filter_map(|item| {
+        if let kain_core::ast::Item::GameplayAbility(def) = item {
+            Some(def.clone())
+        } else {
+            None
+        }
+    })
+    .collect();
 ```
 
----
-
-## Step 3: Add Tag Collection Logic
-
-**File:** `Kain/crates/cli/src/packager/ue5_pipeline.rs`
-
-**In `generate_ue5_plugin()` function, add collection:**
-
+#### Filter Items (lines ~1682-1690)
 ```rust
-pub fn generate_ue5_plugin(program: &Program, config: &Ue5Config) -> Result<()> {
-    // ... existing code ...
+merged.items.retain(|item| !matches!(item, 
+    kain_core::ast::Item::MaterialGraph(_) | 
+    kain_core::ast::Item::MaterialFunction(_) |
+    kain_core::ast::Item::GraphEditor(_) |
+    kain_core::ast::Item::GraphRuntime(_) |
+    kain_core::ast::Item::GameplayTags(_) |
+    kain_core::ast::Item::GameplayAbility(_)
+));
+```
+
+#### Generation Steps (lines ~890-990)
+
+**STEP 3.8: Generate GameplayTags**
+```rust
+#[cfg(feature = "ue5")]
+if !gameplay_tags.is_empty() {
+    println!("🏷️  Generating {} GameplayTags namespace(s)...", gameplay_tags.len());
     
-    let mut tag_namespaces = Vec::new();
-    let mut attribute_sets = Vec::new();
+    for tags_namespace in &gameplay_tags {
+        match ue5_gas::tags_ir::from_ast(tags_namespace) {
+            Ok(tags_ir) => {
+                match ue5_gas::tags_codegen::generate(&tags_ir, &ue5_config.plugin_name) {
+                    Ok(output) => {
+                        // Write GameplayTags.h, GameplayTags.cpp, DefaultGameplayTags.ini
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+**STEP 3.9: Generate GameplayAbilities**
+```rust
+#[cfg(feature = "ue5")]
+if !gameplay_abilities.is_empty() {
+    println!("⚡ Generating {} GameplayAbility(ies)...", gameplay_abilities.len());
     
-    // First pass: collect items
-    for item in &program.items {
-        match item {
-            Item::GameplayTags(tags) => {
-                tag_namespaces.push(tags.clone());
+    for ability_def in &gameplay_abilities {
+        match ue5_gas::ability_ir::GameplayAbilityIR::from_ast(ability_def) {
+            Ok(ability_ir) => {
+                match ue5_gas::ability_codegen::generate(&ability_ir, &ue5_config.plugin_name) {
+                    Ok(output) => {
+                        // Write {AbilityName}.h and {AbilityName}.cpp
+                    }
+                }
             }
-            Item::Struct(s) if has_attribute(&s.attributes, "attribute_set") => {
-                attribute_sets.push(s.clone());
+        }
+    }
+}
+```
+
+#### Module Dependencies (lines ~1132-1140)
+```rust
+// Detect GAS features for module dependencies
+let has_gameplay_tags = !gameplay_tags.is_empty();
+let has_gameplay_abilities = !gameplay_abilities.is_empty();
+let has_gas_features = has_gameplay_tags || has_gameplay_abilities;
+
+super::codegen::write_plugin_files(&layout, &ue5_config, &description, has_shaders, has_gas_features, &module_graph, &typed_program)?;
+```
+
+### 3. Build.cs Generation
+
+**File:** `Kain/crates/cli/src/packager/codegen.rs`
+
+#### Updated Function Signature (line ~1577)
+```rust
+pub fn write_plugin_files(
+    layout: &PluginLayout,
+    config: &Ue5Config,
+    description: &Option<String>,
+    has_shaders: bool,
+    has_gas_features: bool,  // NEW PARAMETER
+    module_graph: &ue5::ue5::module_graph::ModuleGraph,
+    program: &kain_core::types::TypedProgram,
+) -> KainResult<()>
+```
+
+#### Updated compute_runtime_deps (lines ~1503-1550)
+```rust
+fn compute_runtime_deps(
+    has_shaders: bool,
+    has_gas_features: bool,  // NEW PARAMETER
+    module_graph: &ue5::ue5::module_graph::ModuleGraph,
+    program: &kain_core::types::TypedProgram,
+) -> Vec<String> {
+    // ... existing shader logic ...
+    
+    // GAS features require GameplayTags and GameplayAbilities modules
+    if has_gas_features {
+        for module in &["GameplayTags", "GameplayAbilities"] {
+            let s = module.to_string();
+            if !deps.contains(&s) {
+                deps.push(s);
             }
-            // ... existing item handling ...
         }
     }
     
-    // ... rest of function ...
+    deps
 }
 ```
 
 ---
 
-## Step 4: Generate Tag Files
+## Generated File Structure
 
-**File:** `Kain/crates/cli/src/packager/ue5_pipeline.rs`
+When `kain build --ue5` is run on a plugin with GAS features:
 
-**After processing all items, add:**
-
-```rust
-// Generate GameplayTags if any were defined
-if !tag_namespaces.is_empty() {
-    let ir = GameplayTagsIR::from_ast(tag_namespaces)?;
-    let output = generate_tags(&ir, &config.plugin_name)?;
-    
-    // Write header
-    let header_path = output_dir.join("Source/Public/GameplayTags.h");
-    fs::write(&header_path, output.header)?;
-    
-    // Write implementation
-    let impl_path = output_dir.join("Source/Private/GameplayTags.cpp");
-    fs::write(&impl_path, output.implementation)?;
-    
-    // Write INI file
-    let ini_dir = output_dir.join("Config/Tags");
-    fs::create_dir_all(&ini_dir)?;
-    let ini_path = ini_dir.join("DefaultGameplayTags.ini");
-    fs::write(&ini_path, output.ini_file)?;
-    
-    println!("Generated {} GameplayTags", ir.all_tags().len());
-}
+```
+MyPlugin/
+├── Config/
+│   └── Tags/
+│       └── DefaultGameplayTags.ini    # Generated from @gameplay_tags
+├── Source/
+│   └── MyPlugin/
+│       ├── Public/
+│       │   ├── GameplayTags.h         # Generated from @gameplay_tags
+│       │   └── Abilities/
+│       │       ├── JumpAbility.h      # Generated from @ability
+│       │       └── DashAbility.h
+│       └── Private/
+│           ├── GameplayTags.cpp       # Generated from @gameplay_tags
+│           └── Abilities/
+│               ├── JumpAbility.cpp    # Generated from @ability
+│               └── DashAbility.cpp
+└── MyPlugin.Build.cs                  # Includes GameplayTags, GameplayAbilities modules
 ```
 
 ---
 
-## Step 5: Generate Attribute Set Files
+## Module Dependencies
 
-**File:** `Kain/crates/cli/src/packager/ue5_pipeline.rs`
+When GAS features are detected, the following modules are automatically added to `PublicDependencyModuleNames` in the `.Build.cs` file:
 
-**After tag generation, add:**
-
-```rust
-// Generate Attribute Sets if any were defined
-for struct_def in attribute_sets {
-    let ir = AttributeSetIR::from_ast(&struct_def)?;
-    let output = generate_attribute_set(&ir, &config.plugin_name)?;
-    
-    // Write header
-    let header_path = output_dir.join(format!("Source/Public/{}.h", ir.name));
-    fs::write(&header_path, output.header)?;
-    
-    // Write implementation
-    let impl_path = output_dir.join(format!("Source/Private/{}.cpp", ir.name));
-    fs::write(&impl_path, output.implementation)?;
-    
-    println!("Generated AttributeSet: {}", ir.name);
-}
-```
+- `GameplayTags` — Required for FGameplayTag, FGameplayTagContainer
+- `GameplayAbilities` — Required for UGameplayAbility, UAbilitySystemComponent
 
 ---
 
-## Step 6: Add Module Dependencies
+## Usage Example
 
-**File:** `Kain/crates/cli/src/packager/ue5_pipeline.rs`
+### Input (KAIN)
 
-**In Build.cs generation, add:**
-
-```rust
-fn generate_build_cs(config: &Ue5Config, has_gas: bool) -> String {
-    let mut deps = vec![
-        "Core",
-        "CoreUObject",
-        "Engine",
-    ];
-    
-    // Add GAS dependencies if needed
-    if has_gas {
-        deps.push("GameplayTags");
-        deps.push("GameplayAbilities");
-    }
-    
-    // ... rest of Build.cs generation ...
-}
-```
-
-**Detection logic:**
-```rust
-let has_gas = !tag_namespaces.is_empty() || !attribute_sets.is_empty();
-let build_cs = generate_build_cs(&config, has_gas);
-```
-
----
-
-## Step 7: Test Integration
-
-### Create Test Plugin
-
-**File:** `test_gas_plugin/src/main.kn`
+**File:** `src/abilities.kn`
 
 ```kain
 @gameplay_tags
 namespace Ability:
+    Jump
+    Dash
     Attack:
         Melee
         Ranged
 
-@attribute_set
-struct HealthSet:
-    @attribute(replicated: true, rep_notify: true)
-    health: Float = 100.0
+@ability
+struct JumpAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @net_execution(policy: "LocalPredicted")
     
-    @attribute(replicated: true)
-    max_health: Float = 100.0
+    @ability_tags
+    tags: ["Ability.Jump"]
+    
+    @activation_required_tags
+    required: ["Status.Grounded"]
+    
+    @cost
+    effect: StaminaCostEffect
+    
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if not commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        get_avatar_actor_from_actor_info().jump()
+        end_ability(handle, actor_info, activation_info, true, false)
 ```
 
-### Build Plugin
+### Build Command
 
 ```bash
-cd test_gas_plugin
+cd MyPlugin
 kain build --ue5
 ```
 
-### Verify Output
+### Output
 
-Check that these files were generated:
-- ✅ `Source/Public/GameplayTags.h`
-- ✅ `Source/Private/GameplayTags.cpp`
-- ✅ `Config/Tags/DefaultGameplayTags.ini`
-- ✅ `Source/Public/HealthSet.h`
-- ✅ `Source/Private/HealthSet.cpp`
-- ✅ `MyPlugin.Build.cs` includes GameplayTags and GameplayAbilities
+```
+🚀 Building UE5 Plugin: MyPlugin
+📍 Plugin directory: M:\Code\MyPlugin
 
-### Compile in UE5
+🔍 Type checking merged program...
+   ✓ Type checking passed
 
-1. Copy plugin to UE5 project
-2. Regenerate project files
-3. Build in Visual Studio
-4. Verify no compilation errors
-5. Open in UE5 editor
-6. Verify tags load in Gameplay Tags editor
-7. Verify attribute set appears in Blueprint
+🏷️  Generating 1 GameplayTags namespace(s)...
+   ✓ GameplayTags.h (25 lines)
+   ✓ GameplayTags.cpp (30 lines)
+   ✓ DefaultGameplayTags.ini (5 tags)
 
----
+⚡ Generating 1 GameplayAbility(ies)...
+   ✓ JumpAbility.h (45 lines)
+   ✓ JumpAbility.cpp (60 lines)
 
-## Step 8: Update CLI Tests
+📦 Generating .uplugin file...
+   ✓ MyPlugin.uplugin
 
-**File:** `Kain/crates/cli/tests/ue5_pipeline_tests.rs`
+📝 Generating .Build.cs files...
+   ✓ MyPlugin.Build.cs + auto-resolved: GameplayTags, GameplayAbilities
 
-**Add tests:**
-
-```rust
-#[test]
-fn test_gameplay_tags_generation() {
-    let source = r#"
-        @gameplay_tags
-        namespace Test:
-            Tag1
-            Tag2
-    "#;
-    
-    let output = build_ue5_plugin(source).unwrap();
-    
-    assert!(output.contains("GameplayTags.h"));
-    assert!(output.contains("UE_DECLARE_GAMEPLAY_TAG_EXTERN"));
-    assert!(output.contains("DefaultGameplayTags.ini"));
-}
-
-#[test]
-fn test_attribute_set_generation() {
-    let source = r#"
-        @attribute_set
-        struct TestSet:
-            @attribute(replicated: true)
-            value: Float = 1.0
-    "#;
-    
-    let output = build_ue5_plugin(source).unwrap();
-    
-    assert!(output.contains("TestSet.h"));
-    assert!(output.contains("ATTRIBUTE_ACCESSORS"));
-    assert!(output.contains("GetLifetimeReplicatedProps"));
-}
+✅ Plugin build complete!
 ```
 
 ---
 
-## Troubleshooting
+## Testing
 
-### Issue: "Item::GameplayTags not found"
+### Minimal Test Plugin
 
-**Cause:** AST variant not imported
+Create a test plugin to verify the integration:
 
-**Fix:** Add to imports in ue5_pipeline.rs:
-```rust
-use kain_core::ast::{Item, Program, Struct, /* ... */};
+**File:** `test_gas/KAIN.toml`
+```toml
+[package]
+name = "TestGAS"
+version = "1.0.0"
+
+[ue5]
+plugin_name = "TestGAS"
+engine_version = "5.4"
 ```
 
-### Issue: "has_attribute not found"
+**File:** `test_gas/src/test.kn`
+```kain
+@gameplay_tags
+namespace Test:
+    Ability:
+        Test
 
-**Cause:** Helper function missing
-
-**Fix:** Add helper:
-```rust
-fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
-    attributes.iter().any(|a| a.name == name)
-}
+@ability
+struct TestAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @ability_tags
+    tags: ["Test.Ability.Test"]
+    
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        end_ability(handle, actor_info, activation_info, true, false)
 ```
 
-### Issue: Build.cs missing GAS dependencies
-
-**Cause:** Detection logic not working
-
-**Fix:** Verify `has_gas` flag is set correctly:
-```rust
-let has_gas = !tag_namespaces.is_empty() || !attribute_sets.is_empty();
-println!("GAS detected: {}", has_gas); // Debug
+**Build:**
+```bash
+cd test_gas
+kain build --ue5
 ```
+
+**Verify:**
+- Check `Source/TestGAS/Public/GameplayTags.h` exists
+- Check `Source/TestGAS/Private/GameplayTags.cpp` exists
+- Check `Config/Tags/DefaultGameplayTags.ini` exists
+- Check `Source/TestGAS/Public/Abilities/TestAbility.h` exists
+- Check `Source/TestGAS/Private/Abilities/TestAbility.cpp` exists
+- Check `TestGAS.Build.cs` contains `GameplayTags` and `GameplayAbilities`
 
 ---
 
 ## Success Criteria
 
-Integration is successful when:
-
-- [x] CLI compiles with ue5-gas dependency
-- [x] Test plugin builds without errors
-- [x] Generated files are valid C++
-- [x] Plugin compiles in UE5
-- [x] Tags load in UE5 editor
-- [x] Attribute sets appear in Blueprint
-- [x] CLI tests pass
-
----
-
-## Next Steps After Integration
-
-1. **Test with real plugin** — Build a simple combat system plugin
-2. **Verify multiplayer** — Test attribute replication
-3. **Performance test** — Measure tag query performance
-4. **Begin Phase 3** — Gameplay Abilities implementation
+- [x] ue5-gas dependency added to CLI
+- [x] GameplayTags extraction before type checking
+- [x] GameplayAbility extraction before type checking
+- [x] Items filtered from type checking
+- [x] GameplayTags generation step added
+- [x] GameplayAbility generation step added
+- [x] Module dependencies added to Build.cs
+- [x] Files written to correct directories
+- [x] Integration follows existing patterns (materials, graphs)
 
 ---
 
-## Estimated Integration Time
+## Next Steps
 
-| Task | Time |
-|------|------|
-| Add dependency | 5 min |
-| Add imports | 5 min |
-| Add collection logic | 15 min |
-| Add tag generation | 15 min |
-| Add attribute set generation | 15 min |
-| Add module dependencies | 10 min |
-| Create test plugin | 15 min |
-| Test and debug | 30 min |
-| Update CLI tests | 20 min |
-| Documentation | 10 min |
-
-**Total: ~2 hours**
+1. Test with Factory/Example_GAS plugin
+2. Verify UE5 compilation
+3. Add Phase 2 (Attribute Sets) integration
+4. Document full GAS workflow
 
 ---
 
-## Contact
+## Notes
 
-For questions or issues during integration, refer to:
-- PHASE1_COMPLETE.md — Phase 1 details
-- PHASE2_COMPLETE.md — Phase 2 details
-- CRATE_REFERENCE.md — API reference
-- IMPLEMENTATION_NOTES.md — Technical details
+- The integration follows the same pattern as materials and graphs
+- GAS items are extracted before type checking (like materials)
+- Module dependencies are automatically added when GAS features are detected
+- Generated files follow UE5 naming conventions (U prefix for abilities)
+- Config/Tags directory is created automatically for GameplayTags INI files
+- Abilities directory is created automatically under Public/Private
 
 ---
 
-**Ready for integration!**
+**Integration Complete!** ✅
 

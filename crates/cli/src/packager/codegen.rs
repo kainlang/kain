@@ -1502,6 +1502,7 @@ fn collect_ast_type_names(
 /// Uses the module graph when available, falls back to feature-based detection.
 fn compute_runtime_deps(
     has_shaders: bool,
+    has_gas_features: bool,
     module_graph: &ue5::ue5::module_graph::ModuleGraph,
     program: &kain_core::types::TypedProgram,
 ) -> Vec<String> {
@@ -1530,6 +1531,16 @@ fn compute_runtime_deps(
     // but all three must be listed explicitly for UnrealBuildTool to pick them up.
     if has_shaders {
         for module in &["RenderCore", "RHI", "Renderer"] {
+            let s = module.to_string();
+            if !deps.contains(&s) {
+                deps.push(s);
+            }
+        }
+    }
+
+    // GAS features require GameplayTags and GameplayAbilities modules
+    if has_gas_features {
+        for module in &["GameplayTags", "GameplayAbilities"] {
             let s = module.to_string();
             if !deps.contains(&s) {
                 deps.push(s);
@@ -1579,6 +1590,7 @@ pub fn write_plugin_files(
     config: &Ue5Config,
     description: &Option<String>,
     has_shaders: bool,
+    has_gas_features: bool,
     module_graph: &ue5::ue5::module_graph::ModuleGraph,
     program: &kain_core::types::TypedProgram,
 ) -> KainResult<()> {
@@ -1683,7 +1695,7 @@ pub fn write_plugin_files(
     
     if layout.needs_split {
         // SPLIT MODE: Two separate .Build.cs files
-        let rt_extra = compute_runtime_deps(has_shaders, module_graph, program);
+        let rt_extra = compute_runtime_deps(has_shaders, has_gas_features, module_graph, program);
         let rt_build_cs_path = layout.source_dir.join(&config.plugin_name).join(format!("{}.Build.cs", config.plugin_name));
         let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(&config.plugin_name, &rt_extra, has_datatable);
         fs::write(&rt_build_cs_path, rt_build_cs).map_err(|e| KainError::Io(e))?;
@@ -1705,7 +1717,7 @@ pub fn write_plugin_files(
         }
     } else {
         // SINGLE MODULE: One .Build.cs
-        let rt_extra = compute_runtime_deps(has_shaders, module_graph, program);
+        let rt_extra = compute_runtime_deps(has_shaders, has_gas_features, module_graph, program);
         let build_cs_path = layout.source_dir.join(format!("{}.Build.cs", config.plugin_name));
         let build_cs_content = super::build_cs_gen::generate_build_cs(&config.plugin_name, layout.has_editor_items, &rt_extra, &[]);
         fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;

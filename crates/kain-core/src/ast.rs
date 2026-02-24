@@ -92,6 +92,9 @@ pub enum Item {
 
     /// `@ability struct Name: policies, tags, lifecycle_hooks`
     GameplayAbility(GameplayAbilityDef),
+
+    /// `@gameplay_effect struct Name: duration, modifiers, tags`
+    GameplayEffect(GameplayEffectDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1606,6 +1609,9 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 collect_type_names_from_item(&Item::Function(method.clone()), out);
             }
         }
+        Item::GameplayEffect(_) => {
+            // GameplayEffects don't contain type references (all configuration is in attributes)
+        }
         Item::Use(_) | Item::Mod(_) => {
             // Uses and mods don't contain type references we can extract
         }
@@ -1996,5 +2002,37 @@ pub struct GameplayAbilityDef {
     pub cooldown_effect: Option<String>,
     pub methods: Vec<Function>,
     pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Gameplay Effect definition for UE5 Gameplay Ability System
+/// Syntax: @gameplay_effect struct Name: duration, modifiers, tags
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameplayEffectDef {
+    pub name: String,
+    pub duration_policy: Option<String>,  // "Instant", "Infinite", "HasDuration"
+    pub duration_magnitude: Option<f32>,
+    pub period: Option<f32>,
+    pub execute_on_application: bool,
+    pub modifiers: Vec<GameplayEffectModifier>,
+    pub stacking_type: Option<String>,  // "None", "AggregateBySource", "AggregateByTarget"
+    pub stacking_limit: Option<i32>,
+    pub owned_tags: Vec<String>,
+    pub granted_tags: Vec<String>,
+    pub application_required_tags: Vec<String>,
+    pub application_ignored_tags: Vec<String>,
+    pub ongoing_required_tags: Vec<String>,
+    pub ongoing_ignored_tags: Vec<String>,
+    pub removal_required_tags: Vec<String>,
+    pub removal_ignored_tags: Vec<String>,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameplayEffectModifier {
+    pub attribute: String,
+    pub operation: String,  // "Add", "Multiply", "Divide", "Override"
+    pub magnitude: f32,
     pub span: Span,
 }
