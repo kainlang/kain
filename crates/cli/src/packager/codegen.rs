@@ -1639,7 +1639,7 @@ pub fn write_plugin_files(
         for module in &config.modules {
             let (mut module_public_deps, module_private_deps): (Vec<String>, Vec<String>) = match module.module_type {
                 super::config::Ue5ModuleType::Runtime => {
-                    let mut deps = compute_runtime_deps(has_shaders, module_graph, program);
+                    let mut deps = compute_runtime_deps(has_shaders, has_gas_features, module_graph, program);
                     if !deps.contains(&"Core".to_string()) { deps.push("Core".to_string()); }
                     if !deps.contains(&"CoreUObject".to_string()) { deps.push("CoreUObject".to_string()); }
                     if !deps.contains(&"Engine".to_string()) { deps.push("Engine".to_string()); }

@@ -60,7 +60,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities) =
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks) =
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
@@ -893,45 +893,43 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             eprintln!("   ⚠️  Failed to create Config/Tags dir: {}", e);
         }
 
-        for tags_namespace in &gameplay_tags {
-            // Convert AST to IR
-            match ue5_gas::tags_ir::from_ast(tags_namespace) {
-                Ok(tags_ir) => {
-                    // Generate C++ files
-                    match ue5_gas::tags_codegen::generate(&tags_ir, &ue5_config.plugin_name) {
-                        Ok(output) => {
-                            // Write header
-                            let header_path = layout.public_dir.join("GameplayTags.h");
-                            if let Err(e) = fs::write(&header_path, &output.header) {
-                                eprintln!("   ⚠️  Failed to write GameplayTags.h: {}", e);
-                            } else {
-                                println!("   ✓ GameplayTags.h ({} lines)", output.header.lines().count());
-                            }
-
-                            // Write source
-                            let source_path = layout.private_dir.join("GameplayTags.cpp");
-                            if let Err(e) = fs::write(&source_path, &output.source) {
-                                eprintln!("   ⚠️  Failed to write GameplayTags.cpp: {}", e);
-                            } else {
-                                println!("   ✓ GameplayTags.cpp ({} lines)", output.source.lines().count());
-                            }
-
-                            // Write INI
-                            let ini_path = tags_config_dir.join("DefaultGameplayTags.ini");
-                            if let Err(e) = fs::write(&ini_path, &output.ini) {
-                                eprintln!("   ⚠️  Failed to write DefaultGameplayTags.ini: {}", e);
-                            } else {
-                                println!("   ✓ DefaultGameplayTags.ini ({} tags)", tags_ir.all_tags().len());
-                            }
+        // Convert all AST namespaces to IR (takes Vec)
+        match ue5_gas::tags_ir::GameplayTagsIR::from_ast(gameplay_tags.clone()) {
+            Ok(tags_ir) => {
+                // Generate C++ files
+                match ue5_gas::tags_codegen::generate(&tags_ir, &ue5_config.plugin_name) {
+                    Ok(output) => {
+                        // Write header
+                        let header_path = layout.public_dir.join("GameplayTags.h");
+                        if let Err(e) = fs::write(&header_path, &output.header) {
+                            eprintln!("   ⚠️  Failed to write GameplayTags.h: {}", e);
+                        } else {
+                            println!("   ✓ GameplayTags.h ({} lines)", output.header.lines().count());
                         }
-                        Err(e) => {
-                            eprintln!("   ⚠️  Failed to generate GameplayTags: {}", e);
+
+                        // Write implementation
+                        let impl_path = layout.private_dir.join("GameplayTags.cpp");
+                        if let Err(e) = fs::write(&impl_path, &output.implementation) {
+                            eprintln!("   ⚠️  Failed to write GameplayTags.cpp: {}", e);
+                        } else {
+                            println!("   ✓ GameplayTags.cpp ({} lines)", output.implementation.lines().count());
+                        }
+
+                        // Write INI
+                        let ini_path = tags_config_dir.join("DefaultGameplayTags.ini");
+                        if let Err(e) = fs::write(&ini_path, &output.ini_file) {
+                            eprintln!("   ⚠️  Failed to write DefaultGameplayTags.ini: {}", e);
+                        } else {
+                            println!("   ✓ DefaultGameplayTags.ini ({} tags)", tags_ir.all_tags().len());
                         }
                     }
+                    Err(e) => {
+                        eprintln!("   ⚠️  Failed to generate GameplayTags: {}", e);
+                    }
                 }
-                Err(e) => {
-                    eprintln!("   ⚠️  Failed to convert GameplayTags to IR: {}", e);
-                }
+            }
+            Err(e) => {
+                eprintln!("   ⚠️  Failed to convert GameplayTags to IR: {}", e);
             }
         }
         println!();
@@ -983,6 +981,162 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                 }
                 Err(e) => {
                     eprintln!("   ⚠️  Failed to convert ability {} to IR: {}", ability_def.name, e);
+                }
+            }
+        }
+        println!();
+    }
+
+    // STEP 3.10: Generate GameplayEffects (C++ UGameplayEffect subclasses)
+    #[cfg(feature = "ue5")]
+    if !gameplay_effects.is_empty() {
+        println!();
+        println!("💥 Generating {} GameplayEffect(s)...", gameplay_effects.len());
+
+        // Ensure Effects directory exists
+        let effects_public_dir = layout.public_dir.join("Effects");
+        let effects_private_dir = layout.private_dir.join("Effects");
+        if let Err(e) = fs::create_dir_all(&effects_public_dir) {
+            eprintln!("   ⚠️  Failed to create Effects public dir: {}", e);
+        }
+        if let Err(e) = fs::create_dir_all(&effects_private_dir) {
+            eprintln!("   ⚠️  Failed to create Effects private dir: {}", e);
+        }
+
+        for effect_def in &gameplay_effects {
+            // Convert AST to IR
+            match ue5_gas::effect_ir::GameplayEffectIR::from_ast(effect_def) {
+                Ok(effect_ir) => {
+                    // Generate C++ files
+                    match ue5_gas::effect_codegen::generate(&effect_ir, &ue5_config.plugin_name) {
+                        Ok(output) => {
+                            // Write header
+                            let header_path = effects_public_dir.join(format!("{}.h", effect_def.name));
+                            if let Err(e) = fs::write(&header_path, &output.header) {
+                                eprintln!("   ⚠️  Failed to write {}.h: {}", effect_def.name, e);
+                            } else {
+                                println!("   ✓ {}.h ({} lines)", effect_def.name, output.header.lines().count());
+                            }
+
+                            // Write source
+                            let source_path = effects_private_dir.join(format!("{}.cpp", effect_def.name));
+                            if let Err(e) = fs::write(&source_path, &output.source) {
+                                eprintln!("   ⚠️  Failed to write {}.cpp: {}", effect_def.name, e);
+                            } else {
+                                println!("   ✓ {}.cpp ({} lines)", effect_def.name, output.source.lines().count());
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("   ⚠️  Failed to generate effect {}: {}", effect_def.name, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to convert effect {} to IR: {}", effect_def.name, e);
+                }
+            }
+        }
+        println!();
+    }
+
+    // STEP 3.11: Generate GameplayCues (C++ UGameplayCueNotify_Static or AGameplayCueNotify_Actor)
+    #[cfg(feature = "ue5")]
+    if !gameplay_cues.is_empty() {
+        println!();
+        println!("🎬 Generating {} GameplayCue(s)...", gameplay_cues.len());
+
+        // Ensure Cues directory exists
+        let cues_public_dir = layout.public_dir.join("Cues");
+        let cues_private_dir = layout.private_dir.join("Cues");
+        if let Err(e) = fs::create_dir_all(&cues_public_dir) {
+            eprintln!("   ⚠️  Failed to create Cues public dir: {}", e);
+        }
+        if let Err(e) = fs::create_dir_all(&cues_private_dir) {
+            eprintln!("   ⚠️  Failed to create Cues private dir: {}", e);
+        }
+
+        for cue_def in &gameplay_cues {
+            // Convert AST to IR
+            match ue5_gas::cue_ir::GameplayCueIR::from_ast(cue_def) {
+                Ok(cue_ir) => {
+                    // Generate C++ files
+                    match ue5_gas::cue_codegen::generate(&cue_ir, &ue5_config.plugin_name) {
+                        Ok(output) => {
+                            // Write header
+                            let header_path = cues_public_dir.join(format!("{}.h", cue_def.name));
+                            if let Err(e) = fs::write(&header_path, &output.header) {
+                                eprintln!("   ⚠️  Failed to write {}.h: {}", cue_def.name, e);
+                            } else {
+                                println!("   ✓ {}.h ({} lines)", cue_def.name, output.header.lines().count());
+                            }
+
+                            // Write source
+                            let source_path = cues_private_dir.join(format!("{}.cpp", cue_def.name));
+                            if let Err(e) = fs::write(&source_path, &output.source) {
+                                eprintln!("   ⚠️  Failed to write {}.cpp: {}", cue_def.name, e);
+                            } else {
+                                println!("   ✓ {}.cpp ({} lines)", cue_def.name, output.source.lines().count());
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("   ⚠️  Failed to generate cue {}: {}", cue_def.name, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to convert cue {} to IR: {}", cue_def.name, e);
+                }
+            }
+        }
+        println!();
+    }
+
+    // STEP 3.12: Generate AbilityTasks (C++ UAbilityTask subclasses)
+    #[cfg(feature = "ue5")]
+    if !ability_tasks.is_empty() {
+        println!();
+        println!("⚡ Generating {} AbilityTask(s)...", ability_tasks.len());
+
+        // Ensure Tasks directory exists
+        let tasks_public_dir = layout.public_dir.join("Tasks");
+        let tasks_private_dir = layout.private_dir.join("Tasks");
+        if let Err(e) = fs::create_dir_all(&tasks_public_dir) {
+            eprintln!("   ⚠️  Failed to create Tasks public dir: {}", e);
+        }
+        if let Err(e) = fs::create_dir_all(&tasks_private_dir) {
+            eprintln!("   ⚠️  Failed to create Tasks private dir: {}", e);
+        }
+
+        for task_def in &ability_tasks {
+            // Convert AST to IR
+            match ue5_gas::task_ir::AbilityTaskIR::from_ast(task_def) {
+                Ok(task_ir) => {
+                    // Generate C++ files
+                    match ue5_gas::task_codegen::generate(&task_ir, &ue5_config.plugin_name) {
+                        Ok(output) => {
+                            // Write header
+                            let header_path = tasks_public_dir.join(format!("{}.h", task_def.name));
+                            if let Err(e) = fs::write(&header_path, &output.header) {
+                                eprintln!("   ⚠️  Failed to write {}.h: {}", task_def.name, e);
+                            } else {
+                                println!("   ✓ {}.h ({} lines)", task_def.name, output.header.lines().count());
+                            }
+
+                            // Write source
+                            let source_path = tasks_private_dir.join(format!("{}.cpp", task_def.name));
+                            if let Err(e) = fs::write(&source_path, &output.source) {
+                                eprintln!("   ⚠️  Failed to write {}.cpp: {}", task_def.name, e);
+                            } else {
+                                println!("   ✓ {}.cpp ({} lines)", task_def.name, output.source.lines().count());
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("   ⚠️  Failed to generate task {}: {}", task_def.name, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to convert task {} to IR: {}", task_def.name, e);
                 }
             }
         }
@@ -1136,7 +1290,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     // Detect GAS features for module dependencies
     let has_gameplay_tags = !gameplay_tags.is_empty();
     let has_gameplay_abilities = !gameplay_abilities.is_empty();
-    let has_gas_features = has_gameplay_tags || has_gameplay_abilities;
+    let has_gameplay_effects = !gameplay_effects.is_empty();
+    let has_gameplay_cues = !gameplay_cues.is_empty();
+    let has_ability_tasks = !ability_tasks.is_empty();
+    let has_gas_features = has_gameplay_tags || has_gameplay_abilities || has_gameplay_effects || has_gameplay_cues || has_ability_tasks;
 
     super::codegen::write_plugin_files(&layout, &ue5_config, &description, has_shaders, has_gas_features, &module_graph, &typed_program)?;
 
@@ -1259,7 +1416,7 @@ fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, HashMap<String, PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>)> {
+) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, HashMap<String, PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>, Vec<kain_core::ast::GameplayTagsNamespace>, Vec<kain_core::ast::GameplayAbilityDef>, Vec<kain_core::ast::GameplayEffectDef>, Vec<kain_core::ast::GameplayCueDef>, Vec<kain_core::ast::AbilityTaskDef>)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -1684,6 +1841,39 @@ fn load_and_parse_sources(
         })
         .collect();
     
+    // Extract GameplayEffects BEFORE type checking
+    let gameplay_effects: Vec<kain_core::ast::GameplayEffectDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::GameplayEffect(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    // Extract GameplayCues BEFORE type checking
+    let gameplay_cues: Vec<kain_core::ast::GameplayCueDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::GameplayCue(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    // Extract AbilityTasks BEFORE type checking
+    let ability_tasks: Vec<kain_core::ast::AbilityTaskDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::AbilityTask(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
     // Filter out material graphs, material functions, graph editors, graph runtimes, and GAS items from the program before type checking
     // (they will be processed separately for generation)
     merged.items.retain(|item| !matches!(item, 
@@ -1692,7 +1882,10 @@ fn load_and_parse_sources(
         kain_core::ast::Item::GraphEditor(_) |
         kain_core::ast::Item::GraphRuntime(_) |
         kain_core::ast::Item::GameplayTags(_) |
-        kain_core::ast::Item::GameplayAbility(_)
+        kain_core::ast::Item::GameplayAbility(_) |
+        kain_core::ast::Item::GameplayEffect(_) |
+        kain_core::ast::Item::GameplayCue(_) |
+        kain_core::ast::Item::AbilityTask(_)
     ));
     
     // Type-check the MERGED program
@@ -1752,7 +1945,7 @@ fn load_and_parse_sources(
     }
     println!();
     
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities))
+    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks))
 }
 
 fn ast_item_symbol_name(item: &kain_core::ast::Item) -> Option<String> {

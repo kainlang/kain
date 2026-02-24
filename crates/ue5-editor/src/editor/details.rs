@@ -26,6 +26,8 @@ struct DetailField {
     cpp_type: String,
     widget_override: Option<WidgetOverride>,
     visibility_condition: Option<String>,
+    display_name: Option<String>,
+    tooltip: Option<String>,
 }
 
 /// Widget override for custom property display
@@ -34,7 +36,15 @@ enum WidgetOverride {
     Slider { min: f64, max: f64 },
     ColorPicker,
     AssetPicker { allowed_classes: Vec<String> },
+    TextBox { multiline: bool },
+    CheckBox,
     Button { label: String },
+}
+
+#[derive(Debug, Clone)]
+enum VisibilityConditionExpr {
+    BoolField { field: String },
+    NumericCompare { field: String, op: &'static str, rhs: f64 },
 }
 
 pub struct DetailsGenerator {
@@ -271,6 +281,8 @@ impl DetailsGenerator {
                 cpp_type: self.map_type(&field.ty),
                 widget_override,
                 visibility_condition,
+                display_name: self.detect_display_name(field),
+                tooltip: self.detect_tooltip(field),
             };
             
             // Find or create category
@@ -303,6 +315,15 @@ impl DetailsGenerator {
                     let classes = self.extract_string_list_arg(&attr.args, "allowed_classes");
                     return Some(WidgetOverride::AssetPicker { allowed_classes: classes });
                 }
+                "text_box" => {
+                    return Some(WidgetOverride::TextBox { multiline: false });
+                }
+                "multiline_text" => {
+                    return Some(WidgetOverride::TextBox { multiline: true });
+                }
+                "checkbox" => {
+                    return Some(WidgetOverride::CheckBox);
+                }
                 "button" => {
                     let label = self.extract_string_attr_arg(attr).unwrap_or_else(|| field.name.clone());
                     return Some(WidgetOverride::Button { label });
@@ -318,10 +339,118 @@ impl DetailsGenerator {
             .find(|a| a.name == "visible_if")
             .and_then(|a| self.extract_string_attr_arg(a))
     }
+
+    fn detect_display_name(&self, field: &Field) -> Option<String> {
+        field.attributes
+            .iter()
+            .find(|a| a.name == "display_name")
+            .and_then(|a| self.extract_string_attr_arg(a))
+    }
+
+    fn detect_tooltip(&self, field: &Field) -> Option<String> {
+        field.attributes
+            .iter()
+            .find(|a| a.name == "tooltip")
+            .and_then(|a| self.extract_string_attr_arg(a))
+    }
+
+    fn parse_visibility_condition(condition: &str) -> Option<VisibilityConditionExpr> {
+        let cond = condition.trim();
+        if cond.is_empty() {
+            return None;
+        }
+
+        for op in [">=", "<=", "==", "!=", ">", "<"] {
+            if let Some(idx) = cond.find(op) {
+                let left = cond[..idx].trim();
+                let right = cond[idx + op.len()..].trim();
+                if Self::is_simple_identifier(left) {
+                    if let Ok(rhs) = right.parse::<f64>() {
+                        return Some(VisibilityConditionExpr::NumericCompare {
+                            field: left.to_string(),
+                            op,
+                            rhs,
+                        });
+                    }
+                }
+            }
+        }
+
+        if Self::is_simple_identifier(cond) {
+            return Some(VisibilityConditionExpr::BoolField {
+                field: cond.to_string(),
+            });
+        }
+
+        None
+    }
+
+    fn is_simple_identifier(text: &str) -> bool {
+        let mut chars = text.chars();
+        match chars.next() {
+            Some(c) if c == '_' || c.is_ascii_alphabetic() => {}
+            _ => return false,
+        }
+        chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+    }
+
+    fn emit_visibility_for_custom_row(&mut self, visibility_condition: Option<&str>) {
+        if let Some(condition) = visibility_condition {
+            if let Some(lambda) = Self::visibility_lambda_expr(condition) {
+                self.push_line(&format!(".Visibility({})", lambda));
+            }
+        }
+    }
+
+    fn emit_property_tooltip(&mut self, handle_var: &str, tooltip: Option<&str>) {
+        if let Some(tooltip_text) = tooltip {
+            self.push_line(&format!(
+                "{}->SetToolTipText(FText::FromString(TEXT(\"{}\")));",
+                handle_var,
+                tooltip_text
+            ));
+        }
+    }
+
+    fn emit_visibility_for_property_row(
+        &mut self,
+        row_var: &str,
+        visibility_condition: Option<&str>,
+    ) {
+        if let Some(condition) = visibility_condition {
+            if let Some(lambda) = Self::visibility_lambda_expr(condition) {
+                self.push_line(&format!("{}.Visibility({});", row_var, lambda));
+            }
+        }
+    }
+
+    fn visibility_lambda_expr(condition: &str) -> Option<String> {
+        match Self::parse_visibility_condition(condition) {
+            Some(VisibilityConditionExpr::BoolField { field }) => Some(format!(
+                "TAttribute<EVisibility>::CreateLambda([&DetailBuilder]() -> EVisibility {{ bool bVisible = false; TSharedRef<IPropertyHandle> VisibleIfHandle = DetailBuilder.GetProperty(TEXT(\"{}\")); if (VisibleIfHandle->GetValue(bVisible) == FPropertyAccess::Success && bVisible) {{ return EVisibility::Visible; }} return EVisibility::Collapsed; }})",
+                field
+            )),
+            Some(VisibilityConditionExpr::NumericCompare { field, op, rhs }) => {
+                let rhs_str = if rhs.fract() == 0.0 {
+                    format!("{:.1}", rhs)
+                } else {
+                    rhs.to_string()
+                };
+                Some(format!(
+                    "TAttribute<EVisibility>::CreateLambda([&DetailBuilder]() -> EVisibility {{ TSharedRef<IPropertyHandle> VisibleIfHandle = DetailBuilder.GetProperty(TEXT(\"{}\")); FString CondText; if (VisibleIfHandle->GetValueAsFormattedString(CondText) == FPropertyAccess::Success) {{ const double CondValue = FCString::Atod(*CondText); if (CondValue {} {}) {{ return EVisibility::Visible; }} }} return EVisibility::Collapsed; }})",
+                    field,
+                    op,
+                    rhs_str
+                ))
+            }
+            None => None,
+        }
+    }
     
     fn generate_field_customization(&mut self, field: &DetailField, category_name: &str, class_name: &str) {
         let cat_var = Self::sanitize_identifier(category_name);
         let handle_var = format!("{}Handle", field.name);
+        let display_label = field.display_name.as_deref().unwrap_or(&field.name);
         match &field.widget_override {
             Some(WidgetOverride::Slider { min, max }) => {
                 self.push_line(&format!("// Custom slider for {} (bound to property)", field.name));
@@ -329,16 +458,17 @@ impl DetailsGenerator {
                     "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(TEXT(\"{}\"));",
                     handle_var, field.name
                 ));
+                self.emit_property_tooltip(&handle_var, field.tooltip.as_deref());
                 self.push_line(&format!(
                     "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
-                    cat_var, field.name
+                    cat_var, display_label
                 ));
                 self.push_line(".NameContent()");
                 self.push_line("[");
                 self.indent += 1;
                 self.push_line(&format!(
                     "SNew(STextBlock).Text(FText::FromString(TEXT(\"{}\")))",
-                    field.name
+                    display_label
                 ));
                 self.indent -= 1;
                 self.push_line("]");
@@ -371,7 +501,9 @@ impl DetailsGenerator {
                     ));
                 }
                 self.indent -= 1;
-                self.push_line("];");
+                self.push_line("]");
+                self.emit_visibility_for_custom_row(field.visibility_condition.as_deref());
+                self.push_line(";");
                 self.push_line("");
             }
             Some(WidgetOverride::ColorPicker) => {
@@ -380,17 +512,18 @@ impl DetailsGenerator {
                     "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(TEXT(\"{}\"));",
                     handle_var, field.name
                 ));
+                self.emit_property_tooltip(&handle_var, field.tooltip.as_deref());
                 if field.cpp_type == "FLinearColor" || field.cpp_type == "FColor" {
                     self.push_line(&format!(
                         "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
-                        cat_var, field.name
+                        cat_var, display_label
                     ));
                     self.push_line(".NameContent()");
                     self.push_line("[");
                     self.indent += 1;
                     self.push_line(&format!(
                         "SNew(STextBlock).Text(FText::FromString(TEXT(\"{}\")))",
-                        field.name
+                        display_label
                     ));
                     self.indent -= 1;
                     self.push_line("]");
@@ -402,9 +535,13 @@ impl DetailsGenerator {
                         handle_var, handle_var
                     ));
                     self.indent -= 1;
-                    self.push_line("];");
+                    self.push_line("]");
+                    self.emit_visibility_for_custom_row(field.visibility_condition.as_deref());
+                    self.push_line(";");
                 } else {
-                    self.push_line(&format!("{}Cat.AddProperty({});", cat_var, handle_var));
+                    let row_var = format!("{}Row", field.name);
+                    self.push_line(&format!("auto& {} = {}Cat.AddProperty({});", row_var, cat_var, handle_var));
+                    self.emit_visibility_for_property_row(&row_var, field.visibility_condition.as_deref());
                 }
                 self.push_line("");
             }
@@ -416,16 +553,17 @@ impl DetailsGenerator {
                     "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(TEXT(\"{}\"));",
                     handle_var, field.name
                 ));
+                self.emit_property_tooltip(&handle_var, field.tooltip.as_deref());
                 self.push_line(&format!(
                     "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
-                    cat_var, field.name
+                    cat_var, display_label
                 ));
                 self.push_line(".NameContent()");
                 self.push_line("[");
                 self.indent += 1;
                 self.push_line(&format!(
                     "SNew(STextBlock).Text(FText::FromString(TEXT(\"{}\")))",
-                    field.name
+                    display_label
                 ));
                 self.indent -= 1;
                 self.push_line("]");
@@ -438,7 +576,91 @@ impl DetailsGenerator {
                 }
                 self.push_line(&format!(".PropertyHandle({})", handle_var));
                 self.indent -= 1;
-                self.push_line("];");
+                self.push_line("]");
+                self.emit_visibility_for_custom_row(field.visibility_condition.as_deref());
+                self.push_line(";");
+                self.push_line("");
+            }
+            Some(WidgetOverride::TextBox { multiline }) => {
+                self.push_line(&format!("// Text box for {} (bound to property)", field.name));
+                self.push_line(&format!(
+                    "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(TEXT(\"{}\"));",
+                    handle_var, field.name
+                ));
+                self.emit_property_tooltip(&handle_var, field.tooltip.as_deref());
+                self.push_line(&format!(
+                    "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
+                    cat_var, display_label
+                ));
+                self.push_line(".NameContent()");
+                self.push_line("[");
+                self.indent += 1;
+                self.push_line(&format!(
+                    "SNew(STextBlock).Text(FText::FromString(TEXT(\"{}\")))",
+                    display_label
+                ));
+                self.indent -= 1;
+                self.push_line("]");
+                self.push_line(".ValueContent()");
+                self.push_line("[");
+                self.indent += 1;
+                if *multiline {
+                    self.push_line(&format!(
+                        "SNew(SMultiLineEditableTextBox)\n\t\t.Text_Lambda([{}]() -> FText {{\n\t\t\tFString Val;\n\t\t\t{}->GetValue(Val);\n\t\t\treturn FText::FromString(Val);\n\t\t}})\n\t\t.OnTextCommitted_Lambda([{}](const FText& NewText, ETextCommit::Type) {{\n\t\t\t{}->SetValueFromFormattedString(NewText.ToString());\n\t\t}})",
+                        handle_var,
+                        handle_var,
+                        handle_var,
+                        handle_var
+                    ));
+                } else {
+                    self.push_line(&format!(
+                        "SNew(SEditableTextBox)\n\t\t.Text_Lambda([{}]() -> FText {{\n\t\t\tFString Val;\n\t\t\t{}->GetValue(Val);\n\t\t\treturn FText::FromString(Val);\n\t\t}})\n\t\t.OnTextCommitted_Lambda([{}](const FText& NewText, ETextCommit::Type) {{\n\t\t\t{}->SetValueFromFormattedString(NewText.ToString());\n\t\t}})",
+                        handle_var,
+                        handle_var,
+                        handle_var,
+                        handle_var
+                    ));
+                }
+                self.indent -= 1;
+                self.push_line("]");
+                self.emit_visibility_for_custom_row(field.visibility_condition.as_deref());
+                self.push_line(";");
+                self.push_line("");
+            }
+            Some(WidgetOverride::CheckBox) => {
+                self.push_line(&format!("// Checkbox for {} (bound to property)", field.name));
+                self.push_line(&format!(
+                    "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(TEXT(\"{}\"));",
+                    handle_var, field.name
+                ));
+                self.emit_property_tooltip(&handle_var, field.tooltip.as_deref());
+                self.push_line(&format!(
+                    "{}Cat.AddCustomRow(FText::FromString(TEXT(\"{}\")))",
+                    cat_var, display_label
+                ));
+                self.push_line(".NameContent()");
+                self.push_line("[");
+                self.indent += 1;
+                self.push_line(&format!(
+                    "SNew(STextBlock).Text(FText::FromString(TEXT(\"{}\")))",
+                    display_label
+                ));
+                self.indent -= 1;
+                self.push_line("]");
+                self.push_line(".ValueContent()");
+                self.push_line("[");
+                self.indent += 1;
+                self.push_line(&format!(
+                    "SNew(SCheckBox)\n\t\t.IsChecked_Lambda([{}]() -> ECheckBoxState {{\n\t\t\tbool bVal = false;\n\t\t\t{}->GetValue(bVal);\n\t\t\treturn bVal ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;\n\t\t}})\n\t\t.OnCheckStateChanged_Lambda([{}](ECheckBoxState NewState) {{\n\t\t\t{}->SetValue(NewState == ECheckBoxState::Checked);\n\t\t}})",
+                    handle_var,
+                    handle_var,
+                    handle_var,
+                    handle_var
+                ));
+                self.indent -= 1;
+                self.push_line("]");
+                self.emit_visibility_for_custom_row(field.visibility_condition.as_deref());
+                self.push_line(";");
                 self.push_line("");
             }
             Some(WidgetOverride::Button { label }) => {
@@ -456,7 +678,9 @@ impl DetailsGenerator {
                     label, class_name, handler_name
                 ));
                 self.indent -= 1;
-                self.push_line("];");
+                self.push_line("]");
+                self.emit_visibility_for_custom_row(field.visibility_condition.as_deref());
+                self.push_line(";");
                 self.push_line("");
             }
             None => {
@@ -464,10 +688,10 @@ impl DetailsGenerator {
                     "TSharedRef<IPropertyHandle> {} = DetailBuilder.GetProperty(TEXT(\"{}\"));",
                     handle_var, field.name
                 ));
-                if let Some(condition) = &field.visibility_condition {
-                    self.push_line(&format!("// Conditional visibility: {}", condition));
-                }
-                self.push_line(&format!("{}Cat.AddProperty({});", cat_var, handle_var));
+                self.emit_property_tooltip(&handle_var, field.tooltip.as_deref());
+                let row_var = format!("{}Row", field.name);
+                self.push_line(&format!("auto& {} = {}Cat.AddProperty({});", row_var, cat_var, handle_var));
+                self.emit_visibility_for_property_row(&row_var, field.visibility_condition.as_deref());
                 self.push_line("");
             }
         }
@@ -778,6 +1002,112 @@ mod tests {
         assert!(header.contains("OnButton_reset_action"));
         assert!(source.contains("SNew(SButton)"));
         assert!(source.contains("Reset to Defaults"));
+    }
+
+    #[test]
+    fn test_visible_if_generates_visibility_lambda() {
+        let st = Struct {
+            name: "VisualDetails".to_string(),
+            generics: vec![],
+            fields: vec![
+                Field {
+                    name: "emissive_strength".to_string(),
+                    ty: float_type(),
+                    attributes: vec![Attribute { name: "category".to_string(), args: vec![Expr::String("Visual".to_string(), s())], span: s() }],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+                Field {
+                    name: "emissive_color".to_string(),
+                    ty: Type::Named { name: "Color".to_string(), generics: vec![], span: s() },
+                    attributes: vec![
+                        Attribute { name: "category".to_string(), args: vec![Expr::String("Visual".to_string(), s())], span: s() },
+                        Attribute { name: "visible_if".to_string(), args: vec![Expr::String("emissive_strength > 0.0".to_string(), s())], span: s() },
+                        Attribute { name: "color_picker".to_string(), args: vec![], span: s() },
+                    ],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+            ],
+            methods: vec![],
+            attributes: vec![Attribute { name: "details".to_string(), args: vec![], span: s() }],
+            visibility: Visibility::Public,
+            span: s(),
+        };
+
+        let typed_st = make_typed_struct(st);
+        let mut gen = DetailsGenerator::new();
+        let (_, source) = gen.generate_customization(&typed_st);
+
+        assert!(source.contains(".Visibility(TAttribute<EVisibility>::CreateLambda"),
+            "visible_if should emit a real visibility lambda. Got:\n{}", source);
+        assert!(source.contains("FCString::Atod"),
+            "numeric visible_if should parse numeric property text for comparison. Got:\n{}", source);
+        assert!(source.contains("CondValue > 0.0"),
+            "numeric comparator should be preserved in generated visibility check. Got:\n{}", source);
+    }
+
+    #[test]
+    fn test_textbox_and_checkbox_overrides_generate_custom_widgets() {
+        let st = Struct {
+            name: "FormDetails".to_string(),
+            generics: vec![],
+            fields: vec![
+                Field {
+                    name: "title".to_string(),
+                    ty: Type::Named { name: "String".to_string(), generics: vec![], span: s() },
+                    attributes: vec![
+                        Attribute { name: "category".to_string(), args: vec![Expr::String("Form".to_string(), s())], span: s() },
+                        Attribute { name: "text_box".to_string(), args: vec![], span: s() },
+                    ],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+                Field {
+                    name: "notes".to_string(),
+                    ty: Type::Named { name: "String".to_string(), generics: vec![], span: s() },
+                    attributes: vec![
+                        Attribute { name: "category".to_string(), args: vec![Expr::String("Form".to_string(), s())], span: s() },
+                        Attribute { name: "multiline_text".to_string(), args: vec![], span: s() },
+                    ],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+                Field {
+                    name: "enabled".to_string(),
+                    ty: Type::Named { name: "Bool".to_string(), generics: vec![], span: s() },
+                    attributes: vec![
+                        Attribute { name: "category".to_string(), args: vec![Expr::String("Form".to_string(), s())], span: s() },
+                        Attribute { name: "checkbox".to_string(), args: vec![], span: s() },
+                    ],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: s(),
+                },
+            ],
+            methods: vec![],
+            attributes: vec![Attribute { name: "details".to_string(), args: vec![], span: s() }],
+            visibility: Visibility::Public,
+            span: s(),
+        };
+
+        let typed_st = make_typed_struct(st);
+        let mut gen = DetailsGenerator::new();
+        let (_, source) = gen.generate_customization(&typed_st);
+
+        assert!(source.contains("SEditableTextBox"), "text_box override should emit SEditableTextBox. Got:\n{}", source);
+        assert!(source.contains("SMultiLineEditableTextBox"), "multiline_text override should emit SMultiLineEditableTextBox. Got:\n{}", source);
+        assert!(source.contains("SCheckBox"), "checkbox override should emit SCheckBox. Got:\n{}", source);
+        assert!(source.contains("OnCheckStateChanged_Lambda"), "checkbox should emit state-change binding. Got:\n{}", source);
     }
 }
 

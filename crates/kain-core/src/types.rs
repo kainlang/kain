@@ -53,7 +53,12 @@ pub enum TypedItem {
     StateMachine(crate::ast::StateMachineDef),
     AsyncTask(crate::ast::AsyncTaskDef),
     EditorModule(crate::ast::EditorModuleDef),
+    GameplayTags(crate::ast::GameplayTagsNamespace),
+    GameplayAbility(crate::ast::GameplayAbilityDef),
+    GameplayEffect(crate::ast::GameplayEffectDef),
+    GameplayCue(crate::ast::GameplayCueDef),
 }
+
 
 #[derive(Debug, Clone)]
 pub struct TypedTest {
@@ -263,6 +268,10 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::StateMachine(sm) => Ok(TypedItem::StateMachine(sm.clone())),
         Item::AsyncTask(at) => Ok(TypedItem::AsyncTask(at.clone())),
         Item::EditorModule(em) => Ok(TypedItem::EditorModule(em.clone())),
+        Item::GameplayTags(gt) => Ok(TypedItem::GameplayTags(gt.clone())),
+        Item::GameplayAbility(ga) => Ok(TypedItem::GameplayAbility(ga.clone())),
+        Item::GameplayEffect(ge) => Ok(TypedItem::GameplayEffect(ge.clone())),
+        Item::GameplayCue(gc) => Ok(TypedItem::GameplayCue(gc.clone())),
         Item::Trait(_) => {
             // This should never be reached because we filter traits in check()
             unreachable!("Traits should be filtered before check_item")

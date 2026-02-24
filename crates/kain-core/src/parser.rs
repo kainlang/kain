@@ -296,6 +296,22 @@ impl<'a> Parser<'a> {
             return self.parse_gameplay_effect(attributes);
         }
         
+        // Check for @gameplay_cue attribute
+        if attributes.iter().any(|a| a.name == "gameplay_cue") {
+            return self.parse_gameplay_cue(attributes);
+        }
+        
+        // Check for @ability_task attribute
+        if attributes.iter().any(|a| a.name == "ability_task") {
+            return self.parse_ability_task(attributes);
+        }
+        
+        // Check for @target_actor attribute
+        if attributes.iter().any(|a| a.name == "target_actor") {
+            return self.parse_target_actor(attributes);
+        }
+        
+        let vis = self.parse_visibility();
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -5078,4 +5094,1059 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         }))
     }
+
+    /// Parse gameplay cue definition
+    /// Syntax:
+    /// ```kain
+    /// @gameplay_cue
+    /// struct BurnCue:
+    ///     tag: "GameplayCue.Effect.Burn"
+    ///     type: "Static"  # or "Actor"
+    ///     auto_destroy: true
+    ///     
+    ///     state particle_system: ParticleSystemComponent
+    ///     
+    ///     on_execute:
+    ///         spawn_particle("P_Burn", location)
+    ///     
+    ///     on_add:
+    ///         spawn_particle_attached("P_Burn_Loop", target)
+    ///     
+    ///     on_remove:
+    ///         spawn_particle("P_Burn_End", location)
+    ///     
+    ///     while_active(delta_time):
+    ///         update_particle_color(delta_time)
+    /// ```
+    fn parse_gameplay_cue(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse cue name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse cue body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Initialize fields
+        let mut tag: Option<String> = None;
+        let mut cue_type = CueType::default();
+        let mut auto_destroy = false;
+        let mut state_fields: Vec<Field> = Vec::new();
+        let mut on_execute: Option<Function> = None;
+        let mut on_add: Option<Function> = None;
+        let mut on_remove: Option<Function> = None;
+        let mut while_active: Option<Function> = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for field or lifecycle method
+            if let TokenKind::Ident(field_name) = self.peek_kind() {
+                self.advance();
+                self.expect(TokenKind::Colon)?;
+                
+                match field_name.as_str() {
+                    "tag" => {
+                        // Parse tag string
+                        if let TokenKind::String(tag_str) = self.peek_kind() {
+                            tag = Some(tag_str);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for tag", self.current_span()));
+                        }
+                    }
+                    "type" => {
+                        // Parse cue type
+                        if let TokenKind::String(type_str) = self.peek_kind() {
+                            cue_type = match type_str.as_str() {
+                                "Static" => CueType::Static,
+                                "Actor" => CueType::Actor,
+                                _ => return Err(self.parser_error(
+                                    format!("Invalid cue type '{}'. Valid: Static, Actor", type_str),
+                                    self.current_span()
+                                )),
+                            };
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for type", self.current_span()));
+                        }
+                    }
+                    "auto_destroy" => {
+                        // Parse boolean
+                        if let TokenKind::True = self.peek_kind() {
+                            auto_destroy = true;
+                            self.advance();
+                        } else if let TokenKind::False = self.peek_kind() {
+                            auto_destroy = false;
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected true or false", self.current_span()));
+                        }
+                    }
+                    "state" => {
+                        // Parse state field: state field_name: Type
+                        let state_field_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let field_type = self.parse_type()?;
+                        
+                        state_fields.push(Field {
+                            name: state_field_name,
+                            ty: field_type,
+                            attributes: vec![],
+                            visibility: Visibility::Private,
+                            default: None,
+                            weak: false,
+                            span: self.current_span(),
+                        });
+                    }
+                    "on_execute" | "on_add" | "on_remove" | "while_active" => {
+                        // Parse lifecycle method
+                        self.skip_newlines();
+                        self.expect(TokenKind::Indent)?;
+                        
+                        // Parse function body (statements)
+                        let mut body_stmts = Vec::new();
+                        while !self.check(TokenKind::Dedent) && !self.at_end() {
+                            self.skip_newlines();
+                            if self.check(TokenKind::Dedent) { break; }
+                            body_stmts.push(self.parse_stmt()?);
+                        }
+                        
+                        self.expect(TokenKind::Dedent)?;
+                        
+                        // Create function def
+                        let params = if field_name == "while_active" {
+                            vec![Param {
+                                name: "delta_time".to_string(),
+                                ty: Type::Named {
+                                    name: "Float".to_string(),
+                                    generics: vec![],
+                                    span: self.current_span(),
+                                },
+                                mutable: false,
+                                default: None,
+                                span: self.current_span(),
+                            }]
+                        } else {
+                            vec![]
+                        };
+                        
+                        let func_def = Function {
+                            name: field_name.clone(),
+                            generics: vec![],
+                            params,
+                            return_type: None,
+                            effects: vec![],
+                            body: Block { stmts: body_stmts, span: self.current_span() },
+                            visibility: Visibility::Private,
+                            attributes: vec![],
+                            span: self.current_span(),
+                        };
+                        
+                        match field_name.as_str() {
+                            "on_execute" => on_execute = Some(func_def),
+                            "on_add" => on_add = Some(func_def),
+                            "on_remove" => on_remove = Some(func_def),
+                            "while_active" => while_active = Some(func_def),
+                            _ => {}
+                        }
+                    }
+                    _ => {
+                        return Err(self.parser_error(
+                            format!("Unknown gameplay cue field: {}", field_name),
+                            self.current_span()
+                        ));
+                    }
+                }
+            } else {
+                return Err(self.parser_error("Expected field name", self.current_span()));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        self.expect(TokenKind::Dedent)?;
+        
+        // Validate required fields
+        let tag = tag.ok_or_else(|| {
+            self.parser_error("Gameplay cue must have 'tag' field", start)
+        })?;
+        
+        Ok(Item::GameplayCue(GameplayCueDef {
+            name,
+            attributes,
+            tag,
+            cue_type,
+            auto_destroy,
+            state_fields,
+            on_execute,
+            on_add,
+            on_remove,
+            while_active,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    /// Parse ability task definition
+    /// Syntax:
+    /// ```kain
+    /// @ability_task
+    /// struct WaitTargetData:
+    ///     @delegate
+    ///     on_data_ready: TargetDataDelegate
+    ///     
+    ///     @delegate
+    ///     on_cancelled: TaskCancelledDelegate
+    ///     
+    ///     state confirmation_type: String
+    ///     state max_range: Float
+    ///     
+    ///     fn activate():
+    ///         # Task activation logic
+    ///         register_callbacks()
+    ///     
+    ///     fn on_destroy():
+    ///         # Cleanup logic
+    ///         unregister_callbacks()
+    /// ```
+    fn parse_ability_task(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse task name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse task body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Initialize fields
+        let mut delegates: Vec<TaskDelegateDef> = Vec::new();
+        let mut state_fields: Vec<Field> = Vec::new();
+        let mut activate_method: Option<Function> = None;
+        let mut on_destroy_method: Option<Function> = None;
+        let mut custom_methods: Vec<Function> = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for @delegate attribute
+            if self.check(TokenKind::At) {
+                let attr_start = self.current_span();
+                self.advance();
+                if let TokenKind::Ident(attr_name) = self.peek_kind() {
+                    if attr_name == "delegate" {
+                        self.advance();
+                        self.skip_newlines();
+                        
+                        // Parse delegate: name: Type
+                        let delegate_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let delegate_type = self.parse_ident()?;
+                        
+                        delegates.push(TaskDelegateDef {
+                            name: delegate_name,
+                            delegate_type,
+                            span: attr_start.merge(self.current_span()),
+                        });
+                        
+                        self.skip_newlines();
+                        continue;
+                    }
+                }
+            }
+            
+            // Check for 'state' keyword
+            if let TokenKind::Ident(keyword) = self.peek_kind() {
+                if keyword == "state" {
+                    self.advance();
+                    
+                    // Parse state field: state field_name: Type = default
+                    let field_name = self.parse_ident()?;
+                    self.expect(TokenKind::Colon)?;
+                    let field_type = self.parse_type()?;
+                    
+                    let default = if self.check(TokenKind::Eq) {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    
+                    state_fields.push(Field {
+                        name: field_name,
+                        ty: field_type,
+                        attributes: vec![],
+                        visibility: Visibility::Private,
+                        default,
+                        weak: false,
+                        span: self.current_span(),
+                    });
+                    
+                    self.skip_newlines();
+                    continue;
+                }
+            }
+            
+            // Check for 'fn' keyword (methods)
+            if self.check(TokenKind::Fn) {
+                self.advance(); // consume 'fn'
+                
+                // Parse method name
+                let method_name = self.parse_ident()?;
+                
+                // Parse parameters (optional)
+                let params = if self.check(TokenKind::LParen) {
+                    self.advance();
+                    let mut params = Vec::new();
+                    while !self.check(TokenKind::RParen) && !self.at_end() {
+                        let param_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let param_type = self.parse_type()?;
+                        params.push(Param {
+                            name: param_name,
+                            ty: param_type,
+                            mutable: false,
+                            default: None,
+                            span: self.current_span(),
+                        });
+                        if self.check(TokenKind::Comma) {
+                            self.advance();
+                        }
+                    }
+                    self.expect(TokenKind::RParen)?;
+                    params
+                } else {
+                    vec![]
+                };
+                
+                // Expect ':'
+                self.expect(TokenKind::Colon)?;
+                
+                // Parse method body (indented block)
+                self.skip_newlines();
+                self.expect(TokenKind::Indent)?;
+                
+                let mut body_stmts = Vec::new();
+                while !self.check(TokenKind::Dedent) && !self.at_end() {
+                    self.skip_newlines();
+                    if self.check(TokenKind::Dedent) { break; }
+                    body_stmts.push(self.parse_stmt()?);
+                }
+                
+                self.expect(TokenKind::Dedent)?;
+                
+                // Create function def
+                let func_def = Function {
+                    name: method_name.clone(),
+                    generics: vec![],
+                    params,
+                    return_type: None,
+                    effects: vec![],
+                    body: Block { stmts: body_stmts, span: self.current_span() },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span: self.current_span(),
+                };
+                
+                match method_name.as_str() {
+                    "activate" => activate_method = Some(func_def),
+                    "on_destroy" => on_destroy_method = Some(func_def),
+                    _ => custom_methods.push(func_def),
+                }
+                
+                self.skip_newlines();
+                continue;
+            }
+            
+            // Unknown token
+            return Err(self.parser_error(
+                format!("Unexpected token in ability task: {:?}", self.peek_kind()),
+                self.current_span()
+            ));
+        }
+        
+        self.expect(TokenKind::Dedent)?;
+        
+        Ok(Item::AbilityTask(AbilityTaskDef {
+            name,
+            attributes,
+            delegates,
+            state_fields,
+            activate_method,
+            on_destroy_method,
+            custom_methods,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    /// Parse target actor definition
+    /// Syntax:
+    /// ```kain
+    /// @target_actor
+    /// struct LineTraceTarget:
+    ///     trace_type: "Line"
+    ///     max_range: 1000.0
+    ///     trace_channel: "Visibility"
+    ///     
+    ///     filter:
+    ///         self_filter: "Exclude"
+    ///         required_actor_class: "ACharacter"
+    ///         require_tags: ["Status.Alive"]
+    ///         ignore_tags: ["Status.Dead"]
+    ///     
+    ///     reticle_class: "BP_LineTraceReticle"
+    /// ```
+    fn parse_target_actor(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse target actor name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse target actor body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Initialize fields
+        let mut trace_type = TraceType::default();
+        let mut max_range: Option<f64> = None;
+        let mut trace_channel: Option<String> = None;
+        let mut filter: Option<TargetFilter> = None;
+        let mut reticle_class: Option<String> = None;
+        let mut custom_methods: Vec<Function> = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for field name
+            if let TokenKind::Ident(field_name) = self.peek_kind() {
+                self.advance();
+                self.expect(TokenKind::Colon)?;
+                
+                match field_name.as_str() {
+                    "trace_type" => {
+                        // Parse trace type string
+                        if let TokenKind::String(type_str) = self.peek_kind() {
+                            trace_type = match type_str.as_str() {
+                                "Line" => TraceType::Line,
+                                "Sphere" => TraceType::Sphere,
+                                "Cone" => TraceType::Cone,
+                                "Box" => TraceType::Box,
+                                "Cylinder" => TraceType::Cylinder,
+                                _ => return Err(self.parser_error(
+                                    format!("Invalid trace type '{}'. Valid: Line, Sphere, Cone, Box, Cylinder", type_str),
+                                    self.current_span()
+                                )),
+                            };
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for trace_type", self.current_span()));
+                        }
+                    }
+                    "max_range" => {
+                        // Parse float
+                        if let TokenKind::Float(val) = self.peek_kind() {
+                            max_range = Some(val);
+                            self.advance();
+                        } else if let TokenKind::Int(val) = self.peek_kind() {
+                            max_range = Some(val as f64);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected number for max_range", self.current_span()));
+                        }
+                    }
+                    "trace_channel" => {
+                        // Parse string
+                        if let TokenKind::String(channel) = self.peek_kind() {
+                            trace_channel = Some(channel);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for trace_channel", self.current_span()));
+                        }
+                    }
+                    "reticle_class" => {
+                        // Parse string
+                        if let TokenKind::String(class) = self.peek_kind() {
+                            reticle_class = Some(class);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for reticle_class", self.current_span()));
+                        }
+                    }
+                    "filter" => {
+                        // Parse filter block (indented)
+                        self.skip_newlines();
+                        self.expect(TokenKind::Indent)?;
+                        
+                        let mut self_filter: Option<String> = None;
+                        let mut required_actor_class: Option<String> = None;
+                        let mut require_tags: Vec<String> = Vec::new();
+                        let mut ignore_tags: Vec<String> = Vec::new();
+                        let mut custom_filter_method: Option<Function> = None;
+                        
+                        while !self.check(TokenKind::Dedent) && !self.at_end() {
+                            self.skip_newlines();
+                            if self.check(TokenKind::Dedent) { break; }
+                            
+                            if let TokenKind::Ident(filter_field) = self.peek_kind() {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                match filter_field.as_str() {
+                                    "self_filter" => {
+                                        if let TokenKind::String(val) = self.peek_kind() {
+                                            self_filter = Some(val);
+                                            self.advance();
+                                        }
+                                    }
+                                    "required_actor_class" => {
+                                        if let TokenKind::String(val) = self.peek_kind() {
+                                            required_actor_class = Some(val);
+                                            self.advance();
+                                        }
+                                    }
+                                    "require_tags" => {
+                                        // Parse array of strings
+                                        require_tags = self.parse_string_array()?;
+                                    }
+                                    "ignore_tags" => {
+                                        // Parse array of strings
+                                        ignore_tags = self.parse_string_array()?;
+                                    }
+                                    _ => {
+                                        return Err(self.parser_error(
+                                            format!("Unknown filter field: {}", filter_field),
+                                            self.current_span()
+                                        ));
+                                    }
+                                }
+                            } else if self.check(TokenKind::Fn) {
+                                // Custom filter method
+                                self.advance();
+                                let method_name = self.parse_ident()?;
+                                
+                                // Parse parameters
+                                let params = if self.check(TokenKind::LParen) {
+                                    self.advance();
+                                    let mut params = Vec::new();
+                                    while !self.check(TokenKind::RParen) && !self.at_end() {
+                                        let param_name = self.parse_ident()?;
+                                        self.expect(TokenKind::Colon)?;
+                                        let param_type = self.parse_type()?;
+                                        params.push(Param {
+                                            name: param_name,
+                                            ty: param_type,
+                                            mutable: false,
+                                            default: None,
+                                            span: self.current_span(),
+                                        });
+                                        if self.check(TokenKind::Comma) {
+                                            self.advance();
+                                        }
+                                    }
+                                    self.expect(TokenKind::RParen)?;
+                                    params
+                                } else {
+                                    vec![]
+                                };
+                                
+                                // Expect ':'
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse method body
+                                self.skip_newlines();
+                                self.expect(TokenKind::Indent)?;
+                                
+                                let mut body_stmts = Vec::new();
+                                while !self.check(TokenKind::Dedent) && !self.at_end() {
+                                    self.skip_newlines();
+                                    if self.check(TokenKind::Dedent) { break; }
+                                    body_stmts.push(self.parse_stmt()?);
+                                }
+                                
+                                self.expect(TokenKind::Dedent)?;
+                                
+                                custom_filter_method = Some(Function {
+                                    name: method_name,
+                                    generics: vec![],
+                                    params,
+                                    return_type: None,
+                                    effects: vec![],
+                                    body: Block { stmts: body_stmts, span: self.current_span() },
+                                    visibility: Visibility::Private,
+                                    attributes: vec![],
+                                    span: self.current_span(),
+                                });
+                            }
+                            
+                            self.skip_newlines();
+                        }
+                        
+                        self.expect(TokenKind::Dedent)?;
+                        
+                        filter = Some(TargetFilter {
+                            self_filter,
+                            required_actor_class,
+                            require_tags,
+                            ignore_tags,
+                            custom_filter_method,
+                            span: self.current_span(),
+                        });
+                    }
+                    _ => {
+                        return Err(self.parser_error(
+                            format!("Unknown target actor field: {}", field_name),
+                            self.current_span()
+                        ));
+                    }
+                }
+            } else if self.check(TokenKind::Fn) {
+                // Custom method
+                self.advance();
+                let method_name = self.parse_ident()?;
+                
+                // Parse parameters
+                let params = if self.check(TokenKind::LParen) {
+                    self.advance();
+                    let mut params = Vec::new();
+                    while !self.check(TokenKind::RParen) && !self.at_end() {
+                        let param_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let param_type = self.parse_type()?;
+                        params.push(Param {
+                            name: param_name,
+                            ty: param_type,
+                            mutable: false,
+                            default: None,
+                            span: self.current_span(),
+                        });
+                        if self.check(TokenKind::Comma) {
+                            self.advance();
+                        }
+                    }
+                    self.expect(TokenKind::RParen)?;
+                    params
+                } else {
+                    vec![]
+                };
+                
+                // Expect ':'
+                self.expect(TokenKind::Colon)?;
+                
+                // Parse method body
+                self.skip_newlines();
+                self.expect(TokenKind::Indent)?;
+                
+                let mut body_stmts = Vec::new();
+                while !self.check(TokenKind::Dedent) && !self.at_end() {
+                    self.skip_newlines();
+                    if self.check(TokenKind::Dedent) { break; }
+                    body_stmts.push(self.parse_stmt()?);
+                }
+                
+                self.expect(TokenKind::Dedent)?;
+                
+                custom_methods.push(Function {
+                    name: method_name,
+                    generics: vec![],
+                    params,
+                    return_type: None,
+                    effects: vec![],
+                    body: Block { stmts: body_stmts, span: self.current_span() },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span: self.current_span(),
+                });
+            } else {
+                return Err(self.parser_error("Expected field name or fn", self.current_span()));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        self.expect(TokenKind::Dedent)?;
+        
+        Ok(Item::TargetActor(TargetActorDef {
+            name,
+            attributes,
+            trace_type,
+            max_range,
+            trace_channel,
+            filter,
+            reticle_class,
+            custom_methods,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    /// Helper to parse array of strings: ["tag1", "tag2"]
+    fn parse_string_array(&mut self) -> KainResult<Vec<String>> {
+        self.expect(TokenKind::LBracket)?;
+        let mut strings = Vec::new();
+        
+        while !self.check(TokenKind::RBracket) && !self.at_end() {
+            if let TokenKind::String(s) = self.peek_kind() {
+                strings.push(s);
+                self.advance();
+            } else {
+                return Err(self.parser_error("Expected string in array", self.current_span()));
+            }
+            
+            if self.check(TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        
+        self.expect(TokenKind::RBracket)?;
+        Ok(strings)
+    }
 }
+
+    /// Parse target actor definition
+    /// Syntax:
+    /// ```kain
+    /// @target_actor
+    /// struct LineTraceTarget:
+    ///     trace_type: "Line"
+    ///     max_range: 1000.0
+    ///     trace_channel: "Visibility"
+    ///     
+    ///     filter:
+    ///         self_filter: "Exclude"
+    ///         required_actor_class: "ACharacter"
+    ///         require_tags: ["Status.Alive"]
+    ///         ignore_tags: ["Status.Dead"]
+    ///     
+    ///     reticle_class: "BP_LineTraceReticle"
+    /// ```
+    fn parse_target_actor(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse target actor name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse target actor body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Initialize fields
+        let mut trace_type = TraceType::default();
+        let mut max_range: Option<f64> = None;
+        let mut trace_channel: Option<String> = None;
+        let mut filter: Option<TargetFilter> = None;
+        let mut reticle_class: Option<String> = None;
+        let mut custom_methods: Vec<Function> = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for field name
+            if let TokenKind::Ident(field_name) = self.peek_kind() {
+                self.advance();
+                self.expect(TokenKind::Colon)?;
+                
+                match field_name.as_str() {
+                    "trace_type" => {
+                        // Parse trace type string
+                        if let TokenKind::String(type_str) = self.peek_kind() {
+                            trace_type = match type_str.as_str() {
+                                "Line" => TraceType::Line,
+                                "Sphere" => TraceType::Sphere,
+                                "Cone" => TraceType::Cone,
+                                "Box" => TraceType::Box,
+                                "Cylinder" => TraceType::Cylinder,
+                                _ => return Err(self.parser_error(
+                                    format!("Invalid trace type '{}'. Valid: Line, Sphere, Cone, Box, Cylinder", type_str),
+                                    self.current_span()
+                                )),
+                            };
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for trace_type", self.current_span()));
+                        }
+                    }
+                    "max_range" => {
+                        // Parse float
+                        if let TokenKind::Float(val) = self.peek_kind() {
+                            max_range = Some(val);
+                            self.advance();
+                        } else if let TokenKind::Int(val) = self.peek_kind() {
+                            max_range = Some(val as f64);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected number for max_range", self.current_span()));
+                        }
+                    }
+                    "trace_channel" => {
+                        // Parse string
+                        if let TokenKind::String(channel) = self.peek_kind() {
+                            trace_channel = Some(channel);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for trace_channel", self.current_span()));
+                        }
+                    }
+                    "reticle_class" => {
+                        // Parse string
+                        if let TokenKind::String(class) = self.peek_kind() {
+                            reticle_class = Some(class);
+                            self.advance();
+                        } else {
+                            return Err(self.parser_error("Expected string for reticle_class", self.current_span()));
+                        }
+                    }
+                    "filter" => {
+                        // Parse filter block (indented)
+                        self.skip_newlines();
+                        self.expect(TokenKind::Indent)?;
+                        
+                        let mut self_filter: Option<String> = None;
+                        let mut required_actor_class: Option<String> = None;
+                        let mut require_tags: Vec<String> = Vec::new();
+                        let mut ignore_tags: Vec<String> = Vec::new();
+                        let mut custom_filter_method: Option<Function> = None;
+                        
+                        while !self.check(TokenKind::Dedent) && !self.at_end() {
+                            self.skip_newlines();
+                            if self.check(TokenKind::Dedent) { break; }
+                            
+                            if let TokenKind::Ident(filter_field) = self.peek_kind() {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                match filter_field.as_str() {
+                                    "self_filter" => {
+                                        if let TokenKind::String(val) = self.peek_kind() {
+                                            self_filter = Some(val);
+                                            self.advance();
+                                        }
+                                    }
+                                    "required_actor_class" => {
+                                        if let TokenKind::String(val) = self.peek_kind() {
+                                            required_actor_class = Some(val);
+                                            self.advance();
+                                        }
+                                    }
+                                    "require_tags" => {
+                                        // Parse array of strings
+                                        require_tags = self.parse_string_array()?;
+                                    }
+                                    "ignore_tags" => {
+                                        // Parse array of strings
+                                        ignore_tags = self.parse_string_array()?;
+                                    }
+                                    _ => {
+                                        return Err(self.parser_error(
+                                            format!("Unknown filter field: {}", filter_field),
+                                            self.current_span()
+                                        ));
+                                    }
+                                }
+                            } else if self.check(TokenKind::Fn) {
+                                // Custom filter method
+                                self.advance();
+                                let method_name = self.parse_ident()?;
+                                
+                                // Parse parameters
+                                let params = if self.check(TokenKind::LParen) {
+                                    self.advance();
+                                    let mut params = Vec::new();
+                                    while !self.check(TokenKind::RParen) && !self.at_end() {
+                                        let param_name = self.parse_ident()?;
+                                        self.expect(TokenKind::Colon)?;
+                                        let param_type = self.parse_type()?;
+                                        params.push(Param {
+                                            name: param_name,
+                                            ty: param_type,
+                                            mutable: false,
+                                            default: None,
+                                            span: self.current_span(),
+                                        });
+                                        if self.check(TokenKind::Comma) {
+                                            self.advance();
+                                        }
+                                    }
+                                    self.expect(TokenKind::RParen)?;
+                                    params
+                                } else {
+                                    vec![]
+                                };
+                                
+                                // Expect ':'
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse method body
+                                self.skip_newlines();
+                                self.expect(TokenKind::Indent)?;
+                                
+                                let mut body_stmts = Vec::new();
+                                while !self.check(TokenKind::Dedent) && !self.at_end() {
+                                    self.skip_newlines();
+                                    if self.check(TokenKind::Dedent) { break; }
+                                    body_stmts.push(self.parse_stmt()?);
+                                }
+                                
+                                self.expect(TokenKind::Dedent)?;
+                                
+                                custom_filter_method = Some(Function {
+                                    name: method_name,
+                                    generics: vec![],
+                                    params,
+                                    return_type: None,
+                                    effects: vec![],
+                                    body: Block { stmts: body_stmts, span: self.current_span() },
+                                    visibility: Visibility::Private,
+                                    attributes: vec![],
+                                    span: self.current_span(),
+                                });
+                            }
+                            
+                            self.skip_newlines();
+                        }
+                        
+                        self.expect(TokenKind::Dedent)?;
+                        
+                        filter = Some(TargetFilter {
+                            self_filter,
+                            required_actor_class,
+                            require_tags,
+                            ignore_tags,
+                            custom_filter_method,
+                            span: self.current_span(),
+                        });
+                    }
+                    _ => {
+                        return Err(self.parser_error(
+                            format!("Unknown target actor field: {}", field_name),
+                            self.current_span()
+                        ));
+                    }
+                }
+            } else if self.check(TokenKind::Fn) {
+                // Custom method
+                self.advance();
+                let method_name = self.parse_ident()?;
+                
+                // Parse parameters
+                let params = if self.check(TokenKind::LParen) {
+                    self.advance();
+                    let mut params = Vec::new();
+                    while !self.check(TokenKind::RParen) && !self.at_end() {
+                        let param_name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let param_type = self.parse_type()?;
+                        params.push(Param {
+                            name: param_name,
+                            ty: param_type,
+                            mutable: false,
+                            default: None,
+                            span: self.current_span(),
+                        });
+                        if self.check(TokenKind::Comma) {
+                            self.advance();
+                        }
+                    }
+                    self.expect(TokenKind::RParen)?;
+                    params
+                } else {
+                    vec![]
+                };
+                
+                // Expect ':'
+                self.expect(TokenKind::Colon)?;
+                
+                // Parse method body
+                self.skip_newlines();
+                self.expect(TokenKind::Indent)?;
+                
+                let mut body_stmts = Vec::new();
+                while !self.check(TokenKind::Dedent) && !self.at_end() {
+                    self.skip_newlines();
+                    if self.check(TokenKind::Dedent) { break; }
+                    body_stmts.push(self.parse_stmt()?);
+                }
+                
+                self.expect(TokenKind::Dedent)?;
+                
+                custom_methods.push(Function {
+                    name: method_name,
+                    generics: vec![],
+                    params,
+                    return_type: None,
+                    effects: vec![],
+                    body: Block { stmts: body_stmts, span: self.current_span() },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span: self.current_span(),
+                });
+            } else {
+                return Err(self.parser_error("Expected field name or fn", self.current_span()));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        self.expect(TokenKind::Dedent)?;
+        
+        Ok(Item::TargetActor(TargetActorDef {
+            name,
+            attributes,
+            trace_type,
+            max_range,
+            trace_channel,
+            filter,
+            reticle_class,
+            custom_methods,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    /// Helper to parse array of strings: ["tag1", "tag2"]
+    fn parse_string_array(&mut self) -> KainResult<Vec<String>> {
+        self.expect(TokenKind::LBracket)?;
+        let mut strings = Vec::new();
+        
+        while !self.check(TokenKind::RBracket) && !self.at_end() {
+            if let TokenKind::String(s) = self.peek_kind() {
+                strings.push(s);
+                self.advance();
+            } else {
+                return Err(self.parser_error("Expected string in array", self.current_span()));
+            }
+            
+            if self.check(TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        
+        self.expect(TokenKind::RBracket)?;
+        Ok(strings)
+    }

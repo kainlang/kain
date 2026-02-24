@@ -876,6 +876,35 @@ impl SlateGenerator {
         match pattern {
             Pattern::Wildcard(_) => None,
             Pattern::Literal(expr) => Some(format!("{} == {}", scrutinee, self.format_method_expr(expr))),
+            Pattern::Range { start, end, inclusive, .. } => {
+                let mut parts = Vec::new();
+                if let Some(lo) = start {
+                    parts.push(format!("{} >= {}", scrutinee, self.format_method_expr(lo)));
+                }
+                if let Some(hi) = end {
+                    let op = if *inclusive { "<=" } else { "<" };
+                    parts.push(format!("{} {} {}", scrutinee, op, self.format_method_expr(hi)));
+                }
+                if parts.is_empty() {
+                    None
+                } else {
+                    Some(parts.join(" && "))
+                }
+            }
+            Pattern::Or(patterns, _) => {
+                let mut branches = Vec::new();
+                for p in patterns {
+                    match self.match_pattern_condition(scrutinee, p) {
+                        None => return None,
+                        Some(cond) => branches.push(format!("({})", cond)),
+                    }
+                }
+                if branches.is_empty() {
+                    None
+                } else {
+                    Some(branches.join(" || "))
+                }
+            }
             Pattern::Variant { enum_name, variant, fields, .. } => {
                 if matches!(fields, kain_core::ast::VariantPatternFields::Unit) {
                     let variant_ref = if let Some(en) = enum_name {
@@ -885,11 +914,11 @@ impl SlateGenerator {
                     };
                     Some(format!("{} == {}", scrutinee, variant_ref))
                 } else {
-                    Some("false /* unsupported non-unit variant pattern */".to_string())
+                    Some("false".to_string())
                 }
             }
-            Pattern::Binding { .. } => Some("true".to_string()),
-            _ => Some("false /* unsupported pattern */".to_string()),
+            Pattern::Binding { .. } => None,
+            _ => Some("false".to_string()),
         }
     }
 
@@ -2570,6 +2599,52 @@ impl SlateGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+    use kain_core::ast::{Attribute, BinaryOp, Block, CallArg, Expr, Function, MatchArm, Pattern, Struct, Type, Visibility};
+    use kain_core::effects::Effect;
+    use kain_core::span::Span;
+    use kain_core::types::{ResolvedType, TypedStruct};
+
+    fn s() -> Span { Span::default() }
+
+    fn call_arg(value: Expr) -> CallArg {
+        CallArg {
+            name: None,
+            value,
+            span: s(),
+        }
+    }
+
+    fn widget_call(name: &str) -> Expr {
+        Expr::Call {
+            callee: Box::new(Expr::Ident(name.to_string(), s())),
+            args: vec![],
+            span: s(),
+        }
+    }
+
+    fn method(name: &str, body: Block) -> Function {
+        Function {
+            name: name.to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: None,
+            effects: vec![Effect::Pure],
+            body,
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: s(),
+        }
+    }
+
+    fn typed_struct(st: Struct) -> TypedStruct {
+        let field_types: HashMap<String, ResolvedType> = st
+            .fields
+            .iter()
+            .map(|f| (f.name.clone(), ResolvedType::Unknown))
+            .collect();
+        TypedStruct { ast: st, field_types }
+    }
     
     #[test]
     fn test_widget_type_detection() {
@@ -2582,5 +2657,144 @@ mod tests {
         let vbox = WidgetType::VerticalBox;
         assert!(vbox.has_slots());
         assert_eq!(vbox.to_slate_class(), "SVerticalBox");
+    }
+
+    #[test]
+    fn golden_generate_widget_for_column_emits_branching_guards_and_widget_returns() {
+        let match_expr = Expr::Match {
+            scrutinee: Box::new(Expr::Ident("ColumnName".to_string(), s())),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::String("Name".to_string(), s())),
+                    guard: Some(Expr::Binary {
+                        left: Box::new(Expr::Ident("bShowName".to_string(), s())),
+                        op: BinaryOp::Eq,
+                        right: Box::new(Expr::Bool(true, s())),
+                        span: s(),
+                    }),
+                    body: widget_call("TextBlock"),
+                    span: s(),
+                },
+                MatchArm {
+                    pattern: Pattern::Or(
+                        vec![
+                            Pattern::Literal(Expr::String("Value".to_string(), s())),
+                            Pattern::Literal(Expr::String("Amount".to_string(), s())),
+                        ],
+                        s(),
+                    ),
+                    guard: None,
+                    body: widget_call("Button"),
+                    span: s(),
+                },
+                MatchArm {
+                    pattern: Pattern::Range {
+                        start: Some(Box::new(Expr::Int(1, s()))),
+                        end: Some(Box::new(Expr::Int(5, s()))),
+                        inclusive: true,
+                        span: s(),
+                    },
+                    guard: None,
+                    body: widget_call("Text"),
+                    span: s(),
+                },
+                MatchArm {
+                    pattern: Pattern::Wildcard(s()),
+                    guard: None,
+                    body: widget_call("Image"),
+                    span: s(),
+                },
+            ],
+            span: s(),
+        };
+
+        let st = Struct {
+            name: "InventoryRow".to_string(),
+            generics: vec![],
+            fields: vec![],
+            methods: vec![method(
+                "GenerateWidgetForColumn",
+                Block {
+                    stmts: vec![Stmt::Return(Some(match_expr), s())],
+                    span: s(),
+                },
+            )],
+            attributes: vec![Attribute {
+                name: "table_row".to_string(),
+                args: vec![Expr::String("FString".to_string(), s())],
+                span: s(),
+            }],
+            visibility: Visibility::Public,
+            span: s(),
+        };
+
+        let typed = typed_struct(st);
+        let mut gen = SlateGenerator::new();
+        let cpp = gen.generate_construct_impl(&typed, "SInventoryRow");
+
+        assert!(cpp.contains("TSharedRef<SWidget> SInventoryRow::GenerateWidgetForColumn(const FName& ColumnName)"));
+        assert!(cpp.contains("ColumnName == TEXT(\"Name\")"));
+        assert!(cpp.contains("&&"), "Guard expressions should be combined with pattern conditions.\n{}", cpp);
+        assert!(cpp.contains("||"), "Or-patterns should lower into || chains.\n{}", cpp);
+        assert!(cpp.contains("ColumnName >= 1"), "Range-pattern lower bound should be emitted.\n{}", cpp);
+        assert!(cpp.contains("ColumnName <= 5"), "Range-pattern upper bound should be emitted.\n{}", cpp);
+        assert!(cpp.contains("SNew(STextBlock)"));
+        assert!(cpp.contains("SNew(SButton)"));
+        assert!(cpp.contains("SNew(SImage)"));
+    }
+
+    #[test]
+    fn golden_on_opening_emits_branching_and_widget_content_calls() {
+        let if_expr = Expr::If {
+            condition: Box::new(Expr::Ident("bShowTooltip".to_string(), s())),
+            then_branch: Block {
+                stmts: vec![Stmt::Expr(Expr::Call {
+                    callee: Box::new(Expr::Ident("SetContentWidget".to_string(), s())),
+                    args: vec![call_arg(widget_call("TextBlock"))],
+                    span: s(),
+                })],
+                span: s(),
+            },
+            else_branch: Some(Box::new(ElseBranch::Else(Block {
+                stmts: vec![Stmt::Expr(Expr::Call {
+                    callee: Box::new(Expr::Ident("SetContentWidget".to_string(), s())),
+                    args: vec![call_arg(widget_call("Button"))],
+                    span: s(),
+                })],
+                span: s(),
+            }))),
+            span: s(),
+        };
+
+        let st = Struct {
+            name: "StatusTooltip".to_string(),
+            generics: vec![],
+            fields: vec![],
+            methods: vec![method(
+                "OnOpening",
+                Block {
+                    stmts: vec![Stmt::Expr(if_expr)],
+                    span: s(),
+                },
+            )],
+            attributes: vec![Attribute {
+                name: "tooltip_widget".to_string(),
+                args: vec![],
+                span: s(),
+            }],
+            visibility: Visibility::Public,
+            span: s(),
+        };
+
+        let typed = typed_struct(st);
+        let mut gen = SlateGenerator::new();
+        let cpp = gen.generate_construct_impl(&typed, "SStatusTooltip");
+
+        assert!(cpp.contains("void SStatusTooltip::OnOpening()"));
+        assert!(cpp.contains("SToolTip::OnOpening();"));
+        assert!(cpp.contains("if (bShowTooltip)"));
+        assert!(cpp.contains("SetContentWidget("));
+        assert!(cpp.contains("SNew(STextBlock)"));
+        assert!(cpp.contains("SNew(SButton)"));
     }
 }

@@ -94,7 +94,17 @@ pub enum Item {
     GameplayAbility(GameplayAbilityDef),
 
     /// `@gameplay_effect struct Name: duration, modifiers, tags`
+    /// `@gameplay_effect struct Name: duration, modifiers, tags`
     GameplayEffect(GameplayEffectDef),
+
+    /// `@gameplay_cue struct Name: tag, type, lifecycle_hooks`
+    GameplayCue(GameplayCueDef),
+
+    /// `@ability_task struct Name: delegates, state, lifecycle_hooks`
+    AbilityTask(AbilityTaskDef),
+
+    /// `@target_actor struct Name: trace_type, filters, reticle`
+    TargetActor(TargetActorDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1612,6 +1622,41 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
         Item::GameplayEffect(_) => {
             // GameplayEffects don't contain type references (all configuration is in attributes)
         }
+        Item::GameplayCue(cue) => {
+            // Collect types from state fields
+            for field in &cue.state_fields {
+                collect_type_names_from_type(&field.ty, out);
+            }
+            // Collect types from lifecycle methods
+            if let Some(on_execute) = &cue.on_execute {
+                collect_type_names_from_item(&Item::Function(on_execute.clone()), out);
+            }
+            if let Some(on_add) = &cue.on_add {
+                collect_type_names_from_item(&Item::Function(on_add.clone()), out);
+            }
+            if let Some(on_remove) = &cue.on_remove {
+                collect_type_names_from_item(&Item::Function(on_remove.clone()), out);
+            }
+            if let Some(while_active) = &cue.while_active {
+                collect_type_names_from_item(&Item::Function(while_active.clone()), out);
+            }
+        }
+        Item::AbilityTask(task) => {
+            // Collect types from state fields
+            for field in &task.state_fields {
+                collect_type_names_from_type(&field.ty, out);
+            }
+            // Collect types from lifecycle methods
+            if let Some(activate) = &task.activate_method {
+                collect_type_names_from_item(&Item::Function(activate.clone()), out);
+            }
+            if let Some(on_destroy) = &task.on_destroy_method {
+                collect_type_names_from_item(&Item::Function(on_destroy.clone()), out);
+            }
+            for method in &task.custom_methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+        }
         Item::Use(_) | Item::Mod(_) => {
             // Uses and mods don't contain type references we can extract
         }
@@ -2034,5 +2079,149 @@ pub struct GameplayEffectModifier {
     pub attribute: String,
     pub operation: String,  // "Add", "Multiply", "Divide", "Override"
     pub magnitude: f32,
+    pub span: Span,
+}
+
+// === GAMEPLAY CUES (UE5 Gameplay Ability System - Cosmetic Events) ===
+
+/// Gameplay cue definition (cosmetic events)
+/// Syntax: @gameplay_cue struct Name: tag, type, lifecycle_hooks
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameplayCueDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub tag: String,
+    pub cue_type: CueType,
+    pub auto_destroy: bool,
+    pub state_fields: Vec<Field>,
+    pub on_execute: Option<Function>,
+    pub on_add: Option<Function>,
+    pub on_remove: Option<Function>,
+    pub while_active: Option<Function>,
+    pub span: Span,
+}
+
+/// Cue type (Static or Actor)
+#[derive(Debug, Clone, PartialEq)]
+pub enum CueType {
+    Static,
+    Actor,
+}
+
+impl Default for CueType {
+    fn default() -> Self {
+        CueType::Static
+    }
+}
+
+// === ABILITY TASKS (UE5 Gameplay Ability System - Async Operations) ===
+
+/// Ability Task Definition
+/// Syntax: @ability_task struct Name: delegates, state, lifecycle_hooks
+#[derive(Debug, Clone, PartialEq)]
+pub struct AbilityTaskDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub delegates: Vec<TaskDelegateDef>,
+    pub state_fields: Vec<Field>,
+    pub activate_method: Option<Function>,
+    pub on_destroy_method: Option<Function>,
+    pub custom_methods: Vec<Function>,
+    pub span: Span,
+}
+
+/// Ability Task Delegate Definition
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaskDelegateDef {
+    pub name: String,
+    pub delegate_type: String,
+    pub span: Span,
+}
+
+// === TARGET ACTORS (UE5 Gameplay Ability System - Targeting) ===
+
+/// Target Actor Definition
+/// Syntax: @target_actor struct Name: trace_type, filters, reticle
+#[derive(Debug, Clone, PartialEq)]
+pub struct TargetActorDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub trace_type: TraceType,
+    pub max_range: Option<f64>,
+    pub trace_channel: Option<String>,
+    pub filter: Option<TargetFilter>,
+    pub reticle_class: Option<String>,
+    pub custom_methods: Vec<Function>,
+    pub span: Span,
+}
+
+/// Trace Type
+#[derive(Debug, Clone, PartialEq)]
+pub enum TraceType {
+    Line,
+    Sphere,
+    Cone,
+    Box,
+    Cylinder,
+}
+
+impl Default for TraceType {
+    fn default() -> Self {
+        TraceType::Line
+    }
+}
+
+/// Target Filter
+#[derive(Debug, Clone, PartialEq)]
+pub struct TargetFilter {
+    pub self_filter: Option<String>,
+    pub required_actor_class: Option<String>,
+    pub require_tags: Vec<String>,
+    pub ignore_tags: Vec<String>,
+    pub custom_filter_method: Option<Function>,
+    pub span: Span,
+}
+
+// === TARGET ACTORS (UE5 Gameplay Ability System - Targeting System) ===
+
+/// Target Actor Definition
+/// Syntax: @target_actor struct Name: trace_type, filters, reticle
+#[derive(Debug, Clone, PartialEq)]
+pub struct TargetActorDef {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+    pub trace_type: TraceType,
+    pub max_range: Option<f64>,
+    pub trace_channel: Option<String>,
+    pub filter: Option<TargetFilter>,
+    pub reticle_class: Option<String>,
+    pub custom_methods: Vec<Function>,
+    pub span: Span,
+}
+
+/// Trace Type
+#[derive(Debug, Clone, PartialEq)]
+pub enum TraceType {
+    Line,
+    Sphere,
+    Cone,
+    Box,
+    Cylinder,
+}
+
+impl Default for TraceType {
+    fn default() -> Self {
+        TraceType::Line
+    }
+}
+
+/// Target Filter
+#[derive(Debug, Clone, PartialEq)]
+pub struct TargetFilter {
+    pub self_filter: Option<String>,
+    pub required_actor_class: Option<String>,
+    pub require_tags: Vec<String>,
+    pub ignore_tags: Vec<String>,
+    pub custom_filter_method: Option<Function>,
     pub span: Span,
 }

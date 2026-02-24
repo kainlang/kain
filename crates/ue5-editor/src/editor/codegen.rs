@@ -527,8 +527,12 @@ impl Ue5EditorGen {
                 self.header.push_line("#include \"DetailCategoryBuilder.h\"");
                 self.header.push_line("#include \"DetailWidgetRow.h\"");
                 self.header.push_line("#include \"PropertyEditorModule.h\"");
+                self.header.push_line("#include \"PropertyCustomizationHelpers.h\"");
                 self.header.push_line("#include \"Widgets/Input/SSpinBox.h\"");
                 self.header.push_line("#include \"Widgets/Input/SButton.h\"");
+                self.header.push_line("#include \"Widgets/Input/SCheckBox.h\"");
+                self.header.push_line("#include \"Widgets/Input/SEditableTextBox.h\"");
+                self.header.push_line("#include \"Widgets/Text/SMultiLineEditableTextBox.h\"");
                 self.header.push_line("#include \"Widgets/Colors/SColorBlock.h\"");
             }
             "Viewport" => {
@@ -693,6 +697,10 @@ impl Ue5EditorGen {
             self.header.push_line("#include \"DetailCategoryBuilder.h\"");
             self.header.push_line("#include \"DetailWidgetRow.h\"");
             self.header.push_line("#include \"PropertyEditorModule.h\"");
+            self.header.push_line("#include \"PropertyCustomizationHelpers.h\"");
+            self.header.push_line("#include \"Widgets/Input/SCheckBox.h\"");
+            self.header.push_line("#include \"Widgets/Input/SEditableTextBox.h\"");
+            self.header.push_line("#include \"Widgets/Text/SMultiLineEditableTextBox.h\"");
         }
         
         if has_viewports {
