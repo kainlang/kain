@@ -73,7 +73,7 @@ impl WidgetType {
             "EditableTextBox" | "SEditableTextBox" => WidgetType::EditableTextBox,
             "Slider" | "SSlider" => WidgetType::Slider,
             "SpinBox" | "SSpinBox" => WidgetType::SpinBox,
-            "ColorBlock" | "SColorBlock" => WidgetType::ColorBlock,
+            "ColorBlock" | "SColorBlock" | "ColorPicker" | "SColorPicker" => WidgetType::ColorBlock,
             "TextBlock" | "STextBlock" => WidgetType::TextBlock,
             "Image" | "SImage" => WidgetType::Image,
             "ProgressBar" | "SProgressBar" => WidgetType::ProgressBar,
@@ -884,6 +884,10 @@ impl SlateGenerator {
             "OnClicked" | "OnPressed" | "OnReleased" | "OnHovered" | "OnUnhovered" |
             "OnValueChanged" | "OnTextCommitted" | "OnTextChanged" |
             "OnCheckStateChanged" | "OnSelectionChanged" | "OnColorChanged" => {
+                // SColorBlock is display-only and has no OnColorChanged delegate.
+                if method == "OnColorChanged" && self.parent_stack.last() == Some(&WidgetType::ColorBlock) {
+                    return;
+                }
                 if self.is_inargs_reference(&formatted_args) {
                     self.emit_delegate_bridge_or_passthrough(method, &formatted_args);
                 } else {
@@ -937,6 +941,20 @@ impl SlateGenerator {
                         return;
                     }
                 }
+                // Also handle InArgs field refs that are mapped as FVector (e.g. color_a/color_b)
+                // and convert explicitly to FLinearColor.
+                if formatted_args.starts_with("InArgs._") {
+                    let field_name = formatted_args.trim_start_matches("InArgs._");
+                    if let Some(field_ty) = self.field_type_map.get(field_name) {
+                        if field_ty == "FVector" {
+                            self.push_line(&format!(
+                                ".Color(FLinearColor({0}.X, {0}.Y, {0}.Z, 1.0f))",
+                                formatted_args
+                            ));
+                            return;
+                        }
+                    }
+                }
                 self.push_line(&format!(".Color({})", formatted_args));
             }
             "BackgroundColor" => {
@@ -956,6 +974,10 @@ impl SlateGenerator {
             }
             "Font" => {
                 self.push_line(&format!(".Font({})", formatted_args));
+            }
+            "FontSize" => {
+                // STextBlock::FArguments has no .FontSize() shorthand.
+                // Keep generation compile-safe; users can set .Font(...) explicitly.
             }
             
             // === State binding properties (TAttribute) ===
@@ -1031,6 +1053,11 @@ impl SlateGenerator {
             }
             "OnGenerateWidget" => {
                 self.push_line(&format!(".OnGenerateWidget({})", formatted_args));
+            }
+            "AddOption" => {
+                // SComboBox does not expose AddOption in declarative args.
+                // Options should be provided through OptionsSource data.
+                // Skip silently to keep generated code compiling.
             }
             
             // === Splitter specific ===
@@ -1311,6 +1338,15 @@ impl SlateGenerator {
                     formatted_args
                 ));
             }
+            // SComboBox::OnSelectionChanged commonly expects (TSharedPtr<FString>, ESelectInfo::Type)
+            // and the generated InArgs delegate is often simpler. Bridge via _Lambda.
+            "FOnSelectionChanged" => {
+                let broadcast_args = self.get_default_broadcast_args(field_name);
+                self.push_line(&format!(
+                    ".OnSelectionChanged_Lambda([=](TSharedPtr<FString> Item, ESelectInfo::Type SelectInfo) {{ auto D = {}; D.Broadcast({}); }})",
+                    formatted_args, broadcast_args
+                ));
+            }
             // Default fallback: pass through directly
             _ => {
                 self.push_line(&format!(".{}({})", property_name, formatted_args));
@@ -1522,7 +1558,7 @@ impl SlateGenerator {
             "OnTextChanged" | "on_text_changed" => "FOnTextChanged".to_string(),
             "OnValueChanged" | "on_value_changed" => "FOnFloatValueChanged".to_string(),
             "OnCheckStateChanged" | "on_check_state_changed" => "FOnCheckStateChanged".to_string(),
-            "OnSelectionChanged" | "on_selection_changed" => "FOnSelectionChanged".to_string(),
+            "OnSelectionChanged" | "on_selection_changed" => "FSimpleDelegate".to_string(),
             "OnGenerateRow" | "on_generate_row" => "FOnGenerateRow".to_string(),
             "OnGetChildren" | "on_get_children" => "FOnGetChildren".to_string(),
             "OnMouseButtonDown" | "OnMouseButtonUp" => "FPointerEventHandler".to_string(),
@@ -1559,7 +1595,6 @@ impl SlateGenerator {
                 | "FOnTextCommitted"
                 | "FOnTextChanged"
                 | "FOnCheckStateChanged"
-                | "FOnSelectionChanged"
                 | "FOnLinearColorValueChanged"
                 | "FPointerEventHandler"
                 | "FKeyEventHandler"
@@ -1722,11 +1757,29 @@ impl SlateGenerator {
                 "Vec4" => "FVector4".to_string(),
                 "Brush" => "const FSlateBrush*".to_string(),
                 "Margin" => "FMargin".to_string(),
+                // Preserve known engine Slate delegate types as-is.
+                "FOnClicked"
+                | "FSimpleDelegate"
+                | "FOnFloatValueChanged"
+                | "FOnTextCommitted"
+                | "FOnTextChanged"
+                | "FOnCheckStateChanged"
+                | "FOnSelectionChanged"
+                | "FOnLinearColorValueChanged"
+                | "FPointerEventHandler"
+                | "FKeyEventHandler"
+                | "FOnGenerateRow"
+                | "FOnGetChildren" => name.clone(),
                 _ => {
                     // Use context to map custom types (enums, structs, actors, delegates)
                     if let Some(ref ctx) = self.context {
-                        // Check if it's an enum — use naming utility to avoid double E-prefix
-                        if ctx.enum_names.contains(name) {
+                        // Check if it's an enum — handle both canonical and explicit E-prefixed references.
+                        let enum_base = name.strip_prefix('E').unwrap_or(name);
+                        if ctx.enum_names.contains(name) || ctx.enum_names.contains(enum_base) {
+                            return naming::to_enum_name(enum_base);
+                        }
+                        // Also allow when context stores base names but caller already used E-prefixed token.
+                        if name.starts_with('E') && ctx.enum_names.iter().any(|e| naming::to_enum_name(e) == *name) {
                             return naming::to_enum_name(name);
                         }
                         // Check if it's a struct

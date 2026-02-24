@@ -2713,6 +2713,19 @@ impl Ue5Gen {
                     UnaryOp::Not => "!",
                     _ => "?",
                 };
+                if matches!(op, UnaryOp::Not) {
+                    if let Expr::Ident(name, _) = operand.as_ref() {
+                        if let Some(ty_name) = self.var_types.get(name) {
+                            let is_bool = ty_name == "bool" || ty_name == "Bool";
+                            let is_pointer_like = ty_name.ends_with('*') || ty_name.contains('*') || ty_name == "nullptr";
+                            if !is_bool && !is_pointer_like {
+                                // KAIN truthiness on value-structs has no direct C++ equivalent.
+                                // Emit a safe default false guard instead of invalid `!StructValue`.
+                                return "false".to_string();
+                            }
+                        }
+                    }
+                }
                 format!("({}{})", op_str, o)
             }
             Expr::MethodCall { receiver, method, args, .. } => {
@@ -2769,6 +2782,44 @@ impl Ue5Gen {
             BinaryOp::And => "&&",
             BinaryOp::Or => "||",
             _ => "?",
+        }
+    }
+
+    fn infer_array_element_cpp_type(&self, elements: &[Expr]) -> &'static str {
+        if elements.is_empty() {
+            return "float";
+        }
+
+        let mut saw_float_like = false;
+        let mut saw_int = false;
+        let mut saw_bool = false;
+        let mut saw_string = false;
+
+        for e in elements {
+            match e {
+                Expr::Float(_, _) => saw_float_like = true,
+                Expr::Int(_, _) => saw_int = true,
+                Expr::Bool(_, _) => saw_bool = true,
+                Expr::String(_, _) => saw_string = true,
+                // Field/call/index frequently produce FVector component scalars;
+                // prefer float to avoid narrowing failures in TArray<float> params.
+                Expr::Field { .. } | Expr::Call { .. } | Expr::MethodCall { .. } | Expr::Index { .. } => {
+                    saw_float_like = true;
+                }
+                _ => {}
+            }
+        }
+
+        if saw_string {
+            "FString"
+        } else if saw_bool && !saw_float_like && !saw_int {
+            "bool"
+        } else if saw_float_like {
+            "float"
+        } else if saw_int {
+            "int64"
+        } else {
+            "float"
         }
     }
     
@@ -2988,6 +3039,27 @@ impl Ue5Gen {
         for field in &struct_def.fields {
             self.gen_uproperty_with_context(field, None, false);
         }
+
+        // Additional component methods declared directly on the struct or provided via impl blocks
+        // (exclude lifecycle methods handled by dedicated BeginPlay/TickComponent overrides).
+        let mut component_methods: Vec<Function> = struct_def.methods.clone();
+        if let Some(impl_block_methods) = self.impl_methods.get(&struct_def.name) {
+            for method in impl_block_methods {
+                if !component_methods.iter().any(|m| m.name == method.name) {
+                    component_methods.push(method.clone());
+                }
+            }
+        }
+        for method in &component_methods {
+            let is_lifecycle = matches!(
+                method.name.as_str(),
+                "begin_play" | "BeginPlay" | "tick" | "Tick" | "on_tick" | "OnTick"
+            );
+            if is_lifecycle {
+                continue;
+            }
+            self.gen_actor_method_decl(method, &class_name);
+        }
         
         // Add network sync state buffers and helper fields
         if let Some(ref sync_output) = network_sync_output {
@@ -3134,6 +3206,26 @@ impl Ue5Gen {
             self.pop_indent();
             self.write_source("}");
             self.write_blank_source();
+        }
+
+        // Non-lifecycle component method implementations from struct + impl blocks.
+        let mut component_methods: Vec<Function> = struct_def.methods.clone();
+        if let Some(impl_block_methods) = self.impl_methods.get(&struct_def.name) {
+            for method in impl_block_methods {
+                if !component_methods.iter().any(|m| m.name == method.name) {
+                    component_methods.push(method.clone());
+                }
+            }
+        }
+        for method in &component_methods {
+            let is_lifecycle = matches!(
+                method.name.as_str(),
+                "begin_play" | "BeginPlay" | "tick" | "Tick" | "on_tick" | "OnTick"
+            );
+            if is_lifecycle {
+                continue;
+            }
+            self.gen_actor_method_impl(&class_name, method);
         }
     }
 
@@ -4277,6 +4369,17 @@ impl Ue5Gen {
             Expr::Unary { op, operand, .. } => {
                 let o = self.gen_expr(operand);
                 let op_str = self.map_unaryop(op);
+                if matches!(op, UnaryOp::Not) {
+                    if let Expr::Ident(name, _) = operand.as_ref() {
+                        if let Some(ty_name) = self.var_types.get(name) {
+                            let is_bool = ty_name == "bool" || ty_name == "Bool";
+                            let is_pointer_like = ty_name.ends_with('*') || ty_name.contains('*') || ty_name == "nullptr";
+                            if !is_bool && !is_pointer_like {
+                                return "false".to_string();
+                            }
+                        }
+                    }
+                }
                 format!("({}{})", op_str, o)
             }
 
@@ -4635,8 +4738,17 @@ impl Ue5Gen {
 
             Expr::Array(elements, _) => {
                 let elems: Vec<String> = elements.iter().map(|e| self.gen_expr(e)).collect();
-                // Use brace initialization - compiler will deduce element type from context
-                format!("{{{}}}", elems.join(", "))
+                // Emit a typed TArray literal to avoid narrowing/conversion ambiguity.
+                let elem_ty = self.infer_array_element_cpp_type(elements);
+                let rendered_elems = if elem_ty == "float" {
+                    elems.into_iter()
+                        .map(|e| format!("static_cast<float>({})", e))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                } else {
+                    elems.join(", ")
+                };
+                format!("TArray<{}>{{{}}}", elem_ty, rendered_elems)
             }
 
             Expr::Struct { name, fields, .. } => {

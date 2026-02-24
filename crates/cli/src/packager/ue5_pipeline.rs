@@ -1,5 +1,5 @@
 use std::fs;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use crate::error::{KainError, KainResult};
 use kain_core::diagnostics::{SpanMapper, enhance_error_with_location};
@@ -1105,6 +1105,43 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
 /// Load stdlib + user source files, parse, validate, and type-check.
 /// Returns (typed_program, shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes).
+fn parse_use_root_modules(source: &str) -> HashSet<String> {
+    let mut roots = HashSet::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("use ") {
+            continue;
+        }
+
+        // Parse `use foo::bar as Baz`, `use foo/bar/*`, etc.
+        let mut rest = trimmed.trim_start_matches("use").trim();
+        if let Some(idx) = rest.find(" as ") {
+            rest = &rest[..idx];
+        }
+        if let Some(idx) = rest.find('#') {
+            rest = &rest[..idx]; // strip inline comments
+        }
+
+        let root = rest
+            .split("::")
+            .next()
+            .and_then(|s| s.split('/').next())
+            .unwrap_or("")
+            .trim();
+
+        if !root.is_empty() && root != "*" {
+            roots.insert(root.to_string());
+        }
+    }
+
+    roots
+}
+
+fn stdlib_module_name(path: &PathBuf) -> Option<String> {
+    path.file_stem().map(|s| s.to_string_lossy().to_string())
+}
+
 fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
@@ -1113,6 +1150,39 @@ fn load_and_parse_sources(
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
+
+    // Resolve user source files early so stdlib loading can be import-aware.
+    let user_source_files = if ue5_config.sources.is_empty() {
+        // Fallback to single entry file from manifest (if available)
+        if let Some(m) = manifest {
+            vec![m.build.entry.clone()]
+        } else {
+            // No manifest and no sources - error
+            return Err(KainError::runtime("No source files specified and no KAIN.toml found"));
+        }
+    } else {
+        // Use multiple source files - GODMODE
+        ue5_config.sources.clone()
+    };
+
+    let user_source_paths: Vec<PathBuf> = user_source_files
+        .iter()
+        .map(|f| cwd.join(f))
+        .collect();
+
+    // Build import roots from user files so stdlib loading can be module-driven.
+    let mut imported_roots: HashSet<String> = HashSet::new();
+    for user_path in &user_source_paths {
+        if let Ok(src) = fs::read_to_string(user_path) {
+            imported_roots.extend(parse_use_root_modules(&src));
+        }
+    }
+
+    // Foundational modules are always safe to include for type aliases/definitions.
+    const ALWAYS_INCLUDE_STDLIB_MODULES: &[&str] = &["common", "components", "patterns"];
+    let has_explicit_stdlib_imports = imported_roots
+        .iter()
+        .any(|name| ALWAYS_INCLUDE_STDLIB_MODULES.iter().all(|always| name != always));
     
     // Determine stdlib path with prioritized search strategy
     let stdlib_search_paths: Vec<PathBuf> = if let Some(custom_path) = &ue5_config.stdlib_path {
@@ -1179,7 +1249,24 @@ fn load_and_parse_sources(
                                     continue;
                                 }
                             }
-                            stdlib_files.push(path);
+
+                            // Import-aware stdlib loading: if user code explicitly imports
+                            // stdlib modules via `use`, include only those modules (+always-on foundational ones).
+                            // If no stdlib modules were imported, keep legacy behavior (include all).
+                            let include_file = if has_explicit_stdlib_imports {
+                                if let Some(module_name) = stdlib_module_name(&path) {
+                                    imported_roots.contains(&module_name)
+                                        || ALWAYS_INCLUDE_STDLIB_MODULES.iter().any(|m| *m == module_name)
+                                } else {
+                                    false
+                                }
+                            } else {
+                                true
+                            };
+
+                            if include_file {
+                                stdlib_files.push(path);
+                            }
                         }
                     }
                 }
@@ -1200,23 +1287,9 @@ fn load_and_parse_sources(
         all_source_files.push(stdlib_file.clone());
     }
     
-    // STEP 2: Add user source files
-    let user_source_files = if ue5_config.sources.is_empty() {
-        // Fallback to single entry file from manifest (if available)
-        if let Some(m) = manifest {
-            vec![m.build.entry.clone()]
-        } else {
-            // No manifest and no sources - error
-            return Err(KainError::runtime("No source files specified and no KAIN.toml found"));
-        }
-    } else {
-        // Use multiple source files - GODMODE
-        ue5_config.sources.clone()
-    };
-    
-    // Add user files (as PathBuf, resolved relative to cwd)
-    for user_file in &user_source_files {
-        all_source_files.push(cwd.join(user_file));
+    // STEP 2: Add user source files (resolved relative to cwd)
+    for user_path in &user_source_paths {
+        all_source_files.push(user_path.clone());
     }
     
     println!("📁 Source files: {} (stdlib: {}, user: {})", 
@@ -1224,6 +1297,11 @@ fn load_and_parse_sources(
         stdlib_files.len(), 
         user_source_files.len()
     );
+    if has_explicit_stdlib_imports {
+        let mut imported_list: Vec<String> = imported_roots.iter().cloned().collect();
+        imported_list.sort();
+        println!("   🎯 Import-aware stdlib mode: {}", imported_list.join(", "));
+    }
     println!("   📚 Stdlib files:");
     for (i, file) in stdlib_files.iter().enumerate() {
         if let Some(name) = file.file_name() {

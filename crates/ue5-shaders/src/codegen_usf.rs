@@ -216,6 +216,50 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
         output.push_str(&format!("#include \"{}\"\n\n", types_header));
     }
 
+    // Emit local shader parameter struct declarations for custom *ShaderParams
+    // so they are valid nested members in FParameters.
+    let mut custom_shader_struct_defs: std::collections::BTreeMap<String, Vec<(String, String)>> =
+        std::collections::BTreeMap::new();
+    for (_, ty, _) in &all_scalar_params {
+        if component_mirrors.contains_key(ty.as_str()) {
+            continue;
+        }
+
+        let cpp_type = map_usf_type_to_cpp(ty);
+        if !is_shader_params_cpp_struct_name(&cpp_type) {
+            continue;
+        }
+        if custom_shader_struct_defs.contains_key(&cpp_type) {
+            continue;
+        }
+
+        let base_name = cpp_type.strip_prefix('F').unwrap_or(&cpp_type);
+        if let Some(fields) = type_db.get(base_name).or_else(|| type_db.get(&cpp_type)) {
+            let mut ordered_fields: Vec<(String, String)> = fields
+                .iter()
+                .map(|(field_name, field_ty)| (field_name.clone(), field_ty.clone()))
+                .collect();
+            ordered_fields.sort_by(|a, b| a.0.cmp(&b.0));
+            custom_shader_struct_defs.insert(cpp_type, ordered_fields);
+        }
+    }
+
+    for (struct_name, fields) in &custom_shader_struct_defs {
+        output.push_str(&format!("BEGIN_SHADER_PARAMETER_STRUCT({}, )\n", struct_name));
+        for (field_name, field_ty) in fields {
+            let field_cpp_type = map_usf_type_to_cpp(field_ty);
+            if is_shader_params_cpp_struct_name(&field_cpp_type) {
+                output.push_str(&format!(
+                    "    SHADER_PARAMETER_STRUCT({}, {})\n",
+                    field_cpp_type, field_name
+                ));
+            } else {
+                output.push_str(&format!("    SHADER_PARAMETER({}, {})\n", field_cpp_type, field_name));
+            }
+        }
+        output.push_str("END_SHADER_PARAMETER_STRUCT()\n\n");
+    }
+
     let class_name = if is_vertex {
         format!("F{}VS", capitalize_first(shader_name))
     } else {
@@ -254,7 +298,11 @@ fn generate_cpp_header_cached(program: &TypedProgram, shader_name: &str, plugin_
             output.push_str(&format!("        SHADER_PARAMETER_STRUCT({}, {})\n", mirror.pod_struct_name, name));
         } else {
             let cpp_type = map_usf_type_to_cpp(ty);
-            output.push_str(&format!("        SHADER_PARAMETER({}, {})\n", cpp_type, name));
+            if is_shader_params_cpp_struct_name(&cpp_type) {
+                output.push_str(&format!("        SHADER_PARAMETER_STRUCT({}, {})\n", cpp_type, name));
+            } else {
+                output.push_str(&format!("        SHADER_PARAMETER({}, {})\n", cpp_type, name));
+            }
         }
     }
     
@@ -658,21 +706,19 @@ fn map_usf_type_to_cpp(usf_type: &str) -> String {
         "uint4" => "FUintVector4".to_string(),
         "float4x4" => "FMatrix44f".to_string(),
         "float3x3" => "FMatrix33f".to_string(),
-        _ => {
-            // User-defined struct uniforms arrive here as raw KAIN names
-            // (e.g. PhysicsShaderParams). In UE C++, generated struct names
-            // are F-prefixed (FPhysicsShaderParams), so normalize them.
-            if usf_type.ends_with("ShaderParams")
-                && !usf_type.starts_with('F')
-                && !usf_type.starts_with('U')
-                && !usf_type.starts_with('A')
-                && !usf_type.starts_with('E')
-            {
-                format!("F{}", usf_type)
-            } else {
-                usf_type.to_string()
-            }
-        }
+        _ => normalize_shader_params_struct_name(usf_type),
+    }
+}
+
+fn is_shader_params_cpp_struct_name(type_name: &str) -> bool {
+    type_name.starts_with('F') && type_name.ends_with("ShaderParams")
+}
+
+fn normalize_shader_params_struct_name(type_name: &str) -> String {
+    if type_name.ends_with("ShaderParams") && !type_name.starts_with('F') {
+        format!("F{}", type_name)
+    } else {
+        type_name.to_string()
     }
 }
 
@@ -762,6 +808,37 @@ fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResul
                 }
             }
         }
+
+        // Emit HLSL struct definitions for non-mirror shader parameter structs
+        // (e.g. CouplingShaderParams -> FCouplingShaderParams) from the type db.
+        let mut emitted_custom_structs: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (_, usf_type, _) in &all_scalar_params {
+            if usf_mirrors.contains_key(usf_type.as_str()) {
+                continue;
+            }
+
+            let hlsl_struct_name = normalize_shader_params_struct_name(usf_type);
+            if !is_shader_params_cpp_struct_name(&hlsl_struct_name) {
+                continue;
+            }
+            if !emitted_custom_structs.insert(hlsl_struct_name.clone()) {
+                continue;
+            }
+
+            let base_name = hlsl_struct_name.strip_prefix('F').unwrap_or(&hlsl_struct_name);
+            let fields_opt = type_db.get(base_name).or_else(|| type_db.get(&hlsl_struct_name));
+
+            if let Some(fields) = fields_opt {
+                output.push_str(&format!("struct {} {{\n", hlsl_struct_name));
+                let mut ordered_fields: Vec<(&String, &String)> = fields.iter().collect();
+                ordered_fields.sort_by(|a, b| a.0.cmp(b.0));
+                for (field_name, field_ty) in ordered_fields {
+                    let mapped_field_ty = normalize_shader_params_struct_name(field_ty);
+                    output.push_str(&format!("    {} {};\n", mapped_field_ty, field_name));
+                }
+                output.push_str("};\n\n");
+            }
+        }
     }
 
     // Emit ALL scalar parameters once (deduplicated)
@@ -778,7 +855,7 @@ fn generate_cached(program: &TypedProgram, mirrors: &CachedMirrors) -> KainResul
             let hlsl_type = if let Some(mirror) = usf_mirrors.get(ty.as_str()) {
                 mirror.pod_struct_name.clone()
             } else {
-                ty.clone()
+                normalize_shader_params_struct_name(ty)
             };
             output.push_str(&format!("{} {};  // @{}\n", hlsl_type, name, binding));
         }
@@ -2288,7 +2365,7 @@ fn map_type_to_usf(ty: &Type) -> String {
                 
                 // Pass through unknown named types as user-defined structs.
                 // Validation is responsible for rejecting truly invalid types.
-                _ => name.clone()
+                _ => normalize_shader_params_struct_name(name)
             }
         },
         _ => {

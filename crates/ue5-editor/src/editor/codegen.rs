@@ -477,6 +477,9 @@ impl Ue5EditorGen {
                 // Always-required foundations
                 self.header.push_line("#include \"Widgets/SCompoundWidget.h\"");
                 self.header.push_line("#include \"Widgets/DeclarativeSyntaxSupport.h\"");
+                // Keep SComboBox always available: FOnSelectionChanged is declared there
+                // and can appear in SLATE args even when Compose scanning misses ComboBox.
+                self.header.push_line("#include \"Widgets/Input/SComboBox.h\"");
                 // Bug-4 fix: only emit widget includes that are actually used.
                 // `used_widgets` was built by scanning the Compose body AST.
                 // If the set is empty (scan failed or widget has no body), fall back
@@ -501,7 +504,14 @@ impl Ue5EditorGen {
                 cond_include!("Widgets/Layout/SScrollBox.h",   "ScrollBox", "SScrollBox");
                 cond_include!("Widgets/Layout/SSplitter.h",    "Splitter", "SSplitter", "HSplitter", "VSplitter");
                 cond_include!("Widgets/Layout/SBorder.h",      "Border", "SBorder");
-                cond_include!("Widgets/Colors/SColorBlock.h",  "ColorBlock", "SColorBlock", "Color");
+                cond_include!(
+                    "Widgets/Colors/SColorBlock.h",
+                    "ColorBlock",
+                    "SColorBlock",
+                    "Color",
+                    "ColorPicker",
+                    "SColorPicker"
+                );
                 cond_include!("Widgets/Layout/SBox.h",         "Box", "SBox");
                 cond_include!("Widgets/Layout/SGridPanel.h",   "GridPanel", "SGridPanel");
                 cond_include!("Widgets/Layout/SWrapBox.h",     "WrapBox", "SWrapBox");

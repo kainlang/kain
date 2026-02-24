@@ -279,7 +279,24 @@ impl ViewportGenerator {
                 "Color" | "LinearColor" => "FLinearColor".to_string(),
                 "StaticMesh" => "UStaticMesh*".to_string(),
                 "Material" | "MyMaterial" => "UMaterialInterface*".to_string(),
-                _ => name.clone(),
+                _ => {
+                    if name.ends_with("World") {
+                        return "UObject*".to_string();
+                    }
+                    // Fallback for user-defined types: emit canonical UE prefixes.
+                    // Prevents raw identifiers like `HyperFluidWorld` in generated C++.
+                    if name.starts_with('F')
+                        || name.starts_with('U')
+                        || name.starts_with('A')
+                        || name.starts_with('E')
+                        || name.starts_with('I')
+                        || name.starts_with('T')
+                    {
+                        name.clone()
+                    } else {
+                        format!("F{}", name)
+                    }
+                },
             },
             _ => "auto".to_string(),
         }

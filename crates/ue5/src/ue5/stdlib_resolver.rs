@@ -512,7 +512,6 @@ impl StdLibResolver {
             || expr.contains(".GetSafeNormal()")
             || expr.contains("::CrossProduct")
             || expr.contains("::DotProduct")
-            || (expr.contains('.') && (expr.contains(".X") || expr.contains(".Y") || expr.contains(".Z")))
     }
 
     /// Generate component-wise vector operation
