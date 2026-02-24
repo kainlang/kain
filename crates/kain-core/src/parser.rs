@@ -312,7 +312,6 @@ impl<'a> Parser<'a> {
         }
         
         let vis = self.parse_visibility();
-        let vis = self.parse_visibility();
         
         match self.peek_kind() {
             TokenKind::Fn => self.parse_function_with_attrs(vis, attributes),
@@ -2047,7 +2046,9 @@ impl<'a> Parser<'a> {
         let mut stmts = Vec::new();
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
+            if self.check(TokenKind::Dedent) || self.check(TokenKind::Elif) || self.check(TokenKind::Else) {
+                break;
+            }
             stmts.push(self.parse_stmt()?);
             self.skip_newlines();
         }
@@ -2778,33 +2779,60 @@ impl<'a> Parser<'a> {
             Block { stmts: vec![stmt], span: start.merge(self.current_span()) }
         };
         
-        let else_branch = if self.check(TokenKind::Else) {
+        let else_branch = self.parse_if_tail(start)?;
+        Ok(Expr::If { condition, then_branch, else_branch, span: start.merge(self.current_span()) })
+    }
+
+    fn parse_if_tail(&mut self, start: Span) -> KainResult<Option<Box<ElseBranch>>> {
+        self.skip_newlines();
+        if self.check(TokenKind::Elif) {
             self.advance();
-            
+            let condition = Box::new(self.parse_expr()?);
+            self.expect(TokenKind::Colon)?;
+
+            let is_block = matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Indent);
+            let then_branch = if is_block {
+                self.parse_block()?
+            } else {
+                let stmt = self.parse_stmt()?;
+                Block { stmts: vec![stmt], span: start.merge(self.current_span()) }
+            };
+
+            let nested_else = self.parse_if_tail(start)?;
+            return Ok(Some(Box::new(ElseBranch::ElseIf(condition, then_branch, nested_else))));
+        }
+
+        if self.check(TokenKind::Else) {
+            self.advance();
+
             // Check for 'else if' (elif pattern) - no colon between else and if
             if self.check(TokenKind::If) {
                 // Parse the 'if' expression
                 let elif_expr = self.parse_if()?;
-                
+
                 // Extract the condition, then_branch, and else_branch from the If expression
                 if let Expr::If { condition, then_branch, else_branch: nested_else, .. } = elif_expr {
-                    Some(Box::new(ElseBranch::ElseIf(condition, then_branch, nested_else)))
-                } else {
-                    // Shouldn't happen, but fallback
-                    return Err(self.parser_error("Expected if expression after else", self.current_span()));
+                    return Ok(Some(Box::new(ElseBranch::ElseIf(condition, then_branch, nested_else))));
                 }
-            } else {
-                self.expect(TokenKind::Colon)?;
-                let is_block = matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Indent);
-                if is_block {
-                    Some(Box::new(ElseBranch::Else(self.parse_block()?)))
-                } else {
-                    let stmt = self.parse_stmt()?;
-                    Some(Box::new(ElseBranch::Else(Block { stmts: vec![stmt], span: start.merge(self.current_span()) })))
-                }
+
+                // Shouldn't happen, but fallback
+                return Err(self.parser_error("Expected if expression after else", self.current_span()));
             }
-        } else { None };
-        Ok(Expr::If { condition, then_branch, else_branch, span: start.merge(self.current_span()) })
+
+            self.expect(TokenKind::Colon)?;
+            let is_block = matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Indent);
+            if is_block {
+                return Ok(Some(Box::new(ElseBranch::Else(self.parse_block()?))));
+            }
+
+            let stmt = self.parse_stmt()?;
+            return Ok(Some(Box::new(ElseBranch::Else(Block {
+                stmts: vec![stmt],
+                span: start.merge(self.current_span()),
+            }))));
+        }
+
+        Ok(None)
     }
 
     fn parse_pattern(&mut self) -> KainResult<Pattern> {
@@ -4227,6 +4255,7 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_gameplay_tags(&mut self, _attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
+        self.skip_formatting();
         
         // Expect 'namespace' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
@@ -4273,7 +4302,7 @@ impl<'a> Parser<'a> {
             let start = self.current_span();
             
             // Parse tag name
-            let tag_name = self.parse_ident()?;
+            let tag_name = self.parse_tag_name()?;
             
             // Build full path
             let full_path = if parent_path.is_empty() {
@@ -4320,6 +4349,57 @@ impl<'a> Parser<'a> {
         }
         
         Ok(nodes)
+    }
+
+    fn parse_tag_name(&mut self) -> KainResult<String> {
+        let span = self.current_span();
+        match self.peek_kind() {
+            TokenKind::Ident(s) => {
+                self.advance();
+                Ok(s)
+            }
+            TokenKind::Pure => {
+                self.advance();
+                Ok("Pure".to_string())
+            }
+            TokenKind::Io => {
+                self.advance();
+                Ok("IO".to_string())
+            }
+            TokenKind::Async => {
+                self.advance();
+                Ok("Async".to_string())
+            }
+            TokenKind::AsyncKw => {
+                self.advance();
+                Ok("async".to_string())
+            }
+            TokenKind::Reactive => {
+                self.advance();
+                Ok("Reactive".to_string())
+            }
+            TokenKind::Unsafe => {
+                self.advance();
+                Ok("Unsafe".to_string())
+            }
+            TokenKind::Gpu => {
+                self.advance();
+                Ok("GPU".to_string())
+            }
+            TokenKind::True => {
+                self.advance();
+                Ok("true".to_string())
+            }
+            TokenKind::False => {
+                self.advance();
+                Ok("false".to_string())
+            }
+            TokenKind::None => {
+                self.advance();
+                Ok("none".to_string())
+            }
+            k => Err(self.parser_error(format!("Expected gameplay tag name, got {:?}", k), span)),
+        }
     }
     
     /// Parse gameplay ability definition
