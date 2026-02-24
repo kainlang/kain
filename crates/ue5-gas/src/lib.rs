@@ -10,6 +10,8 @@ pub mod cue_ir;
 pub mod cue_codegen;
 pub mod task_ir;
 pub mod task_codegen;
+pub mod target_ir;
+pub mod target_codegen;
 
 pub use tags_ir::*;
 pub use tags_codegen::generate as generate_tags;
@@ -23,3 +25,5 @@ pub use cue_ir::*;
 pub use cue_codegen::generate as generate_cue;
 pub use task_ir::*;
 pub use task_codegen::generate as generate_task;
+pub use target_ir::*;
+pub use target_codegen::generate as generate_target;

@@ -60,7 +60,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks) =
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks, target_actors) =
         load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
@@ -75,6 +75,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
     // STEP 3: Compile shaders (optional)
     super::codegen::compile_shaders(&layout, &ue5_config, &typed_program, &shader_names)?;
+
+    println!("DEBUG: After shader compilation, target_actors.len() = {}", target_actors.len());
 
     // Accumulate all successfully written binary assets so we can stamp AssetRegistry.bin
     // in a single pass at the end. This is data-driven: each step appends to this Vec.
@@ -1143,6 +1145,60 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         println!();
     }
 
+    println!("DEBUG: target_actors.len() = {}", target_actors.len());
+
+    // STEP 3.13: Generate TargetActors (C++ AGameplayAbilityTargetActor subclasses)
+    #[cfg(feature = "ue5")]
+    if !target_actors.is_empty() {
+        println!();
+        println!("🎯 Generating {} TargetActor(s)...", target_actors.len());
+
+        // Ensure Targeting directory exists
+        let targeting_public_dir = layout.public_dir.join("Targeting");
+        let targeting_private_dir = layout.private_dir.join("Targeting");
+        if let Err(e) = fs::create_dir_all(&targeting_public_dir) {
+            eprintln!("   ⚠️  Failed to create Targeting public dir: {}", e);
+        }
+        if let Err(e) = fs::create_dir_all(&targeting_private_dir) {
+            eprintln!("   ⚠️  Failed to create Targeting private dir: {}", e);
+        }
+
+        for target_def in &target_actors {
+            // Convert AST to IR
+            match ue5_gas::target_ir::TargetActorIR::from_ast(target_def) {
+                Ok(target_ir) => {
+                    // Generate C++ files
+                    match ue5_gas::target_codegen::generate(&target_ir, &ue5_config.plugin_name) {
+                        Ok(output) => {
+                            // Write header
+                            let header_path = targeting_public_dir.join(format!("{}.h", target_def.name));
+                            if let Err(e) = fs::write(&header_path, &output.header) {
+                                eprintln!("   ⚠️  Failed to write {}.h: {}", target_def.name, e);
+                            } else {
+                                println!("   ✓ {}.h ({} lines)", target_def.name, output.header.lines().count());
+                            }
+
+                            // Write source
+                            let source_path = targeting_private_dir.join(format!("{}.cpp", target_def.name));
+                            if let Err(e) = fs::write(&source_path, &output.source) {
+                                eprintln!("   ⚠️  Failed to write {}.cpp: {}", target_def.name, e);
+                            } else {
+                                println!("   ✓ {}.cpp ({} lines)", target_def.name, output.source.lines().count());
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("   ⚠️  Failed to generate target {}: {}", target_def.name, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to convert target {} to IR: {}", target_def.name, e);
+                }
+            }
+        }
+        println!();
+    }
+
     // STEP 4: Generate main plugin files
     println!();
 
@@ -1293,7 +1349,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     let has_gameplay_effects = !gameplay_effects.is_empty();
     let has_gameplay_cues = !gameplay_cues.is_empty();
     let has_ability_tasks = !ability_tasks.is_empty();
-    let has_gas_features = has_gameplay_tags || has_gameplay_abilities || has_gameplay_effects || has_gameplay_cues || has_ability_tasks;
+    let has_target_actors = !target_actors.is_empty();
+    let has_gas_features = has_gameplay_tags || has_gameplay_abilities || has_gameplay_effects || has_gameplay_cues || has_ability_tasks || has_target_actors;
 
     super::codegen::write_plugin_files(&layout, &ue5_config, &description, has_shaders, has_gas_features, &module_graph, &typed_program)?;
 
@@ -1416,7 +1473,7 @@ fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, HashMap<String, PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>, Vec<kain_core::ast::GameplayTagsNamespace>, Vec<kain_core::ast::GameplayAbilityDef>, Vec<kain_core::ast::GameplayEffectDef>, Vec<kain_core::ast::GameplayCueDef>, Vec<kain_core::ast::AbilityTaskDef>)> {
+) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, HashMap<String, PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>, Vec<kain_core::ast::GameplayTagsNamespace>, Vec<kain_core::ast::GameplayAbilityDef>, Vec<kain_core::ast::GameplayEffectDef>, Vec<kain_core::ast::GameplayCueDef>, Vec<kain_core::ast::AbilityTaskDef>, Vec<kain_core::ast::TargetActorDef>)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -1874,6 +1931,17 @@ fn load_and_parse_sources(
         })
         .collect();
     
+    // Extract TargetActors BEFORE type checking
+    let target_actors: Vec<kain_core::ast::TargetActorDef> = merged.items.iter()
+        .filter_map(|item| {
+            if let kain_core::ast::Item::TargetActor(def) = item {
+                Some(def.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
     // Filter out material graphs, material functions, graph editors, graph runtimes, and GAS items from the program before type checking
     // (they will be processed separately for generation)
     merged.items.retain(|item| !matches!(item, 
@@ -1885,7 +1953,8 @@ fn load_and_parse_sources(
         kain_core::ast::Item::GameplayAbility(_) |
         kain_core::ast::Item::GameplayEffect(_) |
         kain_core::ast::Item::GameplayCue(_) |
-        kain_core::ast::Item::AbilityTask(_)
+        kain_core::ast::Item::AbilityTask(_) |
+        kain_core::ast::Item::TargetActor(_)
     ));
     
     // Type-check the MERGED program
@@ -1945,7 +2014,7 @@ fn load_and_parse_sources(
     }
     println!();
     
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks))
+    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks, target_actors))
 }
 
 fn ast_item_symbol_name(item: &kain_core::ast::Item) -> Option<String> {

@@ -1657,6 +1657,18 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 collect_type_names_from_item(&Item::Function(method.clone()), out);
             }
         }
+        Item::TargetActor(target) => {
+            // Collect types from filter
+            if let Some(filter) = &target.filter {
+                if let Some(custom_filter) = &filter.custom_filter_method {
+                    collect_type_names_from_item(&Item::Function(custom_filter.clone()), out);
+                }
+            }
+            // Collect types from custom methods
+            for method in &target.custom_methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+        }
         Item::Use(_) | Item::Mod(_) => {
             // Uses and mods don't contain type references we can extract
         }
@@ -2135,50 +2147,6 @@ pub struct AbilityTaskDef {
 pub struct TaskDelegateDef {
     pub name: String,
     pub delegate_type: String,
-    pub span: Span,
-}
-
-// === TARGET ACTORS (UE5 Gameplay Ability System - Targeting) ===
-
-/// Target Actor Definition
-/// Syntax: @target_actor struct Name: trace_type, filters, reticle
-#[derive(Debug, Clone, PartialEq)]
-pub struct TargetActorDef {
-    pub name: String,
-    pub attributes: Vec<Attribute>,
-    pub trace_type: TraceType,
-    pub max_range: Option<f64>,
-    pub trace_channel: Option<String>,
-    pub filter: Option<TargetFilter>,
-    pub reticle_class: Option<String>,
-    pub custom_methods: Vec<Function>,
-    pub span: Span,
-}
-
-/// Trace Type
-#[derive(Debug, Clone, PartialEq)]
-pub enum TraceType {
-    Line,
-    Sphere,
-    Cone,
-    Box,
-    Cylinder,
-}
-
-impl Default for TraceType {
-    fn default() -> Self {
-        TraceType::Line
-    }
-}
-
-/// Target Filter
-#[derive(Debug, Clone, PartialEq)]
-pub struct TargetFilter {
-    pub self_filter: Option<String>,
-    pub required_actor_class: Option<String>,
-    pub require_tags: Vec<String>,
-    pub ignore_tags: Vec<String>,
-    pub custom_filter_method: Option<Function>,
     pub span: Span,
 }
 
