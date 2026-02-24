@@ -768,7 +768,13 @@ impl Ue5Gen {
                     args.push(format!("static_cast<int32>({})", remapped));
                 } else {
                     fmt.push_str("%s");
-                    args.push(format!("*LexToString({})", remapped));
+                    // UObject/actor/component pointers should be logged by name, not via
+                    // LexToString(pointer), which can resolve through bool conversions.
+                    if self.is_pointer_type_by_name(ident) {
+                        args.push(format!("*GetNameSafe({})", remapped));
+                    } else {
+                        args.push(format!("*LexToString({})", remapped));
+                    }
                 }
                 current = &current[end + 1..];
             } else {
@@ -1077,6 +1083,66 @@ impl Ue5Gen {
             !shaders.is_empty() // monolithic mode: include if any shaders exist
         };
 
+        // Compute shader headers to include for this translation unit.
+        // In sliced actor mode, include only headers explicitly requested via @dispatch(...).
+        // In monolithic mode, include all discovered shader file names.
+        let normalize_shader_name = |name: &str| name.replace('_', "").to_ascii_lowercase();
+        let available_shader_bases: Vec<String> = self.shader_file_names.iter().map(|shader_file_name| {
+            shader_file_name
+                .rsplit(['/', '\\'])
+                .next()
+                .unwrap_or(shader_file_name)
+                .strip_suffix(".usf")
+                .unwrap_or_else(|| shader_file_name.rsplit(['/', '\\']).next().unwrap_or(shader_file_name))
+                .to_string()
+        }).collect();
+        let mut selected_shader_bases: Vec<String> = if let Some(target) = &self.target_item {
+            if let Some(actor) = program.items().iter().find_map(|item| {
+                if let TypedItem::Actor(a) = item {
+                    if a.ast.name == *target {
+                        return Some(a);
+                    }
+                }
+                None
+            }) {
+                let requested: Vec<String> = actor.ast.attributes.iter()
+                    .find(|a| a.name == "dispatch")
+                    .map(|attr| {
+                        attr.args.iter().filter_map(|arg| {
+                            if let Expr::String(s, _) = arg {
+                                Some(s.clone())
+                            } else {
+                                None
+                            }
+                        }).collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+
+                if requested.is_empty() {
+                    Vec::new()
+                } else {
+                    requested.into_iter().map(|req| {
+                        available_shader_bases
+                            .iter()
+                            .find(|base| normalize_shader_name(base) == normalize_shader_name(&req))
+                            .cloned()
+                            .unwrap_or(req)
+                    }).collect()
+                }
+            } else {
+                Vec::new()
+            }
+        } else {
+            available_shader_bases
+        };
+        let mut deduped_shader_bases: Vec<String> = Vec::new();
+        let mut seen_shader_bases: HashSet<String> = HashSet::new();
+        for shader_base in selected_shader_bases.drain(..) {
+            if seen_shader_bases.insert(shader_base.clone()) {
+                deduped_shader_bases.push(shader_base);
+            }
+        }
+
         // Determine what kind of item we're generating (for smart includes)
         let target_item_kind = if let Some(target) = &self.target_item {
             program.items().iter().find_map(|item| {
@@ -1284,15 +1350,7 @@ impl Ue5Gen {
             self.source.push_line("#include \"RenderTargetPool.h\"");
             self.source.push_line("#include \"Engine/TextureRenderTarget2D.h\"");
             self.source.push_line("#include \"TextureResource.h\"");
-            // Use shader file names (from toml or auto-detected) instead of AST names
-            // This ensures correct casing (e.g., K12SovereignPBR.h not K12SovereignPbr.h)
-            for shader_file_name in &self.shader_file_names {
-                let shader_base = shader_file_name
-                    .rsplit(['/', '\\'])
-                    .next()
-                    .unwrap_or(shader_file_name)
-                    .strip_suffix(".usf")
-                    .unwrap_or_else(|| shader_file_name.rsplit(['/', '\\']).next().unwrap_or(shader_file_name));
+            for shader_base in &deduped_shader_bases {
                 eprintln!("   📄 [CODEGEN] Including shader header: {}.h", shader_base);
                 let shader_header = format!("{}.h", shader_base);
                 self.source.push_line(&format!("#include \"{}\"", shader_header));
@@ -4520,6 +4578,9 @@ impl Ue5Gen {
                                         if self.is_enum_expr(part) {
                                             fmt_str.push_str("%d");
                                             fmt_args.push(format!("static_cast<int32>({})", expr_code));
+                                        } else if self.is_pointer_receiver(part) {
+                                            fmt_str.push_str("%s");
+                                            fmt_args.push(format!("*GetNameSafe({})", expr_code));
                                         } else {
                                             // Determine proper UE_LOG format specifier based on type
                                             let (spec, arg) = get_ue_log_format_spec(part, &expr_code);
@@ -4543,6 +4604,9 @@ impl Ue5Gen {
                         let expr = self.gen_expr(&a.value);
                         if self.is_enum_expr(&a.value) {
                             return format!("FString::FromInt(static_cast<int32>({}))", expr);
+                        }
+                        if self.is_pointer_receiver(&a.value) {
+                            return format!("GetNameSafe({})", expr);
                         }
                         // Wrap non-string types in FString conversion for formatting
                         if expr.starts_with("TEXT(") {
