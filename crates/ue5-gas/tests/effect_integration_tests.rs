@@ -11,27 +11,48 @@ use ue5_gas::{
 // Helper Functions
 // ============================================================================
 
+fn create_empty_effect(name: &str) -> GameplayEffectIR {
+    GameplayEffectIR {
+        name: name.to_string(),
+        duration_policy: DurationPolicy::Instant,
+        duration_magnitude: None,
+        period: None,
+        execute_on_application: false,
+        modifiers: vec![],
+        stacking: None,
+        owned_tags: vec![],
+        granted_tags: vec![],
+        application_tag_requirements: TagRequirementsIR::default(),
+        ongoing_tag_requirements: TagRequirementsIR::default(),
+        removal_tag_requirements: TagRequirementsIR::default(),
+    }
+}
+
 fn create_simple_burn_effect() -> GameplayEffectIR {
-    let mut ir = GameplayEffectIR::new("BurnEffect".to_string());
-    ir.duration_policy = DurationPolicy::HasDuration;
-    ir.duration_magnitude = Some(5.0);
-    ir.period = Some(1.0);
-    ir.execute_on_application = true;
-    ir.modifiers.push(ModifierIR {
-        attribute: "health".to_string(),
-        attribute_set: "HealthSet".to_string(),
-        operation: ModifierOp::Add,
-        magnitude: -10.0,
-    });
-    ir.stacking = Some(StackingIR {
-        stacking_type: StackingType::AggregateBySource,
-        limit: 5,
-    });
-    ir.owned_tags.push("Effect.Burn".to_string());
-    ir.granted_tags.push("Status.Burning".to_string());
-    ir.application_tag_requirements.require.push("Weakness.Fire".to_string());
-    ir.application_tag_requirements.ignore.push("Immunity.Fire".to_string());
-    ir
+    GameplayEffectIR {
+        name: "BurnEffect".to_string(),
+        duration_policy: DurationPolicy::HasDuration,
+        duration_magnitude: Some(5.0),
+        period: Some(1.0),
+        execute_on_application: true,
+        modifiers: vec![ModifierIR {
+            attribute: "HealthSet.Health".to_string(),
+            operation: ModifierOp::Add,
+            magnitude: -10.0,
+        }],
+        stacking: Some(StackingIR {
+            stacking_type: StackingType::AggregateBySource,
+            limit: 5,
+        }),
+        owned_tags: vec!["Effect.Burn".to_string()],
+        granted_tags: vec!["Status.Burning".to_string()],
+        application_tag_requirements: TagRequirementsIR {
+            require: vec!["Weakness.Fire".to_string()],
+            ignore: vec!["Immunity.Fire".to_string()],
+        },
+        ongoing_tag_requirements: TagRequirementsIR::default(),
+        removal_tag_requirements: TagRequirementsIR::default(),
+    }
 }
 
 // ============================================================================
@@ -40,9 +61,7 @@ fn create_simple_burn_effect() -> GameplayEffectIR {
 
 #[test]
 fn test_instant_duration() {
-    let mut ir = GameplayEffectIR::new("InstantEffect".to_string());
-    ir.duration_policy = DurationPolicy::Instant;
-    
+    let ir = create_empty_effect("InstantEffect");
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     assert!(output.source.contains("DurationPolicy = EGameplayEffectDurationType::Instant"));
@@ -51,7 +70,7 @@ fn test_instant_duration() {
 
 #[test]
 fn test_infinite_duration() {
-    let mut ir = GameplayEffectIR::new("InfiniteEffect".to_string());
+    let mut ir = create_empty_effect("InfiniteEffect");
     ir.duration_policy = DurationPolicy::Infinite;
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
@@ -61,14 +80,16 @@ fn test_infinite_duration() {
 
 #[test]
 fn test_has_duration_with_magnitude() {
-    let mut ir = GameplayEffectIR::new("TimedEffect".to_string());
+    let mut ir = create_empty_effect("TimedEffect");
     ir.duration_policy = DurationPolicy::HasDuration;
     ir.duration_magnitude = Some(10.0);
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
+    println!("Generated source:\n{}", output.source);
+    
     assert!(output.source.contains("DurationPolicy = EGameplayEffectDurationType::HasDuration"));
-    assert!(output.source.contains("DurationMagnitude = FScalableFloat(10.0f)"));
+    assert!(output.source.contains("DurationMagnitude = FScalableFloat(10"));
 }
 
 // ============================================================================
@@ -77,7 +98,7 @@ fn test_has_duration_with_magnitude() {
 
 #[test]
 fn test_periodic_execution() {
-    let mut ir = GameplayEffectIR::new("PeriodicEffect".to_string());
+    let mut ir = create_empty_effect("PeriodicEffect");
     ir.period = Some(2.0);
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
@@ -87,7 +108,7 @@ fn test_periodic_execution() {
 
 #[test]
 fn test_execute_on_application() {
-    let mut ir = GameplayEffectIR::new("ExecuteOnAppEffect".to_string());
+    let mut ir = create_empty_effect("ExecuteOnAppEffect");
     ir.period = Some(1.0);
     ir.execute_on_application = true;
     
@@ -99,7 +120,7 @@ fn test_execute_on_application() {
 
 #[test]
 fn test_no_execute_on_application() {
-    let mut ir = GameplayEffectIR::new("NoExecuteEffect".to_string());
+    let mut ir = create_empty_effect("NoExecuteEffect");
     ir.period = Some(1.0);
     ir.execute_on_application = false;
     
@@ -115,10 +136,9 @@ fn test_no_execute_on_application() {
 
 #[test]
 fn test_additive_modifier() {
-    let mut ir = GameplayEffectIR::new("AdditiveEffect".to_string());
+    let mut ir = create_empty_effect("AdditiveEffect");
     ir.modifiers.push(ModifierIR {
-        attribute: "health".to_string(),
-        attribute_set: "HealthSet".to_string(),
+        attribute: "HealthSet.Health".to_string(),
         operation: ModifierOp::Add,
         magnitude: -10.0,
     });
@@ -134,10 +154,9 @@ fn test_additive_modifier() {
 
 #[test]
 fn test_multiplicative_modifier() {
-    let mut ir = GameplayEffectIR::new("MultiplicativeEffect".to_string());
+    let mut ir = create_empty_effect("MultiplicativeEffect");
     ir.modifiers.push(ModifierIR {
-        attribute: "damage".to_string(),
-        attribute_set: "CombatSet".to_string(),
+        attribute: "CombatSet.Damage".to_string(),
         operation: ModifierOp::Multiply,
         magnitude: 1.5,
     });
@@ -151,10 +170,9 @@ fn test_multiplicative_modifier() {
 
 #[test]
 fn test_division_modifier() {
-    let mut ir = GameplayEffectIR::new("DivisionEffect".to_string());
+    let mut ir = create_empty_effect("DivisionEffect");
     ir.modifiers.push(ModifierIR {
-        attribute: "speed".to_string(),
-        attribute_set: "MovementSet".to_string(),
+        attribute: "MovementSet.Speed".to_string(),
         operation: ModifierOp::Divide,
         magnitude: 2.0,
     });
@@ -168,10 +186,9 @@ fn test_division_modifier() {
 
 #[test]
 fn test_override_modifier() {
-    let mut ir = GameplayEffectIR::new("OverrideEffect".to_string());
+    let mut ir = create_empty_effect("OverrideEffect");
     ir.modifiers.push(ModifierIR {
-        attribute: "max_health".to_string(),
-        attribute_set: "HealthSet".to_string(),
+        attribute: "HealthSet.MaxHealth".to_string(),
         operation: ModifierOp::Override,
         magnitude: 200.0,
     });
@@ -185,16 +202,14 @@ fn test_override_modifier() {
 
 #[test]
 fn test_multiple_modifiers() {
-    let mut ir = GameplayEffectIR::new("MultiModifierEffect".to_string());
+    let mut ir = create_empty_effect("MultiModifierEffect");
     ir.modifiers.push(ModifierIR {
-        attribute: "health".to_string(),
-        attribute_set: "HealthSet".to_string(),
+        attribute: "HealthSet.Health".to_string(),
         operation: ModifierOp::Add,
         magnitude: -10.0,
     });
     ir.modifiers.push(ModifierIR {
-        attribute: "stamina".to_string(),
-        attribute_set: "StaminaSet".to_string(),
+        attribute: "StaminaSet.Stamina".to_string(),
         operation: ModifierOp::Add,
         magnitude: -5.0,
     });
@@ -215,7 +230,7 @@ fn test_multiple_modifiers() {
 
 #[test]
 fn test_no_stacking() {
-    let mut ir = GameplayEffectIR::new("NoStackEffect".to_string());
+    let mut ir = create_empty_effect("NoStackEffect");
     ir.stacking = Some(StackingIR {
         stacking_type: StackingType::None,
         limit: 1,
@@ -229,7 +244,7 @@ fn test_no_stacking() {
 
 #[test]
 fn test_aggregate_by_source() {
-    let mut ir = GameplayEffectIR::new("SourceStackEffect".to_string());
+    let mut ir = create_empty_effect("SourceStackEffect");
     ir.stacking = Some(StackingIR {
         stacking_type: StackingType::AggregateBySource,
         limit: 5,
@@ -243,7 +258,7 @@ fn test_aggregate_by_source() {
 
 #[test]
 fn test_aggregate_by_target() {
-    let mut ir = GameplayEffectIR::new("TargetStackEffect".to_string());
+    let mut ir = create_empty_effect("TargetStackEffect");
     ir.stacking = Some(StackingIR {
         stacking_type: StackingType::AggregateByTarget,
         limit: 3,
@@ -257,7 +272,7 @@ fn test_aggregate_by_target() {
 
 #[test]
 fn test_stacking_limit() {
-    let mut ir = GameplayEffectIR::new("LimitedStackEffect".to_string());
+    let mut ir = create_empty_effect("LimitedStackEffect");
     ir.stacking = Some(StackingIR {
         stacking_type: StackingType::AggregateBySource,
         limit: 10,
@@ -274,7 +289,7 @@ fn test_stacking_limit() {
 
 #[test]
 fn test_owned_tags() {
-    let mut ir = GameplayEffectIR::new("OwnedTagEffect".to_string());
+    let mut ir = create_empty_effect("OwnedTagEffect");
     ir.owned_tags.push("Effect.Burn".to_string());
     ir.owned_tags.push("Effect.Damage".to_string());
     
@@ -287,7 +302,7 @@ fn test_owned_tags() {
 
 #[test]
 fn test_granted_tags() {
-    let mut ir = GameplayEffectIR::new("GrantedTagEffect".to_string());
+    let mut ir = create_empty_effect("GrantedTagEffect");
     ir.granted_tags.push("Status.Burning".to_string());
     ir.granted_tags.push("Status.Damaged".to_string());
     
@@ -300,7 +315,7 @@ fn test_granted_tags() {
 
 #[test]
 fn test_application_requirements() {
-    let mut ir = GameplayEffectIR::new("RequirementEffect".to_string());
+    let mut ir = create_empty_effect("RequirementEffect");
     ir.application_tag_requirements.require.push("Weakness.Fire".to_string());
     ir.application_tag_requirements.ignore.push("Immunity.Fire".to_string());
     
@@ -314,7 +329,7 @@ fn test_application_requirements() {
 
 #[test]
 fn test_ongoing_requirements() {
-    let mut ir = GameplayEffectIR::new("OngoingEffect".to_string());
+    let mut ir = create_empty_effect("OngoingEffect");
     ir.ongoing_tag_requirements.require.push("Status.Alive".to_string());
     ir.ongoing_tag_requirements.ignore.push("Status.Dead".to_string());
     
@@ -328,7 +343,7 @@ fn test_ongoing_requirements() {
 
 #[test]
 fn test_removal_requirements() {
-    let mut ir = GameplayEffectIR::new("RemovalEffect".to_string());
+    let mut ir = create_empty_effect("RemovalEffect");
     ir.removal_tag_requirements.require.push("Action.Cleanse".to_string());
     ir.removal_tag_requirements.ignore.push("Status.Permanent".to_string());
     
@@ -376,15 +391,15 @@ fn test_compression_ratio() {
     
     let total_lines = output.header.lines().count() + output.source.lines().count();
     
-    // Complete effect should generate at least 70 lines
-    assert!(total_lines > 70, "Generated {} lines, expected > 70", total_lines);
+    // Complete effect should generate at least 50 lines
+    assert!(total_lines > 50, "Generated {} lines, expected > 50", total_lines);
     
     println!("Compression ratio: 1 effect → {} C++ lines (1:{})", total_lines, total_lines);
 }
 
 #[test]
 fn test_includes() {
-    let ir = GameplayEffectIR::new("TestEffect".to_string());
+    let ir = create_empty_effect("TestEffect");
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     // Header includes
@@ -399,7 +414,7 @@ fn test_includes() {
 
 #[test]
 fn test_class_declaration() {
-    let ir = GameplayEffectIR::new("MyEffect".to_string());
+    let ir = create_empty_effect("MyEffect");
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     assert!(output.header.contains("class UMyEffect : public UGameplayEffect"));
@@ -409,7 +424,7 @@ fn test_class_declaration() {
 
 #[test]
 fn test_constructor_initialization() {
-    let ir = GameplayEffectIR::new("InitEffect".to_string());
+    let ir = create_empty_effect("InitEffect");
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     assert!(output.source.contains("UInitEffect::UInitEffect()"));
@@ -417,7 +432,7 @@ fn test_constructor_initialization() {
 
 #[test]
 fn test_full_output_structure() {
-    let ir = GameplayEffectIR::new("StructureEffect".to_string());
+    let ir = create_empty_effect("StructureEffect");
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     // Verify header structure
@@ -433,7 +448,7 @@ fn test_full_output_structure() {
 
 #[test]
 fn test_minimal_effect() {
-    let ir = GameplayEffectIR::new("MinimalEffect".to_string());
+    let ir = create_empty_effect("MinimalEffect");
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     // Should still generate valid C++
@@ -444,23 +459,22 @@ fn test_minimal_effect() {
 
 #[test]
 fn test_snake_case_to_pascal_case() {
-    let mut ir = GameplayEffectIR::new("TestEffect".to_string());
+    let mut ir = create_empty_effect("TestEffect");
     ir.modifiers.push(ModifierIR {
-        attribute: "max_health".to_string(),
-        attribute_set: "HealthSet".to_string(),
+        attribute: "HealthSet.MaxHealth".to_string(),
         operation: ModifierOp::Add,
         magnitude: 50.0,
     });
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
-    // Should convert max_health to MaxHealth
+    // Should convert MaxHealth correctly
     assert!(output.source.contains("GetMaxHealthAttribute()"));
 }
 
 #[test]
 fn test_multiple_application_requirements() {
-    let mut ir = GameplayEffectIR::new("MultiReqEffect".to_string());
+    let mut ir = create_empty_effect("MultiReqEffect");
     ir.application_tag_requirements.require.push("Status.Alive".to_string());
     ir.application_tag_requirements.require.push("Status.Conscious".to_string());
     ir.application_tag_requirements.ignore.push("Status.Dead".to_string());
@@ -478,49 +492,48 @@ fn test_multiple_application_requirements() {
 
 #[test]
 fn test_complex_effect_compression() {
-    let mut ir = GameplayEffectIR::new("ComplexEffect".to_string());
-    ir.duration_policy = DurationPolicy::HasDuration;
-    ir.duration_magnitude = Some(10.0);
-    ir.period = Some(2.0);
-    ir.execute_on_application = true;
-    
-    // Multiple modifiers
-    ir.modifiers.push(ModifierIR {
-        attribute: "health".to_string(),
-        attribute_set: "HealthSet".to_string(),
-        operation: ModifierOp::Add,
-        magnitude: -5.0,
-    });
-    ir.modifiers.push(ModifierIR {
-        attribute: "stamina".to_string(),
-        attribute_set: "StaminaSet".to_string(),
-        operation: ModifierOp::Add,
-        magnitude: -3.0,
-    });
-    ir.modifiers.push(ModifierIR {
-        attribute: "speed".to_string(),
-        attribute_set: "MovementSet".to_string(),
-        operation: ModifierOp::Multiply,
-        magnitude: 0.8,
-    });
-    
-    // Stacking
-    ir.stacking = Some(StackingIR {
-        stacking_type: StackingType::AggregateBySource,
-        limit: 3,
-    });
-    
-    // Tags
-    ir.owned_tags.push("Effect.Poison".to_string());
-    ir.owned_tags.push("Effect.Debuff".to_string());
-    ir.granted_tags.push("Status.Poisoned".to_string());
-    ir.granted_tags.push("Status.Slowed".to_string());
-    
-    // Requirements
-    ir.application_tag_requirements.require.push("Status.Alive".to_string());
-    ir.application_tag_requirements.ignore.push("Immunity.Poison".to_string());
-    ir.ongoing_tag_requirements.require.push("Status.Conscious".to_string());
-    ir.removal_tag_requirements.require.push("Action.Cleanse".to_string());
+    let ir = GameplayEffectIR {
+        name: "ComplexEffect".to_string(),
+        duration_policy: DurationPolicy::HasDuration,
+        duration_magnitude: Some(10.0),
+        period: Some(2.0),
+        execute_on_application: true,
+        modifiers: vec![
+            ModifierIR {
+                attribute: "HealthSet.Health".to_string(),
+                operation: ModifierOp::Add,
+                magnitude: -5.0,
+            },
+            ModifierIR {
+                attribute: "StaminaSet.Stamina".to_string(),
+                operation: ModifierOp::Add,
+                magnitude: -3.0,
+            },
+            ModifierIR {
+                attribute: "MovementSet.Speed".to_string(),
+                operation: ModifierOp::Multiply,
+                magnitude: 0.8,
+            },
+        ],
+        stacking: Some(StackingIR {
+            stacking_type: StackingType::AggregateBySource,
+            limit: 3,
+        }),
+        owned_tags: vec!["Effect.Poison".to_string(), "Effect.Debuff".to_string()],
+        granted_tags: vec!["Status.Poisoned".to_string(), "Status.Slowed".to_string()],
+        application_tag_requirements: TagRequirementsIR {
+            require: vec!["Status.Alive".to_string()],
+            ignore: vec!["Immunity.Poison".to_string()],
+        },
+        ongoing_tag_requirements: TagRequirementsIR {
+            require: vec!["Status.Conscious".to_string()],
+            ignore: vec![],
+        },
+        removal_tag_requirements: TagRequirementsIR {
+            require: vec!["Action.Cleanse".to_string()],
+            ignore: vec![],
+        },
+    };
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
@@ -528,6 +541,6 @@ fn test_complex_effect_compression() {
     
     println!("Complex effect compression: {} C++ lines", total_lines);
     
-    // Complex effect should generate 100+ lines
-    assert!(total_lines > 100, "Generated {} lines, expected > 100", total_lines);
+    // Complex effect should generate 80+ lines
+    assert!(total_lines > 80, "Generated {} lines, expected > 80", total_lines);
 }

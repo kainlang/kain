@@ -605,6 +605,10 @@ impl SlateGenerator {
         self.push_line("{");
         self.indent += 1;
 
+        if kind == SpecialSlateMethodKind::GenerateWidgetForColumn {
+            self.push_line("(void)ColumnName;");
+        }
+
         if kind == SpecialSlateMethodKind::OnOpening {
             self.push_line("SToolTip::OnOpening();");
         }

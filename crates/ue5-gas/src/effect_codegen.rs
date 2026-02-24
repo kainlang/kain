@@ -87,14 +87,25 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
         duration_policy_to_ue5(&effect_ir.duration_policy)));
     
     if let Some(duration) = effect_ir.duration_magnitude {
-        output.push_str(&format!("\tDurationMagnitude = FScalableFloat({}f);\n", duration));
+        // Format with .0 if it's a whole number
+        let duration_str = if duration.fract() == 0.0 {
+            format!("{:.1}", duration)
+        } else {
+            format!("{}", duration)
+        };
+        output.push_str(&format!("\tDurationMagnitude = FScalableFloat({}f);\n", duration_str));
     }
     output.push_str("\n");
     
     // Period configuration
     if let Some(period) = effect_ir.period {
         output.push_str("\t// Period\n");
-        output.push_str(&format!("\tPeriod = FScalableFloat({}f);\n", period));
+        let period_str = if period.fract() == 0.0 {
+            format!("{:.1}", period)
+        } else {
+            format!("{}", period)
+        };
+        output.push_str(&format!("\tPeriod = FScalableFloat({}f);\n", period_str));
         
         if effect_ir.execute_on_application {
             output.push_str("\tbExecutePeriodicEffectOnApplication = true;\n");
@@ -108,12 +119,30 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
         for modifier in &effect_ir.modifiers {
             output.push_str("\t{\n");
             output.push_str("\t\tFGameplayModifierInfo Modifier;\n");
+            
+            // Parse attribute (format: "AttributeSet.Attribute" or just "Attribute")
+            let (attribute_set, attribute_name) = if modifier.attribute.contains('.') {
+                let parts: Vec<&str> = modifier.attribute.split('.').collect();
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                // If no set specified, assume it's just the attribute name
+                // This will need to be resolved at a higher level
+                ("UnknownSet".to_string(), modifier.attribute.clone())
+            };
+            
             output.push_str(&format!("\t\tModifier.Attribute = U{}::Get{}Attribute();\n", 
-                modifier.attribute_set, capitalize_first(&modifier.attribute)));
+                attribute_set, capitalize_first(&attribute_name)));
             output.push_str(&format!("\t\tModifier.ModifierOp = {};\n", 
                 modifier_op_to_ue5(&modifier.operation)));
+            
+            // Format magnitude with .0 if it's a whole number
+            let magnitude_str = if modifier.magnitude.fract() == 0.0 {
+                format!("{:.1}", modifier.magnitude)
+            } else {
+                format!("{}", modifier.magnitude)
+            };
             output.push_str(&format!("\t\tModifier.ModifierMagnitude = FScalableFloat({}f);\n", 
-                modifier.magnitude));
+                magnitude_str));
             output.push_str("\t\tModifiers.Add(Modifier);\n");
             output.push_str("\t}\n");
         }
