@@ -281,6 +281,11 @@ impl<'a> Parser<'a> {
             return self.parse_editor_module(attributes);
         }
         
+        // Check for @gameplay_tags attribute
+        if attributes.iter().any(|a| a.name == "gameplay_tags") {
+            return self.parse_gameplay_tags(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -4179,6 +4184,116 @@ impl<'a> Parser<'a> {
             attributes,
             span: start.merge(self.current_span()),
         })
+    }
+    
+    /// Parse @gameplay_tags namespace definition
+    /// 
+    /// Syntax:
+    /// ```kain
+    /// @gameplay_tags
+    /// namespace Ability:
+    ///     Attack:
+    ///         Melee:
+    ///             Sword
+    ///             Axe
+    ///         Ranged:
+    ///             Bow
+    /// ```
+    fn parse_gameplay_tags(&mut self, _attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'namespace' keyword
+        if let TokenKind::Ident(ref s) = self.peek_kind() {
+            if s != "namespace" {
+                return Err(self.parser_error("Expected 'namespace' keyword after @gameplay_tags", self.current_span()));
+            }
+            self.advance(); // consume 'namespace'
+        } else {
+            return Err(self.parser_error("Expected 'namespace' keyword after @gameplay_tags", self.current_span()));
+        }
+        
+        // Parse namespace name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse tag hierarchy (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        let children = self.parse_tag_hierarchy(&name)?;
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::GameplayTags(GameplayTagsNamespace {
+            name,
+            children,
+            span: start.merge(self.current_span()),
+        }))
+    }
+    
+    /// Parse tag hierarchy recursively
+    /// Returns a list of tag nodes at the current indentation level
+    fn parse_tag_hierarchy(&mut self, parent_path: &str) -> KainResult<Vec<GameplayTagNode>> {
+        let mut nodes = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            let start = self.current_span();
+            
+            // Parse tag name
+            let tag_name = self.parse_ident()?;
+            
+            // Build full path
+            let full_path = if parent_path.is_empty() {
+                tag_name.clone()
+            } else {
+                format!("{}.{}", parent_path, tag_name)
+            };
+            
+            // Check for optional comment (after tag name, before colon or newline)
+            let comment = None; // TODO: Support inline comments if needed
+            
+            // Check if this tag has children (colon + indent)
+            let children = if self.check(TokenKind::Colon) {
+                self.advance(); // consume ':'
+                self.skip_newlines();
+                
+                if self.check(TokenKind::Indent) {
+                    self.advance(); // consume indent
+                    let child_nodes = self.parse_tag_hierarchy(&full_path)?;
+                    
+                    if self.check(TokenKind::Dedent) {
+                        self.advance();
+                    }
+                    
+                    child_nodes
+                } else {
+                    // Colon without indent - empty children
+                    Vec::new()
+                }
+            } else {
+                // No colon - leaf tag
+                Vec::new()
+            };
+            
+            nodes.push(GameplayTagNode {
+                name: tag_name,
+                full_path,
+                comment,
+                children,
+                span: start.merge(self.current_span()),
+            });
+            
+            self.skip_newlines();
+        }
+        
+        Ok(nodes)
     }
 }
 

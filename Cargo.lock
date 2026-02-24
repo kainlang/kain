@@ -2887,6 +2887,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ue5-gas"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kain-core",
+ "thiserror",
+]
+
+[[package]]
 name = "ue5-graphs"
 version = "0.1.0"
 dependencies = [

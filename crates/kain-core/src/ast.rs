@@ -86,6 +86,9 @@ pub enum Item {
 
     /// `@editor_module Name: menu_entries, toolbar_buttons, toolbar_widgets`
     EditorModule(EditorModuleDef),
+
+    /// `@gameplay_tags namespace Name: tag_hierarchy`
+    GameplayTags(GameplayTagsNamespace),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1591,6 +1594,9 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 collect_type_names_from_item(&Item::Function(btn.method.clone()), out);
             }
         }
+        Item::GameplayTags(_) => {
+            // GameplayTags don't contain type references
+        }
         Item::Use(_) | Item::Mod(_) => {
             // Uses and mods don't contain type references we can extract
         }
@@ -1938,4 +1944,25 @@ fn collect_type_names_from_jsx(node: &JSXNode, out: &mut HashSet<String>) {
         }
         JSXNode::Text(_, _) => {}
     }
+}
+
+// === GAMEPLAY TAGS ===
+
+/// GameplayTags namespace definition
+/// Syntax: @gameplay_tags namespace Name: tag_hierarchy
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameplayTagsNamespace {
+    pub name: String,
+    pub children: Vec<GameplayTagNode>,
+    pub span: Span,
+}
+
+/// Individual tag node in the hierarchy
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameplayTagNode {
+    pub name: String,
+    pub full_path: String,  // "Ability.Attack.Melee.Sword"
+    pub comment: Option<String>,
+    pub children: Vec<GameplayTagNode>,
+    pub span: Span,
 }

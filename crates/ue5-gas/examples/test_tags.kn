@@ -1,0 +1,50 @@
+@gameplay_tags
+namespace Ability:
+    Attack:
+        Melee:
+            Sword
+            Axe
+            Spear
+        Ranged:
+            Bow
+            Gun
+            Magic
+    Defend:
+        Block
+        Parry
+        Dodge
+    Utility:
+        Heal
+        Buff
+
+@gameplay_tags
+namespace Status:
+    Alive
+    Dead:
+        Dying
+        Dead
+    CC:
+        Stunned
+        Rooted
+        Silenced
+        Feared
+    Buff:
+        Strength
+        Speed
+        Armor
+    Debuff:
+        Weakness
+        Slow
+        Vulnerable
+
+@gameplay_tags
+namespace Damage:
+    Physical:
+        Slash
+        Pierce
+        Blunt
+    Magical:
+        Fire
+        Ice
+        Lightning
+        Poison
