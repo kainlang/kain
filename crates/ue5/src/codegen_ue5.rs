@@ -915,6 +915,24 @@ impl Ue5Gen {
         }
     }
 
+    /// Register field types in the local type table for better member access inference
+    /// (pointer receiver detection, enum detection on field-owned values, etc.).
+    fn register_field_types(&mut self, fields: &[Field]) {
+        for f in fields {
+            match &f.ty {
+                Type::Named { name, .. } => {
+                    self.var_types.insert(f.name.clone(), name.clone());
+                }
+                Type::Ref { inner, .. } => {
+                    if let Type::Named { name, .. } = inner.as_ref() {
+                        self.var_types.insert(f.name.clone(), name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// Execute codegen inside a temporary var type scope.
     fn with_var_type_scope<F: FnOnce(&mut Self)>(&mut self, f: F) {
         let saved = self.var_types.clone();
@@ -1279,6 +1297,23 @@ impl Ue5Gen {
                 let shader_header = format!("{}.h", shader_base);
                 self.source.push_line(&format!("#include \"{}\"", shader_header));
             }
+        }
+
+        if !shaders.is_empty() {
+            self.source.push_line("");
+            self.source.push_line("namespace {");
+            self.source.push_line("struct FKainShaderDispatchShim {");
+            self.source.push_line("    template<typename... TArgs> void Dispatch(TArgs&&...) const {}");
+            self.source.push_line("    template<typename... TArgs> void Emit(TArgs&&...) const {}");
+            self.source.push_line("    template<typename... TArgs> void EmitBurst(TArgs&&...) const {}");
+            self.source.push_line("};");
+            let mut emitted_shim_names: HashSet<String> = HashSet::new();
+            for shader in &shaders {
+                if emitted_shim_names.insert(shader.ast.name.clone()) {
+                    self.source.push_line(&format!("static constexpr FKainShaderDispatchShim {}{{}};", shader.ast.name));
+                }
+            }
+            self.source.push_line("}");
         }
         self.write_blank_source();
 
@@ -2749,6 +2784,9 @@ impl Ue5Gen {
             Expr::Call { callee, args, .. } => {
                 let fn_name = self.gen_expr_string(callee);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr_string(&a.value)).collect();
+                if fn_name == "not" && arg_strs.len() == 1 {
+                    return format!("(!{})", arg_strs[0]);
+                }
                 // Handle vector constructors
                 match fn_name.as_str() {
                     "vec2" => format!("FVector2D({})", arg_strs.join(", ")),
@@ -2801,6 +2839,17 @@ impl Ue5Gen {
                 Expr::Int(_, _) => saw_int = true,
                 Expr::Bool(_, _) => saw_bool = true,
                 Expr::String(_, _) => saw_string = true,
+                Expr::Ident(name, _) => {
+                    if let Some(type_name) = self.var_types.get(name) {
+                        match type_name.as_str() {
+                            "Float" | "float" | "double" => saw_float_like = true,
+                            "Int" | "int" | "int32" | "int64" | "u32" | "u64" | "usize" => saw_int = true,
+                            "Bool" | "bool" => saw_bool = true,
+                            "String" | "FString" => saw_string = true,
+                            _ => {}
+                        }
+                    }
+                }
                 // Field/call/index frequently produce FVector component scalars;
                 // prefer float to avoid narrowing failures in TArray<float> params.
                 Expr::Field { .. } | Expr::Call { .. } | Expr::MethodCall { .. } | Expr::Index { .. } => {
@@ -3127,6 +3176,7 @@ impl Ue5Gen {
             if let Some(method) = begin_play_body {
                 self.write_blank_source();
                 self.with_var_type_scope(|this| {
+                    this.register_field_types(&struct_def.fields);
                     this.register_param_types(&method.params);
                     this.gen_block_source(&method.body);
                 });
@@ -3168,6 +3218,7 @@ impl Ue5Gen {
                 }
                 self.write_blank_source();
                 self.with_var_type_scope(|this| {
+                    this.register_field_types(&struct_def.fields);
                     this.register_param_types(&method.params);
                     this.gen_block_source(&method.body);
                 });
@@ -3225,7 +3276,10 @@ impl Ue5Gen {
             if is_lifecycle {
                 continue;
             }
+            let saved_var_types = self.var_types.clone();
+            self.register_field_types(&struct_def.fields);
             self.gen_actor_method_impl(&class_name, method);
+            self.var_types = saved_var_types;
         }
     }
 
@@ -3978,6 +4032,33 @@ impl Ue5Gen {
 
             Stmt::For { binding, iter, body, .. } => {
                 if let Pattern::Binding { name, .. } = binding {
+                    if let Expr::Call { callee, args, .. } = iter {
+                        if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                            if fn_name == "range" {
+                                if args.len() == 2 {
+                                    let start = self.gen_expr(&args[0].value);
+                                    let end = self.gen_expr(&args[1].value);
+                                    self.write_source(&format!("for (int64 {} = {}; {} < {}; ++{})", name, start, name, end, name));
+                                    self.write_source("{");
+                                    self.push_indent();
+                                    self.gen_block_source(body);
+                                    self.pop_indent();
+                                    self.write_source("}");
+                                    return;
+                                } else if args.len() == 1 {
+                                    let end = self.gen_expr(&args[0].value);
+                                    self.write_source(&format!("for (int64 {} = 0; {} < {}; ++{})", name, name, end, name));
+                                    self.write_source("{");
+                                    self.push_indent();
+                                    self.gen_block_source(body);
+                                    self.pop_indent();
+                                    self.write_source("}");
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
                     self.write_source(&format!("for (auto {} : {})", name, self.gen_expr(iter)));
                     self.write_source("{");
                     self.push_indent();
@@ -4387,6 +4468,23 @@ impl Ue5Gen {
                 let fn_name = self.gen_expr(callee);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
 
+                if fn_name == "not" && args.len() == 1 {
+                    if let Expr::Ident(name, _) = &args[0].value {
+                        if let Some(ty_name) = self.var_types.get(name) {
+                            let is_bool = ty_name == "bool" || ty_name == "Bool";
+                            let is_pointer_like = ty_name.ends_with('*') || ty_name.contains('*') || self.context.is_component(ty_name) || self.context.is_actor(ty_name);
+                            if is_bool {
+                                return format!("(!{})", arg_strs[0]);
+                            }
+                            if is_pointer_like {
+                                return format!("({} == nullptr)", arg_strs[0]);
+                            }
+                            return "false".to_string();
+                        }
+                    }
+                    return format!("(!{})", arg_strs[0]);
+                }
+
                 // 1. Handle built-in logging (Prioritize specialized UE5 formatting)
                 if fn_name == "println" || fn_name == "print" {
                     if args.is_empty() {
@@ -4657,6 +4755,12 @@ impl Ue5Gen {
             }
 
             Expr::Field { object, field, .. } => {
+                if let Expr::Ident(obj_name, _) = object.as_ref() {
+                    if self.context.is_enum(obj_name) {
+                        return format!("{}::{}", to_enum_name(obj_name), field);
+                    }
+                }
+
                 let obj = self.gen_expr(object);
 
                 // KAIN property-style length access: arr.length / arr.len -> arr.Num()
