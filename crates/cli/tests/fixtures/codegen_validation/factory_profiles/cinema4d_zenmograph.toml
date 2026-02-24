@@ -1,0 +1,23 @@
+name = "cinema4d_zenmograph_factory_profile"
+case_root = "M:/Code/Factory/Cinema4DMograph/_Builds/ZenMograph_5.4/HostProject/Plugins/ZenMograph"
+
+[[assertions]]
+kind = "module_name_matches_uplugin"
+uplugin_file = "ZenMograph.uplugin"
+build_cs_file = "Source/ZenMograph/ZenMograph.Build.cs"
+module_name = "ZenMograph"
+
+[[assertions]]
+kind = "implement_module_matches"
+file = "Source/ZenMograph/Private/ZenMograph.cpp"
+module_name = "ZenMograph"
+
+[[assertions]]
+kind = "api_macro_matches_module"
+file = "Source/ZenMograph/Public/AClonerActor.h"
+module_name = "ZenMograph"
+
+[[assertions]]
+kind = "header_include_exists"
+file = "Source/ZenMograph/Public/ZenMograph.h"
+include = "AClonerActor.h"

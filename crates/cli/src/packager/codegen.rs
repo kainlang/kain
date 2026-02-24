@@ -654,6 +654,8 @@ pub fn generate_runtime_items(
     embed_kain: bool,
 ) -> KainResult<SymbolRoutingManifest> {
     let mut routing_manifest = SymbolRoutingManifest::default();
+    let runtime_consumer_module = default_runtime_module_name(config)
+        .unwrap_or_else(|| config.plugin_name.clone());
     for item in &program.items {
         // Skip editor-only structs (handled by ue5-editor crate)
         if let kain_core::types::TypedItem::Struct(s) = item {
@@ -703,7 +705,7 @@ pub fn generate_runtime_items(
         println!("   📄 Slicing item: {} → {}.h/cpp", item_name, output_name);
 
         // Generate filtered output for this specific item using the FULL program shared state and type map
-        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec()), embed_kain) {
+        match ue5::generate_filtered_typed(program, &route.module_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec()), embed_kain) {
             Ok(ue5_output) => {
                 if is_state_machine || is_async_task {
                     let expected_files: Vec<String> = if is_state_machine {
@@ -741,7 +743,7 @@ pub fn generate_runtime_items(
                             if is_header {
                                 include_lines.push(format!(
                                     "#include \"{}\"\n",
-                                    build_include_path(&route, filename, Some(&config.plugin_name))
+                                    build_include_path(&route, filename, Some(&runtime_consumer_module))
                                 ));
                             }
                         }
@@ -770,7 +772,7 @@ pub fn generate_runtime_items(
                 let header_path = route.public_dir.join(&header_filename);
                 fs::write(&header_path, &ue5_output.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", output_name);
-                let include_path = build_include_path(&route, &header_filename, Some(&config.plugin_name));
+                let include_path = build_include_path(&route, &header_filename, Some(&runtime_consumer_module));
                 routing_manifest.register(item_name, &route.module_name, &include_path);
                 
                 // Only write .cpp if it has meaningful content (not just includes)
@@ -857,9 +859,11 @@ pub fn generate_blueprint_library(
     
     if has_blueprint_funcs {
         println!("   📦 Generating blueprint function library...");
+        let runtime_module_name = default_runtime_module_name(config)
+            .unwrap_or_else(|| config.plugin_name.clone());
         // Generate blueprint functions with special target to skip type definitions
         let bp_lib_name = format!("{}BlueprintLibrary", config.plugin_name);
-        match ue5::generate_filtered_typed(program, &config.plugin_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None, false) {
+        match ue5::generate_filtered_typed(program, &runtime_module_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None, false) {
             Ok(bp_output) => {
                 let bp_header_path = layout.public_dir.join(format!("{}.h", bp_lib_name));
                 fs::write(&bp_header_path, &bp_output.header).map_err(|e| KainError::Io(e))?;
@@ -916,10 +920,12 @@ pub fn generate_editor_items(
     };
     
     // In split mode, generate a master header for the editor module
+    let editor_module_name = default_editor_module_name(config)
+        .unwrap_or_else(|| format!("{}Editor", config.plugin_name));
+
     let editor_master_header_path = if layout.needs_split {
         let ed_pub = layout.editor_public_dir.as_ref()
             .ok_or_else(|| KainError::codegen_error("Editor public directory not set in split mode"))?;
-        let editor_module_name = format!("{}Editor", config.plugin_name);
         let mut ed_master = String::new();
         ed_master.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
             chrono::Utc::now().year(),
@@ -1000,7 +1006,7 @@ pub fn generate_editor_items(
                 fs::write(&header_path, &editor_item.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", editor_item.name);
                 let editor_consumer_module = if layout.needs_split {
-                    format!("{}Editor", config.plugin_name)
+                    editor_module_name.clone()
                 } else {
                     config.plugin_name.clone()
                 };
@@ -1159,6 +1165,11 @@ pub fn generate_module_registration(
     });
     
     if layout.needs_split {
+        let runtime_module_name = default_runtime_module_name(config)
+            .unwrap_or_else(|| config.plugin_name.clone());
+        let editor_module_name = default_editor_module_name(config)
+            .unwrap_or_else(|| format!("{}Editor", config.plugin_name));
+
         // SPLIT MODE: Runtime module ALWAYS needs its own IMPLEMENT_MODULE
         eprintln!("📦 [PACKAGER] Split mode — generating runtime module registration");
         
@@ -1227,19 +1238,17 @@ public:
 }};
 
 IMPLEMENT_MODULE(F{}Module, {})
-"#, includes_str, config.plugin_name, startup_body, config.plugin_name, config.plugin_name);
+"#, includes_str, runtime_module_name, startup_body, runtime_module_name, runtime_module_name);
         
-        let module_cpp_path = layout.private_dir.join(format!("{}.cpp", config.plugin_name));
+        let module_cpp_path = layout.private_dir.join(format!("{}.cpp", runtime_module_name));
         fs::write(&module_cpp_path, module_cpp).map_err(|e| KainError::Io(e))?;
-        println!("      ✓ {}.cpp (runtime module registration)", config.plugin_name);
+        println!("      ✓ {}.cpp (runtime module registration)", runtime_module_name);
         
         // Editor module's IMPLEMENT_MODULE comes from @editor_module codegen
         if has_editor_module {
-            println!("      ✓ @editor_module provides IMPLEMENT_MODULE for {}Editor", config.plugin_name);
+            println!("      ✓ @editor_module provides IMPLEMENT_MODULE for {}", editor_module_name);
         } else {
             // Generate a default editor module registration if no @editor_module exists
-            let editor_module_name = format!("{}Editor", config.plugin_name);
-            
             // Build includes based on features
             let mut includes = vec![
                 format!("#include \"{}.h\"", editor_module_name),

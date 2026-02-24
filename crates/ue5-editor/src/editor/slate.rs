@@ -2070,7 +2070,11 @@ impl SlateGenerator {
                 if delegate_type.starts_with("F") && delegate_type.len() > 1 && !declared_delegates.contains(&delegate_type) {
                     let is_known = self.is_known_delegate_type(&delegate_type);
                     if !is_known {
-                        self.push_line(&format!("DECLARE_DELEGATE({});", delegate_type));
+                        if delegate_type == "FOnSelectionChanged" {
+                            self.push_line("DECLARE_DELEGATE_TwoParams(FOnSelectionChanged, TSharedPtr<FString>, ESelectInfo::Type);");
+                        } else {
+                            self.push_line(&format!("DECLARE_DELEGATE({});", delegate_type));
+                        }
                         declared_delegates.insert(delegate_type);
                     }
                 }
@@ -2165,7 +2169,6 @@ impl SlateGenerator {
                     | "FOnTextCommitted"
                     | "FOnTextChanged"
                     | "FOnCheckStateChanged"
-                    | "FOnSelectionChanged"
                     | "FOnLinearColorValueChanged"
                     | "FPointerEventHandler"
                     | "FKeyEventHandler"
@@ -2237,6 +2240,12 @@ impl SlateGenerator {
     
     /// Check if a delegate type is a known engine or registered custom delegate.
     fn is_known_delegate_type(&self, delegate_type: &str) -> bool {
+        // Force explicit declaration for this Slate delegate in generated widget headers.
+        // It is frequently needed even when registry/context suggests it exists elsewhere.
+        if delegate_type == "FOnSelectionChanged" {
+            return false;
+        }
+
         let is_engine = matches!(
             delegate_type,
             "FOnClicked"
@@ -2245,7 +2254,6 @@ impl SlateGenerator {
                 | "FOnTextCommitted"
                 | "FOnTextChanged"
                 | "FOnCheckStateChanged"
-                | "FOnSelectionChanged"
                 | "FOnLinearColorValueChanged"
                 | "FPointerEventHandler"
                 | "FKeyEventHandler"

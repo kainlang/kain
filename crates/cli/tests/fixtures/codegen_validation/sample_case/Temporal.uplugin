@@ -1,0 +1,20 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Temporal",
+  "Description": "Sample fixture",
+  "Category": "Gameplay",
+  "Modules": [
+    {
+      "Name": "TemporalBlueprint",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
+      "Name": "TemporalBlueprintEditor",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

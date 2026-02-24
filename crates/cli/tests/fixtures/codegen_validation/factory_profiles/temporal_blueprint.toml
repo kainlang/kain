@@ -1,0 +1,23 @@
+name = "temporal_blueprint_factory_profile"
+case_root = "M:/Code/Factory/TemporalBlueprint/_Builds/Temporal_5.4/HostProject/Plugins/Temporal"
+
+[[assertions]]
+kind = "module_name_matches_uplugin"
+uplugin_file = "Temporal.uplugin"
+build_cs_file = "Source/TemporalBlueprint/TemporalBlueprint.Build.cs"
+module_name = "TemporalBlueprint"
+
+[[assertions]]
+kind = "implement_module_matches"
+file = "Source/TemporalBlueprint/Private/Temporal.cpp"
+module_name = "TemporalBlueprint"
+
+[[assertions]]
+kind = "api_macro_matches_module"
+file = "Source/TemporalBlueprint/Public/ATemporalZoneActor.h"
+module_name = "TemporalBlueprint"
+
+[[assertions]]
+kind = "not_contains"
+file = "Source/TemporalBlueprint/Public/Temporal.h"
+pattern = "TemporalBlueprint/ETemporalEra.h"

@@ -1,0 +1,23 @@
+name = "fluidflow_factory_profile"
+case_root = "M:/Code/Factory/FluidFlow/_Builds/FluidFlow_5.4/HostProject/Plugins/FluidFlow"
+
+[[assertions]]
+kind = "module_name_matches_uplugin"
+uplugin_file = "FluidFlow.uplugin"
+build_cs_file = "Source/FluidFlow/FluidFlow.Build.cs"
+module_name = "FluidFlow"
+
+[[assertions]]
+kind = "implement_module_matches"
+file = "Source/FluidFlow/Private/FluidFlow.cpp"
+module_name = "FluidFlow"
+
+[[assertions]]
+kind = "api_macro_matches_module"
+file = "Source/FluidFlow/Public/FVisualizationShaderParams.h"
+module_name = "FluidFlow"
+
+[[assertions]]
+kind = "header_include_exists"
+file = "Source/FluidFlow/Public/FluidFlow.h"
+include = "FVisualizationShaderParams.h"

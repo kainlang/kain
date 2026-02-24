@@ -1,0 +1,37 @@
+name = "sample_codegen_validation"
+
+[[assertions]]
+kind = "module_name_matches_uplugin"
+uplugin_file = "Temporal.uplugin"
+build_cs_file = "Source/TemporalBlueprint/TemporalBlueprint.Build.cs"
+module_name = "TemporalBlueprint"
+
+[[assertions]]
+kind = "implement_module_matches"
+file = "Source/TemporalBlueprint/Private/TemporalBlueprint.cpp"
+module_name = "TemporalBlueprint"
+
+[[assertions]]
+kind = "api_macro_matches_module"
+file = "Source/TemporalBlueprint/Public/ATemporalZoneActor.h"
+module_name = "TemporalBlueprint"
+
+[[assertions]]
+kind = "header_include_exists"
+file = "Source/TemporalBlueprint/Public/Temporal.h"
+include = "ETemporalEra.h"
+
+[[assertions]]
+kind = "not_contains"
+file = "Source/TemporalBlueprint/Public/Temporal.h"
+pattern = "TemporalBlueprint/ETemporalEra.h"
+
+[[assertions]]
+kind = "header_include_exists"
+file = "Source/FluidFlowEditor/Public/FFluidWorldDetailsCustomization.h"
+include = "Widgets/Input/SMultiLineEditableTextBox.h"
+
+[[assertions]]
+kind = "contains"
+file = "Source/FluidFlowEditor/Public/SSFluidSimulationDashboard.h"
+pattern = "DECLARE_DELEGATE_TwoParams(FOnSelectionChanged"
