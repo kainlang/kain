@@ -7,6 +7,10 @@ use crate::effects::Effect;
 use crate::error::{KainError, KainResult};
 use crate::diagnostics::SpanMapper;
 
+/// Maximum number of errors to accumulate before bailing out.
+/// Prevents runaway error accumulation from freezing the compiler.
+const MAX_ERRORS: usize = 50;
+
 /// Reserved keywords that cannot be used as identifiers.
 /// This includes KAIN keywords, HLSL keywords, C++ keywords, and UE5 macros.
 /// Note: Contextual keywords like "state", "compute", "weak" are NOT included here
@@ -107,6 +111,10 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         
         while !self.at_end() {
+            // Bail early if we've accumulated too many errors (prevents freeze)
+            if self.errors.len() >= MAX_ERRORS {
+                break;
+            }
             self.skip_newlines();
             if self.at_end() { break; }
             
@@ -142,11 +150,16 @@ impl<'a> Parser<'a> {
                 TokenKind::Comptime |
                 TokenKind::Macro |
                 TokenKind::Test => {
+                    let before_pos = self.pos;
                     match self.parse_item() {
                         Ok(item) => items.push(item),
                         Err(e) => {
                             self.errors.push(e);
                             self.synchronize();
+                            // Guard against no-progress recovery loops.
+                            if self.pos == before_pos && !self.at_end() {
+                                self.advance();
+                            }
                         }
                     }
                 }
@@ -159,11 +172,15 @@ impl<'a> Parser<'a> {
                 // - TokenKind::Class (if we add class keyword separate from struct)
                 
                 _ => {
+                    let before_pos = self.pos;
                     match self.parse_stmt() {
                         Ok(stmt) => top_level_stmts.push(stmt),
                         Err(e) => {
                             self.errors.push(e);
                             self.synchronize();
+                            if self.pos == before_pos && !self.at_end() {
+                                self.advance();
+                            }
                         }
                     }
                 }
@@ -326,7 +343,7 @@ impl<'a> Parser<'a> {
             TokenKind::Macro => self.parse_macro(),
             TokenKind::Test => self.parse_test(),
             TokenKind::Use => self.parse_use(),
-            // TokenKind::Trait => self.parse_trait(vis), // TODO: Agent 4 will implement this
+            TokenKind::Trait => self.parse_trait(vis),
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
             _ => Err(self.parser_error("Expected item", self.current_span())),
@@ -3757,6 +3774,7 @@ impl<'a> Parser<'a> {
         let mut states = Vec::new();
         
         while !self.check(TokenKind::Dedent) && !self.at_end() {
+            let loop_pos = self.pos;
             self.skip_newlines();
             if self.check(TokenKind::Dedent) { break; }
             
@@ -3773,6 +3791,10 @@ impl<'a> Parser<'a> {
             }
             
             self.skip_newlines();
+            // Guard against no-progress loops
+            if self.pos == loop_pos && !self.at_end() {
+                self.advance();
+            }
         }
         
         if self.check(TokenKind::Dedent) {
@@ -3810,8 +3832,10 @@ impl<'a> Parser<'a> {
             }
         });
         
-        // Expect 'struct' keyword
-        self.expect(TokenKind::Struct)?;
+        // State name: bare `idle:` syntax (no `struct` keyword needed, but tolerate it)
+        if self.check(TokenKind::Struct) {
+            self.advance(); // consume optional `struct`
+        }
         
         // Parse state name
         let name = self.parse_ident()?;
@@ -3831,6 +3855,7 @@ impl<'a> Parser<'a> {
         let mut on_exit = None;
         
         while !self.check(TokenKind::Dedent) && !self.at_end() {
+            let loop_pos = self.pos;
             self.skip_newlines();
             if self.check(TokenKind::Dedent) { break; }
             
@@ -3903,6 +3928,10 @@ impl<'a> Parser<'a> {
             }
             
             self.skip_newlines();
+            // Guard against no-progress loops
+            if self.pos == loop_pos && !self.at_end() {
+                self.advance();
+            }
         }
         
         if self.check(TokenKind::Dedent) {
