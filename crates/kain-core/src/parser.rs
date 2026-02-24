@@ -286,6 +286,11 @@ impl<'a> Parser<'a> {
             return self.parse_gameplay_tags(attributes);
         }
         
+        // Check for @ability attribute
+        if attributes.iter().any(|a| a.name == "ability") {
+            return self.parse_gameplay_ability(attributes);
+        }
+        
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
@@ -4294,6 +4299,357 @@ impl<'a> Parser<'a> {
         }
         
         Ok(nodes)
+    }
+    
+    /// Parse gameplay ability definition
+    /// 
+    /// Syntax:
+    /// ```kain
+    /// @ability
+    /// struct JumpAbility:
+    ///     @instancing(policy: "InstancedPerExecution")
+    ///     @replication(policy: "ReplicateYes")
+    ///     @net_execution(policy: "LocalPredicted")
+    ///     
+    ///     @ability_tags
+    ///     tags: ["Ability.Jump"]
+    ///     
+    ///     @activation_required_tags
+    ///     required: ["Status.Grounded"]
+    ///     
+    ///     @activation_blocked_tags
+    ///     blocked: ["Status.Stunned"]
+    ///     
+    ///     @cost
+    ///     effect: StaminaCostEffect
+    ///     
+    ///     fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+    ///         # implementation
+    /// ```
+    fn parse_gameplay_ability(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        
+        // Expect 'struct' keyword
+        self.expect(TokenKind::Struct)?;
+        
+        // Parse ability name
+        let name = self.parse_ident()?;
+        
+        // Expect ':'
+        self.expect(TokenKind::Colon)?;
+        
+        // Parse ability body (indented block)
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        // Initialize fields
+        let mut instancing_policy: Option<String> = None;
+        let mut replication_policy: Option<String> = None;
+        let mut net_execution_policy: Option<String> = None;
+        let mut ability_tags: Vec<String> = Vec::new();
+        let mut activation_required_tags: Vec<String> = Vec::new();
+        let mut activation_blocked_tags: Vec<String> = Vec::new();
+        let mut activation_owned_tags: Vec<String> = Vec::new();
+        let mut cancel_abilities_with_tag: Vec<String> = Vec::new();
+        let mut block_abilities_with_tag: Vec<String> = Vec::new();
+        let mut cost_effect: Option<String> = None;
+        let mut cooldown_effect: Option<String> = None;
+        let mut methods: Vec<Function> = Vec::new();
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            // Check for attributes or methods
+            if self.check(TokenKind::At) {
+                // Parse attribute
+                let attr_start = self.current_span();
+                self.advance(); // consume '@'
+                let attr_name = self.parse_attribute_name()?;
+                
+                match attr_name.as_str() {
+                    "instancing" => {
+                        // @instancing(policy: "InstancedPerExecution")
+                        self.expect(TokenKind::LParen)?;
+                        
+                        // Expect "policy:"
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "policy" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse policy value (string)
+                                if let TokenKind::String(policy_str) = self.peek_kind() {
+                                    instancing_policy = Some(policy_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for instancing policy", self.current_span()));
+                                }
+                            } else {
+                                return Err(self.parser_error("Expected 'policy' parameter in @instancing", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'policy' parameter in @instancing", self.current_span()));
+                        }
+                        
+                        self.expect(TokenKind::RParen)?;
+                    }
+                    "replication" => {
+                        // @replication(policy: "ReplicateYes")
+                        self.expect(TokenKind::LParen)?;
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "policy" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                if let TokenKind::String(policy_str) = self.peek_kind() {
+                                    replication_policy = Some(policy_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for replication policy", self.current_span()));
+                                }
+                            } else {
+                                return Err(self.parser_error("Expected 'policy' parameter in @replication", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'policy' parameter in @replication", self.current_span()));
+                        }
+                        
+                        self.expect(TokenKind::RParen)?;
+                    }
+                    "net_execution" => {
+                        // @net_execution(policy: "LocalPredicted")
+                        self.expect(TokenKind::LParen)?;
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "policy" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                if let TokenKind::String(policy_str) = self.peek_kind() {
+                                    net_execution_policy = Some(policy_str);
+                                    self.advance();
+                                } else {
+                                    return Err(self.parser_error("Expected string value for net_execution policy", self.current_span()));
+                                }
+                            } else {
+                                return Err(self.parser_error("Expected 'policy' parameter in @net_execution", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'policy' parameter in @net_execution", self.current_span()));
+                        }
+                        
+                        self.expect(TokenKind::RParen)?;
+                    }
+                    "ability_tags" => {
+                        // @ability_tags
+                        // tags: ["Ability.Jump"]
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "tags" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                ability_tags = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'tags' field after @ability_tags", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'tags' field after @ability_tags", self.current_span()));
+                        }
+                    }
+                    "activation_required_tags" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "required" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                activation_required_tags = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'required' field after @activation_required_tags", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'required' field after @activation_required_tags", self.current_span()));
+                        }
+                    }
+                    "activation_blocked_tags" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "blocked" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                activation_blocked_tags = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'blocked' field after @activation_blocked_tags", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'blocked' field after @activation_blocked_tags", self.current_span()));
+                        }
+                    }
+                    "activation_owned_tags" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "owned" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                activation_owned_tags = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'owned' field after @activation_owned_tags", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'owned' field after @activation_owned_tags", self.current_span()));
+                        }
+                    }
+                    "cancel_abilities_with_tag" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "cancel" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                cancel_abilities_with_tag = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'cancel' field after @cancel_abilities_with_tag", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'cancel' field after @cancel_abilities_with_tag", self.current_span()));
+                        }
+                    }
+                    "block_abilities_with_tag" => {
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "block" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                block_abilities_with_tag = self.parse_string_array()?;
+                            } else {
+                                return Err(self.parser_error("Expected 'block' field after @block_abilities_with_tag", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'block' field after @block_abilities_with_tag", self.current_span()));
+                        }
+                    }
+                    "cost" => {
+                        // @cost
+                        // effect: StaminaCostEffect
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "effect" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse effect name (identifier)
+                                cost_effect = Some(self.parse_ident()?);
+                            } else {
+                                return Err(self.parser_error("Expected 'effect' field after @cost", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'effect' field after @cost", self.current_span()));
+                        }
+                    }
+                    "cooldown" => {
+                        // @cooldown
+                        // effect: JumpCooldownEffect
+                        self.skip_newlines();
+                        
+                        if let TokenKind::Ident(ref s) = self.peek_kind() {
+                            if s == "effect" {
+                                self.advance();
+                                self.expect(TokenKind::Colon)?;
+                                
+                                // Parse effect name (identifier)
+                                cooldown_effect = Some(self.parse_ident()?);
+                            } else {
+                                return Err(self.parser_error("Expected 'effect' field after @cooldown", self.current_span()));
+                            }
+                        } else {
+                            return Err(self.parser_error("Expected 'effect' field after @cooldown", self.current_span()));
+                        }
+                    }
+                    "net_security" => {
+                        // @net_security(policy: "ClientOrServer") - parse but ignore for now
+                        if self.check(TokenKind::LParen) {
+                            self.advance();
+                            // Skip parameters
+                            while !self.check(TokenKind::RParen) && !self.at_end() {
+                                self.advance();
+                            }
+                            self.expect(TokenKind::RParen)?;
+                        }
+                    }
+                    _ => {
+                        return Err(self.parser_error(
+                            format!("Unknown attribute in @ability: @{}", attr_name),
+                            attr_start
+                        ));
+                    }
+                }
+            } else if self.check(TokenKind::Fn) {
+                // Parse lifecycle hook method
+                if let Item::Function(func) = self.parse_function(Visibility::Public)? {
+                    methods.push(func);
+                }
+            } else {
+                return Err(self.parser_error(
+                    "Expected attribute (@instancing, @ability_tags, etc.) or method (fn) in ability body",
+                    self.current_span()
+                ));
+            }
+            
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        
+        Ok(Item::GameplayAbility(GameplayAbilityDef {
+            name,
+            instancing_policy,
+            replication_policy,
+            net_execution_policy,
+            ability_tags,
+            activation_required_tags,
+            activation_blocked_tags,
+            activation_owned_tags,
+            cancel_abilities_with_tag,
+            block_abilities_with_tag,
+            cost_effect,
+            cooldown_effect,
+            methods,
+            attributes,
+            span: start.merge(self.current_span()),
+        }))
+    }
+    
+    /// Parse string array: ["tag1", "tag2", "tag3"]
+    fn parse_string_array(&mut self) -> KainResult<Vec<String>> {
+        self.expect(TokenKind::LBracket)?;
+        
+        let mut strings = Vec::new();
+        
+        while !self.check(TokenKind::RBracket) && !self.at_end() {
+            if let TokenKind::String(s) = self.peek_kind() {
+                strings.push(s);
+                self.advance();
+            } else {
+                return Err(self.parser_error("Expected string in array", self.current_span()));
+            }
+            
+            if !self.check(TokenKind::RBracket) {
+                self.expect(TokenKind::Comma)?;
+            }
+        }
+        
+        self.expect(TokenKind::RBracket)?;
+        
+        Ok(strings)
     }
 }
 

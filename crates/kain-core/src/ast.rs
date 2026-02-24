@@ -89,6 +89,9 @@ pub enum Item {
 
     /// `@gameplay_tags namespace Name: tag_hierarchy`
     GameplayTags(GameplayTagsNamespace),
+
+    /// `@ability struct Name: policies, tags, lifecycle_hooks`
+    GameplayAbility(GameplayAbilityDef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1597,6 +1600,12 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
         Item::GameplayTags(_) => {
             // GameplayTags don't contain type references
         }
+        Item::GameplayAbility(ability) => {
+            // Collect types from ability methods
+            for method in &ability.methods {
+                collect_type_names_from_item(&Item::Function(method.clone()), out);
+            }
+        }
         Item::Use(_) | Item::Mod(_) => {
             // Uses and mods don't contain type references we can extract
         }
@@ -1964,5 +1973,28 @@ pub struct GameplayTagNode {
     pub full_path: String,  // "Ability.Attack.Melee.Sword"
     pub comment: Option<String>,
     pub children: Vec<GameplayTagNode>,
+    pub span: Span,
+}
+
+// === GAMEPLAY ABILITIES (GAS) ===
+
+/// Gameplay Ability definition for UE5 Gameplay Ability System
+/// Syntax: @ability struct Name: policies, tags, lifecycle_hooks
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameplayAbilityDef {
+    pub name: String,
+    pub instancing_policy: Option<String>,
+    pub replication_policy: Option<String>,
+    pub net_execution_policy: Option<String>,
+    pub ability_tags: Vec<String>,
+    pub activation_required_tags: Vec<String>,
+    pub activation_blocked_tags: Vec<String>,
+    pub activation_owned_tags: Vec<String>,
+    pub cancel_abilities_with_tag: Vec<String>,
+    pub block_abilities_with_tag: Vec<String>,
+    pub cost_effect: Option<String>,
+    pub cooldown_effect: Option<String>,
+    pub methods: Vec<Function>,
+    pub attributes: Vec<Attribute>,
     pub span: Span,
 }

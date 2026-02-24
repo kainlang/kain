@@ -220,7 +220,7 @@ fn test_lifecycle_hooks_post_gameplay_effect_execute() {
     });
     
     // Add lifecycle hook
-    ir.lifecycle_hooks.post_gameplay_effect_execute = Some(ue5_gas::FunctionIR {
+    ir.lifecycle_hooks.post_gameplay_effect_execute = Some(ue5_gas::attribute_set_ir::FunctionIR {
         name: "post_gameplay_effect_execute".to_string(),
         body: "// Custom logic".to_string(),
     });

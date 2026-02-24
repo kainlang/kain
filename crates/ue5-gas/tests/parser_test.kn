@@ -1,0 +1,28 @@
+@ability
+struct TestJumpAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    
+    @ability_tags
+    tags: ["Ability.Test.Jump"]
+    
+    @activation_required_tags
+    required: ["Status.Grounded"]
+    
+    @activation_blocked_tags
+    blocked: ["Status.Stunned"]
+    
+    @cost
+    effect: TestStaminaCost
+    
+    @cooldown
+    effect: TestJumpCooldown
+    
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if not commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        
+        get_avatar_actor_from_actor_info().jump()
+        end_ability(handle, actor_info, activation_info, true, false)
