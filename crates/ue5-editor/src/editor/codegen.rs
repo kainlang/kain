@@ -943,9 +943,8 @@ impl Ue5EditorGen {
                 self.source.push_line(&source);
                 self.write_blank_source();
             }
-            Err(e) => {
-                // Log error and fall back to empty generation
-                eprintln!("Error generating asset editor: {}", e);
+            Err(_e) => {
+                // Silently fall back to empty generation
             }
         }
     }

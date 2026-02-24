@@ -40,9 +40,7 @@ impl MaterialGraphConverter {
             for input in &def.inputs {
                 // Only mark scalar/vector/color parameters as dynamic (not textures)
                 if matches!(input.ty, Type::Named { ref name, .. } if name == "Float" || name == "Vec3" || name == "Vec4") {
-                    if let Err(e) = graph.mark_parameter_dynamic(&input.name) {
-                        eprintln!("Warning: Failed to mark parameter '{}' as dynamic: {}", input.name, e);
-                    }
+                    let _ = graph.mark_parameter_dynamic(&input.name);
                 }
             }
         }

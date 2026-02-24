@@ -543,7 +543,8 @@ fn main() {
                 if ue5 {
                     // UE5 plugin build
                     if let Err(e) = packager::build_ue5_plugin_with_options(embed) {
-                        eprintln!(" UE5 plugin build failed: {}", e);
+                        // Error already contains formatted details with file:line:col
+                        eprintln!("{}", e);
                         std::process::exit(1);
                     }
                 } else {

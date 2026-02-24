@@ -173,10 +173,7 @@ pub fn validate_program_with_custom_rules(
         return Err(KainError::runtime(ctx.report()));
     }
     
-    // Print warnings if any
-    if !ctx.warnings.is_empty() {
-        eprintln!("{}", ctx.report());
-    }
+    // Silently collect warnings without printing
     
     Ok(())
 }

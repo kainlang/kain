@@ -180,9 +180,8 @@ impl MetadataWatcher {
                 Ok(()) => {
                     reloaded.push(path.clone());
                 }
-                Err(e) => {
-                    eprintln!("Warning: Failed to reload {:?}: {}", path, e);
-                    // Don't fail the entire reload if one file fails
+                Err(_e) => {
+                    // Silently continue - don't fail the entire reload if one file fails
                 }
             }
         }
@@ -242,8 +241,8 @@ impl HotReloadManager {
                             }
                         }
                     }
-                    Err(e) => {
-                        eprintln!("Hot-reload check failed: {}", e);
+                    Err(_e) => {
+                        // Silently ignore hot-reload check failures
                     }
                 }
             }

@@ -2563,16 +2563,12 @@ fn filter_shader_compatible_program(program: &TypedProgram) -> TypedProgram {
             match item {
                 TypedItem::Function(func) => {
                     let has_invalid = function_has_invalid_types(func);
-                    if has_invalid {
-                        eprintln!("[DEBUG] Filtering out function '{}' due to invalid shader types in signature", func.ast.name);
-                    }
+                    // Silently filter functions with invalid shader types
                     !has_invalid
                 }
                 TypedItem::Struct(typed_struct) => {
                     let has_invalid = struct_has_invalid_types(typed_struct);
-                    if has_invalid {
-                        eprintln!("[DEBUG] Filtering out struct '{}' due to invalid shader types in fields", typed_struct.ast.name);
-                    }
+                    // Silently filter structs with invalid shader types
                     !has_invalid
                 }
                 _ => true, // Keep all other items (shaders, actors, components, enums, etc.)
@@ -2581,7 +2577,7 @@ fn filter_shader_compatible_program(program: &TypedProgram) -> TypedProgram {
         .cloned()
         .collect();
     
-    eprintln!("[DEBUG] Filtered program: {} items (original: {} items)", filtered_items.len(), program.items.len());
+    // Filtered items ready for shader compilation
     
     TypedProgram {
         items: filtered_items,

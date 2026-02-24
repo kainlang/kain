@@ -589,9 +589,7 @@ pub fn generate_stdlib_functions(
         }
     }
     
-    if func_count > 0 {
-        eprintln!("   📦 Generated {} stdlib functions → KainStdlib.h", func_count);
-    }
+    // Stdlib functions generated silently
     
     // gen_ufunction puts declarations in header and implementations in source.
     // For header-only output, we only need the implementations with 'static inline' prefix.
@@ -1351,7 +1349,6 @@ impl Ue5Gen {
             self.source.push_line("#include \"Engine/TextureRenderTarget2D.h\"");
             self.source.push_line("#include \"TextureResource.h\"");
             for shader_base in &deduped_shader_bases {
-                eprintln!("   📄 [CODEGEN] Including shader header: {}.h", shader_base);
                 let shader_header = format!("{}.h", shader_base);
                 self.source.push_line(&format!("#include \"{}\"", shader_header));
             }
@@ -1416,7 +1413,7 @@ impl Ue5Gen {
         self.component_mirrors = match ue5_shaders::pod_mirror::collect_component_mirrors(&typed_program) {
             Ok(m) => m,
             Err(e) => {
-                eprintln!("[KAIN ue5 codegen] POD mirror error: {}", e);
+                // POD mirror error - using empty map
                 std::collections::HashMap::new()
             }
         };
@@ -1656,7 +1653,6 @@ impl Ue5Gen {
         // In modular mode, the packager generates a separate module file
         let is_modular_mode = self.target_item.is_some();
         if !shaders.is_empty() && !is_modular_mode {
-            eprintln!("   📦 [CODEGEN] Generating IMPLEMENT_MODULE (monolithic mode)");
             self.write_blank_source();
             self.write_source("// Module implementation");
             self.write_source("// Shader directory registration is handled by static initializers in shader .cpp files");
@@ -1707,10 +1703,7 @@ impl Ue5Gen {
                         shader_files.push((format!("{}.cpp", ir.name), output.source));
                     }
                     Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to generate state machine code for {}: {}",
-                            state_machine_def.name, e
-                        );
+                        // State machine generation failed - skipping
                     }
                 }
             }
@@ -1736,10 +1729,7 @@ impl Ue5Gen {
                         shader_files.push((format!("{}TaskQueue.cpp", task_name), output.queue_source));
                     }
                     Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to generate async task code for {}: {}",
-                            async_task_def.name, e
-                        );
+                        // Async task generation failed - skipping
                     }
                 }
             }
@@ -1760,7 +1750,7 @@ impl Ue5Gen {
                     shader_files.push((format!("{}.usf", shader_name), usf_code));
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to generate USF for {}: {}", shader_name, e);
+                    // USF generation failed - skipping
                 }
             }
             
@@ -1820,8 +1810,7 @@ impl Ue5Gen {
     fn gen_actor_with_shaders(&mut self, actor: &Actor, shaders: &[&TypedShader], shader_file_names: &[String]) {
         let class_name = to_actor_name(&actor.name);
         
-        eprintln!("🎯 [CODEGEN] Generating actor: {}", class_name);
-        eprintln!("   📊 Shaders: {} (file names: {})", shaders.len(), shader_file_names.len());
+        // Actor generation
         
         // --- 1. Header Generation ---
         
@@ -2170,8 +2159,6 @@ impl Ue5Gen {
             for (shader, shader_file_name) in shaders.iter().zip(shader_file_names.iter()) {
                 let shader_name = &shader.ast.name;
                 
-                eprintln!("   🔧 [CODEGEN] Generating AddPass call for: {} (file: {})", shader_name, shader_file_name);
-                
                 // Keep AddPass_* call argument order aligned with ue5-shaders helper signatures:
                 // scalars first, then textures/UAVs (same contract used by generated .h/.cpp wrappers).
                 let mut call_args: Vec<String> = Vec::new();
@@ -2328,7 +2315,6 @@ impl Ue5Gen {
                              
                              // Check if this intermediate RT was created
                              if needed_intermediates.contains(&uniform.name) {
-                                 eprintln!("   ✅ [CODEGEN] Mapped texture uniform '{}' to intermediate RT '{}'", uniform.name, &rt_name);
                                  if rt_name.contains("Output") {
                                      has_output_texture_arg = true;
                                  }
@@ -2340,7 +2326,6 @@ impl Ue5Gen {
                          if !matched_texture {
                              // For unmatched texture uniforms, use PositionOutput as a generic fallback
                              // This allows fragment shaders to compile even without explicit RT mappings
-                             eprintln!("   ⚠️  [CODEGEN] Texture uniform '{}' has no matching RT, using PositionOutput as fallback", uniform.name);
                              call_args.push("PositionOutput".to_string());
                              has_output_texture_arg = true;
                          }
@@ -2655,9 +2640,8 @@ impl Ue5Gen {
                     self.write_blank_header();
                     return;
                 }
-                Err(e) => {
-                    eprintln!("⚠️  [CODEGEN] Failed to convert blueprint event IR for {}: {}", method.name, e);
-                    // Fall through to regular method generation
+                Err(_e) => {
+                    // Silently fall through to regular method generation
                 }
             }
         }
@@ -2972,7 +2956,6 @@ impl Ue5Gen {
                     return;
                 }
                 Err(e) => {
-                    eprintln!("⚠️  [CODEGEN] Failed to convert blueprint event IR for {}: {}", method.name, e);
                     // Fall through to regular method generation
                 }
             }
@@ -3110,7 +3093,6 @@ impl Ue5Gen {
             match convert_to_network_sync_ir(struct_def, &self.context) {
                 Ok(ir) => Some(generate_network_sync_code(&ir, &class_name)),
                 Err(e) => {
-                    eprintln!("Warning: Failed to generate network sync code: {}", e);
                     None
                 }
             }

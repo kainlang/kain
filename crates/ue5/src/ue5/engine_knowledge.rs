@@ -250,9 +250,8 @@ impl EngineKnowledge {
                 Ok(_) => {
                     loaded_count += 1;
                 }
-                Err(e) => {
-                    eprintln!("⚠️  Failed to load extension {:?}: {}", path.file_name().unwrap(), e);
-                    // Continue loading other extensions even if one fails
+                Err(_e) => {
+                    // Silently continue loading other extensions even if one fails
                 }
             }
         }

@@ -118,9 +118,7 @@ impl ShaderValidator {
         };
         
         // Load shader knowledge from embedded JSON
-        if let Err(e) = validator.load_shader_knowledge() {
-            eprintln!("Warning: Failed to load shader knowledge: {}", e);
-        }
+        let _ = validator.load_shader_knowledge();
         
         // Load C++ keywords
         validator.load_cpp_keywords();

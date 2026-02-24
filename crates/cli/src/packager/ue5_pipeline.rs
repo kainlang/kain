@@ -1681,21 +1681,31 @@ fn load_and_parse_sources(
                 let file_name_str = source_path.file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| source_path.display().to_string());
+                
                 // Handle Multi variant (multiple errors from one file)
-                let error_string = e.to_string();
-                let individual_errors: Vec<&str> = if error_string.contains("[1/") {
-                    // Multi-error: each sub-error is already formatted, split and format each
-                    vec![&error_string]
-                } else {
-                    vec![&error_string]
-                };
-                for err_str in individual_errors {
-                    let formatted_error = post_process::format_error_with_location(
-                        &file_source, err_str, file_name_str.clone()
-                    );
-                    all_parse_errors.push(format!(
-                        "❌ Parse error in {}:{}", source_path.display(), formatted_error
-                    ));
+                match e {
+                    kain_core::error::KainError::Multi(errors) => {
+                        // Multiple errors - add each one separately
+                        for individual_error in errors {
+                            let err_str = individual_error.to_string();
+                            let formatted_error = post_process::format_error_with_location(
+                                &file_source, &err_str, file_name_str.clone()
+                            );
+                            all_parse_errors.push(format!(
+                                "❌ Parse error in {}:{}", source_path.display(), formatted_error
+                            ));
+                        }
+                    }
+                    _ => {
+                        // Single error
+                        let err_str = e.to_string();
+                        let formatted_error = post_process::format_error_with_location(
+                            &file_source, &err_str, file_name_str.clone()
+                        );
+                        all_parse_errors.push(format!(
+                            "❌ Parse error in {}:{}", source_path.display(), formatted_error
+                        ));
+                    }
                 }
                 continue; // Don't abort — keep parsing remaining files
             }
