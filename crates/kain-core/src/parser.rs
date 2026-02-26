@@ -4861,20 +4861,18 @@ impl<'a> Parser<'a> {
                         self.expect(TokenKind::LParen)?;
                         
                         // Expect "type:"
-                        if let TokenKind::Ident(ref s) = self.peek_kind() {
-                            if s == "type" {
+                        if matches!(self.peek_kind(), TokenKind::TypeKw)
+                            || matches!(self.peek_kind(), TokenKind::Ident(ref s) if s == "type")
+                        {
+                            self.advance();
+                            self.expect(TokenKind::Colon)?;
+                            
+                            // Parse type value (string)
+                            if let TokenKind::String(policy_str) = self.peek_kind() {
+                                duration_policy = Some(policy_str);
                                 self.advance();
-                                self.expect(TokenKind::Colon)?;
-                                
-                                // Parse type value (string)
-                                if let TokenKind::String(policy_str) = self.peek_kind() {
-                                    duration_policy = Some(policy_str);
-                                    self.advance();
-                                } else {
-                                    return Err(self.parser_error("Expected string value for duration type", self.current_span()));
-                                }
                             } else {
-                                return Err(self.parser_error("Expected 'type' parameter in @duration", self.current_span()));
+                                return Err(self.parser_error("Expected string value for duration type", self.current_span()));
                             }
                         } else {
                             return Err(self.parser_error("Expected 'type' parameter in @duration", self.current_span()));
@@ -5030,17 +5028,17 @@ impl<'a> Parser<'a> {
                         // limit: 5
                         self.skip_newlines();
                         
-                        if let TokenKind::Ident(ref s) = self.peek_kind() {
-                            if s == "type" {
+                        if matches!(self.peek_kind(), TokenKind::TypeKw)
+                            || matches!(self.peek_kind(), TokenKind::Ident(ref s) if s == "type")
+                        {
+                            self.advance();
+                            self.expect(TokenKind::Colon)?;
+                            
+                            if let TokenKind::String(type_str) = self.peek_kind() {
+                                stacking_type = Some(type_str);
                                 self.advance();
-                                self.expect(TokenKind::Colon)?;
-                                
-                                if let TokenKind::String(type_str) = self.peek_kind() {
-                                    stacking_type = Some(type_str);
-                                    self.advance();
-                                } else {
-                                    return Err(self.parser_error("Expected string value for stacking type", self.current_span()));
-                                }
+                            } else {
+                                return Err(self.parser_error("Expected string value for stacking type", self.current_span()));
                             }
                         }
                         
@@ -5258,11 +5256,22 @@ impl<'a> Parser<'a> {
             if self.check(TokenKind::Dedent) { break; }
             
             // Check for field or lifecycle method
-            if let TokenKind::Ident(field_name) = self.peek_kind() {
-                self.advance();
-                self.expect(TokenKind::Colon)?;
-                
-                match field_name.as_str() {
+            let field_name = match self.peek_kind() {
+                TokenKind::Ident(name) => {
+                    self.advance();
+                    name
+                }
+                TokenKind::TypeKw => {
+                    self.advance();
+                    "type".to_string()
+                }
+                _ => {
+                    return Err(self.parser_error("Expected field name", self.current_span()));
+                }
+            };
+            self.expect(TokenKind::Colon)?;
+            
+            match field_name.as_str() {
                     "tag" => {
                         // Parse tag string
                         if let TokenKind::String(tag_str) = self.peek_kind() {
@@ -5374,9 +5383,6 @@ impl<'a> Parser<'a> {
                             self.current_span()
                         ));
                     }
-                }
-            } else {
-                return Err(self.parser_error("Expected field name", self.current_span()));
             }
             
             self.skip_newlines();

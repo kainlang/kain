@@ -71,7 +71,7 @@ fn generate_static_header(cue_ir: &GameplayCueIR, class_name: &str) -> KainResul
     }
     
     if cue_ir.on_add_body.is_some() {
-        output.push_str("\tvirtual bool OnAdd_Implementation(AActor* Target, const FGameplayCueParameters& Parameters) const override;\n");
+        output.push_str("\tvirtual bool OnActive_Implementation(AActor* Target, const FGameplayCueParameters& Parameters) const override;\n");
     }
     
     if cue_ir.on_remove_body.is_some() {
@@ -93,7 +93,7 @@ fn generate_static_source(cue_ir: &GameplayCueIR, class_name: &str) -> KainResul
     let mut output = String::new();
     
     // Includes
-    output.push_str(&format!("#include \"{}.h\"\n", cue_ir.name));
+    output.push_str(&format!("#include \"Cues/{}.h\"\n", cue_ir.name));
     output.push_str("#include \"GameplayTags.h\"\n\n");
     
     // Constructor
@@ -112,7 +112,7 @@ fn generate_static_source(cue_ir: &GameplayCueIR, class_name: &str) -> KainResul
     }
     
     if let Some(ref body) = cue_ir.on_add_body {
-        output.push_str(&format!("bool {}::OnAdd_Implementation(AActor* Target, const FGameplayCueParameters& Parameters) const\n", class_name));
+        output.push_str(&format!("bool {}::OnActive_Implementation(AActor* Target, const FGameplayCueParameters& Parameters) const\n", class_name));
         output.push_str("{\n");
         output.push_str(&format!("\t{}\n", body));
         output.push_str("\treturn true;\n");
@@ -172,7 +172,7 @@ fn generate_actor_header(cue_ir: &GameplayCueIR, class_name: &str) -> KainResult
     }
     
     if cue_ir.on_add_body.is_some() {
-        output.push_str("\tvirtual bool OnAdd_Implementation(AActor* Target, const FGameplayCueParameters& Parameters) override;\n");
+        output.push_str("\tvirtual bool OnActive_Implementation(AActor* Target, const FGameplayCueParameters& Parameters) override;\n");
     }
     
     if cue_ir.on_remove_body.is_some() {
@@ -194,7 +194,7 @@ fn generate_actor_source(cue_ir: &GameplayCueIR, class_name: &str) -> KainResult
     let mut output = String::new();
     
     // Includes
-    output.push_str(&format!("#include \"{}.h\"\n", cue_ir.name));
+    output.push_str(&format!("#include \"Cues/{}.h\"\n", cue_ir.name));
     output.push_str("#include \"GameplayTags.h\"\n\n");
     
     // Constructor
@@ -218,7 +218,7 @@ fn generate_actor_source(cue_ir: &GameplayCueIR, class_name: &str) -> KainResult
     }
     
     if let Some(ref body) = cue_ir.on_add_body {
-        output.push_str(&format!("bool {}::OnAdd_Implementation(AActor* Target, const FGameplayCueParameters& Parameters)\n", class_name));
+        output.push_str(&format!("bool {}::OnActive_Implementation(AActor* Target, const FGameplayCueParameters& Parameters)\n", class_name));
         output.push_str("{\n");
         output.push_str(&format!("\t{}\n", body));
         output.push_str("\treturn true;\n");

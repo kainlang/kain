@@ -2512,12 +2512,13 @@ impl SlateGenerator {
                     if let Some(ref ctx) = self.context {
                         // Check if it's an enum — handle both canonical and explicit E-prefixed references.
                         let enum_base = name.strip_prefix('E').unwrap_or(name);
-                        if ctx.enum_names.contains(name) || ctx.enum_names.contains(enum_base) {
-                            return naming::to_enum_name(enum_base);
-                        }
-                        // Also allow when context stores base names but caller already used E-prefixed token.
-                        if name.starts_with('E') && ctx.enum_names.iter().any(|e| naming::to_enum_name(e) == *name) {
-                            return naming::to_enum_name(name);
+                        let mapped_enum_name = naming::to_enum_name(enum_base);
+                        if ctx.enum_names.contains(name)
+                            || ctx.enum_names.contains(enum_base)
+                            || ctx.enum_names.contains(&mapped_enum_name)
+                            || ctx.enum_names.iter().any(|e| naming::to_enum_name(e) == mapped_enum_name)
+                        {
+                            return mapped_enum_name;
                         }
                         // Check if it's a struct
                         if ctx.struct_names.contains(name) {

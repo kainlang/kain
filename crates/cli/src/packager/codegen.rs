@@ -1547,9 +1547,10 @@ fn compute_runtime_deps(
         }
     }
 
-    // GAS features require GameplayTags and GameplayAbilities modules
+    // GAS features require GameplayTags, GameplayAbilities, and GameplayTasks modules.
+    // GameplayTasks is required for UAbilityTask/UGameplayTask linkage.
     if has_gas_features {
-        for module in &["GameplayTags", "GameplayAbilities"] {
+        for module in &["GameplayTags", "GameplayAbilities", "GameplayTasks"] {
             let s = module.to_string();
             if !deps.contains(&s) {
                 deps.push(s);

@@ -28,6 +28,21 @@ fn create_empty_effect(name: &str) -> GameplayEffectIR {
     }
 }
 
+#[test]
+fn test_unqualified_attribute_emits_safe_fallback() {
+    let mut ir = create_empty_effect("FallbackAttributeEffect");
+    ir.modifiers.push(ModifierIR {
+        attribute: "stamina".to_string(),
+        operation: ModifierOp::Add,
+        magnitude: -5.0,
+    });
+
+    let output = generate_effect(&ir, "TestPlugin").unwrap();
+
+    assert!(output.source.contains("TODO(kain): unresolved attribute set for 'stamina'"));
+    assert!(output.source.contains("Modifier.Attribute = FGameplayAttribute();"));
+}
+
 fn create_simple_burn_effect() -> GameplayEffectIR {
     GameplayEffectIR {
         name: "BurnEffect".to_string(),
@@ -164,7 +179,7 @@ fn test_multiplicative_modifier() {
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     assert!(output.source.contains("Modifier.Attribute = UCombatSet::GetDamageAttribute()"));
-    assert!(output.source.contains("Modifier.ModifierOp = EGameplayModOp::Multiplicative"));
+    assert!(output.source.contains("Modifier.ModifierOp = EGameplayModOp::Multiplicitive"));
     assert!(output.source.contains("Modifier.ModifierMagnitude = FScalableFloat(1.5f)"));
 }
 
@@ -295,7 +310,8 @@ fn test_owned_tags() {
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
-    assert!(output.source.contains("InheritableOwnedTagsContainer.AddTag"));
+    assert!(output.source.contains("UAssetTagsGameplayEffectComponent* AssetTagsComp"));
+    assert!(output.source.contains("AssetTagsComp->InheritableAssetTags.AddTag"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Effect.Burn\"))"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Effect.Damage\"))"));
 }
@@ -308,7 +324,8 @@ fn test_granted_tags() {
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
-    assert!(output.source.contains("InheritableGameplayEffectTags.Added.AddTag"));
+    assert!(output.source.contains("UTargetTagsGameplayEffectComponent* TargetTagsComp"));
+    assert!(output.source.contains("TargetTagsComp->InheritableGrantedTagsContainer.AddTag"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Status.Burning\"))"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Status.Damaged\"))"));
 }
@@ -321,8 +338,9 @@ fn test_application_requirements() {
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
-    assert!(output.source.contains("ApplicationTagRequirements.RequireTags.AddTag"));
-    assert!(output.source.contains("ApplicationTagRequirements.IgnoreTags.AddTag"));
+    assert!(output.source.contains("UTargetTagRequirementsGameplayEffectComponent* RequirementsComp"));
+    assert!(output.source.contains("RequirementsComp->ApplicationTagRequirements.RequireTags.AddTag"));
+    assert!(output.source.contains("RequirementsComp->ApplicationTagRequirements.IgnoreTags.AddTag"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Weakness.Fire\"))"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Immunity.Fire\"))"));
 }
@@ -335,8 +353,9 @@ fn test_ongoing_requirements() {
     
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
-    assert!(output.source.contains("OngoingTagRequirements.RequireTags.AddTag"));
-    assert!(output.source.contains("OngoingTagRequirements.IgnoreTags.AddTag"));
+    assert!(output.source.contains("UTargetTagRequirementsGameplayEffectComponent* RequirementsComp"));
+    assert!(output.source.contains("RequirementsComp->OngoingTagRequirements.RequireTags.AddTag"));
+    assert!(output.source.contains("RequirementsComp->OngoingTagRequirements.IgnoreTags.AddTag"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Status.Alive\"))"));
     assert!(output.source.contains("FGameplayTag::RequestGameplayTag(FName(\"Status.Dead\"))"));
 }
@@ -374,13 +393,13 @@ fn test_complete_effect_with_all_features() {
     assert!(output.source.contains("FScalableFloat(-10.0f)"));
     assert!(output.source.contains("StackingType = EGameplayEffectStackingType::AggregateBySource"));
     assert!(output.source.contains("StackLimitCount = 5"));
-    assert!(output.source.contains("InheritableOwnedTagsContainer.AddTag"));
+    assert!(output.source.contains("UAssetTagsGameplayEffectComponent* AssetTagsComp"));
     assert!(output.source.contains("Effect.Burn"));
-    assert!(output.source.contains("InheritableGameplayEffectTags.Added.AddTag"));
+    assert!(output.source.contains("UTargetTagsGameplayEffectComponent* TargetTagsComp"));
     assert!(output.source.contains("Status.Burning"));
-    assert!(output.source.contains("ApplicationTagRequirements.RequireTags.AddTag"));
+    assert!(output.source.contains("RequirementsComp->ApplicationTagRequirements.RequireTags.AddTag"));
     assert!(output.source.contains("Weakness.Fire"));
-    assert!(output.source.contains("ApplicationTagRequirements.IgnoreTags.AddTag"));
+    assert!(output.source.contains("RequirementsComp->ApplicationTagRequirements.IgnoreTags.AddTag"));
     assert!(output.source.contains("Immunity.Fire"));
 }
 
@@ -408,8 +427,9 @@ fn test_includes() {
     assert!(output.header.contains("#include \"TestEffect.generated.h\""));
     
     // Source includes
-    assert!(output.source.contains("#include \"TestEffect.h\""));
+    assert!(output.source.contains("#include \"Effects/TestEffect.h\""));
     assert!(output.source.contains("#include \"GameplayTags.h\""));
+    assert!(output.source.contains("#if __has_include(\"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\")"));
 }
 
 #[test]
@@ -442,7 +462,7 @@ fn test_full_output_structure() {
     assert!(output.header.ends_with("};\n"));
     
     // Verify source structure
-    assert!(output.source.contains("#include \"StructureEffect.h\""));
+    assert!(output.source.contains("#include \"Effects/StructureEffect.h\""));
     assert!(output.source.contains("UStructureEffect::UStructureEffect()"));
 }
 
@@ -483,8 +503,8 @@ fn test_multiple_application_requirements() {
     let output = generate_effect(&ir, "TestPlugin").unwrap();
     
     // Count requirement tags
-    let require_count = output.source.matches("ApplicationTagRequirements.RequireTags.AddTag").count();
-    let ignore_count = output.source.matches("ApplicationTagRequirements.IgnoreTags.AddTag").count();
+    let require_count = output.source.matches("RequirementsComp->ApplicationTagRequirements.RequireTags.AddTag").count();
+    let ignore_count = output.source.matches("RequirementsComp->ApplicationTagRequirements.IgnoreTags.AddTag").count();
     
     assert_eq!(require_count, 2);
     assert_eq!(ignore_count, 2);

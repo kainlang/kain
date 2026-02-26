@@ -65,8 +65,17 @@ fn generate_source(effect_ir: &GameplayEffectIR, class_name: &str, _plugin_name:
     let mut output = String::new();
     
     // Includes
-    output.push_str(&format!("#include \"{}.h\"\n", effect_ir.name));
+    output.push_str(&format!("#include \"Effects/{}.h\"\n", effect_ir.name));
     output.push_str("#include \"GameplayTags.h\"\n\n");
+    output.push_str("#if __has_include(\"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\")\n");
+    output.push_str("#include \"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\"\n");
+    output.push_str("#endif\n");
+    output.push_str("#if __has_include(\"GameplayEffectComponents/TargetTagsGameplayEffectComponent.h\")\n");
+    output.push_str("#include \"GameplayEffectComponents/TargetTagsGameplayEffectComponent.h\"\n");
+    output.push_str("#endif\n");
+    output.push_str("#if __has_include(\"GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h\")\n");
+    output.push_str("#include \"GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h\"\n");
+    output.push_str("#endif\n\n");
     
     // Constructor
     output.push_str(&generate_constructor(effect_ir, class_name)?);
@@ -125,13 +134,17 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
                 let parts: Vec<&str> = modifier.attribute.split('.').collect();
                 (parts[0].to_string(), parts[1].to_string())
             } else {
-                // If no set specified, assume it's just the attribute name
-                // This will need to be resolved at a higher level
-                ("UnknownSet".to_string(), modifier.attribute.clone())
+                // If no set specified, preserve compileability and defer resolution.
+                (String::new(), modifier.attribute.clone())
             };
-            
-            output.push_str(&format!("\t\tModifier.Attribute = U{}::Get{}Attribute();\n", 
-                attribute_set, capitalize_first(&attribute_name)));
+
+            if attribute_set.is_empty() {
+                output.push_str(&format!("\t\t// TODO(kain): unresolved attribute set for '{}'; emitting empty gameplay attribute fallback\n", attribute_name));
+                output.push_str("\t\tModifier.Attribute = FGameplayAttribute();\n");
+            } else {
+                output.push_str(&format!("\t\tModifier.Attribute = U{}::Get{}Attribute();\n", 
+                    attribute_set, capitalize_first(&attribute_name)));
+            }
             output.push_str(&format!("\t\tModifier.ModifierOp = {};\n", 
                 modifier_op_to_ue5(&modifier.operation)));
             
@@ -158,64 +171,106 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
         output.push_str("\n");
     }
     
-    // Owned tags
-    if !effect_ir.owned_tags.is_empty() {
-        output.push_str("\t// Owned tags\n");
-        for tag in &effect_ir.owned_tags {
-            output.push_str(&format!("\tInheritableOwnedTagsContainer.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
-            output.push_str("\t);\n");
+    let has_tag_data = !effect_ir.owned_tags.is_empty()
+        || !effect_ir.granted_tags.is_empty()
+        || !effect_ir.application_tag_requirements.require.is_empty()
+        || !effect_ir.application_tag_requirements.ignore.is_empty()
+        || !effect_ir.ongoing_tag_requirements.require.is_empty()
+        || !effect_ir.ongoing_tag_requirements.ignore.is_empty();
+
+    if has_tag_data {
+        output.push_str("\t// Tag configuration (UE5 component API when available)\n");
+        output.push_str("\t#if __has_include(\"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\") \\\n");
+        output.push_str("\t\t&& __has_include(\"GameplayEffectComponents/TargetTagsGameplayEffectComponent.h\") \\\n");
+        output.push_str("\t\t&& __has_include(\"GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h\")\n");
+
+        if !effect_ir.owned_tags.is_empty() {
+            output.push_str("\tUAssetTagsGameplayEffectComponent* AssetTagsComp = CreateDefaultSubobject<UAssetTagsGameplayEffectComponent>(TEXT(\"AssetTags\"));\n");
+            for tag in &effect_ir.owned_tags {
+                output.push_str(&format!("\tAssetTagsComp->InheritableAssetTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{}\")));\n", tag));
+            }
         }
-        output.push_str("\n");
-    }
-    
-    // Granted tags
-    if !effect_ir.granted_tags.is_empty() {
-        output.push_str("\t// Granted tags\n");
-        for tag in &effect_ir.granted_tags {
-            output.push_str(&format!("\tInheritableGameplayEffectTags.Added.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
-            output.push_str("\t);\n");
+
+        if !effect_ir.granted_tags.is_empty() {
+            output.push_str("\tUTargetTagsGameplayEffectComponent* TargetTagsComp = CreateDefaultSubobject<UTargetTagsGameplayEffectComponent>(TEXT(\"TargetTags\"));\n");
+            for tag in &effect_ir.granted_tags {
+                output.push_str(&format!("\tTargetTagsComp->InheritableGrantedTagsContainer.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{}\")));\n", tag));
+            }
         }
-        output.push_str("\n");
-    }
-    
-    // Application tag requirements
-    if !effect_ir.application_tag_requirements.require.is_empty() 
-        || !effect_ir.application_tag_requirements.ignore.is_empty() {
-        output.push_str("\t// Application requirements\n");
-        
-        for tag in &effect_ir.application_tag_requirements.require {
-            output.push_str(&format!("\tApplicationTagRequirements.RequireTags.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
-            output.push_str("\t);\n");
+
+        if !effect_ir.application_tag_requirements.require.is_empty()
+            || !effect_ir.application_tag_requirements.ignore.is_empty()
+            || !effect_ir.ongoing_tag_requirements.require.is_empty()
+            || !effect_ir.ongoing_tag_requirements.ignore.is_empty()
+        {
+            output.push_str("\tUTargetTagRequirementsGameplayEffectComponent* RequirementsComp = CreateDefaultSubobject<UTargetTagRequirementsGameplayEffectComponent>(TEXT(\"Requirements\"));\n");
+            for tag in &effect_ir.application_tag_requirements.require {
+                output.push_str(&format!("\tRequirementsComp->ApplicationTagRequirements.RequireTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{}\")));\n", tag));
+            }
+            for tag in &effect_ir.application_tag_requirements.ignore {
+                output.push_str(&format!("\tRequirementsComp->ApplicationTagRequirements.IgnoreTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{}\")));\n", tag));
+            }
+            for tag in &effect_ir.ongoing_tag_requirements.require {
+                output.push_str(&format!("\tRequirementsComp->OngoingTagRequirements.RequireTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{}\")));\n", tag));
+            }
+            for tag in &effect_ir.ongoing_tag_requirements.ignore {
+                output.push_str(&format!("\tRequirementsComp->OngoingTagRequirements.IgnoreTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{}\")));\n", tag));
+            }
         }
-        
-        for tag in &effect_ir.application_tag_requirements.ignore {
-            output.push_str(&format!("\tApplicationTagRequirements.IgnoreTags.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
-            output.push_str("\t);\n");
+
+        output.push_str("\t#else\n");
+
+        if !effect_ir.owned_tags.is_empty() {
+            output.push_str("\t// Owned tags (legacy fallback)\n");
+            for tag in &effect_ir.owned_tags {
+                output.push_str(&format!("\tInheritableOwnedTagsContainer.AddTag(\n"));
+                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str("\t);\n");
+            }
         }
-        output.push_str("\n");
-    }
-    
-    // Ongoing tag requirements
-    if !effect_ir.ongoing_tag_requirements.require.is_empty() 
-        || !effect_ir.ongoing_tag_requirements.ignore.is_empty() {
-        output.push_str("\t// Ongoing requirements\n");
-        
-        for tag in &effect_ir.ongoing_tag_requirements.require {
-            output.push_str(&format!("\tOngoingTagRequirements.RequireTags.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
-            output.push_str("\t);\n");
+
+        if !effect_ir.granted_tags.is_empty() {
+            output.push_str("\t// Granted tags (legacy fallback)\n");
+            for tag in &effect_ir.granted_tags {
+                output.push_str(&format!("\tInheritableGameplayEffectTags.Added.AddTag(\n"));
+                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str("\t);\n");
+            }
         }
-        
-        for tag in &effect_ir.ongoing_tag_requirements.ignore {
-            output.push_str(&format!("\tOngoingTagRequirements.IgnoreTags.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
-            output.push_str("\t);\n");
+
+        if !effect_ir.application_tag_requirements.require.is_empty()
+            || !effect_ir.application_tag_requirements.ignore.is_empty()
+        {
+            output.push_str("\t// Application requirements (legacy fallback)\n");
+            for tag in &effect_ir.application_tag_requirements.require {
+                output.push_str(&format!("\tApplicationTagRequirements.RequireTags.AddTag(\n"));
+                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str("\t);\n");
+            }
+            for tag in &effect_ir.application_tag_requirements.ignore {
+                output.push_str(&format!("\tApplicationTagRequirements.IgnoreTags.AddTag(\n"));
+                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str("\t);\n");
+            }
         }
-        output.push_str("\n");
+
+        if !effect_ir.ongoing_tag_requirements.require.is_empty()
+            || !effect_ir.ongoing_tag_requirements.ignore.is_empty()
+        {
+            output.push_str("\t// Ongoing requirements (legacy fallback)\n");
+            for tag in &effect_ir.ongoing_tag_requirements.require {
+                output.push_str(&format!("\tOngoingTagRequirements.RequireTags.AddTag(\n"));
+                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str("\t);\n");
+            }
+            for tag in &effect_ir.ongoing_tag_requirements.ignore {
+                output.push_str(&format!("\tOngoingTagRequirements.IgnoreTags.AddTag(\n"));
+                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str("\t);\n");
+            }
+        }
+
+        output.push_str("\t#endif\n\n");
     }
     
     // Removal tag requirements
@@ -257,7 +312,7 @@ fn duration_policy_to_ue5(policy: &DurationPolicy) -> &'static str {
 fn modifier_op_to_ue5(op: &ModifierOp) -> &'static str {
     match op {
         ModifierOp::Add => "EGameplayModOp::Additive",
-        ModifierOp::Multiply => "EGameplayModOp::Multiplicative",
+        ModifierOp::Multiply => "EGameplayModOp::Multiplicitive",
         ModifierOp::Divide => "EGameplayModOp::Division",
         ModifierOp::Override => "EGameplayModOp::Override",
     }
@@ -316,7 +371,7 @@ mod tests {
         );
         assert_eq!(
             modifier_op_to_ue5(&ModifierOp::Multiply),
-            "EGameplayModOp::Multiplicative"
+            "EGameplayModOp::Multiplicitive"
         );
         assert_eq!(
             modifier_op_to_ue5(&ModifierOp::Divide),

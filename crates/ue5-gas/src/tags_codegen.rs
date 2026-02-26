@@ -77,6 +77,15 @@ fn generate_namespace_hierarchy(
     is_header: bool,
 ) -> Result<()> {
     let indent = "    ".repeat(depth);
+
+    fn emitted_leaf_symbol_name(tag: &GameplayTagIR, has_same_named_child_namespace: bool) -> String {
+        let leaf = tag.leaf_name();
+        if has_same_named_child_namespace {
+            format!("{}Tag", leaf)
+        } else {
+            leaf.to_string()
+        }
+    }
     
     // Group tags by namespace at current depth
     let mut groups: BTreeMap<String, Vec<&GameplayTagIR>> = BTreeMap::new();
@@ -93,25 +102,32 @@ fn generate_namespace_hierarchy(
             groups.entry(ns_key).or_insert_with(Vec::new).push(tag);
         }
     }
+
+    let child_namespace_names: std::collections::BTreeSet<String> = groups
+        .keys()
+        .filter(|k| !k.is_empty())
+        .cloned()
+        .collect();
     
     // Process groups in sorted order (BTreeMap ensures this)
     for (ns_name, group_tags) in groups {
         if ns_name.is_empty() {
             // Leaf tags at this level
             for tag in group_tags {
+                let symbol_name = emitted_leaf_symbol_name(tag, child_namespace_names.contains(&tag.leaf_name().to_string()));
                 if is_header {
                     output.push_str(&format!("{}{} UE_DECLARE_GAMEPLAY_TAG_EXTERN({});\n", 
-                        indent, api_macro, tag.leaf_name()));
+                        indent, api_macro, symbol_name));
                 } else {
                     if let Some(comment) = &tag.comment {
                         output.push_str(&format!("{}UE_DEFINE_GAMEPLAY_TAG_COMMENT(\n", indent));
-                        output.push_str(&format!("{}    {},\n", indent, tag.leaf_name()));
+                        output.push_str(&format!("{}    {},\n", indent, symbol_name));
                         output.push_str(&format!("{}    \"{}\",\n", indent, tag.tag));
                         output.push_str(&format!("{}    \"{}\"\n", indent, comment));
                         output.push_str(&format!("{});\n", indent));
                     } else {
                         output.push_str(&format!("{}UE_DEFINE_GAMEPLAY_TAG({}, \"{}\");\n", 
-                            indent, tag.leaf_name(), tag.tag));
+                            indent, symbol_name, tag.tag));
                     }
                 }
             }

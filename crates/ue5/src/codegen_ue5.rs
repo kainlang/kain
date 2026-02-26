@@ -1335,8 +1335,12 @@ impl Ue5Gen {
         // module-level blueprint library header so U{Module}FunctionLibrary symbols resolve.
         let module_blueprint_header = format!("{}BlueprintLibrary", self.module_name);
         if self.context.output_name != module_blueprint_header {
+            self.source.push_line(&format!("#if __has_include(\"{}.h\")", module_blueprint_header));
             self.source.push_line(&format!("#include \"{}.h\"", module_blueprint_header));
+            self.source.push_line("#endif");
         }
+        self.source.push_line("#include \"AbilitySystemBlueprintLibrary.h\"");
+        self.source.push_line("#include \"GameplayTagContainer.h\"");
         // Only include RenderGraph/shader headers if this actor actually dispatches shaders.
         // In sliced mode, check for @dispatch attribute on the target actor.
         // In monolithic mode (no target_item), include if any shaders exist.
@@ -2163,6 +2167,7 @@ impl Ue5Gen {
                 // scalars first, then textures/UAVs (same contract used by generated .h/.cpp wrappers).
                 let mut call_args: Vec<String> = Vec::new();
                 let mut has_output_texture_arg = false;
+                let mut has_explicit_texture_uniform = false;
                 // POD population lines emitted just before the AddPass_ call.
                 let mut pod_prep_lines: Vec<String> = Vec::new();
 
@@ -2181,9 +2186,14 @@ impl Ue5Gen {
                     if is_permutation_uniform {
                         continue;
                     }
-                    let is_texture = if let Type::Named { name, .. } = &uniform.ty {
-                        matches!(
-                            name.as_str(),
+                    let uniform_type_name = if let Type::Named { name, .. } = &uniform.ty {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    };
+                    let is_texture = matches!(
+                        uniform_type_name,
+                        Some(
                             "Sampler2D"
                                 | "Sampler3D"
                                 | "SamplerCube"
@@ -2200,9 +2210,11 @@ impl Ue5Gen {
                                 | "TextureCube"
                                 | "RWTextureCube"
                         )
-                    } else {
-                        false
-                    };
+                    );
+                    let is_buffer_srv = matches!(
+                        uniform_type_name,
+                        Some("Buffer" | "RWBuffer" | "StructuredBuffer" | "RWStructuredBuffer")
+                    );
                     if !is_texture {
                         ordered_uniforms.push(uniform);
                     }
@@ -2221,9 +2233,14 @@ impl Ue5Gen {
                     if is_permutation_uniform {
                         continue;
                     }
-                    let is_texture = if let Type::Named { name, .. } = &uniform.ty {
-                        matches!(
-                            name.as_str(),
+                    let uniform_type_name = if let Type::Named { name, .. } = &uniform.ty {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    };
+                    let is_texture = matches!(
+                        uniform_type_name,
+                        Some(
                             "Sampler2D"
                                 | "Sampler3D"
                                 | "SamplerCube"
@@ -2240,9 +2257,11 @@ impl Ue5Gen {
                                 | "TextureCube"
                                 | "RWTextureCube"
                         )
-                    } else {
-                        false
-                    };
+                    );
+                    let is_buffer_srv = matches!(
+                        uniform_type_name,
+                        Some("Buffer" | "RWBuffer" | "StructuredBuffer" | "RWStructuredBuffer")
+                    );
                     if is_texture {
                         ordered_uniforms.push(uniform);
                     }
@@ -2266,9 +2285,14 @@ impl Ue5Gen {
                     
                     // Texture uniforms should be classified by declared type, not name heuristics.
                     // Name-based checks (e.g. "tex") misclassify fields like `vertex_count`.
-                    let is_texture = if let Type::Named { name, .. } = &uniform.ty {
-                        matches!(
-                            name.as_str(),
+                    let uniform_type_name = if let Type::Named { name, .. } = &uniform.ty {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    };
+                    let is_texture = matches!(
+                        uniform_type_name,
+                        Some(
                             "Sampler2D"
                                 | "Sampler3D"
                                 | "SamplerCube"
@@ -2285,14 +2309,22 @@ impl Ue5Gen {
                                 | "TextureCube"
                                 | "RWTextureCube"
                         )
-                    } else {
-                        false
-                    };
+                    );
+                    let is_buffer_srv = matches!(
+                        uniform_type_name,
+                        Some("Buffer" | "RWBuffer" | "StructuredBuffer" | "RWStructuredBuffer")
+                    );
                     
                     if is_texture {
+                         has_explicit_texture_uniform = true;
                          // Texture Param Logic - Modular mapping by name
                          let mut matched_texture = false;
-                         if name_lower.contains("position") {
+                         if is_buffer_srv {
+                            // Generated AddPass_* helpers use FRHIShaderResourceView* for buffer-like
+                            // inputs; avoid passing FRDGTextureRef placeholders.
+                            call_args.push("nullptr".to_string());
+                            matched_texture = true;
+                         } else if name_lower.contains("position") {
                              if name_lower.contains("output") || name_lower.contains("write") {
                                 call_args.push("PositionOutput".to_string());
                                 has_output_texture_arg = true;
@@ -2439,7 +2471,9 @@ impl Ue5Gen {
                     // Sampler2D`). Only apply the name-heuristic fallback when the loop
                     // didn't already add ANY output/RT texture — prevents duplicate args that
                     // cause a C++ "too many arguments" error on the AddPass_ call site.
-                    if !has_output_texture_arg {
+                    // Also skip this fallback when the shader already has explicit texture/UAV
+                    // uniforms, because helper signatures already account for those slots.
+                    if !has_output_texture_arg && !has_explicit_texture_uniform {
                         let shader_name_lower = shader_name.to_lowercase();
                         if shader_name_lower.contains("position") {
                             call_args.push("PositionOutput".to_string());
@@ -4756,6 +4790,16 @@ impl Ue5Gen {
                             format!("GEngine->AddOnScreenDebugMessage(-1, {}, FColor::White, {})", 
                                 arg_strs.get(1).map(|s| s.as_str()).unwrap_or("5.0f"),
                                 arg_strs[0])
+                        }
+                    },
+                    "send_gameplay_event" => return {
+                        if let Some(tag_arg) = arg_strs.get(0) {
+                            format!(
+                                "UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, FGameplayTag::RequestGameplayTag(FName({})), FGameplayEventData())",
+                                tag_arg
+                            )
+                        } else {
+                            "/* TODO(kain): send_gameplay_event missing tag argument */".to_string()
                         }
                     },
                     

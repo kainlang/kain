@@ -50,7 +50,6 @@ fn generate_header(target_ir: &TargetActorIR, class_name: &str) -> KainResult<St
     
     // Override methods
     output.push_str("\tvirtual void StartTargeting(UGameplayAbility* Ability) override;\n");
-    output.push_str("\tvirtual FGameplayAbilityTargetDataHandle MakeTargetData() const override;\n");
     
     // Custom methods
     for method in &target_ir.custom_methods {
@@ -65,7 +64,7 @@ fn generate_header(target_ir: &TargetActorIR, class_name: &str) -> KainResult<St
 fn generate_source(target_ir: &TargetActorIR, class_name: &str) -> KainResult<String> {
     let mut output = String::new();
     
-    output.push_str(&format!("#include \"{}.h\"\n", target_ir.name));
+    output.push_str(&format!("#include \"Targeting/{}.h\"\n", target_ir.name));
     output.push_str("#include \"AbilitySystemComponent.h\"\n\n");
     
     // Constructor
@@ -74,7 +73,7 @@ fn generate_source(target_ir: &TargetActorIR, class_name: &str) -> KainResult<St
     output.push_str("\tPrimaryActorTick.bCanEverTick = true;\n");
     
     if let Some(max_range) = target_ir.max_range {
-        output.push_str(&format!("\tMaxRange = {}f;\n", max_range));
+        output.push_str(&format!("\tMaxRange = {:.1}f;\n", max_range));
     }
     
     if let Some(ref channel) = target_ir.trace_channel {
@@ -88,14 +87,6 @@ fn generate_source(target_ir: &TargetActorIR, class_name: &str) -> KainResult<St
     output.push_str("{\n");
     output.push_str("\tSuper::StartTargeting(Ability);\n");
     output.push_str("\t// TODO: Initialize targeting\n");
-    output.push_str("}\n\n");
-    
-    // MakeTargetData
-    output.push_str(&format!("FGameplayAbilityTargetDataHandle {}::MakeTargetData() const\n", class_name));
-    output.push_str("{\n");
-    output.push_str("\tFGameplayAbilityTargetDataHandle Handle;\n");
-    output.push_str("\t// TODO: Perform trace and create target data\n");
-    output.push_str("\treturn Handle;\n");
     output.push_str("}\n\n");
     
     // Custom methods

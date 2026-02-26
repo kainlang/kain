@@ -99,13 +99,12 @@ fn generate_source(task_ir: &AbilityTaskIR, class_name: &str) -> KainResult<Stri
     let mut output = String::new();
     
     // Includes
-    output.push_str(&format!("#include \"{}.h\"\n", task_ir.name));
+    output.push_str(&format!("#include \"Tasks/{}.h\"\n", task_ir.name));
     output.push_str("#include \"AbilitySystemComponent.h\"\n\n");
     
     // Constructor
     output.push_str(&format!("{}::{}()\n", class_name, class_name));
     output.push_str("{\n");
-    output.push_str("\tbCanBeCanceled = true;\n");
     output.push_str("}\n\n");
     
     // Static factory method
@@ -161,7 +160,7 @@ fn get_delegate_signature(delegate_type: &DelegateTypeIR) -> String {
         DelegateTypeIR::AttributeChange => "FAttributeChangeDelegate, float, NewValue".to_string(),
         DelegateTypeIR::TaskCancelled => "FTaskCancelledDelegate".to_string(),
         DelegateTypeIR::TargetDataReady => "FTargetDataDelegate, const FGameplayAbilityTargetDataHandle&, Data".to_string(),
-        DelegateTypeIR::GameplayEvent => "FGameplayEventDelegate, FGameplayTag, EventTag, const FGameplayEventData*, Payload".to_string(),
+        DelegateTypeIR::GameplayEvent => "FGameplayEventDelegate, FGameplayTag, EventTag, const FGameplayEventData&, Payload".to_string(),
         DelegateTypeIR::Custom(name) => format!("F{}Delegate", name),
     }
 }

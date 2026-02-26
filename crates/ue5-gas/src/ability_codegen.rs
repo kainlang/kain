@@ -107,7 +107,13 @@ fn generate_source(ir: &GameplayAbilityIR, class_name: &str, _plugin_name: &str)
     let mut output = String::new();
     
     // Includes
-    output.push_str(&format!("#include \"{}.h\"\n", ir.name));
+    output.push_str(&format!("#include \"Abilities/{}.h\"\n", ir.name));
+    if let Some(ref cost) = ir.cost_effect {
+        output.push_str(&format!("#include \"Effects/{}.h\"\n", cost));
+    }
+    if let Some(ref cooldown) = ir.cooldown_effect {
+        output.push_str(&format!("#include \"Effects/{}.h\"\n", cooldown));
+    }
     output.push_str("#include \"GameplayTags.h\"\n\n");
     
     // Constructor
