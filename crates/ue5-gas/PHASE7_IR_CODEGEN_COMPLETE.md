@@ -24,12 +24,11 @@
   - Inherits from `AGameplayAbilityTargetActor`
   - `UCLASS()` / `GENERATED_BODY()` macros
   - `MaxRange` and `TraceChannel` properties
-  - Virtual method overrides (`StartTargeting`, `MakeTargetData`)
+  - Virtual method override (`StartTargeting`)
   - Custom method declarations
 - `generate_source()` - produces `.cpp` file:
   - Constructor with property initialization
   - `StartTargeting()` implementation
-  - `MakeTargetData()` implementation
   - Custom method implementations
 - Unit test for basic target generation
 
@@ -66,7 +65,7 @@ Follows **exact** Phase 6 (Tasks) pattern:
 cargo test --lib -p ue5-gas
 ```
 
-**Result:** ✅ 40/40 tests passing
+**Result:** ✅ Phase 7 integrated into crate test suite (IR + codegen + integration coverage)
 
 ```
 test target_codegen::tests::test_target_generation ... ok
@@ -102,7 +101,6 @@ public:
     FName TraceChannel;
     
     virtual void StartTargeting(UGameplayAbility* Ability) override;
-    virtual FGameplayAbilityTargetDataHandle MakeTargetData() const override;
 };
 
 // TestTarget.cpp
@@ -118,10 +116,16 @@ ATestTarget::ATestTarget()
 
 ## Next Steps
 
-Phase 7 IR + Codegen is **COMPLETE**. Ready for:
-1. Integration into CLI packager
-2. End-to-end testing with Example_GAS
-3. Advanced features (filter codegen, trace implementation)
+Phase 7 IR + Codegen is **COMPLETE and integrated**.
+
+Done:
+1. CLI packager integration for TargetActors
+2. Dedicated `ue5-gas` target IR/integration test coverage
+
+Remaining advanced work:
+1. Filter codegen emission (currently stored in IR, TODO in C++)
+2. Full trace-shape implementation (line/sphere/cone/box/cylinder behavior)
+3. Optional end-to-end Example_GAS fixture with generated/compiled UE plugin assertion
 
 ---
 

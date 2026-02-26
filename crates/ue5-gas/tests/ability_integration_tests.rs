@@ -64,7 +64,7 @@ fn test_includes() {
     assert!(output.header.contains("#include \"JumpAbility.generated.h\""));
     
     // Source includes
-    assert!(output.source.contains("#include \"JumpAbility.h\""));
+    assert!(output.source.contains("#include \"Abilities/JumpAbility.h\""));
     assert!(output.source.contains("#include \"GameplayTags.h\""));
 }
 
@@ -178,6 +178,7 @@ fn test_cost_effect() {
     let output = generate_ability(&ir, "TestPlugin").unwrap();
     
     assert!(output.source.contains("// Cost effect"));
+    assert!(output.source.contains("#include \"Effects/StaminaCostEffect.h\""));
     assert!(output.source.contains("CostGameplayEffectClass = UStaminaCostEffect::StaticClass()"));
 }
 
@@ -189,6 +190,7 @@ fn test_cooldown_effect() {
     let output = generate_ability(&ir, "TestPlugin").unwrap();
     
     assert!(output.source.contains("// Cooldown effect"));
+    assert!(output.source.contains("#include \"Effects/JumpCooldownEffect.h\""));
     assert!(output.source.contains("CooldownGameplayEffectClass = UJumpCooldownEffect::StaticClass()"));
 }
 
@@ -200,6 +202,8 @@ fn test_cost_and_cooldown() {
     
     let output = generate_ability(&ir, "TestPlugin").unwrap();
     
+    assert!(output.source.contains("#include \"Effects/StaminaCostEffect.h\""));
+    assert!(output.source.contains("#include \"Effects/JumpCooldownEffect.h\""));
     assert!(output.source.contains("CostGameplayEffectClass = UStaminaCostEffect::StaticClass()"));
     assert!(output.source.contains("CooldownGameplayEffectClass = UJumpCooldownEffect::StaticClass()"));
 }
@@ -423,7 +427,7 @@ fn test_full_output_structure() {
     assert!(output.header.ends_with("};\n"));
     
     // Verify source structure
-    assert!(output.source.contains("#include \"JumpAbility.h\""));
+    assert!(output.source.contains("#include \"Abilities/JumpAbility.h\""));
     assert!(output.source.contains("UJumpAbility::UJumpAbility()"));
 }
 
