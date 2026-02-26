@@ -1,5 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
+use crate::parse_compile_target;
+use crate::target_extension;
 use crate::error::{KainError, KainResult};
 use super::config::PackageManifest;
 
@@ -22,7 +24,7 @@ pub fn build_project(target_overrides: Option<Vec<String>>) -> KainResult<()> {
 }
 
 fn build_targets(manifest: &PackageManifest, cwd: &PathBuf, targets: &[String]) -> KainResult<()> {
-    use crate::{compile, CompileTarget};
+    use crate::compile;
     
     // Ensure output directory exists
     let output_dir = cwd.join(&manifest.build.output);
@@ -59,39 +61,5 @@ fn build_targets(manifest: &PackageManifest, cwd: &PathBuf, targets: &[String]) 
 }
 
 fn parse_target(s: &str) -> KainResult<kain_core::CompileTarget> {
-    use kain_core::CompileTarget;
-    match s.to_lowercase().as_str() {
-        "wasm" | "w" => Ok(CompileTarget::Wasm),
-        "js" | "javascript" | "j" => Ok(CompileTarget::Js),
-        "ts" | "typescript" => Ok(CompileTarget::Ts),
-        "cpp" | "c++" => Ok(CompileTarget::Cpp),
-        "rust" | "rs" => Ok(CompileTarget::Rust),
-        "ue5" | "unreal" | "u" => Ok(CompileTarget::Ue5),
-        "ue5-editor" | "editor" => Ok(CompileTarget::Ue5Editor),
-        "usf" | "shader" => Ok(CompileTarget::Usf),
-        "spirv" | "spv" => Ok(CompileTarget::Spirv),
-        "hlsl" => Ok(CompileTarget::Hlsl),
-        "hybrid" => Ok(CompileTarget::Hybrid),
-        "llvm" => Ok(CompileTarget::Llvm),
-        "interpret" | "run" | "i" | "r" => Ok(CompileTarget::Interpret),
-        "test" | "t" => Ok(CompileTarget::Test),
-        _ => Err(KainError::runtime(format!("Unknown target: {}", s))),
-    }
-}
-
-fn target_extension(target: kain_core::CompileTarget) -> &'static str {
-    use kain_core::CompileTarget;
-    match target {
-        CompileTarget::Wasm => "wasm",
-        CompileTarget::Js => "js",
-        CompileTarget::Ts => "ts",
-        CompileTarget::Cpp => "cpp",
-        CompileTarget::Rust => "rs",
-        CompileTarget::Ue5 | CompileTarget::Ue5Editor => "h",
-        CompileTarget::Usf | CompileTarget::Hlsl => "hlsl",
-        CompileTarget::Spirv => "spv",
-        CompileTarget::Hybrid => "hybrid",
-        CompileTarget::Llvm => "ll",
-        CompileTarget::Interpret | CompileTarget::Test => "txt",
-    }
+    parse_compile_target(s).ok_or_else(|| KainError::runtime(format!("Unknown target: {}", s)))
 }

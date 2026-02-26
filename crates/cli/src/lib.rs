@@ -32,6 +32,117 @@ use sys;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const LANGUAGE_NAME: &str = "KAIN";
 
+#[derive(Clone, Copy)]
+struct TargetSpec {
+    target: CompileTarget,
+    extension: &'static str,
+    aliases: &'static [&'static str],
+}
+
+const TARGET_SPECS: &[TargetSpec] = &[
+    TargetSpec {
+        target: CompileTarget::Wasm,
+        extension: "wasm",
+        aliases: &["wasm", "w"],
+    },
+    TargetSpec {
+        target: CompileTarget::Llvm,
+        extension: "ll",
+        aliases: &["llvm", "native", "n"],
+    },
+    TargetSpec {
+        target: CompileTarget::Spirv,
+        extension: "spv",
+        aliases: &["spirv", "gpu", "shader", "s"],
+    },
+    TargetSpec {
+        target: CompileTarget::Hlsl,
+        extension: "hlsl",
+        aliases: &["hlsl", "h"],
+    },
+    TargetSpec {
+        target: CompileTarget::Usf,
+        extension: "usf",
+        aliases: &["usf"],
+    },
+    TargetSpec {
+        target: CompileTarget::Js,
+        extension: "js",
+        aliases: &["js", "javascript", "j"],
+    },
+    TargetSpec {
+        target: CompileTarget::Ts,
+        extension: "ts",
+        aliases: &["ts", "typescript"],
+    },
+    TargetSpec {
+        target: CompileTarget::Rust,
+        extension: "rs",
+        aliases: &["rust", "rs"],
+    },
+    TargetSpec {
+        target: CompileTarget::Hybrid,
+        extension: "js",
+        aliases: &["hybrid", "web"],
+    },
+    TargetSpec {
+        target: CompileTarget::Cpp,
+        extension: "cpp",
+        aliases: &["cpp", "c++"],
+    },
+    TargetSpec {
+        target: CompileTarget::Ue5,
+        extension: "h",
+        aliases: &["ue5", "unreal", "u"],
+    },
+    TargetSpec {
+        target: CompileTarget::Ue5Editor,
+        extension: "h",
+        aliases: &["ue5editor", "ue5-editor", "editor", "slate"],
+    },
+    TargetSpec {
+        target: CompileTarget::Interpret,
+        extension: "txt",
+        aliases: &["run", "r", "interpret", "i"],
+    },
+    TargetSpec {
+        target: CompileTarget::Test,
+        extension: "txt",
+        aliases: &["test", "t"],
+    },
+];
+
+fn find_target_spec_by_alias(alias: &str) -> Option<&'static TargetSpec> {
+    let normalized = alias.trim().to_ascii_lowercase();
+    TARGET_SPECS.iter().find(|spec| {
+        spec.aliases
+            .iter()
+            .any(|candidate| *candidate == normalized)
+    })
+}
+
+fn find_target_spec_by_target(target: CompileTarget) -> Option<&'static TargetSpec> {
+    TARGET_SPECS.iter().find(|spec| spec.target == target)
+}
+
+pub fn parse_compile_target(alias: &str) -> Option<CompileTarget> {
+    find_target_spec_by_alias(alias).map(|spec| spec.target)
+}
+
+pub fn target_extension(target: CompileTarget) -> &'static str {
+    find_target_spec_by_target(target)
+        .map(|spec| spec.extension)
+        .unwrap_or("out")
+}
+
+pub fn supported_targets_csv() -> String {
+    TARGET_SPECS
+        .iter()
+        .map(|spec| spec.aliases[0])
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Compile with backend selection
 pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
     // Load stdlib
@@ -146,6 +257,25 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
             "Target {:?} not enabled. Recompile with appropriate feature flag.",
             target
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_typescript_aliases() {
+        assert_eq!(parse_compile_target("ts"), Some(CompileTarget::Ts));
+        assert_eq!(
+            parse_compile_target("typescript"),
+            Some(CompileTarget::Ts)
+        );
+    }
+
+    #[test]
+    fn extension_for_typescript_is_ts() {
+        assert_eq!(target_extension(CompileTarget::Ts), "ts");
     }
 }
 

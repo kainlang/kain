@@ -6,7 +6,10 @@ use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use cli::{compile, CompileTarget, VERSION, LANGUAGE_NAME};
+use cli::{
+    compile, parse_compile_target, supported_targets_csv, target_extension, CompileTarget,
+    LANGUAGE_NAME, VERSION,
+};
 use cli::packager;
 use cli::lsp;
 
@@ -91,6 +94,10 @@ enum Commands {
     Build {
         /// Optional input file. If omitted, builds all targets from KAIN.toml
         input: Option<PathBuf>,
+
+        /// Single target override for file builds (e.g. ts, rust, wasm)
+        #[arg(short, long)]
+        target: Option<String>,
         
         /// Override targets (comma-separated: wasm,js,rust)
         #[arg(long, value_delimiter = ',')]
@@ -158,21 +165,7 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
             if target == CompileTarget::Interpret || target == CompileTarget::Test {
                 println!(" Execution complete");
             } else {
-                let default_ext = match target {
-                    CompileTarget::Wasm => "wasm",
-                    CompileTarget::Llvm => "ll",
-                    CompileTarget::Spirv => "spv",
-                    CompileTarget::Hlsl => "hlsl",
-                    CompileTarget::Usf => "usf",
-                    CompileTarget::Js => "js",
-                    CompileTarget::Ts => "ts",
-                    CompileTarget::Rust => "rs",
-                    CompileTarget::Hybrid => "js",
-                    CompileTarget::Cpp => "cpp",
-                    CompileTarget::Ue5 => "h",
-                    CompileTarget::Ue5Editor => "h",
-                    CompileTarget::Interpret | CompileTarget::Test => unreachable!(),
-                };
+                let default_ext = target_extension(target);
                 
                 // Determine where to write the primary output
                 let output_path = if target == CompileTarget::Llvm {
@@ -540,7 +533,13 @@ fn main() {
                     lsp::run_server().await;
                 });
             }
-            Some(Commands::Build { input, targets, ue5, embed }) => {
+            Some(Commands::Build {
+                input,
+                target,
+                targets,
+                ue5,
+                embed,
+            }) => {
                 if ue5 {
                     // UE5 plugin build
                     if let Err(e) = packager::build_ue5_plugin_with_options(embed) {
@@ -551,12 +550,36 @@ fn main() {
                 } else {
                     match input {
                         Some(file) => {
-                            // Single file build (legacy behavior)
-                            run_compile(&file, CompileTarget::Wasm, None, args.emit_ast, args.emit_typed, args.verbose, args.analyze, args.plugin.as_deref());
+                            let target_alias = target
+                                .as_deref()
+                                .unwrap_or(args.target.as_str());
+                            let Some(resolved_target) = parse_compile_target(target_alias) else {
+                                eprintln!(
+                                    " Unknown target: {}. Use: {}",
+                                    target_alias,
+                                    supported_targets_csv()
+                                );
+                                std::process::exit(1);
+                            };
+                            run_compile(
+                                &file,
+                                resolved_target,
+                                None,
+                                args.emit_ast,
+                                args.emit_typed,
+                                args.verbose,
+                                args.analyze,
+                                args.plugin.as_deref(),
+                            );
                         }
                         None => {
                             // Project build from KAIN.toml
-                            if let Err(e) = packager::build_project(targets.clone()) {
+                            let target_overrides = if let Some(single_target) = target {
+                                Some(vec![single_target])
+                            } else {
+                                targets.clone()
+                            };
+                            if let Err(e) = packager::build_project(target_overrides) {
                                 eprintln!(" Build failed: {}", e);
                                 std::process::exit(1);
                             }
@@ -589,25 +612,13 @@ fn main() {
                             std::process::exit(1);
                         }
                     } else {
-                        let target = match args.target.as_str() {
-                            "wasm" | "w" => CompileTarget::Wasm,
-                            "llvm" | "native" | "n" => CompileTarget::Llvm,
-                            "spirv" | "gpu" | "shader" | "s" => CompileTarget::Spirv,
-                            "hlsl" | "h" => CompileTarget::Hlsl,
-                            "usf" => CompileTarget::Usf,
-                            "js" | "javascript" => CompileTarget::Js,
-                            "ts" | "typescript" => CompileTarget::Ts,
-                            "rust" | "rs" => CompileTarget::Rust,
-                            "run" | "r" | "interpret" | "i" => CompileTarget::Interpret,
-                            "test" | "t" => CompileTarget::Test,
-                            "hybrid" | "web" => CompileTarget::Hybrid,
-                            "cpp" | "c++" => CompileTarget::Cpp,
-                            "ue5" | "unreal" => CompileTarget::Ue5,
-                            "ue5editor" | "editor" | "slate" => CompileTarget::Ue5Editor,
-                            _ => {
-                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, js, ts, rust, hybrid, cpp, ue5, ue5editor, run, test", args.target);
-                                std::process::exit(1);
-                            }
+                        let Some(target) = parse_compile_target(&args.target) else {
+                            eprintln!(
+                                " Unknown target: {}. Use: {}",
+                                args.target,
+                                supported_targets_csv()
+                            );
+                            std::process::exit(1);
                         };
 
                         if args.watch {
