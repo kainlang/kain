@@ -38,6 +38,6 @@ fn import_asm_command_generates_expected_artifacts() {
 
     assert!(base.join("Research").join("furby").join("furby_canonical.asm").exists());
     assert!(base.join("Research").join("furby").join("furby_recovery_report.json").exists());
-    assert!(base.join("Kain").join("generated").join("furby_firmware.kn").exists());
-    assert!(base.join("Kain").join("generated").join("furby_map.json").exists());
+    assert!(base.join("generated").join("furby_firmware.kn").exists());
+    assert!(base.join("generated").join("furby_map.json").exists());
 }

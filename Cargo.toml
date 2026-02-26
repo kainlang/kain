@@ -24,7 +24,7 @@ members = [
     "crates/unreal/unreal_asset_proc_macro",
     "crates/unreal/unreal_helpers",
     "crates/ue5-asset-utils",
-    "crates/ue5-blueprints",
+    "crates/ue5-blueprints", "crates/kain-asm",
 ]
 resolver = "2"
 
