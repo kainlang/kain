@@ -35,6 +35,7 @@ pub use monomorphize::MonomorphizedProgram;
 pub enum CompileTarget {
     Wasm,
     Js,
+    Ts,
     Hybrid,
     Llvm,
     Rust,
@@ -53,6 +54,7 @@ impl CompileTarget {
         match s.to_lowercase().as_str() {
             "wasm" => Some(Self::Wasm),
             "js" | "javascript" => Some(Self::Js),
+            "ts" | "typescript" => Some(Self::Ts),
             "hybrid" => Some(Self::Hybrid),
             "llvm" => Some(Self::Llvm),
             "rust" | "rs" => Some(Self::Rust),

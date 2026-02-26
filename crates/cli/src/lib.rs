@@ -92,6 +92,12 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
             let typed_for_codegen = TypedProgram { items: mono_ast.items };
             web::generate_js(&typed_for_codegen)
         }
+
+        #[cfg(feature = "web")]
+        CompileTarget::Ts => {
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            web::generate_ts(&typed_for_codegen)
+        }
         
         #[cfg(feature = "web")]
         CompileTarget::Hybrid => {

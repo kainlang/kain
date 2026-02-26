@@ -63,6 +63,7 @@ fn parse_target(s: &str) -> KainResult<kain_core::CompileTarget> {
     match s.to_lowercase().as_str() {
         "wasm" | "w" => Ok(CompileTarget::Wasm),
         "js" | "javascript" | "j" => Ok(CompileTarget::Js),
+        "ts" | "typescript" => Ok(CompileTarget::Ts),
         "cpp" | "c++" => Ok(CompileTarget::Cpp),
         "rust" | "rs" => Ok(CompileTarget::Rust),
         "ue5" | "unreal" | "u" => Ok(CompileTarget::Ue5),
@@ -83,6 +84,7 @@ fn target_extension(target: kain_core::CompileTarget) -> &'static str {
     match target {
         CompileTarget::Wasm => "wasm",
         CompileTarget::Js => "js",
+        CompileTarget::Ts => "ts",
         CompileTarget::Cpp => "cpp",
         CompileTarget::Rust => "rs",
         CompileTarget::Ue5 | CompileTarget::Ue5Editor => "h",

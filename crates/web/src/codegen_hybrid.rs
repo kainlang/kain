@@ -1,8 +1,8 @@
-//! Hybrid WASM/JS Code Generation
+//! Hybrid WASM/JS/TS Code Generation
 //!
 //! Generates a hybrid output where:
 //! - Functions marked with @wasm compile to WebAssembly for performance
-//! - Everything else (components, DOM code) compiles to JavaScript
+//! - Everything else (components, DOM code) compiles to JavaScript + TypeScript
 //!
 //! The generated JS includes:
 //! - WASM loader with memory management
@@ -12,13 +12,12 @@
 
 use kain_core::error::KainResult;
 use kain_core::types::{TypedProgram, TypedItem, TypedFunction, TypedComponent, ResolvedType};
-use crate::codegen_wasm;
-use crate::codegen_js;
 
 /// Output from hybrid compilation
 pub struct HybridOutput {
     pub wasm: Vec<u8>,
     pub js: String,
+    pub ts: String,
     pub wasm_exports: Vec<WasmExport>,
 }
 
@@ -104,16 +103,19 @@ pub fn generate(program: &TypedProgram) -> KainResult<HybridOutput> {
     // Compile JS items
     let js_program = TypedProgram { items: js_items };
     let mut js_code = crate::codegen_js::generate(&js_program)?;
+    let mut ts_code = crate::codegen_ts::generate(&js_program)?;
     
     // Generate complete runtime + bindings
     if !wasm_exports.is_empty() {
         let runtime = generate_hybrid_runtime(&wasm_exports);
         js_code = format!("{}\n\n{}", runtime, js_code);
+        ts_code = format!("{}\n\n{}", runtime, ts_code);
     }
     
     Ok(HybridOutput {
         wasm: wasm_bytes,
         js: js_code,
+        ts: ts_code,
         wasm_exports,
     })
 }

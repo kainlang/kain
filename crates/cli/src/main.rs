@@ -165,6 +165,7 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     CompileTarget::Hlsl => "hlsl",
                     CompileTarget::Usf => "usf",
                     CompileTarget::Js => "js",
+                    CompileTarget::Ts => "ts",
                     CompileTarget::Rust => "rs",
                     CompileTarget::Hybrid => "js",
                     CompileTarget::Cpp => "cpp",
@@ -595,6 +596,7 @@ fn main() {
                             "hlsl" | "h" => CompileTarget::Hlsl,
                             "usf" => CompileTarget::Usf,
                             "js" | "javascript" => CompileTarget::Js,
+                            "ts" | "typescript" => CompileTarget::Ts,
                             "rust" | "rs" => CompileTarget::Rust,
                             "run" | "r" | "interpret" | "i" => CompileTarget::Interpret,
                             "test" | "t" => CompileTarget::Test,
@@ -603,7 +605,7 @@ fn main() {
                             "ue5" | "unreal" => CompileTarget::Ue5,
                             "ue5editor" | "editor" | "slate" => CompileTarget::Ue5Editor,
                             _ => {
-                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, js, rust, hybrid, cpp, ue5, ue5editor, run, test", args.target);
+                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, js, ts, rust, hybrid, cpp, ue5, ue5editor, run, test", args.target);
                                 std::process::exit(1);
                             }
                         };

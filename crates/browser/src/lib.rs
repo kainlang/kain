@@ -14,6 +14,15 @@ pub fn compile_to_js(source: &str) -> Result<String, JsValue> {
     }
 }
 
+/// Compile KAIN source code to TypeScript
+#[wasm_bindgen]
+pub fn compile_to_ts(source: &str) -> Result<String, JsValue> {
+    match compile(source, CompileTarget::Ts) {
+        Ok(bytes) => Ok(String::from_utf8_lossy(&bytes).to_string()),
+        Err(e) => Err(JsValue::from_str(&format!("{}", e))),
+    }
+}
+
 /// Compile KAIN source code to WebAssembly (returns bytes)
 #[wasm_bindgen]
 pub fn compile_to_wasm(source: &str) -> Result<Vec<u8>, JsValue> {
