@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 kain-core = { path = "../kain-core" }
+kain-asm = { path = "../kain-asm" }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }
