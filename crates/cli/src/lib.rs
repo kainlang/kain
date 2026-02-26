@@ -8,6 +8,7 @@ pub use kain_core::*;
 // CLI-specific modules
 pub mod lsp;
 pub mod packager;
+pub mod import_asm;
 
 // Backend imports
 #[cfg(feature = "ue5")]

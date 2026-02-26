@@ -1,0 +1,32 @@
+{
+  "translit_units": [
+    {
+      "source_label": "__entry_2",
+      "target_item": "fw___entry_2",
+      "source_line_start": 2,
+      "source_line_end": 292
+    }
+  ],
+  "parity_trace_schema": {
+    "tick": 0,
+    "pc": 0,
+    "opcode": "NOP",
+    "registers": {
+      "a": 0,
+      "bank": 0,
+      "pc": 0,
+      "sp": 0,
+      "x": 0,
+      "y": 0
+    },
+    "flags": {
+      "carry": false,
+      "negative": false,
+      "overflow": false,
+      "zero": false
+    },
+    "notes": [
+      "schema"
+    ]
+  }
+}

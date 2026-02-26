@@ -12,6 +12,7 @@ use cli::{
 };
 use cli::packager;
 use cli::lsp;
+use cli::import_asm;
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -141,6 +142,24 @@ enum Commands {
         /// Use UE5 codegen
         #[arg(long)]
         ue5: bool,
+    },
+
+    /// Import legacy assembly and transliterate into KAIN firmware scaffolding
+    ImportAsm {
+        /// Input assembly source file
+        input: PathBuf,
+
+        /// Input dialect format
+        #[arg(long, default_value = "6502-furby")]
+        format: String,
+
+        /// Output .kn file (default: Kain/generated/furby_firmware.kn)
+        #[arg(long)]
+        out: Option<PathBuf>,
+
+        /// Parse/canonicalize and report only, without writing generated .kn and map
+        #[arg(long)]
+        validate_only: bool,
     },
 }
 
@@ -599,6 +618,34 @@ fn main() {
                 } else {
                     eprintln!(" Only --ue5 target is supported for inject command");
                     std::process::exit(1);
+                }
+            }
+            Some(Commands::ImportAsm {
+                input,
+                format,
+                out,
+                validate_only,
+            }) => {
+                match import_asm::import_asm(&input, &format, out.as_deref(), validate_only) {
+                    Ok(result) => {
+                        println!(" Import complete");
+                        println!(" Canonical ASM: {}", result.canonical_asm_path.display());
+                        if !validate_only {
+                            println!(" Generated KAIN: {}", result.generated_kn_path.display());
+                            println!(" Mapping JSON: {}", result.map_json_path.display());
+                        }
+                        println!(" Recovery report: {}", result.report_json_path.display());
+                        println!(
+                            " Parsed blocks: {}, data tables: {}, directives: {}",
+                            result.parsed.blocks.len(),
+                            result.parsed.data_tables.len(),
+                            result.parsed.directives.len()
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!(" import-asm failed: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             None => {
