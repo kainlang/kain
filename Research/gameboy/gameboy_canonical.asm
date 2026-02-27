@@ -1,6 +1,4 @@
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\main.asm
 SECTION "bank1", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\sprites\facings.asm
 SpriteFacingAndAnimationTable:
 ; This table is used for overworld sprites $1-$9.
 dw .StandingDown, .NormalOAM ; facing down, walk animation frame 0
@@ -57,8 +55,6 @@ db 0, 8, OAM_XFLIP ; top left
 db 0, 0, OAM_XFLIP ; top right
 db 8, 8, OAM_XFLIP | UNDER_GRASS ; bottom left
 db 8, 0, OAM_XFLIP | UNDER_GRASS | FACING_END ; bottom right
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\sprites\facings.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\black_out.asm
 ResetStatusAndHalveMoneyOnBlackout::
 ; Reset player status on blackout.
 xor a
@@ -102,8 +98,6 @@ set BIT_ESCAPE_WARP, [hl]
 ld a, PAD_BUTTONS | PAD_CTRL_PAD
 ld [wJoyIgnore], a
 predef_jump HealParty
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\black_out.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\mew.asm
 ; Mew's pics and base data are not grouped with the other Pok mon
 ; because it was a last-minute addition "as a kind of prank".
 ; Shigeki Morimoto explained in an Iwata Asks interview:
@@ -117,8 +111,6 @@ MewPicFront:: INCBIN "gfx/pokemon/front/mew.pic"
 MewPicBack:: INCBIN "gfx/pokemon/back/mewb.pic"
 MewBaseStats::
 INCLUDE "data/pokemon/base_stats/mew.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\mew.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\safari_zone.asm
 PrintSafariZoneBattleText:
 ld hl, wSafariBaitFactor
 ld a, [hl]
@@ -153,8 +145,6 @@ text_end
 SafariZoneAngryText:
 text_far _SafariZoneAngryText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\safari_zone.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\title.asm
 CopyDebugName:
 ld bc, NAME_LENGTH
 jp CopyData
@@ -530,8 +520,6 @@ DebugNewGamePlayerName:
 db "NINTEN@"
 DebugNewGameRivalName:
 db "SONY@"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\title.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\load_mon_data.asm
 LoadMonData_::
 ; Load monster [wWhichPokemon] from list [wMonDataLocation]:
 ; 0: partymon
@@ -572,8 +560,6 @@ call AddNTimes
 ld de, wLoadedMon
 ld bc, PARTYMON_STRUCT_LENGTH
 jp CopyData
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\load_mon_data.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\items\prices.asm
 ItemPrices::
 table_width 3
 bcd3 0 ; MASTER_BALL
@@ -675,8 +661,6 @@ bcd3 0 ; FLOOR_10F
 bcd3 0 ; FLOOR_11F
 bcd3 0 ; FLOOR_B4F
 assert_table_length NUM_ITEMS + NUM_FLOORS
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\items\prices.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\items\names.asm
 ItemNames::
 list_start ITEM_NAME_LENGTH - 1
 li "MASTER BALL"
@@ -778,8 +762,6 @@ li "10F"
 li "11F"
 li "B4F"
 assert_list_length NUM_ITEMS + NUM_FLOORS
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\items\names.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\text\unused_names.asm
 UnusedBadgeNames::
 db " @" ; THUNDER BADGE
 db " @" ; SHELL BADGE
@@ -801,8 +783,6 @@ db " @" ; CAPTAIN
 db " @" ; PETIT MASTER
 db " @" ; MASTER
 db " " ; EXCELLENT
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\text\unused_names.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\sprite_oam.asm
 PrepareOAMData::
 ; Determine OAM data for currently visible
 ; sprites and write it to wShadowOAM.
@@ -966,8 +946,6 @@ ldh a, [hSpriteScreenX]
 and $f0
 ld [de], a ; [x#SPRITESTATEDATA1_XADJUSTED]
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\sprite_oam.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\oam_dma.asm
 WriteDMACodeToHRAM::
 ; Since no other memory is available during OAM DMA,
 ; DMARoutine is copied to HRAM and executed there.
@@ -995,8 +973,6 @@ jr nz, .wait
 ret
 ENDL
 .End:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\oam_dma.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\link\print_waiting_text.asm
 PrintWaitingText::
 hlcoord 3, 10
 ld b, 1
@@ -1017,8 +993,6 @@ ld c, 50
 jp DelayFrames
 WaitingText:
 db "Waiting...!@"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\link\print_waiting_text.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\sprite_collisions.asm
 _UpdateSprites::
 ld h, HIGH(wSpriteStateData1)
 inc h
@@ -1315,8 +1289,6 @@ SpriteCollisionBitTable:
 FOR n, $10
 bigdw 1 << n
 ENDR
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\sprite_collisions.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\debug\debug_menu.asm
 DebugMenu:
 IF DEF(_DEBUG)
 call ClearScreen
@@ -1415,8 +1387,6 @@ ld a, 1
 ld [wUpdateSpritesEnabled], a
 ldh [hAutoBGTransferEnabled], a
 jr .loop
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\debug\debug_menu.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pick_up_item.asm
 PickUpItem:
 call EnableAutoTextBoxDrawing
 ldh a, [hSpriteIndex]
@@ -1464,8 +1434,6 @@ text_end
 NoMoreRoomForItemText:
 text_far _NoMoreRoomForItemText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pick_up_item.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\movement.asm
 DEF MAP_TILESET_SIZE EQU $60
 UpdatePlayerSprite:
 ld a, [wSpritePlayerStateData2WalkAnimationCounter]
@@ -2333,8 +2301,6 @@ and $3
 ld [hl], a
 ldh [hSpriteAnimFrameCounter], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\movement.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\link\cable_club.asm
 ; performs the appropriate action when the player uses the gameboy on the table in the Colosseum or Trade Center
 ; In the Colosseum, it starts a battle. In the Trade Center, it displays the trade selection screen.
 ; Before doing either action, it swaps random numbers, trainer names and party data with the other gameboy.
@@ -3294,8 +3260,6 @@ ld de, TrainerInfoTextBoxTileGraphics
 ld hl, vChars2 tile $76
 lb bc, BANK(TrainerInfoTextBoxTileGraphics), (TrainerInfoTextBoxTileGraphicsEnd - TrainerInfoTextBoxTileGraphics) / TILE_SIZE
 jp CopyVideoData
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\link\cable_club.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\main_menu.asm
 MainMenu:
 ; Check save file
 call InitOptions
@@ -3997,8 +3961,6 @@ ld [rRAMG], a
 ld [rBMODE], a
 scf
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\main_menu.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\oak_speech.asm
 PrepareOakSpeech:
 ld a, [wLetterPrintingDelayFlags]
 push af
@@ -4239,8 +4201,6 @@ hlcoord 6, 4
 xor a
 ldh [hStartTileID], a
 predef_jump CopyUncompressedPicToTilemap
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\oak_speech.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\special_warps.asm
 PrepareForSpecialWarp::
 call LoadSpecialWarpData
 predef LoadTilesetHeader
@@ -4387,8 +4347,6 @@ ld a, -1 ; exclude normal warps
 ld [wDestinationWarpID], a
 ret
 INCLUDE "data/maps/special_warps.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\special_warps.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\debug\debug_party.asm
 SetDebugNewGameParty: ; unreferenced except in _DEBUG
 ld de, DebugNewGameParty
 .loop
@@ -4529,8 +4487,6 @@ db -1 ; end
 ELSE
 ret
 ENDC
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\debug\debug_party.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\naming_screen.asm
 AskName:
 call SaveScreenTilesToBuffer1
 call GetPredefRegisters
@@ -5004,8 +4960,6 @@ NameTextString:
 db "NAME?@"
 NicknameTextString:
 db "NICKNAME?@"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\naming_screen.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\oak_speech2.asm
 ChoosePlayerName:
 call OakSpeechSlidePicRight
 ld de, DefaultNamesPlayer
@@ -5213,8 +5167,6 @@ jp CopyData
 INCLUDE "data/player/names_list.asm"
 LinkMenuEmptyText:
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\oak_speech2.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\subtract_paid_money.asm
 ; subtracts the amount the player paid from their money
 ; OUTPUT: carry = 0(success) or 1(fail because there is not enough money)
 SubtractAmountPaidFromMoney_::
@@ -5232,8 +5184,6 @@ ld [wTextBoxID], a
 call DisplayTextBoxID ; redraw money text box
 and a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\subtract_paid_money.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\swap_items.asm
 HandleItemListSwapping::
 ld a, [wListMenuID]
 cp ITEMLISTMENU
@@ -5383,8 +5333,6 @@ ld [wMenuItemToSwap], a ; 0 means no item is currently being swapped
 pop de
 pop hl
 jp DisplayListMenuIDLoop
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\swap_items.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pokemart.asm
 DisplayPokemartDialogue_::
 ld a, [wListScrollOffset]
 ld [wSavedListScrollOffset], a
@@ -5636,8 +5584,6 @@ text_end
 PokemartAnythingElseText:
 text_far _PokemartAnythingElseText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pokemart.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\learn_move.asm
 LearnMove:
 call SaveScreenTilesToBuffer1
 ld a, [wWhichPokemon]
@@ -5852,8 +5798,6 @@ text_end
 HMCantDeleteText:
 text_far _HMCantDeleteText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\learn_move.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pokecenter.asm
 DisplayPokemonCenterDialogue_::
 call SaveScreenTilesToBuffer1 ; save screen
 ld hl, PokemonCenterWelcomeText
@@ -5917,8 +5861,6 @@ PokemonCenterFarewellText:
 text_pause
 text_far _PokemonCenterFarewellText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pokecenter.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\set_blackout_map.asm
 SetLastBlackoutMap:
 ; Set the map to return to when
 ; blacking out or using Teleport or Dig.
@@ -5941,8 +5883,6 @@ ld [wLastBlackoutMap], a
 pop hl
 ret
 INCLUDE "data/maps/rest_house_maps.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\set_blackout_map.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\display_text_id_init.asm
 ; function that performs initialization for DisplayTextID
 DisplayTextIDInit::
 xor a
@@ -6023,8 +5963,6 @@ call LoadFontTilePatterns
 ld a, $01
 ldh [hAutoBGTransferEnabled], a ; enable continuous WRAM to VRAM transfer each V-blank
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\display_text_id_init.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\draw_start_menu.asm
 ; function that displays the start menu
 DrawStartMenu::
 CheckEvent EVENT_GOT_POKEDEX
@@ -6106,8 +6044,6 @@ pop hl
 ld de, SCREEN_WIDTH * 2
 add hl, de
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\draw_start_menu.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\link\cable_club_npc.asm
 CableClubNPC::
 ld hl, CableClubNPCWelcomeText
 call PrintText
@@ -6263,8 +6199,6 @@ ldh [hSerialReceiveData], a
 ld a, SC_START | SC_EXTERNAL
 ldh [rSC], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\link\cable_club_npc.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\text_box.asm
 ; function to draw various text boxes
 DisplayTextBoxID_::
 ld a, [wTextBoxID]
@@ -6797,8 +6731,6 @@ jr .loop
 pop hl
 ret
 INCLUDE "data/moves/field_moves.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\text_box.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\drain_hp.asm
 DrainHPEffect_:
 ld hl, wDamage
 ld a, [hl]
@@ -6901,8 +6833,6 @@ text_end
 DreamWasEatenText:
 text_far _DreamWasEatenText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\drain_hp.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\players_pc.asm
 PlayerPC::
 ld hl, wStatusFlags5
 set BIT_NO_TEXT_DELAY, [hl]
@@ -7186,8 +7116,6 @@ text_end
 TossHowManyText:
 text_far _TossHowManyText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\players_pc.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\remove_mon.asm
 _RemovePokemon::
 ld hl, wPartyCount
 ld a, [wRemoveMonFromBox]
@@ -7287,8 +7215,6 @@ jr z, .shiftMonNicks
 ld bc, wBoxMonNicksEnd
 .shiftMonNicks
 jp CopyDataUntil ; shift all pokemon nicknames up one slot
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\remove_mon.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\display_pokedex.asm
 _DisplayPokedex::
 ld hl, wStatusFlags5
 set BIT_NO_TEXT_DELAY, [hl]
@@ -7308,9 +7234,7 @@ predef FlagActionPredef
 ld a, $1
 ld [wDoNotWaitForButtonPressAfterDisplayingText], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\display_pokedex.asm
 SECTION "bank3", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\joypad.asm
 _Joypad::
 ; hJoyReleased: (hJoyLast ^ hJoyInput) & hJoyLast
 ; hJoyPressed: (hJoyLast ^ hJoyInput) & hJoyInput
@@ -7361,8 +7285,6 @@ ld hl, hSoftReset
 dec [hl]
 jp z, SoftReset
 jp Joypad
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\joypad.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\maps\songs.asm
 MapSongBanks::
 table_width 2
 db MUSIC_PALLET_TOWN, BANK(Music_PalletTown) ; PALLET_TOWN
@@ -7614,8 +7536,6 @@ db MUSIC_GYM, BANK(Music_Gym) ; LORELEIS_ROOM
 db MUSIC_DUNGEON1, BANK(Music_Dungeon1) ; BRUNOS_ROOM
 db MUSIC_POKEMON_TOWER, BANK(Music_PokemonTower) ; AGATHAS_ROOM
 assert_table_length NUM_MAPS
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\maps\songs.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\maps\map_header_banks.asm
 ; see also MapHeaderPointers
 MapHeaderBanks::
 table_width 1
@@ -7868,8 +7788,6 @@ db BANK(LoreleisRoom_h)
 db BANK(BrunosRoom_h)
 db BANK(AgathasRoom_h)
 assert_table_length NUM_MAPS
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\maps\map_header_banks.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\clear_variables.asm
 ClearVariablesOnEnterMap::
 ld a, SCREEN_HEIGHT_PX
 ldh [hWY], a
@@ -7890,8 +7808,6 @@ ld hl, wWhichTrade
 ld bc, wStandingOnWarpPadOrHole - wWhichTrade
 call FillMemory
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\clear_variables.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\player_state.asm
 ; only used for setting BIT_STANDING_ON_WARP of wMovementFlags upon entering a new map
 IsPlayerStandingOnWarp::
 ld a, [wNumberOfWarps]
@@ -8324,8 +8240,6 @@ ret
 .success
 xor a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\player_state.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\poison.asm
 ApplyOutOfBattlePoisonDamage:
 ld a, [wStatusFlags5]
 ASSERT BIT_SCRIPTED_MOVEMENT_STATE == 7
@@ -8439,8 +8353,6 @@ xor a
 .done
 ld [wOutOfBattleBlackout], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\poison.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\tilesets.asm
 LoadTilesetHeader:
 call GetPredefRegisters
 push hl
@@ -8499,8 +8411,6 @@ ld [wXBlockCoord], a
 ret
 INCLUDE "data/tilesets/dungeon_tilesets.asm"
 INCLUDE "data/tilesets/tileset_headers.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\tilesets.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\daycare_exp.asm
 IncrementDayCareMonExp:
 ld a, [wDayCareInUse]
 and a
@@ -8519,8 +8429,6 @@ ret c
 ld a, $50
 ld [hl], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\daycare_exp.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\maps\toggleable_objects.asm
 ; toggleable objects for each map
 ToggleableObjectMapPointers:
 ; entries correspond to map ids
@@ -8862,8 +8770,6 @@ toggle_object_state SEAFOAMISLANDSB4F_BOULDER2, OFF
 toggle_object_state SEAFOAMISLANDSB4F_ARTICUNO, ON
 assert_table_length NUM_TOGGLEABLE_OBJECTS
 db -1, 1, ON ; end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\maps\toggleable_objects.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\field_move_messages.asm
 PrintStrengthText:
 ld hl, wStatusFlags1
 set BIT_STRENGTH_ACTIVE, [hl]
@@ -8916,8 +8822,6 @@ text_end
 CyclingIsFunText:
 text_far _CyclingIsFunText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\field_move_messages.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\inventory.asm
 ; function to add an item (in varying quantities) to the player's bag or PC box
 ; INPUT:
 ; hl = address of inventory (either wNumBagItems or wNumBoxItems)
@@ -9066,8 +8970,6 @@ jr .done
 pop hl
 .done
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\inventory.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\wild_mons.asm
 LoadWildData::
 ld hl, WildDataPointers
 ld a, [wCurMap]
@@ -9099,8 +9001,6 @@ ld de, wWaterMons ; otherwise, load surfing data
 ld bc, WILDDATA_LENGTH - 1
 jp CopyData
 INCLUDE "data/wild/grass_water.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\wild_mons.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\item_effects.asm
 UseItem_::
 ld a, 1
 ld [wActionResultOrTookBattleTurn], a ; initialise to success value
@@ -11865,8 +11765,6 @@ dec b
 jr nz, .loop
 dec hl
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\item_effects.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\draw_badges.asm
 DrawBadges:
 ; Draw 4x2 gym leader faces, with the faces replaced by
 ; badges if they are owned. Used in the player status screen.
@@ -11967,8 +11865,6 @@ ret
 db $20, $28, $30, $38, $40, $48, $50, $58
 GymLeaderFaceAndBadgeTileGraphics:
 INCBIN "gfx/trainer_card/badges.2bpp"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\draw_badges.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\update_map.asm
 ; replaces a tile block with the one specified in [wNewTileBlockID]
 ; and redraws the map view if necessary
 ; b = Y
@@ -12093,8 +11989,6 @@ ret nz
 ld a, l
 sub c
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\update_map.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\cut.asm
 UsedCut:
 xor a
 ld [wActionResultOrTookBattleTurn], a ; initialise to failure value
@@ -12337,8 +12231,6 @@ ld a, [de] ; replacement tile block from matching array entry
 ld [hl], a
 ret
 INCLUDE "data/tilesets/cut_tree_blocks.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\cut.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\toggleable_objects.asm
 MarkTownVisitedAndLoadToggleableObjects::
 ld a, [wCurMap]
 cp FIRST_ROUTE_MAP
@@ -12538,8 +12430,6 @@ pop de
 pop hl
 ld c, a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\toggleable_objects.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\push_boulder.asm
 TryPushingBoulder::
 ld a, [wStatusFlags1]
 bit BIT_STRENGTH_ACTIVE, a
@@ -12643,8 +12533,6 @@ ld hl, wMiscFlags
 res BIT_BOULDER_DUST, [hl]
 res BIT_TRIED_PUSH_BOULDER, [hl]
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\push_boulder.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\add_mon.asm
 _AddPartyMon::
 ; Adds a new mon to the player's or enemy's party.
 ; [wMonDataLocation] is used in an unusual way in this function.
@@ -13154,8 +13042,6 @@ call CalcStats
 .done
 and a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\add_mon.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\flag_action.asm
 FlagActionPredef:
 call GetPredefRegisters
 FlagAction:
@@ -13220,8 +13106,6 @@ pop de
 pop hl
 ld c, a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\flag_action.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\heal_party.asm
 HealParty:
 ; Restore HP and PP.
 ld hl, wPartySpecies
@@ -13305,8 +13189,6 @@ inc [hl]
 dec b
 jr nz, .ppup
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\heal_party.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\math\bcd.asm
 ; divide hMoney by hDivideBCDDivisor
 ; return output in hDivideBCDQuotient (same as hDivideBCDDivisor)
 ; used only to halve player money upon losing a fight
@@ -13515,8 +13397,6 @@ jr nz, .fill
 scf
 .done
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\math\bcd.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\init_player_data.asm
 InitPlayerData:
 InitPlayerData2:
 call Random
@@ -13561,8 +13441,6 @@ ld [hli], a
 dec a ; terminator
 ld [hl], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\init_player_data.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\get_bag_item_quantity.asm
 GetQuantityOfItemInBag:
 ; In: b = item ID
 ; Out: b = how many of that item are in the bag
@@ -13581,8 +13459,6 @@ ret
 .notInBag
 ld b, 0
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\get_bag_item_quantity.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\pathfinding.asm
 FindPathToPlayer:
 xor a
 ld hl, hFindPathNumSteps
@@ -13779,8 +13655,6 @@ db NPC_MOVEMENT_RIGHT, PAD_RIGHT
 db $ff
 ; unreferenced
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\pathfinding.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\hp_bar.asm
 HPBarLength:
 call GetPredefRegisters
 ; calculates bc * 48 / de, the number of pixels the HP bar has
@@ -14044,8 +13918,6 @@ ld d, e
 ld e, a
 pop hl
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\hp_bar.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\bookshelves.asm
 ; prints text for bookshelves in buildings without sign events
 PrintBookshelfText::
 ld a, [wSpritePlayerStateData1FacingDirection]
@@ -14084,8 +13956,6 @@ ld a, $ff
 ldh [hInteractedWithBookshelf], a
 farjp PrintCardKeyText
 INCLUDE "data/tilesets/bookshelf_tile_ids.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\bookshelves.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\indigo_plateau_statues.asm
 IndigoPlateauStatues::
 text_asm
 ld hl, IndigoPlateauStatuesText1
@@ -14107,8 +13977,6 @@ text_end
 IndigoPlateauStatuesText3:
 text_far _IndigoPlateauStatuesText3
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\indigo_plateau_statues.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\book_or_sculpture.asm
 BookOrSculptureText::
 text_asm
 ld hl, PokemonBooksText
@@ -14128,13 +13996,9 @@ text_end
 DiglettSculptureText:
 text_far _DiglettSculptureText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\book_or_sculpture.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\elevator.asm
 ElevatorText::
 text_far _ElevatorText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\elevator.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\town_map.asm
 TownMapText::
 text_far _TownMapText
 text_promptbutton
@@ -14157,14 +14021,10 @@ push de
 ldh a, [hLoadedROMBank]
 push af
 jp CloseTextDisplay
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\town_map.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\pokemon_stuff.asm
 PokemonStuffText::
 text_far _PokemonStuffText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\pokemon_stuff.asm
 SECTION "Font Graphics", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\font.asm
 PokemonLogoGraphics: INCBIN "gfx/title/pokemon_logo.2bpp"
 FontGraphics:: INCBIN "gfx/font/font.1bpp"
 FontGraphicsEnd::
@@ -14187,9 +14047,7 @@ WorldMapTileGraphics: INCBIN "gfx/town_map/town_map.2bpp"
 WorldMapTileGraphicsEnd:
 PlayerCharacterTitleGraphics: INCBIN "gfx/title/player.2bpp"
 PlayerCharacterTitleGraphicsEnd:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\font.asm
 SECTION "Battle Engine 1", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\is_player_just_outside_map.asm
 ; returns whether the player is one tile outside the map in Z
 IsPlayerJustOutsideMap:
 ld a, [wYCoord]
@@ -14206,8 +14064,6 @@ cp b
 ret z
 inc b
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\is_player_just_outside_map.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\status_screen.asm
 DrawHP:
 ; Draws the HP bar in the stats screen
 call GetPredefRegisters
@@ -14663,8 +14519,6 @@ add hl, de
 dec c
 jr nz, StatusScreen_PrintPP
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\status_screen.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\party_menu.asm
 DrawPartyMenu_::
 xor a
 ldh [hAutoBGTransferEnabled], a
@@ -14953,13 +14807,9 @@ call RunPaletteCommand
 ld hl, wWhichPartyMenuHPBar
 inc [hl]
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\party_menu.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\player.asm
 RedPicFront:: INCBIN "gfx/player/red.pic"
 ShrinkPic1:: INCBIN "gfx/player/shrink1.pic"
 ShrinkPic2:: INCBIN "gfx/player/shrink2.pic"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\player.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\turn_sprite.asm
 UpdateSpriteFacingOffsetAndDelayMovement::
 ld h, HIGH(wSpriteStateData2)
 ldh a, [hCurrentSpriteOffset]
@@ -14985,8 +14835,6 @@ ld [hld], a
 ld a, $2 ; delayed movement status
 ld [hl], a ; x#SPRITESTATEDATA1_MOVEMENTSTATUS
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\turn_sprite.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\start_sub_menus.asm
 StartMenu_Pokedex::
 predef ShowPokedexMenu
 call LoadScreenTilesFromBuffer2
@@ -15773,8 +15621,6 @@ ld [wPartyMenuTypeOrMessageID], a
 pop de
 pop hl
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\start_sub_menus.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\tms.asm
 ; tests if mon [wCurPartySpecies] can learn move [wMoveNum]
 CanLearnTM:
 ld a, [wCurPartySpecies]
@@ -15809,8 +15655,6 @@ ld a, [hl]
 ld [wTempTMHM], a
 ret
 INCLUDE "data/moves/tmhm_moves.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\tms.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\end_of_battle.asm
 EndOfBattle:
 ld a, [wLinkState]
 cp LINK_STATE_BATTLING
@@ -15895,8 +15739,6 @@ db " DRAW@"
 PickUpPayDayMoneyText:
 text_far _PickUpPayDayMoneyText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\end_of_battle.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\wild_encounters.asm
 ; try to initiate a wild pokemon encounter
 ; returns success in Z
 TryDoWildEncounter:
@@ -16000,8 +15842,6 @@ ret
 xor a
 ret
 INCLUDE "data/wild/probabilities.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\wild_encounters.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\recoil.asm
 RecoilEffect_:
 ldh a, [hWhoseTurn]
 and a
@@ -16072,8 +15912,6 @@ jp PrintText
 HitWithRecoilText:
 text_far _HitWithRecoilText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\recoil.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\conversion.asm
 ConversionEffect_:
 ld hl, wEnemyMonType1
 ld de, wBattleMonType1
@@ -16107,8 +15945,6 @@ ld hl, PrintButItFailedText_
 CallBankF:
 ld b, BANK(PrintButItFailedText_)
 jp Bankswitch
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\conversion.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\haze.asm
 HazeEffect_:
 ld a, $7
 ; store 7 on every stat mod
@@ -16184,8 +16020,6 @@ ret
 StatusChangesEliminatedText:
 text_far _StatusChangesEliminatedText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\haze.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\get_trainer_name.asm
 GetTrainerName_::
 ld hl, wLinkEnemyTrainerName
 ld a, [wLinkState]
@@ -16210,8 +16044,6 @@ ld hl, wNameBuffer
 ld de, wTrainerName
 ld bc, TRAINER_NAME_LENGTH
 jp CopyData
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\get_trainer_name.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\math\random.asm
 Random_::
 ; Generate a random 16-bit value.
 ldh a, [rDIV]
@@ -16225,9 +16057,7 @@ ldh a, [hRandomSub]
 sbc b
 ldh [hRandomSub], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\math\random.asm
 SECTION "Battle Engine 2", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\load_pokedex_tiles.asm
 ; Loads tile patterns for tiles used in the pokedex.
 LoadPokedexTilePatterns:
 call LoadHpBarAndStatusTilePatterns
@@ -16239,8 +16069,6 @@ ld de, PokeballTileGraphics
 ld hl, vChars2 tile $72
 lb bc, BANK(PokeballTileGraphics), 1
 jp CopyVideoData ; load pokeball tile for marking caught mons
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\load_pokedex_tiles.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\map_sprites.asm
 ; Loads tile patterns for map's sprites.
 ; For outside maps, it loads one of several fixed sets of sprites.
 ; For inside maps, it loads each sprite picture ID used in the map header.
@@ -16684,8 +16512,6 @@ ld a, SPRITESET_PALLET_VIRIDIAN
 ret
 INCLUDE "data/maps/sprite_sets.asm"
 INCLUDE "data/sprites/sprites.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\map_sprites.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\emotion_bubbles.asm
 EmotionBubble:
 ld a, [wWhichEmotionBubble]
 ld c, a
@@ -16760,8 +16586,6 @@ EmotionBubbles:
 ShockEmote: INCBIN "gfx/emotes/shock.2bpp"
 QuestionEmote: INCBIN "gfx/emotes/question.2bpp"
 HappyEmote: INCBIN "gfx/emotes/happy.2bpp"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\emotion_bubbles.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\evolve_trade.asm
 InGameTrade_CheckForTradeEvo:
 ; In Japanese Blue, TradeMons include a Graveler and a Haunter,
 ; both of which have Japanese names that start with " ",
@@ -16790,8 +16614,6 @@ callfar TryEvolvingMon
 xor a ; LINK_STATE_NONE
 ld [wLinkState], a
 jp PlayDefaultMusic
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\evolve_trade.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\substitute.asm
 SubstituteEffect_:
 ld c, 50
 call DelayFrames
@@ -16866,8 +16688,6 @@ text_end
 TooWeakSubstituteText:
 text_far _TooWeakSubstituteText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\substitute.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\pc.asm
 ActivatePC::
 call SaveScreenTilesToBuffer2
 ld a, SFX_TURN_ON_PC
@@ -17004,9 +16824,7 @@ ldh a, [hItemToRemoveIndex]
 ld [wWhichPokemon], a
 ld hl, wNumBagItems
 jp RemoveItemFromInventory
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\pc.asm
 SECTION "Play Time", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\play_time.asm
 TrackPlayTime::
 call CountDownIgnoreInputBitReset
 ld a, [wStatusFlags6]
@@ -17067,9 +16885,7 @@ xor a
 ldh [hJoyPressed], a
 ldh [hJoyHeld], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\play_time.asm
 SECTION "Doors and Ledges", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\auto_movement.asm
 PlayerStepOutFromDoor::
 ld hl, wStatusFlags5
 res BIT_UNKNOWN_5_1, [hl]
@@ -17342,8 +17158,6 @@ db OPP_RIVAL1
 db OPP_RIVAL2
 db OPP_RIVAL3
 db -1 ; end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\auto_movement.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\doors.asm
 ; returns whether the player is standing on a door tile in carry
 IsPlayerStandingOnDoorTile:
 push de
@@ -17371,8 +17185,6 @@ ret
 and a
 ret
 INCLUDE "data/tilesets/door_tile_ids.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\doors.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\ledges.asm
 HandleLedges::
 ld a, [wMovementFlags]
 bit BIT_LEDGE_OR_FISHING, a
@@ -17448,9 +17260,7 @@ db $ff, OAM_PAL1
 db $ff, OAM_XFLIP
 db $ff, OAM_YFLIP
 db $ff, OAM_XFLIP | OAM_YFLIP
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\ledges.asm
 SECTION "Pok mon Names", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\names.asm
 MonsterNames::
 table_width NAME_LENGTH - 1
 dname "RHYDON"
@@ -17644,8 +17454,6 @@ dname "BELLSPROUT"
 dname "WEEPINBELL"
 dname "VICTREEBEL"
 assert_table_length NUM_POKEMON_INDEXES
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\names.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\clear_save.asm
 DoClearSaveDialogue:
 call ClearScreen
 call RunDefaultPaletteCommand
@@ -17668,8 +17476,6 @@ jp Init
 ClearSaveDataText:
 text_far _ClearSaveDataText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\oak_speech\clear_save.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\elevator.asm
 DisplayElevatorFloorMenu:
 ld hl, WhichFloorText
 call PrintText
@@ -17716,9 +17522,7 @@ ret
 WhichFloorText:
 text_far _WhichFloorText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\elevator.asm
 SECTION "Hidden Events 1", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\oaks_pc.asm
 OpenOaksPC:
 call SaveScreenTilesToBuffer2
 ld hl, AccessedOaksPCText
@@ -17744,16 +17548,12 @@ text_end
 AccessedOaksPCText:
 text_far _AccessedOaksPCText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\oaks_pc.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\new_bike.asm
 PrintNewBikeText:
 call EnableAutoTextBoxDrawing
 tx_pre_jump NewBicycleText
 NewBicycleText::
 text_far _NewBicycleText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\new_bike.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\oaks_lab_posters.asm
 DisplayOakLabLeftPoster:
 call EnableAutoTextBoxDrawing
 tx_pre_jump PushStartText
@@ -17779,8 +17579,6 @@ text_end
 StrengthsAndWeaknessesText::
 text_far _StrengthsAndWeaknessesText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\oaks_lab_posters.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\safari_game.asm
 SafariZoneCheck::
 CheckEventHL EVENT_IN_SAFARI_ZONE ; if we are not in the Safari Zone,
 jr z, SafariZoneGameStillGoing ; don't bother printing game over text
@@ -17858,8 +17656,6 @@ text_end
 GameOverText:
 text_far _GameOverText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\safari_game.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\cinnabar_gym_quiz.asm
 PrintCinnabarQuiz:
 ld a, [wSpritePlayerStateData1FacingDirection]
 cp SPRITE_FACING_UP
@@ -18042,8 +17838,6 @@ gym_gate_coord 6, 6, HORIZONTAL_GATE_BLOCK
 gym_gate_coord 3, 8, VERTICAL_GATE_BLOCK
 gym_gate_coord 2, 6, HORIZONTAL_GATE_BLOCK
 gym_gate_coord 2, 3, HORIZONTAL_GATE_BLOCK
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\cinnabar_gym_quiz.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\magazines.asm
 PrintMagazinesText:
 call EnableAutoTextBoxDrawing
 tx_pre MagazinesText
@@ -18051,8 +17845,6 @@ ret
 MagazinesText::
 text_far _MagazinesText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\magazines.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\bills_house_pc.asm
 BillsHousePC:
 call EnableAutoTextBoxDrawing
 ld a, [wSpritePlayerStateData1FacingDirection]
@@ -18181,8 +17973,6 @@ next "CANCEL@"
 BillsHousePokemonListText2:
 text_far _BillsHousePokemonListText2
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\bills_house_pc.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\oaks_lab_email.asm
 DisplayOakLabEmailText:
 ld a, [wSpritePlayerStateData1FacingDirection]
 cp SPRITE_FACING_UP
@@ -18192,9 +17982,7 @@ tx_pre_jump OakLabEmailText
 OakLabEmailText::
 text_far _OakLabEmailText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\oaks_lab_email.asm
 SECTION "Bill's PC", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\bills_pc.asm
 DisplayPCMainMenu::
 xor a
 ldh [hAutoBGTransferEnabled], a
@@ -18712,9 +18500,7 @@ call EnableAutoTextBoxDrawing
 tx_pre_jump OpenBillsPCText
 OpenBillsPCText::
 script_bills_pc
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\bills_pc.asm
 SECTION "Battle Engine 3", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\print_type.asm
 ; [wCurSpecies] = pokemon ID
 ; hl = dest addr
 PrintMonType:
@@ -18762,8 +18548,6 @@ ld d, [hl]
 pop hl
 jp PlaceString
 INCLUDE "data/types/names.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\print_type.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\save_trainer_name.asm
 SaveTrainerName::
 ld hl, TrainerNamePointers
 ld a, [wTrainerClass]
@@ -18784,8 +18568,6 @@ cp '@'
 jr nz, .CopyCharacter
 ret
 INCLUDE "data/trainers/name_pointers.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\save_trainer_name.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\focus_energy.asm
 FocusEnergyEffect_:
 ld hl, wPlayerBattleStatus2
 ldh a, [hWhoseTurn]
@@ -18807,9 +18589,7 @@ GettingPumpedText:
 text_pause
 text_far _GettingPumpedText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\focus_energy.asm
 SECTION "Battle Engine 4", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\leech_seed.asm
 LeechSeedEffect_:
 callfar MoveHitTest
 ld a, [wMoveMissed]
@@ -18848,9 +18628,7 @@ text_end
 EvadedAttackText:
 text_far _EvadedAttackText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\leech_seed.asm
 SECTION "Battle Engine 5", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\display_effectiveness.asm
 DisplayEffectiveness:
 ld a, [wDamageMultipliers]
 and $7F
@@ -18867,15 +18645,11 @@ text_end
 NotVeryEffectiveText:
 text_far _NotVeryEffectiveText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\display_effectiveness.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\trainer_card.asm
 TrainerInfoTextBoxTileGraphics: INCBIN "gfx/trainer_card/trainer_info.2bpp"
 TrainerInfoTextBoxTileGraphicsEnd:
 BlankLeaderNames: INCBIN "gfx/trainer_card/blank_leader_names.2bpp"
 CircleTile: INCBIN "gfx/trainer_card/circle_tile.2bpp"
 BadgeNumbersTileGraphics: INCBIN "gfx/trainer_card/badge_numbers.2bpp"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\trainer_card.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\tmhm.asm
 ; checks if the mon in [wWhichPokemon] already knows the move in [wMoveNum]
 CheckIfMoveIsKnown:
 ld a, [wWhichPokemon]
@@ -18901,8 +18675,6 @@ ret
 AlreadyKnowsText:
 text_far _AlreadyKnowsText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\tmhm.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\scale_sprites.asm
 ; scales both uncompressed sprite chunks by two in every dimension (creating 2x2 output pixels per input pixel)
 ; assumes that input sprite chunks are 4x4 tiles, and the rightmost and bottommost 4 pixels will be ignored
 ; resulting in a 7*7 tile output sprite chunk
@@ -18983,8 +18755,6 @@ DuplicateBitsTable:
 FOR n, 16
 db (n & 1) * 3 + (n & 2) * 6 + (n & 4) * 12 + (n & 8) * 24
 ENDR
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\scale_sprites.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\pay_day.asm
 PayDayEffect_:
 xor a
 ld hl, wPayDayMoney
@@ -19029,8 +18799,6 @@ jp PrintText
 CoinsScatteredText:
 text_far _CoinsScatteredText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\pay_day.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\slots\game_corner_slots2.asm
 AbleToPlaySlotsCheck:
 ld a, [wSpritePlayerStateData1ImageIndex]
 and $8
@@ -19060,9 +18828,7 @@ text_end
 GameCornerNoCoinsText::
 text_far _GameCornerNoCoinsText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\slots\game_corner_slots2.asm
 SECTION "Battle Engine 6", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\mist.asm
 MistEffect_:
 ld hl, wPlayerBattleStatus2
 ldh a, [hWhoseTurn]
@@ -19081,8 +18847,6 @@ jpfar PrintButItFailedText_
 ShroudedInMistText:
 text_far _ShroudedInMistText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\mist.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\one_hit_ko.asm
 OneHitKOEffect_:
 ld hl, wDamage
 xor a
@@ -19121,9 +18885,7 @@ ret
 ld a, $1
 ld [wMoveMissed], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\one_hit_ko.asm
 SECTION "Slot Machines", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\title2.asm
 TitleScroll_WaitBall:
 ; Wait around for the TitleBall animation to play out.
 ; hi: speed
@@ -19224,8 +18986,6 @@ ret z
 ld [wShadowOAMSprite10YCoord], a
 inc e
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\title2.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\link_battle_versus_text.asm
 ; display "[player] VS [enemy]" text box with pokeballs representing their parties next to the names
 DisplayLinkBattleVersusTextBox:
 call LoadTextBoxTilePatterns
@@ -19247,8 +19007,6 @@ ld [wUpdateSpritesEnabled], a
 callfar SetupPlayerAndEnemyPokeballs
 ld c, 150
 jp DelayFrames
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\link_battle_versus_text.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\slots\slot_machine.asm
 PromptUserToPlaySlots:
 call SaveScreenTilesToBuffer2
 ld a, BANK(DisplayTextIDInit)
@@ -20083,8 +19841,6 @@ IF DEF(_BLUE)
 INCBIN "gfx/slots/blue_slots_1.2bpp"
 ENDC
 SlotMachineTiles1End:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\slots\slot_machine.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pewter_guys.asm
 PewterGuys:
 ld hl, wSimulatedJoypadStatesEnd
 ld a, [wSimulatedJoypadStatesIndex]
@@ -20182,8 +19938,6 @@ db PAD_LEFT, PAD_LEFT, PAD_LEFT, $00, $00, $00, $00, $00, $00, $00, $00, $ff
 db PAD_LEFT, PAD_LEFT, PAD_UP, PAD_LEFT, $ff
 .five
 db PAD_LEFT, PAD_DOWN, PAD_LEFT, $00, $00, $00, $00, $00, $00, $00, $00, $ff
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pewter_guys.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\math\multiply_divide.asm
 _Multiply::
 ld a, $8
 ld b, a
@@ -20326,8 +20080,6 @@ ldh [hQuotient+1], a ; (aliases: hMultiplicand)
 ldh a, [hDivideBuffer+1]
 ldh [hDividend], a ; (aliases: hProduct, hPastLeadingZeros, hQuotient)
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\math\multiply_divide.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\slots\game_corner_slots.asm
 StartSlotMachine:
 ld a, [wHiddenEventFunctionArgument]
 cp SLOTS_OUTOFORDER
@@ -20379,9 +20131,7 @@ text_end
 GameCornerSomeonesKeysText::
 text_far _GameCornerSomeonesKeysText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\slots\game_corner_slots.asm
 SECTION "Battle Engine 7", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\moves\moves.asm
 MACRO move
 db \1 ; animation (interchangeable with move id)
 db \2 ; effect
@@ -20560,8 +20310,6 @@ move SLASH, NO_ADDITIONAL_EFFECT, 70, NORMAL, 100, 20
 move SUBSTITUTE, SUBSTITUTE_EFFECT, 0, NORMAL, 100, 10
 move STRUGGLE, RECOIL_EFFECT, 50, NORMAL, 100, 10
 assert_table_length NUM_ATTACKS
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\moves\moves.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\base_stats.asm
 BaseStats::
 table_width BASE_DATA_SIZE
 INCLUDE "data/pokemon/base_stats/bulbasaur.asm"
@@ -20715,8 +20463,6 @@ INCLUDE "data/pokemon/base_stats/dragonair.asm"
 INCLUDE "data/pokemon/base_stats/dragonite.asm"
 INCLUDE "data/pokemon/base_stats/mewtwo.asm"
 assert_table_length NUM_POKEMON - 1 ; discount Mew
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\base_stats.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\cries.asm
 MACRO mon_cry
 db (\1 - CRY_SFX_START) / 3
 db \2, \3
@@ -20915,8 +20661,6 @@ mon_cry SFX_CRY_21, $55, $01 ; Bellsprout
 mon_cry SFX_CRY_25, $44, $20 ; Weepinbell
 mon_cry SFX_CRY_25, $66, $CC ; Victreebel
 assert_table_length NUM_POKEMON_INDEXES
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\pokemon\cries.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\unused_stats_functions.asm
 ; does nothing since no stats are ever selected (barring glitches)
 DoubleSelectedStats:
 ldh a, [hWhoseTurn]
@@ -20976,8 +20720,6 @@ ld [hl], 1
 .nonzeroStat
 dec hl
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\unused_stats_functions.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\scroll_draw_trainer_pic.asm
 _ScrollTrainerPicAfterBattle:
 ; Load the enemy trainer's pic and scrolls it into
 ; the screen from the right.
@@ -21027,8 +20769,6 @@ pop bc
 pop de
 pop hl
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\scroll_draw_trainer_pic.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\trainer_ai.asm
 ; creates a set of moves that may be used and returns its address in hl
 ; unused slots are filled with 0, all used slots may be chosen with equal probability
 AIEnemyTrainerChooseMoves:
@@ -21703,8 +21443,6 @@ jp PrintText
 AIBattleUseItemText:
 text_far _AIBattleUseItemText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\trainer_ai.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\draw_hud_pokeball_gfx.asm
 DrawAllPokeballs:
 call LoadPartyPokeballGfx
 call SetupOwnPartyPokeballs
@@ -21883,16 +21621,12 @@ jp WritePokeballOAMData
 PokeballTileGraphics::
 INCBIN "gfx/battle/balls.2bpp"
 PokeballTileGraphicsEnd:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\draw_hud_pokeball_gfx.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\trade.asm
 TradingAnimationGraphics:
 INCBIN "gfx/trade/game_boy.2bpp"
 INCBIN "gfx/trade/link_cable.2bpp"
 TradingAnimationGraphicsEnd:
 TradingAnimationGraphics2: INCBIN "gfx/trade/cable_ball.2bpp"
 TradingAnimationGraphics2End:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\trade.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\evos_moves.asm
 ; try to evolve the mon in [wWhichPokemon]
 TryEvolvingMon:
 ld hl, wCanEvolveFlags
@@ -22383,8 +22117,6 @@ ret
 Evolution_FlagAction:
 predef_jump FlagActionPredef
 INCLUDE "data/pokemon/evos_moves.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\evos_moves.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\heal.asm
 HealEffect_:
 ldh a, [hWhoseTurn]
 and a
@@ -22502,8 +22234,6 @@ text_end
 RegainedHealthText:
 text_far _RegainedHealthText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\heal.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\transform.asm
 TransformEffect_:
 ld hl, wBattleMonSpecies
 ld de, wEnemyMonSpecies
@@ -22655,8 +22385,6 @@ jp EffectCallBattleCore
 TransformedText:
 text_far _TransformedText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\transform.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\reflect_light_screen.asm
 ReflectLightScreenEffect_:
 ld hl, wPlayerBattleStatus3
 ld de, wPlayerMoveEffect
@@ -22699,9 +22427,7 @@ text_end
 EffectCallBattleCore:
 ld b, BANK(BattleCore)
 jp Bankswitch
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\reflect_light_screen.asm
 SECTION "Battle Core", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\core.asm
 BattleCore:
 INCLUDE "data/battle/residual_effects_1.asm"
 INCLUDE "data/battle/set_damage_effects.asm"
@@ -29332,8 +29058,6 @@ ld c, (2 * SPRITEBUFFERSIZE) / TILE_SIZE ; count of 16-byte chunks to be copied
 ldh a, [hLoadedROMBank]
 ld b, a
 jp CopyVideoData
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\core.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\effects.asm
 JumpMoveEffect:
 call _JumpMoveEffect
 ld b, $1
@@ -30741,9 +30465,7 @@ pop bc
 pop de
 pop hl
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\effects.asm
 SECTION "bank10", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\pokedex.asm
 ShowPokedexMenu:
 call GBPalWhiteOut
 call ClearScreen
@@ -31365,8 +31087,6 @@ pop hl
 pop bc
 ret
 INCLUDE "data/pokemon/dex_order.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\pokedex.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\trade.asm
 InternalClockTradeAnim:
 ; Do the trading animation with the player's gameboy on the left.
 ; In-game trades and internally clocked link cable trades use this.
@@ -32164,8 +31884,6 @@ ld [wAnimationID], a
 xor a
 ld [wAnimationType], a
 predef_jump MoveAnimation
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\trade.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\intro.asm
 const_def -1
 const MOVE_NIDORINO_RIGHT
 const MOVE_GENGAR_RIGHT
@@ -32596,8 +32314,6 @@ INCBIN "gfx/intro/blue_jigglypuff_3.2bpp"
 ENDC
 FightIntroFrontMonEnd:
 ds 16, $00 ; blank tile
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\intro.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\trade2.asm
 Trade_PrintPlayerMonInfoText:
 hlcoord 5, 0
 ld de, Trade_MonInfoText
@@ -32645,9 +32361,7 @@ db " <DOT>"
 next ""
 next "OT/"
 next "<ID> <DOT>@"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\trade2.asm
 SECTION "Pok dex Rating", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pokedex_rating.asm
 DisplayDexRating:
 ld hl, wPokedexSeen
 ld b, wPokedexSeenEnd - wPokedexSeen
@@ -32768,9 +32482,7 @@ text_end
 DexRatingText_Own150To151:
 text_far _DexRatingText_Own150To151
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\pokedex_rating.asm
 SECTION "Hidden Events Core", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\hidden_events.asm
 IsPlayerOnDungeonWarp::
 xor a
 ld [wWhichDungeonWarp], a
@@ -32901,9 +32613,7 @@ ld a, $ff
 ldh [hCoordsInFrontOfPlayerMatch], a
 ret
 INCLUDE "data/events/hidden_events.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\hidden_events.asm
 SECTION "Screen Effects", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\screen_effects.asm
 ; b = new color for BG color 0 (usually white) for 4 frames
 ChangeBGPalColor0_4Frames:
 call GetPredefRegisters
@@ -32970,9 +32680,7 @@ add 7
 ldh [rWX], a
 ld c, 4
 jp DelayFrames
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\screen_effects.asm
 SECTION "Predefs", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\give_pokemon.asm
 _GivePokemon::
 ; returns success in carry
 ; and whether the mon was added to the party in [wAddedToParty]
@@ -33051,8 +32759,6 @@ text_end
 BoxIsFullText:
 text_far _BoxIsFullText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\give_pokemon.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\predefs.asm
 GetPredefPointer::
 ; Back up the contents of the registers (hl, de, bc).
 ; Then put the bank and address of predef
@@ -33095,9 +32801,7 @@ ld a, [de]
 ld h, a
 ret
 INCLUDE "data/predef_pointers.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\predefs.asm
 SECTION "Battle Engine 8", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\init_battle_variables.asm
 InitBattleVariables:
 ldh a, [hTileAnimations]
 ld [wSavedTileAnimations], a
@@ -33136,8 +32840,6 @@ ld a, BATTLE_TYPE_SAFARI
 ld [wBattleType], a
 .notSafariBattle
 jpfar PlayBattleMusic
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\init_battle_variables.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\paralyze.asm
 ParalyzeEffect_:
 ld hl, wEnemyMonStatus
 ld de, wPlayerMoveType
@@ -33185,9 +32887,7 @@ jpfar PrintDidntAffectText
 ld c, 50
 call DelayFrames
 jpfar PrintDoesntAffectText
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\move_effects\paralyze.asm
 SECTION "Hidden Events 2", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\card_key.asm
 PrintCardKeyText:
 ld hl, SilphCoMapList
 ld a, [wCurMap]
@@ -33285,8 +32985,6 @@ ret
 ; facing right
 inc e
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\card_key.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\prize_menu.asm
 CeladonPrizeMenu::
 ld b, COIN_CASE
 call IsItemInBag
@@ -33564,8 +33262,6 @@ ld a, [hl]
 ld [wCurEnemyLevel], a
 ret
 INCLUDE "data/events/prize_mon_levels.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\prize_menu.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\school_notebooks.asm
 PrintNotebookText:
 call EnableAutoTextBoxDrawing
 ld a, $1
@@ -33622,8 +33318,6 @@ text_end
 ViridianSchoolNotebookText4:
 text_far _ViridianSchoolNotebookText4
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\school_notebooks.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\fighting_dojo.asm
 PrintFightingDojoText2:
 call EnableAutoTextBoxDrawing
 tx_pre_jump EnemiesOnEverySideText
@@ -33642,8 +33336,6 @@ tx_pre_jump FightingDojoText
 FightingDojoText::
 text_far _FightingDojoText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\fighting_dojo.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\indigo_plateau_hq.asm
 PrintIndigoPlateauHQText:
 ld a, [wSpritePlayerStateData1FacingDirection]
 cp SPRITE_FACING_UP
@@ -33653,9 +33345,7 @@ tx_pre_jump IndigoPlateauHQText
 IndigoPlateauHQText::
 text_far _IndigoPlateauHQText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\indigo_plateau_hq.asm
 SECTION "Battle Engine 9", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\experience.asm
 GainExperience:
 ld a, [wLinkState]
 cp LINK_STATE_BATTLING
@@ -34020,9 +33710,7 @@ GrewLevelText:
 text_far _GrewLevelText
 sound_level_up
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\experience.asm
 SECTION "Diploma", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\diploma.asm
 DEF CIRCLE_TILE_ID EQU $70
 DisplayDiploma::
 call SaveScreenTilesToBuffer2
@@ -34128,9 +33816,7 @@ next "completed your"
 next "#DEX.@"
 DiplomaGameFreak:
 db "GAME FREAK@"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\diploma.asm
 SECTION "Trainer Sight", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\trainer_sight.asm
 _GetSpritePosition1::
 ld hl, wSpriteStateData1
 ld de, SPRITESTATEDATA1_YPIXELS
@@ -34471,9 +34157,7 @@ xor a
 .done
 ld [wTrainerSpriteOffset], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\trainer_sight.asm
 SECTION "Battle Engine 10", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\common_text.asm
 PrintBeginningBattleText:
 ld a, [wIsInBattle]
 dec a
@@ -34696,8 +34380,6 @@ ret
 ComeBackText:
 text_far _ComeBackText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\common_text.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\experience.asm
 ; calculates the level a mon should be based on its current exp
 CalcLevelFromExperience::
 ld a, [wLoadedMonSpecies]
@@ -34844,8 +34526,6 @@ ldh [hMultiplicand + 2], a
 ldh [hMultiplier], a
 jp Multiply
 INCLUDE "data/growth_rates.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\experience.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\oaks_aide.asm
 OaksAideScript:
 ld hl, OaksAideHiText
 call PrintText
@@ -34911,9 +34591,7 @@ text_end
 OaksAideNoRoomText:
 text_far _OaksAideNoRoomText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\oaks_aide.asm
 SECTION "Saffron Guards", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\saffron_guards.asm
 RemoveGuardDrink::
 ld hl, GuardDrinksList
 .drinkLoop
@@ -34928,9 +34606,7 @@ pop hl
 jr z, .drinkLoop
 farjp RemoveItemByID
 INCLUDE "data/items/guard_drink_items.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\saffron_guards.asm
 SECTION "Starter Dex", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\starter_dex.asm
 ; this function temporarily makes the starters (and Ivysaur) owned
 ; so that the full Pokedex information gets displayed in Oak's lab
 StarterDex:
@@ -34940,9 +34616,7 @@ predef ShowPokedexData
 xor a
 ld [wPokedexOwned], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\starter_dex.asm
 SECTION "Hidden Events 3", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\set_types.asm
 ; updates the types of a party mon (pointed to in hl) to the ones of the mon specified in [wPokedexNum]
 SetPartyMonTypes:
 call GetPredefRegisters
@@ -34958,8 +34632,6 @@ ld [hli], a
 ld a, [wMonHType2]
 ld [hl], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\set_types.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\reds_room.asm
 PrintRedSNESText:
 call EnableAutoTextBoxDrawing
 tx_pre_jump RedBedroomSNESText
@@ -34971,8 +34643,6 @@ call EnableAutoTextBoxDrawing
 tx_pre_jump RedBedroomPCText
 RedBedroomPCText::
 script_players_pc
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\reds_room.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\route_15_binoculars.asm
 Route15GateLeftBinoculars:
 ld a, [wSpritePlayerStateData1FacingDirection]
 cp SPRITE_FACING_UP
@@ -34986,8 +34656,6 @@ jp DisplayMonFrontSpriteInBox
 Route15UpstairsBinocularsText::
 text_far _Route15UpstairsBinocularsText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\route_15_binoculars.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\museum_fossils.asm
 AerodactylFossil:
 ld a, FOSSIL_AERODACTYL
 ld [wCurPartySpecies], a
@@ -35035,8 +34703,6 @@ call Delay3
 ld a, $90
 ldh [hWY], a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\museum_fossils.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\school_blackboard.asm
 PrintBlackboardLinkCableText:
 call EnableAutoTextBoxDrawing
 ld a, $1
@@ -35241,8 +34907,6 @@ text_end
 ViridianBlackboardFrozenText:
 text_far _ViridianBlackboardFrozenText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\school_blackboard.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\vermilion_gym_trash.asm
 PrintTrashText:
 call EnableAutoTextBoxDrawing
 tx_pre_jump VermilionGymTrashText
@@ -35385,9 +35049,7 @@ ld a, SFX_DENIED
 call PlaySound
 call WaitForSoundToFinish
 jp TextScriptEnd
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\vermilion_gym_trash.asm
 SECTION "Cinnabar Lab Fossils", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\cinnabar_lab.asm
 GiveFossilToCinnabarLab::
 ld hl, wStatusFlags5
 set BIT_NO_TEXT_DELAY, [hl]
@@ -35505,9 +35167,7 @@ ld a, [wFossilItem]
 ld [wNamedObjectIndex], a
 call GetItemName
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\cinnabar_lab.asm
 SECTION "Hidden Events 4", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\gym_statues.asm
 GymStatues:
 ; if in a gym and have the corresponding badge, a = GymStatueText2_id and jp PrintPredefTextID
 ; if in a gym and don't have the corresponding badge, a = GymStatueText1_id and jp PrintPredefTextID
@@ -35544,8 +35204,6 @@ text_end
 GymStatueText2::
 text_far _GymStatueText2
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\gym_statues.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\bench_guys.asm
 PrintBenchGuyText:
 call EnableAutoTextBoxDrawing
 ld hl, BenchGuyTextPointers
@@ -35634,8 +35292,6 @@ text_end
 CeladonCityHotelText::
 text_far _CeladonCityHotelText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\bench_guys.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\blues_room.asm
 ret ; unused
 UnusedPredefText::
 db "@"
@@ -35645,8 +35301,6 @@ tx_pre_jump BookcaseText
 BookcaseText::
 text_far _BookcaseText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\blues_room.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\pokecenter_pc.asm
 OpenPokemonCenterPC:
 ld a, [wSpritePlayerStateData1FacingDirection]
 cp SPRITE_FACING_UP
@@ -35657,9 +35311,7 @@ ld [wAutoTextBoxDrawingControl], a
 tx_pre_jump PokemonCenterPCText
 PokemonCenterPCText::
 script_pokecenter_pc
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_events\pokecenter_pc.asm
 SECTION "Battle Engine 11", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\decrement_pp.asm
 DecrementPP:
 ; after using a move, decrement pp in battle and (if not transformed?) in party
 ld a, [de]
@@ -35700,8 +35352,6 @@ add hl, bc ; calculate the address in memory of the PP we need to decrement
 ; based on the move chosen.
 dec [hl] ; Decrement PP
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\decrement_pp.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\version.asm
 Version_GFX:
 IF DEF(_RED)
 INCBIN "gfx/title/red_version.1bpp" ; 10 tiles
@@ -35710,9 +35360,7 @@ IF DEF(_BLUE)
 INCBIN "gfx/title/blue_version.1bpp" ; 8 tiles
 ENDC
 Version_GFXEnd:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\version.asm
 SECTION "bank1C", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\splash.asm
 LoadShootingStarGraphics:
 ld a, $f9
 ldh [rOBP0], a
@@ -35935,8 +35583,6 @@ GameFreakShootingStarOAMDataEnd:
 FallingStar:
 INCBIN "gfx/splash/falling_star.2bpp"
 FallingStarEnd:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\splash.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\hall_of_fame.asm
 AnimateHallOfFame:
 call HoFFadeOutScreenAndMusic
 call ClearScreen
@@ -36209,8 +35855,6 @@ ld [wAudioFadeOutCounter], a
 ld a, $ff
 ld [wAudioFadeOutControl], a
 jp GBFadeOutToWhite
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\hall_of_fame.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\healing_machine.asm
 AnimateHealingMachine:
 ld de, PokeCenterFlashingMonitorAndHealBall
 ld hl, vChars0 tile $7c
@@ -36306,8 +35950,6 @@ inc de
 ld [hli], a
 ENDR
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\healing_machine.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\player_animations.asm
 EnterMapAnim::
 call InitFacingDirectionList
 ld a, $ec
@@ -36798,8 +36440,6 @@ ret
 PlayerJumpingYScreenCoords:
 ; Sequence of y screen coordinates for player's sprite when jumping over a ledge.
 db $38, $36, $34, $32, $31, $30, $30, $30, $31, $32, $33, $34, $36, $38, $3C, $3C
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\player_animations.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\ghost_marowak_anim.asm
 MarowakAnim:
 ; animate the ghost being unveiled as a Marowak
 ld a, $e4
@@ -36888,8 +36528,6 @@ pop bc
 dec b
 jr nz, .oamLoop
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\ghost_marowak_anim.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\battle_transitions.asm
 BattleTransition:
 ld a, 1
 ldh [hAutoBGTransferEnabled], a
@@ -37605,8 +37243,6 @@ BattleTransition_CircleData2: db 1, 1, 2, 2, 4, 2, 4, 2, 3, -1
 BattleTransition_CircleData3: db 2, 1, 3, 1, 4, 1, 4, 1, 4, 1, 3, 1, 2, 1, 1, 1, 1, -1
 BattleTransition_CircleData4: db 4, 1, 4, 0, 3, 1, 3, 0, 2, 1, 2, 0, 1, -1
 BattleTransition_CircleData5: db 4, 0, 3, 0, 3, 0, 2, 0, 2, 0, 1, 0, 1, 0, 1, -1
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\battle_transitions.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\town_map.asm
 DEF NOT_VISITED EQU $fe
 DEF BIRD_BASE_TILE EQU $04
 DisplayTownMap:
@@ -38200,8 +37836,6 @@ ld a, 25
 .done
 ld [wAnimCounter], a
 jp DelayFrame
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\town_map.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\mon_icons.asm
 AnimatePartyMon_ForceSpeed1:
 xor a
 ld [wCurrentMenuItem], a
@@ -38480,8 +38114,6 @@ QuadrupedIconFrame1: INCBIN "gfx/icons/quadruped.2bpp", INC_FRAME_1
 SnakeIconFrame2: INCBIN "gfx/icons/snake.2bpp", INC_FRAME_2
 QuadrupedIconFrame2: INCBIN "gfx/icons/quadruped.2bpp", INC_FRAME_2
 TradeBubbleIconGFX: INCBIN "gfx/trade/bubble.2bpp"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\mon_icons.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\in_game_trades.asm
 ; TradeTextPointers1-3 indexes
 const_def
 const TRADETEXT_WANNA_TRADE ; 0
@@ -38799,8 +38431,6 @@ text_end
 AfterTrade3Text:
 text_far _AfterTrade3Text
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\in_game_trades.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\palettes.asm
 _RunPaletteCommand:
 call GetPredefRegisters
 ld a, b
@@ -39405,8 +39035,6 @@ INCLUDE "data/sgb/sgb_packets.asm"
 INCLUDE "data/pokemon/palettes.asm"
 INCLUDE "data/sgb/sgb_palettes.asm"
 INCLUDE "data/sgb/sgb_border.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\gfx\palettes.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\save.asm
 TryLoadSaveFile:
 call ClearScreen
 call LoadFontTilePatterns
@@ -40083,9 +39711,7 @@ ld hl, STARTOF(SRAM)
 ld bc, SIZEOF(SRAM)
 ld a, $ff
 jp FillMemory
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\save.asm
 SECTION "Itemfinder 1", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\credits.asm
 HallOfFamePC:
 farcall AnimateHallOfFame
 call ClearScreen
@@ -40340,8 +39966,6 @@ INCLUDE "data/credits/credits_text.asm"
 TheEndGfx:
 INCBIN "gfx/credits/the_end.2bpp"
 TheEndGfxEnd:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\credits.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\status_ailments.asm
 PrintStatusAilment::
 ld a, [de]
 bit PSN, a
@@ -40368,8 +39992,6 @@ ret
 .par
 ld_hli_a_string "PAR"
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\pokemon\status_ailments.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\itemfinder.asm
 HiddenItemNear:
 ld hl, HiddenItemCoords
 ld b, 0
@@ -40421,9 +40043,7 @@ cp $f0
 ret c
 xor a
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\itemfinder.asm
 SECTION "Vending Machine", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\vending_machine.asm
 VendingMachineMenu::
 ld hl, VendingMachineText1
 call PrintText
@@ -40546,9 +40166,7 @@ ld a, [hl]
 ldh [hVendingMachinePrice + 2], a
 ret
 INCLUDE "data/items/vending_prices.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\vending_machine.asm
 SECTION "Itemfinder 2", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\league_pc.asm
 PKMNLeaguePC:
 ld hl, AccessedHoFPCText
 call PrintText
@@ -40665,8 +40283,6 @@ db "HALL OF FAME No @"
 AccessedHoFPCText:
 text_far _AccessedHoFPCText
 text_end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\menus\league_pc.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_items.asm
 HiddenItems:
 ld hl, HiddenItemCoords
 call FindHiddenItemOrCoinsIndex
@@ -40820,9 +40436,7 @@ inc hl
 .next2
 inc hl
 jr .loop
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\events\hidden_items.asm
 SECTION "bank1E", ROMX
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\animations.asm
 ; Draws a "frame block". Frame blocks are blocks of tiles that are put
 ; together to form frames in battle animations.
 DrawFrameBlock:
@@ -43313,8 +42927,6 @@ ld a, b
 ld [wTempoModifier], a
 ld a, c
 jp PlaySound
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\battle\animations.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\cut2.asm
 AnimCut:
 ld a, [wCutTile]
 cp $52
@@ -43402,8 +43014,6 @@ ld hl, wBuffer
 ld de, wShadowOAMSprite38
 ld bc, 2 * OBJ_SIZE
 jp CopyData
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\cut2.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\dust_smoke.asm
 AnimateBoulderDust:
 ld a, $1
 ld [wWhichAnimationOffsets], a ; select the boulder dust offsets
@@ -43485,14 +43095,10 @@ jp CopyVideoData
 SSAnneSmokePuffTile:
 INCBIN "gfx/overworld/smoke.2bpp"
 SSAnneSmokePuffTileEnd:
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\dust_smoke.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\fishing.asm
 RedFishingTilesFront: INCBIN "gfx/overworld/red_fish_front.2bpp"
 RedFishingTilesBack: INCBIN "gfx/overworld/red_fish_back.2bpp"
 RedFishingTilesSide: INCBIN "gfx/overworld/red_fish_side.2bpp"
 RedFishingRodTiles: INCBIN "gfx/overworld/fishing_rod.2bpp"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\gfx\fishing.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\moves\animations.asm
 AttackAnimationPointers:
 table_width 2
 dw PoundAnim
@@ -44575,8 +44181,6 @@ db -1 ; end
 ThrowBaitAnim:
 battle_anim BARRAGE, SUBANIM_0_SAFARI_BAIT, 0, 3
 db -1 ; end
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\moves\animations.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\battle_anims\subanimations.asm
 SubanimationPointers:
 table_width 2
 dw Subanim_0Star
@@ -45445,8 +45049,6 @@ db FRAMEBLOCK_79, BASECOORD_A8, FRAMEBLOCKMODE_00
 db FRAMEBLOCK_79, BASECOORD_0E, FRAMEBLOCKMODE_00
 db FRAMEBLOCK_79, BASECOORD_A9, FRAMEBLOCKMODE_00
 db FRAMEBLOCK_79, BASECOORD_34, FRAMEBLOCKMODE_00
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\battle_anims\subanimations.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\data\battle_anims\frame_blocks.asm
 FrameBlockPointers:
 table_width 2
 dw FrameBlock00
@@ -46563,8 +46165,6 @@ INCLUDE "data/battle_anims/base_coords.asm"
 FrameBlock00:
 db 0 ; #
 db $00 ; unused
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\data\battle_anims\frame_blocks.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\evolution.asm
 EvolveMon:
 push hl
 push de
@@ -46720,8 +46320,6 @@ and a
 jr nz, .notAllowedToCancel
 scf
 ret
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\movie\evolution.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\elevator.asm
 ShakeElevator::
 ld de, -$20
 call ShakeElevatorRedrawRow
@@ -46792,8 +46390,6 @@ ld [hli], a
 pop af
 ld [hl], a
 jp Delay3
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\overworld\elevator.asm
-; BEGIN_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\tm_prices.asm
 GetMachinePrice::
 ; Input: [wCurItem] = Item ID of a TM
 ; Output: Stores the TM price at hItemPrice
@@ -46818,5 +46414,3 @@ ldh [hItemPrice], a
 ldh [hItemPrice + 2], a
 ret
 INCLUDE "data/items/tm_prices.asm"
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\engine\items\tm_prices.asm
-; END_INCLUDE \\?\M:\Code\Research\pokered-master\main.asm
