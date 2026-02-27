@@ -1,6 +1,7 @@
 //! Type mapping utilities for converting source language types to KAIN types
 
 use kain_core::ast::Type;
+use kain_core::span::Span;
 use std::collections::HashMap;
 
 /// Type mapper for converting source language types to KAIN types
@@ -14,35 +15,35 @@ impl TypeMapper {
         let mut mappings = HashMap::new();
         
         // Integer types
-        mappings.insert("int".into(), Type::Int);
-        mappings.insert("long".into(), Type::Int);
-        mappings.insert("short".into(), Type::Int);
-        mappings.insert("char".into(), Type::Char);
-        mappings.insert("signed".into(), Type::Int);
-        mappings.insert("unsigned".into(), Type::Int);
+        mappings.insert("int".into(), named_type("Int"));
+        mappings.insert("long".into(), named_type("Int"));
+        mappings.insert("short".into(), named_type("Int"));
+        mappings.insert("char".into(), named_type("Char"));
+        mappings.insert("signed".into(), named_type("Int"));
+        mappings.insert("unsigned".into(), named_type("Int"));
         
         // Floating point types
-        mappings.insert("float".into(), Type::Float);
-        mappings.insert("double".into(), Type::Float);
+        mappings.insert("float".into(), named_type("Float"));
+        mappings.insert("double".into(), named_type("Float"));
         
         // Other types
-        mappings.insert("void".into(), Type::Unit);
-        mappings.insert("bool".into(), Type::Bool);
-        mappings.insert("_Bool".into(), Type::Bool);
+        mappings.insert("void".into(), Type::Unit(Span::default()));
+        mappings.insert("bool".into(), named_type("Bool"));
+        mappings.insert("_Bool".into(), named_type("Bool"));
         
         // stdint.h types
-        mappings.insert("int8_t".into(), Type::Int);
-        mappings.insert("int16_t".into(), Type::Int);
-        mappings.insert("int32_t".into(), Type::Int);
-        mappings.insert("int64_t".into(), Type::Int);
-        mappings.insert("uint8_t".into(), Type::Int);
-        mappings.insert("uint16_t".into(), Type::Int);
-        mappings.insert("uint32_t".into(), Type::Int);
-        mappings.insert("uint64_t".into(), Type::Int);
+        mappings.insert("int8_t".into(), named_type("Int"));
+        mappings.insert("int16_t".into(), named_type("Int"));
+        mappings.insert("int32_t".into(), named_type("Int"));
+        mappings.insert("int64_t".into(), named_type("Int"));
+        mappings.insert("uint8_t".into(), named_type("Int"));
+        mappings.insert("uint16_t".into(), named_type("Int"));
+        mappings.insert("uint32_t".into(), named_type("Int"));
+        mappings.insert("uint64_t".into(), named_type("Int"));
         
         // size_t, ptrdiff_t
-        mappings.insert("size_t".into(), Type::Int);
-        mappings.insert("ptrdiff_t".into(), Type::Int);
+        mappings.insert("size_t".into(), named_type("Int"));
+        mappings.insert("ptrdiff_t".into(), named_type("Int"));
         
         Self { mappings }
     }
@@ -52,27 +53,27 @@ impl TypeMapper {
         let mut mappings = HashMap::new();
         
         // Integer types
-        mappings.insert("i8".into(), Type::Int);
-        mappings.insert("i16".into(), Type::Int);
-        mappings.insert("i32".into(), Type::Int);
-        mappings.insert("i64".into(), Type::Int);
-        mappings.insert("i128".into(), Type::Int);
-        mappings.insert("isize".into(), Type::Int);
-        mappings.insert("u8".into(), Type::Int);
-        mappings.insert("u16".into(), Type::Int);
-        mappings.insert("u32".into(), Type::Int);
-        mappings.insert("u64".into(), Type::Int);
-        mappings.insert("u128".into(), Type::Int);
-        mappings.insert("usize".into(), Type::Int);
+        mappings.insert("i8".into(), named_type("Int"));
+        mappings.insert("i16".into(), named_type("Int"));
+        mappings.insert("i32".into(), named_type("Int"));
+        mappings.insert("i64".into(), named_type("Int"));
+        mappings.insert("i128".into(), named_type("Int"));
+        mappings.insert("isize".into(), named_type("Int"));
+        mappings.insert("u8".into(), named_type("Int"));
+        mappings.insert("u16".into(), named_type("Int"));
+        mappings.insert("u32".into(), named_type("Int"));
+        mappings.insert("u64".into(), named_type("Int"));
+        mappings.insert("u128".into(), named_type("Int"));
+        mappings.insert("usize".into(), named_type("Int"));
         
         // Floating point types
-        mappings.insert("f32".into(), Type::Float);
-        mappings.insert("f64".into(), Type::Float);
+        mappings.insert("f32".into(), named_type("Float"));
+        mappings.insert("f64".into(), named_type("Float"));
         
         // Other types
-        mappings.insert("bool".into(), Type::Bool);
-        mappings.insert("char".into(), Type::Char);
-        mappings.insert("str".into(), Type::String);
+        mappings.insert("bool".into(), named_type("Bool"));
+        mappings.insert("char".into(), named_type("Char"));
+        mappings.insert("str".into(), named_type("String"));
         
         Self { mappings }
     }
@@ -93,14 +94,15 @@ impl TypeMapper {
             mutable,
             inner: Box::new(inner),
             lifetime: None,
+            span: Span::default(),
         }
     }
     
     /// Map an array type
     pub fn map_array(&self, element: Type, size: Option<usize>) -> Type {
         match size {
-            Some(n) => Type::Array(Box::new(element), n),
-            None => Type::Slice(Box::new(element)),
+            Some(n) => Type::Array(Box::new(element), n, Span::default()),
+            None => Type::Slice(Box::new(element), Span::default()),
         }
     }
 }
@@ -108,5 +110,13 @@ impl TypeMapper {
 impl Default for TypeMapper {
     fn default() -> Self {
         Self::new_c()
+    }
+}
+
+fn named_type(name: &str) -> Type {
+    Type::Named {
+        name: name.to_string(),
+        generics: Vec::new(),
+        span: Span::default(),
     }
 }

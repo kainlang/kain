@@ -3,6 +3,7 @@
 //! Transforms lang-c AST into KAIN AST
 
 use lang_c::ast as c_ast;
+use lang_c::span::Node;
 use kain_core::ast::*;
 use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
@@ -148,12 +149,12 @@ impl CTransformer {
     }
     
     /// Extract return type from declaration specifiers
-    fn extract_return_type(&self, specifiers: &[lang_c::node::Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
+    fn extract_return_type(&self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
         self.extract_type_from_specifiers(specifiers)
     }
     
     /// Extract type from declaration specifiers
-    fn extract_type_from_specifiers(&self, specifiers: &[lang_c::node::Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
+    fn extract_type_from_specifiers(&self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
         use c_ast::DeclarationSpecifier::*;
         
         for spec in specifiers {
@@ -163,6 +164,20 @@ impl CTransformer {
         }
         
         // Default to void/unit if no type specifier found
+        Ok(Type::Unit(Span::default()))
+    }
+
+    /// Extract type from specifier qualifiers (used in casts/compound literals).
+    fn extract_type_from_specifier_qualifiers(
+        &self,
+        specifiers: &[Node<c_ast::SpecifierQualifier>],
+    ) -> Result<Type> {
+        for spec in specifiers {
+            if let c_ast::SpecifierQualifier::TypeSpecifier(type_spec) = &spec.node {
+                return self.type_transformer.transform_type_specifier(&type_spec.node);
+            }
+        }
+
         Ok(Type::Unit(Span::default()))
     }
     
@@ -305,25 +320,26 @@ impl CTransformer {
         
         if let Some(ref declarations) = struct_type.declarations {
             for decl in declarations {
-                for spec_qual in &decl.node.specifiers {
-                    if let c_ast::SpecifierQualifier::TypeSpecifier(type_spec) = &spec_qual.node {
-                        let field_type = self.type_transformer.transform_type_specifier(&type_spec.node)?;
-                        
-                        for declarator in &decl.node.declarators {
-                            if let Some(ref field_decl) = declarator.node.declarator {
-                                let field_name = self.extract_declarator_name(&field_decl.node)?;
-                                
-                                fields.push(Field {
-                                    name: field_name,
-                                    ty: field_type.clone(),
-                                    attributes: Vec::new(),
-                                    visibility: Visibility::Public,
-                                    default: None,
-                                    weak: false,
-                                    span: Span::default(),
-                                });
-                            }
-                        }
+                let c_ast::StructDeclaration::Field(field_decl) = &decl.node else {
+                    continue;
+                };
+
+                let field_decl = &field_decl.node;
+                let field_type = self.extract_type_from_specifier_qualifiers(&field_decl.specifiers)?;
+
+                for declarator in &field_decl.declarators {
+                    if let Some(ref field_decl) = declarator.node.declarator {
+                        let field_name = self.extract_declarator_name(&field_decl.node)?;
+
+                        fields.push(Field {
+                            name: field_name,
+                            ty: field_type.clone(),
+                            attributes: Vec::new(),
+                            visibility: Visibility::Public,
+                            default: None,
+                            weak: false,
+                            span: Span::default(),
+                        });
                     }
                 }
             }
@@ -357,16 +373,14 @@ impl CTransformer {
         // Get enum variants
         let mut variants = Vec::new();
         
-        if let Some(ref enumerators) = enum_type.enumerators {
-            for enumerator in enumerators {
-                let variant_name = enumerator.node.identifier.node.name.clone();
-                
-                variants.push(Variant {
-                    name: variant_name,
-                    fields: VariantFields::Unit,
-                    span: Span::default(),
-                });
-            }
+        for enumerator in &enum_type.enumerators {
+            let variant_name = enumerator.node.identifier.node.name.clone();
+
+            variants.push(Variant {
+                name: variant_name,
+                fields: VariantFields::Unit,
+                span: Span::default(),
+            });
         }
         
         let enum_def = Enum {
@@ -475,7 +489,7 @@ impl CTransformer {
                 let then_body = self.transform_compound_statement(&if_stmt.node.then_statement.node)?;
                 
                 let else_branch = if let Some(ref else_stmt) = if_stmt.node.else_statement {
-                    Some(Box::new(self.transform_compound_statement(&else_stmt.node)?))
+                    Some(self.transform_compound_statement(&else_stmt.node)?)
                 } else {
                     None
                 };
@@ -490,7 +504,7 @@ impl CTransformer {
             }
             
             While(while_stmt) => {
-                let condition = self.transform_expression(&while_stmt.node.condition.node)?;
+                let condition = self.transform_expression(&while_stmt.node.expression.node)?;
                 let body = self.transform_compound_statement(&while_stmt.node.statement.node)?;
                 
                 Ok(Some(Stmt::While {
@@ -506,16 +520,14 @@ impl CTransformer {
                 let mut stmts = Vec::new();
                 
                 // Handle init
-                if let Some(ref init) = for_stmt.node.initializer {
-                    match &init.node {
-                        c_ast::ForInitializer::Declaration(decl) => {
-                            stmts.extend(self.transform_local_declaration(&decl.node)?);
-                        }
-                        c_ast::ForInitializer::Expression(expr) => {
-                            stmts.push(Stmt::Expr(self.transform_expression(&expr.node)?));
-                        }
-                        _ => {}
+                match &for_stmt.node.initializer.node {
+                    c_ast::ForInitializer::Declaration(decl) => {
+                        stmts.extend(self.transform_local_declaration(&decl.node)?);
                     }
+                    c_ast::ForInitializer::Expression(expr) => {
+                        stmts.push(Stmt::Expr(self.transform_expression(&expr.node)?));
+                    }
+                    _ => {}
                 }
                 
                 // Build while loop with condition
@@ -585,7 +597,7 @@ impl CTransformer {
             
             StringLiteral(string_lit) => {
                 Ok(Expr::String(
-                    string_lit.node.iter().map(|s| s.node.clone()).collect::<Vec<_>>().join(""),
+                    string_lit.node.iter().cloned().collect::<Vec<_>>().join(""),
                     Span::default(),
                 ))
             }
@@ -686,7 +698,7 @@ impl CTransformer {
             // Cast
             Cast(cast) => {
                 let value = Box::new(self.transform_expression(&cast.node.expression.node)?);
-                let target = self.extract_type_from_specifiers(&cast.node.type_name.node.specifiers)?;
+                let target = self.extract_type_from_specifier_qualifiers(&cast.node.type_name.node.specifiers)?;
                 
                 Ok(Expr::Cast {
                     value,
@@ -718,11 +730,11 @@ impl CTransformer {
             // Compound literal (struct initialization)
             CompoundLiteral(compound) => {
                 // Extract type name
-                let type_name = self.extract_type_from_specifiers(&compound.node.type_name.node.specifiers)?;
+                let type_name = self.extract_type_from_specifier_qualifiers(&compound.node.type_name.node.specifiers)?;
                 
                 if let Type::Named { name, .. } = type_name {
                     // Transform initializer list to struct fields
-                    let fields = self.transform_compound_initializer(&compound.node.initializer_list.node)?;
+                    let fields = self.transform_compound_initializer(&compound.node.initializer_list)?;
                     
                     Ok(Expr::Struct {
                         name,
@@ -731,7 +743,11 @@ impl CTransformer {
                     })
                 } else {
                     // Array or other compound literal
-                    self.transform_initializer(&compound.node.initializer_list.node)
+                    let mut exprs = Vec::new();
+                    for item in &compound.node.initializer_list {
+                        exprs.push(self.transform_initializer(&item.node.initializer.node)?);
+                    }
+                    Ok(Expr::Array(exprs, Span::default()))
                 }
             }
             
@@ -746,21 +762,21 @@ impl CTransformer {
     fn transform_constant(&self, constant: &c_ast::Constant) -> Result<Expr> {
         use c_ast::Constant::*;
         
-        match &constant.node {
+        match constant {
             Integer(int) => {
                 // Parse integer value
-                let value = int.node.number.parse::<i64>()
+                let value = int.number.parse::<i64>()
                     .unwrap_or(0);
                 Ok(Expr::Int(value, Span::default()))
             }
             Float(float) => {
                 // Parse float value
-                let value = float.node.number.parse::<f64>()
+                let value = float.number.parse::<f64>()
                     .unwrap_or(0.0);
                 Ok(Expr::Float(value, Span::default()))
             }
             Character(ch) => {
-                Ok(Expr::String(ch.node.clone(), Span::default()))
+                Ok(Expr::String(ch.clone(), Span::default()))
             }
         }
     }
@@ -797,6 +813,17 @@ impl CTransformer {
             AssignMinus => BinaryOp::SubAssign,
             AssignMultiply => BinaryOp::MulAssign,
             AssignDivide => BinaryOp::DivAssign,
+            AssignModulo
+            | AssignShiftLeft
+            | AssignShiftRight
+            | AssignBitwiseAnd
+            | AssignBitwiseOr
+            | AssignBitwiseXor => {
+                return Err(ImportError::UnsupportedFeature(format!(
+                    "Binary operator: {:?}",
+                    op
+                )));
+            }
             
             _ => return Err(ImportError::UnsupportedFeature(format!("Binary operator: {:?}", op))),
         };
@@ -833,37 +860,30 @@ impl CTransformer {
     }
     
     /// Transform compound initializer to struct fields
-    fn transform_compound_initializer(&mut self, init: &c_ast::Initializer) -> Result<Vec<(String, Expr)>> {
-        use c_ast::Initializer::*;
-        
-        match init {
-            List(items) => {
-                let mut fields = Vec::new();
-                
-                for (idx, item) in items.iter().enumerate() {
-                    // Check for designated initializer
-                    let field_name = if !item.node.designators.is_empty() {
-                        // Extract field name from designator
-                        if let c_ast::Designator::Member(ident) = &item.node.designators[0].node {
-                            ident.node.name.clone()
-                        } else {
-                            format!("field_{}", idx)
-                        }
-                    } else {
-                        format!("field_{}", idx)
-                    };
-                    
-                    let value = self.transform_initializer(&item.node.initializer.node)?;
-                    fields.push((field_name, value));
+    fn transform_compound_initializer(
+        &mut self,
+        items: &[Node<c_ast::InitializerListItem>],
+    ) -> Result<Vec<(String, Expr)>> {
+        let mut fields = Vec::new();
+
+        for (idx, item) in items.iter().enumerate() {
+            // Check for designated initializer
+            let field_name = if !item.node.designation.is_empty() {
+                // Extract field name from designator
+                if let c_ast::Designator::Member(ident) = &item.node.designation[0].node {
+                    ident.node.name.clone()
+                } else {
+                    format!("field_{}", idx)
                 }
-                
-                Ok(fields)
-            }
-            Expression(expr) => {
-                // Single expression, wrap as field_0
-                Ok(vec![("field_0".to_string(), self.transform_expression(&expr.node)?)])
-            }
+            } else {
+                format!("field_{}", idx)
+            };
+
+            let value = self.transform_initializer(&item.node.initializer.node)?;
+            fields.push((field_name, value));
         }
+
+        Ok(fields)
     }
 }
 

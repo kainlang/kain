@@ -2,6 +2,7 @@
 
 use lang_c::ast as c_ast;
 use kain_core::ast::Type;
+use kain_core::span::Span;
 use crate::common::type_mapper::TypeMapper;
 use crate::{ImportError, Result};
 
@@ -22,20 +23,20 @@ impl CTypeTransformer {
         use c_ast::TypeSpecifier::*;
         
         match spec {
-            Void => Ok(Type::Unit),
-            Char => Ok(Type::Char),
-            Short | Int | Long => Ok(Type::Int),
-            Float | Double => Ok(Type::Float),
-            Bool => Ok(Type::Bool),
+            Void => Ok(Type::Unit(Span::default())),
+            Char => Ok(named_type("Char")),
+            Short | Int | Long | Signed | Unsigned => Ok(named_type("Int")),
+            Float | Double => Ok(named_type("Float")),
+            Bool => Ok(named_type("Bool")),
             
             Struct(struct_type) => {
                 // Handle struct types
-                self.transform_struct_type(struct_type)
+                self.transform_struct_type(&struct_type.node)
             }
             
             Enum(enum_type) => {
                 // Handle enum types
-                self.transform_enum_type(enum_type)
+                self.transform_enum_type(&enum_type.node)
             }
             
             TypedefName(name) => {
@@ -50,13 +51,19 @@ impl CTypeTransformer {
     }
     
     fn transform_struct_type(&self, _struct_type: &c_ast::StructType) -> Result<Type> {
-        // TODO: Implement struct type transformation
-        Err(ImportError::UnsupportedFeature("Struct types not yet implemented".into()))
+        if let Some(ident) = &_struct_type.identifier {
+            Ok(named_type(&ident.node.name))
+        } else {
+            Ok(named_type("AnonymousStruct"))
+        }
     }
     
     fn transform_enum_type(&self, _enum_type: &c_ast::EnumType) -> Result<Type> {
-        // TODO: Implement enum type transformation
-        Err(ImportError::UnsupportedFeature("Enum types not yet implemented".into()))
+        if let Some(ident) = &_enum_type.identifier {
+            Ok(named_type(&ident.node.name))
+        } else {
+            Ok(named_type("AnonymousEnum"))
+        }
     }
     
     /// Transform a pointer declarator
@@ -75,5 +82,13 @@ impl CTypeTransformer {
 impl Default for CTypeTransformer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn named_type(name: &str) -> Type {
+    Type::Named {
+        name: name.to_string(),
+        generics: Vec::new(),
+        span: Span::default(),
     }
 }

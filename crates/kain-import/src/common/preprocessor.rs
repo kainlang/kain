@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use crate::{ImportError, Result};
+use crate::Result;
 
 /// Preprocessor configuration
 pub struct PreprocessorConfig {
