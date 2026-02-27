@@ -1,6 +1,6 @@
 //! C parser using lang-c
 
-use lang_c::driver::{Config, parse_preprocessed, parse};
+use lang_c::driver::{Config, parse_preprocessed};
 use lang_c::ast::TranslationUnit;
 use std::path::Path;
 use crate::{ImportError, Result};
@@ -21,7 +21,7 @@ pub fn parse_c_file(path: &Path) -> Result<TranslationUnit> {
 pub fn parse_c_source(source: &str) -> Result<TranslationUnit> {
     let config = Config::default();
     
-    let parse_result = parse(&config, source)
+    let parse_result = parse_preprocessed(&config, source.to_string())
         .map_err(|e| ImportError::CParseError(format!("{:?}", e)))?;
     
     Ok(parse_result.unit)

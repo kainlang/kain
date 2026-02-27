@@ -74,9 +74,6 @@ pub fn import_c_project_with_language_capabilities(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::path::Path;
-    
     #[test]
     fn test_import_simple_c() {
         // Test will be added once we have test fixtures
