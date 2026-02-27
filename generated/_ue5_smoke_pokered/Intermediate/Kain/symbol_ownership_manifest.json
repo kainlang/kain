@@ -1,0 +1,20 @@
+{
+  "plugin": "PokeredFirmwareSmoke",
+  "symbols": [
+    {
+      "symbol": "CpuState",
+      "module": "PokeredFirmwareSmoke",
+      "include": "FCpuState.h"
+    },
+    {
+      "symbol": "Memory",
+      "module": "PokeredFirmwareSmoke",
+      "include": "FMemory.h"
+    },
+    {
+      "symbol": "Ue5ShimState",
+      "module": "PokeredFirmwareSmoke",
+      "include": "FUe5ShimState.h"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ use crate::span::Span;
 use crate::effects::Effect;
 use crate::error::{KainError, KainResult};
 use crate::diagnostics::SpanMapper;
+use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 
 /// Maximum number of errors to accumulate before bailing out.
 /// Prevents runaway error accumulation from freezing the compiler.
@@ -65,17 +66,28 @@ pub struct Parser<'a> {
     injected_tokens: Vec<Token>, // Buffer for synthetic tokens (e.g., splitting >> into > >)
     span_mapper: &'a SpanMapper,
     filename: &'a str,
+    capabilities: LanguageCapabilities,
     errors: Vec<KainError>,      // Accumulated parse errors for multi-error recovery
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
+        Self::with_capabilities(tokens, span_mapper, filename, default_language_capabilities())
+    }
+
+    pub fn with_capabilities(
+        tokens: &'a [Token],
+        span_mapper: &'a SpanMapper,
+        filename: &'a str,
+        capabilities: LanguageCapabilities,
+    ) -> Self {
         Self { 
             tokens, 
             pos: 0, 
             injected_tokens: Vec::new(),
             span_mapper,
             filename,
+            capabilities,
             errors: Vec::new(),
         }
     }
@@ -2452,7 +2464,7 @@ impl<'a> Parser<'a> {
                 let saved_pos_for_check = self.pos;
                 self.skip_formatting();
                 
-                if self.check(TokenKind::LBrace) {
+                if self.check(TokenKind::LBrace) && !self.capabilities.supports_parser_struct_literals() {
                     // Restore position before emitting error
                     self.pos = saved_pos_for_check;
                     
@@ -3230,23 +3242,30 @@ impl<'a> Parser<'a> {
     }
 
     fn get_binary_op(&self) -> Option<(BinaryOp, u8)> {
-        match self.peek_kind() {
+        let candidate = match self.peek_kind() {
             TokenKind::Or => Some((BinaryOp::Or, 1)),
             TokenKind::And => Some((BinaryOp::And, 2)),
-            TokenKind::EqEq => Some((BinaryOp::Eq, 3)),
-            TokenKind::NotEq => Some((BinaryOp::Ne, 3)),
-            TokenKind::Lt => Some((BinaryOp::Lt, 4)),
-            TokenKind::Gt => Some((BinaryOp::Gt, 4)),
-            TokenKind::LtEq => Some((BinaryOp::Le, 4)),
-            TokenKind::GtEq => Some((BinaryOp::Ge, 4)),
-            TokenKind::Plus => Some((BinaryOp::Add, 5)),
-            TokenKind::Minus => Some((BinaryOp::Sub, 5)),
-            TokenKind::Star => Some((BinaryOp::Mul, 6)),
-            TokenKind::Slash => Some((BinaryOp::Div, 6)),
-            TokenKind::Percent => Some((BinaryOp::Mod, 6)),
-            TokenKind::Power => Some((BinaryOp::Pow, 7)),
+            TokenKind::Pipe => Some((BinaryOp::BitOr, 3)),
+            TokenKind::Caret => Some((BinaryOp::BitXor, 4)),
+            TokenKind::Amp => Some((BinaryOp::BitAnd, 5)),
+            TokenKind::EqEq => Some((BinaryOp::Eq, 6)),
+            TokenKind::NotEq => Some((BinaryOp::Ne, 6)),
+            TokenKind::Lt => Some((BinaryOp::Lt, 7)),
+            TokenKind::Gt => Some((BinaryOp::Gt, 7)),
+            TokenKind::LtEq => Some((BinaryOp::Le, 7)),
+            TokenKind::GtEq => Some((BinaryOp::Ge, 7)),
+            TokenKind::Shl => Some((BinaryOp::Shl, 8)),
+            TokenKind::Shr => Some((BinaryOp::Shr, 8)),
+            TokenKind::Plus => Some((BinaryOp::Add, 9)),
+            TokenKind::Minus => Some((BinaryOp::Sub, 9)),
+            TokenKind::Star => Some((BinaryOp::Mul, 10)),
+            TokenKind::Slash => Some((BinaryOp::Div, 10)),
+            TokenKind::Percent => Some((BinaryOp::Mod, 10)),
+            TokenKind::Power => Some((BinaryOp::Pow, 11)),
             _ => None,
-        }
+        };
+
+        candidate.filter(|(op, _)| self.capabilities.supports_parser_binary_op(*op))
     }
 
     // Helper methods

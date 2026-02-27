@@ -17,6 +17,7 @@ pub mod monomorphize;
 pub mod runtime;
 pub mod shader_analysis;
 pub mod asm_ir;
+pub mod language_features;
 
 #[cfg(test)]
 mod stdlib_tests;
@@ -31,6 +32,7 @@ pub use error::*;
 pub use span::*;
 pub use monomorphize::MonomorphizedProgram;
 pub use asm_ir::*;
+pub use language_features::*;
 
 /// Compilation target
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

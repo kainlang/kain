@@ -5,6 +5,7 @@ use crate::error::{KainError, KainResult};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::types::TypedProgram;
+use crate::language_features::runtime_supports_binary_op;
 use flume::Sender;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -3147,6 +3148,33 @@ fn eval_binop(op: BinaryOp, left: Value, right: Value) -> KainResult<Value> {
         (BinaryOp::Ge, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a >= b)),
         (BinaryOp::And, Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(*a && *b)),
         (BinaryOp::Or, Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(*a || *b)),
+        (BinaryOp::BitAnd, Value::Int(a), Value::Int(b))
+            if runtime_supports_binary_op(BinaryOp::BitAnd) =>
+        {
+            Ok(Value::Int(a & b))
+        }
+        (BinaryOp::BitOr, Value::Int(a), Value::Int(b))
+            if runtime_supports_binary_op(BinaryOp::BitOr) =>
+        {
+            Ok(Value::Int(a | b))
+        }
+        (BinaryOp::BitXor, Value::Int(a), Value::Int(b))
+            if runtime_supports_binary_op(BinaryOp::BitXor) =>
+        {
+            Ok(Value::Int(a ^ b))
+        }
+        (BinaryOp::Shl, Value::Int(a), Value::Int(b))
+            if runtime_supports_binary_op(BinaryOp::Shl) =>
+        {
+            let shift = (*b as u32) & 63;
+            Ok(Value::Int(a.wrapping_shl(shift)))
+        }
+        (BinaryOp::Shr, Value::Int(a), Value::Int(b))
+            if runtime_supports_binary_op(BinaryOp::Shr) =>
+        {
+            let shift = (*b as u32) & 63;
+            Ok(Value::Int(a.wrapping_shr(shift)))
+        }
         (BinaryOp::Eq, Value::None, Value::None) => Ok(Value::Bool(true)),
         (BinaryOp::Ne, Value::None, Value::None) => Ok(Value::Bool(false)),
         (BinaryOp::Eq, Value::Unit, Value::Unit) => Ok(Value::Bool(true)),

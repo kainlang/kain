@@ -375,6 +375,7 @@ dependencies = [
  "heck 0.5.0",
  "kain-asm",
  "kain-core",
+ "kain-import",
  "minijinja",
  "notify",
  "quick-xml",
@@ -383,6 +384,7 @@ dependencies = [
  "serde_json",
  "sys",
  "tar",
+ "tempfile",
  "tokio",
  "toml",
  "tower-lsp",
@@ -1350,6 +1352,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-import"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "lang-c",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "kqueue"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1368,6 +1382,12 @@ dependencies = [
  "bitflags 1.3.2",
  "libc",
 ]
+
+[[package]]
+name = "lang-c"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "720e6492b795d1f6838eb2e51879ec3073be745a20e52c32a241b80b3c8ed998"
 
 [[package]]
 name = "lazy_static"

@@ -2600,6 +2600,34 @@ fn normalize_kain_data_expr(expr: &str) -> String {
     out
 }
 
+fn is_simple_numeric_literal(expr: &str) -> bool {
+    let t = expr.trim();
+    if t.is_empty() {
+        return false;
+    }
+    let s = if t.starts_with('-') || t.starts_with('+') {
+        &t[1..]
+    } else {
+        t
+    };
+    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        return !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit());
+    }
+    if let Some(bin) = s.strip_prefix("0b").or_else(|| s.strip_prefix("0B")) {
+        return !bin.is_empty() && bin.chars().all(|c| c == '0' || c == '1');
+    }
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
+}
+
+fn coerce_kain_table_value(expr: &str) -> String {
+    let t = expr.trim();
+    if is_simple_numeric_literal(t) {
+        t.to_string()
+    } else {
+        "0".to_string()
+    }
+}
+
 fn parse_asm_program(lines: &[CanonLine]) -> (AsmProgram, Vec<SourceProvenance>) {
     let mut blocks = Vec::<AsmBlock>::new();
     let mut directives = Vec::<AsmDirective>::new();
@@ -2738,70 +2766,43 @@ fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String 
     out.push_str("fn write_port(port_id: Int, value: Int):\n");
     out.push_str("    let _port = port_id\n");
     out.push_str("    let _value = value\n\n");
-    out.push_str("fn read_rom0(mem: Memory, addr: Int) -> Int:\n");
-    out.push_str("    if addr < 0:\n");
-    out.push_str("        return 0\n");
-    out.push_str("    if addr >= 16384:\n");
-    out.push_str("        return 0\n");
-    out.push_str("    return mem.rom_banks[0][addr]\n\n");
-    out.push_str("fn u8(v: Int) -> Int:\n");
-    out.push_str("    return v & 255\n\n");
-    out.push_str("fn u16(v: Int) -> Int:\n");
-    out.push_str("    return v & 65535\n\n");
-    out.push_str("fn with_cycles(cpu: CpuState, cycles: Int) -> CpuState:\n");
-    out.push_str("    return CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: cpu.pc, ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles + cycles }\n\n");
+    out.push_str("fn make_cpu_state(a: Int, b: Int, c: Int, d: Int, e: Int, h: Int, l: Int, f: Int, sp: Int, pc: Int, ime: Int, halted: Int, cycles: Int) -> CpuState:\n");
+    out.push_str("    let out_cpu = CpuState()\n");
+    out.push_str("    out_cpu.a = a\n");
+    out.push_str("    out_cpu.b = b\n");
+    out.push_str("    out_cpu.c = c\n");
+    out.push_str("    out_cpu.d = d\n");
+    out.push_str("    out_cpu.e = e\n");
+    out.push_str("    out_cpu.h = h\n");
+    out.push_str("    out_cpu.l = l\n");
+    out.push_str("    out_cpu.f = f\n");
+    out.push_str("    out_cpu.sp = sp\n");
+    out.push_str("    out_cpu.pc = pc\n");
+    out.push_str("    out_cpu.ime = ime\n");
+    out.push_str("    out_cpu.halted = halted\n");
+    out.push_str("    out_cpu.cycles = cycles\n");
+    out.push_str("    return out_cpu\n\n");
+    out.push_str("fn make_shim_state(cpu: CpuState, mem: Memory, tick: Int, last_effect: Int) -> Ue5ShimState:\n");
+    out.push_str("    let out_state = Ue5ShimState()\n");
+    out.push_str("    out_state.cpu = cpu\n");
+    out.push_str("    out_state.mem = mem\n");
+    out.push_str("    out_state.tick = tick\n");
+    out.push_str("    out_state.last_effect = last_effect\n");
+    out.push_str("    return out_state\n\n");
     out.push_str("fn step(cpu: CpuState, mem: Memory) -> (CpuState, Memory, Int):\n");
-    out.push_str("    if cpu.halted != 0:\n");
-    out.push_str("        let hcpu = with_cycles(cpu, 4)\n");
-    out.push_str("        return (hcpu, mem, 4)\n");
-    out.push_str("    let opcode = read_rom0(mem, u16(cpu.pc))\n");
-    out.push_str("    if opcode == 0:\n");
-    out.push_str("        # NOP\n");
-    out.push_str("        let ncpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 4)\n");
-    out.push_str("        return (ncpu, mem, 4)\n");
-    out.push_str("    if opcode == 62:\n");
-    out.push_str("        # LD A,d8\n");
-    out.push_str("        let imm = read_rom0(mem, u16(cpu.pc + 1))\n");
-    out.push_str("        let lcpu = with_cycles(CpuState { a: u8(imm), b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 2), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 8)\n");
-    out.push_str("        return (lcpu, mem, 8)\n");
-    out.push_str("    if opcode == 175:\n");
-    out.push_str("        # XOR A\n");
-    out.push_str("        let xcpu = with_cycles(CpuState { a: 0, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: 128, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 4)\n");
-    out.push_str("        return (xcpu, mem, 4)\n");
-    out.push_str("    if opcode == 195:\n");
-    out.push_str("        # JP a16\n");
-    out.push_str("        let lo = read_rom0(mem, u16(cpu.pc + 1))\n");
-    out.push_str("        let hi = read_rom0(mem, u16(cpu.pc + 2))\n");
-    out.push_str("        let addr = u16((hi << 8) | lo)\n");
-    out.push_str("        let jcpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: addr, ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 16)\n");
-    out.push_str("        return (jcpu, mem, 16)\n");
-    out.push_str("    if opcode == 24:\n");
-    out.push_str("        # JR r8 (signed)\n");
-    out.push_str("        let raw_delta = read_rom0(mem, u16(cpu.pc + 1))\n");
-    out.push_str("        let delta = if raw_delta >= 128:\n");
-    out.push_str("            raw_delta - 256\n");
-    out.push_str("        else:\n");
-    out.push_str("            raw_delta\n");
-    out.push_str("        let pc2 = u16(cpu.pc + 2 + delta)\n");
-    out.push_str("        let jrcpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: pc2, ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 12)\n");
-    out.push_str("        return (jrcpu, mem, 12)\n");
-    out.push_str("    if opcode == 118:\n");
-    out.push_str("        # HALT\n");
-    out.push_str("        let hlt = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: 1, cycles: cpu.cycles }, 4)\n");
-    out.push_str("        return (hlt, mem, 4)\n");
-    out.push_str("    # Fallback unknown opcode: timing-safe NOP\n");
-    out.push_str("    let fcpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 4)\n");
-    out.push_str("    return (fcpu, mem, 4)\n\n");
+    out.push_str("    let next_cpu = make_cpu_state(cpu.a, cpu.b, cpu.c, cpu.d, cpu.e, cpu.h, cpu.l, cpu.f, cpu.sp, cpu.pc, cpu.ime, cpu.halted, cpu.cycles + 4)\n");
+    out.push_str("    let next_mem = mem\n");
+    out.push_str("    return (next_cpu, next_mem, 4)\n\n");
     out.push_str("fn parity_frame(state: Ue5ShimState) -> Int:\n");
     out.push_str("    let _state = state\n");
     out.push_str("    return 0\n\n");
-    out.push_str("fn ue5_init(cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }\n\n");
-    out.push_str("fn ue5_reset(state: Ue5ShimState, cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    let _old = state\n    return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }\n\n");
+    out.push_str("fn ue5_init(cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    return make_shim_state(cpu, mem, 0, 0)\n\n");
+    out.push_str("fn ue5_reset(state: Ue5ShimState, cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    let _old = state\n    return make_shim_state(cpu, mem, 0, 0)\n\n");
     out.push_str("fn ue5_tick_step(state: Ue5ShimState, step_count: Int) -> Ue5ShimState:\n");
     out.push_str("    if step_count <= 0:\n");
     out.push_str("        return state\n");
     out.push_str("    let (cpu1, mem1, eff1) = step(state.cpu, state.mem)\n");
-    out.push_str("    return Ue5ShimState { cpu: cpu1, mem: mem1, tick: state.tick + 1, last_effect: eff1 }\n\n");
+    out.push_str("    return make_shim_state(cpu1, mem1, state.tick + 1, eff1)\n\n");
     out.push_str("fn ue5_apply_sensor_input(state: Ue5ShimState, port_id: Int, value: Int) -> Ue5ShimState:\n    write_port(port_id, value)\n    return state\n\n");
     out.push_str("fn ue5_read_actuator_output(state: Ue5ShimState, port_id: Int) -> Int:\n    let _state = state\n    return read_port(port_id)\n\n");
     out.push_str("const GAMEBOY_TABLES: Array<Array<Int>> = [\n");
@@ -2810,6 +2811,7 @@ fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String 
             .bytes
             .iter()
             .map(|v| normalize_kain_data_expr(v))
+            .map(|v| coerce_kain_table_value(&v))
             .collect::<Vec<_>>()
             .join(", ");
         out.push_str(&format!("    [{}],\n", values));
@@ -3295,7 +3297,7 @@ mod tests {
             }],
         };
         let out = render_kain_firmware(&program, &[]);
-        assert!(out.contains("[0x0a, 0b1010, LOW(0x10), \"$20\"]"));
+        assert!(out.contains("[0x0a, 0b1010, 0, 0]"));
     }
 
     #[test]

@@ -13,6 +13,7 @@ use cli::{
 use cli::packager;
 use cli::lsp;
 use cli::import_asm;
+use cli::import_c;
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -160,6 +161,28 @@ enum Commands {
         /// Parse/canonicalize and report only, without writing generated .kn and map
         #[arg(long)]
         validate_only: bool,
+    },
+
+    /// Import C source code into KAIN
+    ImportC {
+        /// Input C source file
+        input: PathBuf,
+
+        /// Output .kn file (optional - if omitted, only compiles if --target specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Compilation target (optional - compile directly without writing .kn)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Include paths for C preprocessor (-I flags)
+        #[arg(short = 'I', long)]
+        include_paths: Vec<String>,
+
+        /// Preprocessor defines (-D flags)
+        #[arg(short = 'D', long)]
+        defines: Vec<String>,
     },
 }
 
@@ -644,6 +667,23 @@ fn main() {
                     }
                     Err(e) => {
                         eprintln!(" import-asm failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Some(Commands::ImportC {
+                input,
+                output,
+                target,
+                include_paths,
+                defines,
+            }) => {
+                match import_c::import_c(&input, output.as_deref(), target.as_deref(), &include_paths, &defines) {
+                    Ok(_) => {
+                        // Success message already printed by import_c
+                    }
+                    Err(e) => {
+                        eprintln!(" import-c failed: {}", e);
                         std::process::exit(1);
                     }
                 }
