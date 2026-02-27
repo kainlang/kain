@@ -1,5 +1,6 @@
 //! Type mapping utilities for converting source language types to KAIN types
 
+use crate::common::c_registry::{c_type_name_aliases, materialize_type_descriptor};
 use kain_core::ast::Type;
 use kain_core::span::Span;
 use std::collections::HashMap;
@@ -13,37 +14,10 @@ impl TypeMapper {
     /// Create a new type mapper with default C type mappings
     pub fn new_c() -> Self {
         let mut mappings = HashMap::new();
-        
-        // Integer types
-        mappings.insert("int".into(), named_type("Int"));
-        mappings.insert("long".into(), named_type("Int"));
-        mappings.insert("short".into(), named_type("Int"));
-        mappings.insert("char".into(), named_type("Char"));
-        mappings.insert("signed".into(), named_type("Int"));
-        mappings.insert("unsigned".into(), named_type("Int"));
-        
-        // Floating point types
-        mappings.insert("float".into(), named_type("Float"));
-        mappings.insert("double".into(), named_type("Float"));
-        
-        // Other types
-        mappings.insert("void".into(), Type::Unit(Span::default()));
-        mappings.insert("bool".into(), named_type("Bool"));
-        mappings.insert("_Bool".into(), named_type("Bool"));
-        
-        // stdint.h types
-        mappings.insert("int8_t".into(), named_type("Int"));
-        mappings.insert("int16_t".into(), named_type("Int"));
-        mappings.insert("int32_t".into(), named_type("Int"));
-        mappings.insert("int64_t".into(), named_type("Int"));
-        mappings.insert("uint8_t".into(), named_type("Int"));
-        mappings.insert("uint16_t".into(), named_type("Int"));
-        mappings.insert("uint32_t".into(), named_type("Int"));
-        mappings.insert("uint64_t".into(), named_type("Int"));
-        
-        // size_t, ptrdiff_t
-        mappings.insert("size_t".into(), named_type("Int"));
-        mappings.insert("ptrdiff_t".into(), named_type("Int"));
+
+        for (source, descriptor) in c_type_name_aliases() {
+            mappings.insert((*source).to_string(), materialize_type_descriptor(*descriptor));
+        }
         
         Self { mappings }
     }

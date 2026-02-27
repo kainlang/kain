@@ -1,6 +1,7 @@
 //! Common utilities shared across all importers
 
 pub mod preprocessor;
+pub mod c_registry;
 pub mod type_mapper;
 
 use std::collections::HashMap;

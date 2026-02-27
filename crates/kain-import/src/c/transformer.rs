@@ -9,6 +9,7 @@ use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
 use kain_core::span::Span;
 use crate::c::types::CTypeTransformer;
+use crate::common::c_registry::{resolve_c_binary_operator, CBinaryOperatorResolution};
 use crate::{ImportError, Result};
 use std::collections::HashMap;
 
@@ -783,49 +784,17 @@ impl CTransformer {
     
     /// Transform binary operator
     fn transform_binary_operator(&self, op: &c_ast::BinaryOperator) -> Result<BinaryOp> {
-        use c_ast::BinaryOperator::*;
-        
-        let mapped = match op {
-            Plus => BinaryOp::Add,
-            Minus => BinaryOp::Sub,
-            Multiply => BinaryOp::Mul,
-            Divide => BinaryOp::Div,
-            Modulo => BinaryOp::Mod,
-            
-            Equals => BinaryOp::Eq,
-            NotEquals => BinaryOp::Ne,
-            Less => BinaryOp::Lt,
-            Greater => BinaryOp::Gt,
-            LessOrEqual => BinaryOp::Le,
-            GreaterOrEqual => BinaryOp::Ge,
-            
-            LogicalAnd => BinaryOp::And,
-            LogicalOr => BinaryOp::Or,
-            
-            BitwiseAnd => BinaryOp::BitAnd,
-            BitwiseOr => BinaryOp::BitOr,
-            BitwiseXor => BinaryOp::BitXor,
-            ShiftLeft => BinaryOp::Shl,
-            ShiftRight => BinaryOp::Shr,
-            
-            Assign => BinaryOp::Assign,
-            AssignPlus => BinaryOp::AddAssign,
-            AssignMinus => BinaryOp::SubAssign,
-            AssignMultiply => BinaryOp::MulAssign,
-            AssignDivide => BinaryOp::DivAssign,
-            AssignModulo
-            | AssignShiftLeft
-            | AssignShiftRight
-            | AssignBitwiseAnd
-            | AssignBitwiseOr
-            | AssignBitwiseXor => {
+        let mapped = match resolve_c_binary_operator(op) {
+            CBinaryOperatorResolution::Supported(mapped) => mapped,
+            CBinaryOperatorResolution::UnsupportedAssignment => {
                 return Err(ImportError::UnsupportedFeature(format!(
-                    "Binary operator: {:?}",
+                    "Binary assignment operator is not representable in KAIN AST: {:?}",
                     op
                 )));
             }
-            
-            _ => return Err(ImportError::UnsupportedFeature(format!("Binary operator: {:?}", op))),
+            CBinaryOperatorResolution::Unsupported => {
+                return Err(ImportError::UnsupportedFeature(format!("Binary operator: {:?}", op)));
+            }
         };
 
         if !self.language_capabilities.supports_parser_binary_op(mapped) {

@@ -2,7 +2,7 @@
 
 use lang_c::ast as c_ast;
 use kain_core::ast::Type;
-use kain_core::span::Span;
+use crate::common::c_registry::{map_c_builtin_type_specifier, named_type};
 use crate::common::type_mapper::TypeMapper;
 use crate::{ImportError, Result};
 
@@ -21,14 +21,12 @@ impl CTypeTransformer {
     /// Transform a C type specifier to KAIN type
     pub fn transform_type_specifier(&self, spec: &c_ast::TypeSpecifier) -> Result<Type> {
         use c_ast::TypeSpecifier::*;
-        
+
+        if let Some(mapped) = map_c_builtin_type_specifier(spec) {
+            return Ok(mapped);
+        }
+
         match spec {
-            Void => Ok(Type::Unit(Span::default())),
-            Char => Ok(named_type("Char")),
-            Short | Int | Long | Signed | Unsigned => Ok(named_type("Int")),
-            Float | Double => Ok(named_type("Float")),
-            Bool => Ok(named_type("Bool")),
-            
             Struct(struct_type) => {
                 // Handle struct types
                 self.transform_struct_type(&struct_type.node)
@@ -82,13 +80,5 @@ impl CTypeTransformer {
 impl Default for CTypeTransformer {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-fn named_type(name: &str) -> Type {
-    Type::Named {
-        name: name.to_string(),
-        generics: Vec::new(),
-        span: Span::default(),
     }
 }
