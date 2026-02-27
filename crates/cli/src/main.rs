@@ -165,7 +165,7 @@ enum Commands {
 
     /// Import C source code into KAIN
     ImportC {
-        /// Input C source file
+        /// Input C source file or directory
         input: PathBuf,
 
         /// Output .kn file (optional - if omitted, only compiles if --target specified)
@@ -183,6 +183,26 @@ enum Commands {
         /// Preprocessor defines (-D flags)
         #[arg(short = 'D', long)]
         defines: Vec<String>,
+
+        /// Flatten all imported symbols into one global scope (disables per-file modules)
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write import failure/report JSON (defaults automatically for directory imports with failures)
+        #[arg(long)]
+        report_json: Option<PathBuf>,
     },
 }
 
@@ -677,8 +697,29 @@ fn main() {
                 target,
                 include_paths,
                 defines,
+                flat,
+                include_filters,
+                exclude_filters,
+                fail_fast,
+                report_json,
             }) => {
-                match import_c::import_c(&input, output.as_deref(), target.as_deref(), &include_paths, &defines) {
+                let batch = import_c::ImportCBatchOptions {
+                    recursive: true,
+                    flat,
+                    include_filters,
+                    exclude_filters,
+                    fail_fast,
+                    report_json,
+                };
+
+                match import_c::import_c_with_batch(
+                    &input,
+                    output.as_deref(),
+                    target.as_deref(),
+                    &include_paths,
+                    &defines,
+                    &batch,
+                ) {
                     Ok(_) => {
                         // Success message already printed by import_c
                     }

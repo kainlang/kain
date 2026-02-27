@@ -10,5 +10,5 @@ targets = ["ue5"]
 [ue5]
 plugin_name = "PokeredFirmwareSmoke"
 plugin_dir = "."
-sources = ["pokered_firmware.kn"]
+sources = ["sm64_all.kn"]
 modular_output = true

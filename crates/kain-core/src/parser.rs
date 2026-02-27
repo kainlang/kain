@@ -354,12 +354,47 @@ impl<'a> Parser<'a> {
             TokenKind::Comptime => self.parse_comptime_block(),
             TokenKind::Macro => self.parse_macro(),
             TokenKind::Test => self.parse_test(),
+            TokenKind::Mod => self.parse_mod(vis),
             TokenKind::Use => self.parse_use(),
             TokenKind::Trait => self.parse_trait(vis),
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
             _ => Err(self.parser_error("Expected item", self.current_span())),
         }
+    }
+
+    fn parse_mod(&mut self, vis: Visibility) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect(TokenKind::Mod)?;
+        let name = self.parse_ident()?;
+
+        // `mod name` (declaration-only) or `mod name:` with inline items.
+        let inline = if self.check(TokenKind::Colon) {
+            self.advance();
+            self.skip_newlines();
+            self.expect(TokenKind::Indent)?;
+
+            let mut items = Vec::new();
+            while !self.check(TokenKind::Dedent) && !self.at_end() {
+                self.skip_newlines();
+                if self.check(TokenKind::Dedent) {
+                    break;
+                }
+                items.push(self.parse_item()?);
+                self.skip_newlines();
+            }
+            self.expect(TokenKind::Dedent)?;
+            Some(items)
+        } else {
+            None
+        };
+
+        Ok(Item::Mod(Mod {
+            name,
+            inline,
+            visibility: vis,
+            span: start.merge(self.current_span()),
+        }))
     }
 
     // Parse @wasm, @js, @inline etc decorators
