@@ -75,6 +75,11 @@ impl CTypeTransformer {
     pub fn transform_array(&self, element: Type, size: Option<usize>) -> Type {
         self.type_mapper.map_array(element, size)
     }
+
+    /// Register a typedef alias discovered during transformation.
+    pub fn add_typedef(&mut self, name: String, ty: Type) {
+        self.type_mapper.add_mapping(name, ty);
+    }
 }
 
 impl Default for CTypeTransformer {

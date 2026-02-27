@@ -30,9 +30,30 @@ use kain_core::language_features::LanguageCapabilities;
 use std::path::Path;
 use crate::Result;
 
+#[derive(Debug, Clone, Default)]
+pub struct CImportOptions {
+    /// Extra include search paths (`-I`).
+    pub include_paths: Vec<String>,
+    /// Extra preprocessor defines (`-DNAME[=VALUE]`).
+    pub defines: Vec<String>,
+    /// Additional raw cpp flags appended after include/define flags.
+    pub cpp_options: Vec<String>,
+    /// Optional explicit preprocessor command override.
+    pub cpp_command: Option<String>,
+}
+
 /// Import a single C file into KAIN AST
 pub fn import_c_file(path: &Path) -> Result<Program> {
     import_c_file_with_language_capabilities(path, kain_core::default_language_capabilities())
+}
+
+/// Import a single C file with importer options.
+pub fn import_c_file_with_options(path: &Path, options: &CImportOptions) -> Result<Program> {
+    import_c_file_with_language_capabilities_and_options(
+        path,
+        kain_core::default_language_capabilities(),
+        options,
+    )
 }
 
 /// Import a single C file with an explicit KAIN language capability profile.
@@ -40,8 +61,21 @@ pub fn import_c_file_with_language_capabilities(
     path: &Path,
     language_capabilities: LanguageCapabilities,
 ) -> Result<Program> {
+    import_c_file_with_language_capabilities_and_options(
+        path,
+        language_capabilities,
+        &CImportOptions::default(),
+    )
+}
+
+/// Import a single C file with explicit capability profile and importer options.
+pub fn import_c_file_with_language_capabilities_and_options(
+    path: &Path,
+    language_capabilities: LanguageCapabilities,
+    options: &CImportOptions,
+) -> Result<Program> {
     // 1. Parse C with lang-c
-    let c_ast = parser::parse_c_file(path)?;
+    let c_ast = parser::parse_c_file_with_options(path, options)?;
     
     // 2. Transform to KAIN AST
     let kain_ast = transformer::transform_with_language_capabilities(c_ast, language_capabilities)?;
@@ -62,7 +96,11 @@ pub fn import_c_project_with_language_capabilities(
     let mut all_items = Vec::new();
     
     for path in paths {
-        let program = import_c_file_with_language_capabilities(path, language_capabilities.clone())?;
+        let program = import_c_file_with_language_capabilities_and_options(
+            path,
+            language_capabilities.clone(),
+            &CImportOptions::default(),
+        )?;
         all_items.extend(program.items);
     }
     

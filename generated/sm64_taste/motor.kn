@@ -1,0 +1,30 @@
+# Generated from C source by kain import-c
+
+struct FILE:
+
+struct OSPfs:
+
+struct OSMesgQueue:
+
+struct OSPifRam:
+
+struct OSMesg:
+
+struct OSThread:
+
+struct OSTimer:
+
+struct __OSContRamReadFormat:
+
+fn osMotorStop(pfs: OSPfs) -> Int:
+    # Function body
+
+fn osMotorStart(pfs: OSPfs) -> Int:
+    # Function body
+
+fn _MakeMotorData(channel: Int, address: Int, buffer: Int, mdata: OSPifRam) -> ():
+    # Function body
+
+fn osMotorInit(mq: OSMesgQueue, pfs: OSPfs, channel: Int) -> Int:
+    # Function body
+

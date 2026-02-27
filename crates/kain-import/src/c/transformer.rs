@@ -9,9 +9,13 @@ use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
 use kain_core::span::Span;
 use crate::c::types::CTypeTransformer;
-use crate::common::c_registry::{resolve_c_binary_operator, CBinaryOperatorResolution};
+use crate::common::c_registry::{
+    resolve_c_binary_operator,
+    resolve_c_compound_assignment_binary_operator,
+    CBinaryOperatorResolution,
+};
 use crate::{ImportError, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// C to KAIN AST transformer
 pub struct CTransformer {
@@ -262,8 +266,19 @@ impl CTransformer {
                         // Handle typedef
                         for init_decl in &decl.declarators {
                             let name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
-                            let ty = self.extract_type_from_specifiers(&decl.specifiers)?;
+                            let mut ty = self.extract_type_from_specifiers(&decl.specifiers)?;
+                            if matches!(
+                                &ty,
+                                Type::Named { name, .. } if name == "AnonymousStruct" || name == "AnonymousEnum"
+                            ) {
+                                ty = Type::Named {
+                                    name: name.clone(),
+                                    generics: Vec::new(),
+                                    span: Span::default(),
+                                };
+                            }
                             self.typedefs.insert(name.clone(), ty.clone());
+                            self.type_transformer.add_typedef(name.clone(), ty.clone());
                             
                             items.push(Item::TypeAlias(TypeAlias {
                                 name,
@@ -459,6 +474,166 @@ impl CTransformer {
             _ => Expr::None(Span::default()),
         }
     }
+
+    fn estimate_sizeof_named_type(&self, name: &str, visited: &mut HashSet<String>) -> i64 {
+        if !visited.insert(name.to_string()) {
+            return 8;
+        }
+
+        let value = match name {
+            "Bool" => 1,
+            "Char" => 1,
+            "Int" | "Float" => 8,
+            other => {
+                if let Some(struct_def) = self.structs.get(other) {
+                    struct_def
+                        .fields
+                        .iter()
+                        .map(|field| self.estimate_sizeof_type_inner(&field.ty, visited))
+                        .sum()
+                } else if let Some(alias_ty) = self.typedefs.get(other) {
+                    self.estimate_sizeof_type_inner(alias_ty, visited)
+                } else {
+                    8
+                }
+            }
+        };
+
+        visited.remove(name);
+        value
+    }
+
+    fn estimate_sizeof_type_inner(&self, ty: &Type, visited: &mut HashSet<String>) -> i64 {
+        match ty {
+            Type::Unit(_) => 0,
+            Type::Named { name, .. } => self.estimate_sizeof_named_type(name, visited),
+            Type::Array(inner, count, _) => {
+                let elem = self.estimate_sizeof_type_inner(inner, visited);
+                (elem * *count as i64).max(0)
+            }
+            Type::Slice(_, _) => 8,
+            Type::Ref { .. } => 8,
+            Type::Tuple(items, _) => items
+                .iter()
+                .map(|item| self.estimate_sizeof_type_inner(item, visited))
+                .sum(),
+            _ => 8,
+        }
+    }
+
+    fn estimate_sizeof_type(&self, ty: &Type) -> i64 {
+        let mut visited = HashSet::new();
+        self.estimate_sizeof_type_inner(ty, &mut visited)
+    }
+
+    fn estimate_sizeof_expression(&mut self, expr: &c_ast::Expression) -> i64 {
+        use c_ast::Expression::*;
+
+        match expr {
+            Identifier(ident) => {
+                let name = ident.node.name.as_str();
+                if self.structs.contains_key(name) {
+                    self.estimate_sizeof_type(&Type::Named {
+                        name: name.to_string(),
+                        generics: Vec::new(),
+                        span: Span::default(),
+                    })
+                } else if let Some(alias_ty) = self.typedefs.get(name) {
+                    self.estimate_sizeof_type(alias_ty)
+                } else {
+                    8
+                }
+            }
+            Cast(cast) => {
+                let ty =
+                    self.extract_type_from_specifier_qualifiers(&cast.node.type_name.node.specifiers);
+                match ty {
+                    Ok(ty) => self.estimate_sizeof_type(&ty),
+                    Err(_) => 8,
+                }
+            }
+            Constant(constant) => match &constant.node {
+                c_ast::Constant::Character(_) => 1,
+                c_ast::Constant::Integer(_) => 8,
+                c_ast::Constant::Float(_) => 8,
+            },
+            StringLiteral(_) => 8,
+            _ => 8,
+        }
+    }
+
+    fn lower_inc_dec(&mut self, operand: &c_ast::Expression, increment: bool) -> Result<Expr> {
+        let operand_expr = self.transform_expression(operand)?;
+        let updated = Expr::Binary {
+            left: Box::new(operand_expr.clone()),
+            op: if increment { BinaryOp::Add } else { BinaryOp::Sub },
+            right: Box::new(Expr::Int(1, Span::default())),
+            span: Span::default(),
+        };
+
+        Ok(Expr::Assign {
+            target: Box::new(operand_expr),
+            value: Box::new(updated),
+            span: Span::default(),
+        })
+    }
+
+    fn ensure_binary_op_supported(&self, op: BinaryOp) -> Result<()> {
+        if !self.language_capabilities.supports_parser_binary_op(op) {
+            return Err(ImportError::UnsupportedFeature(format!(
+                "Binary operator '{:?}' is not enabled by parser capabilities",
+                op
+            )));
+        }
+
+        if !self.language_capabilities.supports_runtime_binary_op(op) {
+            return Err(ImportError::UnsupportedFeature(format!(
+                "Binary operator '{:?}' is not enabled by runtime capabilities",
+                op
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn lower_assignment_expression(
+        &mut self,
+        operator: &c_ast::BinaryOperator,
+        lhs: &c_ast::Expression,
+        rhs: &c_ast::Expression,
+    ) -> Result<Expr> {
+        if matches!(operator, c_ast::BinaryOperator::Assign) {
+            let target = Box::new(self.transform_expression(lhs)?);
+            let value = Box::new(self.transform_expression(rhs)?);
+            return Ok(Expr::Assign {
+                target,
+                value,
+                span: Span::default(),
+            });
+        }
+
+        if let Some(lowered_op) = resolve_c_compound_assignment_binary_operator(operator) {
+            self.ensure_binary_op_supported(lowered_op)?;
+            let target_expr = self.transform_expression(lhs)?;
+            let value_expr = self.transform_expression(rhs)?;
+            let updated = Expr::Binary {
+                left: Box::new(target_expr.clone()),
+                op: lowered_op,
+                right: Box::new(value_expr),
+                span: Span::default(),
+            };
+            return Ok(Expr::Assign {
+                target: Box::new(target_expr),
+                value: Box::new(updated),
+                span: Span::default(),
+            });
+        }
+
+        Err(ImportError::UnsupportedFeature(format!(
+            "Binary assignment operator is not representable in KAIN AST: {:?}",
+            operator
+        )))
+    }
     
     /// Extract function name from declarator
     fn extract_function_name(&self, declarator: &c_ast::Declarator) -> Result<String> {
@@ -625,17 +800,21 @@ impl CTransformer {
                             span: Span::default(),
                         })
                     }
-                    BinOp::Assign => {
-                        // Assignment: lhs = rhs
-                        let target = Box::new(self.transform_expression(&bin_op.node.lhs.node)?);
-                        let value = Box::new(self.transform_expression(&bin_op.node.rhs.node)?);
-                        
-                        Ok(Expr::Assign {
-                            target,
-                            value,
-                            span: Span::default(),
-                        })
-                    }
+                    BinOp::Assign
+                    | BinOp::AssignPlus
+                    | BinOp::AssignMinus
+                    | BinOp::AssignMultiply
+                    | BinOp::AssignDivide
+                    | BinOp::AssignModulo
+                    | BinOp::AssignShiftLeft
+                    | BinOp::AssignShiftRight
+                    | BinOp::AssignBitwiseAnd
+                    | BinOp::AssignBitwiseOr
+                    | BinOp::AssignBitwiseXor => self.lower_assignment_expression(
+                        &bin_op.node.operator.node,
+                        &bin_op.node.lhs.node,
+                        &bin_op.node.rhs.node,
+                    ),
                     _ => {
                         // Regular binary operation
                         let left = Box::new(self.transform_expression(&bin_op.node.lhs.node)?);
@@ -654,15 +833,48 @@ impl CTransformer {
             
             // Unary operations
             UnaryOperator(unary_op) => {
-                let operand = Box::new(self.transform_expression(&unary_op.node.operand.node)?);
-                let op = self.transform_unary_operator(&unary_op.node.operator.node)?;
-                
-                Ok(Expr::Unary {
-                    op,
-                    operand,
-                    span: Span::default(),
-                })
+                match unary_op.node.operator.node {
+                    c_ast::UnaryOperator::PostIncrement | c_ast::UnaryOperator::PreIncrement => {
+                        self.lower_inc_dec(&unary_op.node.operand.node, true)
+                    }
+                    c_ast::UnaryOperator::PostDecrement | c_ast::UnaryOperator::PreDecrement => {
+                        self.lower_inc_dec(&unary_op.node.operand.node, false)
+                    }
+                    c_ast::UnaryOperator::Plus => {
+                        self.transform_expression(&unary_op.node.operand.node)
+                    }
+                    _ => {
+                        let operand =
+                            Box::new(self.transform_expression(&unary_op.node.operand.node)?);
+                        let op = self.transform_unary_operator(&unary_op.node.operator.node)?;
+
+                        Ok(Expr::Unary {
+                            op,
+                            operand,
+                            span: Span::default(),
+                        })
+                    }
+                }
             }
+
+            // sizeof(type)
+            SizeOfTy(size_of_ty) => {
+                let target_ty =
+                    self.extract_type_from_specifier_qualifiers(&size_of_ty.node.0.node.specifiers)?;
+                Ok(Expr::Int(
+                    self.estimate_sizeof_type(&target_ty),
+                    Span::default(),
+                ))
+            }
+
+            // sizeof(expr)
+            SizeOfVal(size_of_val) => Ok(Expr::Int(
+                self.estimate_sizeof_expression(&size_of_val.node.0.node),
+                Span::default(),
+            )),
+
+            // alignof(type) -> conservative machine-word approximation.
+            AlignOf(_) => Ok(Expr::Int(8, Span::default())),
             
             // Function call
             Call(call) => {
@@ -726,6 +938,15 @@ impl CTransformer {
                     }))),
                     span: Span::default(),
                 })
+            }
+
+            // Comma operator evaluates left-to-right and yields last expression.
+            Comma(exprs) => {
+                if let Some(last) = exprs.last() {
+                    self.transform_expression(&last.node)
+                } else {
+                    Ok(Expr::Int(0, Span::default()))
+                }
             }
             
             // Compound literal (struct initialization)
@@ -797,20 +1018,7 @@ impl CTransformer {
             }
         };
 
-        if !self.language_capabilities.supports_parser_binary_op(mapped) {
-            return Err(ImportError::UnsupportedFeature(format!(
-                "Binary operator '{:?}' is not enabled by parser capabilities",
-                mapped
-            )));
-        }
-
-        if !self.language_capabilities.supports_runtime_binary_op(mapped) {
-            return Err(ImportError::UnsupportedFeature(format!(
-                "Binary operator '{:?}' is not enabled by runtime capabilities",
-                mapped
-            )));
-        }
-
+        self.ensure_binary_op_supported(mapped)?;
         Ok(mapped)
     }
     
@@ -1171,5 +1379,23 @@ mod tests {
         assert!(result.is_ok());
         let program = result.unwrap();
         assert_eq!(program.items.len(), 2);
+    }
+
+    #[test]
+    fn test_transform_compound_assignments_by_lowering() {
+        let source = r#"
+            int crunch(int a, int b) {
+                a <<= 1;
+                a |= b;
+                a ^= b;
+                a &= b;
+                a %= b;
+                return a;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let result = transform(c_ast);
+        assert!(result.is_ok());
     }
 }

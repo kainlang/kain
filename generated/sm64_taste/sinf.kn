@@ -1,0 +1,5 @@
+# Generated from C source by kain import-c
+
+fn sinf(x: Float) -> Float:
+    # Function body
+

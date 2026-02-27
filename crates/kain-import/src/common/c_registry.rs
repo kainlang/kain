@@ -142,6 +142,19 @@ const C_UNSUPPORTED_ASSIGNMENT_OPERATORS: &[CBinaryOperatorKey] = &[
     CBinaryOperatorKey::AssignBitwiseXor,
 ];
 
+const C_COMPOUND_ASSIGNMENT_BINARY_MAPPINGS: &[(CBinaryOperatorKey, BinaryOp)] = &[
+    (CBinaryOperatorKey::AssignPlus, BinaryOp::Add),
+    (CBinaryOperatorKey::AssignMinus, BinaryOp::Sub),
+    (CBinaryOperatorKey::AssignMultiply, BinaryOp::Mul),
+    (CBinaryOperatorKey::AssignDivide, BinaryOp::Div),
+    (CBinaryOperatorKey::AssignModulo, BinaryOp::Mod),
+    (CBinaryOperatorKey::AssignShiftLeft, BinaryOp::Shl),
+    (CBinaryOperatorKey::AssignShiftRight, BinaryOp::Shr),
+    (CBinaryOperatorKey::AssignBitwiseAnd, BinaryOp::BitAnd),
+    (CBinaryOperatorKey::AssignBitwiseOr, BinaryOp::BitOr),
+    (CBinaryOperatorKey::AssignBitwiseXor, BinaryOp::BitXor),
+];
+
 pub fn c_type_name_aliases() -> &'static [(&'static str, KainTypeDescriptor)] {
     C_TYPE_NAME_ALIASES
 }
@@ -203,6 +216,13 @@ pub fn resolve_c_binary_operator(op: &c_ast::BinaryOperator) -> CBinaryOperatorR
         Some(mapped) => CBinaryOperatorResolution::Supported(mapped),
         None => CBinaryOperatorResolution::Unsupported,
     }
+}
+
+pub fn resolve_c_compound_assignment_binary_operator(op: &c_ast::BinaryOperator) -> Option<BinaryOp> {
+    let key = c_binary_operator_key(op)?;
+    C_COMPOUND_ASSIGNMENT_BINARY_MAPPINGS
+        .iter()
+        .find_map(|(candidate, mapped)| if *candidate == key { Some(*mapped) } else { None })
 }
 
 fn c_binary_operator_key(op: &c_ast::BinaryOperator) -> Option<CBinaryOperatorKey> {
@@ -267,6 +287,18 @@ mod tests {
         assert_eq!(
             resolve_c_binary_operator(&c_ast::BinaryOperator::AssignBitwiseOr),
             CBinaryOperatorResolution::UnsupportedAssignment
+        );
+    }
+
+    #[test]
+    fn resolves_compound_assignment_lowering_operator() {
+        assert_eq!(
+            resolve_c_compound_assignment_binary_operator(&c_ast::BinaryOperator::AssignShiftLeft),
+            Some(BinaryOp::Shl)
+        );
+        assert_eq!(
+            resolve_c_compound_assignment_binary_operator(&c_ast::BinaryOperator::AssignModulo),
+            Some(BinaryOp::Mod)
         );
     }
 }

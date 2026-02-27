@@ -1,5 +1,5 @@
 use crate::error::{KainError, KainResult};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
 
 /// Import a C file into KAIN AST and optionally write/compile
@@ -10,8 +10,15 @@ pub fn import_c(
     include_paths: &[String],
     defines: &[String],
 ) -> KainResult<()> {
+    let options = kain_import::c::CImportOptions {
+        include_paths: include_paths.to_vec(),
+        defines: defines.to_vec(),
+        cpp_options: Vec::new(),
+        cpp_command: None,
+    };
+
     // Import C file to KAIN AST
-    let program = kain_import::import_c(input)
+    let program = kain_import::c::import_c_file_with_options(input, &options)
         .map_err(|e| KainError::runtime(format!("C import failed: {}", e)))?;
     
     // Generate KAIN source code from AST
@@ -163,15 +170,66 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum) -> KainResult<()> {
 
 fn type_to_string(ty: &kain_core::ast::Type) -> String {
     match ty {
-        kain_core::ast::Type::Int => "Int".to_string(),
-        kain_core::ast::Type::Float => "Float".to_string(),
-        kain_core::ast::Type::Bool => "Bool".to_string(),
-        kain_core::ast::Type::String => "String".to_string(),
-        kain_core::ast::Type::Void => "Void".to_string(),
-        kain_core::ast::Type::Custom(name) => name.clone(),
-        kain_core::ast::Type::Array(inner) => format!("Array<{}>", type_to_string(inner)),
-        kain_core::ast::Type::Pointer(inner) => format!("Ptr<{}>", type_to_string(inner)),
-        _ => "Unknown".to_string(),
+        kain_core::ast::Type::Named { name, generics, .. } => {
+            if generics.is_empty() {
+                name.clone()
+            } else {
+                let args = generics
+                    .iter()
+                    .map(type_to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{}<{}>", name, args)
+            }
+        }
+        kain_core::ast::Type::Tuple(types, _) => {
+            let members = types.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
+            format!("({})", members)
+        }
+        kain_core::ast::Type::Array(inner, size, _) => {
+            format!("[{}; {}]", type_to_string(inner), size)
+        }
+        kain_core::ast::Type::Slice(inner, _) => format!("[{}]", type_to_string(inner)),
+        kain_core::ast::Type::Ref {
+            mutable, inner, ..
+        } => {
+            if *mutable {
+                format!("&mut {}", type_to_string(inner))
+            } else {
+                format!("&{}", type_to_string(inner))
+            }
+        }
+        kain_core::ast::Type::Function {
+            params,
+            return_type,
+            ..
+        } => {
+            let args = params.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
+            format!("fn({}) -> {}", args, type_to_string(return_type))
+        }
+        kain_core::ast::Type::Option(inner, _) => format!("{}?", type_to_string(inner)),
+        kain_core::ast::Type::Result(ok, err, _) => {
+            format!("{}!{}", type_to_string(ok), type_to_string(err))
+        }
+        kain_core::ast::Type::Infer(_) => "_".to_string(),
+        kain_core::ast::Type::Never(_) => "!".to_string(),
+        kain_core::ast::Type::Unit(_) => "()".to_string(),
+        kain_core::ast::Type::Impl {
+            trait_name,
+            generics,
+            ..
+        } => {
+            if generics.is_empty() {
+                format!("impl {}", trait_name)
+            } else {
+                let args = generics
+                    .iter()
+                    .map(type_to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("impl {}<{}>", trait_name, args)
+            }
+        }
     }
 }
 
