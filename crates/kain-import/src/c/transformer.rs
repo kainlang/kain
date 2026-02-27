@@ -834,6 +834,20 @@ impl CTransformer {
             // Unary operations
             UnaryOperator(unary_op) => {
                 match unary_op.node.operator.node {
+                    c_ast::UnaryOperator::Address => {
+                        let value =
+                            Box::new(self.transform_expression(&unary_op.node.operand.node)?);
+                        Ok(Expr::Ref {
+                            mutable: false,
+                            value,
+                            span: Span::default(),
+                        })
+                    }
+                    c_ast::UnaryOperator::Indirection => {
+                        let value =
+                            Box::new(self.transform_expression(&unary_op.node.operand.node)?);
+                        Ok(Expr::Deref(value, Span::default()))
+                    }
                     c_ast::UnaryOperator::PostIncrement | c_ast::UnaryOperator::PreIncrement => {
                         self.lower_inc_dec(&unary_op.node.operand.node, true)
                     }
@@ -1391,6 +1405,20 @@ mod tests {
                 a &= b;
                 a %= b;
                 return a;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let result = transform(c_ast);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_transform_address_of_and_indirection() {
+        let source = r#"
+            int bump(int x) {
+                int *p = &x;
+                return *p + 1;
             }
         "#;
 

@@ -527,15 +527,11 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
         kain_core::ast::Item::Mod(m) => {
             write_line(output, indent, &format!("mod {}:", m.name))?;
             if let Some(children) = &m.inline {
-                if children.is_empty() {
-                    write_line(output, indent + 1, "none")?;
-                } else {
+                if !children.is_empty() {
                     for child in children {
                         write_item(output, child, indent + 1)?;
                     }
                 }
-            } else {
-                write_line(output, indent + 1, "none")?;
             }
             writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
         }
@@ -1329,6 +1325,22 @@ mod tests {
         assert!(content.contains("mod sub_beta:"));
         assert!(content.contains("fn alpha"));
         assert!(content.contains("fn beta"));
+    }
+
+    #[test]
+    fn test_import_empty_module_does_not_emit_none_item() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("empty.c"), "/* intentionally empty */\n").unwrap();
+
+        let out_path = root.join("empty_out.kn");
+        let batch = ImportCBatchOptions::default();
+        let result = import_c_with_batch(root, Some(&out_path), None, &[], &[], &batch);
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(&out_path).unwrap();
+        assert!(content.contains("mod empty:"));
+        assert!(!content.contains("\n    none\n"));
     }
 
     #[test]

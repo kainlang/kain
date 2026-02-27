@@ -68,6 +68,7 @@ pub struct Parser<'a> {
     filename: &'a str,
     capabilities: LanguageCapabilities,
     errors: Vec<KainError>,      // Accumulated parse errors for multi-error recovery
+    synthetic_counter: usize,    // Fresh names for parser-desugared temporaries
 }
 
 impl<'a> Parser<'a> {
@@ -89,6 +90,7 @@ impl<'a> Parser<'a> {
             filename,
             capabilities,
             errors: Vec::new(),
+            synthetic_counter: 0,
         }
     }
     
@@ -1047,10 +1049,24 @@ impl<'a> Parser<'a> {
         
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
-        self.expect(TokenKind::Indent)?;
-        
         let mut fields = Vec::new();
         let mut methods = Vec::new();
+
+        // Allow opaque/forward struct declarations:
+        //   struct FILE:
+        // with no indented body.
+        if !self.check(TokenKind::Indent) {
+            return Ok(Item::Struct(Struct {
+                name,
+                generics,
+                fields,
+                methods,
+                attributes: attrs,
+                visibility: vis,
+                span: start.merge(self.current_span()),
+            }));
+        }
+        self.expect(TokenKind::Indent)?;
         
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
@@ -2219,7 +2235,7 @@ impl<'a> Parser<'a> {
     fn parse_expr(&mut self) -> KainResult<Expr> { self.parse_assignment() }
 
     fn parse_assignment(&mut self) -> KainResult<Expr> {
-        let target = self.parse_binary(0)?;
+        let target = self.parse_conditional()?;
 
         if let Some(assign_binop) = self.get_assignment_binop() {
             self.advance();
@@ -2247,6 +2263,52 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_conditional(&mut self) -> KainResult<Expr> {
+        let condition = self.parse_coalesce()?;
+        if !self.check(TokenKind::Question) {
+            return Ok(condition);
+        }
+
+        self.advance(); // '?'
+        let then_expr = self.parse_assignment()?;
+        self.expect(TokenKind::Colon)?;
+        let else_expr = self.parse_assignment()?;
+
+        let then_span = then_expr.span();
+        let else_span = else_expr.span();
+        let span = condition.span().merge(else_span);
+        Ok(Expr::Match {
+            scrutinee: Box::new(condition),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::Bool(true, then_span)),
+                    guard: None,
+                    body: then_expr,
+                    span: then_span,
+                },
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::Bool(false, else_span)),
+                    guard: None,
+                    body: else_expr,
+                    span: else_span,
+                },
+            ],
+            span,
+        })
+    }
+
+    fn parse_coalesce(&mut self) -> KainResult<Expr> {
+        let left = self.parse_binary(0)?;
+        if self.check(TokenKind::QuestionQuestion) {
+            self.advance();
+            let right = self.parse_coalesce()?;
+            let span = left.span().merge(right.span());
+            self.make_null_coalesce_expr(left, right, span)
+        } else {
+            Ok(left)
+        }
+    }
+
     fn parse_binary(&mut self, min_prec: u8) -> KainResult<Expr> {
         let mut left = self.parse_unary()?;
         
@@ -2262,9 +2324,43 @@ impl<'a> Parser<'a> {
 
     fn parse_unary(&mut self) -> KainResult<Expr> {
         match self.peek_kind() {
+            TokenKind::Amp => {
+                let s = self.current_span();
+                self.advance();
+                let mutable = if self.check(TokenKind::Mut) {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
+                Ok(Expr::Ref {
+                    mutable,
+                    value: Box::new(self.parse_unary()?),
+                    span: s,
+                })
+            }
+            TokenKind::PlusPlus => {
+                let start = self.current_span();
+                self.advance();
+                let target = self.parse_unary()?;
+                let span = start.merge(target.span());
+                self.make_incdec_expr(target, true, true, span)
+            }
+            TokenKind::MinusMinus => {
+                let start = self.current_span();
+                self.advance();
+                let target = self.parse_unary()?;
+                let span = start.merge(target.span());
+                self.make_incdec_expr(target, false, true, span)
+            }
             TokenKind::Minus => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::Neg, operand: Box::new(self.parse_unary()?), span: s }) }
             TokenKind::Not => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::Not, operand: Box::new(self.parse_unary()?), span: s }) }
             TokenKind::Tilde => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::BitNot, operand: Box::new(self.parse_unary()?), span: s }) }
+            TokenKind::Star => {
+                let s = self.current_span();
+                self.advance();
+                Ok(Expr::Deref(Box::new(self.parse_unary()?), s))
+            }
             TokenKind::Await => {
                 let start = self.current_span();
                 self.advance();
@@ -2344,6 +2440,12 @@ impl<'a> Parser<'a> {
                     }
                 }
                 TokenKind::Dot => { self.advance(); let field = self.parse_ident()?; let s = expr.span().merge(self.current_span()); expr = Expr::Field { object: Box::new(expr), field, span: s }; }
+            TokenKind::QuestionDot => {
+                self.advance();
+                let field = self.parse_ident()?;
+                let s = expr.span().merge(self.current_span());
+                expr = self.make_safe_nav_field_expr(expr, field, s)?;
+            }
             TokenKind::As => {
                 self.advance();
                 let target = self.parse_type()?;
@@ -2351,7 +2453,26 @@ impl<'a> Parser<'a> {
                 expr = Expr::Cast { value: Box::new(expr), target, span: s };
             }
             TokenKind::LBracket => { self.advance(); let idx = self.parse_expr()?; self.expect(TokenKind::RBracket)?; let s = expr.span().merge(self.current_span()); expr = Expr::Index { object: Box::new(expr), index: Box::new(idx), span: s }; }
-            TokenKind::Question => { self.advance(); let s = expr.span().merge(self.current_span()); expr = Expr::Try(Box::new(expr), s); }
+            TokenKind::PlusPlus => {
+                let start = expr.span();
+                self.advance();
+                let span = start.merge(self.current_span());
+                expr = self.make_incdec_expr(expr, true, false, span)?;
+            }
+            TokenKind::MinusMinus => {
+                let start = expr.span();
+                self.advance();
+                let span = start.merge(self.current_span());
+                expr = self.make_incdec_expr(expr, false, false, span)?;
+            }
+            TokenKind::Question => {
+                if self.question_starts_ternary() {
+                    break;
+                }
+                self.advance();
+                let s = expr.span().merge(self.current_span());
+                expr = Expr::Try(Box::new(expr), s);
+            }
             TokenKind::Not => {
                 // Macro invocation: ident!(args)
                 if let Expr::Ident(name, _) = &expr {
@@ -3139,8 +3260,12 @@ impl<'a> Parser<'a> {
                      TokenKind::Comma => consumed_text = Some(",".to_string()),
                      TokenKind::Dot => consumed_text = Some(".".to_string()),
                      TokenKind::Question => consumed_text = Some("?".to_string()),
+                     TokenKind::QuestionQuestion => consumed_text = Some("??".to_string()),
+                     TokenKind::QuestionDot => consumed_text = Some("?.".to_string()),
                      TokenKind::Not => consumed_text = Some("!".to_string()),
                      TokenKind::Minus => consumed_text = Some("-".to_string()),
+                     TokenKind::PlusPlus => consumed_text = Some("++".to_string()),
+                     TokenKind::MinusMinus => consumed_text = Some("--".to_string()),
                      TokenKind::Eq => consumed_text = Some("=".to_string()),
                      TokenKind::Plus => consumed_text = Some("+".to_string()),
                      TokenKind::Star => consumed_text = Some("*".to_string()),
@@ -3344,7 +3469,175 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn make_incdec_expr(
+        &mut self,
+        target: Expr,
+        increment: bool,
+        prefix: bool,
+        span: Span,
+    ) -> KainResult<Expr> {
+        if !matches!(target, Expr::Ident(_, _) | Expr::Field { .. } | Expr::Index { .. } | Expr::Deref(_, _)) {
+            return Err(self.parser_error(
+                "Increment/decrement target must be assignable (identifier, field, index, or dereference)",
+                span,
+            ));
+        }
+
+        let binding = self.fresh_temp("__kain_incdec");
+        let bound_ident = Expr::Ident(binding.clone(), span);
+        let op = if increment { BinaryOp::Add } else { BinaryOp::Sub };
+
+        let updated = Expr::Binary {
+            left: Box::new(bound_ident.clone()),
+            op,
+            right: Box::new(Expr::Int(1, span)),
+            span,
+        };
+
+        // Sequence assignment then return either new (prefix) or old (postfix) value.
+        let assign_expr = Expr::Assign {
+            target: Box::new(target.clone()),
+            value: Box::new(updated.clone()),
+            span,
+        };
+        let result_expr = if prefix { updated } else { bound_ident };
+        let sequenced = Expr::Index {
+            object: Box::new(Expr::Array(vec![assign_expr, result_expr], span)),
+            index: Box::new(Expr::Int(1, span)),
+            span,
+        };
+
+        Ok(Expr::Match {
+            scrutinee: Box::new(target),
+            arms: vec![MatchArm {
+                pattern: Pattern::Binding {
+                    name: binding,
+                    mutable: false,
+                    span,
+                },
+                guard: None,
+                body: sequenced,
+                span,
+            }],
+            span,
+        })
+    }
+
+    fn make_null_coalesce_expr(&mut self, left: Expr, right: Expr, span: Span) -> KainResult<Expr> {
+        let binding = self.fresh_temp("__kain_coalesce");
+        Ok(Expr::Match {
+            scrutinee: Box::new(left),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::None(span)),
+                    guard: None,
+                    body: right,
+                    span,
+                },
+                MatchArm {
+                    pattern: Pattern::Binding {
+                        name: binding.clone(),
+                        mutable: false,
+                        span,
+                    },
+                    guard: None,
+                    body: Expr::Ident(binding, span),
+                    span,
+                },
+            ],
+            span,
+        })
+    }
+
+    fn make_safe_nav_field_expr(&mut self, object: Expr, field: String, span: Span) -> KainResult<Expr> {
+        let binding = self.fresh_temp("__kain_safe");
+        Ok(Expr::Match {
+            scrutinee: Box::new(object),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::None(span)),
+                    guard: None,
+                    body: Expr::None(span),
+                    span,
+                },
+                MatchArm {
+                    pattern: Pattern::Binding {
+                        name: binding.clone(),
+                        mutable: false,
+                        span,
+                    },
+                    guard: None,
+                    body: Expr::Field {
+                        object: Box::new(Expr::Ident(binding, span)),
+                        field,
+                        span,
+                    },
+                    span,
+                },
+            ],
+            span,
+        })
+    }
+
+    fn question_starts_ternary(&self) -> bool {
+        let mut offset = 1usize;
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut brace_depth = 0usize;
+
+        while let Some(kind) = self.peek_kind_at(offset) {
+            let at_top_level = paren_depth == 0 && bracket_depth == 0 && brace_depth == 0;
+            match kind {
+                TokenKind::LParen => paren_depth += 1,
+                TokenKind::RParen => {
+                    if paren_depth == 0 {
+                        return false;
+                    }
+                    paren_depth -= 1;
+                }
+                TokenKind::LBracket => bracket_depth += 1,
+                TokenKind::RBracket => {
+                    if bracket_depth == 0 {
+                        return false;
+                    }
+                    bracket_depth -= 1;
+                }
+                TokenKind::LBrace => brace_depth += 1,
+                TokenKind::RBrace => {
+                    if brace_depth == 0 {
+                        return false;
+                    }
+                    brace_depth -= 1;
+                }
+                TokenKind::Colon if at_top_level => return true,
+                TokenKind::Comma
+                | TokenKind::Semi
+                | TokenKind::Eof
+                | TokenKind::Dedent
+                | TokenKind::Newline(_) if at_top_level => return false,
+                _ => {}
+            }
+            offset += 1;
+        }
+
+        false
+    }
+
     // Helper methods
+    fn fresh_temp(&mut self, prefix: &str) -> String {
+        let name = format!("{}{}", prefix, self.synthetic_counter);
+        self.synthetic_counter += 1;
+        name
+    }
+
+    fn peek_kind_at(&self, offset: usize) -> Option<TokenKind> {
+        if offset < self.injected_tokens.len() {
+            return Some(self.injected_tokens[offset].kind.clone());
+        }
+        let base_offset = offset.saturating_sub(self.injected_tokens.len());
+        self.tokens.get(self.pos + base_offset).map(|t| t.kind.clone())
+    }
+
     fn peek_kind(&self) -> TokenKind { 
         // Check injected tokens first
         if !self.injected_tokens.is_empty() {

@@ -2852,6 +2852,13 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             Ok(Value::Return(Box::new(val)))
         }
 
+        // Pointer/reference model is currently represented as direct value pass-through.
+        Expr::Ref { value, .. } => eval_expr(env, value),
+
+        // Pointer-style dereference is currently modeled as identity at runtime.
+        // This keeps imported C-like code parseable/executable in non-native backends.
+        Expr::Deref(inner, _) => eval_expr(env, inner),
+
         Expr::Paren(inner, _) => eval_expr(env, inner),
 
         // Await expression: await future_expr
@@ -3198,6 +3205,7 @@ fn pattern_matches(pattern: &Pattern, value: &Value) -> bool {
         Pattern::Literal(Expr::Int(n, _)) => matches!(value, Value::Int(v) if *v == *n),
         Pattern::Literal(Expr::String(s, _)) => matches!(value, Value::String(v) if v == s),
         Pattern::Literal(Expr::Bool(b, _)) => matches!(value, Value::Bool(v) if *v == *b),
+        Pattern::Literal(Expr::None(_)) => matches!(value, Value::None),
         Pattern::Variant {
             variant, fields, ..
         } => {

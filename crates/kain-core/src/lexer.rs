@@ -133,6 +133,10 @@ pub enum TokenKind {
     #[regex(r"[0-9][0-9_]*\.[0-9][0-9_]*", |lex| lex.slice().replace('_', "").parse().ok())]
     Float(f64),
 
+    #[regex(r#"r"([^"\\]|\\.)*""#, |lex| {
+        let s = lex.slice();
+        Some(s[2..s.len()-1].to_string())
+    })]
     #[regex(r#""([^"\\]|\\.)*""#, |lex| {
         let s = lex.slice();
         Some(unescape(&s[1..s.len()-1]))
@@ -162,6 +166,10 @@ pub enum TokenKind {
     Ident(String),
 
     // === Operators ===
+    #[token("++")]
+    PlusPlus,
+    #[token("--")]
+    MinusMinus,
     #[token("+")]
     Plus,
     #[token("-")]
@@ -264,6 +272,10 @@ pub enum TokenKind {
     FatArrow,
     #[token("@")]
     At,
+    #[token("??")]
+    QuestionQuestion,
+    #[token("?.")]
+    QuestionDot,
     #[token("?")]
     Question,
 

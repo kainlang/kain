@@ -496,6 +496,16 @@ impl TSGen {
                 self.write(")");
             }
 
+            Expr::Ref { value, .. } => {
+                // JS/TS has no address/reference operator; pass through value.
+                self.gen_expr(value);
+            }
+
+            Expr::Deref(inner, _) => {
+                // JS/TS has no pointer model; treat deref as transparent value access.
+                self.gen_expr(inner);
+            }
+
             Expr::Call { callee, args, .. } => {
                 self.gen_expr(callee);
                 self.write("(");
@@ -646,6 +656,7 @@ impl TSGen {
                     self.gen_pattern_match("__match", &arm.pattern);
                     self.writeln(") {");
                     self.indent();
+                    self.gen_pattern_bindings("__match", &arm.pattern);
                     self.write("return ");
                     self.gen_expr(&arm.body);
                     self.writeln(";");
@@ -930,6 +941,12 @@ impl TSGen {
                 }
             }
             _ => self.write("false"),
+        }
+    }
+
+    fn gen_pattern_bindings(&mut self, scrutinee: &str, pattern: &Pattern) {
+        if let Pattern::Binding { name, .. } = pattern {
+            self.writeln(&format!("const {} = {};", name, scrutinee));
         }
     }
 
