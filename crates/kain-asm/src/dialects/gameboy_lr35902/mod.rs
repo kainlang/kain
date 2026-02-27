@@ -2010,7 +2010,7 @@ fn expand_rgbds_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
                     let body = &lines[(i + 1)..(i + consumed - 1)];
                     for _ in 0..repeat_count {
                         for entry in body {
-                            out.extend(expand_macro_call(entry, &macros, 0, &mut macro_invoke_counter));
+                            out.extend(expand_macro_call(entry, &macros, &symbols, 0, &mut macro_invoke_counter));
                         }
                     }
                 }
@@ -2025,7 +2025,7 @@ fn expand_rgbds_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
             i += 1;
             continue;
         }
-        out.extend(expand_macro_call(&line, &macros, 0, &mut macro_invoke_counter));
+        out.extend(expand_macro_call(&line, &macros, &symbols, 0, &mut macro_invoke_counter));
         i += 1;
     }
     out
@@ -2323,7 +2323,13 @@ impl<'a> ExprParser<'a> {
     }
 }
 
-fn expand_macro_call(line: &CanonLine, macros: &IndexMap<String, MacroDef>, depth: usize, macro_invoke_counter: &mut u64) -> Vec<CanonLine> {
+fn expand_macro_call(
+    line: &CanonLine,
+    macros: &IndexMap<String, MacroDef>,
+    symbols: &IndexMap<String, i64>,
+    depth: usize,
+    macro_invoke_counter: &mut u64,
+) -> Vec<CanonLine> {
     if depth >= MAX_EXPAND_DEPTH { return vec![line.clone()]; }
     let text = strip_comment(&line.text).trim().to_string();
     let mut p = text.split_whitespace();
@@ -2333,14 +2339,46 @@ fn expand_macro_call(line: &CanonLine, macros: &IndexMap<String, MacroDef>, dept
     *macro_invoke_counter += 1;
     let macro_id = *macro_invoke_counter;
     let local_prefix = format!("__m{}_{}", macro_id, name.to_ascii_lowercase());
-    let args = text[name.len()..].trim().split(',').map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).collect::<Vec<_>>();
+    let args = split_csv_top_level(text[name.len()..].trim(), true);
+    let mut local_symbols = symbols.clone();
+    local_symbols.insert("_NARG".to_string(), args.len() as i64);
+    let mut conditional_stack = Vec::<(bool, bool)>::new();
+    let mut active = true;
     let mut out = Vec::<CanonLine>::new();
     for l in &def.body {
-        let mut t = l.text.clone();
-        for i in 0..args.len() { t = t.replace(&format!("\\{}", i + 1), &args[i]); }
-        t = t.replace("\\@", &macro_id.to_string());
+        let raw = strip_comment(&l.text).trim();
+        let control_text = substitute_macro_placeholders(raw, &args, macro_id);
+        let token = control_text.split_whitespace().next().unwrap_or("").to_ascii_uppercase();
+        if token == "IF" {
+            let cond = if active { eval_cond(control_text[2..].trim(), &local_symbols) } else { false };
+            conditional_stack.push((active, cond));
+            active = active && cond;
+            continue;
+        }
+        if token == "ELSE" {
+            if let Some((parent, cond)) = conditional_stack.last().copied() { active = parent && !cond; }
+            continue;
+        }
+        if token == "ENDC" {
+            if let Some((parent, _)) = conditional_stack.pop() { active = parent; }
+            continue;
+        }
+        if !active {
+            continue;
+        }
+        if let Some((name, value)) = parse_symbol_assignment(&control_text, &local_symbols) {
+            local_symbols.insert(name.to_ascii_uppercase(), value);
+            continue;
+        }
+        let mut t = substitute_macro_placeholders(&l.text, &args, macro_id);
         t = rewrite_local_macro_labels(&t, &local_prefix);
-        let nested = expand_macro_call(&CanonLine { text: t, file: l.file.clone(), line: l.line, canon: l.canon }, macros, depth + 1, macro_invoke_counter);
+        let nested = expand_macro_call(
+            &CanonLine { text: t, file: l.file.clone(), line: l.line, canon: l.canon },
+            macros,
+            &local_symbols,
+            depth + 1,
+            macro_invoke_counter,
+        );
         out.extend(nested);
     }
     out
@@ -2367,6 +2405,196 @@ fn rewrite_local_macro_labels(text: &str, prefix: &str) -> String {
             }
         }
         out.push(c);
+        i += 1;
+    }
+    out
+}
+
+fn split_csv_top_level(text: &str, keep_empty: bool) -> Vec<String> {
+    let src = text.trim();
+    if src.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::<String>::new();
+    let mut cur = String::new();
+    let mut in_quote: Option<char> = None;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut brace_depth = 0usize;
+
+    for ch in src.chars() {
+        if let Some(q) = in_quote {
+            cur.push(ch);
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == q {
+                in_quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => {
+                in_quote = Some(ch);
+                cur.push(ch);
+            }
+            '(' => {
+                paren_depth += 1;
+                cur.push(ch);
+            }
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                cur.push(ch);
+            }
+            '[' => {
+                bracket_depth += 1;
+                cur.push(ch);
+            }
+            ']' => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                cur.push(ch);
+            }
+            '{' => {
+                brace_depth += 1;
+                cur.push(ch);
+            }
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                cur.push(ch);
+            }
+            ',' if paren_depth == 0 && bracket_depth == 0 && brace_depth == 0 => {
+                let trimmed = cur.trim().to_string();
+                if keep_empty || !trimmed.is_empty() {
+                    out.push(trimmed);
+                }
+                cur.clear();
+            }
+            _ => cur.push(ch),
+        }
+    }
+    let trimmed = cur.trim().to_string();
+    if keep_empty || !trimmed.is_empty() {
+        out.push(trimmed);
+    }
+    out
+}
+
+fn substitute_macro_placeholders(text: &str, args: &[String], macro_id: u64) -> String {
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut out = String::new();
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] != '\\' {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        if i + 1 >= chars.len() {
+            out.push('\\');
+            i += 1;
+            continue;
+        }
+        if chars[i + 1] == '@' {
+            out.push_str(&macro_id.to_string());
+            i += 2;
+            continue;
+        }
+        if chars[i + 1].is_ascii_digit() {
+            let mut j = i + 1;
+            while j < chars.len() && chars[j].is_ascii_digit() {
+                j += 1;
+            }
+            let idx = chars[(i + 1)..j]
+                .iter()
+                .collect::<String>()
+                .parse::<usize>()
+                .ok()
+                .unwrap_or(0);
+            if idx > 0 {
+                if let Some(arg) = args.get(idx - 1) {
+                    out.push_str(arg);
+                } else {
+                    out.push('0');
+                }
+            } else {
+                out.push('0');
+            }
+            i = j;
+            continue;
+        }
+        out.push('\\');
+        out.push(chars[i + 1]);
+        i += 2;
+    }
+    out
+}
+
+fn normalize_kain_data_expr(expr: &str) -> String {
+    let chars = expr.chars().collect::<Vec<_>>();
+    let mut out = String::new();
+    let mut in_quote: Option<char> = None;
+    let mut escaped = false;
+    let mut i = 0usize;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        if let Some(q) = in_quote {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+                i += 1;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                i += 1;
+                continue;
+            }
+            if ch == q {
+                in_quote = None;
+            }
+            i += 1;
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            in_quote = Some(ch);
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+        if ch == '$' {
+            let start = i + 1;
+            let mut j = start;
+            while j < chars.len() && chars[j].is_ascii_hexdigit() {
+                j += 1;
+            }
+            if j > start {
+                out.push_str("0x");
+                out.extend(chars[start..j].iter());
+                i = j;
+                continue;
+            }
+        }
+        if ch == '%' {
+            let start = i + 1;
+            let mut j = start;
+            while j < chars.len() && (chars[j] == '0' || chars[j] == '1') {
+                j += 1;
+            }
+            if j > start {
+                out.push_str("0b");
+                out.extend(chars[start..j].iter());
+                i = j;
+                continue;
+            }
+        }
+        out.push(ch);
         i += 1;
     }
     out
@@ -2463,7 +2691,7 @@ fn parse_data_line(line: &str) -> Option<(String, Vec<String>)> {
     let left = line[..pos].trim();
     let right = line[pos + marker.len()..].trim();
     let label = if left.is_empty() { "__anonymous_table".to_string() } else { normalize_label(left) };
-    let values = right.split(|c: char| c == ',' || c.is_ascii_whitespace()).map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).collect::<Vec<_>>();
+    let values = split_csv_top_level(right, false);
     if values.is_empty() { None } else { Some((label, values)) }
 }
 
@@ -2577,7 +2805,15 @@ fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String 
     out.push_str("fn ue5_apply_sensor_input(state: Ue5ShimState, port_id: Int, value: Int) -> Ue5ShimState:\n    write_port(port_id, value)\n    return state\n\n");
     out.push_str("fn ue5_read_actuator_output(state: Ue5ShimState, port_id: Int) -> Int:\n    let _state = state\n    return read_port(port_id)\n\n");
     out.push_str("const GAMEBOY_TABLES: Array<Array<Int>> = [\n");
-    for table in &program.data_tables { out.push_str(&format!("    [{}],\n", table.bytes.join(", "))); }
+    for table in &program.data_tables {
+        let values = table
+            .bytes
+            .iter()
+            .map(|v| normalize_kain_data_expr(v))
+            .collect::<Vec<_>>()
+            .join(", ");
+        out.push_str(&format!("    [{}],\n", values));
+    }
     out.push_str("]\n\n");
     for unit in units {
         out.push_str(&format!("fn {}(cpu: CpuState, mem: Memory) -> (CpuState, Memory):\n    let next_cpu = cpu\n    let next_mem = mem\n", unit.target_item));
@@ -3012,6 +3248,54 @@ mod tests {
         assert!(out.iter().any(|l| l.text.contains("__m")));
         assert!(!out.iter().any(|l| l.text == ".loop:"));
         assert!(!out.iter().any(|l| l.text == "JR .loop"));
+    }
+
+    #[test]
+    fn macro_narg_conditionals_expand_expected_branch() {
+        let src = vec![
+            CanonLine { text: "MACRO battle_anim".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
+            CanonLine { text: "IF _NARG == 4".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
+            CanonLine { text: "db (\\3 << 6) | \\4".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
+            CanonLine { text: "db \\1 - 1".to_string(), file: "a.asm".to_string(), line: 4, canon: 4 },
+            CanonLine { text: "db \\2".to_string(), file: "a.asm".to_string(), line: 5, canon: 5 },
+            CanonLine { text: "ELSE".to_string(), file: "a.asm".to_string(), line: 6, canon: 6 },
+            CanonLine { text: "db \\2".to_string(), file: "a.asm".to_string(), line: 7, canon: 7 },
+            CanonLine { text: "db \\1 - 1".to_string(), file: "a.asm".to_string(), line: 8, canon: 8 },
+            CanonLine { text: "ENDC".to_string(), file: "a.asm".to_string(), line: 9, canon: 9 },
+            CanonLine { text: "ENDM".to_string(), file: "a.asm".to_string(), line: 10, canon: 10 },
+            CanonLine { text: "battle_anim NO_MOVE, SE_WAVY_SCREEN".to_string(), file: "a.asm".to_string(), line: 11, canon: 11 },
+            CanonLine { text: "battle_anim POUND, SUBANIM_0_STAR_TWICE, 0, 8".to_string(), file: "a.asm".to_string(), line: 12, canon: 12 },
+        ];
+        let out = expand_rgbds_semantics(&src);
+        assert!(out.iter().any(|l| l.text == "db SE_WAVY_SCREEN"));
+        assert!(out.iter().any(|l| l.text == "db NO_MOVE - 1"));
+        assert!(out.iter().any(|l| l.text == "db (0 << 6) | 8"));
+        assert!(out.iter().any(|l| l.text == "db POUND - 1"));
+        assert!(out.iter().any(|l| l.text == "db SUBANIM_0_STAR_TWICE"));
+        assert!(!out.iter().any(|l| l.text.contains("\\3") || l.text.contains("\\4")));
+        assert!(!out.iter().any(|l| l.text == "IF _NARG == 4" || l.text == "ELSE" || l.text == "ENDC"));
+    }
+
+    #[test]
+    fn data_line_parsing_preserves_expressions_and_quoted_commas() {
+        let parsed = parse_data_line(r#"db (\3 << 6) | \4, "a, b", \2"#).expect("data line");
+        assert_eq!(parsed.1, vec!["(\\3 << 6) | \\4".to_string(), "\"a, b\"".to_string(), "\\2".to_string()]);
+    }
+
+    #[test]
+    fn emitted_kain_tables_normalize_rgbds_number_literals() {
+        let program = AsmProgram {
+            blocks: vec![],
+            directives: vec![],
+            data_tables: vec![AsmDataTable {
+                label: "Table".to_string(),
+                bytes: vec!["$0a".to_string(), "%1010".to_string(), "LOW($10)".to_string(), "\"$20\"".to_string()],
+                source_line_start: 1,
+                source_line_end: 1,
+            }],
+        };
+        let out = render_kain_firmware(&program, &[]);
+        assert!(out.contains("[0x0a, 0b1010, LOW(0x10), \"$20\"]"));
     }
 
     #[test]
