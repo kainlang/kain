@@ -34,6 +34,38 @@ use sys;
 // Constants
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const LANGUAGE_NAME: &str = "KAIN";
+pub const BUILD_NUMBER: &str = match option_env!("KAIN_BUILD_NUMBER") {
+    Some(v) => v,
+    None => "dev",
+};
+pub const BUILD_UNIX_TIME: &str = match option_env!("KAIN_BUILD_UNIX_TIME") {
+    Some(v) => v,
+    None => "0",
+};
+pub const BUILD_PROFILE: &str = match option_env!("KAIN_BUILD_PROFILE") {
+    Some(v) => v,
+    None => "unknown",
+};
+pub const BUILD_TARGET_TRIPLE: &str = match option_env!("KAIN_BUILD_TARGET_TRIPLE") {
+    Some(v) => v,
+    None => "unknown",
+};
+pub const BUILD_HOST_TRIPLE: &str = match option_env!("KAIN_BUILD_HOST_TRIPLE") {
+    Some(v) => v,
+    None => "unknown",
+};
+pub const BUILD_GIT_SHA: &str = match option_env!("KAIN_GIT_SHA") {
+    Some(v) => v,
+    None => "unknown",
+};
+pub const BUILD_GIT_COMMIT_COUNT: &str = match option_env!("KAIN_GIT_COMMIT_COUNT") {
+    Some(v) => v,
+    None => "0",
+};
+pub const BUILD_GIT_DIRTY: &str = match option_env!("KAIN_GIT_DIRTY") {
+    Some(v) => v,
+    None => "unknown",
+};
 
 #[derive(Clone, Copy)]
 struct TargetSpec {

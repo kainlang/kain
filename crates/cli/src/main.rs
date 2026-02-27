@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use cli::{
+    BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER,
+    BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME,
     compile, parse_compile_target, supported_targets_csv, target_extension, CompileTarget,
     LANGUAGE_NAME, VERSION,
 };
@@ -91,6 +93,9 @@ enum Commands {
     
     /// Start the Language Server
     Lsp,
+
+    /// Show binary/build diagnostics and resolved compiler capabilities
+    Doctor,
 
     /// Build project or file. Without input, reads KAIN.toml for multi-target build.
     Build {
@@ -575,7 +580,7 @@ fn main() {
     let handler = builder.spawn(|| {
         let args = Args::parse();
 
-        println!(" {} Compiler v{}", LANGUAGE_NAME, VERSION);
+        println!(" {} Compiler v{} (build {})", LANGUAGE_NAME, VERSION, BUILD_NUMBER);
 
         match args.command {
             Some(Commands::Init { path, name }) => {
@@ -594,6 +599,9 @@ fn main() {
                 rt.block_on(async {
                     lsp::run_server().await;
                 });
+            }
+            Some(Commands::Doctor) => {
+                print_doctor();
             }
             Some(Commands::Build {
                 input,
@@ -765,6 +773,77 @@ fn main() {
     }).unwrap();
 
     handler.join().unwrap();
+}
+
+fn print_doctor() {
+    println!(" KAIN Doctor");
+    println!(" Version: {}", VERSION);
+    println!(" Build: {}", BUILD_NUMBER);
+    println!(" Built At (UTC): {}", format_build_time(BUILD_UNIX_TIME));
+    println!(
+        " Git: {} (commit #{}, {})",
+        BUILD_GIT_SHA, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY
+    );
+    println!(" Profile: {}", BUILD_PROFILE);
+    println!(
+        " Target Triple: {} (host {})",
+        BUILD_TARGET_TRIPLE, BUILD_HOST_TRIPLE
+    );
+
+    match std::env::current_exe() {
+        Ok(path) => println!(" Binary Path: {}", path.display()),
+        Err(err) => println!(" Binary Path: <unknown> ({})", err),
+    }
+
+    match std::env::current_dir() {
+        Ok(cwd) => {
+            println!(" Current Dir: {}", cwd.display());
+            if let Some(root) = find_project_root(&cwd) {
+                println!(" Project Root: {}", root.display());
+            } else {
+                println!(" Project Root: <not found (no KAIN.toml in parent chain)>");
+            }
+        }
+        Err(err) => println!(" Current Dir: <unknown> ({})", err),
+    }
+
+    println!(" Supported Targets: {}", supported_targets_csv());
+    println!(
+        " TS Target Available: {}",
+        if parse_compile_target("ts").is_some() {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!(
+        " Features: ue5={}, web={}, gpu={}, sys={}",
+        if cfg!(feature = "ue5") { "on" } else { "off" },
+        if cfg!(feature = "web") { "on" } else { "off" },
+        if cfg!(feature = "gpu") { "on" } else { "off" },
+        if cfg!(feature = "sys") { "on" } else { "off" },
+    );
+}
+
+fn format_build_time(unix_time: &str) -> String {
+    let Ok(secs) = unix_time.parse::<i64>() else {
+        return format!("unknown (raw: {})", unix_time);
+    };
+
+    let Some(dt) = chrono::DateTime::<chrono::Utc>::from_timestamp(secs, 0) else {
+        return format!("unknown (raw: {})", unix_time);
+    };
+
+    format!("{} (unix {})", dt.to_rfc3339(), unix_time)
+}
+
+fn find_project_root(start: &std::path::Path) -> Option<PathBuf> {
+    for dir in start.ancestors() {
+        if dir.join("KAIN.toml").exists() {
+            return Some(dir.to_path_buf());
+        }
+    }
+    None
 }
 
 fn staging_dir() -> PathBuf {

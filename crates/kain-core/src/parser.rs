@@ -372,19 +372,26 @@ impl<'a> Parser<'a> {
         let inline = if self.check(TokenKind::Colon) {
             self.advance();
             self.skip_newlines();
-            self.expect(TokenKind::Indent)?;
+            
+            // Check if there's an INDENT token - if not, treat as empty module
+            if !self.check(TokenKind::Indent) {
+                // Empty module body (e.g., `mod name:` followed by newline or another item)
+                Some(vec![])
+            } else {
+                self.expect(TokenKind::Indent)?;
 
-            let mut items = Vec::new();
-            while !self.check(TokenKind::Dedent) && !self.at_end() {
-                self.skip_newlines();
-                if self.check(TokenKind::Dedent) {
-                    break;
+                let mut items = Vec::new();
+                while !self.check(TokenKind::Dedent) && !self.at_end() {
+                    self.skip_newlines();
+                    if self.check(TokenKind::Dedent) {
+                        break;
+                    }
+                    items.push(self.parse_item()?);
+                    self.skip_newlines();
                 }
-                items.push(self.parse_item()?);
-                self.skip_newlines();
+                self.expect(TokenKind::Dedent)?;
+                Some(items)
             }
-            self.expect(TokenKind::Dedent)?;
-            Some(items)
         } else {
             None
         };
