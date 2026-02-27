@@ -4,6 +4,8 @@ use crate::dialects::furby_6502::{
 use crate::error::{AsmError, AsmResult};
 use indexmap::IndexMap;
 use kain_core::{
+    diagnostics::SpanMapper,
+    span::Span,
     AsmBlock, AsmDataTable, AsmDirective, AsmInstr, AsmProgram, ParityTraceFrame, TranslitUnit,
 };
 use petgraph::graphmap::DiGraphMap;
@@ -57,6 +59,7 @@ struct GameboyMap {
     source_provenance: Vec<SourceProvenance>,
     rom_model_path: String,
     parity_harness_path: String,
+    diagnostics_path: String,
 }
 
 #[derive(Clone, Serialize, JsonSchema)]
@@ -94,6 +97,23 @@ struct GameboyParityHarness {
     graph_edges: usize,
 }
 
+#[derive(Clone, Serialize, JsonSchema)]
+struct AsmDiagnostic {
+    severity: String,
+    code: String,
+    message: String,
+    canonical_line: usize,
+    canonical_col: usize,
+    canonical_snippet: String,
+    source_file: String,
+    source_line: usize,
+}
+
+#[derive(Clone, Serialize, JsonSchema)]
+struct GameboyDiagnostics {
+    diagnostics: Vec<AsmDiagnostic>,
+}
+
 pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_only: bool) -> AsmResult<ImportAsmOutput> {
     let _ = tracing_subscriber::fmt::try_init();
     let normalized = format.trim().to_ascii_lowercase();
@@ -105,6 +125,7 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
     let canonical = canonicalize_asm(&raw);
     let canonical_text = canonical.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
     let expanded = expand_rgbds_semantics(&canonical);
+    let expanded_text = expanded.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
     let (parsed, provenance) = parse_asm_program(&expanded);
     let translit_units = build_translit_units(&parsed);
     let report = build_recovery_report(input, &expanded, &parsed);
@@ -122,8 +143,10 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
     let report_json_path = research_dir.join("gameboy_recovery_report.json");
     let rom_model_path = map_json_path.with_file_name("gameboy_rom_model.json");
     let parity_harness_path = map_json_path.with_file_name("gameboy_parity_harness.json");
+    let diagnostics_path = map_json_path.with_file_name("gameboy_diagnostics.json");
     let rom_model = build_rom_model(&expanded, &parsed);
     let parity_harness = build_parity_harness(&parsed);
+    let diagnostics = build_diagnostics(&expanded, &expanded_text, &report);
     debug!(
         "import stages done: canonical_lines={}, expanded_lines={}, blocks={}",
         canonical.len(),
@@ -140,6 +163,7 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
             source_provenance: provenance,
             rom_model_path: rom_model_path.display().to_string(),
             parity_harness_path: parity_harness_path.display().to_string(),
+            diagnostics_path: diagnostics_path.display().to_string(),
         };
         let map_json = serde_json::to_string_pretty(&map).map_err(|e| AsmError::runtime(format!("Failed to serialize gameboy map: {}", e)))?;
         fs::write(&map_json_path, map_json).map_err(AsmError::Io)?;
@@ -147,6 +171,8 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
         fs::write(&rom_model_path, rom_json).map_err(AsmError::Io)?;
         let parity_json = serde_json::to_string_pretty(&parity_harness).map_err(|e| AsmError::runtime(format!("Failed to serialize parity harness: {}", e)))?;
         fs::write(&parity_harness_path, parity_json).map_err(AsmError::Io)?;
+        let diagnostics_json = serde_json::to_string_pretty(&diagnostics).map_err(|e| AsmError::runtime(format!("Failed to serialize diagnostics: {}", e)))?;
+        fs::write(&diagnostics_path, diagnostics_json).map_err(AsmError::Io)?;
     }
     let report_json = serde_json::to_string_pretty(&report).map_err(|e| AsmError::runtime(format!("Failed to serialize gameboy recovery report: {}", e)))?;
     fs::write(&report_json_path, report_json).map_err(AsmError::Io)?;
@@ -944,6 +970,68 @@ fn build_recovery_report(input: &Path, canonical: &[CanonLine], parsed: &AsmProg
     }
 }
 
+fn build_diagnostics(lines: &[CanonLine], expanded_text: &str, report: &RecoveryReport) -> GameboyDiagnostics {
+    let mapper = SpanMapper::new(expanded_text);
+    let line_starts = compute_line_starts(expanded_text);
+    let mut diagnostics = Vec::<AsmDiagnostic>::new();
+
+    for issue in &report.unresolved_tokens {
+        if let Some(diag) = issue_to_diag("error", "ASM_UNRESOLVED", issue, lines, &mapper, &line_starts) {
+            diagnostics.push(diag);
+        }
+    }
+    for issue in &report.ambiguous_labels {
+        if let Some(diag) = issue_to_diag("warning", "ASM_AMBIGUOUS", issue, lines, &mapper, &line_starts) {
+            diagnostics.push(diag);
+        }
+    }
+    GameboyDiagnostics { diagnostics }
+}
+
+fn issue_to_diag(
+    severity: &str,
+    code: &str,
+    issue: &RecoveryIssue,
+    lines: &[CanonLine],
+    mapper: &SpanMapper,
+    line_starts: &[usize],
+) -> Option<AsmDiagnostic> {
+    if issue.line == 0 || issue.line > lines.len() {
+        return None;
+    }
+    let line_idx = issue.line - 1;
+    let canon = &lines[line_idx];
+    let col0 = canon
+        .text
+        .char_indices()
+        .find_map(|(idx, ch)| if ch.is_ascii_whitespace() { None } else { Some(idx) })
+        .unwrap_or(0);
+    let span_start = line_starts.get(line_idx).copied().unwrap_or(0).saturating_add(col0);
+    let span = Span::new(span_start, span_start.saturating_add(1));
+    let loc = mapper.span_to_location(span, "<expanded>");
+
+    Some(AsmDiagnostic {
+        severity: severity.to_string(),
+        code: code.to_string(),
+        message: issue.message.clone(),
+        canonical_line: issue.line,
+        canonical_col: loc.col,
+        canonical_snippet: canon.text.clone(),
+        source_file: canon.file.clone(),
+        source_line: canon.line,
+    })
+}
+
+fn compute_line_starts(text: &str) -> Vec<usize> {
+    let mut starts = vec![0usize];
+    for (idx, ch) in text.char_indices() {
+        if ch == '\n' {
+            starts.push(idx + 1);
+        }
+    }
+    starts
+}
+
 fn default_parity_trace_schema() -> ParityTraceFrame {
     let mut registers = BTreeMap::new();
     for reg in ["a", "b", "c", "d", "e", "h", "l", "f", "sp", "pc"] { registers.insert(reg.to_string(), 0); }
@@ -1042,5 +1130,7 @@ mod tests {
         assert!(result.generated_kn_path.exists());
         assert!(result.map_json_path.exists());
         assert!(result.report_json_path.exists());
+        let diag_path = result.map_json_path.parent().expect("map parent").join("gameboy_diagnostics.json");
+        assert!(diag_path.exists());
     }
 }

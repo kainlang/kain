@@ -37,7 +37,7 @@
     {
       "kind": "directive",
       "symbol": "SECTION",
-      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772168736438373300\\gb_source.asm",
       "source_line_start": 1,
       "source_line_end": 1,
       "canonical_line_start": 1,
@@ -46,7 +46,7 @@
     {
       "kind": "data_table",
       "symbol": "__anonymous_table",
-      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772168736438373300\\gb_source.asm",
       "source_line_start": 4,
       "source_line_end": 4,
       "canonical_line_start": 4,
@@ -55,7 +55,7 @@
     {
       "kind": "block",
       "symbol": "Start",
-      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772168736438373300\\gb_source.asm",
       "source_line_start": 2,
       "source_line_end": 3,
       "canonical_line_start": 2,
@@ -63,5 +63,6 @@
     }
   ],
   "rom_model_path": "M:\\Code\\Kain\\crates\\kain-asm\\generated\\gameboy_rom_model.json",
-  "parity_harness_path": "M:\\Code\\Kain\\crates\\kain-asm\\generated\\gameboy_parity_harness.json"
+  "parity_harness_path": "M:\\Code\\Kain\\crates\\kain-asm\\generated\\gameboy_parity_harness.json",
+  "diagnostics_path": "M:\\Code\\Kain\\crates\\kain-asm\\generated\\gameboy_diagnostics.json"
 }
