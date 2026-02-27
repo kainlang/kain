@@ -86,6 +86,7 @@ struct Lr35902Memory {
     framebuffer: Vec<u8>,
     last_ppu_mode: u8,
     stat_irq_latch: bool,
+    window_line_counter: u8,
     apu_cycle_accum: u16,
     apu_frame_step: u8,
 }
@@ -164,6 +165,7 @@ impl Default for Lr35902Memory {
             framebuffer: vec![0; 160 * 144],
             last_ppu_mode: 0,
             stat_irq_latch: false,
+            window_line_counter: 0,
             apu_cycle_accum: 0,
             apu_frame_step: 0,
         }
@@ -424,6 +426,7 @@ fn write8(mem: &mut Lr35902Memory, addr: u16, value: u8) {
                     mem.io[IO_LY] = 0;
                     mem.last_ppu_mode = 0;
                     mem.stat_irq_latch = false;
+                    mem.window_line_counter = 0;
                 } else if !was_enabled && now_enabled {
                     mem.ppu_cycle_accum = 0;
                     mem.last_ppu_mode = 2;
@@ -477,7 +480,7 @@ fn update_stat_and_irq(mem: &mut Lr35902Memory) {
     };
 
     if mem.last_ppu_mode == 3 && mode == 0 && ly < 144 {
-        render_bg_scanline(mem, ly as usize);
+        render_scanline(mem, ly as usize);
     }
     mem.last_ppu_mode = mode;
 
@@ -508,45 +511,209 @@ fn bg_palette_shade(bgp: u8, color_id: u8) -> u8 {
     (bgp >> shift) & 0x03
 }
 
-fn render_bg_scanline(mem: &mut Lr35902Memory, ly: usize) {
+fn read_tile_color_id(mem: &Lr35902Memory, lcdc: u8, tile_id: u8, fine_y: usize, fine_x: usize) -> u8 {
+    let signed_tiles = (lcdc & 0x10) == 0;
+    let tile_base = if signed_tiles {
+        let signed = tile_id as i8 as i16;
+        (0x1000i16 + signed * 16) as usize
+    } else {
+        tile_id as usize * 16
+    };
+    let row_addr = tile_base + fine_y * 2;
+    let low = mem.vram.get(row_addr).copied().unwrap_or(0);
+    let high = mem.vram.get(row_addr + 1).copied().unwrap_or(0);
+    let bit = 7usize.saturating_sub(fine_x & 7);
+    (((high >> bit) & 1) << 1) | ((low >> bit) & 1)
+}
+
+fn bg_map_tile(mem: &Lr35902Memory, map_base: usize, y: usize, x: usize) -> u8 {
+    let tile_row = (y / 8) & 31;
+    let tile_col = (x / 8) & 31;
+    let map_idx = map_base + tile_row * 32 + tile_col;
+    mem.vram.get(map_idx).copied().unwrap_or(0)
+}
+
+fn window_start_x(mem: &Lr35902Memory) -> i16 {
+    mem.io[IO_WX] as i16 - 7
+}
+
+fn window_visible_on_line(mem: &Lr35902Memory, lcdc: u8, ly: usize) -> bool {
+    if (lcdc & 0x20) == 0 || (lcdc & 0x01) == 0 {
+        return false;
+    }
+    let wy = mem.io[IO_WY] as usize;
+    if ly < wy {
+        return false;
+    }
+    window_start_x(mem) <= 159
+}
+
+fn bg_window_color_id(
+    mem: &Lr35902Memory,
+    lcdc: u8,
+    ly: usize,
+    x: usize,
+    window_visible: bool,
+    window_line: usize,
+    wx_start: i16,
+) -> u8 {
+    let bg_enabled = (lcdc & 0x01) != 0;
+    if !bg_enabled {
+        return 0;
+    }
+
+    if window_visible && (x as i16) >= wx_start {
+        let win_x = (x as i16 - wx_start) as usize;
+        let win_y = window_line;
+        let map_base = if (lcdc & 0x40) != 0 { 0x1c00usize } else { 0x1800usize };
+        let tile_id = bg_map_tile(mem, map_base, win_y, win_x);
+        return read_tile_color_id(mem, lcdc, tile_id, win_y % 8, win_x % 8);
+    }
+
+    let scx = mem.io[IO_SCX] as usize;
+    let scy = mem.io[IO_SCY] as usize;
+    let bg_x = (scx + x) & 0xff;
+    let bg_y = (scy + ly) & 0xff;
+    let map_base = if (lcdc & 0x08) != 0 { 0x1c00usize } else { 0x1800usize };
+    let tile_id = bg_map_tile(mem, map_base, bg_y, bg_x);
+    read_tile_color_id(mem, lcdc, tile_id, bg_y % 8, bg_x % 8)
+}
+
+#[derive(Clone, Copy)]
+struct LineSprite {
+    index: usize,
+    x: i16,
+    y: i16,
+    tile: u8,
+    flags: u8,
+}
+
+fn select_line_sprites(mem: &Lr35902Memory, ly: usize, mode2_dots: u16) -> Vec<LineSprite> {
+    let lcdc = mem.io[IO_LCDC];
+    if (lcdc & 0x02) == 0 {
+        return Vec::new();
+    }
+    let sprite_height: i16 = if (lcdc & 0x04) != 0 { 16 } else { 8 };
+    let entries_scanned = usize::from((mode2_dots / 2).min(40));
+    let mut selected = Vec::<LineSprite>::new();
+    for i in 0..entries_scanned {
+        let base = i * 4;
+        let y = mem.oam[base] as i16 - 16;
+        let x = mem.oam[base + 1] as i16 - 8;
+        let tile = mem.oam[base + 2];
+        let flags = mem.oam[base + 3];
+        if (ly as i16) >= y && (ly as i16) < y + sprite_height && selected.len() < 10 {
+            selected.push(LineSprite { index: i, x, y, tile, flags });
+        }
+    }
+    selected
+}
+
+fn render_scanline(mem: &mut Lr35902Memory, ly: usize) {
     if ly >= 144 {
         return;
     }
     let lcdc = mem.io[IO_LCDC];
-    let bg_enabled = (lcdc & 0x01) != 0;
-    let scx = mem.io[IO_SCX] as usize;
-    let scy = mem.io[IO_SCY] as usize;
     let bgp = mem.io[IO_BGP];
-    let map_base = if (lcdc & 0x08) != 0 { 0x1c00usize } else { 0x1800usize };
-    let signed_tiles = (lcdc & 0x10) == 0;
-    let y = (scy + ly) & 0xff;
-    let tile_row = (y / 8) & 31;
-    let fine_y = y % 8;
+    let window_visible = window_visible_on_line(mem, lcdc, ly);
+    let window_line = mem.window_line_counter as usize;
+    let wx_start = window_start_x(mem);
+    let mut bg_color_ids = [0u8; 160];
 
     for x in 0..160usize {
-        let mut shade = 0u8;
-        if bg_enabled {
-            let bx = (scx + x) & 0xff;
-            let tile_col = (bx / 8) & 31;
-            let map_idx = map_base + tile_row * 32 + tile_col;
-            let tile_id = mem.vram.get(map_idx).copied().unwrap_or(0);
-            let tile_base = if signed_tiles {
-                let signed = tile_id as i8 as i16;
-                (0x1000i16 + signed * 16) as usize
-            } else {
-                tile_id as usize * 16
-            };
-            let row_addr = tile_base + fine_y * 2;
-            let low = mem.vram.get(row_addr).copied().unwrap_or(0);
-            let high = mem.vram.get(row_addr + 1).copied().unwrap_or(0);
-            let bit = 7 - (bx % 8);
-            let color_id = (((high >> bit) & 1) << 1) | ((low >> bit) & 1);
-            shade = bg_palette_shade(bgp, color_id);
-        }
+        let color_id = bg_window_color_id(mem, lcdc, ly, x, window_visible, window_line, wx_start);
+        bg_color_ids[x] = color_id;
+        let shade = bg_palette_shade(bgp, color_id);
         let fb_idx = ly * 160 + x;
         if fb_idx < mem.framebuffer.len() {
             mem.framebuffer[fb_idx] = shade;
         }
+    }
+    if window_visible {
+        mem.window_line_counter = mem.window_line_counter.wrapping_add(1);
+    }
+
+    let mut line_sprites = select_line_sprites(mem, ly, 80);
+    if line_sprites.is_empty() {
+        return;
+    }
+    let sprite_height: i16 = if (lcdc & 0x04) != 0 { 16 } else { 8 };
+    line_sprites.sort_by(|a, b| a.x.cmp(&b.x).then(a.index.cmp(&b.index)));
+
+    for x in 0..160usize {
+        for sprite in &line_sprites {
+            let sx = x as i16 - sprite.x;
+            if !(0..8).contains(&sx) {
+                continue;
+            }
+
+            let mut sprite_row = (ly as i16 - sprite.y) as usize;
+            if (sprite.flags & 0x40) != 0 {
+                sprite_row = (sprite_height as usize - 1).saturating_sub(sprite_row);
+            }
+
+            let mut tile_id = sprite.tile;
+            if sprite_height == 16 {
+                tile_id &= 0xfe;
+                if sprite_row >= 8 {
+                    tile_id = tile_id.wrapping_add(1);
+                    sprite_row -= 8;
+                }
+            }
+
+            let fine_x = if (sprite.flags & 0x20) != 0 {
+                sx as usize
+            } else {
+                7usize.saturating_sub(sx as usize)
+            };
+            let color_id = read_tile_color_id(mem, 0x10, tile_id, sprite_row, fine_x);
+            if color_id == 0 {
+                continue;
+            }
+
+            if (sprite.flags & 0x80) != 0 && bg_color_ids[x] != 0 {
+                continue;
+            }
+
+            let palette = if (sprite.flags & 0x10) != 0 {
+                mem.io[IO_OBP1]
+            } else {
+                mem.io[IO_OBP0]
+            };
+            let shade = bg_palette_shade(palette, color_id);
+            let fb_idx = ly * 160 + x;
+            if fb_idx < mem.framebuffer.len() {
+                mem.framebuffer[fb_idx] = shade;
+            }
+            break;
+        }
+    }
+}
+
+fn advance_ppu_cycles(mem: &mut Lr35902Memory, cycles: u16) {
+    if (mem.io[IO_LCDC] & 0x80) == 0 {
+        mem.ppu_cycle_accum = 0;
+        mem.io[IO_LY] = 0;
+        mem.window_line_counter = 0;
+        update_stat_and_irq(mem);
+        return;
+    }
+
+    for _ in 0..cycles {
+        mem.ppu_cycle_accum = mem.ppu_cycle_accum.wrapping_add(1);
+        if mem.ppu_cycle_accum >= 456 {
+            mem.ppu_cycle_accum = 0;
+            let mut ly = mem.io[IO_LY].wrapping_add(1);
+            if ly == 144 {
+                request_interrupt(mem, IF_BIT_VBLANK);
+            }
+            if ly > 153 {
+                ly = 0;
+                mem.window_line_counter = 0;
+            }
+            mem.io[IO_LY] = ly;
+        }
+        update_stat_and_irq(mem);
     }
 }
 
@@ -593,19 +760,7 @@ fn advance_clock(mem: &mut Lr35902Memory, cycles: u8) {
         }
     }
 
-    // PPU line timing: 456 cycles per LY line, VBlank starts at LY=144.
-    mem.ppu_cycle_accum = mem.ppu_cycle_accum.saturating_add(c);
-    while mem.ppu_cycle_accum >= 456 {
-        mem.ppu_cycle_accum -= 456;
-        let mut ly = mem.io[IO_LY].wrapping_add(1);
-        if ly == 144 {
-            request_interrupt(mem, IF_BIT_VBLANK);
-        }
-        if ly > 153 {
-            ly = 0;
-        }
-        mem.io[IO_LY] = ly;
-    }
+    advance_ppu_cycles(mem, c);
 
     if mem.serial_cycles_remaining > 0 {
         if mem.serial_cycles_remaining > c {
@@ -624,7 +779,9 @@ fn advance_clock(mem: &mut Lr35902Memory, cycles: u8) {
         mem.apu_frame_step = (mem.apu_frame_step + 1) & 0x07;
     }
 
-    update_stat_and_irq(mem);
+    if (mem.io[IO_LCDC] & 0x80) == 0 {
+        update_stat_and_irq(mem);
+    }
 }
 
 fn get_hl(state: &Lr35902State) -> u16 {
@@ -2784,6 +2941,12 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    fn set_tile_row(mem: &mut Lr35902Memory, tile: usize, row: usize, low: u8, high: u8) {
+        let base = tile * 16 + row * 2;
+        mem.vram[base] = low;
+        mem.vram[base + 1] = high;
+    }
+
     #[test]
     fn macro_if_expansion() {
         let src = vec![
@@ -3089,6 +3252,210 @@ mod tests {
         assert_eq!(mem.io[IO_LY], 1);
         assert_eq!(mem.io[IO_STAT] & 0x04, 0x04); // coincidence flag set
         assert_eq!(mem.io[IO_IF] & IF_BIT_LCDSTAT, IF_BIT_LCDSTAT);
+    }
+
+    #[test]
+    fn lr35902_scanline_window_overrides_background() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x91 | 0x20 | 0x40; // LCD on + BG + unsigned tile data + window on + window map 9c00
+        mem.io[IO_BGP] = 0b1110_0100; // identity mapping for 2-bit shades
+        mem.io[IO_WY] = 0;
+        mem.io[IO_WX] = 7; // window starts at x=0
+
+        // BG tile 0 -> color id 1 at leftmost pixel.
+        mem.vram[0x1800] = 0;
+        set_tile_row(&mut mem, 0, 0, 0x80, 0x00);
+        // Window tile 1 -> color id 2 at leftmost pixel.
+        mem.vram[0x1c00] = 1;
+        set_tile_row(&mut mem, 1, 0, 0x00, 0x80);
+
+        render_scanline(&mut mem, 0);
+        assert_eq!(mem.framebuffer[0], 2);
+    }
+
+    #[test]
+    fn lr35902_scanline_sprite_respects_bg_priority_flag() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x93; // LCD on + BG on + OBJ on + unsigned tile data
+        mem.io[IO_BGP] = 0b1110_0100;
+        mem.io[IO_OBP0] = 0b1110_0100;
+
+        // BG tile 0 -> color id 1 at x=0.
+        mem.vram[0x1800] = 0;
+        set_tile_row(&mut mem, 0, 0, 0x80, 0x00);
+
+        // Sprite at (0,0), tile 2, priority behind BG.
+        mem.oam[0] = 16; // y + 16
+        mem.oam[1] = 8;  // x + 8
+        mem.oam[2] = 2;  // tile
+        mem.oam[3] = 0x80; // OBJ behind BG
+        set_tile_row(&mut mem, 2, 0, 0x00, 0x80); // sprite color id 2
+
+        render_scanline(&mut mem, 0);
+        assert_eq!(mem.framebuffer[0], 1);
+    }
+
+    #[test]
+    fn lr35902_oam_scan_overflow_prefers_first_ten_in_oam_order() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x93;
+        // First ten sprites are off to the right and all on line 0.
+        for i in 0..10usize {
+            let base = i * 4;
+            mem.oam[base] = 16;
+            mem.oam[base + 1] = 100;
+            mem.oam[base + 2] = 0;
+            mem.oam[base + 3] = 0;
+        }
+        // 11th sprite would affect x=0 if selected.
+        mem.oam[40] = 16;
+        mem.oam[41] = 8;
+        mem.oam[42] = 1;
+        mem.oam[43] = 0;
+        set_tile_row(&mut mem, 1, 0, 0x80, 0x00);
+
+        render_scanline(&mut mem, 0);
+        assert_eq!(mem.framebuffer[0], 0);
+    }
+
+    #[test]
+    fn lr35902_oam_scan_progresses_one_entry_per_two_dots() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x93;
+        for i in 0..3usize {
+            let base = i * 4;
+            mem.oam[base] = 16;
+            mem.oam[base + 1] = 8 + i as u8;
+            mem.oam[base + 2] = i as u8;
+            mem.oam[base + 3] = 0;
+        }
+
+        let scan2 = select_line_sprites(&mem, 0, 4);
+        assert_eq!(scan2.len(), 2);
+        assert_eq!(scan2[0].index, 0);
+        assert_eq!(scan2[1].index, 1);
+
+        let scan3 = select_line_sprites(&mem, 0, 6);
+        assert_eq!(scan3.len(), 3);
+        assert_eq!(scan3[2].index, 2);
+    }
+
+    #[test]
+    fn lr35902_window_line_counter_skips_hidden_lines() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x91 | 0x20 | 0x40;
+        mem.io[IO_BGP] = 0b1110_0100;
+        mem.io[IO_WY] = 0;
+        mem.io[IO_WX] = 7;
+        // Window row uses tile 1; rows within the tile encode colors 1/2/3.
+        mem.vram[0x1c00] = 1;
+        set_tile_row(&mut mem, 1, 0, 0x80, 0x00);
+        set_tile_row(&mut mem, 1, 1, 0x00, 0x80);
+        set_tile_row(&mut mem, 1, 2, 0x80, 0x80);
+
+        render_scanline(&mut mem, 0);
+        assert_eq!(mem.framebuffer[0], 1);
+        assert_eq!(mem.window_line_counter, 1);
+
+        mem.io[IO_WX] = 167; // hidden this line
+        render_scanline(&mut mem, 1);
+        assert_eq!(mem.window_line_counter, 1);
+
+        mem.io[IO_WX] = 7;
+        render_scanline(&mut mem, 2);
+        assert_eq!(mem.framebuffer[2 * 160], 2);
+        assert_eq!(mem.window_line_counter, 2);
+    }
+
+    #[test]
+    fn lr35902_window_counter_resets_on_new_frame() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x80;
+        mem.io[IO_LY] = 153;
+        mem.ppu_cycle_accum = 455;
+        mem.window_line_counter = 9;
+        advance_ppu_cycles(&mut mem, 1);
+        assert_eq!(mem.io[IO_LY], 0);
+        assert_eq!(mem.window_line_counter, 0);
+    }
+
+    #[test]
+    fn lr35902_stat_mode0_interrupt_on_mode_edge() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x80;
+        mem.io[IO_STAT] = 0x08; // mode 0 interrupt enable
+        mem.io[IO_LY] = 0;
+        mem.ppu_cycle_accum = 251; // currently mode 3
+        mem.last_ppu_mode = 3;
+        mem.io[IO_IF] = 0;
+        mem.stat_irq_latch = false;
+
+        advance_clock(&mut mem, 1); // enter HBlank mode 0
+        assert_eq!(mem.io[IO_STAT] & 0x03, 0);
+        assert_eq!(mem.io[IO_IF] & IF_BIT_LCDSTAT, IF_BIT_LCDSTAT);
+    }
+
+    #[test]
+    fn lr35902_stat_lyc_interrupt_requires_rising_edge() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x80;
+        mem.io[IO_STAT] = 0x40; // LYC interrupt enable
+        mem.io[IO_LY] = 5;
+        mem.io[IO_LYC] = 5;
+        mem.stat_irq_latch = false;
+        mem.io[IO_IF] = 0;
+
+        update_stat_and_irq(&mut mem);
+        assert_eq!(mem.io[IO_IF] & IF_BIT_LCDSTAT, IF_BIT_LCDSTAT);
+
+        mem.io[IO_IF] &= !IF_BIT_LCDSTAT;
+        update_stat_and_irq(&mut mem);
+        assert_eq!(mem.io[IO_IF] & IF_BIT_LCDSTAT, 0);
+    }
+
+    #[test]
+    fn lr35902_stat_mode_trace_matches_known_boundaries() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x80;
+        mem.io[IO_LY] = 0;
+        mem.ppu_cycle_accum = 0;
+        update_stat_and_irq(&mut mem);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 2);
+
+        advance_ppu_cycles(&mut mem, 79);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 2);
+
+        advance_ppu_cycles(&mut mem, 1);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 3);
+
+        advance_ppu_cycles(&mut mem, 171);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 3);
+
+        advance_ppu_cycles(&mut mem, 1);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 0);
+
+        advance_ppu_cycles(&mut mem, 203);
+        assert_eq!(mem.io[IO_LY], 0);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 0);
+
+        advance_ppu_cycles(&mut mem, 1);
+        assert_eq!(mem.io[IO_LY], 1);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 2);
+    }
+
+    #[test]
+    fn lr35902_stat_enters_vblank_mode_at_ly144_boundary() {
+        let mut mem = Lr35902Memory::default();
+        mem.io[IO_LCDC] = 0x80;
+        mem.io[IO_LY] = 143;
+        mem.ppu_cycle_accum = 455;
+        mem.io[IO_IF] = 0;
+        update_stat_and_irq(&mut mem);
+
+        advance_ppu_cycles(&mut mem, 1);
+        assert_eq!(mem.io[IO_LY], 144);
+        assert_eq!(mem.io[IO_STAT] & 0x03, 1);
+        assert_eq!(mem.io[IO_IF] & IF_BIT_VBLANK, IF_BIT_VBLANK);
     }
 
     #[test]
