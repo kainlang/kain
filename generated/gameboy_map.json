@@ -7234,7 +7234,7 @@
       "source_label": "GetMachinePrice",
       "target_item": "gb_getmachineprice",
       "source_line_start": 46393,
-      "source_line_end": 48988
+      "source_line_end": 48995
     }
   ],
   "parity_trace_schema": {
@@ -48728,24 +48728,6 @@
       "canonical_line_end": 35944
     },
     {
-      "kind": "directive",
-      "symbol": "REPT",
-      "source_file": "\\\\?\\M:\\Code\\Research\\pokered-master\\engine\\overworld\\healing_machine.asm",
-      "source_line_start": 94,
-      "source_line_end": 94,
-      "canonical_line_start": 35947,
-      "canonical_line_end": 35947
-    },
-    {
-      "kind": "directive",
-      "symbol": "ENDR",
-      "source_file": "\\\\?\\M:\\Code\\Research\\pokered-master\\engine\\overworld\\healing_machine.asm",
-      "source_line_start": 98,
-      "source_line_end": 98,
-      "canonical_line_start": 35951,
-      "canonical_line_end": 35951
-    },
-    {
       "kind": "block",
       "symbol": "CopyHealingMachineOAM",
       "source_file": "\\\\?\\M:\\Code\\Research\\pokered-master\\engine\\overworld\\healing_machine.asm",
@@ -87695,7 +87677,9 @@
       "source_line_start": 1,
       "source_line_end": 23,
       "canonical_line_start": 46393,
-      "canonical_line_end": 48988
+      "canonical_line_end": 48995
     }
-  ]
+  ],
+  "rom_model_path": "M:\\Code\\Kain\\generated\\gameboy_rom_model.json",
+  "parity_harness_path": "M:\\Code\\Kain\\generated\\gameboy_parity_harness.json"
 }

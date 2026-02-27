@@ -37,7 +37,17 @@ fn write_port(port_id: Int, value: Int):
     let _value = value
 
 fn step(cpu: CpuState, mem: Memory) -> (CpuState, Memory, Int):
-    return (cpu, mem, 0)
+    let next_cpu = cpu
+    let next_mem = mem
+    let opcode = 0
+    if opcode == 0:
+        # NOP
+        return (next_cpu, next_mem, 4)
+    return (next_cpu, next_mem, 0)
+
+fn parity_frame(state: Ue5ShimState) -> Int:
+    let _state = state
+    return 0
 
 fn ue5_init(cpu: CpuState, mem: Memory) -> Ue5ShimState:
     return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }
@@ -3147,13 +3157,13 @@ const GAMEBOY_TABLES: Array<Array<Int>> = [
     [$7e, OAM_XFLIP],
     [$7e, OAM_YFLIP],
     [$7e, OAM_XFLIP, |, OAM_YFLIP],
-    [.OAMBlock0],
+    [__m644_trade_circle_oam_block_OAMBlock0],
     [8, 8],
-    [.OAMBlock1],
+    [__m645_trade_circle_oam_block_OAMBlock1],
     [24, 8],
-    [.OAMBlock2],
+    [__m646_trade_circle_oam_block_OAMBlock2],
     [8, 24],
-    [.OAMBlock3],
+    [__m647_trade_circle_oam_block_OAMBlock3],
     [24, 24],
     [ICON_TRADEBUBBLE, <<, 2, +, 0, OAM_PAL1],
     [ICON_TRADEBUBBLE, <<, 2, +, 1, OAM_PAL1],
@@ -37713,6 +37723,15 @@ fn gb_flashsprite8times(cpu: CpuState, mem: Memory) -> (CpuState, Memory):
 fn gb_copyhealingmachineoam(cpu: CpuState, mem: Memory) -> (CpuState, Memory):
     let next_cpu = cpu
     let next_mem = mem
+    # [CopyHealingMachineOAM:35948] LD a, [de]
+    # [CopyHealingMachineOAM:35949] INC de
+    # [CopyHealingMachineOAM:35950] LD [hli], a
+    # [CopyHealingMachineOAM:35948] LD a, [de]
+    # [CopyHealingMachineOAM:35949] INC de
+    # [CopyHealingMachineOAM:35950] LD [hli], a
+    # [CopyHealingMachineOAM:35948] LD a, [de]
+    # [CopyHealingMachineOAM:35949] INC de
+    # [CopyHealingMachineOAM:35950] LD [hli], a
     # [CopyHealingMachineOAM:35948] LD a, [de]
     # [CopyHealingMachineOAM:35949] INC de
     # [CopyHealingMachineOAM:35950] LD [hli], a

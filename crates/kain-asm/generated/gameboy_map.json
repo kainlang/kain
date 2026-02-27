@@ -1,0 +1,67 @@
+{
+  "translit_units": [
+    {
+      "source_label": "Start",
+      "target_item": "gb_start",
+      "source_line_start": 2,
+      "source_line_end": 4
+    }
+  ],
+  "parity_trace_schema": {
+    "tick": 0,
+    "pc": 0,
+    "opcode": "NOP",
+    "registers": {
+      "a": 0,
+      "b": 0,
+      "c": 0,
+      "d": 0,
+      "e": 0,
+      "f": 0,
+      "h": 0,
+      "l": 0,
+      "pc": 0,
+      "sp": 0
+    },
+    "flags": {
+      "c": false,
+      "h": false,
+      "n": false,
+      "z": false
+    },
+    "notes": [
+      "lr35902-schema"
+    ]
+  },
+  "source_provenance": [
+    {
+      "kind": "directive",
+      "symbol": "SECTION",
+      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+      "source_line_start": 1,
+      "source_line_end": 1,
+      "canonical_line_start": 1,
+      "canonical_line_end": 1
+    },
+    {
+      "kind": "data_table",
+      "symbol": "__anonymous_table",
+      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+      "source_line_start": 4,
+      "source_line_end": 4,
+      "canonical_line_start": 4,
+      "canonical_line_end": 4
+    },
+    {
+      "kind": "block",
+      "symbol": "Start",
+      "source_file": "\\\\?\\C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+      "source_line_start": 2,
+      "source_line_end": 3,
+      "canonical_line_start": 2,
+      "canonical_line_end": 4
+    }
+  ],
+  "rom_model_path": "M:\\Code\\Kain\\crates\\kain-asm\\generated\\gameboy_rom_model.json",
+  "parity_harness_path": "M:\\Code\\Kain\\crates\\kain-asm\\generated\\gameboy_parity_harness.json"
+}

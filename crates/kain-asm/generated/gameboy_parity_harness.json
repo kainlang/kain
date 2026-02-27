@@ -1,0 +1,11 @@
+{
+  "checkpoints": [
+    {
+      "tick": 0,
+      "label": "Start",
+      "source_line": 2
+    }
+  ],
+  "graph_nodes": 1,
+  "graph_edges": 0
+}

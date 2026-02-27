@@ -1,0 +1,17 @@
+{
+  "sections": [
+    {
+      "name": "ROM0",
+      "bank": 0,
+      "start": 256,
+      "end": 259,
+      "bytes": 4
+    }
+  ],
+  "banks": [
+    {
+      "bank": 0,
+      "used_bytes": 4
+    }
+  ]
+}

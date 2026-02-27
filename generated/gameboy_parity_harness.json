@@ -1,0 +1,2566 @@
+{
+  "checkpoints": [
+    {
+      "tick": 0,
+      "label": "ResetStatusAndHalveMoneyOnBlackout",
+      "source_line": 58
+    },
+    {
+      "tick": 1,
+      "label": "PrintSafariZoneBattleText",
+      "source_line": 114
+    },
+    {
+      "tick": 2,
+      "label": "CopyDebugName",
+      "source_line": 148
+    },
+    {
+      "tick": 3,
+      "label": "PrepareTitleScreen",
+      "source_line": 151
+    },
+    {
+      "tick": 4,
+      "label": "DisplayTitleScreen",
+      "source_line": 173
+    },
+    {
+      "tick": 5,
+      "label": ".ScrollTitleScreenPokemonLogo",
+      "source_line": 310
+    },
+    {
+      "tick": 6,
+      "label": "TitleScreenPickNewMon",
+      "source_line": 396
+    },
+    {
+      "tick": 7,
+      "label": "TitleScreenScrollInMon",
+      "source_line": 419
+    },
+    {
+      "tick": 8,
+      "label": "ScrollTitleScreenGameVersion",
+      "source_line": 425
+    },
+    {
+      "tick": 9,
+      "label": "DrawPlayerCharacter",
+      "source_line": 437
+    },
+    {
+      "tick": 10,
+      "label": "ClearBothBGMaps",
+      "source_line": 473
+    },
+    {
+      "tick": 11,
+      "label": "LoadTitleMonSprite",
+      "source_line": 478
+    },
+    {
+      "tick": 12,
+      "label": "TitleScreenCopyTileMapToVRAM",
+      "source_line": 484
+    },
+    {
+      "tick": 13,
+      "label": "LoadCopyrightAndTextBoxTiles",
+      "source_line": 487
+    },
+    {
+      "tick": 14,
+      "label": "LoadCopyrightTiles",
+      "source_line": 492
+    },
+    {
+      "tick": 15,
+      "label": "PrintGameVersionOnTitleScreen",
+      "source_line": 507
+    },
+    {
+      "tick": 16,
+      "label": "LoadMonData_",
+      "source_line": 523
+    },
+    {
+      "tick": 17,
+      "label": "PrepareOAMData",
+      "source_line": 786
+    },
+    {
+      "tick": 18,
+      "label": "GetSpriteScreenXY",
+      "source_line": 928
+    },
+    {
+      "tick": 19,
+      "label": "WriteDMACodeToHRAM",
+      "source_line": 949
+    },
+    {
+      "tick": 20,
+      "label": "hDMARoutine",
+      "source_line": 964
+    },
+    {
+      "tick": 21,
+      "label": "PrintWaitingText",
+      "source_line": 976
+    },
+    {
+      "tick": 22,
+      "label": "_UpdateSprites",
+      "source_line": 996
+    },
+    {
+      "tick": 23,
+      "label": "UpdateNonPlayerSprite",
+      "source_line": 1025
+    },
+    {
+      "tick": 24,
+      "label": "DetectCollisionBetweenSprites",
+      "source_line": 1047
+    },
+    {
+      "tick": 25,
+      "label": "SetSpriteCollisionValues",
+      "source_line": 1274
+    },
+    {
+      "tick": 26,
+      "label": "DebugMenu",
+      "source_line": 1292
+    },
+    {
+      "tick": 27,
+      "label": "TestBattle",
+      "source_line": 1352
+    },
+    {
+      "tick": 28,
+      "label": "PickUpItem",
+      "source_line": 1390
+    },
+    {
+      "tick": 29,
+      "label": "UpdatePlayerSprite",
+      "source_line": 1438
+    },
+    {
+      "tick": 30,
+      "label": "UnusedReadSpriteDataFunction",
+      "source_line": 1537
+    },
+    {
+      "tick": 31,
+      "label": "UpdateNPCSprite",
+      "source_line": 1547
+    },
+    {
+      "tick": 32,
+      "label": "ChangeFacingDirection",
+      "source_line": 1686
+    },
+    {
+      "tick": 33,
+      "label": "TryWalking",
+      "source_line": 1695
+    },
+    {
+      "tick": 34,
+      "label": "UpdateSpriteInWalkingAnimation",
+      "source_line": 1733
+    },
+    {
+      "tick": 35,
+      "label": "UpdateSpriteMovementDelay",
+      "source_line": 1807
+    },
+    {
+      "tick": 36,
+      "label": "NotYetMoving",
+      "source_line": 1829
+    },
+    {
+      "tick": 37,
+      "label": "MakeNPCFacePlayer",
+      "source_line": 1836
+    },
+    {
+      "tick": 38,
+      "label": "InitializeSpriteStatus",
+      "source_line": 1867
+    },
+    {
+      "tick": 39,
+      "label": "InitializeSpriteScreenPosition",
+      "source_line": 1880
+    },
+    {
+      "tick": 40,
+      "label": "CheckSpriteAvailability",
+      "source_line": 1903
+    },
+    {
+      "tick": 41,
+      "label": "UpdateSpriteImage",
+      "source_line": 1983
+    },
+    {
+      "tick": 42,
+      "label": "CanWalkOntoTile",
+      "source_line": 2007
+    },
+    {
+      "tick": 43,
+      "label": "GetTileSpriteStandsOn",
+      "source_line": 2122
+    },
+    {
+      "tick": 44,
+      "label": "LoadDEPlusA",
+      "source_line": 2150
+    },
+    {
+      "tick": 45,
+      "label": "DoScriptedNPCMovement",
+      "source_line": 2158
+    },
+    {
+      "tick": 46,
+      "label": "InitScriptedNPCMovement",
+      "source_line": 2228
+    },
+    {
+      "tick": 47,
+      "label": "GetSpriteScreenYPointer",
+      "source_line": 2234
+    },
+    {
+      "tick": 48,
+      "label": "GetSpriteScreenXPointer",
+      "source_line": 2238
+    },
+    {
+      "tick": 49,
+      "label": "GetSpriteScreenXYPointerCommon",
+      "source_line": 2241
+    },
+    {
+      "tick": 50,
+      "label": "AnimScriptedNPCMovement",
+      "source_line": 2248
+    },
+    {
+      "tick": 51,
+      "label": "AdvanceScriptedNPCAnimFrameCounter",
+      "source_line": 2286
+    },
+    {
+      "tick": 52,
+      "label": "CableClub_DoBattleOrTrade",
+      "source_line": 2307
+    },
+    {
+      "tick": 53,
+      "label": "CableClub_DoBattleOrTradeAgain",
+      "source_line": 2328
+    },
+    {
+      "tick": 54,
+      "label": "CallCurrentTradeCenterFunction",
+      "source_line": 2598
+    },
+    {
+      "tick": 55,
+      "label": "TradeCenter_SelectMon",
+      "source_line": 2611
+    },
+    {
+      "tick": 56,
+      "label": "ReturnToCableClubRoom",
+      "source_line": 2880
+    },
+    {
+      "tick": 57,
+      "label": "TradeCenter_DrawCancelBox",
+      "source_line": 2898
+    },
+    {
+      "tick": 58,
+      "label": "TradeCenter_PlaceSelectedEnemyMonMenuCursor",
+      "source_line": 2912
+    },
+    {
+      "tick": 59,
+      "label": "TradeCenter_DisplayStats",
+      "source_line": 2919
+    },
+    {
+      "tick": 60,
+      "label": "TradeCenter_DrawPartyLists",
+      "source_line": 2928
+    },
+    {
+      "tick": 61,
+      "label": "TradeCenter_PrintPartyListNames",
+      "source_line": 2949
+    },
+    {
+      "tick": 62,
+      "label": "TradeCenter_Trade",
+      "source_line": 2973
+    },
+    {
+      "tick": 63,
+      "label": "CableClub_Run",
+      "source_line": 3179
+    },
+    {
+      "tick": 64,
+      "label": "EmptyFunc",
+      "source_line": 3215
+    },
+    {
+      "tick": 65,
+      "label": "Diploma_TextBoxBorder",
+      "source_line": 3217
+    },
+    {
+      "tick": 66,
+      "label": "CableClub_TextBoxBorder",
+      "source_line": 3221
+    },
+    {
+      "tick": 67,
+      "label": "CableClub_DrawHorizontalLine",
+      "source_line": 3251
+    },
+    {
+      "tick": 68,
+      "label": "LoadTrainerInfoTextBoxTiles",
+      "source_line": 3258
+    },
+    {
+      "tick": 69,
+      "label": "MainMenu",
+      "source_line": 3263
+    },
+    {
+      "tick": 70,
+      "label": "InitOptions",
+      "source_line": 3386
+    },
+    {
+      "tick": 71,
+      "label": "LinkMenu",
+      "source_line": 3392
+    },
+    {
+      "tick": 72,
+      "label": "StartNewGame",
+      "source_line": 3568
+    },
+    {
+      "tick": 73,
+      "label": "StartNewGameDebug",
+      "source_line": 3575
+    },
+    {
+      "tick": 74,
+      "label": "SpecialEnterMap",
+      "source_line": 3580
+    },
+    {
+      "tick": 75,
+      "label": "DisplayContinueGameInfo",
+      "source_line": 3606
+    },
+    {
+      "tick": 76,
+      "label": "PrintSaveScreenText",
+      "source_line": 3629
+    },
+    {
+      "tick": 77,
+      "label": "PrintNumBadges",
+      "source_line": 3654
+    },
+    {
+      "tick": 78,
+      "label": "PrintNumOwnedMons",
+      "source_line": 3663
+    },
+    {
+      "tick": 79,
+      "label": "PrintPlayTime",
+      "source_line": 3672
+    },
+    {
+      "tick": 80,
+      "label": "DisplayOptionMenu",
+      "source_line": 3686
+    },
+    {
+      "tick": 81,
+      "label": "SetOptionsFromCursorPositions",
+      "source_line": 3851
+    },
+    {
+      "tick": 82,
+      "label": "SetCursorPositionsFromOptions",
+      "source_line": 3886
+    },
+    {
+      "tick": 83,
+      "label": "CheckForPlayerNameInSRAM",
+      "source_line": 3934
+    },
+    {
+      "tick": 84,
+      "label": "PrepareOakSpeech",
+      "source_line": 3964
+    },
+    {
+      "tick": 85,
+      "label": "OakSpeech",
+      "source_line": 4004
+    },
+    {
+      "tick": 86,
+      "label": "FadeInIntroPic",
+      "source_line": 4147
+    },
+    {
+      "tick": 87,
+      "label": "MovePicLeft",
+      "source_line": 4165
+    },
+    {
+      "tick": 88,
+      "label": "DisplayPicCenteredOrUpperRight",
+      "source_line": 4179
+    },
+    {
+      "tick": 89,
+      "label": "IntroDisplayPicCenteredOrUpperRight",
+      "source_line": 4181
+    },
+    {
+      "tick": 90,
+      "label": "PrepareForSpecialWarp",
+      "source_line": 4204
+    },
+    {
+      "tick": 91,
+      "label": "LoadSpecialWarpData",
+      "source_line": 4233
+    },
+    {
+      "tick": 92,
+      "label": "SetDebugNewGameParty",
+      "source_line": 4350
+    },
+    {
+      "tick": 93,
+      "label": "PrepareNewGameDebug",
+      "source_line": 4381
+    },
+    {
+      "tick": 94,
+      "label": "AskName",
+      "source_line": 4490
+    },
+    {
+      "tick": 95,
+      "label": "DisplayNameRaterScreen",
+      "source_line": 4543
+    },
+    {
+      "tick": 96,
+      "label": "DisplayNamingScreen",
+      "source_line": 4570
+    },
+    {
+      "tick": 97,
+      "label": "LoadEDTile",
+      "source_line": 4805
+    },
+    {
+      "tick": 98,
+      "label": "PrintAlphabet",
+      "source_line": 4814
+    },
+    {
+      "tick": 99,
+      "label": "PrintNicknameAndUnderscores",
+      "source_line": 4844
+    },
+    {
+      "tick": 100,
+      "label": "DakutensAndHandakutens",
+      "source_line": 4899
+    },
+    {
+      "tick": 101,
+      "label": "CalcStringLength",
+      "source_line": 4914
+    },
+    {
+      "tick": 102,
+      "label": "PrintNamingText",
+      "source_line": 4924
+    },
+    {
+      "tick": 103,
+      "label": "ChoosePlayerName",
+      "source_line": 4963
+    },
+    {
+      "tick": 104,
+      "label": "ChooseRivalName",
+      "source_line": 4994
+    },
+    {
+      "tick": 105,
+      "label": "OakSpeechSlidePicLeft",
+      "source_line": 5025
+    },
+    {
+      "tick": 106,
+      "label": "OakSpeechSlidePicRight",
+      "source_line": 5041
+    },
+    {
+      "tick": 107,
+      "label": "OakSpeechSlidePicCommon",
+      "source_line": 5045
+    },
+    {
+      "tick": 108,
+      "label": "DisplayIntroNameTextBox",
+      "source_line": 5117
+    },
+    {
+      "tick": 109,
+      "label": "GetDefaultName",
+      "source_line": 5144
+    },
+    {
+      "tick": 110,
+      "label": "SubtractAmountPaidFromMoney_",
+      "source_line": 5172
+    },
+    {
+      "tick": 111,
+      "label": "HandleItemListSwapping",
+      "source_line": 5187
+    },
+    {
+      "tick": 112,
+      "label": "DisplayPokemartDialogue_",
+      "source_line": 5336
+    },
+    {
+      "tick": 113,
+      "label": "LearnMove",
+      "source_line": 5587
+    },
+    {
+      "tick": 114,
+      "label": "DontAbandonLearning",
+      "source_line": 5596
+    },
+    {
+      "tick": 115,
+      "label": "AbandonLearning",
+      "source_line": 5660
+    },
+    {
+      "tick": 116,
+      "label": "PrintLearnedMove",
+      "source_line": 5675
+    },
+    {
+      "tick": 117,
+      "label": "TryingToLearn",
+      "source_line": 5680
+    },
+    {
+      "tick": 118,
+      "label": "OneTwoAndText",
+      "source_line": 5784
+    },
+    {
+      "tick": 119,
+      "label": "DisplayPokemonCenterDialogue_",
+      "source_line": 5801
+    },
+    {
+      "tick": 120,
+      "label": "SetLastBlackoutMap",
+      "source_line": 5864
+    },
+    {
+      "tick": 121,
+      "label": "DisplayTextIDInit",
+      "source_line": 5887
+    },
+    {
+      "tick": 122,
+      "label": "DrawStartMenu",
+      "source_line": 5967
+    },
+    {
+      "tick": 123,
+      "label": "PrintStartMenuItem",
+      "source_line": 6040
+    },
+    {
+      "tick": 124,
+      "label": "CableClubNPC",
+      "source_line": 6047
+    },
+    {
+      "tick": 125,
+      "label": "CloseLinkConnection",
+      "source_line": 6191
+    },
+    {
+      "tick": 126,
+      "label": "DisplayTextBoxID_",
+      "source_line": 6203
+    },
+    {
+      "tick": 127,
+      "label": "SearchTextBoxTable",
+      "source_line": 6253
+    },
+    {
+      "tick": 128,
+      "label": "GetTextBoxIDCoords",
+      "source_line": 6275
+    },
+    {
+      "tick": 129,
+      "label": "GetTextBoxIDText",
+      "source_line": 6290
+    },
+    {
+      "tick": 130,
+      "label": "GetAddressOfScreenCoords",
+      "source_line": 6309
+    },
+    {
+      "tick": 131,
+      "label": "DisplayMoneyBox",
+      "source_line": 6325
+    },
+    {
+      "tick": 132,
+      "label": "DoBuySellQuitMenu",
+      "source_line": 6344
+    },
+    {
+      "tick": 133,
+      "label": "DisplayTwoOptionMenu",
+      "source_line": 6398
+    },
+    {
+      "tick": 134,
+      "label": "TwoOptionMenu_SaveScreenTiles",
+      "source_line": 6531
+    },
+    {
+      "tick": 135,
+      "label": "TwoOptionMenu_RestoreScreenTiles",
+      "source_line": 6548
+    },
+    {
+      "tick": 136,
+      "label": "DisplayFieldMoveMonMenu",
+      "source_line": 6567
+    },
+    {
+      "tick": 137,
+      "label": "GetMonFieldMoves",
+      "source_line": 6682
+    },
+    {
+      "tick": 138,
+      "label": "DrainHPEffect_",
+      "source_line": 6734
+    },
+    {
+      "tick": 139,
+      "label": "PlayerPC",
+      "source_line": 6836
+    },
+    {
+      "tick": 140,
+      "label": "PlayerPCMenu",
+      "source_line": 6853
+    },
+    {
+      "tick": 141,
+      "label": "ExitPlayerPC",
+      "source_line": 6898
+    },
+    {
+      "tick": 142,
+      "label": "PlayerPCDeposit",
+      "source_line": 6918
+    },
+    {
+      "tick": 143,
+      "label": "PlayerPCWithdraw",
+      "source_line": 6971
+    },
+    {
+      "tick": 144,
+      "label": "PlayerPCToss",
+      "source_line": 7024
+    },
+    {
+      "tick": 145,
+      "label": "_RemovePokemon",
+      "source_line": 7119
+    },
+    {
+      "tick": 146,
+      "label": "_DisplayPokedex",
+      "source_line": 7218
+    },
+    {
+      "tick": 147,
+      "label": "_Joypad",
+      "source_line": 7238
+    },
+    {
+      "tick": 148,
+      "label": "DiscardButtonPresses",
+      "source_line": 7273
+    },
+    {
+      "tick": 149,
+      "label": "TrySoftReset",
+      "source_line": 7279
+    },
+    {
+      "tick": 150,
+      "label": "ClearVariablesOnEnterMap",
+      "source_line": 7791
+    },
+    {
+      "tick": 151,
+      "label": "IsPlayerStandingOnWarp",
+      "source_line": 7812
+    },
+    {
+      "tick": 152,
+      "label": "CheckForceBikeOrSurf",
+      "source_line": 7843
+    },
+    {
+      "tick": 153,
+      "label": "IsPlayerFacingEdgeOfMap",
+      "source_line": 7893
+    },
+    {
+      "tick": 154,
+      "label": "IsWarpTileInFrontOfPlayer",
+      "source_line": 7953
+    },
+    {
+      "tick": 155,
+      "label": "IsSSAnneBowWarpTileInFrontOfPlayer",
+      "source_line": 7979
+    },
+    {
+      "tick": 156,
+      "label": "IsPlayerStandingOnDoorTileOrWarpTile",
+      "source_line": 7988
+    },
+    {
+      "tick": 157,
+      "label": "PrintSafariZoneSteps",
+      "source_line": 8015
+    },
+    {
+      "tick": 158,
+      "label": "GetTileAndCoordsInFrontOfPlayer",
+      "source_line": 8050
+    },
+    {
+      "tick": 159,
+      "label": "_GetTileAndCoordsInFrontOfPlayer",
+      "source_line": 8052
+    },
+    {
+      "tick": 160,
+      "label": "GetTileTwoStepsInFrontOfPlayer",
+      "source_line": 8094
+    },
+    {
+      "tick": 161,
+      "label": "CheckForCollisionWhenPushingBoulder",
+      "source_line": 8141
+    },
+    {
+      "tick": 162,
+      "label": "CheckForBoulderCollisionWithSprites",
+      "source_line": 8166
+    },
+    {
+      "tick": 163,
+      "label": "ApplyOutOfBattlePoisonDamage",
+      "source_line": 8243
+    },
+    {
+      "tick": 164,
+      "label": "LoadTilesetHeader",
+      "source_line": 8356
+    },
+    {
+      "tick": 165,
+      "label": "IncrementDayCareMonExp",
+      "source_line": 8414
+    },
+    {
+      "tick": 166,
+      "label": "PrintStrengthText",
+      "source_line": 8773
+    },
+    {
+      "tick": 167,
+      "label": "UsedStrengthText",
+      "source_line": 8780
+    },
+    {
+      "tick": 168,
+      "label": "IsSurfingAllowed",
+      "source_line": 8790
+    },
+    {
+      "tick": 169,
+      "label": "AddItemToInventory_",
+      "source_line": 8831
+    },
+    {
+      "tick": 170,
+      "label": "RemoveItemFromInventory_",
+      "source_line": 8923
+    },
+    {
+      "tick": 171,
+      "label": "LoadWildData",
+      "source_line": 8973
+    },
+    {
+      "tick": 172,
+      "label": "UseItem_",
+      "source_line": 9004
+    },
+    {
+      "tick": 173,
+      "label": "ItemUseBall",
+      "source_line": 9105
+    },
+    {
+      "tick": 174,
+      "label": "ItemUseTownMap",
+      "source_line": 9563
+    },
+    {
+      "tick": 175,
+      "label": "ItemUseBicycle",
+      "source_line": 9568
+    },
+    {
+      "tick": 176,
+      "label": "ItemUseSurfboard",
+      "source_line": 9598
+    },
+    {
+      "tick": 177,
+      "label": "ItemUseEvoStone",
+      "source_line": 9684
+    },
+    {
+      "tick": 178,
+      "label": "ItemUseVitamin",
+      "source_line": 9724
+    },
+    {
+      "tick": 179,
+      "label": "ItemUseMedicine",
+      "source_line": 9728
+    },
+    {
+      "tick": 180,
+      "label": "ItemUseBait",
+      "source_line": 10352
+    },
+    {
+      "tick": 181,
+      "label": "ItemUseRock",
+      "source_line": 10364
+    },
+    {
+      "tick": 182,
+      "label": "BaitRockCommon",
+      "source_line": 10377
+    },
+    {
+      "tick": 183,
+      "label": "ItemUseEscapeRope",
+      "source_line": 10406
+    },
+    {
+      "tick": 184,
+      "label": "ItemUseRepel",
+      "source_line": 10444
+    },
+    {
+      "tick": 185,
+      "label": "ItemUseRepelCommon",
+      "source_line": 10446
+    },
+    {
+      "tick": 186,
+      "label": "ItemUseXAccuracy",
+      "source_line": 10454
+    },
+    {
+      "tick": 187,
+      "label": "ItemUseCardKey",
+      "source_line": 10463
+    },
+    {
+      "tick": 188,
+      "label": "ItemUsePokeDoll",
+      "source_line": 10513
+    },
+    {
+      "tick": 189,
+      "label": "ItemUseGuardSpec",
+      "source_line": 10520
+    },
+    {
+      "tick": 190,
+      "label": "ItemUseSuperRepel",
+      "source_line": 10527
+    },
+    {
+      "tick": 191,
+      "label": "ItemUseMaxRepel",
+      "source_line": 10530
+    },
+    {
+      "tick": 192,
+      "label": "ItemUseDireHit",
+      "source_line": 10533
+    },
+    {
+      "tick": 193,
+      "label": "ItemUseXStat",
+      "source_line": 10540
+    },
+    {
+      "tick": 194,
+      "label": "ItemUsePokeFlute",
+      "source_line": 10572
+    },
+    {
+      "tick": 195,
+      "label": "WakeUpEntireParty",
+      "source_line": 10655
+    },
+    {
+      "tick": 196,
+      "label": "PlayedFluteHadEffectText",
+      "source_line": 10689
+    },
+    {
+      "tick": 197,
+      "label": "ItemUseCoinCase",
+      "source_line": 10709
+    },
+    {
+      "tick": 198,
+      "label": "ItemUseOldRod",
+      "source_line": 10718
+    },
+    {
+      "tick": 199,
+      "label": "ItemUseGoodRod",
+      "source_line": 10724
+    },
+    {
+      "tick": 200,
+      "label": "ItemUseSuperRod",
+      "source_line": 10750
+    },
+    {
+      "tick": 201,
+      "label": "RodResponse",
+      "source_line": 10755
+    },
+    {
+      "tick": 202,
+      "label": "FishingInit",
+      "source_line": 10779
+    },
+    {
+      "tick": 203,
+      "label": "ItemUseOaksParcel",
+      "source_line": 10803
+    },
+    {
+      "tick": 204,
+      "label": "ItemUseItemfinder",
+      "source_line": 10805
+    },
+    {
+      "tick": 205,
+      "label": "ItemUsePPUp",
+      "source_line": 10830
+    },
+    {
+      "tick": 206,
+      "label": "ItemUsePPRestore",
+      "source_line": 10834
+    },
+    {
+      "tick": 207,
+      "label": "UnusableItem",
+      "source_line": 11025
+    },
+    {
+      "tick": 208,
+      "label": "ItemUseTMHM",
+      "source_line": 11027
+    },
+    {
+      "tick": 209,
+      "label": "PrintItemUseTextAndRemoveItem",
+      "source_line": 11135
+    },
+    {
+      "tick": 210,
+      "label": "RemoveUsedItem",
+      "source_line": 11141
+    },
+    {
+      "tick": 211,
+      "label": "ItemUseNoEffect",
+      "source_line": 11146
+    },
+    {
+      "tick": 212,
+      "label": "ItemUseNotTime",
+      "source_line": 11149
+    },
+    {
+      "tick": 213,
+      "label": "ItemUseNotYoursToUse",
+      "source_line": 11152
+    },
+    {
+      "tick": 214,
+      "label": "ThrowBallAtTrainerMon",
+      "source_line": 11155
+    },
+    {
+      "tick": 215,
+      "label": "NoCyclingAllowedHere",
+      "source_line": 11167
+    },
+    {
+      "tick": 216,
+      "label": "BoxFullCannotThrowBall",
+      "source_line": 11170
+    },
+    {
+      "tick": 217,
+      "label": "SurfingAttemptFailed",
+      "source_line": 11173
+    },
+    {
+      "tick": 218,
+      "label": "ItemUseFailed",
+      "source_line": 11175
+    },
+    {
+      "tick": 219,
+      "label": "RestoreBonusPP",
+      "source_line": 11223
+    },
+    {
+      "tick": 220,
+      "label": "AddBonusPP",
+      "source_line": 11264
+    },
+    {
+      "tick": 221,
+      "label": "GetMaxPP",
+      "source_line": 11312
+    },
+    {
+      "tick": 222,
+      "label": "GetSelectedMoveOffset",
+      "source_line": 11372
+    },
+    {
+      "tick": 223,
+      "label": "GetSelectedMoveOffset2",
+      "source_line": 11375
+    },
+    {
+      "tick": 224,
+      "label": "TossItem_",
+      "source_line": 11389
+    },
+    {
+      "tick": 225,
+      "label": "IsKeyItem_",
+      "source_line": 11454
+    },
+    {
+      "tick": 226,
+      "label": "SendNewMonToBox",
+      "source_line": 11485
+    },
+    {
+      "tick": 227,
+      "label": "IsNextTileShoreOrWater",
+      "source_line": 11653
+    },
+    {
+      "tick": 228,
+      "label": "ReadSuperRodData",
+      "source_line": 11677
+    },
+    {
+      "tick": 229,
+      "label": "ItemUseReloadOverworldData",
+      "source_line": 11718
+    },
+    {
+      "tick": 230,
+      "label": "FindWildLocationsOfMon",
+      "source_line": 11723
+    },
+    {
+      "tick": 231,
+      "label": "CheckMapForMon",
+      "source_line": 11751
+    },
+    {
+      "tick": 232,
+      "label": "DrawBadges",
+      "source_line": 11768
+    },
+    {
+      "tick": 233,
+      "label": "ReplaceTileBlock",
+      "source_line": 11872
+    },
+    {
+      "tick": 234,
+      "label": "RedrawMapView",
+      "source_line": 11915
+    },
+    {
+      "tick": 235,
+      "label": "CompareHLWithBC",
+      "source_line": 11985
+    },
+    {
+      "tick": 236,
+      "label": "UsedCut",
+      "source_line": 11992
+    },
+    {
+      "tick": 237,
+      "label": "InitCutAnimOAM",
+      "source_line": 12061
+    },
+    {
+      "tick": 238,
+      "label": "LoadCutGrassAnimationTilePattern",
+      "source_line": 12100
+    },
+    {
+      "tick": 239,
+      "label": "WriteCutOrBoulderDustAnimationOAMBlock",
+      "source_line": 12104
+    },
+    {
+      "tick": 240,
+      "label": "GetCutOrBoulderDustAnimationOffsets",
+      "source_line": 12115
+    },
+    {
+      "tick": 241,
+      "label": "ReplaceTreeTileBlock",
+      "source_line": 12158
+    },
+    {
+      "tick": 242,
+      "label": "MarkTownVisitedAndLoadToggleableObjects",
+      "source_line": 12234
+    },
+    {
+      "tick": 243,
+      "label": "InitializeToggleableObjectsFlags",
+      "source_line": 12300
+    },
+    {
+      "tick": 244,
+      "label": "IsObjectHidden",
+      "source_line": 12330
+    },
+    {
+      "tick": 245,
+      "label": "ShowObject2",
+      "source_line": 12357
+    },
+    {
+      "tick": 246,
+      "label": "HideObject",
+      "source_line": 12366
+    },
+    {
+      "tick": 247,
+      "label": "ToggleableObjectFlagAction",
+      "source_line": 12373
+    },
+    {
+      "tick": 248,
+      "label": "TryPushingBoulder",
+      "source_line": 12433
+    },
+    {
+      "tick": 249,
+      "label": "DoBoulderDustAnimation",
+      "source_line": 12516
+    },
+    {
+      "tick": 250,
+      "label": "ResetBoulderPushFlags",
+      "source_line": 12531
+    },
+    {
+      "tick": 251,
+      "label": "_AddPartyMon",
+      "source_line": 12536
+    },
+    {
+      "tick": 252,
+      "label": "LoadMovePPs",
+      "source_line": 12777
+    },
+    {
+      "tick": 253,
+      "label": "AddPartyMon_WriteMovePP",
+      "source_line": 12780
+    },
+    {
+      "tick": 254,
+      "label": "_AddEnemyMonToPlayerParty",
+      "source_line": 12808
+    },
+    {
+      "tick": 255,
+      "label": "_MoveMon",
+      "source_line": 12868
+    },
+    {
+      "tick": 256,
+      "label": "FlagActionPredef",
+      "source_line": 13045
+    },
+    {
+      "tick": 257,
+      "label": "FlagAction",
+      "source_line": 13047
+    },
+    {
+      "tick": 258,
+      "label": "HealParty",
+      "source_line": 13109
+    },
+    {
+      "tick": 259,
+      "label": "DivideBCDPredef4",
+      "source_line": 13198
+    },
+    {
+      "tick": 260,
+      "label": "DivideBCD",
+      "source_line": 13200
+    },
+    {
+      "tick": 261,
+      "label": "DivideBCD_divDivisorBy10",
+      "source_line": 13311
+    },
+    {
+      "tick": 262,
+      "label": "DivideBCD_getNextDigit",
+      "source_line": 13335
+    },
+    {
+      "tick": 263,
+      "label": "AddBCDPredef",
+      "source_line": 13351
+    },
+    {
+      "tick": 264,
+      "label": "AddBCD",
+      "source_line": 13353
+    },
+    {
+      "tick": 265,
+      "label": "SubBCDPredef",
+      "source_line": 13375
+    },
+    {
+      "tick": 266,
+      "label": "SubBCD",
+      "source_line": 13377
+    },
+    {
+      "tick": 267,
+      "label": "InitPlayerData2",
+      "source_line": 13401
+    },
+    {
+      "tick": 268,
+      "label": "InitializeEmptyList",
+      "source_line": 13438
+    },
+    {
+      "tick": 269,
+      "label": "GetQuantityOfItemInBag",
+      "source_line": 13444
+    },
+    {
+      "tick": 270,
+      "label": "FindPathToPlayer",
+      "source_line": 13462
+    },
+    {
+      "tick": 271,
+      "label": "CalcPositionOfPlayerRelativeToNPC",
+      "source_line": 13537
+    },
+    {
+      "tick": 272,
+      "label": "ConvertNPCMovementDirectionsToJoypadMasks",
+      "source_line": 13613
+    },
+    {
+      "tick": 273,
+      "label": "ConvertNPCMovementDirectionToJoypadMask",
+      "source_line": 13633
+    },
+    {
+      "tick": 274,
+      "label": "NPCMovementDirectionsToJoypadMasksTable",
+      "source_line": 13650
+    },
+    {
+      "tick": 275,
+      "label": "HPBarLength",
+      "source_line": 13658
+    },
+    {
+      "tick": 276,
+      "label": "GetHPBarLength",
+      "source_line": 13662
+    },
+    {
+      "tick": 277,
+      "label": "UpdateHPBar2",
+      "source_line": 13704
+    },
+    {
+      "tick": 278,
+      "label": "UpdateHPBar_AnimateHPBar",
+      "source_line": 13794
+    },
+    {
+      "tick": 279,
+      "label": "UpdateHPBar_CompareNewHPToOldHP",
+      "source_line": 13819
+    },
+    {
+      "tick": 280,
+      "label": "UpdateHPBar_CalcHPDifference",
+      "source_line": 13827
+    },
+    {
+      "tick": 281,
+      "label": "UpdateHPBar_PrintHPNumber",
+      "source_line": 13855
+    },
+    {
+      "tick": 282,
+      "label": "UpdateHPBar_CalcOldNewHPBarPixels",
+      "source_line": 13894
+    },
+    {
+      "tick": 283,
+      "label": "PrintBookshelfText",
+      "source_line": 13922
+    },
+    {
+      "tick": 284,
+      "label": "IndigoPlateauStatues",
+      "source_line": 13959
+    },
+    {
+      "tick": 285,
+      "label": "BookOrSculptureText",
+      "source_line": 13980
+    },
+    {
+      "tick": 286,
+      "label": "TownMapText",
+      "source_line": 14002
+    },
+    {
+      "tick": 287,
+      "label": "IsPlayerJustOutsideMap",
+      "source_line": 14052
+    },
+    {
+      "tick": 288,
+      "label": "DrawHP",
+      "source_line": 14067
+    },
+    {
+      "tick": 289,
+      "label": "DrawHP2",
+      "source_line": 14072
+    },
+    {
+      "tick": 290,
+      "label": "DrawHP_",
+      "source_line": 14076
+    },
+    {
+      "tick": 291,
+      "label": "StatusScreen",
+      "source_line": 14127
+    },
+    {
+      "tick": 292,
+      "label": "DrawLineBox",
+      "source_line": 14275
+    },
+    {
+      "tick": 293,
+      "label": "PrintStatsBox",
+      "source_line": 14292
+    },
+    {
+      "tick": 294,
+      "label": ".PrintStat",
+      "source_line": 14328
+    },
+    {
+      "tick": 295,
+      "label": "StatusScreen2",
+      "source_line": 14340
+    },
+    {
+      "tick": 296,
+      "label": "CalcExpToLevelUp",
+      "source_line": 14482
+    },
+    {
+      "tick": 297,
+      "label": "StatusScreen_ClearName",
+      "source_line": 14510
+    },
+    {
+      "tick": 298,
+      "label": "StatusScreen_PrintPP",
+      "source_line": 14514
+    },
+    {
+      "tick": 299,
+      "label": "DrawPartyMenu_",
+      "source_line": 14522
+    },
+    {
+      "tick": 300,
+      "label": "RedrawPartyMenu_",
+      "source_line": 14528
+    },
+    {
+      "tick": 301,
+      "label": "SetPartyMenuHPBarColor",
+      "source_line": 14798
+    },
+    {
+      "tick": 302,
+      "label": "UpdateSpriteFacingOffsetAndDelayMovement",
+      "source_line": 14813
+    },
+    {
+      "tick": 303,
+      "label": "StartMenu_Pokedex",
+      "source_line": 14838
+    },
+    {
+      "tick": 304,
+      "label": "StartMenu_Pokemon",
+      "source_line": 14845
+    },
+    {
+      "tick": 305,
+      "label": "ErasePartyMenuCursors",
+      "source_line": 15122
+    },
+    {
+      "tick": 306,
+      "label": "ItemMenuLoop",
+      "source_line": 15132
+    },
+    {
+      "tick": 307,
+      "label": "StartMenu_Item",
+      "source_line": 15135
+    },
+    {
+      "tick": 308,
+      "label": "StartMenu_TrainerInfo",
+      "source_line": 15281
+    },
+    {
+      "tick": 309,
+      "label": "DrawTrainerInfo",
+      "source_line": 15305
+    },
+    {
+      "tick": 310,
+      "label": "TrainerInfo_FarCopyData",
+      "source_line": 15393
+    },
+    {
+      "tick": 311,
+      "label": "TrainerInfo_DrawTextBox",
+      "source_line": 15410
+    },
+    {
+      "tick": 312,
+      "label": "TrainerInfo_DrawHorizontalEdge",
+      "source_line": 15428
+    },
+    {
+      "tick": 313,
+      "label": "TrainerInfo_NextTextBoxRow",
+      "source_line": 15440
+    },
+    {
+      "tick": 314,
+      "label": "TrainerInfo_DrawVerticalLine",
+      "source_line": 15451
+    },
+    {
+      "tick": 315,
+      "label": "StartMenu_SaveReset",
+      "source_line": 15460
+    },
+    {
+      "tick": 316,
+      "label": "StartMenu_Option",
+      "source_line": 15467
+    },
+    {
+      "tick": 317,
+      "label": "SwitchPartyMon",
+      "source_line": 15477
+    },
+    {
+      "tick": 318,
+      "label": "SwitchPartyMon_ClearGfx",
+      "source_line": 15484
+    },
+    {
+      "tick": 319,
+      "label": "SwitchPartyMon_InitVarOrSwapData",
+      "source_line": 15509
+    },
+    {
+      "tick": 320,
+      "label": "CanLearnTM",
+      "source_line": 15625
+    },
+    {
+      "tick": 321,
+      "label": "TMToMove",
+      "source_line": 15647
+    },
+    {
+      "tick": 322,
+      "label": "EndOfBattle",
+      "source_line": 15658
+    },
+    {
+      "tick": 323,
+      "label": "TryDoWildEncounter",
+      "source_line": 15744
+    },
+    {
+      "tick": 324,
+      "label": "RecoilEffect_",
+      "source_line": 15845
+    },
+    {
+      "tick": 325,
+      "label": "ConversionEffect_",
+      "source_line": 15915
+    },
+    {
+      "tick": 326,
+      "label": "PrintButItFailedText",
+      "source_line": 15943
+    },
+    {
+      "tick": 327,
+      "label": "CallBankF",
+      "source_line": 15945
+    },
+    {
+      "tick": 328,
+      "label": "HazeEffect_",
+      "source_line": 15948
+    },
+    {
+      "tick": 329,
+      "label": "CureVolatileStatuses",
+      "source_line": 15993
+    },
+    {
+      "tick": 330,
+      "label": "ResetStatMods",
+      "source_line": 16004
+    },
+    {
+      "tick": 331,
+      "label": "ResetStats",
+      "source_line": 16011
+    },
+    {
+      "tick": 332,
+      "label": "GetTrainerName_",
+      "source_line": 16023
+    },
+    {
+      "tick": 333,
+      "label": "Random_",
+      "source_line": 16047
+    },
+    {
+      "tick": 334,
+      "label": "LoadPokedexTilePatterns",
+      "source_line": 16062
+    },
+    {
+      "tick": 335,
+      "label": "InitMapSprites",
+      "source_line": 16082
+    },
+    {
+      "tick": 336,
+      "label": "LoadMapSpriteTilePatterns",
+      "source_line": 16103
+    },
+    {
+      "tick": 337,
+      "label": "ReadSpriteSheetData",
+      "source_line": 16311
+    },
+    {
+      "tick": 338,
+      "label": "InitOutsideMapSprites",
+      "source_line": 16324
+    },
+    {
+      "tick": 339,
+      "label": "GetSplitMapSpriteSetID",
+      "source_line": 16453
+    },
+    {
+      "tick": 340,
+      "label": "EmotionBubble",
+      "source_line": 16515
+    },
+    {
+      "tick": 341,
+      "label": "InGameTrade_CheckForTradeEvo",
+      "source_line": 16589
+    },
+    {
+      "tick": 342,
+      "label": "SubstituteEffect_",
+      "source_line": 16617
+    },
+    {
+      "tick": 343,
+      "label": "ActivatePC",
+      "source_line": 16691
+    },
+    {
+      "tick": 344,
+      "label": "PCMainMenu",
+      "source_line": 16702
+    },
+    {
+      "tick": 345,
+      "label": "OaksPC",
+      "source_line": 16751
+    },
+    {
+      "tick": 346,
+      "label": "PKMNLeague",
+      "source_line": 16757
+    },
+    {
+      "tick": 347,
+      "label": "BillsPC",
+      "source_line": 16763
+    },
+    {
+      "tick": 348,
+      "label": "ReloadMainMenu",
+      "source_line": 16776
+    },
+    {
+      "tick": 349,
+      "label": "LogOff",
+      "source_line": 16782
+    },
+    {
+      "tick": 350,
+      "label": "RemoveItemByID",
+      "source_line": 16803
+    },
+    {
+      "tick": 351,
+      "label": "TrackPlayTime",
+      "source_line": 16828
+    },
+    {
+      "tick": 352,
+      "label": "CountDownIgnoreInputBitReset",
+      "source_line": 16865
+    },
+    {
+      "tick": 353,
+      "label": "PlayerStepOutFromDoor",
+      "source_line": 16889
+    },
+    {
+      "tick": 354,
+      "label": "_EndNPCMovementScript",
+      "source_line": 16917
+    },
+    {
+      "tick": 355,
+      "label": "PalletMovementScript_OakMoveLeft",
+      "source_line": 16939
+    },
+    {
+      "tick": 356,
+      "label": "PalletMovementScript_PlayerMoveLeft",
+      "source_line": 16972
+    },
+    {
+      "tick": 357,
+      "label": "PalletMovementScript_WaitAndWalkToLab",
+      "source_line": 16984
+    },
+    {
+      "tick": 358,
+      "label": "PalletMovementScript_WalkToLab",
+      "source_line": 16988
+    },
+    {
+      "tick": 359,
+      "label": "PalletMovementScript_Done",
+      "source_line": 17026
+    },
+    {
+      "tick": 360,
+      "label": "PewterMovementScript_WalkToMuseum",
+      "source_line": 17041
+    },
+    {
+      "tick": 361,
+      "label": "PewterMovementScript_Done",
+      "source_line": 17080
+    },
+    {
+      "tick": 362,
+      "label": "PewterMovementScript_WalkToGym",
+      "source_line": 17092
+    },
+    {
+      "tick": 363,
+      "label": "SetEnemyTrainerToStayAndFaceAnyDirection",
+      "source_line": 17138
+    },
+    {
+      "tick": 364,
+      "label": "IsPlayerStandingOnDoorTile",
+      "source_line": 17162
+    },
+    {
+      "tick": 365,
+      "label": "HandleLedges",
+      "source_line": 17188
+    },
+    {
+      "tick": 366,
+      "label": "LoadHoppingShadowOAM",
+      "source_line": 17244
+    },
+    {
+      "tick": 367,
+      "label": "DoClearSaveDialogue",
+      "source_line": 17457
+    },
+    {
+      "tick": 368,
+      "label": "DisplayElevatorFloorMenu",
+      "source_line": 17479
+    },
+    {
+      "tick": 369,
+      "label": "OpenOaksPC",
+      "source_line": 17526
+    },
+    {
+      "tick": 370,
+      "label": "PrintNewBikeText",
+      "source_line": 17551
+    },
+    {
+      "tick": 371,
+      "label": "DisplayOakLabLeftPoster",
+      "source_line": 17557
+    },
+    {
+      "tick": 372,
+      "label": "DisplayOakLabRightPoster",
+      "source_line": 17563
+    },
+    {
+      "tick": 373,
+      "label": "SafariZoneCheck",
+      "source_line": 17582
+    },
+    {
+      "tick": 374,
+      "label": "SafariZoneCheckSteps",
+      "source_line": 17589
+    },
+    {
+      "tick": 375,
+      "label": "SafariZoneGameStillGoing",
+      "source_line": 17605
+    },
+    {
+      "tick": 376,
+      "label": "SafariZoneGameOver",
+      "source_line": 17609
+    },
+    {
+      "tick": 377,
+      "label": "PrintSafariGameOverText",
+      "source_line": 17637
+    },
+    {
+      "tick": 378,
+      "label": "SafariGameOverText",
+      "source_line": 17642
+    },
+    {
+      "tick": 379,
+      "label": "PrintCinnabarQuiz",
+      "source_line": 17659
+    },
+    {
+      "tick": 380,
+      "label": "CinnabarGymQuiz",
+      "source_line": 17665
+    },
+    {
+      "tick": 381,
+      "label": "CinnabarGymQuiz_AskQuestion",
+      "source_line": 17725
+    },
+    {
+      "tick": 382,
+      "label": "CinnabarGymQuizCorrectText",
+      "source_line": 17765
+    },
+    {
+      "tick": 383,
+      "label": "UpdateCinnabarGymGateTileBlocks_",
+      "source_line": 17786
+    },
+    {
+      "tick": 384,
+      "label": "PrintMagazinesText",
+      "source_line": 17841
+    },
+    {
+      "tick": 385,
+      "label": "BillsHousePC",
+      "source_line": 17848
+    },
+    {
+      "tick": 386,
+      "label": "BillsHouseInitiatedText",
+      "source_line": 17896
+    },
+    {
+      "tick": 387,
+      "label": "BillsHousePokemonList",
+      "source_line": 17911
+    },
+    {
+      "tick": 388,
+      "label": "DisplayOakLabEmailText",
+      "source_line": 17976
+    },
+    {
+      "tick": 389,
+      "label": "DisplayPCMainMenu",
+      "source_line": 17986
+    },
+    {
+      "tick": 390,
+      "label": "BillsPC_",
+      "source_line": 18078
+    },
+    {
+      "tick": 391,
+      "label": "BillsPCMenu",
+      "source_line": 18096
+    },
+    {
+      "tick": 392,
+      "label": "ExitBillsPC",
+      "source_line": 18169
+    },
+    {
+      "tick": 393,
+      "label": "BillsPCDeposit",
+      "source_line": 18187
+    },
+    {
+      "tick": 394,
+      "label": "BillsPCWithdraw",
+      "source_line": 18235
+    },
+    {
+      "tick": 395,
+      "label": "BillsPCRelease",
+      "source_line": 18271
+    },
+    {
+      "tick": 396,
+      "label": "BillsPCChangeBox",
+      "source_line": 18297
+    },
+    {
+      "tick": 397,
+      "label": "DisplayMonListMenu",
+      "source_line": 18300
+    },
+    {
+      "tick": 398,
+      "label": "KnowsHMMove",
+      "source_line": 18325
+    },
+    {
+      "tick": 399,
+      "label": "DisplayDepositWithdrawMenu",
+      "source_line": 18353
+    },
+    {
+      "tick": 400,
+      "label": "CableClubLeftGameboy",
+      "source_line": 18460
+    },
+    {
+      "tick": 401,
+      "label": "CableClubRightGameboy",
+      "source_line": 18476
+    },
+    {
+      "tick": 402,
+      "label": "UnusedOpenBillsPC",
+      "source_line": 18495
+    },
+    {
+      "tick": 403,
+      "label": "PrintMonType",
+      "source_line": 18506
+    },
+    {
+      "tick": 404,
+      "label": "PrintType",
+      "source_line": 18524
+    },
+    {
+      "tick": 405,
+      "label": "EraseType2Text",
+      "source_line": 18528
+    },
+    {
+      "tick": 406,
+      "label": "PrintMoveType",
+      "source_line": 18534
+    },
+    {
+      "tick": 407,
+      "label": "PrintType_",
+      "source_line": 18539
+    },
+    {
+      "tick": 408,
+      "label": "SaveTrainerName",
+      "source_line": 18551
+    },
+    {
+      "tick": 409,
+      "label": "FocusEnergyEffect_",
+      "source_line": 18571
+    },
+    {
+      "tick": 410,
+      "label": "LeechSeedEffect_",
+      "source_line": 18593
+    },
+    {
+      "tick": 411,
+      "label": "DisplayEffectiveness",
+      "source_line": 18632
+    },
+    {
+      "tick": 412,
+      "label": "CheckIfMoveIsKnown",
+      "source_line": 18654
+    },
+    {
+      "tick": 413,
+      "label": "ScaleSpriteByTwo",
+      "source_line": 18681
+    },
+    {
+      "tick": 414,
+      "label": "ScaleFirstThreeSpriteColumnsByTwo",
+      "source_line": 18689
+    },
+    {
+      "tick": 415,
+      "label": "ScaleLastSpriteColumnByTwo",
+      "source_line": 18717
+    },
+    {
+      "tick": 416,
+      "label": "ScalePixelsByTwo",
+      "source_line": 18738
+    },
+    {
+      "tick": 417,
+      "label": "PayDayEffect_",
+      "source_line": 18758
+    },
+    {
+      "tick": 418,
+      "label": "AbleToPlaySlotsCheck",
+      "source_line": 18802
+    },
+    {
+      "tick": 419,
+      "label": "MistEffect_",
+      "source_line": 18832
+    },
+    {
+      "tick": 420,
+      "label": "OneHitKOEffect_",
+      "source_line": 18850
+    },
+    {
+      "tick": 421,
+      "label": "TitleScroll",
+      "source_line": 18904
+    },
+    {
+      "tick": 422,
+      "label": "_TitleScroll",
+      "source_line": 18915
+    },
+    {
+      "tick": 423,
+      "label": ".ScrollBetween",
+      "source_line": 18943
+    },
+    {
+      "tick": 424,
+      "label": "TitleScreenAnimateBallIfStarterOut",
+      "source_line": 18959
+    },
+    {
+      "tick": 425,
+      "label": "GetTitleBallY",
+      "source_line": 18973
+    },
+    {
+      "tick": 426,
+      "label": "DisplayLinkBattleVersusTextBox",
+      "source_line": 18990
+    },
+    {
+      "tick": 427,
+      "label": "PromptUserToPlaySlots",
+      "source_line": 19010
+    },
+    {
+      "tick": 428,
+      "label": "MainSlotMachineLoop",
+      "source_line": 19067
+    },
+    {
+      "tick": 429,
+      "label": "SlotMachine_SetFlags",
+      "source_line": 19175
+    },
+    {
+      "tick": 430,
+      "label": "SlotMachine_SpinWheels",
+      "source_line": 19204
+    },
+    {
+      "tick": 431,
+      "label": "SlotMachine_StopOrAnimWheel1",
+      "source_line": 19234
+    },
+    {
+      "tick": 432,
+      "label": "SlotMachine_StopOrAnimWheel2",
+      "source_line": 19251
+    },
+    {
+      "tick": 433,
+      "label": "SlotMachine_StopOrAnimWheel3",
+      "source_line": 19268
+    },
+    {
+      "tick": 434,
+      "label": "SlotMachine_StopWheel1Early",
+      "source_line": 19283
+    },
+    {
+      "tick": 435,
+      "label": "SlotMachine_StopWheel2Early",
+      "source_line": 19311
+    },
+    {
+      "tick": 436,
+      "label": "SlotMachine_FindWheel1Wheel2Matches",
+      "source_line": 19333
+    },
+    {
+      "tick": 437,
+      "label": "SlotMachine_CheckForMatches",
+      "source_line": 19358
+    },
+    {
+      "tick": 438,
+      "label": "SymbolLinedUpSlotMachineText",
+      "source_line": 19468
+    },
+    {
+      "tick": 439,
+      "label": "SlotMachine_CheckForMatch",
+      "source_line": 19507
+    },
+    {
+      "tick": 440,
+      "label": "SlotMachine_GetWheel3Tiles",
+      "source_line": 19514
+    },
+    {
+      "tick": 441,
+      "label": "SlotMachine_GetWheel2Tiles",
+      "source_line": 19519
+    },
+    {
+      "tick": 442,
+      "label": "SlotMachine_GetWheel1Tiles",
+      "source_line": 19524
+    },
+    {
+      "tick": 443,
+      "label": "SlotMachine_GetWheelTiles",
+      "source_line": 19528
+    },
+    {
+      "tick": 444,
+      "label": "SlotReward8Func",
+      "source_line": 19541
+    },
+    {
+      "tick": 445,
+      "label": "SlotReward15Func",
+      "source_line": 19551
+    },
+    {
+      "tick": 446,
+      "label": "SlotReward100Func",
+      "source_line": 19561
+    },
+    {
+      "tick": 447,
+      "label": "SlotReward300Func",
+      "source_line": 19569
+    },
+    {
+      "tick": 448,
+      "label": "SlotMachine_PrintWinningSymbol",
+      "source_line": 19588
+    },
+    {
+      "tick": 449,
+      "label": "SlotMachine_SubtractBetFromPlayerCoins",
+      "source_line": 19605
+    },
+    {
+      "tick": 450,
+      "label": "SlotMachine_PrintCreditCoins",
+      "source_line": 19614
+    },
+    {
+      "tick": 451,
+      "label": "SlotMachine_PrintPayoutCoins",
+      "source_line": 19619
+    },
+    {
+      "tick": 452,
+      "label": "SlotMachine_PayCoinsToPlayer",
+      "source_line": 19624
+    },
+    {
+      "tick": 453,
+      "label": "SlotMachine_PutOutLitBalls",
+      "source_line": 19677
+    },
+    {
+      "tick": 454,
+      "label": "SlotMachine_LightBalls",
+      "source_line": 19681
+    },
+    {
+      "tick": 455,
+      "label": "SlotMachine_UpdateThreeCoinBallTiles",
+      "source_line": 19689
+    },
+    {
+      "tick": 456,
+      "label": "SlotMachine_UpdateTwoCoinBallTiles",
+      "source_line": 19694
+    },
+    {
+      "tick": 457,
+      "label": "SlotMachine_UpdateBallTiles",
+      "source_line": 19701
+    },
+    {
+      "tick": 458,
+      "label": "SlotMachine_AnimWheel1",
+      "source_line": 19715
+    },
+    {
+      "tick": 459,
+      "label": "SlotMachine_AnimWheel2",
+      "source_line": 19722
+    },
+    {
+      "tick": 460,
+      "label": "SlotMachine_AnimWheel3",
+      "source_line": 19729
+    },
+    {
+      "tick": 461,
+      "label": "SlotMachine_AnimWheel",
+      "source_line": 19735
+    },
+    {
+      "tick": 462,
+      "label": "SlotMachine_HandleInputWhileWheelsSpin",
+      "source_line": 19779
+    },
+    {
+      "tick": 463,
+      "label": "LoadSlotMachineTiles",
+      "source_line": 19802
+    },
+    {
+      "tick": 464,
+      "label": "PewterGuys",
+      "source_line": 19844
+    },
+    {
+      "tick": 465,
+      "label": "_Multiply",
+      "source_line": 19941
+    },
+    {
+      "tick": 466,
+      "label": "_Divide",
+      "source_line": 20001
+    },
+    {
+      "tick": 467,
+      "label": "StartSlotMachine",
+      "source_line": 20083
+    },
+    {
+      "tick": 468,
+      "label": "DoubleSelectedStats",
+      "source_line": 20665
+    },
+    {
+      "tick": 469,
+      "label": "HalveSelectedStats",
+      "source_line": 20693
+    },
+    {
+      "tick": 470,
+      "label": "_ScrollTrainerPicAfterBattle",
+      "source_line": 20723
+    },
+    {
+      "tick": 471,
+      "label": "DrawTrainerPicColumn",
+      "source_line": 20756
+    },
+    {
+      "tick": 472,
+      "label": "AIEnemyTrainerChooseMoves",
+      "source_line": 20774
+    },
+    {
+      "tick": 473,
+      "label": "AIMoveChoiceModification1",
+      "source_line": 20882
+    },
+    {
+      "tick": 474,
+      "label": "AIMoveChoiceModification2",
+      "source_line": 20925
+    },
+    {
+      "tick": 475,
+      "label": "AIMoveChoiceModification3",
+      "source_line": 20957
+    },
+    {
+      "tick": 476,
+      "label": "AIMoveChoiceModification4",
+      "source_line": 21024
+    },
+    {
+      "tick": 477,
+      "label": "ReadMove",
+      "source_line": 21026
+    },
+    {
+      "tick": 478,
+      "label": "TrainerAI",
+      "source_line": 21047
+    },
+    {
+      "tick": 479,
+      "label": "JugglerAI",
+      "source_line": 21079
+    },
+    {
+      "tick": 480,
+      "label": "BlackbeltAI",
+      "source_line": 21083
+    },
+    {
+      "tick": 481,
+      "label": "GiovanniAI",
+      "source_line": 21087
+    },
+    {
+      "tick": 482,
+      "label": "CooltrainerMAI",
+      "source_line": 21091
+    },
+    {
+      "tick": 483,
+      "label": "CooltrainerFAI",
+      "source_line": 21095
+    },
+    {
+      "tick": 484,
+      "label": "BrockAI",
+      "source_line": 21107
+    },
+    {
+      "tick": 485,
+      "label": "MistyAI",
+      "source_line": 21113
+    },
+    {
+      "tick": 486,
+      "label": "LtSurgeAI",
+      "source_line": 21117
+    },
+    {
+      "tick": 487,
+      "label": "ErikaAI",
+      "source_line": 21121
+    },
+    {
+      "tick": 488,
+      "label": "KogaAI",
+      "source_line": 21128
+    },
+    {
+      "tick": 489,
+      "label": "BlaineAI",
+      "source_line": 21132
+    },
+    {
+      "tick": 490,
+      "label": "SabrinaAI",
+      "source_line": 21136
+    },
+    {
+      "tick": 491,
+      "label": "Rival2AI",
+      "source_line": 21143
+    },
+    {
+      "tick": 492,
+      "label": "Rival3AI",
+      "source_line": 21150
+    },
+    {
+      "tick": 493,
+      "label": "LoreleiAI",
+      "source_line": 21157
+    },
+    {
+      "tick": 494,
+      "label": "BrunoAI",
+      "source_line": 21164
+    },
+    {
+      "tick": 495,
+      "label": "AgathaAI",
+      "source_line": 21168
+    },
+    {
+      "tick": 496,
+      "label": "LanceAI",
+      "source_line": 21177
+    },
+    {
+      "tick": 497,
+      "label": "GenericAI",
+      "source_line": 21184
+    },
+    {
+      "tick": 498,
+      "label": "DecrementAICount",
+      "source_line": 21188
+    },
+    {
+      "tick": 499,
+      "label": "AIPlayRestoringSFX",
+      "source_line": 21193
+    },
+    {
+      "tick": 500,
+      "label": "AIUseFullRestore",
+      "source_line": 21196
+    },
+    {
+      "tick": 501,
+      "label": "AIUsePotion",
+      "source_line": 21219
+    },
+    {
+      "tick": 502,
+      "label": "AIUseSuperPotion",
+      "source_line": 21224
+    },
+    {
+      "tick": 503,
+      "label": "AIUseHyperPotion",
+      "source_line": 21229
+    },
+    {
+      "tick": 504,
+      "label": "AIRecoverHP",
+      "source_line": 21234
+    },
+    {
+      "tick": 505,
+      "label": "AIPrintItemUseAndUpdateHPBar",
+      "source_line": 21274
+    },
+    {
+      "tick": 506,
+      "label": "AISwitchIfEnoughMons",
+      "source_line": 21281
+    },
+    {
+      "tick": 507,
+      "label": "SwitchEnemyMon",
+      "source_line": 21307
+    },
+    {
+      "tick": 508,
+      "label": "AIUseFullHeal",
+      "source_line": 21335
+    },
+    {
+      "tick": 509,
+      "label": "AICureStatus",
+      "source_line": 21340
+    },
+    {
+      "tick": 510,
+      "label": "AIUseXAccuracy",
+      "source_line": 21352
+    },
+    {
+      "tick": 511,
+      "label": "AIUseGuardSpec",
+      "source_line": 21358
+    }
+  ],
+  "graph_nodes": 1206,
+  "graph_edges": 1316
+}

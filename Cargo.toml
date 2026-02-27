@@ -45,6 +45,12 @@ ariadne    = "0.4"
 thiserror  = "1"
 indexmap   = "2"
 petgraph   = "0.6"
+winnow     = "0.6"
+smallvec   = "1.13"
+rayon      = "1.10"
+tracing    = "0.1"
+tracing-subscriber = "0.3"
+schemars   = { version = "0.8", features = ["derive"] }
 
 # ── Runtime & Async ──────────────────────────────────────────────────────────
 tokio     = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-std", "fs"] }

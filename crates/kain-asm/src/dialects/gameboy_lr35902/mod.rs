@@ -2,13 +2,19 @@ use crate::dialects::furby_6502::{
     ImportAsmOutput, RecoveryIssue, RecoveryReport, RecoverySectionScore,
 };
 use crate::error::{AsmError, AsmResult};
+use indexmap::IndexMap;
 use kain_core::{
     AsmBlock, AsmDataTable, AsmDirective, AsmInstr, AsmProgram, ParityTraceFrame, TranslitUnit,
 };
+use petgraph::graphmap::DiGraphMap;
+use rayon::prelude::*;
+use schemars::JsonSchema;
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use smallvec::SmallVec;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tracing::{debug, info};
 
 const SUPPORTED_FORMATS: &[&str] = &["lr35902-gameboy", "gameboy-lr35902", "gb-lr35902", "lr35902", "gameboy"];
 const MAX_EXPAND_DEPTH: usize = 16;
@@ -33,7 +39,7 @@ struct MacroDef {
     body: Vec<CanonLine>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, JsonSchema)]
 struct SourceProvenance {
     kind: String,
     symbol: String,
@@ -49,13 +55,52 @@ struct GameboyMap {
     translit_units: Vec<TranslitUnit>,
     parity_trace_schema: ParityTraceFrame,
     source_provenance: Vec<SourceProvenance>,
+    rom_model_path: String,
+    parity_harness_path: String,
+}
+
+#[derive(Clone, Serialize, JsonSchema)]
+struct RomSection {
+    name: String,
+    bank: u16,
+    start: u16,
+    end: u16,
+    bytes: usize,
+}
+
+#[derive(Clone, Serialize, JsonSchema)]
+struct RomBank {
+    bank: u16,
+    used_bytes: usize,
+}
+
+#[derive(Clone, Serialize, JsonSchema)]
+struct GameboyRomModel {
+    sections: Vec<RomSection>,
+    banks: Vec<RomBank>,
+}
+
+#[derive(Clone, Serialize, JsonSchema)]
+struct ParityCheckpoint {
+    tick: u64,
+    label: String,
+    source_line: usize,
+}
+
+#[derive(Clone, Serialize, JsonSchema)]
+struct GameboyParityHarness {
+    checkpoints: Vec<ParityCheckpoint>,
+    graph_nodes: usize,
+    graph_edges: usize,
 }
 
 pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_only: bool) -> AsmResult<ImportAsmOutput> {
+    let _ = tracing_subscriber::fmt::try_init();
     let normalized = format.trim().to_ascii_lowercase();
     if !SUPPORTED_FORMATS.iter().any(|v| *v == normalized) {
         return Err(AsmError::runtime(format!("Unsupported asm format '{}'. Supported: {}", format, SUPPORTED_FORMATS.join(", "))));
     }
+    info!("kain-asm import start: format={}, input={}", normalized, input.display());
     let raw = load_asm_with_includes(input)?;
     let canonical = canonicalize_asm(&raw);
     let canonical_text = canonical.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
@@ -75,13 +120,33 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
     let generated_kn_path = out_kn.map(Path::to_path_buf).unwrap_or_else(|| generated_dir.join("gameboy_firmware.kn"));
     let map_json_path = generated_kn_path.parent().unwrap_or(&generated_dir).join("gameboy_map.json");
     let report_json_path = research_dir.join("gameboy_recovery_report.json");
+    let rom_model_path = map_json_path.with_file_name("gameboy_rom_model.json");
+    let parity_harness_path = map_json_path.with_file_name("gameboy_parity_harness.json");
+    let rom_model = build_rom_model(&expanded, &parsed);
+    let parity_harness = build_parity_harness(&parsed);
+    debug!(
+        "import stages done: canonical_lines={}, expanded_lines={}, blocks={}",
+        canonical.len(),
+        expanded.len(),
+        parsed.blocks.len()
+    );
 
     if !validate_only {
         fs::write(&canonical_asm_path, canonical_text).map_err(AsmError::Io)?;
         fs::write(&generated_kn_path, render_kain_firmware(&parsed, &translit_units)).map_err(AsmError::Io)?;
-        let map = GameboyMap { translit_units: translit_units.clone(), parity_trace_schema: default_parity_trace_schema(), source_provenance: provenance };
+        let map = GameboyMap {
+            translit_units: translit_units.clone(),
+            parity_trace_schema: default_parity_trace_schema(),
+            source_provenance: provenance,
+            rom_model_path: rom_model_path.display().to_string(),
+            parity_harness_path: parity_harness_path.display().to_string(),
+        };
         let map_json = serde_json::to_string_pretty(&map).map_err(|e| AsmError::runtime(format!("Failed to serialize gameboy map: {}", e)))?;
         fs::write(&map_json_path, map_json).map_err(AsmError::Io)?;
+        let rom_json = serde_json::to_string_pretty(&rom_model).map_err(|e| AsmError::runtime(format!("Failed to serialize rom model: {}", e)))?;
+        fs::write(&rom_model_path, rom_json).map_err(AsmError::Io)?;
+        let parity_json = serde_json::to_string_pretty(&parity_harness).map_err(|e| AsmError::runtime(format!("Failed to serialize parity harness: {}", e)))?;
+        fs::write(&parity_harness_path, parity_json).map_err(AsmError::Io)?;
     }
     let report_json = serde_json::to_string_pretty(&report).map_err(|e| AsmError::runtime(format!("Failed to serialize gameboy recovery report: {}", e)))?;
     fs::write(&report_json_path, report_json).map_err(AsmError::Io)?;
@@ -141,9 +206,10 @@ fn canonicalize_asm(raw: &[SourceLine]) -> Vec<CanonLine> {
 
 fn expand_rgbds_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
     let mut out = Vec::<CanonLine>::new();
-    let mut macros = HashMap::<String, MacroDef>::new();
-    let mut symbols = HashMap::<String, i64>::new();
+    let mut macros = IndexMap::<String, MacroDef>::new();
+    let mut symbols = IndexMap::<String, i64>::new();
     let mut stack = Vec::<(bool, bool)>::new();
+    let mut macro_invoke_counter = 0u64;
     let mut active = true;
     let mut i = 0usize;
     while i < lines.len() {
@@ -173,6 +239,20 @@ fn expand_rgbds_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
             i += 1;
             continue;
         }
+        if token == "REPT" {
+            if let Some((repeat_count, consumed)) = parse_rept_block(lines, i, &symbols) {
+                if active {
+                    let body = &lines[(i + 1)..(i + consumed - 1)];
+                    for _ in 0..repeat_count {
+                        for entry in body {
+                            out.extend(expand_macro_call(entry, &macros, 0, &mut macro_invoke_counter));
+                        }
+                    }
+                }
+                i += consumed;
+                continue;
+            }
+        }
         if !active { i += 1; continue; }
         if let Some((name, value)) = parse_symbol_assignment(&text, &symbols) {
             symbols.insert(name.to_ascii_uppercase(), value);
@@ -180,10 +260,33 @@ fn expand_rgbds_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
             i += 1;
             continue;
         }
-        out.extend(expand_macro_call(&line, &macros, 0));
+        out.extend(expand_macro_call(&line, &macros, 0, &mut macro_invoke_counter));
         i += 1;
     }
     out
+}
+
+fn parse_rept_block(lines: &[CanonLine], start: usize, symbols: &IndexMap<String, i64>) -> Option<(usize, usize)> {
+    let head = strip_comment(&lines[start].text).trim();
+    let mut parts = head.split_whitespace();
+    if !parts.next()?.eq_ignore_ascii_case("REPT") { return None; }
+    let count_expr = parts.collect::<Vec<_>>().join(" ");
+    let repeat_count = eval_expr_i64(count_expr.trim(), symbols)?.max(0) as usize;
+    let mut depth = 0i32;
+    let mut idx = start + 1;
+    while idx < lines.len() {
+        let token = strip_comment(&lines[idx].text).trim().split_whitespace().next().unwrap_or("").to_ascii_uppercase();
+        if token == "REPT" {
+            depth += 1;
+        } else if token == "ENDR" {
+            if depth == 0 {
+                return Some((repeat_count, idx - start + 1));
+            }
+            depth -= 1;
+        }
+        idx += 1;
+    }
+    None
 }
 
 fn parse_macro_definition(lines: &[CanonLine], start: usize) -> Option<(String, usize)> {
@@ -203,7 +306,7 @@ fn parse_macro_definition(lines: &[CanonLine], start: usize) -> Option<(String, 
     None
 }
 
-fn parse_symbol_assignment(text: &str, symbols: &HashMap<String, i64>) -> Option<(String, i64)> {
+fn parse_symbol_assignment(text: &str, symbols: &IndexMap<String, i64>) -> Option<(String, i64)> {
     if let Some((left, right)) = text.split_once(" EQU ").or_else(|| text.split_once(" equ ")) {
         return Some((left.trim().to_string(), eval_expr_i64(right.trim(), symbols)?));
     }
@@ -215,7 +318,7 @@ fn parse_symbol_assignment(text: &str, symbols: &HashMap<String, i64>) -> Option
     }
     None
 }
-fn eval_cond(expr: &str, symbols: &HashMap<String, i64>) -> bool { eval_expr_i64(expr, symbols).unwrap_or(0) != 0 }
+fn eval_cond(expr: &str, symbols: &IndexMap<String, i64>) -> bool { eval_expr_i64(expr, symbols).unwrap_or(0) != 0 }
 
 fn parse_num(v: &str) -> Option<i64> {
     let t = v.trim();
@@ -249,7 +352,7 @@ enum ExprTok {
     End,
 }
 
-fn eval_expr_i64(expr: &str, symbols: &HashMap<String, i64>) -> Option<i64> {
+fn eval_expr_i64(expr: &str, symbols: &IndexMap<String, i64>) -> Option<i64> {
     let toks = tokenize_expr(expr)?;
     let mut p = ExprParser { toks, idx: 0, symbols };
     let value = p.parse_or()?;
@@ -258,7 +361,7 @@ fn eval_expr_i64(expr: &str, symbols: &HashMap<String, i64>) -> Option<i64> {
 }
 
 fn tokenize_expr(expr: &str) -> Option<Vec<ExprTok>> {
-    let mut out = Vec::<ExprTok>::new();
+    let mut out = SmallVec::<[ExprTok; 64]>::new();
     let bytes = expr.as_bytes();
     let mut i = 0usize;
     while i < bytes.len() {
@@ -334,13 +437,13 @@ fn tokenize_expr(expr: &str) -> Option<Vec<ExprTok>> {
         i += 1;
     }
     out.push(ExprTok::End);
-    Some(out)
+    Some(out.into_vec())
 }
 
 struct ExprParser<'a> {
     toks: Vec<ExprTok>,
     idx: usize,
-    symbols: &'a HashMap<String, i64>,
+    symbols: &'a IndexMap<String, i64>,
 }
 
 impl<'a> ExprParser<'a> {
@@ -455,20 +558,51 @@ impl<'a> ExprParser<'a> {
     }
 }
 
-fn expand_macro_call(line: &CanonLine, macros: &HashMap<String, MacroDef>, depth: usize) -> Vec<CanonLine> {
+fn expand_macro_call(line: &CanonLine, macros: &IndexMap<String, MacroDef>, depth: usize, macro_invoke_counter: &mut u64) -> Vec<CanonLine> {
     if depth >= MAX_EXPAND_DEPTH { return vec![line.clone()]; }
     let text = strip_comment(&line.text).trim().to_string();
     let mut p = text.split_whitespace();
     let name = p.next().unwrap_or("");
     if name.ends_with(':') { return vec![line.clone()]; }
     let Some(def) = macros.get(&name.to_ascii_uppercase()) else { return vec![line.clone()]; };
+    *macro_invoke_counter += 1;
+    let macro_id = *macro_invoke_counter;
+    let local_prefix = format!("__m{}_{}", macro_id, name.to_ascii_lowercase());
     let args = text[name.len()..].trim().split(',').map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).collect::<Vec<_>>();
     let mut out = Vec::<CanonLine>::new();
     for l in &def.body {
         let mut t = l.text.clone();
         for i in 0..args.len() { t = t.replace(&format!("\\{}", i + 1), &args[i]); }
-        let nested = expand_macro_call(&CanonLine { text: t, file: l.file.clone(), line: l.line, canon: l.canon }, macros, depth + 1);
+        t = t.replace("\\@", &macro_id.to_string());
+        t = rewrite_local_macro_labels(&t, &local_prefix);
+        let nested = expand_macro_call(&CanonLine { text: t, file: l.file.clone(), line: l.line, canon: l.canon }, macros, depth + 1, macro_invoke_counter);
         out.extend(nested);
+    }
+    out
+}
+
+fn rewrite_local_macro_labels(text: &str, prefix: &str) -> String {
+    let mut out = String::new();
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut i = 0usize;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '.' {
+            let prev = if i == 0 { ' ' } else { chars[i - 1] };
+            if !(prev.is_ascii_alphanumeric() || prev == '_' || prev == '.') {
+                let mut j = i + 1;
+                while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') { j += 1; }
+                if j > i + 1 {
+                    out.push_str(prefix);
+                    out.push('_');
+                    out.extend(chars[(i + 1)..j].iter());
+                    i = j;
+                    continue;
+                }
+            }
+        }
+        out.push(c);
+        i += 1;
     }
     out
 }
@@ -577,7 +711,16 @@ fn parse_instruction(line: &str, source_line: usize) -> Option<AsmInstr> {
 }
 
 fn build_translit_units(program: &AsmProgram) -> Vec<TranslitUnit> {
-    program.blocks.iter().map(|b| TranslitUnit { source_label: b.label.clone(), target_item: format!("gb_{}", normalize_identifier(&b.label)), source_line_start: b.source_line_start, source_line_end: b.source_line_end }).collect()
+    program
+        .blocks
+        .par_iter()
+        .map(|b| TranslitUnit {
+            source_label: b.label.clone(),
+            target_item: format!("gb_{}", normalize_identifier(&b.label)),
+            source_line_start: b.source_line_start,
+            source_line_end: b.source_line_end,
+        })
+        .collect()
 }
 
 fn normalize_identifier(label: &str) -> String {
@@ -598,7 +741,17 @@ fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String 
     out.push_str("struct Ue5ShimState:\n    cpu: CpuState\n    mem: Memory\n    tick: Int\n    last_effect: Int\n\n");
     out.push_str("fn read_port(port_id: Int) -> Int:\n    let _port = port_id\n    return 0\n\n");
     out.push_str("fn write_port(port_id: Int, value: Int):\n    let _port = port_id\n    let _value = value\n\n");
-    out.push_str("fn step(cpu: CpuState, mem: Memory) -> (CpuState, Memory, Int):\n    return (cpu, mem, 0)\n\n");
+    out.push_str("fn step(cpu: CpuState, mem: Memory) -> (CpuState, Memory, Int):\n");
+    out.push_str("    let next_cpu = cpu\n");
+    out.push_str("    let next_mem = mem\n");
+    out.push_str("    let opcode = 0\n");
+    out.push_str("    if opcode == 0:\n");
+    out.push_str("        # NOP\n");
+    out.push_str("        return (next_cpu, next_mem, 4)\n");
+    out.push_str("    return (next_cpu, next_mem, 0)\n\n");
+    out.push_str("fn parity_frame(state: Ue5ShimState) -> Int:\n");
+    out.push_str("    let _state = state\n");
+    out.push_str("    return 0\n\n");
     out.push_str("fn ue5_init(cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }\n\n");
     out.push_str("fn ue5_reset(state: Ue5ShimState, cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    let _old = state\n    return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }\n\n");
     out.push_str("fn ue5_tick_step(state: Ue5ShimState, step_count: Int) -> Ue5ShimState:\n    let next_state = state\n    let _steps = step_count\n    return next_state\n\n");
@@ -618,6 +771,151 @@ fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String 
         out.push_str("    return (next_cpu, next_mem)\n\n");
     }
     out
+}
+
+fn build_rom_model(lines: &[CanonLine], program: &AsmProgram) -> GameboyRomModel {
+    let mut current_section = "ROM0".to_string();
+    let mut current_bank = 0u16;
+    let mut section_start = 0u16;
+    let mut pc = 0u16;
+    let mut section_bytes = 0usize;
+    let mut sections = Vec::<RomSection>::new();
+    let mut bank_usage = BTreeMap::<u16, usize>::new();
+
+    let flush_section = |name: &str, bank: u16, start: u16, pc_now: u16, bytes: usize, sections: &mut Vec<RomSection>| {
+        if bytes == 0 { return; }
+        sections.push(RomSection {
+            name: name.to_string(),
+            bank,
+            start,
+            end: pc_now.saturating_sub(1),
+            bytes,
+        });
+    };
+
+    for line in lines {
+        let text = strip_comment(&line.text).trim();
+        if text.is_empty() { continue; }
+
+        if text.to_ascii_uppercase().starts_with("SECTION ") {
+            flush_section(&current_section, current_bank, section_start, pc, section_bytes, &mut sections);
+            let (name, bank, base) = parse_section_header(text).unwrap_or(("ROM0".to_string(), 0, pc));
+            current_section = name;
+            current_bank = bank;
+            section_start = base;
+            pc = base;
+            section_bytes = 0;
+            continue;
+        }
+
+        if parse_data_line(text).is_some() {
+            if let Some((_, vals)) = parse_data_line(text) {
+                section_bytes += vals.len();
+                pc = pc.saturating_add(vals.len() as u16);
+            }
+            continue;
+        }
+        if let Some(instr) = parse_instruction(text, line.canon) {
+            let size = estimate_instruction_size(&instr);
+            section_bytes += size as usize;
+            pc = pc.saturating_add(size);
+        }
+    }
+    flush_section(&current_section, current_bank, section_start, pc, section_bytes, &mut sections);
+    for sec in &sections {
+        *bank_usage.entry(sec.bank).or_insert(0usize) += sec.bytes;
+    }
+    for table in &program.data_tables {
+        let _ = table;
+    }
+    let banks = bank_usage.into_iter().map(|(bank, used_bytes)| RomBank { bank, used_bytes }).collect::<Vec<_>>();
+    GameboyRomModel { sections, banks }
+}
+
+fn build_parity_harness(program: &AsmProgram) -> GameboyParityHarness {
+    let checkpoints = program
+        .blocks
+        .iter()
+        .take(512)
+        .enumerate()
+        .map(|(idx, block)| ParityCheckpoint {
+            tick: idx as u64,
+            label: block.label.clone(),
+            source_line: block.source_line_start,
+        })
+        .collect::<Vec<_>>();
+    let mut graph = DiGraphMap::<usize, ()>::new();
+    for idx in 0..program.blocks.len() {
+        graph.add_node(idx);
+    }
+    for (idx, block) in program.blocks.iter().enumerate() {
+        for instr in &block.instructions {
+            let op = instr.opcode.as_str();
+            if op != "JP" && op != "JR" && op != "CALL" {
+                continue;
+            }
+            let Some(operand) = instr.operand.as_deref() else {
+                continue;
+            };
+            let target = operand
+                .split(',')
+                .next_back()
+                .unwrap_or("")
+                .trim()
+                .trim_start_matches('.');
+            if target.is_empty() {
+                continue;
+            }
+            if let Some(to_idx) = program
+                .blocks
+                .iter()
+                .position(|b| b.label.eq_ignore_ascii_case(target) || b.label.ends_with(&format!(".{}", target)))
+            {
+                graph.add_edge(idx, to_idx, ());
+            }
+        }
+    }
+    GameboyParityHarness {
+        checkpoints,
+        graph_nodes: graph.node_count(),
+        graph_edges: graph.edge_count(),
+    }
+}
+
+fn parse_section_header(text: &str) -> Option<(String, u16, u16)> {
+    let rest = text.trim().strip_prefix("SECTION ")?.trim();
+    let mut name = "ROM0".to_string();
+    if let Some(i0) = rest.find('"') {
+        let rest2 = &rest[i0 + 1..];
+        if let Some(i1) = rest2.find('"') { name = rest2[..i1].to_string(); }
+    }
+    let up = rest.to_ascii_uppercase();
+    let bank = if let Some(idx) = up.find("BANK[") {
+        let chunk = &rest[(idx + 5)..];
+        if let Some(end) = chunk.find(']') { parse_num(chunk[..end].trim()).unwrap_or(0).max(0) as u16 } else { 0 }
+    } else { 0 };
+    let base = if let Some(idx) = up.find("ROM0[$") {
+        let chunk = &rest[(idx + 6)..];
+        if let Some(end) = chunk.find(']') { parse_num(&format!("${}", &chunk[..end])).unwrap_or(0).max(0) as u16 } else { 0 }
+    } else if let Some(idx) = up.find("ROMX[$") {
+        let chunk = &rest[(idx + 6)..];
+        if let Some(end) = chunk.find(']') { parse_num(&format!("${}", &chunk[..end])).unwrap_or(0).max(0) as u16 } else { 0x4000 }
+    } else { 0 };
+    Some((name, bank, base))
+}
+
+fn estimate_instruction_size(instr: &AsmInstr) -> u16 {
+    let op = instr.opcode.as_str();
+    let operand = instr.operand.as_deref().unwrap_or("");
+    if op == "RST" || op == "RET" || op == "RETI" || op == "NOP" || op == "HALT" || op == "DAA" || op == "SCF" || op == "CCF" || op == "CPL" || op == "DI" || op == "EI" { return 1; }
+    if op == "JP" || op == "CALL" { return 3; }
+    if op == "JR" { return 2; }
+    if op == "LD" {
+        if operand.contains("[$") || operand.contains("($") { return 3; }
+        if operand.contains('$') || operand.contains('%') || operand.chars().any(|c| c.is_ascii_digit()) { return 2; }
+        return 1;
+    }
+    if operand.contains('$') || operand.contains('%') { 2 } else { 1 }
 }
 
 fn build_recovery_report(input: &Path, canonical: &[CanonLine], parsed: &AsmProgram) -> RecoveryReport {
@@ -702,6 +1000,32 @@ mod tests {
         assert!(!out.iter().any(|l| l.text == "LD A, $22"));
         assert!(!out.iter().any(|l| l.text == "LD B, $33"));
         assert!(out.iter().any(|l| l.text == "LD B, $44"));
+    }
+
+    #[test]
+    fn rept_expands_body_count() {
+        let src = vec![
+            CanonLine { text: "REPT 3".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
+            CanonLine { text: "LD A, $01".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
+            CanonLine { text: "ENDR".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
+        ];
+        let out = expand_rgbds_semantics(&src);
+        assert_eq!(out.iter().filter(|l| l.text == "LD A, $01").count(), 3);
+    }
+
+    #[test]
+    fn macro_local_labels_are_rewritten() {
+        let src = vec![
+            CanonLine { text: "LoopMacro: MACRO".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
+            CanonLine { text: ".loop:".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
+            CanonLine { text: "JR .loop".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
+            CanonLine { text: "ENDM".to_string(), file: "a.asm".to_string(), line: 4, canon: 4 },
+            CanonLine { text: "LoopMacro".to_string(), file: "a.asm".to_string(), line: 5, canon: 5 },
+        ];
+        let out = expand_rgbds_semantics(&src);
+        assert!(out.iter().any(|l| l.text.contains("__m")));
+        assert!(!out.iter().any(|l| l.text == ".loop:"));
+        assert!(!out.iter().any(|l| l.text == "JR .loop"));
     }
 
     #[test]

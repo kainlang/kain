@@ -1,0 +1,276 @@
+{
+  "sections": [
+    {
+      "name": "bank1",
+      "bank": 0,
+      "start": 0,
+      "end": 8246,
+      "bytes": 8247
+    },
+    {
+      "name": "bank3",
+      "bank": 0,
+      "start": 0,
+      "end": 8076,
+      "bytes": 8077
+    },
+    {
+      "name": "Battle Engine 1",
+      "bank": 0,
+      "start": 0,
+      "end": 2447,
+      "bytes": 2448
+    },
+    {
+      "name": "Battle Engine 2",
+      "bank": 0,
+      "start": 0,
+      "end": 797,
+      "bytes": 798
+    },
+    {
+      "name": "Play Time",
+      "bank": 0,
+      "start": 0,
+      "end": 65,
+      "bytes": 66
+    },
+    {
+      "name": "Doors and Ledges",
+      "bank": 0,
+      "start": 0,
+      "end": 451,
+      "bytes": 452
+    },
+    {
+      "name": "Pok mon Names",
+      "bank": 0,
+      "start": 0,
+      "end": 79,
+      "bytes": 80
+    },
+    {
+      "name": "Hidden Events 1",
+      "bank": 0,
+      "start": 0,
+      "end": 517,
+      "bytes": 518
+    },
+    {
+      "name": "Bill's PC",
+      "bank": 0,
+      "start": 0,
+      "end": 646,
+      "bytes": 647
+    },
+    {
+      "name": "Battle Engine 3",
+      "bank": 0,
+      "start": 0,
+      "end": 95,
+      "bytes": 96
+    },
+    {
+      "name": "Battle Engine 4",
+      "bank": 0,
+      "start": 0,
+      "end": 41,
+      "bytes": 42
+    },
+    {
+      "name": "Battle Engine 5",
+      "bank": 0,
+      "start": 0,
+      "end": 227,
+      "bytes": 228
+    },
+    {
+      "name": "Battle Engine 6",
+      "bank": 0,
+      "start": 0,
+      "end": 57,
+      "bytes": 58
+    },
+    {
+      "name": "Slot Machines",
+      "bank": 0,
+      "start": 0,
+      "end": 1554,
+      "bytes": 1555
+    },
+    {
+      "name": "Battle Engine 7",
+      "bank": 0,
+      "start": 0,
+      "end": 4506,
+      "bytes": 4507
+    },
+    {
+      "name": "Battle Core",
+      "bank": 0,
+      "start": 0,
+      "end": 9489,
+      "bytes": 9490
+    },
+    {
+      "name": "bank10",
+      "bank": 0,
+      "start": 0,
+      "end": 2618,
+      "bytes": 2619
+    },
+    {
+      "name": "Pok dex Rating",
+      "bank": 0,
+      "start": 0,
+      "end": 58,
+      "bytes": 59
+    },
+    {
+      "name": "Hidden Events Core",
+      "bank": 0,
+      "start": 0,
+      "end": 138,
+      "bytes": 139
+    },
+    {
+      "name": "Screen Effects",
+      "bank": 0,
+      "start": 0,
+      "end": 83,
+      "bytes": 84
+    },
+    {
+      "name": "Predefs",
+      "bank": 0,
+      "start": 0,
+      "end": 114,
+      "bytes": 115
+    },
+    {
+      "name": "Battle Engine 8",
+      "bank": 0,
+      "start": 0,
+      "end": 87,
+      "bytes": 88
+    },
+    {
+      "name": "Hidden Events 2",
+      "bank": 0,
+      "start": 0,
+      "end": 521,
+      "bytes": 522
+    },
+    {
+      "name": "Battle Engine 9",
+      "bank": 0,
+      "start": 0,
+      "end": 392,
+      "bytes": 393
+    },
+    {
+      "name": "Diploma",
+      "bank": 0,
+      "start": 0,
+      "end": 117,
+      "bytes": 118
+    },
+    {
+      "name": "Trainer Sight",
+      "bank": 0,
+      "start": 0,
+      "end": 435,
+      "bytes": 436
+    },
+    {
+      "name": "Battle Engine 10",
+      "bank": 0,
+      "start": 0,
+      "end": 448,
+      "bytes": 449
+    },
+    {
+      "name": "Saffron Guards",
+      "bank": 0,
+      "start": 0,
+      "end": 12,
+      "bytes": 13
+    },
+    {
+      "name": "Starter Dex",
+      "bank": 0,
+      "start": 0,
+      "end": 5,
+      "bytes": 6
+    },
+    {
+      "name": "Hidden Events 3",
+      "bank": 0,
+      "start": 0,
+      "end": 523,
+      "bytes": 524
+    },
+    {
+      "name": "Cinnabar Lab Fossils",
+      "bank": 0,
+      "start": 0,
+      "end": 141,
+      "bytes": 142
+    },
+    {
+      "name": "Hidden Events 4",
+      "bank": 0,
+      "start": 0,
+      "end": 82,
+      "bytes": 83
+    },
+    {
+      "name": "Battle Engine 11",
+      "bank": 0,
+      "start": 0,
+      "end": 31,
+      "bytes": 32
+    },
+    {
+      "name": "bank1C",
+      "bank": 0,
+      "start": 0,
+      "end": 5297,
+      "bytes": 5298
+    },
+    {
+      "name": "Itemfinder 1",
+      "bank": 0,
+      "start": 0,
+      "end": 451,
+      "bytes": 452
+    },
+    {
+      "name": "Vending Machine",
+      "bank": 0,
+      "start": 0,
+      "end": 148,
+      "bytes": 149
+    },
+    {
+      "name": "Itemfinder 2",
+      "bank": 0,
+      "start": 0,
+      "end": 320,
+      "bytes": 321
+    },
+    {
+      "name": "bank1E",
+      "bank": 0,
+      "start": 0,
+      "end": 12451,
+      "bytes": 12452
+    }
+  ],
+  "banks": [
+    {
+      "bank": 0,
+      "used_bytes": 61803
+    }
+  ]
+}

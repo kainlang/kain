@@ -1,0 +1,14 @@
+{
+  "input": "C:\\Users\\Admin\\AppData\\Local\\Temp\\kain_import_gb_test_1772162494215677600\\gb_source.asm",
+  "canonical_output": "Research/gameboy/gameboy_canonical.asm",
+  "unresolved_tokens": [],
+  "ambiguous_labels": [],
+  "section_scores": [
+    {
+      "section": "global",
+      "recognized": 4,
+      "total": 4,
+      "confidence": 1.0
+    }
+  ]
+}
