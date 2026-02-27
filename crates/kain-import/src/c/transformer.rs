@@ -14,6 +14,7 @@ use crate::common::c_registry::{
     resolve_c_compound_assignment_binary_operator,
     CBinaryOperatorResolution,
 };
+use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenamer};
 use crate::{ImportError, Result};
 use std::collections::{HashMap, HashSet};
 
@@ -34,6 +35,9 @@ pub struct CTransformer {
     /// Typedef mappings
     typedefs: HashMap<String, Type>,
 
+    /// Stable identifier mapper that keeps declarations/use-sites aligned.
+    identifier_renamer: StableIdentifierRenamer,
+
     /// KAIN language capability profile used for data-driven lowering decisions.
     language_capabilities: LanguageCapabilities,
 }
@@ -50,7 +54,100 @@ impl CTransformer {
             structs: HashMap::new(),
             enums: HashMap::new(),
             typedefs: HashMap::new(),
+            identifier_renamer: StableIdentifierRenamer::default(),
             language_capabilities,
+        }
+    }
+
+    fn rename_identifier(&mut self, domain: IdentifierDomain, raw: &str) -> String {
+        self.identifier_renamer.resolve(domain, raw)
+    }
+
+    fn rename_value_identifier(&mut self, raw: &str) -> String {
+        self.rename_identifier(IdentifierDomain::Value, raw)
+    }
+
+    fn rename_type_identifier(&mut self, raw: &str) -> String {
+        self.rename_identifier(IdentifierDomain::Type, raw)
+    }
+
+    fn rename_field_identifier(&mut self, raw: &str) -> String {
+        self.rename_identifier(IdentifierDomain::Field, raw)
+    }
+
+    fn rename_variant_identifier(&mut self, raw: &str) -> String {
+        self.rename_identifier(IdentifierDomain::Variant, raw)
+    }
+
+    fn sanitize_type(&mut self, ty: Type) -> Type {
+        match ty {
+            Type::Named {
+                name,
+                generics,
+                span,
+            } => Type::Named {
+                name: self.rename_type_identifier(&name),
+                generics: generics
+                    .into_iter()
+                    .map(|inner| self.sanitize_type(inner))
+                    .collect(),
+                span,
+            },
+            Type::Tuple(items, span) => Type::Tuple(
+                items
+                    .into_iter()
+                    .map(|inner| self.sanitize_type(inner))
+                    .collect(),
+                span,
+            ),
+            Type::Array(inner, len, span) => {
+                Type::Array(Box::new(self.sanitize_type(*inner)), len, span)
+            }
+            Type::Slice(inner, span) => Type::Slice(Box::new(self.sanitize_type(*inner)), span),
+            Type::Ref {
+                mutable,
+                inner,
+                lifetime,
+                span,
+            } => Type::Ref {
+                mutable,
+                inner: Box::new(self.sanitize_type(*inner)),
+                lifetime,
+                span,
+            },
+            Type::Function {
+                params,
+                return_type,
+                effects,
+                span,
+            } => Type::Function {
+                params: params
+                    .into_iter()
+                    .map(|inner| self.sanitize_type(inner))
+                    .collect(),
+                return_type: Box::new(self.sanitize_type(*return_type)),
+                effects,
+                span,
+            },
+            Type::Option(inner, span) => Type::Option(Box::new(self.sanitize_type(*inner)), span),
+            Type::Result(ok, err, span) => Type::Result(
+                Box::new(self.sanitize_type(*ok)),
+                Box::new(self.sanitize_type(*err)),
+                span,
+            ),
+            Type::Impl {
+                trait_name,
+                generics,
+                span,
+            } => Type::Impl {
+                trait_name: self.rename_type_identifier(&trait_name),
+                generics: generics
+                    .into_iter()
+                    .map(|inner| self.sanitize_type(inner))
+                    .collect(),
+                span,
+            },
+            other => other,
         }
     }
     
@@ -84,7 +181,8 @@ impl CTransformer {
     /// Transform a function definition
     fn transform_function(&mut self, func: c_ast::FunctionDefinition) -> Result<Option<Item>> {
         // Extract function name
-        let name = self.extract_function_name(&func.declarator.node)?;
+        let raw_name = self.extract_function_name(&func.declarator.node)?;
+        let name = self.rename_value_identifier(&raw_name);
         
         // Skip if no name (shouldn't happen)
         if name.is_empty() {
@@ -118,7 +216,7 @@ impl CTransformer {
     }
     
     /// Extract function parameters from declarator
-    fn extract_function_params(&self, declarator: &c_ast::Declarator) -> Result<Vec<Param>> {
+    fn extract_function_params(&mut self, declarator: &c_ast::Declarator) -> Result<Vec<Param>> {
         use c_ast::DerivedDeclarator::*;
         
         for derived in &declarator.derived {
@@ -128,7 +226,8 @@ impl CTransformer {
                 for param_decl in &func_decl.node.parameters {
                     // Extract parameter name
                     let param_name = if let Some(ref decl) = param_decl.node.declarator {
-                        self.extract_declarator_name(&decl.node)?
+                        let raw = self.extract_declarator_name(&decl.node)?;
+                        self.rename_value_identifier(&raw)
                     } else {
                         // Anonymous parameter
                         format!("param_{}", params.len())
@@ -154,17 +253,18 @@ impl CTransformer {
     }
     
     /// Extract return type from declaration specifiers
-    fn extract_return_type(&self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
+    fn extract_return_type(&mut self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
         self.extract_type_from_specifiers(specifiers)
     }
     
     /// Extract type from declaration specifiers
-    fn extract_type_from_specifiers(&self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
+    fn extract_type_from_specifiers(&mut self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
         use c_ast::DeclarationSpecifier::*;
         
         for spec in specifiers {
             if let TypeSpecifier(type_spec) = &spec.node {
-                return self.type_transformer.transform_type_specifier(&type_spec.node);
+                let ty = self.type_transformer.transform_type_specifier(&type_spec.node)?;
+                return Ok(self.sanitize_type(ty));
             }
         }
         
@@ -174,12 +274,13 @@ impl CTransformer {
 
     /// Extract type from specifier qualifiers (used in casts/compound literals).
     fn extract_type_from_specifier_qualifiers(
-        &self,
+        &mut self,
         specifiers: &[Node<c_ast::SpecifierQualifier>],
     ) -> Result<Type> {
         for spec in specifiers {
             if let c_ast::SpecifierQualifier::TypeSpecifier(type_spec) = &spec.node {
-                return self.type_transformer.transform_type_specifier(&type_spec.node);
+                let ty = self.type_transformer.transform_type_specifier(&type_spec.node)?;
+                return Ok(self.sanitize_type(ty));
             }
         }
 
@@ -265,7 +366,9 @@ impl CTransformer {
                     if let c_ast::StorageClassSpecifier::Typedef = &storage.node {
                         // Handle typedef
                         for init_decl in &decl.declarators {
-                            let name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
+                            let raw_name =
+                                self.extract_declarator_name(&init_decl.node.declarator.node)?;
+                            let name = self.rename_type_identifier(&raw_name);
                             let mut ty = self.extract_type_from_specifiers(&decl.specifiers)?;
                             if matches!(
                                 &ty,
@@ -277,8 +380,11 @@ impl CTransformer {
                                     span: Span::default(),
                                 };
                             }
-                            self.typedefs.insert(name.clone(), ty.clone());
-                            self.type_transformer.add_typedef(name.clone(), ty.clone());
+                            self.typedefs.insert(raw_name.clone(), ty.clone());
+                            if raw_name != name {
+                                self.typedefs.insert(name.clone(), ty.clone());
+                            }
+                            self.type_transformer.add_typedef(raw_name.clone(), ty.clone());
                             
                             items.push(Item::TypeAlias(TypeAlias {
                                 name,
@@ -297,7 +403,8 @@ impl CTransformer {
         // Handle global variable declarations
         if items.is_empty() {
             for init_decl in &decl.declarators {
-                let name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
+                let raw_name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
+                let name = self.rename_value_identifier(&raw_name);
                 let ty = self.extract_type_from_specifiers(&decl.specifiers)?;
                 
                 // Extract initializer if present
@@ -324,8 +431,10 @@ impl CTransformer {
     /// Transform struct declaration
     fn transform_struct_declaration(&mut self, struct_type: &c_ast::StructType) -> Result<Option<Item>> {
         // Get struct name
-        let name = if let Some(ref ident) = struct_type.identifier {
-            ident.node.name.clone()
+        let (raw_name, name) = if let Some(ref ident) = struct_type.identifier {
+            let raw_name = ident.node.name.clone();
+            let sanitized = self.rename_type_identifier(&raw_name);
+            (raw_name, sanitized)
         } else {
             // Anonymous struct, skip for now
             return Ok(None);
@@ -345,7 +454,8 @@ impl CTransformer {
 
                 for declarator in &field_decl.declarators {
                     if let Some(ref field_decl) = declarator.node.declarator {
-                        let field_name = self.extract_declarator_name(&field_decl.node)?;
+                        let raw_field_name = self.extract_declarator_name(&field_decl.node)?;
+                        let field_name = self.rename_field_identifier(&raw_field_name);
 
                         fields.push(Field {
                             name: field_name,
@@ -371,7 +481,10 @@ impl CTransformer {
             span: Span::default(),
         };
         
-        self.structs.insert(name, struct_def.clone());
+        self.structs.insert(raw_name.clone(), struct_def.clone());
+        if raw_name != name {
+            self.structs.insert(name, struct_def.clone());
+        }
         
         Ok(Some(Item::Struct(struct_def)))
     }
@@ -379,8 +492,10 @@ impl CTransformer {
     /// Transform enum declaration
     fn transform_enum_declaration(&mut self, enum_type: &c_ast::EnumType) -> Result<Option<Item>> {
         // Get enum name
-        let name = if let Some(ref ident) = enum_type.identifier {
-            ident.node.name.clone()
+        let (raw_name, name) = if let Some(ref ident) = enum_type.identifier {
+            let raw_name = ident.node.name.clone();
+            let sanitized = self.rename_type_identifier(&raw_name);
+            (raw_name, sanitized)
         } else {
             // Anonymous enum, skip for now
             return Ok(None);
@@ -390,7 +505,8 @@ impl CTransformer {
         let mut variants = Vec::new();
         
         for enumerator in &enum_type.enumerators {
-            let variant_name = enumerator.node.identifier.node.name.clone();
+            let variant_name =
+                self.rename_variant_identifier(&enumerator.node.identifier.node.name);
 
             variants.push(Variant {
                 name: variant_name,
@@ -407,7 +523,10 @@ impl CTransformer {
             span: Span::default(),
         };
         
-        self.enums.insert(name, enum_def.clone());
+        self.enums.insert(raw_name.clone(), enum_def.clone());
+        if raw_name != name {
+            self.enums.insert(name, enum_def.clone());
+        }
         
         Ok(Some(Item::Enum(enum_def)))
     }
@@ -417,7 +536,8 @@ impl CTransformer {
         let mut stmts = Vec::new();
         
         for init_decl in &decl.declarators {
-            let name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
+            let raw_name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
+            let name = self.rename_value_identifier(&raw_name);
             let ty = self.extract_type_from_specifiers(&decl.specifiers)?;
             
             let value = if let Some(ref init) = init_decl.node.initializer {
@@ -780,7 +900,10 @@ impl CTransformer {
             
             // Identifier
             Identifier(ident) => {
-                Ok(Expr::Ident(ident.node.name.clone(), Span::default()))
+                Ok(Expr::Ident(
+                    self.rename_value_identifier(&ident.node.name),
+                    Span::default(),
+                ))
             }
             
             // Binary operations
@@ -913,7 +1036,7 @@ impl CTransformer {
             // Member access
             Member(member) => {
                 let object = Box::new(self.transform_expression(&member.node.expression.node)?);
-                let field = member.node.identifier.node.name.clone();
+                let field = self.rename_field_identifier(&member.node.identifier.node.name);
                 
                 Ok(Expr::Field {
                     object,
@@ -1062,7 +1185,7 @@ impl CTransformer {
             let field_name = if !item.node.designation.is_empty() {
                 // Extract field name from designator
                 if let c_ast::Designator::Member(ident) = &item.node.designation[0].node {
-                    ident.node.name.clone()
+                    self.rename_field_identifier(&ident.node.name)
                 } else {
                     format!("field_{}", idx)
                 }
@@ -1425,5 +1548,115 @@ mod tests {
         let c_ast = parse_c_source(source).unwrap();
         let result = transform(c_ast);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_sanitizes_reserved_value_and_field_identifiers() {
+        let source = r#"
+            struct Packet {
+                int type;
+            };
+
+            int apply(int in) {
+                struct Packet packet;
+                int type = 3;
+                return packet.type + in + type;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let packet_struct = program
+            .items
+            .iter()
+            .find_map(|item| {
+                if let Item::Struct(s) = item {
+                    Some(s)
+                } else {
+                    None
+                }
+            })
+            .expect("expected struct");
+        assert_eq!(packet_struct.fields[0].name, "type_");
+
+        let apply_fn = program
+            .items
+            .iter()
+            .find_map(|item| {
+                if let Item::Function(f) = item {
+                    Some(f)
+                } else {
+                    None
+                }
+            })
+            .expect("expected function");
+
+        assert_eq!(apply_fn.params[0].name, "in_");
+
+        let local_type_binding = apply_fn
+            .body
+            .stmts
+            .iter()
+            .find_map(|stmt| {
+                if let Stmt::Let {
+                    pattern: Pattern::Binding { name, .. },
+                    ..
+                } = stmt
+                {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            })
+            .expect("expected let binding");
+        assert_eq!(local_type_binding, "packet");
+        assert!(apply_fn
+            .body
+            .stmts
+            .iter()
+            .any(|stmt| matches!(
+                stmt,
+                Stmt::Let {
+                    pattern: Pattern::Binding { name, .. },
+                    ..
+                } if name == "type_"
+            )));
+    }
+
+    #[test]
+    fn test_sanitizes_reserved_function_name_and_call_use_site() {
+        let source = r#"
+            int type(void) {
+                return 1;
+            }
+
+            int run(void) {
+                return type();
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        assert_eq!(program.items.len(), 2);
+
+        let producer = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+        assert_eq!(producer.name, "type_");
+
+        let consumer = match &program.items[1] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Return(Some(Expr::Call { callee, .. }), _) = &consumer.body.stmts[0] else {
+            panic!("expected return call expression");
+        };
+        let Expr::Ident(name, _) = &**callee else {
+            panic!("expected identifier callee");
+        };
+        assert_eq!(name, "type_");
     }
 }

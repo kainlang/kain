@@ -16,7 +16,7 @@ const MAX_ERRORS: usize = 50;
 /// This includes KAIN keywords, HLSL keywords, C++ keywords, and UE5 macros.
 /// Note: Contextual keywords like "state", "compute", "weak" are NOT included here
 /// as they are only keywords in specific contexts and can be used as identifiers elsewhere.
-const RESERVED_KEYWORDS: &[&str] = &[
+pub const RESERVED_KEYWORDS: &[&str] = &[
     // KAIN core keywords (always reserved)
     "fn", "let", "mut", "var", "const", "if", "else", "elif", "match", "for", "while", "loop",
     "break", "continue", "return", "await", "in", "with", "as", "type", "struct", "enum", "trait",

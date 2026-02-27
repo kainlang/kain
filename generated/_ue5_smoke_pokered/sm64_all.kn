@@ -15,7 +15,7 @@ mod actors_amp_anims_animation_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -35,7 +35,7 @@ mod actors_amp_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_amp_anims_table_inc:
@@ -57,7 +57,7 @@ mod actors_bird_anims_anim_050008d0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -77,7 +77,7 @@ mod actors_bird_anims_anim_050009d0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -97,7 +97,7 @@ mod actors_bird_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bird_anims_table_inc:
@@ -119,7 +119,7 @@ mod actors_blargg_anims_anim_05006070_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -139,7 +139,7 @@ mod actors_blargg_anims_anim_05006154_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -159,7 +159,7 @@ mod actors_blargg_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_blargg_anims_table_inc:
@@ -181,7 +181,7 @@ mod actors_blue_fish_anims_anim_0301c298_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -201,7 +201,7 @@ mod actors_blue_fish_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_blue_fish_anims_table_inc:
@@ -223,7 +223,7 @@ mod actors_bobomb_anims_anim_080237fc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -243,7 +243,7 @@ mod actors_bobomb_anims_anim_08023954_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -263,7 +263,7 @@ mod actors_bobomb_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bobomb_anims_table_inc:
@@ -285,7 +285,7 @@ mod actors_bookend_anims_anim_050023f4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -305,7 +305,7 @@ mod actors_bookend_anims_anim_05002510_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -329,7 +329,7 @@ mod actors_bookend_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bookend_anims_table_inc:
@@ -351,7 +351,7 @@ mod actors_bowser_anims_anim_060445ec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -371,7 +371,7 @@ mod actors_bowser_anims_anim_060453c8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -391,7 +391,7 @@ mod actors_bowser_anims_anim_06045d28_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -411,7 +411,7 @@ mod actors_bowser_anims_anim_0604671c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -431,7 +431,7 @@ mod actors_bowser_anims_anim_0604675c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -451,7 +451,7 @@ mod actors_bowser_anims_anim_06048200_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -471,7 +471,7 @@ mod actors_bowser_anims_anim_06049880_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -491,7 +491,7 @@ mod actors_bowser_anims_anim_0604a8e4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -511,7 +511,7 @@ mod actors_bowser_anims_anim_0604b178_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -531,7 +531,7 @@ mod actors_bowser_anims_anim_0604b8cc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -551,7 +551,7 @@ mod actors_bowser_anims_anim_0604d184_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -571,7 +571,7 @@ mod actors_bowser_anims_anim_0604e5a0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -591,7 +591,7 @@ mod actors_bowser_anims_anim_0604f030_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -611,7 +611,7 @@ mod actors_bowser_anims_anim_0604ff4c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -631,7 +631,7 @@ mod actors_bowser_anims_anim_06050530_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -651,7 +651,7 @@ mod actors_bowser_anims_anim_060514e8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -671,7 +671,7 @@ mod actors_bowser_anims_anim_06051c68_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -691,7 +691,7 @@ mod actors_bowser_anims_anim_06052680_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -711,7 +711,7 @@ mod actors_bowser_anims_anim_06052d94_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -731,7 +731,7 @@ mod actors_bowser_anims_anim_060534f4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -751,7 +751,7 @@ mod actors_bowser_anims_anim_06053b8c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -771,7 +771,7 @@ mod actors_bowser_anims_anim_06054290_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -791,7 +791,7 @@ mod actors_bowser_anims_anim_06054950_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -811,7 +811,7 @@ mod actors_bowser_anims_anim_06055210_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -831,7 +831,7 @@ mod actors_bowser_anims_anim_06055984_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -851,7 +851,7 @@ mod actors_bowser_anims_anim_06056774_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -871,7 +871,7 @@ mod actors_bowser_anims_anim_06057678_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -891,7 +891,7 @@ mod actors_bowser_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bowser_anims_table_inc:
@@ -913,7 +913,7 @@ mod actors_bowser_flames_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bowser_key_anims_anim_course_exit_inc:
@@ -931,7 +931,7 @@ mod actors_bowser_key_anims_anim_course_exit_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -951,7 +951,7 @@ mod actors_bowser_key_anims_anim_unlock_door_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -971,7 +971,7 @@ mod actors_bowser_key_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bowser_key_anims_table_inc:
@@ -993,7 +993,7 @@ mod actors_bub_anims_anim_0601233c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1013,7 +1013,7 @@ mod actors_bub_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bub_anims_table_inc:
@@ -1035,7 +1035,7 @@ mod actors_bully_anims_anim_050042a4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1055,7 +1055,7 @@ mod actors_bully_anims_anim_050043d8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1075,7 +1075,7 @@ mod actors_bully_anims_anim_05004598_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1095,7 +1095,7 @@ mod actors_bully_anims_anim_050046f4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1115,7 +1115,7 @@ mod actors_bully_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_bully_anims_table_inc:
@@ -1137,7 +1137,7 @@ mod actors_butterfly_anims_anim_030055b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1157,7 +1157,7 @@ mod actors_butterfly_anims_anim_03005698_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1177,7 +1177,7 @@ mod actors_butterfly_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_butterfly_anims_table_inc:
@@ -1199,7 +1199,7 @@ mod actors_cannon_lid_geo_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_chain_chomp_anims_anim_06025160_inc:
@@ -1217,7 +1217,7 @@ mod actors_chain_chomp_anims_anim_06025160_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1237,7 +1237,7 @@ mod actors_chain_chomp_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_chain_chomp_anims_table_inc:
@@ -1259,7 +1259,7 @@ mod actors_chair_anims_anim_0500576c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1279,7 +1279,7 @@ mod actors_chair_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_chair_anims_table_inc:
@@ -1301,7 +1301,7 @@ mod actors_chillychief_anims_anim_060032ec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1321,7 +1321,7 @@ mod actors_chillychief_anims_anim_06003420_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1341,7 +1341,7 @@ mod actors_chillychief_anims_anim_060035e0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1361,7 +1361,7 @@ mod actors_chillychief_anims_anim_0600373c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1381,7 +1381,7 @@ mod actors_chillychief_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_chillychief_anims_table_inc:
@@ -1403,7 +1403,7 @@ mod actors_chuckya_anims_anim_0800af68_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1423,7 +1423,7 @@ mod actors_chuckya_anims_anim_0800b1a8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1443,7 +1443,7 @@ mod actors_chuckya_anims_anim_0800b4a8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1463,7 +1463,7 @@ mod actors_chuckya_anims_anim_0800b9f8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1483,7 +1483,7 @@ mod actors_chuckya_anims_anim_0800bbec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1503,7 +1503,7 @@ mod actors_chuckya_anims_anim_0800c058_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1523,7 +1523,7 @@ mod actors_chuckya_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_chuckya_anims_table_inc:
@@ -1545,7 +1545,7 @@ mod actors_clam_shell_anims_anim_05001654_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1565,7 +1565,7 @@ mod actors_clam_shell_anims_anim_0500172c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1585,7 +1585,7 @@ mod actors_clam_shell_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_clam_shell_anims_table_inc:
@@ -1607,7 +1607,7 @@ mod actors_common0:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_common0_geo:
@@ -1625,7 +1625,7 @@ mod actors_common0_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_common1:
@@ -1643,7 +1643,7 @@ mod actors_common1:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_common1_geo:
@@ -1661,7 +1661,7 @@ mod actors_common1_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_cyan_fish_anims_anim_0600e24c_inc:
@@ -1679,7 +1679,7 @@ mod actors_cyan_fish_anims_anim_0600e24c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1699,7 +1699,7 @@ mod actors_cyan_fish_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_cyan_fish_anims_table_inc:
@@ -1721,7 +1721,7 @@ mod actors_door_anims_anim_03015208_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1741,7 +1741,7 @@ mod actors_door_anims_anim_03015440_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1765,7 +1765,7 @@ mod actors_door_anims_anim_03015690_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1789,7 +1789,7 @@ mod actors_door_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_door_anims_table_inc:
@@ -1811,7 +1811,7 @@ mod actors_dorrie_anims_anim_0600e18c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1831,7 +1831,7 @@ mod actors_dorrie_anims_anim_0600e9bc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1851,7 +1851,7 @@ mod actors_dorrie_anims_anim_0600f620_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1871,7 +1871,7 @@ mod actors_dorrie_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_dorrie_anims_table_inc:
@@ -1893,7 +1893,7 @@ mod actors_eyerok_anims_anim_0500d270_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1913,7 +1913,7 @@ mod actors_eyerok_anims_anim_0500df50_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1933,7 +1933,7 @@ mod actors_eyerok_anims_anim_0500e1d8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1953,7 +1953,7 @@ mod actors_eyerok_anims_anim_0500e99c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1973,7 +1973,7 @@ mod actors_eyerok_anims_anim_0500f3d8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -1997,7 +1997,7 @@ mod actors_eyerok_anims_anim_0500fccc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2017,7 +2017,7 @@ mod actors_eyerok_anims_anim_050116cc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2037,7 +2037,7 @@ mod actors_eyerok_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_eyerok_anims_table_inc:
@@ -2059,7 +2059,7 @@ mod actors_flyguy_anims_anim_08011a4c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2079,7 +2079,7 @@ mod actors_flyguy_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_flyguy_anims_table_inc:
@@ -2101,7 +2101,7 @@ mod actors_goomba_anims_anim_0801da34_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2121,7 +2121,7 @@ mod actors_goomba_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_goomba_anims_table_inc:
@@ -2143,7 +2143,7 @@ mod actors_group0:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group0_geo:
@@ -2161,7 +2161,7 @@ mod actors_group0_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group1:
@@ -2179,7 +2179,7 @@ mod actors_group1:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group10:
@@ -2197,7 +2197,7 @@ mod actors_group10:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group10_geo:
@@ -2215,7 +2215,7 @@ mod actors_group10_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group11:
@@ -2233,7 +2233,7 @@ mod actors_group11:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group11_geo:
@@ -2251,7 +2251,7 @@ mod actors_group11_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group12:
@@ -2269,7 +2269,7 @@ mod actors_group12:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group12_geo:
@@ -2287,7 +2287,7 @@ mod actors_group12_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group13:
@@ -2305,7 +2305,7 @@ mod actors_group13:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group13_geo:
@@ -2323,7 +2323,7 @@ mod actors_group13_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group14:
@@ -2341,7 +2341,7 @@ mod actors_group14:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group14_geo:
@@ -2359,7 +2359,7 @@ mod actors_group14_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group15:
@@ -2377,7 +2377,7 @@ mod actors_group15:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group15_geo:
@@ -2395,7 +2395,7 @@ mod actors_group15_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group16:
@@ -2413,7 +2413,7 @@ mod actors_group16:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group16_geo:
@@ -2431,7 +2431,7 @@ mod actors_group16_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group17:
@@ -2449,7 +2449,7 @@ mod actors_group17:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group17_geo:
@@ -2467,7 +2467,7 @@ mod actors_group17_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group1_geo:
@@ -2485,7 +2485,7 @@ mod actors_group1_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group2:
@@ -2503,7 +2503,7 @@ mod actors_group2:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group2_geo:
@@ -2521,7 +2521,7 @@ mod actors_group2_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group3:
@@ -2539,7 +2539,7 @@ mod actors_group3:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group3_geo:
@@ -2557,7 +2557,7 @@ mod actors_group3_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group4:
@@ -2575,7 +2575,7 @@ mod actors_group4:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group4_geo:
@@ -2593,7 +2593,7 @@ mod actors_group4_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group5:
@@ -2611,7 +2611,7 @@ mod actors_group5:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group5_geo:
@@ -2629,7 +2629,7 @@ mod actors_group5_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group6:
@@ -2647,7 +2647,7 @@ mod actors_group6:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group6_geo:
@@ -2665,7 +2665,7 @@ mod actors_group6_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group7:
@@ -2683,7 +2683,7 @@ mod actors_group7:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group7_geo:
@@ -2701,7 +2701,7 @@ mod actors_group7_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group8:
@@ -2719,7 +2719,7 @@ mod actors_group8:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group8_geo:
@@ -2737,7 +2737,7 @@ mod actors_group8_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group9:
@@ -2755,7 +2755,7 @@ mod actors_group9:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_group9_geo:
@@ -2773,7 +2773,7 @@ mod actors_group9_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_heave_ho_anims_anim_05014f28_inc:
@@ -2791,7 +2791,7 @@ mod actors_heave_ho_anims_anim_05014f28_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2811,7 +2811,7 @@ mod actors_heave_ho_anims_anim_05015118_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2831,7 +2831,7 @@ mod actors_heave_ho_anims_anim_05015334_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2851,7 +2851,7 @@ mod actors_heave_ho_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_heave_ho_anims_table_inc:
@@ -2873,7 +2873,7 @@ mod actors_hoot_anims_anim_050053ec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2893,7 +2893,7 @@ mod actors_hoot_anims_anim_05005750_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2913,7 +2913,7 @@ mod actors_hoot_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_hoot_anims_table_inc:
@@ -2935,7 +2935,7 @@ mod actors_king_bobomb_anims_anim_0500bdfc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2955,7 +2955,7 @@ mod actors_king_bobomb_anims_anim_0500c2ac_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2975,7 +2975,7 @@ mod actors_king_bobomb_anims_anim_0500c520_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -2995,7 +2995,7 @@ mod actors_king_bobomb_anims_anim_0500c774_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3015,7 +3015,7 @@ mod actors_king_bobomb_anims_anim_0500cfcc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3035,7 +3035,7 @@ mod actors_king_bobomb_anims_anim_0500d5b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3055,7 +3055,7 @@ mod actors_king_bobomb_anims_anim_0500d978_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3075,7 +3075,7 @@ mod actors_king_bobomb_anims_anim_0500ddd8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3095,7 +3095,7 @@ mod actors_king_bobomb_anims_anim_0500e10c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3115,7 +3115,7 @@ mod actors_king_bobomb_anims_anim_0500f078_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3135,7 +3135,7 @@ mod actors_king_bobomb_anims_anim_0500f6c8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3155,7 +3155,7 @@ mod actors_king_bobomb_anims_anim_0500fe18_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3175,7 +3175,7 @@ mod actors_king_bobomb_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_king_bobomb_anims_table_inc:
@@ -3197,7 +3197,7 @@ mod actors_klepto_anims_anim_05005e44_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3217,7 +3217,7 @@ mod actors_klepto_anims_anim_05007574_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3237,7 +3237,7 @@ mod actors_klepto_anims_anim_050079b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3257,7 +3257,7 @@ mod actors_klepto_anims_anim_05007e34_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3277,7 +3277,7 @@ mod actors_klepto_anims_anim_050086c0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3297,7 +3297,7 @@ mod actors_klepto_anims_anim_05008a18_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3317,7 +3317,7 @@ mod actors_klepto_anims_anim_05008ce4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3337,7 +3337,7 @@ mod actors_klepto_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_klepto_anims_table_inc:
@@ -3359,7 +3359,7 @@ mod actors_koopa_anims_anim_0600cc24_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3379,7 +3379,7 @@ mod actors_koopa_anims_anim_0600cfb8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3399,7 +3399,7 @@ mod actors_koopa_anims_anim_0600d518_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3419,7 +3419,7 @@ mod actors_koopa_anims_anim_0600d804_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3439,7 +3439,7 @@ mod actors_koopa_anims_anim_0600dd90_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3459,7 +3459,7 @@ mod actors_koopa_anims_anim_0600e32c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3479,7 +3479,7 @@ mod actors_koopa_anims_anim_0600e928_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3499,7 +3499,7 @@ mod actors_koopa_anims_anim_0600f3ec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3519,7 +3519,7 @@ mod actors_koopa_anims_anim_0600fb1c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3539,7 +3539,7 @@ mod actors_koopa_anims_anim_06010258_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3559,7 +3559,7 @@ mod actors_koopa_anims_anim_06010634_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3579,7 +3579,7 @@ mod actors_koopa_anims_anim_06010e48_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3599,7 +3599,7 @@ mod actors_koopa_anims_anim_060110d8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3619,7 +3619,7 @@ mod actors_koopa_anims_anim_0601134c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3639,7 +3639,7 @@ mod actors_koopa_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_koopa_anims_table_inc:
@@ -3661,7 +3661,7 @@ mod actors_koopa_flag_anims_anim_06001010_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3681,7 +3681,7 @@ mod actors_koopa_flag_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_koopa_flag_anims_table_inc:
@@ -3703,7 +3703,7 @@ mod actors_lakitu_cameraman_anims_anim_060058e0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3723,7 +3723,7 @@ mod actors_lakitu_cameraman_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_lakitu_cameraman_anims_table_inc:
@@ -3745,7 +3745,7 @@ mod actors_lakitu_enemy_anims_anim_05013edc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3765,7 +3765,7 @@ mod actors_lakitu_enemy_anims_anim_050140e8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3785,7 +3785,7 @@ mod actors_lakitu_enemy_anims_anim_050142e0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3805,7 +3805,7 @@ mod actors_lakitu_enemy_anims_anim_050144bc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3825,7 +3825,7 @@ mod actors_lakitu_enemy_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_lakitu_enemy_anims_table_inc:
@@ -3847,7 +3847,7 @@ mod actors_mad_piano_anims_anim_05009a04_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3867,7 +3867,7 @@ mod actors_mad_piano_anims_anim_05009afc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3887,7 +3887,7 @@ mod actors_mad_piano_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_mad_piano_anims_table_inc:
@@ -3909,7 +3909,7 @@ mod actors_manta_anims_anim_05008cfc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3929,7 +3929,7 @@ mod actors_manta_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_manta_anims_table_inc:
@@ -3951,7 +3951,7 @@ mod actors_mips_anims_anim_06013248_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3971,7 +3971,7 @@ mod actors_mips_anims_anim_0601369c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -3991,7 +3991,7 @@ mod actors_mips_anims_anim_060139f8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4011,7 +4011,7 @@ mod actors_mips_anims_anim_06014b94_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4031,7 +4031,7 @@ mod actors_mips_anims_anim_0601561c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4051,7 +4051,7 @@ mod actors_mips_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_mips_anims_table_inc:
@@ -4073,7 +4073,7 @@ mod actors_moneybag_anims_anim_06005ad8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4093,7 +4093,7 @@ mod actors_moneybag_anims_anim_06005bec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4113,7 +4113,7 @@ mod actors_moneybag_anims_anim_06005c98_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4133,7 +4133,7 @@ mod actors_moneybag_anims_anim_06005d3c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4153,7 +4153,7 @@ mod actors_moneybag_anims_anim_06005e44_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4173,7 +4173,7 @@ mod actors_moneybag_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_moneybag_anims_table_inc:
@@ -4195,7 +4195,7 @@ mod actors_monty_mole_anims_anim_05004fec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4215,7 +4215,7 @@ mod actors_monty_mole_anims_anim_0500527c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4235,7 +4235,7 @@ mod actors_monty_mole_anims_anim_050054b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4255,7 +4255,7 @@ mod actors_monty_mole_anims_anim_050062b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4275,7 +4275,7 @@ mod actors_monty_mole_anims_anim_050065c0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4299,7 +4299,7 @@ mod actors_monty_mole_anims_anim_05006880_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4319,7 +4319,7 @@ mod actors_monty_mole_anims_anim_05006b10_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4339,7 +4339,7 @@ mod actors_monty_mole_anims_anim_05006db8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4359,7 +4359,7 @@ mod actors_monty_mole_anims_anim_05007230_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4379,7 +4379,7 @@ mod actors_monty_mole_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_monty_mole_anims_table_inc:
@@ -4401,7 +4401,7 @@ mod actors_peach_anims_anim_0500c638_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4421,7 +4421,7 @@ mod actors_peach_anims_anim_0500e6b4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4441,7 +4441,7 @@ mod actors_peach_anims_anim_0500ed94_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4461,7 +4461,7 @@ mod actors_peach_anims_anim_0500f474_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4481,7 +4481,7 @@ mod actors_peach_anims_anim_0500fe84_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4501,7 +4501,7 @@ mod actors_peach_anims_anim_05011050_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4521,7 +4521,7 @@ mod actors_peach_anims_anim_05012f40_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4541,7 +4541,7 @@ mod actors_peach_anims_anim_05015468_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4561,7 +4561,7 @@ mod actors_peach_anims_anim_05016798_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4581,7 +4581,7 @@ mod actors_peach_anims_anim_05018664_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4601,7 +4601,7 @@ mod actors_peach_anims_anim_0501b328_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4621,7 +4621,7 @@ mod actors_peach_anims_anim_0501c404_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4641,7 +4641,7 @@ mod actors_peach_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_peach_anims_table_inc:
@@ -4663,7 +4663,7 @@ mod actors_penguin_anims_anim_050079e4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4683,7 +4683,7 @@ mod actors_penguin_anims_anim_05007dcc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4703,7 +4703,7 @@ mod actors_penguin_anims_anim_050087c0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4723,7 +4723,7 @@ mod actors_penguin_anims_anim_05008b5c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4743,7 +4743,7 @@ mod actors_penguin_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_penguin_anims_table_inc:
@@ -4765,7 +4765,7 @@ mod actors_piranha_plant_anims_anim_06017c38_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4785,7 +4785,7 @@ mod actors_piranha_plant_anims_anim_06017d88_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4805,7 +4805,7 @@ mod actors_piranha_plant_anims_anim_060187b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4825,7 +4825,7 @@ mod actors_piranha_plant_anims_anim_06018ba8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4845,7 +4845,7 @@ mod actors_piranha_plant_anims_anim_06019854_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4865,7 +4865,7 @@ mod actors_piranha_plant_anims_anim_0601a014_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4885,7 +4885,7 @@ mod actors_piranha_plant_anims_anim_0601aae4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4905,7 +4905,7 @@ mod actors_piranha_plant_anims_anim_0601af34_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4925,7 +4925,7 @@ mod actors_piranha_plant_anims_anim_0601b634_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4945,7 +4945,7 @@ mod actors_piranha_plant_anims_anim_0601c304_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -4965,7 +4965,7 @@ mod actors_piranha_plant_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_piranha_plant_anims_table_inc:
@@ -4983,7 +4983,7 @@ mod actors_piranha_plant_anims_table_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5003,7 +5003,7 @@ mod actors_scuttlebug_anims_anim_0601504c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5023,7 +5023,7 @@ mod actors_scuttlebug_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_scuttlebug_anims_table_inc:
@@ -5045,7 +5045,7 @@ mod actors_seaweed_anims_anim_0600a4bc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5065,7 +5065,7 @@ mod actors_seaweed_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_seaweed_anims_table_inc:
@@ -5087,7 +5087,7 @@ mod actors_skeeter_anims_anim_06005d44_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5107,7 +5107,7 @@ mod actors_skeeter_anims_anim_06006b70_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5127,7 +5127,7 @@ mod actors_skeeter_anims_anim_060071e0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5147,7 +5147,7 @@ mod actors_skeeter_anims_anim_06007dc8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5167,7 +5167,7 @@ mod actors_skeeter_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_skeeter_anims_table_inc:
@@ -5189,7 +5189,7 @@ mod actors_snowman_anims_anim_0500ced8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5209,7 +5209,7 @@ mod actors_snowman_anims_anim_0500d100_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5229,7 +5229,7 @@ mod actors_snowman_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_snowman_anims_table_inc:
@@ -5251,7 +5251,7 @@ mod actors_spindrift_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_spindrift_anims_table_inc:
@@ -5273,7 +5273,7 @@ mod actors_spiny_anims_anim_05016e94_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5293,7 +5293,7 @@ mod actors_spiny_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_spiny_anims_table_inc:
@@ -5315,7 +5315,7 @@ mod actors_spiny_egg_anims_anim_050157cc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5335,7 +5335,7 @@ mod actors_spiny_egg_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_spiny_egg_anims_table_inc:
@@ -5357,7 +5357,7 @@ mod actors_sushi_anims_anim_0500ae3c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5377,7 +5377,7 @@ mod actors_sushi_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_sushi_anims_table_inc:
@@ -5399,7 +5399,7 @@ mod actors_swoop_anims_anim_06006e88_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5419,7 +5419,7 @@ mod actors_swoop_anims_anim_060070b8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5439,7 +5439,7 @@ mod actors_swoop_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_swoop_anims_table_inc:
@@ -5461,7 +5461,7 @@ mod actors_toad_anims_anim_06008f7c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5481,7 +5481,7 @@ mod actors_toad_anims_anim_06009310_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5501,7 +5501,7 @@ mod actors_toad_anims_anim_060099f0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5521,7 +5521,7 @@ mod actors_toad_anims_anim_0600a0d0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5541,7 +5541,7 @@ mod actors_toad_anims_anim_0600b66c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5561,7 +5561,7 @@ mod actors_toad_anims_anim_0600ce78_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5581,7 +5581,7 @@ mod actors_toad_anims_anim_0600e414_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5601,7 +5601,7 @@ mod actors_toad_anims_anim_0600fb40_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5621,7 +5621,7 @@ mod actors_toad_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_toad_anims_table_inc:
@@ -5643,7 +5643,7 @@ mod actors_ukiki_anims_anim_0500d658_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5663,7 +5663,7 @@ mod actors_ukiki_anims_anim_0500dc80_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5683,7 +5683,7 @@ mod actors_ukiki_anims_anim_0500ddec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5703,7 +5703,7 @@ mod actors_ukiki_anims_anim_0500eacc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5723,7 +5723,7 @@ mod actors_ukiki_anims_anim_0500eea8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5743,7 +5743,7 @@ mod actors_ukiki_anims_anim_0500f530_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5763,7 +5763,7 @@ mod actors_ukiki_anims_anim_0500fc84_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5783,7 +5783,7 @@ mod actors_ukiki_anims_anim_0501006c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5803,7 +5803,7 @@ mod actors_ukiki_anims_anim_050103f4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5823,7 +5823,7 @@ mod actors_ukiki_anims_anim_05012abc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5843,7 +5843,7 @@ mod actors_ukiki_anims_anim_05014be4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5863,7 +5863,7 @@ mod actors_ukiki_anims_anim_050153c4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5883,7 +5883,7 @@ mod actors_ukiki_anims_anim_0501576c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5903,7 +5903,7 @@ mod actors_ukiki_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_ukiki_anims_table_inc:
@@ -5925,7 +5925,7 @@ mod actors_unagi_anims_anim_0500fbf4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5945,7 +5945,7 @@ mod actors_unagi_anims_anim_05010488_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5965,7 +5965,7 @@ mod actors_unagi_anims_anim_05010b54_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -5985,7 +5985,7 @@ mod actors_unagi_anims_anim_05011488_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6005,7 +6005,7 @@ mod actors_unagi_anims_anim_05011890_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6025,7 +6025,7 @@ mod actors_unagi_anims_anim_05011d40_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6045,7 +6045,7 @@ mod actors_unagi_anims_anim_0501280c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6065,7 +6065,7 @@ mod actors_unagi_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_unagi_anims_table_inc:
@@ -6087,7 +6087,7 @@ mod actors_water_ring_anims_anim_06013f64_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6107,7 +6107,7 @@ mod actors_water_ring_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_water_ring_anims_table_inc:
@@ -6129,7 +6129,7 @@ mod actors_whomp_anims_anim_060202dc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6149,7 +6149,7 @@ mod actors_whomp_anims_anim_060209ec_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6169,7 +6169,7 @@ mod actors_whomp_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_whomp_anims_table_inc:
@@ -6191,7 +6191,7 @@ mod actors_wiggler_body_anims_anim_0500c760_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6211,7 +6211,7 @@ mod actors_wiggler_body_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_wiggler_body_anims_table_inc:
@@ -6233,7 +6233,7 @@ mod actors_wiggler_head_anims_anim_0500ec74_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6253,7 +6253,7 @@ mod actors_wiggler_head_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_wiggler_head_anims_table_inc:
@@ -6275,7 +6275,7 @@ mod actors_yoshi_anims_anim_050233a4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6295,7 +6295,7 @@ mod actors_yoshi_anims_anim_05023e4c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6315,7 +6315,7 @@ mod actors_yoshi_anims_anim_050240e8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6335,7 +6335,7 @@ mod actors_yoshi_anims_data_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod actors_yoshi_anims_table_inc:
@@ -6357,7 +6357,7 @@ mod assets_anims_anim_00_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6377,7 +6377,7 @@ mod assets_anims_anim_01_02_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6399,7 +6399,7 @@ mod assets_anims_anim_03_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6419,7 +6419,7 @@ mod assets_anims_anim_04_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6439,7 +6439,7 @@ mod assets_anims_anim_05_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6459,7 +6459,7 @@ mod assets_anims_anim_06_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6479,7 +6479,7 @@ mod assets_anims_anim_07_08_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6501,7 +6501,7 @@ mod assets_anims_anim_09_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6521,7 +6521,7 @@ mod assets_anims_anim_0a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6541,7 +6541,7 @@ mod assets_anims_anim_0b_0c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6563,7 +6563,7 @@ mod assets_anims_anim_0d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6583,7 +6583,7 @@ mod assets_anims_anim_0e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6603,7 +6603,7 @@ mod assets_anims_anim_0f_10_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6625,7 +6625,7 @@ mod assets_anims_anim_11_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6645,7 +6645,7 @@ mod assets_anims_anim_12_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6665,7 +6665,7 @@ mod assets_anims_anim_13_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6685,7 +6685,7 @@ mod assets_anims_anim_14_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6705,7 +6705,7 @@ mod assets_anims_anim_15_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6725,7 +6725,7 @@ mod assets_anims_anim_16_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6745,7 +6745,7 @@ mod assets_anims_anim_17_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6765,7 +6765,7 @@ mod assets_anims_anim_18_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6785,7 +6785,7 @@ mod assets_anims_anim_19_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6805,7 +6805,7 @@ mod assets_anims_anim_1a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6825,7 +6825,7 @@ mod assets_anims_anim_1b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6845,7 +6845,7 @@ mod assets_anims_anim_1c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6865,7 +6865,7 @@ mod assets_anims_anim_1d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6885,7 +6885,7 @@ mod assets_anims_anim_1e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6905,7 +6905,7 @@ mod assets_anims_anim_1f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6925,7 +6925,7 @@ mod assets_anims_anim_20_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6945,7 +6945,7 @@ mod assets_anims_anim_21_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6965,7 +6965,7 @@ mod assets_anims_anim_22_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -6985,7 +6985,7 @@ mod assets_anims_anim_23_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7005,7 +7005,7 @@ mod assets_anims_anim_24_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7025,7 +7025,7 @@ mod assets_anims_anim_25_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7045,7 +7045,7 @@ mod assets_anims_anim_26_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7065,7 +7065,7 @@ mod assets_anims_anim_27_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7085,7 +7085,7 @@ mod assets_anims_anim_28_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7105,7 +7105,7 @@ mod assets_anims_anim_29_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7125,7 +7125,7 @@ mod assets_anims_anim_2a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7145,7 +7145,7 @@ mod assets_anims_anim_2b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7165,7 +7165,7 @@ mod assets_anims_anim_2c_2d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7187,7 +7187,7 @@ mod assets_anims_anim_2e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7207,7 +7207,7 @@ mod assets_anims_anim_2f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7227,7 +7227,7 @@ mod assets_anims_anim_30_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7247,7 +7247,7 @@ mod assets_anims_anim_31_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7267,7 +7267,7 @@ mod assets_anims_anim_32_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7287,7 +7287,7 @@ mod assets_anims_anim_33_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7307,7 +7307,7 @@ mod assets_anims_anim_34_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7327,7 +7327,7 @@ mod assets_anims_anim_35_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7347,7 +7347,7 @@ mod assets_anims_anim_36_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7367,7 +7367,7 @@ mod assets_anims_anim_37_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7387,7 +7387,7 @@ mod assets_anims_anim_38_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7407,7 +7407,7 @@ mod assets_anims_anim_39_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7427,7 +7427,7 @@ mod assets_anims_anim_3a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7447,7 +7447,7 @@ mod assets_anims_anim_3b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7467,7 +7467,7 @@ mod assets_anims_anim_3c_3d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7489,7 +7489,7 @@ mod assets_anims_anim_3e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7509,7 +7509,7 @@ mod assets_anims_anim_3f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7529,7 +7529,7 @@ mod assets_anims_anim_40_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7549,7 +7549,7 @@ mod assets_anims_anim_41_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7569,7 +7569,7 @@ mod assets_anims_anim_42_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7589,7 +7589,7 @@ mod assets_anims_anim_43_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7609,7 +7609,7 @@ mod assets_anims_anim_44_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7629,7 +7629,7 @@ mod assets_anims_anim_45_46_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7651,7 +7651,7 @@ mod assets_anims_anim_47_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7671,7 +7671,7 @@ mod assets_anims_anim_48_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7691,7 +7691,7 @@ mod assets_anims_anim_49_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7711,7 +7711,7 @@ mod assets_anims_anim_4a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7731,7 +7731,7 @@ mod assets_anims_anim_4b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7751,7 +7751,7 @@ mod assets_anims_anim_4c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7771,7 +7771,7 @@ mod assets_anims_anim_4d_4e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7793,7 +7793,7 @@ mod assets_anims_anim_4f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7813,7 +7813,7 @@ mod assets_anims_anim_50_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7833,7 +7833,7 @@ mod assets_anims_anim_51_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7853,7 +7853,7 @@ mod assets_anims_anim_52_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7873,7 +7873,7 @@ mod assets_anims_anim_53_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7893,7 +7893,7 @@ mod assets_anims_anim_54_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7913,7 +7913,7 @@ mod assets_anims_anim_55_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7933,7 +7933,7 @@ mod assets_anims_anim_56_57_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7955,7 +7955,7 @@ mod assets_anims_anim_58_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7975,7 +7975,7 @@ mod assets_anims_anim_59_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -7995,7 +7995,7 @@ mod assets_anims_anim_5a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8015,7 +8015,7 @@ mod assets_anims_anim_5b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8035,7 +8035,7 @@ mod assets_anims_anim_5c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8055,7 +8055,7 @@ mod assets_anims_anim_5d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8075,7 +8075,7 @@ mod assets_anims_anim_5e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8095,7 +8095,7 @@ mod assets_anims_anim_5f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8115,7 +8115,7 @@ mod assets_anims_anim_60_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8135,7 +8135,7 @@ mod assets_anims_anim_61_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8155,7 +8155,7 @@ mod assets_anims_anim_62_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8175,7 +8175,7 @@ mod assets_anims_anim_63_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8195,7 +8195,7 @@ mod assets_anims_anim_64_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8215,7 +8215,7 @@ mod assets_anims_anim_65_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8235,7 +8235,7 @@ mod assets_anims_anim_66_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8255,7 +8255,7 @@ mod assets_anims_anim_67_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8275,7 +8275,7 @@ mod assets_anims_anim_68_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8295,7 +8295,7 @@ mod assets_anims_anim_69_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8315,7 +8315,7 @@ mod assets_anims_anim_6a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8335,7 +8335,7 @@ mod assets_anims_anim_6b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8355,7 +8355,7 @@ mod assets_anims_anim_6c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8375,7 +8375,7 @@ mod assets_anims_anim_6d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8395,7 +8395,7 @@ mod assets_anims_anim_6e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8415,7 +8415,7 @@ mod assets_anims_anim_6f_70_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8437,7 +8437,7 @@ mod assets_anims_anim_71_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8457,7 +8457,7 @@ mod assets_anims_anim_72_73_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8479,7 +8479,7 @@ mod assets_anims_anim_74_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8499,7 +8499,7 @@ mod assets_anims_anim_75_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8519,7 +8519,7 @@ mod assets_anims_anim_76_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8539,7 +8539,7 @@ mod assets_anims_anim_77_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8559,7 +8559,7 @@ mod assets_anims_anim_78_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8579,7 +8579,7 @@ mod assets_anims_anim_79_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8599,7 +8599,7 @@ mod assets_anims_anim_7a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8619,7 +8619,7 @@ mod assets_anims_anim_7b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8639,7 +8639,7 @@ mod assets_anims_anim_7c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8659,7 +8659,7 @@ mod assets_anims_anim_7d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8679,7 +8679,7 @@ mod assets_anims_anim_7e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8699,7 +8699,7 @@ mod assets_anims_anim_7f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8719,7 +8719,7 @@ mod assets_anims_anim_80_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8739,7 +8739,7 @@ mod assets_anims_anim_81_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8759,7 +8759,7 @@ mod assets_anims_anim_82_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8779,7 +8779,7 @@ mod assets_anims_anim_83_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8799,7 +8799,7 @@ mod assets_anims_anim_84_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8819,7 +8819,7 @@ mod assets_anims_anim_85_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8839,7 +8839,7 @@ mod assets_anims_anim_86_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8859,7 +8859,7 @@ mod assets_anims_anim_87_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8879,7 +8879,7 @@ mod assets_anims_anim_88_89_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8901,7 +8901,7 @@ mod assets_anims_anim_8a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8921,7 +8921,7 @@ mod assets_anims_anim_8b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8941,7 +8941,7 @@ mod assets_anims_anim_8c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8961,7 +8961,7 @@ mod assets_anims_anim_8d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -8981,7 +8981,7 @@ mod assets_anims_anim_8e_8f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9003,7 +9003,7 @@ mod assets_anims_anim_90_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9023,7 +9023,7 @@ mod assets_anims_anim_91_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9043,7 +9043,7 @@ mod assets_anims_anim_92_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9063,7 +9063,7 @@ mod assets_anims_anim_93_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9083,7 +9083,7 @@ mod assets_anims_anim_94_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9103,7 +9103,7 @@ mod assets_anims_anim_95_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9123,7 +9123,7 @@ mod assets_anims_anim_96_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9143,7 +9143,7 @@ mod assets_anims_anim_97_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9163,7 +9163,7 @@ mod assets_anims_anim_98_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9183,7 +9183,7 @@ mod assets_anims_anim_99_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9203,7 +9203,7 @@ mod assets_anims_anim_9a_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9223,7 +9223,7 @@ mod assets_anims_anim_9b_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9243,7 +9243,7 @@ mod assets_anims_anim_9c_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9263,7 +9263,7 @@ mod assets_anims_anim_9d_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9283,7 +9283,7 @@ mod assets_anims_anim_9e_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9303,7 +9303,7 @@ mod assets_anims_anim_9f_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9323,7 +9323,7 @@ mod assets_anims_anim_a0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9343,7 +9343,7 @@ mod assets_anims_anim_a1_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9363,7 +9363,7 @@ mod assets_anims_anim_a2_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9383,7 +9383,7 @@ mod assets_anims_anim_a3_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9403,7 +9403,7 @@ mod assets_anims_anim_a4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9423,7 +9423,7 @@ mod assets_anims_anim_a5_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9443,7 +9443,7 @@ mod assets_anims_anim_a6_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9463,7 +9463,7 @@ mod assets_anims_anim_a7_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9483,7 +9483,7 @@ mod assets_anims_anim_a8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9503,7 +9503,7 @@ mod assets_anims_anim_a9_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9523,7 +9523,7 @@ mod assets_anims_anim_aa_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9543,7 +9543,7 @@ mod assets_anims_anim_ab_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9563,7 +9563,7 @@ mod assets_anims_anim_ac_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9583,7 +9583,7 @@ mod assets_anims_anim_ad_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9603,7 +9603,7 @@ mod assets_anims_anim_ae_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9623,7 +9623,7 @@ mod assets_anims_anim_af_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9643,7 +9643,7 @@ mod assets_anims_anim_b0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9663,7 +9663,7 @@ mod assets_anims_anim_b1_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9683,7 +9683,7 @@ mod assets_anims_anim_b2_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9703,7 +9703,7 @@ mod assets_anims_anim_b3_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9723,7 +9723,7 @@ mod assets_anims_anim_b4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9743,7 +9743,7 @@ mod assets_anims_anim_b5_b6_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9765,7 +9765,7 @@ mod assets_anims_anim_b7_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9785,7 +9785,7 @@ mod assets_anims_anim_b8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9805,7 +9805,7 @@ mod assets_anims_anim_b9_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9825,7 +9825,7 @@ mod assets_anims_anim_ba_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9845,7 +9845,7 @@ mod assets_anims_anim_bb_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9865,7 +9865,7 @@ mod assets_anims_anim_bc_bd_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9887,7 +9887,7 @@ mod assets_anims_anim_be_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9907,7 +9907,7 @@ mod assets_anims_anim_bf_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9927,7 +9927,7 @@ mod assets_anims_anim_c0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9947,7 +9947,7 @@ mod assets_anims_anim_c1_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9967,7 +9967,7 @@ mod assets_anims_anim_c2_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -9987,7 +9987,7 @@ mod assets_anims_anim_c3_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10007,7 +10007,7 @@ mod assets_anims_anim_c4_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10027,7 +10027,7 @@ mod assets_anims_anim_c5_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10047,7 +10047,7 @@ mod assets_anims_anim_c6_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10067,7 +10067,7 @@ mod assets_anims_anim_c7_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10087,7 +10087,7 @@ mod assets_anims_anim_c8_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10107,7 +10107,7 @@ mod assets_anims_anim_c9_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10127,7 +10127,7 @@ mod assets_anims_anim_ca_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10147,7 +10147,7 @@ mod assets_anims_anim_cb_cc_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10169,7 +10169,7 @@ mod assets_anims_anim_cd_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10189,7 +10189,7 @@ mod assets_anims_anim_ce_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10209,7 +10209,7 @@ mod assets_anims_anim_cf_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10229,7 +10229,7 @@ mod assets_anims_anim_d0_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10249,7 +10249,7 @@ mod bin_eu_translation_de:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod bin_eu_translation_en:
@@ -10267,7 +10267,7 @@ mod bin_eu_translation_en:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod bin_eu_translation_fr:
@@ -10285,7 +10285,7 @@ mod bin_eu_translation_fr:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod include_trig_tables_inc:
@@ -10303,7 +10303,7 @@ mod include_trig_tables_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bbh_geo:
@@ -10321,7 +10321,7 @@ mod levels_bbh_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bbh_leveldata:
@@ -10339,7 +10339,7 @@ mod levels_bbh_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bbh_tumbling_platform_far_collision_inc:
@@ -10359,7 +10359,7 @@ mod levels_bitdw_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bitdw_leveldata:
@@ -10377,7 +10377,7 @@ mod levels_bitdw_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bitfs_geo:
@@ -10395,7 +10395,7 @@ mod levels_bitfs_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bitfs_leveldata:
@@ -10413,7 +10413,7 @@ mod levels_bitfs_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bits_geo:
@@ -10431,7 +10431,7 @@ mod levels_bits_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bits_leveldata:
@@ -10449,7 +10449,7 @@ mod levels_bits_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bob_geo:
@@ -10467,7 +10467,7 @@ mod levels_bob_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bob_leveldata:
@@ -10485,7 +10485,7 @@ mod levels_bob_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bowser_1_geo:
@@ -10503,7 +10503,7 @@ mod levels_bowser_1_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bowser_1_leveldata:
@@ -10521,7 +10521,7 @@ mod levels_bowser_1_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bowser_2_geo:
@@ -10539,7 +10539,7 @@ mod levels_bowser_2_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bowser_2_leveldata:
@@ -10557,7 +10557,7 @@ mod levels_bowser_2_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bowser_3_geo:
@@ -10575,7 +10575,7 @@ mod levels_bowser_3_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_bowser_3_leveldata:
@@ -10593,7 +10593,7 @@ mod levels_bowser_3_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_castle_courtyard_geo:
@@ -10611,7 +10611,7 @@ mod levels_castle_courtyard_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_castle_courtyard_leveldata:
@@ -10629,7 +10629,7 @@ mod levels_castle_courtyard_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_castle_courtyard_texture_inc:
@@ -10649,7 +10649,7 @@ mod levels_castle_grounds_areas_1_11_anim_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Animation:
 
@@ -10671,7 +10671,7 @@ mod levels_castle_grounds_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_castle_grounds_leveldata:
@@ -10689,7 +10689,7 @@ mod levels_castle_grounds_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_castle_inside_clock_hour_hand_collision_inc:
@@ -10711,7 +10711,7 @@ mod levels_castle_inside_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_castle_inside_leveldata:
@@ -10729,7 +10729,7 @@ mod levels_castle_inside_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ccm_geo:
@@ -10747,7 +10747,7 @@ mod levels_ccm_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ccm_leveldata:
@@ -10765,7 +10765,7 @@ mod levels_ccm_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_cotmc_geo:
@@ -10783,7 +10783,7 @@ mod levels_cotmc_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_cotmc_leveldata:
@@ -10801,7 +10801,7 @@ mod levels_cotmc_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ddd_geo:
@@ -10819,7 +10819,7 @@ mod levels_ddd_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ddd_leveldata:
@@ -10837,7 +10837,7 @@ mod levels_ddd_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_hmc_geo:
@@ -10855,7 +10855,7 @@ mod levels_hmc_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_hmc_leveldata:
@@ -10873,7 +10873,7 @@ mod levels_hmc_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_jrb_geo:
@@ -10891,7 +10891,7 @@ mod levels_jrb_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_jrb_leveldata:
@@ -10909,7 +10909,7 @@ mod levels_jrb_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_lll_geo:
@@ -10927,7 +10927,7 @@ mod levels_lll_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_lll_leveldata:
@@ -10945,7 +10945,7 @@ mod levels_lll_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_pss_geo:
@@ -10963,7 +10963,7 @@ mod levels_pss_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_pss_leveldata:
@@ -10981,7 +10981,7 @@ mod levels_pss_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_rr_geo:
@@ -10999,7 +10999,7 @@ mod levels_rr_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_rr_leveldata:
@@ -11017,7 +11017,7 @@ mod levels_rr_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_sa_geo:
@@ -11035,7 +11035,7 @@ mod levels_sa_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_sa_leveldata:
@@ -11053,7 +11053,7 @@ mod levels_sa_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_sa_texture_inc:
@@ -11073,7 +11073,7 @@ mod levels_sl_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_sl_leveldata:
@@ -11091,7 +11091,7 @@ mod levels_sl_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ssl_eyerok_col_geo_inc:
@@ -11113,7 +11113,7 @@ mod levels_ssl_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ssl_leveldata:
@@ -11131,7 +11131,7 @@ mod levels_ssl_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_thi_geo:
@@ -11149,7 +11149,7 @@ mod levels_thi_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_thi_leveldata:
@@ -11167,7 +11167,7 @@ mod levels_thi_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_totwc_cloud_collision_inc:
@@ -11187,7 +11187,7 @@ mod levels_totwc_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_totwc_leveldata:
@@ -11205,7 +11205,7 @@ mod levels_totwc_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ttc_geo:
@@ -11223,7 +11223,7 @@ mod levels_ttc_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ttc_large_gear_collision_inc:
@@ -11243,7 +11243,7 @@ mod levels_ttc_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ttc_small_gear_collision_inc:
@@ -11263,7 +11263,7 @@ mod levels_ttm_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_ttm_leveldata:
@@ -11281,7 +11281,7 @@ mod levels_ttm_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_vcutm_geo:
@@ -11299,7 +11299,7 @@ mod levels_vcutm_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_vcutm_leveldata:
@@ -11317,7 +11317,7 @@ mod levels_vcutm_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_wdw_geo:
@@ -11335,7 +11335,7 @@ mod levels_wdw_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_wdw_leveldata:
@@ -11353,7 +11353,7 @@ mod levels_wdw_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_wf_geo:
@@ -11371,7 +11371,7 @@ mod levels_wf_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_wf_leveldata:
@@ -11389,7 +11389,7 @@ mod levels_wf_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_wmotr_geo:
@@ -11407,7 +11407,7 @@ mod levels_wmotr_geo:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod levels_wmotr_leveldata:
@@ -11425,7 +11425,7 @@ mod levels_wmotr_leveldata:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod lib_src_nan:
@@ -11445,9 +11445,9 @@ mod lib_src_osaidevicebusy:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osAiDeviceBusy(param_0: ()) -> Int:
+    fn osAiDeviceBusy(param_0: ()) -> Int:
         let mut status: Int = IO_READ(AI_STATUS_REG)
         if (status & AI_STATUS_FIFO_FULL):
             return 1
@@ -11470,18 +11470,18 @@ mod lib_src_osatomicdec:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osAtomicDec(a0: Int) -> Int:
+    fn osAtomicDec(a0: Int) -> Int:
         let mut sp1c: Int = none
         let mut sp18: Int = none
-        (sp1c = __osDisableInt())
+        (sp1c = osDisableInt())
         if ((*a0) != 0):
             ((*a0) = ((*a0) - 1))
             (sp18 = 1)
         else:
             (sp18 = 0)
-        __osRestoreInt(sp1c)
+        osRestoreInt(sp1c)
         return sp18
 
 
@@ -11500,9 +11500,9 @@ mod lib_src_osdequeuethread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osDequeueThread(queue: OSThread, thread: OSThread) -> ():
+    fn osDequeueThread(queue: OSThread, thread: OSThread) -> ():
         let mut a2: OSThread = none
         let mut a3: OSThread = none
         (a2 = queue)
@@ -11530,10 +11530,10 @@ mod lib_src_osgetcurrfaultedthread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osGetCurrFaultedThread() -> OSThread:
-        return __osActiveQueue
+    fn osGetCurrFaultedThread() -> OSThread:
+        return osActiveQueue
 
 
 mod lib_src_osresetglobalintmask:
@@ -11551,13 +11551,13 @@ mod lib_src_osresetglobalintmask:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osResetGlobalIntMask(mask: Int) -> ():
+    fn osResetGlobalIntMask(mask: Int) -> ():
         let mut prev: Int = none
-        (prev = __osDisableInt())
-        (__OSGlobalIntMask = (__OSGlobalIntMask & (~((-402) & mask))))
-        __osRestoreInt(prev)
+        (prev = osDisableInt())
+        (OSGlobalIntMask = (OSGlobalIntMask & (~((-402) & mask))))
+        osRestoreInt(prev)
 
 
 mod lib_src_ossetglobalintmask:
@@ -11575,12 +11575,12 @@ mod lib_src_ossetglobalintmask:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSetGlobalIntMask(mask: Int) -> ():
-        let mut saveMask: Int = __osDisableInt()
-        (__OSGlobalIntMask = (__OSGlobalIntMask | mask))
-        __osRestoreInt(saveMask)
+    fn osSetGlobalIntMask(mask: Int) -> ():
+        let mut saveMask: Int = osDisableInt()
+        (OSGlobalIntMask = (OSGlobalIntMask | mask))
+        osRestoreInt(saveMask)
 
 
 mod lib_src_ossidevicebusy:
@@ -11598,9 +11598,9 @@ mod lib_src_ossidevicebusy:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSiDeviceBusy() -> Int:
+    fn osSiDeviceBusy() -> Int:
         let mut status: Int = none
         (status = IO_READ(SI_STATUS_REG))
         if (status & (SI_STATUS_DMA_BUSY | SI_STATUS_RD_BUSY)):
@@ -11624,10 +11624,10 @@ mod lib_src_ossirawreadio:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSiRawReadIo(devAddr: Int, data: Int) -> Int:
-        if __osSiDeviceBusy():
+    fn osSiRawReadIo(devAddr: Int, data: Int) -> Int:
+        if osSiDeviceBusy():
             return (-1)
         ((*data) = IO_READ(devAddr))
         return 0
@@ -11648,10 +11648,10 @@ mod lib_src_ossirawstartdma:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSiRawStartDma(dir: Int, addr: ()) -> Int:
-        if __osSiDeviceBusy():
+    fn osSiRawStartDma(dir: Int, addr: ()) -> Int:
+        if osSiDeviceBusy():
             return (-1)
         if (dir == OS_WRITE):
             osWritebackDCache(addr, 64)
@@ -11680,10 +11680,10 @@ mod lib_src_ossirawwriteio:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSiRawWriteIo(devAddr: Int, data: Int) -> Int:
-        if __osSiDeviceBusy():
+    fn osSiRawWriteIo(devAddr: Int, data: Int) -> Int:
+        if osSiDeviceBusy():
             return (-1)
         IO_WRITE(devAddr, data)
         return 0
@@ -11704,9 +11704,9 @@ mod lib_src_osspdevicebusy:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSpDeviceBusy() -> Int:
+    fn osSpDeviceBusy() -> Int:
         let mut status: Int = IO_READ(SP_STATUS_REG)
         if (status & ((SPSTATUS_IO_FULL | SPSTATUS_DMA_FULL) | SPSTATUS_DMA_BUSY)):
             return 1
@@ -11728,9 +11728,9 @@ mod lib_src_osspgetstatus:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSpGetStatus() -> Int:
+    fn osSpGetStatus() -> Int:
         return IO_READ(SP_STATUS_REG)
 
 
@@ -11749,10 +11749,10 @@ mod lib_src_ossprawstartdma:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSpRawStartDma(dir: Int, sp_ptr: (), dram_ptr: (), size: Int) -> Int:
-        if __osSpDeviceBusy():
+    fn osSpRawStartDma(dir: Int, sp_ptr: (), dram_ptr: (), size: Int) -> Int:
+        if osSpDeviceBusy():
             return (-1)
         IO_WRITE(SP_MEM_ADDR_REG, sp_ptr)
         IO_WRITE(SP_DRAM_ADDR_REG, osVirtualToPhysical(dram_ptr))
@@ -11778,9 +11778,9 @@ mod lib_src_osspsetpc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSpSetPc(pc: ()) -> Int:
+    fn osSpSetPc(pc: ()) -> Int:
         let mut status: Int = IO_READ(SP_STATUS_REG)
         if (!(status & SPSTATUS_HALT)):
             return (-1)
@@ -11804,9 +11804,9 @@ mod lib_src_osspsetstatus:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osSpSetStatus(status: Int) -> ():
+    fn osSpSetStatus(status: Int) -> ():
         IO_WRITE(SP_STATUS_REG, status)
 
 
@@ -11825,40 +11825,40 @@ mod lib_src_contramread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osContRamRead(mq: OSMesgQueue, channel: Int, address: Int, buffer: Int) -> Int:
+    fn osContRamRead(mq: OSMesgQueue, channel: Int, address: Int, buffer: Int) -> Int:
         let mut ret: Int = none
         let mut i: Int = none
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
+        let mut ramreadformat: OSContRamReadFormat_2 = none
         let mut retry: Int = none
         (ret = 0)
-        (ptr = ((&__osPfsPifRam) as Int))
+        (ptr = ((&osPfsPifRam) as Int))
         (retry = 2)
-        __osSiGetAccess()
-        (__osContLastCmd = CONT_CMD_READ_MEMPACK)
-        __osPackRamReadData(channel, address)
-        (ret = __osSiRawStartDma(OS_WRITE, (&__osPfsPifRam)))
+        osSiGetAccess()
+        (osContLastCmd = CONT_CMD_READ_MEMPACK)
+        osPackRamReadData(channel, address)
+        (ret = osSiRawStartDma(OS_WRITE, (&osPfsPifRam)))
         osRecvMesg(mq, NULL, OS_MESG_BLOCK)
-        __osSiRelAccess()
+        osSiRelAccess()
         return ret
 
-    fn __osPackRamReadData(channel: Int, address: Int) -> ():
+    fn osPackRamReadData(channel: Int, address: Int) -> ():
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
+        let mut ramreadformat: OSContRamReadFormat_2 = none
         let mut i: Int = none
-        (ptr = (__osPfsPifRam.ramarray as Int))
+        (ptr = (osPfsPifRam.ramarray as Int))
         (i = 0)
-        while (i < (ARRAY_COUNT(__osPfsPifRam.ramarray) + 1)):
-            (__osPfsPifRam.ramarray[i] = 0)
+        while (i < (ARRAY_COUNT(osPfsPifRam.ramarray) + 1)):
+            (osPfsPifRam.ramarray[i] = 0)
             (i = (i + 1))
-        (__osPfsPifRam.pifstatus = CONT_CMD_EXE)
+        (osPfsPifRam.pifstatus = CONT_CMD_EXE)
         (ramreadformat.dummy = CONT_CMD_NOP)
         (ramreadformat.txsize = CONT_CMD_READ_MEMPACK_TX)
         (ramreadformat.rxsize = CONT_CMD_READ_MEMPACK_RX)
         (ramreadformat.cmd = CONT_CMD_READ_MEMPACK)
-        (ramreadformat.address = ((address << 5) | __osContAddressCrc(address)))
+        (ramreadformat.address = ((address << 5) | osContAddressCrc(address)))
         (ramreadformat.datacrc = CONT_CMD_NOP)
         (i = 0)
         while (i < ARRAY_COUNT(ramreadformat.data)):
@@ -11869,8 +11869,8 @@ mod lib_src_contramread:
             while (i < channel):
                 ((*(ptr = (ptr + 1))) = 0)
                 (i = (i + 1))
-        ((*(ptr as __OSContRamReadFormat)) = ramreadformat)
-        (ptr = (ptr + 0))
+        ((*(ptr as OSContRamReadFormat_2)) = ramreadformat)
+        (ptr = (ptr + 8))
         (ptr[0] = CONT_CMD_END)
 
 
@@ -11889,42 +11889,42 @@ mod lib_src_contramwrite:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osContRamWrite(mq: OSMesgQueue, channel: Int, address: Int, buffer: Int, force: Int) -> Int:
+    fn osContRamWrite(mq: OSMesgQueue, channel: Int, address: Int, buffer: Int, force: Int) -> Int:
         let mut ret: Int = none
         let mut i: Int = none
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
+        let mut ramreadformat: OSContRamReadFormat_2 = none
         let mut retry: Int = none
         (ret = 0)
-        (ptr = ((&__osPfsPifRam) as Int))
+        (ptr = ((&osPfsPifRam) as Int))
         (retry = 2)
         if (((force != 1) && (address < 7)) && (address != 0)):
             return 0
-        __osSiGetAccess()
-        (__osContLastCmd = CONT_CMD_WRITE_MEMPACK)
-        __osPackRamWriteData(channel, address, buffer)
-        (ret = __osSiRawStartDma(OS_WRITE, (&__osPfsPifRam)))
+        osSiGetAccess()
+        (osContLastCmd = CONT_CMD_WRITE_MEMPACK)
+        osPackRamWriteData(channel, address, buffer)
+        (ret = osSiRawStartDma(OS_WRITE, (&osPfsPifRam)))
         osRecvMesg(mq, NULL, OS_MESG_BLOCK)
-        __osSiRelAccess()
+        osSiRelAccess()
         return ret
 
-    fn __osPackRamWriteData(channel: Int, address: Int, buffer: Int) -> ():
+    fn osPackRamWriteData(channel: Int, address: Int, buffer: Int) -> ():
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
+        let mut ramreadformat: OSContRamReadFormat_2 = none
         let mut i: Int = none
-        (ptr = (__osPfsPifRam.ramarray as Int))
+        (ptr = (osPfsPifRam.ramarray as Int))
         (i = 0)
-        while (i < (ARRAY_COUNT(__osPfsPifRam.ramarray) + 1)):
-            (__osPfsPifRam.ramarray[i] = 0)
+        while (i < (ARRAY_COUNT(osPfsPifRam.ramarray) + 1)):
+            (osPfsPifRam.ramarray[i] = 0)
             (i = (i + 1))
-        (__osPfsPifRam.pifstatus = CONT_CMD_EXE)
+        (osPfsPifRam.pifstatus = CONT_CMD_EXE)
         (ramreadformat.dummy = CONT_CMD_NOP)
         (ramreadformat.txsize = CONT_CMD_WRITE_MEMPACK_TX)
         (ramreadformat.rxsize = CONT_CMD_WRITE_MEMPACK_RX)
         (ramreadformat.cmd = CONT_CMD_WRITE_MEMPACK)
-        (ramreadformat.address = ((address << 5) | __osContAddressCrc(address)))
+        (ramreadformat.address = ((address << 5) | osContAddressCrc(address)))
         (ramreadformat.datacrc = CONT_CMD_NOP)
         (i = 0)
         while (i < ARRAY_COUNT(ramreadformat.data)):
@@ -11935,8 +11935,8 @@ mod lib_src_contramwrite:
             while (i < channel):
                 ((*(ptr = (ptr + 1))) = 0)
                 (i = (i + 1))
-        ((*(ptr as __OSContRamReadFormat)) = ramreadformat)
-        (ptr = (ptr + 0))
+        ((*(ptr as OSContRamReadFormat_2)) = ramreadformat)
+        (ptr = (ptr + 8))
         (ptr[0] = CONT_CMD_END)
 
 
@@ -11955,9 +11955,9 @@ mod lib_src_crc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn __osContAddressCrc(addr: Int) -> Int:
+    fn osContAddressCrc(addr: Int) -> Int:
         let mut temp: Int = none
         let mut temp2: Int = none
         let mut i: Int = none
@@ -11975,7 +11975,7 @@ mod lib_src_crc:
             (i = (i + 1))
         return (temp & 0)
 
-    fn __osContDataCrc(data: Int) -> Int:
+    fn osContDataCrc(data: Int) -> Int:
         let mut temp: Int = none
         let mut temp2: Int = none
         let mut i: Int = none
@@ -12017,7 +12017,7 @@ mod lib_src_gunormalize:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn guNormalize(x: Float, y: Float, z: Float) -> ():
         let mut tmp: Float = (1.0 / sqrtf(((((*x) * (*x)) + ((*y) * (*y))) + ((*z) * (*z)))))
@@ -12041,7 +12041,7 @@ mod lib_src_kdebugserver_stack:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod lib_src_libgcc_cmpdi2:
@@ -12049,7 +12049,7 @@ mod lib_src_libgcc_cmpdi2:
         high: Int
         low: Int
 
-    fn __cmpdi2(a: Int, b: Int) -> Int:
+    fn cmpdi2(a: Int, b: Int) -> Int:
         let mut au: DIunion = none
         let mut bu: DIunion = none
         (bu.ll = b)
@@ -12071,7 +12071,7 @@ mod lib_src_libgcc_divdi3:
         high: Int
         low: Int
 
-    fn __negdi2(u: Int) -> Int:
+    fn negdi2(u: Int) -> Int:
         let mut w: DIunion = none
         let mut uu: DIunion = none
         (uu.ll = u)
@@ -12079,7 +12079,7 @@ mod lib_src_libgcc_divdi3:
         (w.s.high = ((-uu.s.high) - ((w.s.low as Int) > 0)))
         return w.ll
 
-    fn __udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
+    fn udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
         let mut ww: DIunion = none
         let mut nn: DIunion = none
         let mut dd: DIunion = none
@@ -12161,7 +12161,7 @@ mod lib_src_libgcc_divdi3:
         (ww.s.high = q1)
         return ww.ll
 
-    fn __divdi3(u: Int, v: Int) -> Int:
+    fn divdi3(u: Int, v: Int) -> Int:
         let mut c: Int = 0
         let mut uu: DIunion = none
         let mut vv: DIunion = none
@@ -12169,12 +12169,12 @@ mod lib_src_libgcc_divdi3:
         (uu.ll = u)
         (vv.ll = v)
         if (uu.s.high < 0):
-            (uu.ll = __negdi2(uu.ll))
+            (uu.ll = negdi2(uu.ll))
         if (vv.s.high < 0):
-            (vv.ll = __negdi2(vv.ll))
-        (w = __udivmoddi4(uu.ll, vv.ll, (0 as Int)))
+            (vv.ll = negdi2(vv.ll))
+        (w = udivmoddi4(uu.ll, vv.ll, (0 as Int)))
         if c:
-            (w = __negdi2(w))
+            (w = negdi2(w))
         return w
 
 
@@ -12183,10 +12183,10 @@ mod lib_src_libgcc_fixdfdi:
         high: Int
         low: Int
 
-    fn __fixdfdi(a: Float) -> Int:
+    fn fixdfdi(a: Float) -> Int:
         if (a < 0):
-            return (-__fixunsdfdi((-a)))
-        return __fixunsdfdi(a)
+            return (-fixunsdfdi((-a)))
+        return fixunsdfdi(a)
 
 
 mod lib_src_libgcc_fixsfdi:
@@ -12194,10 +12194,10 @@ mod lib_src_libgcc_fixsfdi:
         high: Int
         low: Int
 
-    fn __fixsfdi(a: Float) -> Int:
+    fn fixsfdi(a: Float) -> Int:
         if (a < 0):
-            return (-__fixunssfdi((-a)))
-        return __fixunssfdi(a)
+            return (-fixunssfdi((-a)))
+        return fixunssfdi(a)
 
 
 mod lib_src_libgcc_fixunsdfdi:
@@ -12205,7 +12205,7 @@ mod lib_src_libgcc_fixunsdfdi:
         high: Int
         low: Int
 
-    fn __fixunsdfdi(a: Float) -> Int:
+    fn fixunsdfdi(a: Float) -> Int:
         let mut b: Float = none
         let mut v: Int = none
         if (a < 0):
@@ -12226,7 +12226,7 @@ mod lib_src_libgcc_fixunssfdi:
         high: Int
         low: Int
 
-    fn __fixunssfdi(original_a: Float) -> Int:
+    fn fixunssfdi(original_a: Float) -> Int:
         let mut a: Float = original_a
         let mut b: Float = none
         let mut v: Int = none
@@ -12248,7 +12248,7 @@ mod lib_src_libgcc_floatdidf:
         high: Int
         low: Int
 
-    fn __floatdidf(u: Int) -> Float:
+    fn floatdidf(u: Int) -> Float:
         let mut d: Float = none
         (d = ((u >> (8 * 8)) as Int))
         (d = (d * ((1 as Int) << ((8 * 8) / 2))))
@@ -12262,7 +12262,7 @@ mod lib_src_libgcc_floatdisf:
         high: Int
         low: Int
 
-    fn __floatdisf(u: Int) -> Float:
+    fn floatdisf(u: Int) -> Float:
         let mut f: Float = none
         if ((53 < (8 * 8)) && (53 > (((8 * 8) - 53) + 24))):
             if (!(((-((1 as Int) << 53)) < u) && (u < ((1 as Int) << 53)))):
@@ -12280,7 +12280,7 @@ mod lib_src_libgcc_moddi3:
         high: Int
         low: Int
 
-    fn __negdi2(u: Int) -> Int:
+    fn negdi2(u: Int) -> Int:
         let mut w: DIunion = none
         let mut uu: DIunion = none
         (uu.ll = u)
@@ -12288,7 +12288,7 @@ mod lib_src_libgcc_moddi3:
         (w.s.high = ((-uu.s.high) - ((w.s.low as Int) > 0)))
         return w.ll
 
-    fn __udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
+    fn udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
         let mut ww: DIunion = none
         let mut nn: DIunion = none
         let mut dd: DIunion = none
@@ -12370,7 +12370,7 @@ mod lib_src_libgcc_moddi3:
         (ww.s.high = q1)
         return ww.ll
 
-    fn __moddi3(u: Int, v: Int) -> Int:
+    fn moddi3(u: Int, v: Int) -> Int:
         let mut c: Int = 0
         let mut uu: DIunion = none
         let mut vv: DIunion = none
@@ -12378,12 +12378,12 @@ mod lib_src_libgcc_moddi3:
         (uu.ll = u)
         (vv.ll = v)
         if (uu.s.high < 0):
-            (uu.ll = __negdi2(uu.ll))
+            (uu.ll = negdi2(uu.ll))
         if (vv.s.high < 0):
-            (vv.ll = __negdi2(vv.ll))
-        (__udivmoddi4(uu.ll, vv.ll, (&w)) as ())
+            (vv.ll = negdi2(vv.ll))
+        (udivmoddi4(uu.ll, vv.ll, (&w)) as ())
         if c:
-            (w = __negdi2(w))
+            (w = negdi2(w))
         return w
 
 
@@ -12392,7 +12392,7 @@ mod lib_src_libgcc_udivdi3:
         high: Int
         low: Int
 
-    fn __udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
+    fn udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
         let mut ww: DIunion = none
         let mut nn: DIunion = none
         let mut dd: DIunion = none
@@ -12474,8 +12474,8 @@ mod lib_src_libgcc_udivdi3:
         (ww.s.high = q1)
         return ww.ll
 
-    fn __udivdi3(n: Int, d: Int) -> Int:
-        return __udivmoddi4(n, d, (0 as Int))
+    fn udivdi3(n: Int, d: Int) -> Int:
+        return udivmoddi4(n, d, (0 as Int))
 
 
 mod lib_src_libgcc_umoddi3:
@@ -12483,7 +12483,7 @@ mod lib_src_libgcc_umoddi3:
         high: Int
         low: Int
 
-    fn __udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
+    fn udivmoddi4(n: Int, d: Int, rp: Int) -> Int:
         let mut ww: DIunion = none
         let mut nn: DIunion = none
         let mut dd: DIunion = none
@@ -12565,9 +12565,9 @@ mod lib_src_libgcc_umoddi3:
         (ww.s.high = q1)
         return ww.ll
 
-    fn __umoddi3(u: Int, v: Int) -> Int:
+    fn umoddi3(u: Int, v: Int) -> Int:
         let mut w: Int = none
-        (__udivmoddi4(u, v, (&w)) as ())
+        (udivmoddi4(u, v, (&w)) as ())
         return w
 
 
@@ -12612,64 +12612,64 @@ mod lib_src_math_cosf:
 
 
 mod lib_src_math_llconv:
-    fn __d_to_ll(d: Float) -> Int:
+    fn d_to_ll(d: Float) -> Int:
         return d
 
-    fn __f_to_ll(f: Float) -> Int:
+    fn f_to_ll(f: Float) -> Int:
         return f
 
-    fn __d_to_ull(d: Float) -> Int:
+    fn d_to_ull(d: Float) -> Int:
         return d
 
-    fn __f_to_ull(f: Float) -> Int:
+    fn f_to_ull(f: Float) -> Int:
         return f
 
-    fn __ll_to_d(s: Int) -> Float:
+    fn ll_to_d(s: Int) -> Float:
         return s
 
-    fn __ll_to_f(s: Int) -> Float:
+    fn ll_to_f(s: Int) -> Float:
         return s
 
-    fn __ull_to_d(u: Int) -> Float:
+    fn ull_to_d(u: Int) -> Float:
         return u
 
-    fn __ull_to_f(u: Int) -> Float:
+    fn ull_to_f(u: Int) -> Float:
         return u
 
 
 mod lib_src_math_llmuldiv:
-    fn __ull_rshift(a0: Int, a1: Int) -> Int:
+    fn ull_rshift(a0: Int, a1: Int) -> Int:
         return (a0 >> a1)
 
-    fn __ull_rem(a0: Int, a1: Int) -> Int:
+    fn ull_rem(a0: Int, a1: Int) -> Int:
         return (a0 % a1)
 
-    fn __ull_div(a0: Int, a1: Int) -> Int:
+    fn ull_div(a0: Int, a1: Int) -> Int:
         return (a0 / a1)
 
-    fn __ll_lshift(a0: Int, a1: Int) -> Int:
+    fn ll_lshift(a0: Int, a1: Int) -> Int:
         return (a0 << a1)
 
-    fn __ll_rem(a0: Int, a1: Int) -> Int:
+    fn ll_rem(a0: Int, a1: Int) -> Int:
         return (a0 % a1)
 
-    fn __ll_div(a0: Int, a1: Int) -> Int:
+    fn ll_div(a0: Int, a1: Int) -> Int:
         return (a0 / a1)
 
-    fn __ll_mul(a0: Int, a1: Int) -> Int:
+    fn ll_mul(a0: Int, a1: Int) -> Int:
         return (a0 * a1)
 
-    fn __ull_divremi(div: Int, rem: Int, a2: Int, a3: Int) -> ():
+    fn ull_divremi(div: Int, rem: Int, a2: Int, a3: Int) -> ():
         ((*div) = (a2 / a3))
         ((*rem) = (a2 % a3))
 
-    fn __ll_mod(a0: Int, a1: Int) -> Int:
+    fn ll_mod(a0: Int, a1: Int) -> Int:
         let mut tmp: Int = (a0 % a1)
         if (((tmp < 0) && (a1 > 0)) || ((tmp > 0) && (a1 < 0))):
             (tmp = (tmp + a1))
         return tmp
 
-    fn __ll_rshift(a0: Int, a1: Int) -> Int:
+    fn ll_rshift(a0: Int, a1: Int) -> Int:
         return (a0 >> a1)
 
 
@@ -12731,65 +12731,65 @@ mod lib_src_motor:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osMotorStop(pfs: OSPfs) -> Int:
         let mut i: Int = none
         let mut ret: Int = none
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
-        (ptr = ((&__osPfsPifRam) as Int))
-        if (!__osMotorinitialized[pfs.channel]):
+        let mut ramreadformat: OSContRamReadFormat_2 = none
+        (ptr = ((&osPfsPifRam) as Int))
+        if (!osMotorinitialized[pfs.channel]):
             return PFS_ERR_INVALID
-        __osSiGetAccess()
-        (__osContLastCmd = CONT_CMD_WRITE_MEMPACK)
-        __osSiRawStartDma(OS_WRITE, (&_MotorStopData[pfs.channel]))
+        osSiGetAccess()
+        (osContLastCmd = CONT_CMD_WRITE_MEMPACK)
+        osSiRawStartDma(OS_WRITE, (&MotorStopData[pfs.channel]))
         osRecvMesg(pfs.queue, NULL, OS_MESG_BLOCK)
-        (ret = __osSiRawStartDma(OS_READ, (&__osPfsPifRam)))
+        (ret = osSiRawStartDma(OS_READ, (&osPfsPifRam)))
         osRecvMesg(pfs.queue, NULL, OS_MESG_BLOCK)
-        (ptr = ((&__osPfsPifRam) as Int))
+        (ptr = ((&osPfsPifRam) as Int))
         if (pfs.channel != 0):
             (i = 0)
             while (i < pfs.channel):
                 (ptr = (ptr + 1))
                 (i = (i + 1))
-        (ramreadformat = (*(ptr as __OSContRamReadFormat)))
+        (ramreadformat = (*(ptr as OSContRamReadFormat_2)))
         (ret = CHNL_ERR(ramreadformat))
-        if ((ret == 0) && (ramreadformat.datacrc != __osContDataCrc(((&_motorstopbuf) as Int)))):
+        if ((ret == 0) && (ramreadformat.datacrc != osContDataCrc(((&motorstopbuf) as Int)))):
             (ret = PFS_ERR_CONTRFAIL)
-        __osSiRelAccess()
+        osSiRelAccess()
         return ret
 
     fn osMotorStart(pfs: OSPfs) -> Int:
         let mut i: Int = none
         let mut ret: Int = none
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
-        (ptr = ((&__osPfsPifRam) as Int))
-        if (!__osMotorinitialized[pfs.channel]):
+        let mut ramreadformat: OSContRamReadFormat_2 = none
+        (ptr = ((&osPfsPifRam) as Int))
+        if (!osMotorinitialized[pfs.channel]):
             return PFS_ERR_INVALID
-        __osSiGetAccess()
-        (__osContLastCmd = CONT_CMD_WRITE_MEMPACK)
-        __osSiRawStartDma(OS_WRITE, (&_MotorStartData[pfs.channel]))
+        osSiGetAccess()
+        (osContLastCmd = CONT_CMD_WRITE_MEMPACK)
+        osSiRawStartDma(OS_WRITE, (&MotorStartData[pfs.channel]))
         osRecvMesg(pfs.queue, NULL, OS_MESG_BLOCK)
-        (ret = __osSiRawStartDma(OS_READ, (&__osPfsPifRam)))
+        (ret = osSiRawStartDma(OS_READ, (&osPfsPifRam)))
         osRecvMesg(pfs.queue, NULL, OS_MESG_BLOCK)
-        (ptr = ((&__osPfsPifRam) as Int))
+        (ptr = ((&osPfsPifRam) as Int))
         if (pfs.channel != 0):
             (i = 0)
             while (i < pfs.channel):
                 (ptr = (ptr + 1))
                 (i = (i + 1))
-        (ramreadformat = (*(ptr as __OSContRamReadFormat)))
+        (ramreadformat = (*(ptr as OSContRamReadFormat_2)))
         (ret = CHNL_ERR(ramreadformat))
-        if ((ret == 0) && (ramreadformat.datacrc != __osContDataCrc(((&_motorstartbuf) as Int)))):
+        if ((ret == 0) && (ramreadformat.datacrc != osContDataCrc(((&motorstartbuf) as Int)))):
             (ret = PFS_ERR_CONTRFAIL)
-        __osSiRelAccess()
+        osSiRelAccess()
         return ret
 
-    fn _MakeMotorData(channel: Int, address: Int, buffer: Int, mdata: OSPifRam) -> ():
+    fn MakeMotorData(channel: Int, address: Int, buffer: Int, mdata: OSPifRam) -> ():
         let mut ptr: Int = none
-        let mut ramreadformat: __OSContRamReadFormat = none
+        let mut ramreadformat: OSContRamReadFormat_2 = none
         let mut i: Int = none
         (ptr = (mdata.ramarray as Int))
         (i = 0)
@@ -12801,7 +12801,7 @@ mod lib_src_motor:
         (ramreadformat.txsize = CONT_CMD_WRITE_MEMPACK_TX)
         (ramreadformat.rxsize = CONT_CMD_WRITE_MEMPACK_RX)
         (ramreadformat.cmd = CONT_CMD_WRITE_MEMPACK)
-        (ramreadformat.address = ((address << 5) | __osContAddressCrc(address)))
+        (ramreadformat.address = ((address << 5) | osContAddressCrc(address)))
         (ramreadformat.datacrc = CONT_CMD_NOP)
         (i = 0)
         while (i < ARRAY_COUNT(ramreadformat.data)):
@@ -12812,8 +12812,8 @@ mod lib_src_motor:
             while (i < channel):
                 ((*(ptr = (ptr + 1))) = 0)
                 (i = (i + 1))
-        ((*(ptr as __OSContRamReadFormat)) = ramreadformat)
-        (ptr = (ptr + 0))
+        ((*(ptr as OSContRamReadFormat_2)) = ramreadformat)
+        (ptr = (ptr + 8))
         (ptr[0] = CONT_CMD_END)
 
     fn osMotorInit(mq: OSMesgQueue, pfs: OSPfs, channel: Int) -> Int:
@@ -12828,12 +12828,12 @@ mod lib_src_motor:
         while (i < ARRAY_COUNT(temp)):
             (temp[i] = 254)
             (i = (i + 1))
-        (ret = __osContRamWrite(mq, channel, 1024, temp, FALSE))
+        (ret = osContRamWrite(mq, channel, 1024, temp, FALSE))
         if (ret == 2):
-            (ret = __osContRamWrite(mq, channel, 1024, temp, FALSE))
+            (ret = osContRamWrite(mq, channel, 1024, temp, FALSE))
         if (ret != 0):
             return ret
-        (ret = __osContRamRead(mq, channel, 1024, temp))
+        (ret = osContRamRead(mq, channel, 1024, temp))
         if (ret == 2):
             (ret = PFS_ERR_CONTRFAIL)
         if (ret != 0):
@@ -12844,27 +12844,27 @@ mod lib_src_motor:
         while (i < ARRAY_COUNT(temp)):
             (temp[i] = 128)
             (i = (i + 1))
-        (ret = __osContRamWrite(mq, channel, 1024, temp, FALSE))
+        (ret = osContRamWrite(mq, channel, 1024, temp, FALSE))
         if (ret == 2):
-            (ret = __osContRamWrite(mq, channel, 1024, temp, FALSE))
+            (ret = osContRamWrite(mq, channel, 1024, temp, FALSE))
         if (ret != 0):
             return ret
-        (ret = __osContRamRead(mq, channel, 1024, temp))
+        (ret = osContRamRead(mq, channel, 1024, temp))
         if (ret == 2):
             (ret = PFS_ERR_CONTRFAIL)
         if (ret != 0):
             return ret
         if (temp[31] != 128):
             return PFS_ERR_DEVICE
-        if (!__osMotorinitialized[channel]):
+        if (!osMotorinitialized[channel]):
             (i = 0)
-            while (i < ARRAY_COUNT(_motorstartbuf)):
-                (_motorstartbuf[i] = 1)
-                (_motorstopbuf[i] = 0)
+            while (i < ARRAY_COUNT(motorstartbuf)):
+                (motorstartbuf[i] = 1)
+                (motorstopbuf[i] = 0)
                 (i = (i + 1))
-            _MakeMotorData(channel, 1536, _motorstartbuf, (&_MotorStartData[channel]))
-            _MakeMotorData(channel, 1536, _motorstopbuf, (&_MotorStopData[channel]))
-            (__osMotorinitialized[channel] = 1)
+            MakeMotorData(channel, 1536, motorstartbuf, (&MotorStartData[channel]))
+            MakeMotorData(channel, 1536, motorstopbuf, (&MotorStopData[channel]))
+            (osMotorinitialized[channel] = 1)
         return 0
 
 
@@ -12883,7 +12883,7 @@ mod lib_src_osaigetlength:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osAiGetLength() -> Int:
         return IO_READ(AI_LEN_REG)
@@ -12904,7 +12904,7 @@ mod lib_src_osaisetfrequency:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osAiSetFrequency(freq: Int) -> Int:
         let mut dacRate: Int = none
@@ -12944,7 +12944,7 @@ mod lib_src_osaisetnextbuffer:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osAiSetNextBuffer(buff: (), len: Int) -> Int:
         let mut hdwrBugFlag: Int = 0
@@ -12956,7 +12956,7 @@ mod lib_src_osaisetnextbuffer:
             (hdwrBugFlag = 1)
         else:
             (hdwrBugFlag = 0)
-        if __osAiDeviceBusy():
+        if osAiDeviceBusy():
             return (-1)
         IO_WRITE(AI_DRAM_ADDR_REG, osVirtualToPhysical(bptr))
         IO_WRITE(AI_LEN_REG, len)
@@ -12978,11 +12978,11 @@ mod lib_src_oscreatemesgqueue:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osCreateMesgQueue(mq: OSMesgQueue, msgBuf: OSMesg, count: Int) -> ():
-        (mq.mtqueue = ((&__osThreadTail) as OSThread))
-        (mq.fullqueue = ((&__osThreadTail) as OSThread))
+        (mq.mtqueue = ((&osThreadTail) as OSThread))
+        (mq.fullqueue = ((&osThreadTail) as OSThread))
         (mq.validCount = 0)
         (mq.first = 0)
         (mq.msgCount = count)
@@ -13004,22 +13004,22 @@ mod lib_src_osdestroythread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osDestroyThread(thread: OSThread) -> ():
         let mut int_disabled: Int = none
         let mut s1: OSThread = none
         let mut s2: OSThread = none
-        (int_disabled = __osDisableInt())
+        (int_disabled = osDisableInt())
         if (thread == NULL):
-            (thread = __osRunningThread)
+            (thread = osRunningThread)
         else:
             if (thread.state != OS_STATE_STOPPED):
-                __osDequeueThread(thread.queue, thread)
-        if (__osActiveQueue == thread):
-            (__osActiveQueue = __osActiveQueue.tlnext)
+                osDequeueThread(thread.queue, thread)
+        if (osActiveQueue == thread):
+            (osActiveQueue = osActiveQueue.tlnext)
         else:
-            (s1 = __osActiveQueue)
+            (s1 = osActiveQueue)
             (s2 = s1.tlnext)
             while (s2 != NULL):
                 if (s2 == thread):
@@ -13027,9 +13027,9 @@ mod lib_src_osdestroythread:
                     break
                 (s1 = s2)
                 (s2 = s1.tlnext)
-        if (thread == __osRunningThread):
-            __osDispatchThread()
-        __osRestoreInt(int_disabled)
+        if (thread == osRunningThread):
+            osDispatchThread()
+        osRestoreInt(int_disabled)
 
 
 mod lib_src_oseepromlongread:
@@ -13047,7 +13047,7 @@ mod lib_src_oseepromlongread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osEepromLongRead(mq: OSMesgQueue, address: Int, buffer: Int, nbytes: Int) -> Int:
         let mut status: Int = 0
@@ -13060,8 +13060,8 @@ mod lib_src_oseepromlongread:
             (nbytes = (nbytes - EEPROM_BLOCK_SIZE))
             (address = (address + 1))
             (buffer = (buffer + EEPROM_BLOCK_SIZE))
-            osSetTimer((&__osEepromTimer), ((12000 * osClockRate) / 1000000), 0, (&__osEepromTimerQ), __osEepromTimerMsg)
-            osRecvMesg((&__osEepromTimerQ), NULL, OS_MESG_BLOCK)
+            osSetTimer((&osEepromTimer), ((12000 * osClockRate) / 1000000), 0, (&osEepromTimerQ), osEepromTimerMsg)
+            osRecvMesg((&osEepromTimerQ), NULL, OS_MESG_BLOCK)
         return status
 
 
@@ -13080,7 +13080,7 @@ mod lib_src_oseepromlongwrite:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osEepromLongWrite(mq: OSMesgQueue, address: Int, buffer: Int, nbytes: Int) -> Int:
         let mut result: Int = 0
@@ -13093,8 +13093,8 @@ mod lib_src_oseepromlongwrite:
             (nbytes = (nbytes - EEPROM_BLOCK_SIZE))
             (address = (address + 1))
             (buffer = (buffer + EEPROM_BLOCK_SIZE))
-            osSetTimer((&__osEepromTimer), ((12000 * CLOCK_RATE) / 1000000), 0, (&__osEepromTimerQ), __osEepromTimerMsg)
-            osRecvMesg((&__osEepromTimerQ), NULL, OS_MESG_BLOCK)
+            osSetTimer((&osEepromTimer), ((12000 * CLOCK_RATE) / 1000000), 0, (&osEepromTimerQ), osEepromTimerMsg)
+            osRecvMesg((&osEepromTimerQ), NULL, OS_MESG_BLOCK)
         return result
 
 
@@ -13113,23 +13113,23 @@ mod lib_src_osinitialize:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osInitialize(param_0: ()) -> ():
         let mut pifdata: Int = none
         let mut clock: Int = 0
         let mut ptr: Int = none
-        (__osFinalrom = TRUE)
-        __osSetSR((__osGetSR() | SR_CU1))
-        __osSetFpcCsr((FPCSR_FS | FPCSR_EV))
-        while __osSiRawReadIo((PIF_RAM_END - 3), (&pifdata)):
+        (osFinalrom = TRUE)
+        osSetSR((osGetSR() | SR_CU1))
+        osSetFpcCsr((FPCSR_FS | FPCSR_EV))
+        while osSiRawReadIo((PIF_RAM_END - 3), (&pifdata)):
             none
-        while __osSiRawWriteIo((PIF_RAM_END - 3), (pifdata | 8)):
+        while osSiRawWriteIo((PIF_RAM_END - 3), (pifdata | 8)):
             none
-        ((*(UT_VEC as __osExceptionVector)) = __osExceptionPreamble)
-        ((*(XUT_VEC as __osExceptionVector)) = __osExceptionPreamble)
-        ((*(ECC_VEC as __osExceptionVector)) = __osExceptionPreamble)
-        ((*(E_VEC as __osExceptionVector)) = __osExceptionPreamble)
+        ((*(UT_VEC as osExceptionVector_2)) = osExceptionPreamble)
+        ((*(XUT_VEC as osExceptionVector_2)) = osExceptionPreamble)
+        ((*(ECC_VEC as osExceptionVector_2)) = osExceptionPreamble)
+        ((*(E_VEC as osExceptionVector_2)) = osExceptionPreamble)
         osWritebackDCache((UT_VEC as ()), ((E_VEC - UT_VEC) + 8))
         osInvalICache((UT_VEC as ()), ((E_VEC - UT_VEC) + 8))
         osMapTLBRdb()
@@ -13157,7 +13157,7 @@ mod lib_src_osinitializeiquewrapper:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod lib_src_osjammesg:
@@ -13175,24 +13175,24 @@ mod lib_src_osjammesg:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osJamMesg(mq: OSMesgQueue, msg: OSMesg, flag: Int) -> Int:
         let mut int_disabled: Int = none
-        (int_disabled = __osDisableInt())
+        (int_disabled = osDisableInt())
         while MQ_IS_FULL(mq):
             if (flag == OS_MESG_BLOCK):
-                (__osRunningThread.state = OS_STATE_WAITING)
-                __osEnqueueAndYield((&mq.fullqueue))
+                (osRunningThread.state = OS_STATE_WAITING)
+                osEnqueueAndYield((&mq.fullqueue))
             else:
-                __osRestoreInt(int_disabled)
+                osRestoreInt(int_disabled)
                 return (-1)
         (mq.first = (((mq.first + mq.msgCount) - 1) % mq.msgCount))
         (mq.msg[mq.first] = msg)
         (mq.validCount = (mq.validCount + 1))
         if (mq.mtqueue.next != NULL):
-            osStartThread(__osPopThread((&mq.mtqueue)))
-        __osRestoreInt(int_disabled)
+            osStartThread(osPopThread((&mq.mtqueue)))
+        osRestoreInt(int_disabled)
         return 0
 
 
@@ -13211,12 +13211,12 @@ mod lib_src_ospigetcmdqueue:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osPiGetCmdQueue(param_0: ()) -> OSMesgQueue:
-        if (!__osPiDevMgr.active):
+        if (!osPiDevMgr.active):
             return NULL
-        return __osPiDevMgr.cmdQueue
+        return osPiDevMgr.cmdQueue
 
 
 mod lib_src_ospirawreadio:
@@ -13234,7 +13234,7 @@ mod lib_src_ospirawreadio:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osPiRawReadIo(devAddr: Int, data: Int) -> Int:
         let mut status: Int = none
@@ -13258,7 +13258,7 @@ mod lib_src_ospirawstartdma:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osPiRawStartDma(dir: Int, cart_addr: Int, dram_addr: (), size: Int) -> Int:
         let mut status: Int = none
@@ -13283,25 +13283,25 @@ mod lib_src_osrecvmesg:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osRecvMesg(mq: OSMesgQueue, msg: OSMesg, flag: Int) -> Int:
         let mut int_disabled: Int = none
-        (int_disabled = __osDisableInt())
+        (int_disabled = osDisableInt())
         while (!mq.validCount):
             if (!flag):
-                __osRestoreInt(int_disabled)
+                osRestoreInt(int_disabled)
                 return (-1)
             else:
-                (__osRunningThread.state = OS_STATE_WAITING)
-                __osEnqueueAndYield((&mq.mtqueue))
+                (osRunningThread.state = OS_STATE_WAITING)
+                osEnqueueAndYield((&mq.mtqueue))
         if (msg != NULL):
             ((*msg) = (*(mq.first + mq.msg)))
         (mq.first = ((mq.first + 1) % mq.msgCount))
         (mq.validCount = (mq.validCount - 1))
         if (mq.fullqueue.next != NULL):
-            osStartThread(__osPopThread((&mq.fullqueue)))
-        __osRestoreInt(int_disabled)
+            osStartThread(osPopThread((&mq.fullqueue)))
+        osRestoreInt(int_disabled)
         return 0
 
 
@@ -13320,25 +13320,25 @@ mod lib_src_ossendmesg:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osSendMesg(mq: OSMesgQueue, msg: OSMesg, flag: Int) -> Int:
         let mut int_disabled: Int = none
         let mut index: Int = none
-        (int_disabled = __osDisableInt())
+        (int_disabled = osDisableInt())
         while MQ_IS_FULL(mq):
             if (flag == OS_MESG_BLOCK):
-                (__osRunningThread.state = 8)
-                __osEnqueueAndYield((&mq.fullqueue))
+                (osRunningThread.state = 8)
+                osEnqueueAndYield((&mq.fullqueue))
             else:
-                __osRestoreInt(int_disabled)
+                osRestoreInt(int_disabled)
                 return (-1)
         (index = ((mq.first + mq.validCount) % mq.msgCount))
         (mq.msg[index] = msg)
         (mq.validCount = (mq.validCount + 1))
         if (mq.mtqueue.next != NULL):
-            osStartThread(__osPopThread((&mq.mtqueue)))
-        __osRestoreInt(int_disabled)
+            osStartThread(osPopThread((&mq.mtqueue)))
+        osRestoreInt(int_disabled)
         return 0
 
 
@@ -13357,10 +13357,10 @@ mod lib_src_ossptaskyield:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osSpTaskYield(param_0: ()) -> ():
-        __osSpSetStatus(SPSTATUS_SET_SIGNAL0)
+        osSpSetStatus(SPSTATUS_SET_SIGNAL0)
 
 
 mod lib_src_osstartthread:
@@ -13378,18 +13378,18 @@ mod lib_src_osstartthread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osStartThread(thread: OSThread) -> ():
         let mut int_disabled: Int = none
-        (int_disabled = __osDisableInt())
-        if (__osRunningThread == NULL):
-            __osDispatchThread()
+        (int_disabled = osDisableInt())
+        if (osRunningThread == NULL):
+            osDispatchThread()
         else:
-            if (__osRunningThread.priority < __osRunQueue.priority):
-                (__osRunningThread.state = OS_STATE_RUNNABLE)
-                __osEnqueueAndYield((&__osRunQueue))
-        __osRestoreInt(int_disabled)
+            if (osRunningThread.priority < osRunQueue.priority):
+                (osRunningThread.state = OS_STATE_RUNNABLE)
+                osEnqueueAndYield((&osRunQueue))
+        osRestoreInt(int_disabled)
 
 
 mod lib_src_ossyncprintf:
@@ -13407,7 +13407,7 @@ mod lib_src_ossyncprintf:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod lib_src_osvirtualtophysical:
@@ -13425,7 +13425,7 @@ mod lib_src_osvirtualtophysical:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osVirtualToPhysical(addr: ()) -> Int:
         if IS_KSEG0(addr):
@@ -13434,7 +13434,7 @@ mod lib_src_osvirtualtophysical:
             if IS_KSEG1(addr):
                 return K1_TO_PHYS(addr)
             else:
-                return __osProbeTLB(addr)
+                return osProbeTLB(addr)
 
 
 mod lib_src_osyieldthread:
@@ -13452,13 +13452,13 @@ mod lib_src_osyieldthread:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn osYieldThread(param_0: ()) -> ():
-        let mut saveMask: Int = __osDisableInt()
-        (__osRunningThread.state = OS_STATE_RUNNABLE)
-        __osEnqueueAndYield((&__osRunQueue))
-        __osRestoreInt(saveMask)
+        let mut saveMask: Int = osDisableInt()
+        (osRunningThread.state = OS_STATE_RUNNABLE)
+        osEnqueueAndYield((&osRunQueue))
+        osRestoreInt(saveMask)
 
 
 mod lib_src_string:
@@ -13476,13 +13476,13 @@ mod lib_src_string:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn memcpy(dst: (), src: (), size: Int) -> ():
-        let mut _dst: Int = dst
-        let mut _src: Int = src
+        let mut dst_2: Int = dst
+        let mut src_2: Int = src
         while (size > 0):
-            ((*(_dst = (_dst + 1))) = (*(_src = (_src + 1))))
+            ((*(dst_2 = (dst_2 + 1))) = (*(src_2 = (src_2 + 1))))
             (size = (size - 1))
         return dst
 
@@ -13516,7 +13516,7 @@ mod sound_sound_data:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_audio_audio_session_presets_sh:
@@ -13534,7 +13534,7 @@ mod src_audio_audio_session_presets_sh:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_audio_data:
@@ -13552,7 +13552,7 @@ mod src_audio_data:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct OSMesgQueue:
 
@@ -13584,7 +13584,7 @@ mod src_audio_effects:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn sequence_channel_process_sound(seqChannel: SequenceChannel) -> ():
         let mut channelVolume: Float = none
@@ -13735,7 +13735,7 @@ mod src_audio_globals_start:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_audio_heap:
@@ -13753,7 +13753,7 @@ mod src_audio_heap:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct PoolSplit:
         wantSeq: Int
@@ -14138,7 +14138,7 @@ mod src_audio_port_eu:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_audio_port_sh:
@@ -14158,7 +14158,7 @@ mod src_audio_seqplayer:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn sequence_channel_init(seqChannel: SequenceChannel) -> ():
         let mut i: Int = none
@@ -14622,7 +14622,7 @@ mod src_audio_shindou_debug_prints:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_audio_synthesis_sh:
@@ -14642,7 +14642,7 @@ mod src_buffers_buffers:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct SaveBuffer:
 
@@ -14664,7 +14664,7 @@ mod src_buffers_framebuffers:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_buffers_gfx_output_buffer:
@@ -14682,7 +14682,7 @@ mod src_buffers_gfx_output_buffer:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_buffers_zbuffer:
@@ -14700,7 +14700,7 @@ mod src_buffers_zbuffer:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_engine_stub:
@@ -14720,7 +14720,7 @@ mod src_game_behaviors_amp_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -14854,7 +14854,7 @@ mod src_game_behaviors_arrow_lift_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn arrow_lift_move_away(param_0: ()) -> Int:
         let mut status: Int = ARROW_LIFT_NOT_DONE_MOVING
@@ -14907,7 +14907,7 @@ mod src_game_behaviors_bbh_merry_go_round_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn handle_merry_go_round_music(param_0: ()) -> ():
         if (o.oMerryGoRoundMusicShouldPlay == FALSE):
@@ -14921,7 +14921,7 @@ mod src_game_behaviors_bbh_merry_go_round_inc:
             if (marioFloor == NULL):
                 (marioFloorType = 0)
             else:
-                (marioFloorType = marioFloor.type)
+                (marioFloorType = marioFloor.type_)
             if (cur_obj_is_mario_on_platform() || (marioFloorType == SURFACE_MGR_MUSIC)):
                 play_secondary_music(SEQ_EVENT_MERRY_GO_ROUND, 0, 78, 50)
                 (gMarioOnMerryGoRound = TRUE)
@@ -14967,7 +14967,7 @@ mod src_game_behaviors_bbh_tilting_trap_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_bbh_tilting_trap_platform_loop(param_0: ()) -> ():
         let mut filler: Int = none
@@ -15009,7 +15009,7 @@ mod src_game_behaviors_beta_boo_key_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_alpha_boo_key_loop(param_0: ()) -> ():
         (o.oFaceAngleRoll = (o.oFaceAngleRoll + 200))
@@ -15104,7 +15104,7 @@ mod src_game_behaviors_beta_fish_splash_spawner_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_beta_fish_splash_spawner_loop(param_0: ()) -> ():
         let mut filler: Int = none
@@ -15151,7 +15151,7 @@ mod src_game_behaviors_beta_trampoline_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_beta_trampoline_spring_loop(param_0: ()) -> ():
         let mut yScale: Float = none
@@ -15197,7 +15197,7 @@ mod src_game_behaviors_bird_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bird_act_inactive(param_0: ()) -> ():
         if ((o.oBhvParams2ndByte == BIRD_BP_SPAWNED) || (o.oDistanceToMario < 2000.0)):
@@ -15265,7 +15265,7 @@ mod src_game_behaviors_blue_fish_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_blue_fish_movement_loop(param_0: ()) -> ():
         let mut randomSwitch: Float = none
@@ -15294,7 +15294,7 @@ mod src_game_behaviors_bobomb_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -15518,7 +15518,7 @@ mod src_game_behaviors_boo_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -16035,7 +16035,7 @@ mod src_game_behaviors_boo_cage_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -16059,7 +16059,7 @@ mod src_game_behaviors_boulder_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_big_boulder_init(param_0: ()) -> ():
         (o.oHomeX = o.oPosX)
@@ -16115,7 +16115,7 @@ mod src_game_behaviors_bouncing_fireball_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_bouncing_fireball_flame_loop(param_0: ()) -> ():
         (o.activeFlags = (o.activeFlags | ACTIVE_FLAG_UNK10))
@@ -16145,7 +16145,7 @@ mod src_game_behaviors_bowser_bomb_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_bowser_bomb_loop(param_0: ()) -> ():
         if (obj_check_if_collided_with_object(o, gMarioObject) == TRUE):
@@ -16198,7 +16198,7 @@ mod src_game_behaviors_bowser_flame_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -16434,7 +16434,7 @@ mod src_game_behaviors_break_particles_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn spawn_triangle_break_particles(numTris: Int, triModel: Int, triSize: Float, triAnimState: Int) -> ():
         let mut triangle: Object = none
@@ -16485,7 +16485,7 @@ mod src_game_behaviors_breakable_box_small_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -16591,7 +16591,7 @@ mod src_game_behaviors_bub_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bub_spawner_act_0(param_0: ()) -> ():
         let mut i: Int = none
@@ -16709,7 +16709,7 @@ mod src_game_behaviors_bubba_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -16834,7 +16834,7 @@ mod src_game_behaviors_bubble_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_object_bubble_init(param_0: ()) -> ():
         (o.oPosX = (o.oPosX + (random_float() * 30.0)))
@@ -16869,7 +16869,7 @@ mod src_game_behaviors_bullet_bill_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_white_puff_smoke_init(param_0: ()) -> ():
         cur_obj_scale(((random_float() * 2) + 2.0))
@@ -16949,7 +16949,7 @@ mod src_game_behaviors_bully_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -17121,7 +17121,7 @@ mod src_game_behaviors_butterfly_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_butterfly_init(param_0: ()) -> ():
         cur_obj_init_animation(1)
@@ -17210,7 +17210,7 @@ mod src_game_behaviors_camera_lakitu_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_camera_lakitu_init(param_0: ()) -> ():
         if (o.oBhvParams2ndByte != CAMERA_LAKITU_BP_FOLLOW_CAMERA):
@@ -17311,7 +17311,7 @@ mod src_game_behaviors_cannon_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_cannon_base_unused_loop(param_0: ()) -> ():
         (o.oPosY = (o.oPosY + o.oVelY))
@@ -17465,7 +17465,7 @@ mod src_game_behaviors_cap_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -17592,7 +17592,7 @@ mod src_game_behaviors_capswitch_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn cap_switch_act_0(param_0: ()) -> ():
         (o.oAnimState = o.oBhvParams2ndByte)
@@ -17659,7 +17659,7 @@ mod src_game_behaviors_castle_floor_trap_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_floor_trap_in_castle_loop(param_0: ()) -> ():
         if (gMarioObject.platform == o):
@@ -17722,7 +17722,7 @@ mod src_game_behaviors_celebration_star_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_celebration_star_init(param_0: ()) -> ():
         (o.oHomeX = gMarioObject.header.gfx.pos[0])
@@ -17786,7 +17786,7 @@ mod src_game_behaviors_chain_chomp_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -18087,7 +18087,7 @@ mod src_game_behaviors_chuckya_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct UnusedChuckyaData:
         unk0: Int
@@ -18233,7 +18233,7 @@ mod src_game_behaviors_clam_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -18289,18 +18289,18 @@ mod src_game_behaviors_clock_arm_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_rotating_clock_arm_loop(param_0: ()) -> ():
         let mut marioSurface: Surface = none
         let mut rollAngle: Int = o.oFaceAngleRoll
         (o.oFloorHeight = find_floor(gMarioObject.oPosX, gMarioObject.oPosY, gMarioObject.oPosZ, (&marioSurface)))
         if (o.oAction == 0):
-            if ((marioSurface.type == SURFACE_DEFAULT) && (o.oTimer >= 4)):
+            if ((marioSurface.type_ == SURFACE_DEFAULT) && (o.oTimer >= 4)):
                 (o.oAction = (o.oAction + 1))
         else:
             if (o.oAction == 1):
-                if ((marioSurface != NULL) && (((marioSurface.type == SURFACE_TTC_PAINTING_1) || (marioSurface.type == SURFACE_TTC_PAINTING_2)) || (marioSurface.type == SURFACE_TTC_PAINTING_3))):
+                if ((marioSurface != NULL) && (((marioSurface.type_ == SURFACE_TTC_PAINTING_1) || (marioSurface.type_ == SURFACE_TTC_PAINTING_2)) || (marioSurface.type_ == SURFACE_TTC_PAINTING_3))):
                     if cur_obj_has_behavior(bhvClockMinuteHand):
                         if (rollAngle < 0):
                             (gTTCSpeedSetting = TTC_SPEED_STOPPED)
@@ -18337,7 +18337,7 @@ mod src_game_behaviors_cloud_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn cloud_act_spawn_parts(param_0: ()) -> ():
         let mut cloudPart: Object = none
@@ -18455,7 +18455,7 @@ mod src_game_behaviors_coffin_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct LateralPosition:
         x: Int
@@ -18544,7 +18544,7 @@ mod src_game_behaviors_collide_particles_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_punch_tiny_triangle_loop(param_0: ()) -> ():
         if (o.oTimer == 0):
@@ -18691,7 +18691,7 @@ mod src_game_behaviors_door_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct DoorAction:
         flag: Int
@@ -18806,7 +18806,7 @@ mod src_game_behaviors_dorrie_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn dorrie_raise_head(param_0: ()) -> ():
         let mut startAngle: Int = o.oDorrieNeckAngle
@@ -18925,7 +18925,7 @@ mod src_game_behaviors_drawbridge_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_lll_drawbridge_spawner_loop(param_0: ()) -> ():
         let mut drawbridge1: Object = none
@@ -18969,7 +18969,7 @@ mod src_game_behaviors_elevator_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn elevator_starting_shake(param_0: ()) -> ():
         cur_obj_play_sound_2(SOUND_GENERAL_QUIET_POUND1)
@@ -19076,7 +19076,7 @@ mod src_game_behaviors_enemy_lakitu_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -19178,7 +19178,7 @@ mod src_game_behaviors_explosion_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_explosion_init(param_0: ()) -> ():
         create_sound_spawner(SOUND_GENERAL2_BOBOMB_EXPLOSION)
@@ -19245,7 +19245,7 @@ mod src_game_behaviors_falling_pillar_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -19321,7 +19321,7 @@ mod src_game_behaviors_fire_piranha_plant_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -19415,7 +19415,7 @@ mod src_game_behaviors_fire_spitter_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn fire_spitter_act_idle(param_0: ()) -> ():
         approach_f32_ptr((&o.header.gfx.scale[0]), 0.2, 0.002)
@@ -19456,7 +19456,7 @@ mod src_game_behaviors_fish_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn fish_spawner_act_spawn(param_0: ()) -> ():
         let mut i: Int = none
@@ -19612,7 +19612,7 @@ mod src_game_behaviors_flame_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_small_piranha_flame_loop(param_0: ()) -> ():
         if (((o.oBhvParams >> 16) as Int) == 0):
@@ -19697,7 +19697,7 @@ mod src_game_behaviors_flamethrower_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_flamethrower_flame_loop(param_0: ()) -> ():
         let mut scale: Float = none
@@ -19788,7 +19788,7 @@ mod src_game_behaviors_floating_platform_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn floating_platform_find_home_y(param_0: ()) -> Float:
         let mut sp24: Surface = none
@@ -19848,7 +19848,7 @@ mod src_game_behaviors_fly_guy_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -19955,7 +19955,7 @@ mod src_game_behaviors_flying_bookend_switch_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Struct80331B30:
         unk00: Int
@@ -20144,7 +20144,7 @@ mod src_game_behaviors_goomba_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -20280,7 +20280,7 @@ mod src_game_behaviors_ground_particles_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_pound_white_puffs_init(param_0: ()) -> ():
         clear_particle_flags(ACTIVE_PARTICLE_MIST_CIRCLE)
@@ -20329,7 +20329,7 @@ mod src_game_behaviors_haunted_chair_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -20438,7 +20438,7 @@ mod src_game_behaviors_heave_ho_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_heave_ho_throw_mario_loop(param_0: ()) -> ():
         (o.oParentRelativePosX = 200.0)
@@ -20533,7 +20533,7 @@ mod src_game_behaviors_hidden_star_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_hidden_star_init(param_0: ()) -> ():
         let mut count: Int = count_objects_with_behavior(bhvHiddenStarTrigger)
@@ -20575,7 +20575,7 @@ mod src_game_behaviors_hoot_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_hoot_init(param_0: ()) -> ():
         cur_obj_init_animation(0)
@@ -20812,7 +20812,7 @@ mod src_game_behaviors_kickable_board_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn check_mario_attacking(unused: Int) -> Int:
         if (obj_check_if_collided_with_object(o, gMarioObject) && (abs_angle_diff(o.oMoveAngleYaw, gMarioObject.oMoveAngleYaw) > 6000)):
@@ -20854,7 +20854,7 @@ mod src_game_behaviors_koopa_shell_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -20927,7 +20927,7 @@ mod src_game_behaviors_lll_floating_wood_piece_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_lll_wood_piece_loop(param_0: ()) -> ():
         if (o.oTimer == 0):
@@ -20957,7 +20957,7 @@ mod src_game_behaviors_lll_hexagonal_ring_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn hexagonal_ring_spawn_flames(param_0: ()) -> ():
         let mut sp1C: Object = spawn_object(o, MODEL_RED_FLAME, bhvVolcanoFlames)
@@ -20994,7 +20994,7 @@ mod src_game_behaviors_lll_octagonal_rotating_mesh_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn lll_octagonal_mesh_move(a0: Int, a1: Int) -> Int:
         return a1
@@ -21045,7 +21045,7 @@ mod src_game_behaviors_lll_rotating_hex_flame_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_lll_rotating_hex_flame_loop(param_0: ()) -> ():
         let mut sp24: Float = o.oLLLRotatingHexFlameUnkF4
@@ -21116,7 +21116,7 @@ mod src_game_behaviors_lll_sinking_rectangle_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn sinking_rectangular_plat_actions(a0: Float, a1: Int) -> ():
         none
@@ -21169,7 +21169,7 @@ mod src_game_behaviors_mad_piano_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -21226,7 +21226,7 @@ mod src_game_behaviors_metal_box_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -21270,7 +21270,7 @@ mod src_game_behaviors_mips_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_mips_init(param_0: ()) -> ():
         let mut starFlags: Int = save_file_get_star_flags((gCurrSaveFileNum - 1), COURSE_NUM_TO_INDEX(COURSE_NONE))
@@ -21444,7 +21444,7 @@ mod src_game_behaviors_moneybag_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -21542,7 +21542,7 @@ mod src_game_behaviors_moving_coin_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -21642,7 +21642,7 @@ mod src_game_behaviors_mr_blizzard_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -21877,7 +21877,7 @@ mod src_game_behaviors_mr_i_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_piranha_particle_loop(param_0: ()) -> ():
         if (o.oTimer == 0):
@@ -22105,7 +22105,7 @@ mod src_game_behaviors_mushroom_1up_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_1up_interact(param_0: ()) -> ():
         let mut filler: Int = none
@@ -22261,7 +22261,7 @@ mod src_game_behaviors_piranha_bubbles_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_piranha_plant_waking_bubbles_loop(param_0: ()) -> ():
         if (o.oTimer == 0):
@@ -22296,7 +22296,7 @@ mod src_game_behaviors_piranha_plant_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn piranha_plant_act_idle(param_0: ()) -> ():
         cur_obj_become_intangible()
@@ -22437,7 +22437,7 @@ mod src_game_behaviors_pokey_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -22580,7 +22580,7 @@ mod src_game_behaviors_pole_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_pole_init(param_0: ()) -> ():
         let mut tenthHitboxHeight: Int = ((o.oBhvParams >> 16) & 0)
@@ -22615,7 +22615,7 @@ mod src_game_behaviors_purple_switch_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_purple_switch_loop(param_0: ()) -> ():
         let mut filler: Int = none
@@ -22636,7 +22636,7 @@ mod src_game_behaviors_pyramid_elevator_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_pyramid_elevator_init(param_0: ()) -> ():
         let mut i: Int = none
@@ -22673,7 +22673,7 @@ mod src_game_behaviors_pyramid_top_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_pyramid_top_init(param_0: ()) -> ():
         spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector, 1789, 1024, 764, 0, 0, 0)
@@ -22762,7 +22762,7 @@ mod src_game_behaviors_racing_penguin_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct RacingPenguinData:
         dialogID: Int
@@ -22921,7 +22921,7 @@ mod src_game_behaviors_red_coin_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -22969,7 +22969,7 @@ mod src_game_behaviors_rolling_log_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_ttm_rolling_log_init(param_0: ()) -> ():
         (o.oPitouneUnkF8 = 3970.0)
@@ -23080,7 +23080,7 @@ mod src_game_behaviors_scuttlebug_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -23187,7 +23187,7 @@ mod src_game_behaviors_shock_wave_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_bowser_shock_wave_loop(param_0: ()) -> ():
         let mut distMin1: Float = none
@@ -23227,7 +23227,7 @@ mod src_game_behaviors_skeeter_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct Struct80331C38:
         unk00: Int
@@ -23346,7 +23346,7 @@ mod src_game_behaviors_sl_walking_penguin_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct SLWalkingPenguinStep:
         stepLength: Int
@@ -23428,7 +23428,7 @@ mod src_game_behaviors_snowman_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -23574,7 +23574,7 @@ mod src_game_behaviors_sound_spawner_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_sound_spawner_init(param_0: ()) -> ():
         let mut sp1C: Int = o.oSoundEffectUnkF4
@@ -23616,7 +23616,7 @@ mod src_game_behaviors_sparkle_spawn_star_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -23726,7 +23726,7 @@ mod src_game_behaviors_spawn_star_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -23825,7 +23825,7 @@ mod src_game_behaviors_spindel_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_spindel_init(param_0: ()) -> ():
         (o.oHomeY = o.oPosY)
@@ -23911,7 +23911,7 @@ mod src_game_behaviors_spiny_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -24010,7 +24010,7 @@ mod src_game_behaviors_square_platform_cycle_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn square_plat_set_yaw_until_timer(yaw: Int, a: Int) -> Int:
         (o.oMoveAngleYaw = yaw)
@@ -24040,7 +24040,7 @@ mod src_game_behaviors_star_door_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn star_door_update_pos(param_0: ()) -> ():
         (o.oVelX = (o.oLeftVel * coss(o.oMoveAngleYaw)))
@@ -24088,7 +24088,7 @@ mod src_game_behaviors_strong_wind_particle_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -24141,7 +24141,7 @@ mod src_game_behaviors_sushi_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_sushi_shark_collision_loop(param_0: ()) -> ():
         none
@@ -24176,7 +24176,7 @@ mod src_game_behaviors_swing_platform_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_swing_platform_init(param_0: ()) -> ():
         (o.oSwingPlatformAngle = 2000)
@@ -24416,7 +24416,7 @@ mod src_game_behaviors_tox_box_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn tox_box_shake_screen(param_0: ()) -> ():
         if (o.oDistanceToMario < 3000.0):
@@ -24487,7 +24487,7 @@ mod src_game_behaviors_treasure_chest_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -24555,7 +24555,7 @@ mod src_game_behaviors_tree_particles_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_tree_snow_or_leaf_loop(param_0: ()) -> ():
         cur_obj_update_floor_height()
@@ -24633,7 +24633,7 @@ mod src_game_behaviors_ttc_2d_rotator_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_ttc_2d_rotator_init(param_0: ()) -> ():
         (o.oTTC2DRotatorMinTimeUntilNextTurn = sTTC2DRotatorTimeBetweenTurns[o.oBhvParams2ndByte][gTTCSpeedSetting])
@@ -24676,7 +24676,7 @@ mod src_game_behaviors_ttc_elevator_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_ttc_elevator_init(param_0: ()) -> ():
         let mut peakOffset: Float = if ((o.oBhvParams >> 16) & 0): (100.0 * ((o.oBhvParams >> 16) & 0)) else: 500.0
@@ -24712,7 +24712,7 @@ mod src_game_behaviors_ttc_moving_bar_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_ttc_moving_bar_init(param_0: ()) -> ():
         if ((o.oTTCMovingBarDelay = sTTCMovingBarDelays[gTTCSpeedSetting]) == 0):
@@ -24790,7 +24790,7 @@ mod src_game_behaviors_ttc_pendulum_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_ttc_pendulum_init(param_0: ()) -> ():
         if (gTTCSpeedSetting != TTC_SPEED_STOPPED):
@@ -24841,7 +24841,7 @@ mod src_game_behaviors_ttc_spinner_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_ttc_spinner_update(param_0: ()) -> ():
         (o.oAngleVelPitch = sTTCSpinnerSpeeds[gTTCSpeedSetting])
@@ -24873,7 +24873,7 @@ mod src_game_behaviors_tweester_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -24998,7 +24998,7 @@ mod src_game_behaviors_unagi_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -25141,7 +25141,7 @@ mod src_game_behaviors_unused_particle_spawn_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_unused_particle_spawn_loop(param_0: ()) -> ():
         let mut i: Int = none
@@ -25186,7 +25186,7 @@ mod src_game_behaviors_warp_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_warp_loop(param_0: ()) -> ():
         if (o.oTimer == 0):
@@ -25230,7 +25230,7 @@ mod src_game_behaviors_water_bomb_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -25354,7 +25354,7 @@ mod src_game_behaviors_water_bomb_cannon_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_bubble_cannon_barrel_loop(param_0: ()) -> ():
         if (o.parentObj.oAction == 2):
@@ -25439,7 +25439,7 @@ mod src_game_behaviors_water_mist_particle_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_water_mist_spawn_loop(param_0: ()) -> ():
         clear_particle_flags(ACTIVE_PARTICLE_BREATH)
@@ -25473,7 +25473,7 @@ mod src_game_behaviors_water_objs_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_water_air_bubble_init(param_0: ()) -> ():
         cur_obj_scale(4.0)
@@ -25588,7 +25588,7 @@ mod src_game_behaviors_water_pillar_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn water_level_pillar_undrained(param_0: ()) -> ():
         let mut otherWaterPillar: Object = none
@@ -25627,7 +25627,7 @@ mod src_game_behaviors_water_ring_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn water_ring_calc_mario_dist(param_0: ()) -> Float:
         let mut marioDistX: Float = (o.oPosX - gMarioObject.header.gfx.pos[0])
@@ -25766,7 +25766,7 @@ mod src_game_behaviors_water_splashes_and_waves_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct WaterDropletParams:
 
@@ -25857,7 +25857,7 @@ mod src_game_behaviors_water_wave_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_object_water_wave_init(param_0: ()) -> ():
         (o.oPosY = find_water_level(o.oPosX, o.oPosZ))
@@ -25883,7 +25883,7 @@ mod src_game_behaviors_wdw_water_level_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_init_changing_water_level_loop(param_0: ()) -> ():
         if (o.oAction == 0):
@@ -25916,7 +25916,7 @@ mod src_game_behaviors_whirlpool_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -25985,7 +25985,7 @@ mod src_game_behaviors_white_puff_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_white_puff_1_loop(param_0: ()) -> ():
         let mut sp1C: Float = 0.1
@@ -26019,7 +26019,7 @@ mod src_game_behaviors_white_puff_explode_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_white_puff_exploding_loop(param_0: ()) -> ():
         if (o.oTimer == 0):
@@ -26058,7 +26058,7 @@ mod src_game_behaviors_wiggler_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ObjectHitbox:
 
@@ -26290,7 +26290,7 @@ mod src_game_behaviors_wind_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn spawn_wind_particles(pitch: Int, yaw: Int) -> ():
         let mut i: Int = none
@@ -26343,7 +26343,7 @@ mod src_game_behaviors_yoshi_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn bhv_yoshi_init(param_0: ()) -> ():
         (o.oGravity = 2.0)
@@ -26467,7 +26467,7 @@ mod src_game_cn_common_syms_1:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_game_cn_common_syms_2:
@@ -26485,7 +26485,7 @@ mod src_game_cn_common_syms_2:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_game_crash_screen:
@@ -26503,7 +26503,7 @@ mod src_game_crash_screen:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_game_debug:
@@ -26521,7 +26521,7 @@ mod src_game_debug:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     enum DebugPrintStateInfo:
         DEBUG_PSTATE_DISABLED
@@ -26609,7 +26609,7 @@ mod src_game_debug:
         print_debug_top_down_mapinfo("\"bgY  %d\"", bgY)
         print_debug_top_down_mapinfo("\"angY %d\"", angY)
         if (pfloor != NULL):
-            print_debug_top_down_mapinfo("\"bgcode   %d\"", pfloor.type)
+            print_debug_top_down_mapinfo("\"bgcode   %d\"", pfloor.type_)
             print_debug_top_down_mapinfo("\"bgstatus %d\"", pfloor.flags)
             print_debug_top_down_mapinfo("\"bgarea   %d\"", pfloor.room)
         if (gCurrentObject.oPosY < water):
@@ -26808,7 +26808,7 @@ mod src_game_mario_actions_airborne:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn play_flip_sounds(m: MarioState, frame1: Int, frame2: Int, frame3: Int) -> ():
         let mut animFrame: Int = m.marioObj.header.gfx.animInfo.animFrame
@@ -26846,7 +26846,7 @@ mod src_game_mario_actions_airborne:
             (damageHeight = 600.0)
         else:
             (damageHeight = 1150.0)
-        if ((m.action != ACT_TWIRLING) && (m.floor.type != SURFACE_BURNING)):
+        if ((m.action != ACT_TWIRLING) && (m.floor.type_ != SURFACE_BURNING)):
             if (m.vel[1] < (-55.0)):
                 if (fallHeight > 3000.0):
                     (m.hurtCounter = (m.hurtCounter + if (m.flags & MARIO_CAP_ON_HEAD): 16 else: 24))
@@ -26870,8 +26870,8 @@ mod src_game_mario_actions_airborne:
         let mut terrainType: Int = (m.area.terrainType & TERRAIN_MASK)
         let mut floor: Surface = m.floor
         let mut flags: Int = floor.flags
-        let mut type: Int = floor.type
-        if ((((floor != NULL) && ((terrainType == TERRAIN_SNOW) || (terrainType == TERRAIN_SAND))) && (type != SURFACE_BURNING)) && SURFACE_IS_NOT_HARD(type)):
+        let mut type_: Int = floor.type_
+        if ((((floor != NULL) && ((terrainType == TERRAIN_SNOW) || (terrainType == TERRAIN_SAND))) && (type_ != SURFACE_BURNING)) && SURFACE_IS_NOT_HARD(type_)):
             if (((!(flags & 1)) && ((m.peakHeight - m.pos[1]) > 1000.0)) && (floor.normal.y >= 0.8660254)):
                 return TRUE
         return FALSE
@@ -26889,7 +26889,7 @@ mod src_game_mario_actions_airborne:
         let mut speed: Float = none
         let mut pushAngle: Int = none
         (floor = m.floor)
-        if (floor.type == SURFACE_HORIZONTAL_WIND):
+        if (floor.type_ == SURFACE_HORIZONTAL_WIND):
             (pushAngle = (floor.force << 8))
             (m.slideVelX = (m.slideVelX + (1.2 * sins(pushAngle))))
             (m.slideVelZ = (m.slideVelZ + (1.2 * coss(pushAngle))))
@@ -27143,7 +27143,7 @@ mod src_game_mario_actions_airborne:
         else:
             (animation = MARIO_ANIM_SLOW_LONGJUMP)
         play_mario_sound(m, SOUND_ACTION_TERRAIN_JUMP, SOUND_MARIO_YAHOO)
-        if ((m.floor.type == SURFACE_VERTICAL_WIND) && (m.actionState == 0)):
+        if ((m.floor.type_ == SURFACE_VERTICAL_WIND) && (m.actionState == 0)):
             play_sound(SOUND_MARIO_HERE_WE_GO, m.marioObj.header.gfx.cameraToObject)
             (m.actionState = 1)
         common_air_action_step(m, ACT_LONG_JUMP_LAND, animation, AIR_STEP_CHECK_LEDGE_GRAB)
@@ -27630,7 +27630,7 @@ mod src_game_mario_actions_airborne:
             return set_water_plunge_action(m)
         if (m.input & INPUT_SQUISHED):
             return drop_and_set_mario_action(m, ACT_SQUISHED, 0)
-        if ((m.floor.type == SURFACE_VERTICAL_WIND) && (m.action & ACT_FLAG_ALLOW_VERTICAL_WIND_ACTION)):
+        if ((m.floor.type_ == SURFACE_VERTICAL_WIND) && (m.action & ACT_FLAG_ALLOW_VERTICAL_WIND_ACTION)):
             return drop_and_set_mario_action(m, ACT_VERTICAL_WIND, 0)
         (m.quicksandDepth = 0.0)
         return FALSE
@@ -27658,7 +27658,7 @@ mod src_game_mario_actions_object:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn animated_stationary_ground_step(m: MarioState, animation: Int, endAction: Int) -> ():
         stationary_ground_step(m)
@@ -27878,7 +27878,7 @@ mod src_game_mario_actions_stationary:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn check_common_idle_cancels(m: MarioState) -> Int:
         mario_drop_held_object(m)
@@ -28418,7 +28418,7 @@ mod src_game_mario_actions_stationary:
                 raise_background_noise(2)
                 set_camera_mode(m.area.camera, (-1), 1)
                 return set_mario_action(m, ACT_IDLE, 0)
-        if ((m.floor.type == SURFACE_LOOK_UP_WARP) && (save_file_get_total_star_count((gCurrSaveFileNum - 1), (COURSE_MIN - 1), (COURSE_MAX - 1)) >= 10)):
+        if ((m.floor.type_ == SURFACE_LOOK_UP_WARP) && (save_file_get_total_star_count((gCurrSaveFileNum - 1), (COURSE_MIN - 1), (COURSE_MAX - 1)) >= 10)):
             let mut sp1A: Int = m.statusForCamera.headRotation[0]
             let mut sp18: Int = (((m.statusForCamera.headRotation[1] * 4) / 3) + m.faceAngle[1])
             if ((sp1A == (-1800)) && ((sp18 < (-0)) || (sp18 >= 7000))):
@@ -28468,7 +28468,7 @@ mod src_game_object_collision:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn debug_print_obj_collision(a: Object) -> Object:
         let mut sp24: Object = none
@@ -28607,7 +28607,7 @@ mod src_game_rumble_init:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod src_game_spawn_sound:
@@ -28625,7 +28625,7 @@ mod src_game_spawn_sound:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn exec_anim_sound_state(soundStates: SoundState) -> ():
         let mut stateIdx: Int = gCurrentObject.oSoundStateID
@@ -28680,7 +28680,7 @@ mod src_goddard_dynlists_anim_group_1:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28720,7 +28720,7 @@ mod src_goddard_dynlists_anim_group_2:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28756,7 +28756,7 @@ mod src_goddard_dynlists_anim_mario_eyebrows_1:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28776,7 +28776,7 @@ mod src_goddard_dynlists_anim_mario_lips_1:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28796,7 +28796,7 @@ mod src_goddard_dynlists_anim_mario_lips_2:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28816,7 +28816,7 @@ mod src_goddard_dynlists_anim_mario_mustache_left:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28836,7 +28836,7 @@ mod src_goddard_dynlists_anim_mario_mustache_right:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct AnimDataInfo:
 
@@ -28856,7 +28856,7 @@ mod src_goddard_dynlists_dynlist_mario_face:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct GdVtxData:
 
@@ -28880,7 +28880,7 @@ mod src_goddard_dynlists_dynlist_mario_master:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct DynList:
 
@@ -28900,7 +28900,7 @@ mod src_goddard_dynlists_dynlist_test_cube:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct DynList:
 
@@ -28920,7 +28920,7 @@ mod src_goddard_dynlists_dynlist_unused:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct DynList:
 
@@ -28940,7 +28940,7 @@ mod src_goddard_dynlists_dynlists_mario_eyebrows_mustache:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct GdVtxData:
 
@@ -28976,7 +28976,7 @@ mod src_goddard_dynlists_dynlists_mario_eyes:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct GdVtxData:
 
@@ -29006,13 +29006,13 @@ mod src_goddard_gd_main:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct GdControl:
 
     struct GdControl:
 
-    fn __main__(param_0: ()) -> Int:
+    fn main(param_0: ()) -> Int:
         let mut filler: Int = none
         gd_printf("\"%x, %x\\n\"", (((&D_801A8058) as Int) as Int), (((&gGdMoveScene) as Int) as Int))
         imin("\"main\"")
@@ -29052,7 +29052,7 @@ mod src_goddard_gd_memory:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct GMemBlock:
 
@@ -29220,7 +29220,7 @@ mod src_goddard_sfx:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn gd_reset_sfx(param_0: ()) -> ():
         (sPrevSfx = GD_SFX_NONE)
@@ -29252,7 +29252,7 @@ mod src_menu_title_screen:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn run_level_id_or_demo(level: Int) -> Int:
         (gCurrDemoInput = NULL)
@@ -29356,7 +29356,7 @@ mod text_debug_text_inc:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct DialogEntry:
 
@@ -29388,7 +29388,7 @@ mod tools_determine_endian_bitwidth:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod tools_extract_data_for_mio:
@@ -29406,7 +29406,7 @@ mod tools_extract_data_for_mio:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn u32be(val: Int) -> Int:
         return val
@@ -29435,27 +29435,27 @@ mod tools_extract_data_for_mio:
                 ((*offset) = u32be(shdr.sh_offset))
                 ((*size) = u32be(shdr.sh_size))
                 ((*section_index) = i)
-                return true
+                return true_
             (i = (i + 1))
-        return false
+        return false_
 
     fn main(argc: Int, argv: Char) -> Int:
         if (argc < 3):
             fprintf(stderr, "\"Usage: %s INFILE OUTFILE\\n\"", argv[0])
             return 1
-        let mut in: FILE = fopen(argv[1], "\"rb\"")
-        if (in == NULL):
+        let mut in_: FILE = fopen(argv[1], "\"rb\"")
+        if (in_ == NULL):
             perror("\"fopen couldn't open input file\"")
             exit(1)
-        fseek(in, 0, SEEK_END)
-        let mut file_size: Int = ftell(in)
-        fseek(in, 0, SEEK_SET)
+        fseek(in_, 0, SEEK_END)
+        let mut file_size: Int = ftell(in_)
+        fseek(in_, 0, SEEK_SET)
         let mut file: Int = malloc(file_size)
-        if (fread(file, 1, file_size, in) != file_size):
-            fclose(in)
+        if (fread(file, 1, file_size, in_) != file_size):
+            fclose(in_)
             fprintf(stderr, "\"Failed to read file: %s\\n\"", argv[1])
             exit(1)
-        fclose(in)
+        fclose(in_)
         let mut data_address: Int = none
         let mut data_offset: Int = none
         let mut data_size: Int = none
@@ -29525,9 +29525,9 @@ mod tools_extract_data_for_mio:
                     (new_size = data_size)
                     break
                 (i = (i + 1))
-        let mut out: FILE = fopen(argv[2], "\"wb\"")
-        fwrite((file + data_offset), 1, new_size, out)
-        fclose(out)
+        let mut out_: FILE = fopen(argv[2], "\"wb\"")
+        fwrite((file + data_offset), 1, new_size, out_)
+        fclose(out_)
         free(file)
         return 0
 
@@ -29547,7 +29547,7 @@ mod tools_ido_static_recomp_tools_rabbitizer_src_common_rabbitizerversion:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
 
 mod tools_ido_static_recomp_tools_rabbitizer_src_common_utils:
@@ -29565,7 +29565,7 @@ mod tools_ido_static_recomp_tools_rabbitizer_src_common_utils:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn RabbitizerUtils_From2Complement(number: Int, bits: Int) -> Int:
         let mut isNegative: Int = (number & (1 << (bits - 1)))
@@ -29602,7 +29602,7 @@ mod tools_ido_static_recomp_tools_rabbitizer_src_instructions_rabbitizerregister
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn RabbitizerRegister_getNameGpr(regValue: Int) -> Char:
         assert((regValue < ARRAY_COUNT(RabbitizerRegister_GprO32_Names)))
@@ -29666,7 +29666,7 @@ mod tools_patch_elf_32bit:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     struct ar_header:
         identifier: Char
@@ -29750,7 +29750,7 @@ mod tools_sdk_tools_adpcm_quant:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn qsample(x: Float, scale: Int) -> Int:
         if (x > 0.0):
@@ -29800,7 +29800,7 @@ mod tools_sdk_tools_adpcm_sampleio:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn fmtchan(size: Int, p: Int, data: Int, stride: Int) -> ():
         let mut i: Int = none
@@ -29837,7 +29837,7 @@ mod tools_sdk_tools_adpcm_vdecode:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn vdecodeframe(ifile: FILE, outp: Int, order: Int, coefTable: Int) -> ():
         let mut optimalp: Int = none
@@ -29905,7 +29905,7 @@ mod tools_sdk_tools_adpcm_vencode:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn vencodeframe(ofile: FILE, inBuffer: Int, state: Int, coefTable: Int, order: Int, npredictors: Int, nsam: Int) -> ():
         let mut ix: Int = none
@@ -30031,7 +30031,7 @@ mod tools_sdk_tools_tabledesign_codebook:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn split(table: Float, delta: Float, order: Int, npredictors: Int, scale: Float) -> ():
         let mut i: Int = none
@@ -30135,9 +30135,9 @@ mod tools_sdk_tools_tabledesign_estimate:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn acf(vec: Float, n: Int, out: Float, k: Int) -> ():
+    fn acf(vec: Float, n: Int, out_: Float, k: Int) -> ():
         let mut i: Int = none
         let mut j: Int = none
         let mut sum: Float = none
@@ -30148,7 +30148,7 @@ mod tools_sdk_tools_tabledesign_estimate:
             while (j < (n - i)):
                 (sum = (sum + (vec[(j + i)] * vec[j])))
                 (j = (j + 1))
-            (out[i] = sum)
+            (out_[i] = sum)
             (i = (i + 1))
 
     fn durbin(arg0: Float, n: Int, arg2: Float, arg3: Float, outSomething: Float) -> Int:
@@ -30180,20 +30180,20 @@ mod tools_sdk_tools_tabledesign_estimate:
         ((*outSomething) = div)
         return ret
 
-    fn afromk(in: Float, out: Float, n: Int) -> ():
+    fn afromk(in_: Float, out_: Float, n: Int) -> ():
         let mut i: Int = none
         let mut j: Int = none
-        (out[0] = 1.0)
+        (out_[0] = 1.0)
         (i = 1)
         while (i <= n):
-            (out[i] = in[i])
+            (out_[i] = in_[i])
             (j = 1)
             while (j <= (i - 1)):
-                (out[j] = (out[j] + (out[(i - j)] * out[i])))
+                (out_[j] = (out_[j] + (out_[(i - j)] * out_[i])))
                 (j = (j + 1))
             (i = (i + 1))
 
-    fn kfroma(in: Float, out: Float, n: Int) -> Int:
+    fn kfroma(in_: Float, out_: Float, n: Int) -> Int:
         let mut i: Int = none
         let mut j: Int = none
         let mut div: Float = none
@@ -30202,24 +30202,24 @@ mod tools_sdk_tools_tabledesign_estimate:
         let mut ret: Int = none
         (ret = 0)
         (next = malloc(((n + 1) * 8)))
-        (out[n] = in[n])
+        (out_[n] = in_[n])
         (i = (n - 1))
         while (i >= 1):
             (j = 0)
             while (j <= i):
-                (temp = out[(i + 1)])
+                (temp = out_[(i + 1)])
                 (div = (1.0 - (temp * temp)))
                 if (div == 0.0):
                     free(next)
                     return 1
-                (next[j] = ((in[j] - (in[((i + 1) - j)] * temp)) / div))
+                (next[j] = ((in_[j] - (in_[((i + 1) - j)] * temp)) / div))
                 (j = (j + 1))
             (j = 0)
             while (j <= i):
-                (in[j] = next[j])
+                (in_[j] = next[j])
                 (j = (j + 1))
-            (out[i] = next[i])
-            if (fabs(out[i]) > 1.0):
+            (out_[i] = next[i])
+            if (fabs(out_[i]) > 1.0):
                 (ret = (ret + 1))
             (i = (i - 1))
         free(next)
@@ -30288,7 +30288,7 @@ mod tools_sdk_tools_tabledesign_estimate:
         free(sp38)
         return ret
 
-    fn acmat(in: Int, n: Int, m: Int, out: Float) -> ():
+    fn acmat(in_: Int, n: Int, m: Int, out_: Float) -> ():
         let mut i: Int = none
         let mut j: Int = none
         let mut k: Int = none
@@ -30296,23 +30296,23 @@ mod tools_sdk_tools_tabledesign_estimate:
         while (i <= n):
             (j = 1)
             while (j <= n):
-                (out[i][j] = 0.0)
+                (out_[i][j] = 0.0)
                 (k = 0)
                 while (k < m):
-                    (out[i][j] = (out[i][j] + (in[(k - i)] * in[(k - j)])))
+                    (out_[i][j] = (out_[i][j] + (in_[(k - i)] * in_[(k - j)])))
                     (k = (k + 1))
                 (j = (j + 1))
             (i = (i + 1))
 
-    fn acvect(in: Int, n: Int, m: Int, out: Float) -> ():
+    fn acvect(in_: Int, n: Int, m: Int, out_: Float) -> ():
         let mut i: Int = none
         let mut j: Int = none
         (i = 0)
         while (i <= n):
-            (out[i] = 0.0)
+            (out_[i] = 0.0)
             (j = 0)
             while (j < m):
-                (out[i] = (out[i] - (in[(j - i)] * in[j])))
+                (out_[i] = (out_[i] - (in_[(j - i)] * in_[j])))
                 (j = (j + 1))
             (i = (i + 1))
 
@@ -30445,9 +30445,9 @@ mod tools_sdk_tools_tabledesign_print:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
-    fn print_entry(out: FILE, row: Float, order: Int) -> Int:
+    fn print_entry(out_: FILE, row: Float, order: Int) -> Int:
         let mut table: Float = none
         let mut fval: Float = none
         let mut ival: Int = none
@@ -30503,9 +30503,9 @@ mod tools_sdk_tools_tabledesign_print:
                     (ival = ((fval + 0.5) as Int))
                     if (ival >= 8000):
                         (overflows = (overflows + 1))
-                fprintf(out, "\"%5d \"", ival)
+                fprintf(out_, "\"%5d \"", ival)
                 (j = (j + 1))
-            fprintf(out, "\"\\n\"")
+            fprintf(out_, "\"\\n\"")
             (i = (i + 1))
         (i = 0)
         while (i < 8):
@@ -30530,7 +30530,7 @@ mod tools_sm64tools_n64cksum:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn n64cksum_calc_6102(buf: Int, cksum: Int) -> ():
         let mut t2: Int = none
@@ -30601,12 +30601,12 @@ mod tools_utf8:
 
     struct OSTimer:
 
-    struct __OSContRamReadFormat:
+    struct OSContRamReadFormat:
 
     fn decode(state: Int, codep: Int, byte: Int) -> Int:
-        let mut type: Int = utf8d[byte]
-        ((*codep) = if ((*state) != UTF8_ACCEPT): ((byte & 0) | ((*codep) << 6)) else: ((0 >> type) & byte))
-        ((*state) = utf8d[((256 + ((*state) * 16)) + type)])
+        let mut type_: Int = utf8d[byte]
+        ((*codep) = if ((*state) != UTF8_ACCEPT): ((byte & 0) | ((*codep) << 6)) else: ((0 >> type_) & byte))
+        ((*state) = utf8d[((256 + ((*state) * 16)) + type_)])
         return (*state)
 
     fn utf8_decode(str: Char, codep: Int) -> Char:
