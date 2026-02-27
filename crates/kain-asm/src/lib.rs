@@ -25,6 +25,11 @@ const DIALECTS: &[AsmDialect] = &[
         aliases: &["gameboy-lr35902", "gb-lr35902", "lr35902", "gameboy"],
         importer: dialects::gameboy_lr35902::import_asm,
     },
+    AsmDialect {
+        id: "z80",
+        aliases: &["z80-arcade", "z80-spectrum", "z80-msx"],
+        importer: dialects::z80::import_asm,
+    },
 ];
 
 pub fn supported_formats() -> Vec<&'static str> {

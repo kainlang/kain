@@ -76,7 +76,7 @@ impl CompileTarget {
 /// Main compilation function
 pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
     // Load stdlib
-    let stdlib = stdlib::load_stdlib();
+    let stdlib = stdlib::load_stdlib_for_target(target);
     let full_source = format!("{}\n{}", stdlib, source);
 
     // 1. Lex

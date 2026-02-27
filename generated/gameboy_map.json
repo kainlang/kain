@@ -87682,5 +87682,6 @@
   ],
   "rom_model_path": "M:\\Code\\Kain\\generated\\gameboy_rom_model.json",
   "parity_harness_path": "M:\\Code\\Kain\\generated\\gameboy_parity_harness.json",
+  "trace_path": "M:\\Code\\Kain\\generated\\gameboy_trace.json",
   "diagnostics_path": "M:\\Code\\Kain\\generated\\gameboy_diagnostics.json"
 }

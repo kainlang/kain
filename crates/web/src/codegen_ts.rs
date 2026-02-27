@@ -78,6 +78,18 @@ impl TSGen {
         self.writeln("// Target: TypeScript (strict)");
         self.writeln("/* eslint-disable @typescript-eslint/no-explicit-any */");
         self.writeln("");
+        
+        // Numeric type helpers for type coercion
+        self.writeln("// Numeric type helpers");
+        self.writeln("function u8(n: number): number { return n & 0xFF; }");
+        self.writeln("function u16(n: number): number { return n & 0xFFFF; }");
+        self.writeln("function u32(n: number): number { return n >>> 0; }");
+        self.writeln("function i8(n: number): number { return (n << 24) >> 24; }");
+        self.writeln("function i16(n: number): number { return (n << 16) >> 16; }");
+        self.writeln("function i32(n: number): number { return n | 0; }");
+        self.writeln("function f32(n: number): number { return Math.fround(n); }");
+        self.writeln("");
+        
         self.writeln("type KainNode = Node | DocumentFragment;");
         self.writeln("");
 
@@ -269,6 +281,7 @@ impl TSGen {
         self.writeln(&format!("export function {}(props: {}): KainNode {{", comp.ast.name, props_name));
         self.indent();
 
+        // Destructure props including children
         if !comp.ast.props.is_empty() {
             let names = comp
                 .ast
@@ -277,7 +290,9 @@ impl TSGen {
                 .map(|p| p.name.clone())
                 .collect::<Vec<_>>()
                 .join(", ");
-            self.writeln(&format!("const {{ {} }} = props;", names));
+            self.writeln(&format!("const {{ {}, children = [] }} = props;", names));
+        } else {
+            self.writeln("const { children = [] } = props;");
         }
 
         for state in &comp.ast.state {
@@ -453,7 +468,16 @@ impl TSGen {
         match expr {
             Expr::Int(n, _) => self.write(&n.to_string()),
             Expr::Float(f, _) => self.write(&f.to_string()),
-            Expr::String(s, _) => self.write(&format!("\"{}\"", s.escape_default())),
+            Expr::String(s, _) => {
+                // Proper JavaScript string escaping (not Rust's escape_default)
+                let escaped = s
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace('\n', "\\n")
+                    .replace('\r', "\\r")
+                    .replace('\t', "\\t");
+                self.write(&format!("\"{}\"", escaped))
+            }
             Expr::Bool(b, _) => self.write(if *b { "true" } else { "false" }),
             Expr::None(_) => self.write("null"),
             Expr::Ident(name, _) => self.write(name),
@@ -508,6 +532,64 @@ impl TSGen {
             }
 
             Expr::MethodCall { receiver, method, args, .. } => {
+                // Special handling for array methods - translate to JavaScript equivalents
+                match method.as_str() {
+                    "len" => {
+                        self.gen_expr(receiver);
+                        self.write(".length");
+                        return;
+                    }
+                    "is_empty" => {
+                        self.gen_expr(receiver);
+                        self.write(".length === 0");
+                        return;
+                    }
+                    "first" => {
+                        self.gen_expr(receiver);
+                        self.write("[0]");
+                        return;
+                    }
+                    "last" => {
+                        self.write("(() => { const __arr = ");
+                        self.gen_expr(receiver);
+                        self.write("; return __arr[__arr.length - 1]; })()");
+                        return;
+                    }
+                    "contains" => {
+                        self.gen_expr(receiver);
+                        self.write(".includes(");
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
+                        self.write(")");
+                        return;
+                    }
+                    "push" => {
+                        self.gen_expr(receiver);
+                        self.write(".push(");
+                        for (i, arg) in args.iter().enumerate() {
+                            if i > 0 {
+                                self.write(", ");
+                            }
+                            self.gen_expr(&arg.value);
+                        }
+                        self.write(")");
+                        return;
+                    }
+                    "pop" => {
+                        self.gen_expr(receiver);
+                        self.write(".pop()");
+                        return;
+                    }
+                    "clear" => {
+                        self.gen_expr(receiver);
+                        self.write(".length = 0");
+                        return;
+                    }
+                    _ => {}
+                }
+                
+                // Default method call handling
                 self.gen_expr(receiver);
                 self.write(&format!(".{}(", method));
                 for (i, arg) in args.iter().enumerate() {
@@ -698,7 +780,11 @@ impl TSGen {
                 self.write("})()");
             }
             JSXNode::Text(text, _) => {
-                self.write(&format!("document.createTextNode('{}')", text.escape_default()));
+                // Proper JavaScript single-quote escaping for text nodes
+                let escaped = text
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'");
+                self.write(&format!("document.createTextNode('{}')", escaped))
             }
             JSXNode::Expression(expr) => {
                 self.write("(() => {");
@@ -1005,5 +1091,269 @@ impl TSGen {
             ResolvedType::Never => "never".to_string(),
             ResolvedType::Unknown => "unknown".to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kain_core::ast::*;
+    use kain_core::span::Span;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_string_escaping() {
+        let mut gen = TSGen::new();
+        let expr = Expr::String("Hello\nWorld".to_string(), Span::default());
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, r#""Hello\nWorld""#);
+    }
+
+    #[test]
+    fn test_string_with_quotes() {
+        let mut gen = TSGen::new();
+        let expr = Expr::String(r#"He said "hello""#.to_string(), Span::default());
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, r#""He said \"hello\"""#);
+    }
+
+    #[test]
+    fn test_string_with_backslash() {
+        let mut gen = TSGen::new();
+        let expr = Expr::String(r"C:\path\to\file".to_string(), Span::default());
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, r#""C:\\path\\to\\file""#);
+    }
+
+    #[test]
+    fn test_string_with_tabs() {
+        let mut gen = TSGen::new();
+        let expr = Expr::String("Hello\tWorld".to_string(), Span::default());
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, r#""Hello\tWorld""#);
+    }
+
+    #[test]
+    fn test_jsx_text_with_apostrophe() {
+        let mut gen = TSGen::new();
+        let node = JSXNode::Text("It's working".to_string(), Span::default());
+        gen.gen_jsx(&node);
+        let output = gen.output.build();
+        assert!(output.contains("It\\'s working"));
+        assert!(!output.contains("It's working")); // Should be escaped
+    }
+
+    #[test]
+    fn test_jsx_text_with_backslash() {
+        let mut gen = TSGen::new();
+        let node = JSXNode::Text(r"Path: C:\test".to_string(), Span::default());
+        gen.gen_jsx(&node);
+        let output = gen.output.build();
+        assert!(output.contains("C:\\\\test"));
+    }
+
+    #[test]
+    fn test_numeric_helpers_generated() {
+        let program = TypedProgram {
+            items: vec![],
+        };
+        let output = generate(&program).unwrap();
+        assert!(output.contains("function u8(n: number)"));
+        assert!(output.contains("function u16(n: number)"));
+        assert!(output.contains("function u32(n: number)"));
+        assert!(output.contains("function i8(n: number)"));
+        assert!(output.contains("function i16(n: number)"));
+        assert!(output.contains("function i32(n: number)"));
+        assert!(output.contains("function f32(n: number)"));
+    }
+
+    #[test]
+    fn test_array_len_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "len".to_string(),
+            args: vec![],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, "arr.length");
+    }
+
+    #[test]
+    fn test_array_is_empty_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "is_empty".to_string(),
+            args: vec![],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, "arr.length === 0");
+    }
+
+    #[test]
+    fn test_array_first_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "first".to_string(),
+            args: vec![],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, "arr[0]");
+    }
+
+    #[test]
+    fn test_array_last_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "last".to_string(),
+            args: vec![],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert!(output.contains("__arr[__arr.length - 1]"));
+    }
+
+    #[test]
+    fn test_array_contains_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let arg = CallArg {
+            name: None,
+            value: Expr::Int(42, Span::default()),
+            span: Span::default(),
+        };
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "contains".to_string(),
+            args: vec![arg],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert!(output.contains("arr.includes(42)"));
+    }
+
+    #[test]
+    fn test_array_push_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let arg = CallArg {
+            name: None,
+            value: Expr::Int(42, Span::default()),
+            span: Span::default(),
+        };
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "push".to_string(),
+            args: vec![arg],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert!(output.contains("arr.push(42)"));
+    }
+
+    #[test]
+    fn test_array_pop_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "pop".to_string(),
+            args: vec![],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, "arr.pop()");
+    }
+
+    #[test]
+    fn test_array_clear_method() {
+        let mut gen = TSGen::new();
+        let receiver = Box::new(Expr::Ident("arr".to_string(), Span::default()));
+        let expr = Expr::MethodCall {
+            receiver,
+            method: "clear".to_string(),
+            args: vec![],
+            span: Span::default(),
+        };
+        gen.gen_expr(&expr);
+        let output = gen.output.build();
+        assert_eq!(output, "arr.length = 0");
+    }
+
+    #[test]
+    fn test_component_children_destructuring_with_props() {
+        let mut gen = TSGen::new();
+        let comp = TypedComponent {
+            ast: kain_core::ast::Component {
+                name: "TestComp".to_string(),
+                props: vec![
+                    Param {
+                        name: "title".to_string(),
+                        ty: Type::Named {
+                            name: "String".to_string(),
+                            generics: vec![],
+                            span: Span::default(),
+                        },
+                        mutable: false,
+                        default: None,
+                        span: Span::default(),
+                    }
+                ],
+                state: vec![],
+                methods: vec![],
+                effects: vec![],
+                body: JSXNode::Text("test".to_string(), Span::default()),
+                visibility: Visibility::Public,
+                attributes: vec![],
+                span: Span::default(),
+            },
+            prop_types: Default::default(),
+        };
+        gen.gen_typed_component(&comp);
+        let output = gen.output.build();
+        assert!(output.contains("const { title, children = [] } = props;"));
+    }
+
+    #[test]
+    fn test_component_children_destructuring_without_props() {
+        let mut gen = TSGen::new();
+        let comp = TypedComponent {
+            ast: kain_core::ast::Component {
+                name: "TestComp".to_string(),
+                props: vec![],
+                state: vec![],
+                methods: vec![],
+                effects: vec![],
+                body: JSXNode::Text("test".to_string(), Span::default()),
+                visibility: Visibility::Public,
+                attributes: vec![],
+                span: Span::default(),
+            },
+            prop_types: Default::default(),
+        };
+        gen.gen_typed_component(&comp);
+        let output = gen.output.build();
+        assert!(output.contains("const { children = [] } = props;"));
     }
 }

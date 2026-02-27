@@ -1,5 +1,6 @@
 //! KAIN Standard Library
 
+use crate::CompileTarget;
 use crate::types::ResolvedType;
 use std::collections::HashMap;
 
@@ -258,36 +259,92 @@ pub(crate) fn load_kn_files_from_dir(path: &std::path::Path) -> Option<String> {
     Some(concatenated)
 }
 
-/// Load the standard library source code
-pub fn load_stdlib() -> String {
-    // Get prioritized search roots
-    let search_roots = find_stdlib_search_roots();
-    
-    if search_roots.is_empty() {
-        // No stdlib directory found - graceful degradation
-        return String::new();
+const DEFAULT_PROFILE_ORDER: &[&str] = &["ue5", ""];
+
+const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
+    (CompileTarget::Ue5, &["ue5", ""]),
+    (CompileTarget::Ue5Editor, &["ue5", ""]),
+    (CompileTarget::Usf, &["ue5", ""]),
+    (CompileTarget::Hlsl, &["ue5", ""]),
+    (CompileTarget::Spirv, &["ue5", ""]),
+    (CompileTarget::Wasm, &[""]),
+    (CompileTarget::Js, &[""]),
+    (CompileTarget::Ts, &[""]),
+    (CompileTarget::Hybrid, &[""]),
+    (CompileTarget::Llvm, &[""]),
+    (CompileTarget::Rust, &[""]),
+    (CompileTarget::Cpp, &[""]),
+    (CompileTarget::Interpret, &[""]),
+    (CompileTarget::Test, &[""]),
+];
+
+fn resolve_profile_path(root: &std::path::Path, profile: &str) -> std::path::PathBuf {
+    if profile.trim().is_empty() || profile.eq_ignore_ascii_case("root") {
+        return root.to_path_buf();
     }
-    
-    // Try each root, checking ue5/ subdirectory first, then root
+    root.join(profile)
+}
+
+fn parse_profile_env_override() -> Option<Vec<String>> {
+    let raw = std::env::var("KAIN_STDLIB_PROFILE").ok()?;
+    let profiles = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if profiles.is_empty() { None } else { Some(profiles) }
+}
+
+fn load_stdlib_from_profiles(search_roots: &[std::path::PathBuf], profiles: &[String]) -> String {
     for root in search_roots {
-        // Try <root>/ue5/ first (UE5-specific stdlib)
-        let ue5_path = root.join("ue5");
-        if ue5_path.exists() && ue5_path.is_dir() {
-            if let Some(stdlib_source) = load_kn_files_from_dir(&ue5_path) {
-                eprintln!("Loaded stdlib from: {}", ue5_path.display());
-                return stdlib_source;
+        for profile in profiles {
+            let candidate_dir = resolve_profile_path(root, profile);
+            if candidate_dir.exists() && candidate_dir.is_dir() {
+                if let Some(stdlib_source) = load_kn_files_from_dir(&candidate_dir) {
+                    eprintln!("Loaded stdlib from: {}", candidate_dir.display());
+                    return stdlib_source;
+                }
             }
         }
-        
-        // Fall back to root directory
-        if let Some(stdlib_source) = load_kn_files_from_dir(&root) {
-            eprintln!("Loaded stdlib from: {}", root.display());
-            return stdlib_source;
-        }
     }
-    
-    // No stdlib files found in any search path - graceful degradation
     String::new()
+}
+
+fn target_profiles(target: CompileTarget) -> &'static [&'static str] {
+    TARGET_PROFILE_ORDER
+        .iter()
+        .find(|(candidate, _)| *candidate == target)
+        .map(|(_, profiles)| *profiles)
+        .unwrap_or(DEFAULT_PROFILE_ORDER)
+}
+
+/// Load the standard library source code
+pub fn load_stdlib() -> String {
+    let search_roots = find_stdlib_search_roots();
+    if search_roots.is_empty() {
+        return String::new();
+    }
+
+    let profiles = parse_profile_env_override()
+        .unwrap_or_else(|| DEFAULT_PROFILE_ORDER.iter().map(|p| (*p).to_string()).collect());
+    load_stdlib_from_profiles(&search_roots, &profiles)
+}
+
+/// Load stdlib for a specific compilation target using data-driven profile mapping.
+pub fn load_stdlib_for_target(target: CompileTarget) -> String {
+    let search_roots = find_stdlib_search_roots();
+    if search_roots.is_empty() {
+        return String::new();
+    }
+
+    let profiles = parse_profile_env_override().unwrap_or_else(|| {
+        target_profiles(target)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect()
+    });
+    load_stdlib_from_profiles(&search_roots, &profiles)
 }
 
 #[cfg(test)]
@@ -574,6 +631,32 @@ mod tests {
         
         // Clean up
         env::remove_var("KAIN_STDLIB_PATH");
+    }
+
+    #[test]
+    fn test_load_stdlib_for_target_uses_target_profile_order() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        create_kn_file(&stdlib_dir, "root.kn", "// root stdlib");
+        let ue5_dir = stdlib_dir.join("ue5");
+        fs::create_dir(&ue5_dir).unwrap();
+        create_kn_file(&ue5_dir, "ue5.kn", "// ue5 stdlib");
+        let roots = vec![stdlib_dir.clone()];
+        let ts_profiles = target_profiles(CompileTarget::Ts)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
+        let ue5_profiles = target_profiles(CompileTarget::Ue5)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
+
+        let ts_stdlib = load_stdlib_from_profiles(&roots, &ts_profiles);
+        assert!(ts_stdlib.contains("// root stdlib"));
+        assert!(!ts_stdlib.contains("// ue5 stdlib"));
+
+        let ue5_stdlib = load_stdlib_from_profiles(&roots, &ue5_profiles);
+        assert!(ue5_stdlib.contains("// ue5 stdlib"));
     }
 
     #[test]

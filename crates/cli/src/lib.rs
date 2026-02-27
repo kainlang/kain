@@ -147,7 +147,7 @@ pub fn supported_targets_csv() -> String {
 /// Compile with backend selection
 pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
     // Load stdlib
-    let stdlib = stdlib::load_stdlib();
+    let stdlib = stdlib::load_stdlib_for_target(target);
     let full_source = format!("{}\n{}", stdlib, source);
 
     // 1. Lex
@@ -296,7 +296,7 @@ pub fn compile_ue5_with_context(
     metadata_dir: Option<std::path::PathBuf>
 ) -> Result<ue5::Ue5Output, KainError> {
     // Load stdlib
-    let stdlib = stdlib::load_stdlib();
+    let stdlib = stdlib::load_stdlib_for_target(CompileTarget::Ue5);
     let full_source = format!("{}\n{}", stdlib, source);
     
     // Parse and type-check
@@ -419,7 +419,7 @@ fn find_metadata_dir() -> std::path::PathBuf {
 
 #[cfg(feature = "ue5")]
 pub fn generate_usf_header(source: &str, shader_name: &str) -> Result<String, KainError> {
-    let stdlib = stdlib::load_stdlib();
+    let stdlib = stdlib::load_stdlib_for_target(CompileTarget::Usf);
     let full_source = format!("{}\n{}", stdlib, source);
     let tokens = Lexer::new(&full_source).tokenize()?;
     let span_mapper = diagnostics::SpanMapper::new(&full_source);
@@ -433,7 +433,7 @@ pub fn generate_usf_header(source: &str, shader_name: &str) -> Result<String, Ka
 
 #[cfg(feature = "ue5")]
 pub fn generate_usf_implementation(source: &str, shader_name: &str, plugin_name: &str) -> Result<String, KainError> {
-    let stdlib = stdlib::load_stdlib();
+    let stdlib = stdlib::load_stdlib_for_target(CompileTarget::Usf);
     let full_source = format!("{}\n{}", stdlib, source);
     let tokens = Lexer::new(&full_source).tokenize()?;
     let span_mapper = diagnostics::SpanMapper::new(&full_source);
@@ -447,7 +447,7 @@ pub fn generate_usf_implementation(source: &str, shader_name: &str, plugin_name:
 
 #[cfg(feature = "ue5")]
 pub fn compile_ue5editor(source: &str, plugin_name: &str, copyright: Option<&str>) -> Result<ue5_editor::Ue5EditorOutput, KainError> {
-    let stdlib = stdlib::load_stdlib();
+    let stdlib = stdlib::load_stdlib_for_target(CompileTarget::Ue5Editor);
     let full_source = format!("{}\n{}", stdlib, source);
     let tokens = Lexer::new(&full_source).tokenize()?;
     let span_mapper = diagnostics::SpanMapper::new(&full_source);

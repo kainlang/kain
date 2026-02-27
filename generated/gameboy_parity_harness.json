@@ -2562,5 +2562,57 @@
     }
   ],
   "graph_nodes": 1206,
-  "graph_edges": 1316
+  "graph_edges": 1316,
+  "semantic_probe_opcode": 0,
+  "semantic_probe_cycles": 4,
+  "semantic_trace": [
+    {
+      "step": 0,
+      "pc": 256,
+      "opcode": 62,
+      "cycles": 8
+    },
+    {
+      "step": 1,
+      "pc": 258,
+      "opcode": 198,
+      "cycles": 8
+    },
+    {
+      "step": 2,
+      "pc": 260,
+      "opcode": 197,
+      "cycles": 16
+    },
+    {
+      "step": 3,
+      "pc": 261,
+      "opcode": 193,
+      "cycles": 12
+    },
+    {
+      "step": 4,
+      "pc": 262,
+      "opcode": 24,
+      "cycles": 12
+    },
+    {
+      "step": 5,
+      "pc": 266,
+      "opcode": 0,
+      "cycles": 4
+    },
+    {
+      "step": 6,
+      "pc": 267,
+      "opcode": 0,
+      "cycles": 4
+    },
+    {
+      "step": 7,
+      "pc": 268,
+      "opcode": 0,
+      "cycles": 4
+    }
+  ]
 }

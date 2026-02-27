@@ -14,6 +14,8 @@ struct CpuState:
     sp: Int
     pc: Int
     ime: Int
+    halted: Int
+    cycles: Int
 
 struct Memory:
     wram: Array<Int>
@@ -36,14 +38,64 @@ fn write_port(port_id: Int, value: Int):
     let _port = port_id
     let _value = value
 
+fn read_rom0(mem: Memory, addr: Int) -> Int:
+    if addr < 0:
+        return 0
+    if addr >= 16384:
+        return 0
+    return mem.rom_banks[0][addr]
+
+fn u8(v: Int) -> Int:
+    return v & 255
+
+fn u16(v: Int) -> Int:
+    return v & 65535
+
+fn with_cycles(cpu: CpuState, cycles: Int) -> CpuState:
+    return CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: cpu.pc, ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles + cycles }
+
 fn step(cpu: CpuState, mem: Memory) -> (CpuState, Memory, Int):
-    let next_cpu = cpu
-    let next_mem = mem
-    let opcode = 0
+    if cpu.halted != 0:
+        let hcpu = with_cycles(cpu, 4)
+        return (hcpu, mem, 4)
+    let opcode = read_rom0(mem, u16(cpu.pc))
     if opcode == 0:
         # NOP
-        return (next_cpu, next_mem, 4)
-    return (next_cpu, next_mem, 0)
+        let ncpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 4)
+        return (ncpu, mem, 4)
+    if opcode == 62:
+        # LD A,d8
+        let imm = read_rom0(mem, u16(cpu.pc + 1))
+        let lcpu = with_cycles(CpuState { a: u8(imm), b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 2), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 8)
+        return (lcpu, mem, 8)
+    if opcode == 175:
+        # XOR A
+        let xcpu = with_cycles(CpuState { a: 0, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: 128, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 4)
+        return (xcpu, mem, 4)
+    if opcode == 195:
+        # JP a16
+        let lo = read_rom0(mem, u16(cpu.pc + 1))
+        let hi = read_rom0(mem, u16(cpu.pc + 2))
+        let addr = u16((hi << 8) | lo)
+        let jcpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: addr, ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 16)
+        return (jcpu, mem, 16)
+    if opcode == 24:
+        # JR r8 (signed)
+        let raw_delta = read_rom0(mem, u16(cpu.pc + 1))
+        let delta = if raw_delta >= 128:
+            raw_delta - 256
+        else:
+            raw_delta
+        let pc2 = u16(cpu.pc + 2 + delta)
+        let jrcpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: pc2, ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 12)
+        return (jrcpu, mem, 12)
+    if opcode == 118:
+        # HALT
+        let hlt = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: 1, cycles: cpu.cycles }, 4)
+        return (hlt, mem, 4)
+    # Fallback unknown opcode: timing-safe NOP
+    let fcpu = with_cycles(CpuState { a: cpu.a, b: cpu.b, c: cpu.c, d: cpu.d, e: cpu.e, h: cpu.h, l: cpu.l, f: cpu.f, sp: cpu.sp, pc: u16(cpu.pc + 1), ime: cpu.ime, halted: cpu.halted, cycles: cpu.cycles }, 4)
+    return (fcpu, mem, 4)
 
 fn parity_frame(state: Ue5ShimState) -> Int:
     let _state = state
@@ -57,9 +109,10 @@ fn ue5_reset(state: Ue5ShimState, cpu: CpuState, mem: Memory) -> Ue5ShimState:
     return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }
 
 fn ue5_tick_step(state: Ue5ShimState, step_count: Int) -> Ue5ShimState:
-    let next_state = state
-    let _steps = step_count
-    return next_state
+    if step_count <= 0:
+        return state
+    let (cpu1, mem1, eff1) = step(state.cpu, state.mem)
+    return Ue5ShimState { cpu: cpu1, mem: mem1, tick: state.tick + 1, last_effect: eff1 }
 
 fn ue5_apply_sensor_input(state: Ue5ShimState, port_id: Int, value: Int) -> Ue5ShimState:
     write_port(port_id, value)

@@ -1,0 +1,146 @@
+{
+  "checkpoints": [
+    {
+      "tick": 0,
+      "label": "Start",
+      "source_line": 18
+    },
+    {
+      "tick": 1,
+      "label": "MainLoop",
+      "source_line": 25
+    },
+    {
+      "tick": 2,
+      "label": "InitVideo",
+      "source_line": 31
+    },
+    {
+      "tick": 3,
+      "label": ".clear_loop",
+      "source_line": 34
+    },
+    {
+      "tick": 4,
+      "label": "InitSound",
+      "source_line": 43
+    },
+    {
+      "tick": 5,
+      "label": "ReadInput",
+      "source_line": 50
+    },
+    {
+      "tick": 6,
+      "label": "MoveUp",
+      "source_line": 60
+    },
+    {
+      "tick": 7,
+      "label": "MoveDown",
+      "source_line": 67
+    },
+    {
+      "tick": 8,
+      "label": "FireWeapon",
+      "source_line": 75
+    },
+    {
+      "tick": 9,
+      "label": "UpdateGame",
+      "source_line": 89
+    },
+    {
+      "tick": 10,
+      "label": "UpdateBullet",
+      "source_line": 93
+    },
+    {
+      "tick": 11,
+      "label": "CheckCollisions",
+      "source_line": 105
+    },
+    {
+      "tick": 12,
+      "label": "EnemyDestroyed",
+      "source_line": 121
+    },
+    {
+      "tick": 13,
+      "label": "PlayExplosionSound",
+      "source_line": 128
+    },
+    {
+      "tick": 14,
+      "label": ".sound_loop",
+      "source_line": 130
+    },
+    {
+      "tick": 15,
+      "label": "RenderFrame",
+      "source_line": 136
+    },
+    {
+      "tick": 16,
+      "label": "RenderSprite",
+      "source_line": 141
+    },
+    {
+      "tick": 17,
+      "label": "RenderBullet",
+      "source_line": 149
+    },
+    {
+      "tick": 18,
+      "label": "RenderEnemy",
+      "source_line": 160
+    },
+    {
+      "tick": 19,
+      "label": "DrawSprite",
+      "source_line": 169
+    },
+    {
+      "tick": 20,
+      "label": ".row_loop",
+      "source_line": 174
+    },
+    {
+      "tick": 21,
+      "label": ".col_loop",
+      "source_line": 176
+    },
+    {
+      "tick": 22,
+      "label": ".skip_pixel",
+      "source_line": 184
+    },
+    {
+      "tick": 23,
+      "label": "PlotPixel",
+      "source_line": 200
+    },
+    {
+      "tick": 24,
+      "label": ".shift_loop",
+      "source_line": 226
+    },
+    {
+      "tick": 25,
+      "label": "DebugPrint",
+      "source_line": 237
+    },
+    {
+      "tick": 26,
+      "label": "InterruptHandler",
+      "source_line": 263
+    },
+    {
+      "tick": 27,
+      "label": "UpdateTimer",
+      "source_line": 275
+    }
+  ],
+  "graph_nodes": 28,
+  "graph_edges": 27
+}
