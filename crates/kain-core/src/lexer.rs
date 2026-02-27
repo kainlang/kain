@@ -218,6 +218,18 @@ pub enum TokenKind {
     StarEq,
     #[token("/=")]
     SlashEq,
+    #[token("%=")]
+    PercentEq,
+    #[token("&=")]
+    AmpEq,
+    #[token("|=")]
+    PipeEq,
+    #[token("^=")]
+    CaretEq,
+    #[token("<<=")]
+    ShlEq,
+    #[token(">>=")]
+    ShrEq,
 
     // === Punctuation ===
     #[token("(")]

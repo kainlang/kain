@@ -2219,15 +2219,31 @@ impl<'a> Parser<'a> {
     fn parse_expr(&mut self) -> KainResult<Expr> { self.parse_assignment() }
 
     fn parse_assignment(&mut self) -> KainResult<Expr> {
-        let expr = self.parse_binary(0)?;
-        
-        if self.check(TokenKind::Eq) {
+        let target = self.parse_binary(0)?;
+
+        if let Some(assign_binop) = self.get_assignment_binop() {
             self.advance();
-            let value = self.parse_assignment()?;
-            let span = expr.span().merge(value.span());
-            Ok(Expr::Assign { target: Box::new(expr), value: Box::new(value), span })
+            let rhs = self.parse_assignment()?;
+            let span = target.span().merge(rhs.span());
+
+            let value = if let Some(op) = assign_binop {
+                Expr::Binary {
+                    left: Box::new(target.clone()),
+                    op,
+                    right: Box::new(rhs),
+                    span,
+                }
+            } else {
+                rhs
+            };
+
+            Ok(Expr::Assign {
+                target: Box::new(target),
+                value: Box::new(value),
+                span,
+            })
         } else {
-            Ok(expr)
+            Ok(target)
         }
     }
 
@@ -2248,6 +2264,7 @@ impl<'a> Parser<'a> {
         match self.peek_kind() {
             TokenKind::Minus => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::Neg, operand: Box::new(self.parse_unary()?), span: s }) }
             TokenKind::Not => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::Not, operand: Box::new(self.parse_unary()?), span: s }) }
+            TokenKind::Tilde => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::BitNot, operand: Box::new(self.parse_unary()?), span: s }) }
             TokenKind::Await => {
                 let start = self.current_span();
                 self.advance();
@@ -3308,6 +3325,23 @@ impl<'a> Parser<'a> {
         };
 
         candidate.filter(|(op, _)| self.capabilities.supports_parser_binary_op(*op))
+    }
+
+    fn get_assignment_binop(&self) -> Option<Option<BinaryOp>> {
+        match self.peek_kind() {
+            TokenKind::Eq => Some(None),
+            TokenKind::PlusEq => Some(Some(BinaryOp::Add)),
+            TokenKind::MinusEq => Some(Some(BinaryOp::Sub)),
+            TokenKind::StarEq => Some(Some(BinaryOp::Mul)),
+            TokenKind::SlashEq => Some(Some(BinaryOp::Div)),
+            TokenKind::PercentEq => Some(Some(BinaryOp::Mod)),
+            TokenKind::AmpEq => Some(Some(BinaryOp::BitAnd)),
+            TokenKind::PipeEq => Some(Some(BinaryOp::BitOr)),
+            TokenKind::CaretEq => Some(Some(BinaryOp::BitXor)),
+            TokenKind::ShlEq => Some(Some(BinaryOp::Shl)),
+            TokenKind::ShrEq => Some(Some(BinaryOp::Shr)),
+            _ => None,
+        }
     }
 
     // Helper methods

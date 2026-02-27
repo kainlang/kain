@@ -2571,6 +2571,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 (UnaryOp::Neg, Value::Int(n)) => Ok(Value::Int(-n)),
                 (UnaryOp::Neg, Value::Float(n)) => Ok(Value::Float(-n)),
                 (UnaryOp::Not, Value::Bool(b)) => Ok(Value::Bool(!b)),
+                (UnaryOp::BitNot, Value::Int(n)) => Ok(Value::Int(!n)),
                 _ => Err(KainError::runtime("Invalid unary operation")),
             }
         }

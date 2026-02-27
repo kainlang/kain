@@ -1,0 +1,308 @@
+# Generated from C source by kain import-c
+
+struct FILE:
+
+struct OSPfs:
+
+struct OSMesgQueue:
+
+struct OSPifRam:
+
+struct OSMesg:
+
+struct OSThread:
+
+struct OSTimer:
+
+struct __OSContRamReadFormat:
+
+fn kain_strdup(s: Char) -> Char:
+    let mut len: Int = strlen(s)
+    let mut d: Char = malloc((len + 1))
+    strcpy(d, s)
+    return d
+
+fn kain_print_i64(n: Int) -> ():
+    printf("\"%lld\"", n)
+
+fn kain_print_str(s: Char) -> ():
+    printf("\"%s\"", s)
+
+fn kain_println_str(s: Char) -> ():
+    printf("\"%s\\n\"", s)
+
+fn kain_print_newline(param_0: ()) -> ():
+    printf("\"\\n\"")
+
+fn kain_str_concat(a: Char, b: Char) -> Char:
+    let mut len_a: Int = strlen(a)
+    let mut len_b: Int = strlen(b)
+    let mut result: Char = malloc(((len_a + len_b) + 1))
+    strcpy(result, a)
+    strcat(result, b)
+    return result
+
+fn kain_str_len(s: Char) -> Int:
+    return strlen(s)
+
+fn kain_str_eq(a: Char, b: Char) -> Int:
+    return if (strcmp(a, b) == 0): 1 else: 0
+
+fn kain_to_string(n: Int) -> Char:
+    let mut buf: Char = malloc(32)
+    sprintf(buf, "\"%lld\"", n)
+    return buf
+
+fn kain_to_int(s: Char) -> Int:
+    return atoi(s)
+
+fn kain_array_new(param_0: ()) -> Int:
+    let mut arr: KainArray = malloc(8)
+    (arr.data = malloc((8 * 8)))
+    (arr.len = 0)
+    (arr.cap = 8)
+    return (arr as Int)
+
+fn kain_array_push(arr_ptr: Int, value: Int) -> ():
+    let mut arr: KainArray = (arr_ptr as KainArray)
+    if (arr.len >= arr.cap):
+        (arr.cap = (arr.cap * 2))
+        (arr.data = realloc(arr.data, (arr.cap * 8)))
+    (arr.data[(arr.len = (arr.len + 1))] = value)
+
+fn kain_array_get(arr_ptr: Int, index: Int) -> Int:
+    let mut arr: KainArray = (arr_ptr as KainArray)
+    if ((index < 0) || (index >= arr.len)):
+        return 0
+    return arr.data[index]
+
+fn kain_array_len(arr_ptr: Int) -> Int:
+    let mut arr: KainArray = (arr_ptr as KainArray)
+    return arr.len
+
+fn kain_array_pop(arr_ptr: Int) -> Int:
+    let mut arr: KainArray = (arr_ptr as KainArray)
+    if (arr.len > 0):
+        (arr.len = (arr.len - 1))
+        return arr.data[arr.len]
+    return 0
+
+fn kain_array_set(arr_ptr: Int, index: Int, value: Int) -> ():
+    let mut arr: KainArray = (arr_ptr as KainArray)
+    if ((index >= 0) && (index < arr.len)):
+        (arr.data[index] = value)
+
+fn Map_new(param_0: ()) -> Int:
+    let mut m: KainMap = malloc(8)
+    (m.keys = malloc((16 * 1)))
+    (m.values = malloc((16 * 8)))
+    (m.len = 0)
+    (m.cap = 16)
+    return (m as Int)
+
+fn kain_map_set(map_ptr: Int, key: Char, value: Int) -> ():
+    let mut m: KainMap = (map_ptr as KainMap)
+    let mut i: Int = 0
+    while (i < m.len):
+        if (strcmp(m.keys[i], key) == 0):
+            (m.values[i] = value)
+            return
+        (i = (i + 1))
+    if (m.len >= m.cap):
+        (m.cap = (m.cap * 2))
+        (m.keys = realloc(m.keys, (m.cap * 1)))
+        (m.values = realloc(m.values, (m.cap * 8)))
+    (m.keys[m.len] = kain_strdup(key))
+    (m.values[m.len] = value)
+    (m.len = (m.len + 1))
+
+fn kain_map_get(map_ptr: Int, key: Char) -> Int:
+    let mut m: KainMap = (map_ptr as KainMap)
+    let mut i: Int = 0
+    while (i < m.len):
+        if (strcmp(m.keys[i], key) == 0):
+            return m.values[i]
+        (i = (i + 1))
+    return 0
+
+fn kain_contains_key(map_ptr: Int, key: Char) -> Int:
+    let mut m: KainMap = (map_ptr as KainMap)
+    let mut i: Int = 0
+    while (i < m.len):
+        if (strcmp(m.keys[i], key) == 0):
+            return 1
+        (i = (i + 1))
+    return 0
+
+fn kain_file_read(path: Char) -> Char:
+    if (!path):
+        return NULL
+    let mut f: FILE = fopen(path, "\"rb\"")
+    if (!f):
+        return NULL
+    fseek(f, 0, SEEK_END)
+    let mut size: Int = ftell(f)
+    fseek(f, 0, SEEK_SET)
+    let mut buf: Char = malloc((size + 1))
+    fread(buf, 1, size, f)
+    (buf[size] = "'\\0'")
+    fclose(f)
+    return buf
+
+fn kain_file_write(path: Char, content: Char) -> Int:
+    let mut f: FILE = fopen(path, "\"wb\"")
+    if (!f):
+        return 0
+    fputs(content, f)
+    fclose(f)
+    return 1
+
+fn kain_alloc(size: Int) -> ():
+    return malloc(size)
+
+fn kain_free(ptr: ()) -> ():
+    free(ptr)
+
+fn kain_panic(msg: Char) -> ():
+    fprintf(stderr, "\"PANIC: %s\\n\"", msg)
+    exit(1)
+
+fn kain_add_op(a: Int, b: Int) -> Int:
+    return (a + b)
+
+fn kain_none() -> Int:
+    return 0
+
+fn kain_some(val: Int) -> Int:
+    return val
+
+fn kain_variant_of(ptr_val: Int) -> Int:
+    let mut ptr: Char = (ptr_val as Char)
+    let mut name_ptr: Char = ((ptr + 16) as Char)
+    return ((*name_ptr) as Int)
+
+fn kain_variant_field(ptr_val: Int, idx: Int) -> Int:
+    let mut ptr: Char = (ptr_val as Char)
+    let mut payload_ptr: Int = ((ptr + 8) as Int)
+    let mut tuple: Int = ((*payload_ptr) as Int)
+    if (!tuple):
+        return 0
+    return tuple[idx]
+
+fn read_file(path: Char) -> Char:
+    return kain_file_read(path)
+
+fn write_file(path: Char, content: Char) -> Int:
+    return kain_file_write(path, content)
+
+fn kain_contains(col_ptr: Int, val: Int) -> Int:
+    let mut arr: KainArray = (col_ptr as KainArray)
+    let mut i: Int = 0
+    while (i < arr.len):
+        if kain_str_eq((arr.data[i] as Char), (val as Char)):
+            return 1
+        (i = (i + 1))
+    return 0
+
+fn kain_split(str_ptr: Int, sep_ptr: Int) -> Int:
+    let mut s: Char = (str_ptr as Char)
+    let mut sep: Char = (sep_ptr as Char)
+    let mut arr: Int = kain_array_new()
+    if (strlen(sep) == 0):
+        let mut len: Int = strlen(s)
+        let mut i: Int = 0
+        while (i < len):
+            let mut c_str: Char = malloc(2)
+            (c_str[0] = s[i])
+            (c_str[1] = 0)
+            kain_array_push(arr, (c_str as Int))
+            (i = (i + 1))
+        return arr
+    let mut current: Char = s
+    let mut next_match: Char = strstr(current, sep)
+    let mut sep_len: Int = strlen(sep)
+    while next_match:
+        let mut segment_len: Int = (next_match - current)
+        let mut segment: Char = malloc((segment_len + 1))
+        strncpy(segment, current, segment_len)
+        (segment[segment_len] = 0)
+        kain_array_push(arr, (segment as Int))
+        (current = (next_match + sep_len))
+        (next_match = strstr(current, sep))
+    kain_array_push(arr, (kain_strdup(current) as Int))
+    return arr
+
+fn kain_join(arr_ptr: Int, sep_ptr: Int) -> Char:
+    let mut arr: KainArray = (arr_ptr as KainArray)
+    let mut sep: Char = (sep_ptr as Char)
+    if (arr.len == 0):
+        return kain_strdup("\"\"")
+    let mut total_len: Int = 0
+    let mut sep_len: Int = strlen(sep)
+    let mut i: Int = 0
+    while (i < arr.len):
+        (total_len = (total_len + strlen((arr.data[i] as Char))))
+        if (i < (arr.len - 1)):
+            (total_len = (total_len + sep_len))
+        (i = (i + 1))
+    let mut res: Char = malloc((total_len + 1))
+    (res[0] = 0)
+    let mut i: Int = 0
+    while (i < arr.len):
+        strcat(res, (arr.data[i] as Char))
+        if (i < (arr.len - 1)):
+            strcat(res, sep)
+        (i = (i + 1))
+    return res
+
+fn kain_substring(str_ptr: Int, start: Int, end: Int) -> Char:
+    let mut s: Char = (str_ptr as Char)
+    let mut len: Int = strlen(s)
+    if (start < 0):
+        (start = 0)
+    if (end > len):
+        (end = len)
+    if (start >= end):
+        return kain_strdup("\"\"")
+    let mut new_len: Int = (end - start)
+    let mut sub: Char = malloc((new_len + 1))
+    memcpy(sub, (s + start), new_len)
+    (sub[new_len] = 0)
+    return sub
+
+fn kain_to_float(val: Int) -> Float:
+    return (val as Float)
+
+fn kain_range(start: Int, end: Int) -> Int:
+    let mut arr: Int = kain_array_new()
+    let mut i: Int = start
+    while (i < end):
+        kain_array_push(arr, i)
+        (i = (i + 1))
+    return arr
+
+fn kain_ord(str_ptr: Int) -> Int:
+    let mut s: Char = (str_ptr as Char)
+    if ((!s) || (!(*s))):
+        return 0
+    return ((s[0] as Int) as Int)
+
+fn kain_chr(n: Int) -> Char:
+    let mut s: Char = malloc(2)
+    (s[0] = (n as Char))
+    (s[1] = 0)
+    return s
+
+fn args(param_0: ()) -> Int:
+    let mut arr: Int = kain_array_new()
+    let mut i: Int = 0
+    while (i < g_argc):
+        kain_array_push(arr, (g_argv[i] as Int))
+        (i = (i + 1))
+    return arr
+
+fn main(argc: Int, argv: Char) -> Int:
+    (g_argc = argc)
+    (g_argv = argv)
+    return (main_Kain() as Int)
+
