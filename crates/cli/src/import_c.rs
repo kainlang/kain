@@ -1530,4 +1530,30 @@ mod tests {
         assert_eq!(json["imported_files"].as_u64(), Some(1));
         assert_eq!(json["failed_files"].as_array().map(|v| v.len()), Some(1));
     }
+
+    #[test]
+    fn test_self_hosting_runtime_import_compiles_to_ts() {
+        let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(3)
+            .expect("workspace root");
+        let input = workspace_root
+            .join("Other")
+            .join("kainselfhosting")
+            .join("runtime")
+            .join("kain_runtime_clean.c");
+        assert!(input.exists(), "missing self-hosting runtime sample: {}", input.display());
+
+        let temp = TempDir::new().unwrap();
+        let out_path = temp.path().join("clean.kn");
+
+        import_c(input.as_path(), Some(&out_path), None, &[], &[]).unwrap();
+
+        let kain_source = fs::read_to_string(&out_path).unwrap();
+        assert!(kain_source.contains("fn kain_str_new"));
+
+        let ts_target = crate::parse_compile_target("ts").expect("ts target");
+        let compiled = crate::compile(&kain_source, ts_target).unwrap();
+        assert!(!compiled.trim().is_empty());
+    }
 }

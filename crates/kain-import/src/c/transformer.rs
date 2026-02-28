@@ -43,6 +43,9 @@ pub struct CTransformer {
 
     /// Synthetic temporary counter for sequence-preserving lowering.
     temp_counter: usize,
+
+    /// Value symbol scopes used for type-directed lowering decisions.
+    symbol_scopes: Vec<HashMap<String, Type>>,
 }
 
 impl CTransformer {
@@ -60,6 +63,7 @@ impl CTransformer {
             identifier_renamer: StableIdentifierRenamer::default(),
             language_capabilities,
             temp_counter: 0,
+            symbol_scopes: vec![HashMap::new()],
         }
     }
 
@@ -87,6 +91,29 @@ impl CTransformer {
         let name = format!("{}_{}", prefix, self.temp_counter);
         self.temp_counter += 1;
         self.rename_value_identifier(&name)
+    }
+
+    fn push_symbol_scope(&mut self) {
+        self.symbol_scopes.push(HashMap::new());
+    }
+
+    fn pop_symbol_scope(&mut self) {
+        if self.symbol_scopes.len() > 1 {
+            self.symbol_scopes.pop();
+        }
+    }
+
+    fn define_symbol_type(&mut self, name: String, ty: Type) {
+        if let Some(scope) = self.symbol_scopes.last_mut() {
+            scope.insert(name, ty);
+        }
+    }
+
+    fn lookup_symbol_type(&self, name: &str) -> Option<Type> {
+        self.symbol_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name).cloned())
     }
 
     fn sanitize_type(&mut self, ty: Type) -> Type {
@@ -206,10 +233,16 @@ impl CTransformer {
         
         // Extract return type from declaration specifiers
         let return_type = self.extract_return_type(&func.specifiers, Some(&func.declarator.node))?;
-        
+
+        self.push_symbol_scope();
+        for param in &params {
+            self.define_symbol_type(param.name.clone(), param.ty.clone());
+        }
+
         // Transform function body
         let body = self.transform_compound_statement(&func.statement.node)?;
-        
+        self.pop_symbol_scope();
+
         self.current_function = None;
         
         Ok(Some(Item::Function(Function {
@@ -426,7 +459,8 @@ impl CTransformer {
         match stmt {
             Compound(items) => {
                 let mut stmts = Vec::new();
-                
+
+                self.push_symbol_scope();
                 for item in items {
                     match &item.node {
                         c_ast::BlockItem::Statement(s) => {
@@ -441,7 +475,8 @@ impl CTransformer {
                         _ => {}
                     }
                 }
-                
+                self.pop_symbol_scope();
+
                 Ok(Block {
                     stmts,
                     span: Span::default(),
@@ -578,11 +613,12 @@ impl CTransformer {
                 
                 items.push(Item::Const(Const {
                     name,
-                    ty,
+                    ty: ty.clone(),
                     value,
                     visibility: Visibility::Public,
                     span: Span::default(),
                 }));
+                self.define_symbol_type(raw_name, ty);
             }
         }
         
@@ -721,6 +757,8 @@ impl CTransformer {
             } else {
                 Some(self.default_value_for_type(&ty))
             };
+
+            self.define_symbol_type(name.clone(), ty.clone());
             
             stmts.push(Stmt::Let {
                 pattern: Pattern::Binding {
@@ -768,7 +806,7 @@ impl CTransformer {
                     "Int" | "i32" | "i64" => Expr::Int(0, Span::default()),
                     "Float" | "f32" | "f64" => Expr::Float(0.0, Span::default()),
                     "Bool" => Expr::Bool(false, Span::default()),
-                    "Char" => Expr::String(String::new(), Span::default()),
+                    "Char" => Expr::String("\0".to_string(), Span::default()),
                     _ => Expr::None(Span::default()),
                 }
             }
@@ -972,6 +1010,282 @@ impl CTransformer {
             operator
         )))
     }
+
+    fn infer_expr_type(&self, expr: &Expr) -> Option<Type> {
+        match expr {
+            Expr::Int(_, _) => Some(Type::Named {
+                name: "Int".to_string(),
+                generics: Vec::new(),
+                span: Span::default(),
+            }),
+            Expr::Float(_, _) => Some(Type::Named {
+                name: "Float".to_string(),
+                generics: Vec::new(),
+                span: Span::default(),
+            }),
+            Expr::String(value, _) => {
+                if value.chars().count() <= 1 {
+                    Some(Type::Named {
+                        name: "Char".to_string(),
+                        generics: Vec::new(),
+                        span: Span::default(),
+                    })
+                } else {
+                    Some(Type::Ref {
+                        mutable: true,
+                        inner: Box::new(Type::Named {
+                            name: "Char".to_string(),
+                            generics: Vec::new(),
+                            span: Span::default(),
+                        }),
+                        lifetime: None,
+                        span: Span::default(),
+                    })
+                }
+            }
+            Expr::Bool(_, _) => Some(Type::Named {
+                name: "Bool".to_string(),
+                generics: Vec::new(),
+                span: Span::default(),
+            }),
+            Expr::Ident(name, _) => self.lookup_symbol_type(name),
+            Expr::Field { object, field, .. } => {
+                let object_ty = self.infer_expr_type(object)?;
+                let struct_name = match object_ty {
+                    Type::Named { name, .. } => Some(name),
+                    Type::Ref { inner, .. } => match *inner {
+                        Type::Named { name, .. } => Some(name),
+                        _ => None,
+                    },
+                    _ => None,
+                }?;
+
+                let struct_def = self.structs.get(&struct_name)?;
+                struct_def
+                    .fields
+                    .iter()
+                    .find(|candidate| candidate.name == *field)
+                    .map(|candidate| candidate.ty.clone())
+            }
+            Expr::Index { object, .. } => match self.infer_expr_type(object)? {
+                Type::Array(inner, _, _) | Type::Slice(inner, _) => Some(*inner),
+                Type::Ref { inner, .. } => Some(*inner),
+                _ => None,
+            },
+            Expr::Cast { target, .. } => Some(target.clone()),
+            Expr::Ref { mutable, value, .. } => Some(Type::Ref {
+                mutable: *mutable,
+                inner: Box::new(self.infer_expr_type(value)?),
+                lifetime: None,
+                span: Span::default(),
+            }),
+            Expr::Deref(inner, _) => match self.infer_expr_type(inner)? {
+                Type::Ref { inner, .. } => Some(*inner),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn is_pointer_like_type(&self, ty: &Type) -> bool {
+        matches!(ty, Type::Ref { .. } | Type::Array(_, _, _) | Type::Slice(_, _))
+    }
+
+    fn is_integer_like_expr(&self, expr: &Expr) -> bool {
+        matches!(expr, Expr::Int(_, _))
+            || matches!(
+                self.infer_expr_type(expr),
+                Some(Type::Named { name, .. }) if name == "Int"
+            )
+    }
+
+    fn lower_pointer_offset(
+        &self,
+        base: Expr,
+        offset: Expr,
+        mutable: bool,
+        subtract: bool,
+    ) -> Expr {
+        let span = Span::default();
+        let index = if subtract {
+            Expr::Binary {
+                left: Box::new(Expr::Int(0, span)),
+                op: BinaryOp::Sub,
+                right: Box::new(offset),
+                span,
+            }
+        } else {
+            offset
+        };
+
+        Expr::Ref {
+            mutable,
+            value: Box::new(Expr::Index {
+                object: Box::new(base),
+                index: Box::new(index),
+                span,
+            }),
+            span,
+        }
+    }
+
+    fn maybe_lower_pointer_arithmetic(
+        &self,
+        operator: &c_ast::BinaryOperator,
+        left: Expr,
+        right: Expr,
+    ) -> Option<Expr> {
+        use c_ast::BinaryOperator as BinOp;
+
+        let left_ty = self.infer_expr_type(&left);
+        let right_ty = self.infer_expr_type(&right);
+
+        let left_is_pointer = left_ty
+            .as_ref()
+            .is_some_and(|ty| self.is_pointer_like_type(ty));
+        let right_is_pointer = right_ty
+            .as_ref()
+            .is_some_and(|ty| self.is_pointer_like_type(ty));
+
+        match operator {
+            BinOp::Plus if left_is_pointer && self.is_integer_like_expr(&right) => Some(
+                self.lower_pointer_offset(
+                    left,
+                    right,
+                    matches!(left_ty, Some(Type::Ref { mutable: true, .. })),
+                    false,
+                ),
+            ),
+            BinOp::Plus if right_is_pointer && self.is_integer_like_expr(&left) => Some(
+                self.lower_pointer_offset(
+                    right,
+                    left,
+                    matches!(right_ty, Some(Type::Ref { mutable: true, .. })),
+                    false,
+                ),
+            ),
+            BinOp::Minus if left_is_pointer && self.is_integer_like_expr(&right) => Some(
+                self.lower_pointer_offset(
+                    left,
+                    right,
+                    matches!(left_ty, Some(Type::Ref { mutable: true, .. })),
+                    true,
+                ),
+            ),
+            _ => None,
+        }
+    }
+
+    fn decode_c_escape_sequence(chars: &[char], idx: &mut usize) -> Option<char> {
+        let next = *chars.get(*idx)?;
+        *idx += 1;
+
+        match next {
+            '\'' => Some('\''),
+            '"' => Some('"'),
+            '?' => Some('?'),
+            '\\' => Some('\\'),
+            'a' => Some('\u{0007}'),
+            'b' => Some('\u{0008}'),
+            'f' => Some('\u{000C}'),
+            'n' => Some('\n'),
+            'r' => Some('\r'),
+            't' => Some('\t'),
+            'v' => Some('\u{000B}'),
+            '0'..='7' => {
+                let mut digits = String::from(next);
+                while digits.len() < 3 {
+                    let Some(peek) = chars.get(*idx) else {
+                        break;
+                    };
+                    if !peek.is_ascii_digit() || *peek > '7' {
+                        break;
+                    }
+                    digits.push(*peek);
+                    *idx += 1;
+                }
+                u32::from_str_radix(&digits, 8).ok().and_then(char::from_u32)
+            }
+            'x' => {
+                let mut digits = String::new();
+                while let Some(peek) = chars.get(*idx) {
+                    if !peek.is_ascii_hexdigit() {
+                        break;
+                    }
+                    digits.push(*peek);
+                    *idx += 1;
+                }
+                if digits.is_empty() {
+                    None
+                } else {
+                    u32::from_str_radix(&digits, 16).ok().and_then(char::from_u32)
+                }
+            }
+            'u' | 'U' => {
+                let width = if next == 'u' { 4 } else { 8 };
+                let mut digits = String::new();
+                for _ in 0..width {
+                    let Some(peek) = chars.get(*idx) else {
+                        break;
+                    };
+                    if !peek.is_ascii_hexdigit() {
+                        break;
+                    }
+                    digits.push(*peek);
+                    *idx += 1;
+                }
+                if digits.is_empty() {
+                    None
+                } else {
+                    u32::from_str_radix(&digits, 16).ok().and_then(char::from_u32)
+                }
+            }
+            other => Some(other),
+        }
+    }
+
+    fn decode_c_literal_body(&self, body: &str) -> String {
+        let chars = body.chars().collect::<Vec<_>>();
+        let mut decoded = String::new();
+        let mut idx = 0;
+
+        while idx < chars.len() {
+            let ch = chars[idx];
+            idx += 1;
+            if ch == '\\' {
+                if let Some(decoded_ch) = Self::decode_c_escape_sequence(&chars, &mut idx) {
+                    decoded.push(decoded_ch);
+                }
+            } else {
+                decoded.push(ch);
+            }
+        }
+
+        decoded
+    }
+
+    fn strip_c_literal_delimiters<'a>(&self, token: &'a str, delimiter: char) -> Option<&'a str> {
+        let start = token.find(delimiter)?;
+        let end = token.rfind(delimiter)?;
+        if end <= start {
+            return None;
+        }
+        Some(&token[start + 1..end])
+    }
+
+    fn decode_c_string_literal(&self, parts: &[String]) -> String {
+        parts.iter()
+            .filter_map(|part| self.strip_c_literal_delimiters(part, '"'))
+            .map(|body| self.decode_c_literal_body(body))
+            .collect::<Vec<_>>()
+            .join("")
+    }
+
+    fn decode_c_char_literal(&self, token: &str) -> String {
+        self.strip_c_literal_delimiters(token, '\'')
+            .map(|body| self.decode_c_literal_body(body))
+            .unwrap_or_default()
+    }
     
     /// Extract function name from declarator
     fn extract_function_name(&self, declarator: &c_ast::Declarator) -> Result<String> {
@@ -1111,7 +1425,7 @@ impl CTransformer {
             
             StringLiteral(string_lit) => {
                 Ok(Expr::String(
-                    string_lit.node.iter().cloned().collect::<Vec<_>>().join(""),
+                    self.decode_c_string_literal(&string_lit.node.iter().cloned().collect::<Vec<_>>()),
                     Span::default(),
                 ))
             }
@@ -1158,8 +1472,18 @@ impl CTransformer {
                     ),
                     _ => {
                         // Regular binary operation
-                        let left = Box::new(self.transform_expression(&bin_op.node.lhs.node)?);
-                        let right = Box::new(self.transform_expression(&bin_op.node.rhs.node)?);
+                        let left_expr = self.transform_expression(&bin_op.node.lhs.node)?;
+                        let right_expr = self.transform_expression(&bin_op.node.rhs.node)?;
+                        if let Some(lowered) = self.maybe_lower_pointer_arithmetic(
+                            &bin_op.node.operator.node,
+                            left_expr.clone(),
+                            right_expr.clone(),
+                        ) {
+                            return Ok(lowered);
+                        }
+
+                        let left = Box::new(left_expr);
+                        let right = Box::new(right_expr);
                         let op = self.transform_binary_operator(&bin_op.node.operator.node)?;
                         
                         Ok(Expr::Binary {
@@ -1358,7 +1682,7 @@ impl CTransformer {
                 Ok(Expr::Float(value, Span::default()))
             }
             Character(ch) => {
-                Ok(Expr::String(ch.clone(), Span::default()))
+                Ok(Expr::String(self.decode_c_char_literal(ch), Span::default()))
             }
         }
     }
@@ -1519,6 +1843,72 @@ mod tests {
         let result = transform_with_language_capabilities(c_ast, caps);
 
         assert!(result.is_err(), "expected transform to fail when bitwise '&' is disabled");
+    }
+
+    #[test]
+    fn test_transform_decodes_c_string_literals() {
+        let source = r#"
+            char *banner(void) {
+                return "line\n";
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function item");
+        };
+        let Stmt::Return(Some(Expr::String(value, _)), _) = &func.body.stmts[0] else {
+            panic!("expected decoded string literal return");
+        };
+        assert_eq!(value, "line\n");
+    }
+
+    #[test]
+    fn test_transform_decodes_c_char_literals() {
+        let source = r#"
+            char nul(void) {
+                return '\0';
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function item");
+        };
+        let Stmt::Return(Some(Expr::String(value, _)), _) = &func.body.stmts[0] else {
+            panic!("expected decoded char literal return");
+        };
+        assert_eq!(value, "\0");
+    }
+
+    #[test]
+    fn test_transform_lowers_pointer_arithmetic_to_ref_index() {
+        let source = r#"
+            char *advance(char *s, int i) {
+                return s + i;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function item");
+        };
+        let Stmt::Return(Some(Expr::Ref { mutable, value, .. }), _) = &func.body.stmts[0] else {
+            panic!("expected pointer arithmetic to lower into ref-index form");
+        };
+        assert!(*mutable);
+
+        let Expr::Index { object, index, .. } = value.as_ref() else {
+            panic!("expected ref(index)");
+        };
+        assert!(matches!(object.as_ref(), Expr::Ident(name, _) if name == "s"));
+        assert!(matches!(index.as_ref(), Expr::Ident(name, _) if name == "i"));
     }
     
     #[test]
