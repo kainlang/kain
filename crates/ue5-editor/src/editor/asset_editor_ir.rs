@@ -450,7 +450,16 @@ fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
 fn extract_type_name(ty: &kain_core::ast::Type) -> Result<String, String> {
     match ty {
         kain_core::ast::Type::Named { name, .. } => Ok(name.clone()),
-        _ => Err(format!("Expected named type, got {:?}", ty)),
+        _ => {
+            let type_desc = match ty {
+                kain_core::ast::Type::Array { .. } => "array type",
+                kain_core::ast::Type::Option { .. } => "Option type",
+                kain_core::ast::Type::Tuple { .. } => "tuple type",
+                kain_core::ast::Type::Function { .. } => "function type",
+                _ => "complex type",
+            };
+            Err(format!("Expected named type, got {}", type_desc))
+        }
     }
 }
 

@@ -1740,7 +1740,7 @@ impl SlateGenerator {
                 };
                 format!("{}::{}", cpp_enum, variant)
             },
-            _ => format!("/* unsupported expr: {:?} */", std::mem::discriminant(expr)),
+            _ => "/* <unsupported_expression> */".to_string(),
         }
     }
 

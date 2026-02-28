@@ -22,6 +22,50 @@ impl MaterialGraphConverter {
         }
     }
 
+    /// Helper to display Type in user-friendly format
+    fn type_to_string(ty: &Type) -> String {
+        match ty {
+            Type::Named { name, generics, .. } => {
+                if generics.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}< {} >", name, generics.iter().map(|g| Self::type_to_string(g)).collect::<Vec<_>>().join(", "))
+                }
+            }
+            Type::Array(element, _, _) => format!("Array<{}>", Self::type_to_string(element)),
+            Type::Option(inner, _) => format!("Option<{}>", Self::type_to_string(inner)),
+            Type::Result(ok, err, _) => format!("Result<{}, {}>", Self::type_to_string(ok), Self::type_to_string(err)),
+            Type::Tuple(elements, _) => format!("({})", elements.iter().map(|e| Self::type_to_string(e)).collect::<Vec<_>>().join(", ")),
+            Type::Function { params, return_type, .. } => format!("fn({}) -> {}", params.iter().map(|p| Self::type_to_string(p)).collect::<Vec<_>>().join(", "), Self::type_to_string(return_type)),
+            Type::Slice(inner, _) => format!("[{}]", Self::type_to_string(inner)),
+            Type::Ref { mutable, inner, .. } => {
+                if *mutable {
+                    format!("&mut {}", Self::type_to_string(inner))
+                } else {
+                    format!("&{}", Self::type_to_string(inner))
+                }
+            }
+            Type::Never(_) => "!".to_string(),
+            Type::Unit(_) => "()".to_string(),
+            Type::Impl { trait_name, generics, .. } => {
+                if generics.is_empty() {
+                    format!("impl {}", trait_name)
+                } else {
+                    format!(
+                        "impl {}<{}>",
+                        trait_name,
+                        generics
+                            .iter()
+                            .map(|g| Self::type_to_string(g))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            }
+            Type::Infer { .. } => "_".to_string(),
+        }
+    }
+
     /// Convert a MaterialGraphDef AST node to MaterialGraph IR
     pub fn convert(&mut self, def: &MaterialGraphDef) -> Result<MaterialGraph, String> {
         let mut graph = MaterialGraph::new(def.name.clone());
@@ -120,7 +164,7 @@ impl MaterialGraphConverter {
                     position: (x, y),
                 }
             }
-            _ => return Err(format!("Unsupported input type: {:?}", input.ty)),
+            _ => return Err(format!("Unsupported input type: {}", Self::type_to_string(&input.ty))),
         };
         
         graph.nodes.push(node);
@@ -162,7 +206,22 @@ impl MaterialGraphConverter {
                         a: left_id,
                         b: right_id,
                     },
-                    _ => return Err(format!("Unsupported binary op: {:?}", op)),
+                    _ => {
+                        let op_name = match op {
+                            BinaryOp::Eq => "==",
+                            BinaryOp::Ne => "!=",
+                            BinaryOp::Lt => "<",
+                            BinaryOp::Gt => ">",
+                            BinaryOp::Le => "<=",
+                            BinaryOp::Ge => ">=",
+                            BinaryOp::And => "&&",
+                            BinaryOp::Or => "||",
+                            BinaryOp::Mod => "%",
+                            BinaryOp::Pow => "**",
+                            _ => "<unknown>",
+                        };
+                        return Err(format!("Unsupported binary op: '{}'", op_name));
+                    }
                 };
                 
                 graph.nodes.push(MaterialNode {
@@ -1113,7 +1172,20 @@ impl MaterialGraphConverter {
                 Ok(node_id)
             }
             
-            _ => Err(format!("Unsupported expression: {:?}", expr)),
+            _ => {
+                let expr_desc = match expr {
+                    Expr::Match { .. } => "match expression",
+                    Expr::If { .. } => "if expression",
+                    Expr::Block { .. } => "block expression",
+                    Expr::Array { .. } => "array literal",
+                    Expr::Tuple { .. } => "tuple",
+                    Expr::Lambda { .. } => "lambda function",
+                    Expr::Await { .. } => "await expression",
+                    Expr::Range { .. } => "range expression",
+                    _ => "complex expression",
+                };
+                Err(format!("Unsupported expression: {}", expr_desc))
+            },
         }
     }
 

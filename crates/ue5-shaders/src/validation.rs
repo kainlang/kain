@@ -327,9 +327,37 @@ impl ShaderValidator {
                 // Reject String types explicitly - they are not supported in shaders
                 if type_name == "String" || type_name == "string" {
                     errors.push(format!(
-                        "Shader '{}': Uniform '{}' has String type. \
-                        String types are not supported in shaders. \
-                        Shaders can only use HLSL-compatible types (scalars, vectors, matrices, textures, samplers, buffers).",
+                        "Shader '{}': Uniform '{}' has String type.
+
+Problem: String types cannot be passed to GPU shaders.
+  • Shaders run on GPU hardware which doesn't support dynamic strings
+  • HLSL has no string type - only numeric types, vectors, matrices, textures, buffers
+
+How to fix:
+  1. Use numeric indices instead of strings
+     ❌ uniform texture_name: String @0
+     ✅ uniform texture_index: Int @0
+  
+  2. Use texture/sampler types directly
+     ❌ uniform albedo_path: String @0
+     ✅ uniform albedo_map: Sampler2D @1
+  
+  3. For text rendering, use texture atlases with character indices
+     ✅ uniform font_atlas: Texture2D @0
+     ✅ uniform char_index: Int @1
+  
+  4. For debug output, use numeric codes
+     ✅ uniform debug_mode: Int @0  # 0=off, 1=normals, 2=uvs
+
+Valid shader uniform types:
+  • Scalars: Int, UInt, Float, Bool
+  • Vectors: Vec2, Vec3, Vec4 (and IVec*, UVec* variants)
+  • Matrices: Mat2, Mat3, Mat4
+  • Textures: Texture2D, Texture3D, TextureCube, Sampler2D
+  • Buffers: Buffer<T>, RWBuffer<T>, StructuredBuffer<T>
+  • User-defined POD structs (no strings inside)
+
+Documentation: https://kain.dev/docs/shaders/types",
                         shader_name, uniform_name
                     ));
                     return; // Early return to avoid further validation

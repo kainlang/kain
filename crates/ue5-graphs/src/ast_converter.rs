@@ -327,7 +327,16 @@ impl GraphEditorConverter {
             Expr::String(val, _) => Ok(val.clone()),
             Expr::Bool(val, _) => Ok(val.to_string()),
             Expr::Ident(name, _) => Ok(name.clone()),
-            _ => Ok(format!("{:?}", expr)), // Fallback for complex expressions
+            _ => {
+                // Fallback for complex expressions - provide a placeholder
+                let expr_desc = match expr {
+                    Expr::Binary { .. } => "<binary_op>",
+                    Expr::Call { .. } => "<function_call>",
+                    Expr::Array { .. } => "<array>",
+                    _ => "<expression>",
+                };
+                Ok(expr_desc.to_string())
+            }
         }
     }
 }

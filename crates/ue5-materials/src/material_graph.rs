@@ -306,7 +306,14 @@ impl MaterialGraph {
             MaterialInputType::Color | MaterialInputType::Vec4 => {
                 (DynamicParameterType::Color, DynamicParameterValue::Color([1.0, 1.0, 1.0, 1.0]))
             }
-            _ => return Err(format!("Parameter type {:?} cannot be made dynamic", input.input_type)),
+            _ => {
+                let type_name = match input.input_type {
+                    MaterialInputType::Texture2D => "Texture2D",
+                    // MaterialInputType::TextureCube => "TextureCube",  // TODO: Add TextureCube variant to MaterialInputType enum
+                    _ => "unknown type",
+                };
+                return Err(format!("Parameter type '{}' cannot be made dynamic", type_name));
+            }
         };
         
         self.dynamic_parameters.push(DynamicParameter {

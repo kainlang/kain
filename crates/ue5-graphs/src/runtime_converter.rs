@@ -288,9 +288,17 @@ fn convert_type_to_pin_type(ty: &ast::Type) -> Result<RuntimePinType> {
             // Option types - unwrap to inner type
             convert_type_to_pin_type(inner)
         }
-        _ => Err(GraphError::ASTConversion(
-            format!("Unsupported type for runtime pin: {:?}", ty)
-        )),
+        _ => {
+            let type_desc = match ty {
+                ast::Type::Function { .. } => "function type",
+                ast::Type::Tuple { .. } => "tuple type",
+                ast::Type::Result { .. } => "Result type",
+                _ => "complex type",
+            };
+            Err(GraphError::ASTConversion(
+                format!("Unsupported type for runtime pin: {}", type_desc)
+            ))
+        }
     }
 }
 
@@ -542,7 +550,7 @@ fn expr_to_string(expr: &ast::Expr) -> String {
         ast::Expr::Bool(b, _) => b.to_string(),
         ast::Expr::Ident(name, _) => name.clone(),
         ast::Expr::None(_) => "nullptr".to_string(),
-        _ => format!("/* TODO: {:?} */", expr),
+        _ => "/* <complex_expression> */".to_string(),
     }
 }
 
@@ -551,7 +559,7 @@ fn block_to_string(block: &ast::Block) -> String {
     // Simple conversion - just format the statements
     let mut result = String::new();
     for stmt in &block.stmts {
-        result.push_str(&format!("{:?}\n", stmt));
+        result.push_str("    // <statement>\n");
     }
     result
 }

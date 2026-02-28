@@ -795,7 +795,17 @@ fn convert_function_node(
         }
 
         // Node types that don't make sense in material functions
-        _ => Err(format!("Node type {:?} not yet supported in material functions", node_type)),
+        _ => {
+            let node_desc = match node_type {
+                MaterialNodeType::ScalarParameter { .. } => "ScalarParameter",
+                MaterialNodeType::VectorParameter { .. } => "VectorParameter",
+                MaterialNodeType::TextureSampleParameter2D { .. } => "TextureSampleParameter2D",
+                MaterialNodeType::CustomHLSL { .. } => "CustomHLSL",
+                // MaterialNodeType::CallShader { .. } => "CallShader",  // TODO: Add CallShader variant to MaterialNodeType enum
+                _ => "unknown node type",
+            };
+            Err(format!("Node type '{}' not yet supported in material functions", node_desc))
+        }
     }
 }
 

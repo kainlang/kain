@@ -476,7 +476,11 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                     _ => {}
                 }
             }
-            Err(KainError::codegen(format!("Unsupported function call in shader: {:?}", callee), expr.span()))
+            let callee_name = match &**callee {
+                Expr::Ident(name, _) => name.clone(),
+                _ => "<complex expression>".to_string(),
+            };
+            Err(KainError::codegen(format!("Unsupported function call in shader: '{}'", callee_name), expr.span()))
         },
         Expr::Float(f, span) => {
             let float = ctx.b.type_float(32);
@@ -584,4 +588,3 @@ fn is_mat4(ty: &Type) -> bool {
 fn is_float(ty: &Type) -> bool {
     matches!(ty, Type::Named { name, .. } if name == "Float" || name == "f32")
 }
-

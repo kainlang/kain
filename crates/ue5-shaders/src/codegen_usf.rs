@@ -1011,15 +1011,55 @@ impl USFContext {
             (vec4_types.contains(&source_type.as_str()) && vec4_types.contains(&target_type_name));
         
         if !is_valid {
+            let suggestion = match (source_type.as_str(), target_type_name) {
+                // Scalar to vector
+                (s, t) if scalar_types.contains(&s) && (vec2_types.contains(&t) || vec3_types.contains(&t) || vec4_types.contains(&t)) => {
+                    format!("Use constructor syntax: {}({}, {}, ...) to build vector from scalars", t, s, s)
+                },
+                // Vector to different dimension
+                (s, t) if (vec2_types.contains(&s) || vec3_types.contains(&s) || vec4_types.contains(&s)) 
+                       && (vec2_types.contains(&t) || vec3_types.contains(&t) || vec4_types.contains(&t)) => {
+                    format!("Use swizzling: my_vec.xy or my_vec.xyz, or constructor: {}(my_vec.x, my_vec.y, ...)", t)
+                },
+                // Vector to scalar
+                (s, t) if (vec2_types.contains(&s) || vec3_types.contains(&s) || vec4_types.contains(&s)) 
+                       && scalar_types.contains(&t) => {
+                    "Use component access: my_vec.x or my_vec.y".to_string()
+                },
+                _ => "Check HLSL type compatibility rules".to_string()
+            };
+            
             return Err(KainError::codegen(
                 &format!(
-                    "Invalid cast from '{}' to '{}' in shader. Casts must be within same dimension:\n\
-                     - Scalars: Int, UInt, Float, Bool\n\
-                     - 2D vectors: Vec2, IVec2, UVec2\n\
-                     - 3D vectors: Vec3, IVec3, UVec3\n\
-                     - 4D vectors: Vec4, IVec4, UVec4\n\
-                     Dimension mismatches are not allowed (e.g., Vec2 → Vec3, Float → Vec2)",
-                    source_type, target_type_name
+                    "Invalid cast from '{}' to '{}' in shader.
+
+Cast Rules:
+  • Casts must be within same dimension category
+  • Scalars: Int, UInt, Float, Bool (can cast between these)
+  • 2D vectors: Vec2, IVec2, UVec2 (can cast between these)
+  • 3D vectors: Vec3, IVec3, UVec3 (can cast between these)
+  • 4D vectors: Vec4, IVec4, UVec4 (can cast between these)
+
+What you tried: {} as {}
+Problem: Dimension mismatch - cannot cast between different dimensions
+
+How to fix: {}
+
+Valid cast examples:
+  • let x: Float = 3.14
+    let y = x as Int              # OK: scalar to scalar
+  
+  • let v: Vec3 = vec3(1.0, 2.0, 3.0)
+    let u = v as IVec3            # OK: Vec3 to IVec3 (same dimension)
+  
+  • let v2: Vec2 = vec2(1.0, 2.0)
+    let v3 = Vec3(v2.x, v2.y, 0.0) # OK: use constructor for dimension change
+    # NOT: let v3 = v2 as Vec3    # ERROR: dimension mismatch
+
+Documentation: https://kain.dev/docs/shaders/types",
+                    source_type, target_type_name,
+                    source_type, target_type_name,
+                    suggestion
                 ),
                 source_expr.span()
             ));
@@ -1831,7 +1871,19 @@ fn infer_expr_type(ctx: &USFContext, expr: &Expr) -> KainResult<String> {
             }
             Err(KainError::codegen("Cannot infer type for if expression in array literal", expr.span()))
         },
-        _ => Err(KainError::codegen(&format!("Cannot infer type for expression in array literal: {:?}", expr), expr.span())),
+        _ => {
+            let expr_desc = match expr {
+                Expr::Binary { .. } => "binary operation",
+                Expr::Unary { .. } => "unary operation",
+                Expr::Call { .. } => "function call",
+                Expr::Field { .. } => "member access",
+                Expr::Index { .. } => "array index",
+                Expr::Match { .. } => "match expression",
+                Expr::Block { .. } => "block expression",
+                _ => "complex expression",
+            };
+            Err(KainError::codegen(&format!("Cannot infer type for {} in array literal", expr_desc), expr.span()))
+        },
     }
 }
 
@@ -1894,7 +1946,73 @@ fn emit_expr(ctx: &mut USFContext, expr: &Expr) -> KainResult<(String, String)> 
                 BinaryOp::BitXor => "^",
                 BinaryOp::Shl => "<<",
                 BinaryOp::Shr => ">>",
-                _ => return Err(KainError::codegen("Unsupported binary op in USF", expr.span())),
+                _ => {
+                    let op_name = match op {
+                        BinaryOp::Add => "+",
+                        BinaryOp::Sub => "-",
+                        BinaryOp::Mul => "*",
+                        BinaryOp::Div => "/",
+                        BinaryOp::Mod => "%",
+                        BinaryOp::Eq => "==",
+                        BinaryOp::Ne => "!=",
+                        BinaryOp::Lt => "<",
+                        BinaryOp::Le => "<=",
+                        BinaryOp::Gt => ">",
+                        BinaryOp::Ge => ">=",
+                        BinaryOp::And => "&&",
+                        BinaryOp::Or => "||",
+                        BinaryOp::BitAnd => "&",
+                        BinaryOp::BitOr => "|",
+                        BinaryOp::BitXor => "^",
+                        BinaryOp::Shl => "<<",
+                        BinaryOp::Shr => ">>",
+                        _ => "unknown"
+                    };
+                    
+                    return Err(KainError::codegen(
+                        &format!(
+                            "Unsupported operation '{}' in shader.
+
+Supported shader operations:
+  Arithmetic: +, -, *, / (all types), % (integers only)
+  Comparison: ==, !=, <, >, <=, >= (scalars and vectors)
+  Logical: &&, ||, ! (booleans only)
+  Bitwise: &, |, ^, <<, >> (integers only)
+  
+Vector operations:
+  • Component-wise: +, -, *, / work on Vec2/Vec3/Vec4
+    Example: vec3(1,2,3) + vec3(4,5,6) = vec3(5,7,9)
+  
+  • Dot product: dot(a, b) → scalar
+  • Cross product: cross(a, b) → Vec3 (3D only)
+  • Length: length(v) → scalar
+  • Normalize: normalize(v) → same type as v
+  
+Matrix operations:
+  • Matrix multiply: mat * mat, mat * vec
+  • Component-wise: use mul() function
+  
+Common restrictions:
+  • Modulo (%) requires integer types (Int, UInt, IVec2, etc.)
+  • Bitwise ops require integer types
+  • Logical ops require Bool type
+  • Some ops may require specific HLSL shader model (SM 5.0+)
+
+What you tried: <expr> {} <expr>
+Problem: This operation is not supported in HLSL shaders
+
+Suggestions:
+  • For modulo on floats: use fmod(a, b) function
+  • For integer division: ensure both operands are Int/UInt
+  • For vector operations: use built-in functions (dot, cross, length)
+  • For custom ops: write a helper function
+
+Documentation: https://kain.dev/docs/shaders/operations",
+                            op_name, op_name
+                        ),
+                        expr.span()
+                    ))
+                }
             };
             
             let result_ty = match op {
@@ -1924,7 +2042,40 @@ fn emit_expr(ctx: &mut USFContext, expr: &Expr) -> KainResult<(String, String)> 
             if let Expr::Ident(name, _) = &**callee {
                 emit_function_call(ctx, name, args)
             } else {
-                Err(KainError::codegen("Complex callee not supported in USF", expr.span()))
+                Err(KainError::codegen(
+                    "Complex function call expression not supported in shaders.
+
+Problem: Shaders only support direct function calls, not computed function pointers or closures.
+
+What you tried: A function call where the callee is not a simple identifier.
+
+Supported:
+  ✅ my_function(arg1, arg2)           # Direct function call
+  ✅ dot(vec_a, vec_b)                 # Built-in function
+  ✅ MyStruct::static_method(arg)      # Static method call
+
+Not supported:
+  ❌ let func = my_function            # Function pointers
+  ❌ func(arg1, arg2)                  # Indirect call
+  ❌ callbacks[index](arg)             # Function arrays
+  ❌ obj.method_ptr()(arg)             # Method pointers
+  ❌ (condition ? func_a : func_b)(x)  # Computed function selection
+
+How to fix:
+  • Use direct function calls with explicit names
+  • Replace function pointers with if/else or match statements
+  • Inline lambda logic directly into shader code
+
+Example (before):
+  let operation = if use_sqrt { sqrt } else { abs }
+  let result = operation(value)
+
+Example (after):
+  let result = if use_sqrt { sqrt(value) } else { abs(value) }
+
+Documentation: https://kain.dev/docs/shaders/functions",
+                    expr.span()
+                ))
             }
         },
         Expr::Field { object, field, .. } => {
@@ -1973,7 +2124,28 @@ fn emit_expr(ctx: &mut USFContext, expr: &Expr) -> KainResult<(String, String)> 
         Expr::Array(elements, span) => {
             // Handle array literals by generating static const HLSL arrays
             if elements.is_empty() {
-                return Err(KainError::codegen("Empty array literals not supported in shaders", *span));
+                return Err(KainError::codegen(
+                    "Empty array literals not supported in shaders.
+
+Problem: HLSL requires arrays to have known size and initial values at compile time.
+
+How to fix:
+  1. Provide at least one element: [0.0] or [vec3(0.0, 0.0, 0.0)]
+  2. Use a buffer instead: uniform my_data: RWBuffer<Float> @0
+  3. Use a fixed-size array with explicit initialization
+
+Examples:
+  ❌ let arr = []                           # ERROR: empty array
+  ✅ let arr = [0.0]                        # OK: single element
+  ✅ let arr = [1.0, 2.0, 3.0]              # OK: multiple elements
+  ✅ uniform data: RWBuffer<Float> @0       # OK: dynamic buffer
+
+Note: Shader arrays are compiled to static const arrays in HLSL.
+For dynamic data, use StructuredBuffer or RWBuffer uniforms.
+
+Documentation: https://kain.dev/docs/shaders/arrays",
+                    *span
+                ));
             }
             
             // Infer element type from first element

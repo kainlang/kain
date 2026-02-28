@@ -101,6 +101,58 @@ impl<'a> Parser<'a> {
         KainError::parser(formatted_message, span)
     }
     
+    /// Convert a token to a user-friendly string for error messages
+    fn token_to_user_string(&self, kind: &TokenKind) -> String {
+        match kind {
+            TokenKind::Ident(s) => format!("identifier '{}'", s),
+            TokenKind::Int(n) => format!("integer {}", n),
+            TokenKind::Float(f) => format!("float {}", f),
+            TokenKind::String(s) => format!("string \"{}\"", s),
+            TokenKind::Fn => "keyword 'fn'".to_string(),
+            TokenKind::Let => "keyword 'let'".to_string(),
+            TokenKind::Struct => "keyword 'struct'".to_string(),
+            TokenKind::Enum => "keyword 'enum'".to_string(),
+            TokenKind::Actor => "keyword 'actor'".to_string(),
+            TokenKind::Component => "keyword 'component'".to_string(),
+            TokenKind::Shader => "keyword 'shader'".to_string(),
+            TokenKind::If => "keyword 'if'".to_string(),
+            TokenKind::Else => "keyword 'else'".to_string(),
+            TokenKind::Match => "keyword 'match'".to_string(),
+            TokenKind::Return => "keyword 'return'".to_string(),
+            TokenKind::Colon => "':'".to_string(),
+            TokenKind::Arrow => "'->'".to_string(),
+            TokenKind::Eq => "'='".to_string(),
+            TokenKind::LParen => "'('".to_string(),
+            TokenKind::RParen => "')'".to_string(),
+            TokenKind::LBrace => "'{'".to_string(),
+            TokenKind::RBrace => "'}'".to_string(),
+            TokenKind::LBracket => "'['".to_string(),
+            TokenKind::RBracket => "']'".to_string(),
+            TokenKind::Comma => "','".to_string(),
+            TokenKind::Dot => "'.'".to_string(),
+            TokenKind::At => "'@'".to_string(),
+            TokenKind::Indent => "indentation".to_string(),
+            TokenKind::Dedent => "dedentation".to_string(),
+            TokenKind::Newline(_) => "newline".to_string(),
+            TokenKind::Eof => "end of file".to_string(),
+            _ => format!("{:?}", kind),
+        }
+    }
+    
+    /// Generate a list of expected tokens for error messages
+    fn expected_tokens_list(&self, expected: &[&str]) -> String {
+        match expected.len() {
+            0 => "something else".to_string(),
+            1 => expected[0].to_string(),
+            2 => format!("{} or {}", expected[0], expected[1]),
+            _ => {
+                let last = expected.last().unwrap();
+                let rest = &expected[..expected.len()-1];
+                format!("{}, or {}", rest.join(", "), last)
+            }
+        }
+    }
+    
     /// Validate that an identifier is not a reserved keyword.
     /// Returns an error if the identifier conflicts with a reserved keyword.
     fn validate_identifier(&self, name: &str, span: Span) -> KainResult<()> {
@@ -361,7 +413,13 @@ impl<'a> Parser<'a> {
             TokenKind::Trait => self.parse_trait(vis),
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
-            _ => Err(self.parser_error("Expected item", self.current_span())),
+            _ => Err(self.parser_error(
+                format!(
+                    "Expected item (fn, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
+                    self.token_to_user_string(&self.peek_kind())
+                ),
+                self.current_span()
+            )),
         }
     }
 
@@ -469,7 +527,7 @@ impl<'a> Parser<'a> {
             TokenKind::Async => { self.advance(); Ok("Async".to_string()) }
             TokenKind::Gpu => { self.advance(); Ok("GPU".to_string()) }
             TokenKind::Reactive => { self.advance(); Ok("Reactive".to_string()) }
-            k => Err(self.parser_error(format!("Expected attribute name, got {:?}", k), self.current_span())),
+            k => Err(self.parser_error(format!("Expected attribute name, got {}", crate::error::token_kind_to_user_string(&k)), self.current_span())),
         }
     }
 
@@ -586,7 +644,13 @@ impl<'a> Parser<'a> {
                     methods.push(f);
                 }
             } else {
-                return Err(self.parser_error("Expected fn in impl block", self.current_span()));
+                return Err(self.parser_error(
+                    format!(
+                        "Expected 'fn' in impl block (impl blocks can only contain function definitions), found {}",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
+                    self.current_span()
+                ));
             }
             self.skip_newlines();
         }
@@ -847,7 +911,13 @@ impl<'a> Parser<'a> {
                          let initial = self.parse_expr()?;
                          state.push(StateDecl { name, ty, initial, weak: true, attributes: vec![], span: self.current_span() });
                      } else {
-                         return Err(self.parser_error("Expected 'state' after 'weak' in component", self.current_span()));
+                         return Err(self.parser_error(
+                             format!(
+                                 "Expected 'state' keyword after 'weak' in component (use 'weak state name: Type = value'), found {}",
+                                 self.token_to_user_string(&self.peek_kind())
+                             ),
+                             self.current_span()
+                         ));
                      }
                 } else if s == "render" {
                      self.advance();
@@ -873,13 +943,25 @@ impl<'a> Parser<'a> {
                          body = Some(self.parse_jsx_element()?);
                      }
                 } else {
-                    return Err(self.parser_error(format!("Unexpected identifier in component: {}", s), self.current_span()));
+                    return Err(self.parser_error(
+                        format!(
+                            "Unexpected identifier '{}' in component. Valid keywords: 'state', 'weak', 'render', or 'fn' for methods",
+                            s
+                        ),
+                        self.current_span()
+                    ));
                 }
             } else if self.check(TokenKind::Lt) {
                 // Direct JSX element (implicit render)
                 body = Some(self.parse_jsx_element()?);
             } else {
-                return Err(self.parser_error(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
+                return Err(self.parser_error(
+                    format!(
+                        "Unexpected token in component: {}. Expected 'state', 'weak', 'render', 'fn', or JSX element",
+                        crate::error::token_kind_to_user_string(&self.peek_kind())
+                    ),
+                    self.current_span()
+                ));
             }
             self.skip_newlines();
         }
@@ -948,7 +1030,7 @@ impl<'a> Parser<'a> {
             } else if self.check(TokenKind::Lt) {
                 body = Some(self.parse_jsx_element()?);
             } else {
-                return Err(self.parser_error(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
+                return Err(self.parser_error(format!("Unexpected token in component: {}", crate::error::token_kind_to_user_string(&self.peek_kind())), self.current_span()));
             }
             self.skip_newlines();
         }
@@ -1020,7 +1102,13 @@ impl<'a> Parser<'a> {
                     self.advance();
                     n as u32
                 } else {
-                    return Err(self.parser_error("Expected integer binding", self.current_span()));
+                    return Err(self.parser_error(
+                        format!(
+                            "Expected integer binding after '@' (e.g., '@0', '@1', '@2'), found {}",
+                            self.token_to_user_string(&self.peek_kind())
+                        ),
+                        self.current_span()
+                    ));
                 };
 
                 uniforms.push(Uniform { name: u_name, ty: u_ty, binding, span: self.current_span() });
@@ -1293,10 +1381,22 @@ impl<'a> Parser<'a> {
                     let body = self.parse_block()?;
                     handlers.push(MessageHandler { message_type, params, body, span: self.current_span() });
                 } else {
-                     return Err(self.parser_error(format!("Unexpected item in actor: {}", s), self.current_span()));
+                     return Err(self.parser_error(
+                         format!(
+                             "Unexpected identifier '{}' in actor. Valid keywords: 'state', 'var', 'fn', or 'on' for message handlers",
+                             s
+                         ),
+                         self.current_span()
+                     ));
                 }
             } else {
-                 return Err(self.parser_error("Expected 'state', 'var', 'fn', or 'on' in actor definition.", self.current_span()));
+                 return Err(self.parser_error(
+                     format!(
+                         "Expected 'state', 'var', 'fn', or 'on' in actor definition, found {}",
+                         self.token_to_user_string(&self.peek_kind())
+                     ),
+                     self.current_span()
+                 ));
             }
             
             self.skip_newlines();
@@ -1352,11 +1452,23 @@ impl<'a> Parser<'a> {
         // Expect 'material' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "material" {
-                return Err(self.parser_error("Expected 'material' keyword after @material_graph", self.current_span()));
+                return Err(self.parser_error(
+                    format!(
+                        "Expected 'material' keyword after @material_graph attribute, found identifier '{}'",
+                        s
+                    ),
+                    self.current_span()
+                ));
             }
             self.advance(); // consume 'material'
         } else {
-            return Err(self.parser_error("Expected 'material' keyword after @material_graph", self.current_span()));
+            return Err(self.parser_error(
+                format!(
+                    "Expected 'material' keyword after @material_graph attribute, found {}",
+                    self.token_to_user_string(&self.peek_kind())
+                ),
+                self.current_span()
+            ));
         }
         
         // Parse name
@@ -1416,7 +1528,10 @@ impl<'a> Parser<'a> {
                     }
                     _ => {
                         return Err(self.parser_error(
-                            format!("Unexpected identifier in material graph: {}. Expected 'input', 'let', or 'output'", s),
+                            format!(
+                                "Unexpected identifier '{}' in material graph body. Valid keywords: 'input' (for parameters), 'let' (for intermediate values), or 'output' (for material properties like base_color, roughness)",
+                                s
+                            ),
                             self.current_span()
                         ));
                     }
@@ -1435,7 +1550,10 @@ impl<'a> Parser<'a> {
                 });
             } else {
                 return Err(self.parser_error(
-                    "Expected 'input', 'let', or 'output' in material graph body",
+                    format!(
+                        "Expected 'input', 'let', or 'output' in material graph body, found {}",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
                     self.current_span()
                 ));
             }
@@ -1570,11 +1688,23 @@ impl<'a> Parser<'a> {
         // Expect 'graph' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "graph" {
-                return Err(self.parser_error("Expected 'graph' keyword after @graph_editor", self.current_span()));
+                return Err(self.parser_error(
+                    format!(
+                        "Expected 'graph' keyword after @graph_editor attribute, found identifier '{}'. Usage: @graph_editor\ngraph MyGraph:",
+                        s
+                    ),
+                    self.current_span()
+                ));
             }
             self.advance(); // consume 'graph'
         } else {
-            return Err(self.parser_error("Expected 'graph' keyword after @graph_editor", self.current_span()));
+            return Err(self.parser_error(
+                format!(
+                    "Expected 'graph' keyword after @graph_editor attribute, found {}",
+                    self.token_to_user_string(&self.peek_kind())
+                ),
+                self.current_span()
+            ));
         }
         
         // Parse name
@@ -1603,7 +1733,13 @@ impl<'a> Parser<'a> {
             } else if node_attrs.iter().any(|a| a.name == "schema") {
                 schema = Some(self.parse_graph_schema(node_attrs)?);
             } else {
-                return Err(self.parser_error("Expected @node_type or @schema in graph editor", self.current_span()));
+                return Err(self.parser_error(
+                    format!(
+                        "Expected @node_type or @schema attribute in graph editor body, found {}. Graph editors must define node types with @node_type and optionally a @schema",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
+                    self.current_span()
+                ));
             }
             
             self.skip_newlines();
@@ -2940,7 +3076,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(Expr::Ident("state".to_string(), span))
             }
-            _ => Err(self.parser_error(format!("Unexpected token: {:?}", self.peek_kind()), span)),
+            _ => Err(self.parser_error(format!("Unexpected token: {}", crate::error::token_kind_to_user_string(&self.peek_kind())), span)),
         }
     }
 
@@ -3191,7 +3327,13 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::RBracket)?;
                 Ok(Pattern::Slice { patterns, rest: None, span: span.merge(self.current_span()) })
             }
-            _ => Err(self.parser_error("Expected pattern", span)),
+            _ => Err(self.parser_error(
+                format!(
+                    "Expected pattern (identifier, integer, string, tuple, or array), found {}",
+                    self.token_to_user_string(&self.peek_kind())
+                ),
+                span
+            )),
         }
     }
 
@@ -3366,7 +3508,7 @@ impl<'a> Parser<'a> {
                      TokenKind::Vertex => consumed_text = Some("vertex".to_string()),
                      TokenKind::Fragment => consumed_text = Some("fragment".to_string()),
                      _ => {
-                         return Err(self.parser_error(format!("Unexpected token in JSX child: {:?}. Use strings or {{}} for text.", self.peek_kind()), self.current_span()));
+                         return Err(self.parser_error(format!("Unexpected token in JSX child: {}. Use strings or {{}} for text.", crate::error::token_kind_to_user_string(&self.peek_kind())), self.current_span()));
                      }
                  }
                  
@@ -3455,11 +3597,11 @@ impl<'a> Parser<'a> {
                  TokenKind::Test | TokenKind::Pure | TokenKind::Io | TokenKind::AsyncKw | TokenKind::Async |
                  TokenKind::Gpu | TokenKind::Reactive | TokenKind::Unsafe) => {
                 Err(self.parser_error(
-                    format!("{:?} is a reserved keyword and cannot be used as an identifier. Please choose a different name.", k),
+                    format!("{} is a reserved keyword and cannot be used as an identifier. Please choose a different name.", crate::error::token_kind_to_user_string(&k)),
                     span
                 ))
             }
-            k => Err(self.parser_error(format!("Expected identifier, got {:?}", k), span)),
+            k => Err(self.parser_error(format!("Expected identifier, got {}", crate::error::token_kind_to_user_string(&k)), span)),
         }
     }
 
@@ -3719,7 +3861,7 @@ impl<'a> Parser<'a> {
 
     fn expect(&mut self, k: TokenKind) -> KainResult<()> {
         if self.check(k.clone()) { self.advance(); Ok(()) }
-        else { Err(self.parser_error(format!("Expected {:?}, got {:?}", k, self.peek_kind()), self.current_span())) }
+        else { Err(self.parser_error(format!("Expected {}, got {}", crate::error::token_kind_to_user_string(&k), crate::error::token_kind_to_user_string(&self.peek_kind())), self.current_span())) }
     }
 
     // ===== GRAPH RUNTIME PARSING =====
@@ -3764,7 +3906,10 @@ impl<'a> Parser<'a> {
                 pin_config = Some(self.parse_pin_config(nested_attrs)?);
             } else {
                 return Err(self.parser_error(
-                    "Expected @graph_data, @node_data, @instance, or @pin_config in graph runtime",
+                    format!(
+                        "Expected @graph_data, @node_data, @instance, or @pin_config attribute in graph runtime body, found {}. Graph runtimes define the execution model for custom graph editors",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
                     self.current_span()
                 ));
             }
@@ -3935,7 +4080,10 @@ impl<'a> Parser<'a> {
                 }
             } else {
                 return Err(self.parser_error(
-                    "Expected @input_pin, @output_pin, @property, or fn in node data",
+                    format!(
+                        "Expected @input_pin, @output_pin, @property, or 'fn' in node data body, found {}. Node data defines the structure and behavior of graph nodes",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
                     self.current_span()
                 ));
             }
@@ -4853,7 +5001,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok("none".to_string())
             }
-            k => Err(self.parser_error(format!("Expected gameplay tag name, got {:?}", k), span)),
+            k => Err(self.parser_error(format!("Expected gameplay tag name, got {}", crate::error::token_kind_to_user_string(&k)), span)),
         }
     }
     
@@ -6016,7 +6164,7 @@ impl<'a> Parser<'a> {
             
             // Unknown token
             return Err(self.parser_error(
-                format!("Unexpected token in ability task: {:?}", self.peek_kind()),
+                format!("Unexpected token in ability task: {}", crate::error::token_kind_to_user_string(&self.peek_kind())),
                 self.current_span()
             ));
         }

@@ -1590,7 +1590,7 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                          // Don't error hard yet, as we might be in partial state
                          return Ok(ResolvedType::Unknown);
                     }
-                    format!("{:?}", receiver_ty)
+                    type_to_string(&receiver_ty)
                 }
             };
             
@@ -1742,4 +1742,3 @@ fn collect_from_pattern(pattern: &Pattern, locals: &mut HashMap<String, Resolved
         _ => {}
     }
 }
-
