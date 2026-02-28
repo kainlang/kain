@@ -55,6 +55,8 @@ pub enum CompileTarget {
     Hlsl,
     Interpret,
     Test,
+    /// KainScript — JS with embedded JSDoc types. Runs natively, fully typed.
+    Ks,
 }
 
 impl CompileTarget {
@@ -74,6 +76,7 @@ impl CompileTarget {
             "hlsl" => Some(Self::Hlsl),
             "interpret" | "run" => Some(Self::Interpret),
             "test" => Some(Self::Test),
+            "ks" | "kainscript" | "kscript" => Some(Self::Ks),
             _ => None,
         }
     }

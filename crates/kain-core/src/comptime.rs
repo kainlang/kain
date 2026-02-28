@@ -95,6 +95,11 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
              }
         }
         Expr::Assign { value, .. } => eval_expr_in_place(env, value)?,
+        Expr::MemLoad { pointer, .. } => eval_expr_in_place(env, pointer)?,
+        Expr::MemStore { pointer, value, .. } => {
+            eval_expr_in_place(env, pointer)?;
+            eval_expr_in_place(env, value)?;
+        }
         Expr::Paren(e, _) => eval_expr_in_place(env, e)?,
         Expr::Block(b, _) => eval_block(env, b)?,
         Expr::JSX(node, _) => eval_jsx(env, node)?,

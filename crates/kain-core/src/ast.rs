@@ -722,6 +722,26 @@ pub enum Expr {
     
     /// Dereference: `*ptr`
     Deref(Box<Expr>, Span),
+
+    /// Pointer arithmetic offset: `ptr_offset(ptr, i)`
+    PtrOffset {
+        pointer: Box<Expr>,
+        offset: Box<Expr>,
+        span: Span,
+    },
+
+    /// Raw memory load: `mem_load(ptr)`
+    MemLoad {
+        pointer: Box<Expr>,
+        span: Span,
+    },
+
+    /// Raw memory store: `mem_store(ptr, value)`
+    MemStore {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        span: Span,
+    },
     
     /// Cast: `value as Type`
     Cast {
@@ -802,6 +822,9 @@ impl Expr {
             | Expr::Lambda { span: s, .. }
             | Expr::Ref { span: s, .. }
             | Expr::Deref(_, s)
+            | Expr::PtrOffset { span: s, .. }
+            | Expr::MemLoad { span: s, .. }
+            | Expr::MemStore { span: s, .. }
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
@@ -1880,6 +1903,17 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         Expr::Deref(inner, _) | Expr::Try(inner, _) | Expr::Await(inner, _)
         | Expr::Comptime(inner, _) | Expr::Paren(inner, _) => {
             collect_type_names_from_expr(inner, out);
+        }
+        Expr::PtrOffset { pointer, offset, .. } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(offset, out);
+        }
+        Expr::MemLoad { pointer, .. } => {
+            collect_type_names_from_expr(pointer, out);
+        }
+        Expr::MemStore { pointer, value, .. } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(value, out);
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
             collect_type_names_from_expr(inner, out);

@@ -947,6 +947,23 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 format!("(&{})", expr_to_string(value))
             }
         }
+        kain_core::ast::Expr::PtrOffset { pointer, offset, .. } => {
+            format!(
+                "ptr_offset({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(offset)
+            )
+        }
+        kain_core::ast::Expr::MemLoad { pointer, .. } => {
+            format!("mem_load({})", expr_to_string(pointer))
+        }
+        kain_core::ast::Expr::MemStore { pointer, value, .. } => {
+            format!(
+                "mem_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
         kain_core::ast::Expr::Deref(value, _) => format!("(*{})", expr_to_string(value)),
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!("({} as {})", expr_to_string(value), type_to_string(target))
@@ -1071,6 +1088,56 @@ fn desugar_sequence_stmt(expr: &kain_core::ast::Expr) -> Option<kain_core::ast::
             })],
             span,
         });
+    }
+
+    if let kain_core::ast::Expr::MemStore { pointer, value, .. } = expr {
+        let kain_core::ast::Expr::PtrOffset { pointer: base, offset, .. } = &**pointer else {
+            return None;
+        };
+        let sequence = decode_incdec_sequence(offset)?;
+
+        let mut stmts = Vec::new();
+        if !sequence.prefix {
+            stmts.push(kain_core::ast::Stmt::Let {
+                pattern: kain_core::ast::Pattern::Binding {
+                    name: sequence.binding.to_string(),
+                    mutable: true,
+                    span,
+                },
+                ty: None,
+                value: Some(sequence.target.clone()),
+                span,
+            });
+        }
+
+        stmts.push(kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
+            target: Box::new(sequence.target.clone()),
+            value: Box::new(kain_core::ast::Expr::Binary {
+                left: Box::new(sequence.target.clone()),
+                op: sequence.op,
+                right: Box::new(kain_core::ast::Expr::Int(1, span)),
+                span,
+            }),
+            span,
+        }));
+
+        let lowered_index = if sequence.prefix {
+            sequence.target.clone()
+        } else {
+            kain_core::ast::Expr::Ident(sequence.binding.to_string(), span)
+        };
+
+        stmts.push(kain_core::ast::Stmt::Expr(kain_core::ast::Expr::MemStore {
+            pointer: Box::new(kain_core::ast::Expr::PtrOffset {
+                pointer: base.clone(),
+                offset: Box::new(lowered_index),
+                span,
+            }),
+            value: value.clone(),
+            span,
+        }));
+
+        return Some(kain_core::ast::Block { stmts, span });
     }
 
     let kain_core::ast::Expr::Assign { target, value, .. } = expr else {

@@ -2589,7 +2589,7 @@ impl<'a> Parser<'a> {
                     
                     // Check if this looks like struct initialization with named arguments
                     // Pattern: TypeName(field = val, ...) where TypeName starts with uppercase
-                    if let Expr::Ident(name, ident_span) = &expr {
+                    if let Expr::Ident(name, _ident_span) = &expr {
                         // Check if identifier starts with uppercase (likely a type name)
                         let starts_with_uppercase = name.chars().next()
                             .map(|c| c.is_uppercase())
@@ -2619,7 +2619,7 @@ impl<'a> Parser<'a> {
                     if let Expr::Field { object, field, span: _ } = expr {
                         expr = Expr::MethodCall { receiver: object, method: field, args, span: s };
                     } else {
-                        expr = Expr::Call { callee: Box::new(expr), args, span: s }; 
+                        expr = self.normalize_special_call(expr, args, s);
                     }
                 }
                 TokenKind::Dot => { self.advance(); let field = self.parse_ident()?; let s = expr.span().merge(self.current_span()); expr = Expr::Field { object: Box::new(expr), field, span: s }; }
@@ -3086,6 +3086,49 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Ident("state".to_string(), span))
             }
             _ => Err(self.parser_error(format!("Unexpected token: {}", crate::error::token_kind_to_user_string(&self.peek_kind())), span)),
+        }
+    }
+
+    fn normalize_special_call(&self, callee: Expr, args: Vec<CallArg>, span: Span) -> Expr {
+        if let Expr::Ident(name, _) = &callee {
+            if args.iter().all(|arg| arg.name.is_none()) {
+                match (name.as_str(), args.len()) {
+                    ("ptr_offset", 2) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("ptr_offset must have first arg").value;
+                        let offset = values.next().expect("ptr_offset must have second arg").value;
+                        return Expr::PtrOffset {
+                            pointer: Box::new(pointer),
+                            offset: Box::new(offset),
+                            span,
+                        };
+                    }
+                    ("mem_load", 1) => {
+                        let pointer = args.into_iter().next().expect("mem_load must have arg").value;
+                        return Expr::MemLoad {
+                            pointer: Box::new(pointer),
+                            span,
+                        };
+                    }
+                    ("mem_store", 2) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("mem_store must have first arg").value;
+                        let value = values.next().expect("mem_store must have second arg").value;
+                        return Expr::MemStore {
+                            pointer: Box::new(pointer),
+                            value: Box::new(value),
+                            span,
+                        };
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Expr::Call {
+            callee: Box::new(callee),
+            args,
+            span,
         }
     }
 

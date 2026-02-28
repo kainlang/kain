@@ -5,6 +5,7 @@
 use lang_c::ast as c_ast;
 use lang_c::span::Node;
 use kain_core::ast::*;
+use kain_core::diagnostic_registry::DiagnosticCode;
 use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
 use kain_core::span::Span;
@@ -91,6 +92,16 @@ impl CTransformer {
         let name = format!("{}_{}", prefix, self.temp_counter);
         self.temp_counter += 1;
         self.rename_value_identifier(&name)
+    }
+
+    fn memory_lowering_required<T>(&self, context: impl Into<String>) -> Result<T> {
+        let context = context.into();
+        Err(ImportError::UnsupportedFeature(format!(
+            "{}: {}. Add or select a pointer lowering policy before importing this expression form.",
+            kain_core::diagnostic_registry::spec_for_code(DiagnosticCode::MemoryLoweringRequired)
+                .code_str,
+            context
+        )))
     }
 
     fn push_symbol_scope(&mut self) {
@@ -910,7 +921,11 @@ impl CTransformer {
         let operand_expr = self.transform_expression(operand)?;
         if !matches!(
             operand_expr,
-            Expr::Ident(_, _) | Expr::Field { .. } | Expr::Index { .. } | Expr::Deref(_, _)
+            Expr::Ident(_, _)
+                | Expr::Field { .. }
+                | Expr::Index { .. }
+                | Expr::Deref(_, _)
+                | Expr::MemLoad { .. }
         ) {
             return Err(ImportError::UnsupportedFeature(
                 "Increment/decrement target must be assignable".to_string(),
@@ -979,13 +994,9 @@ impl CTransformer {
         rhs: &c_ast::Expression,
     ) -> Result<Expr> {
         if matches!(operator, c_ast::BinaryOperator::Assign) {
-            let target = Box::new(self.transform_expression(lhs)?);
-            let value = Box::new(self.transform_expression(rhs)?);
-            return Ok(Expr::Assign {
-                target,
-                value,
-                span: Span::default(),
-            });
+            let target = self.transform_expression(lhs)?;
+            let value = self.transform_expression(rhs)?;
+            return self.lower_store_or_assign(target, value);
         }
 
         if let Some(lowered_op) = resolve_c_compound_assignment_binary_operator(operator) {
@@ -998,11 +1009,7 @@ impl CTransformer {
                 right: Box::new(value_expr),
                 span: Span::default(),
             };
-            return Ok(Expr::Assign {
-                target: Box::new(target_expr),
-                value: Box::new(updated),
-                span: Span::default(),
-            });
+            return self.lower_store_or_assign(target_expr, updated);
         }
 
         Err(ImportError::UnsupportedFeature(format!(
@@ -1069,18 +1076,37 @@ impl CTransformer {
             }
             Expr::Index { object, .. } => match self.infer_expr_type(object)? {
                 Type::Array(inner, _, _) | Type::Slice(inner, _) => Some(*inner),
-                Type::Ref { inner, .. } => Some(*inner),
+                Type::Ref { inner, .. } | Type::Ptr { inner, .. } => Some(*inner),
                 _ => None,
             },
             Expr::Cast { target, .. } => Some(target.clone()),
-            Expr::Ref { mutable, value, .. } => Some(Type::Ref {
+            Expr::Ref { mutable, value, .. } => Some(Type::Ptr {
                 mutable: *mutable,
                 inner: Box::new(self.infer_expr_type(value)?),
-                lifetime: None,
+                provenance: PointerProvenance::ImportedC,
                 span: Span::default(),
             }),
+            Expr::PtrOffset { pointer, .. } => match self.infer_expr_type(pointer)? {
+                Type::Ptr { mutable, inner, provenance, .. } => Some(Type::Ptr {
+                    mutable,
+                    inner,
+                    provenance,
+                    span: Span::default(),
+                }),
+                Type::Ref { mutable, inner, .. } => Some(Type::Ptr {
+                    mutable,
+                    inner,
+                    provenance: PointerProvenance::ImportedC,
+                    span: Span::default(),
+                }),
+                _ => None,
+            },
+            Expr::MemLoad { pointer, .. } => match self.infer_expr_type(pointer)? {
+                Type::Ref { inner, .. } | Type::Ptr { inner, .. } => Some(*inner),
+                _ => None,
+            },
             Expr::Deref(inner, _) => match self.infer_expr_type(inner)? {
-                Type::Ref { inner, .. } => Some(*inner),
+                Type::Ref { inner, .. } | Type::Ptr { inner, .. } => Some(*inner),
                 _ => None,
             },
             _ => None,
@@ -1088,7 +1114,10 @@ impl CTransformer {
     }
 
     fn is_pointer_like_type(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Ref { .. } | Type::Array(_, _, _) | Type::Slice(_, _))
+        matches!(
+            ty,
+            Type::Ref { .. } | Type::Ptr { .. } | Type::Array(_, _, _) | Type::Slice(_, _)
+        )
     }
 
     fn is_integer_like_expr(&self, expr: &Expr) -> bool {
@@ -1103,11 +1132,10 @@ impl CTransformer {
         &self,
         base: Expr,
         offset: Expr,
-        mutable: bool,
         subtract: bool,
     ) -> Expr {
         let span = Span::default();
-        let index = if subtract {
+        let offset = if subtract {
             Expr::Binary {
                 left: Box::new(Expr::Int(0, span)),
                 op: BinaryOp::Sub,
@@ -1118,14 +1146,32 @@ impl CTransformer {
             offset
         };
 
-        Expr::Ref {
-            mutable,
-            value: Box::new(Expr::Index {
-                object: Box::new(base),
-                index: Box::new(index),
-                span,
-            }),
+        Expr::PtrOffset {
+            pointer: Box::new(base),
+            offset: Box::new(offset),
             span,
+        }
+    }
+
+    fn lower_memory_load(&self, pointer: Expr) -> Expr {
+        Expr::MemLoad {
+            pointer: Box::new(pointer),
+            span: Span::default(),
+        }
+    }
+
+    fn lower_store_or_assign(&self, target: Expr, value: Expr) -> Result<Expr> {
+        match target {
+            Expr::MemLoad { pointer, .. } => Ok(Expr::MemStore {
+                pointer,
+                value: Box::new(value),
+                span: Span::default(),
+            }),
+            other => Ok(Expr::Assign {
+                target: Box::new(other),
+                value: Box::new(value),
+                span: Span::default(),
+            }),
         }
     }
 
@@ -1134,7 +1180,7 @@ impl CTransformer {
         operator: &c_ast::BinaryOperator,
         left: Expr,
         right: Expr,
-    ) -> Option<Expr> {
+    ) -> Result<Option<Expr>> {
         use c_ast::BinaryOperator as BinOp;
 
         let left_ty = self.infer_expr_type(&left);
@@ -1148,31 +1194,25 @@ impl CTransformer {
             .is_some_and(|ty| self.is_pointer_like_type(ty));
 
         match operator {
-            BinOp::Plus if left_is_pointer && self.is_integer_like_expr(&right) => Some(
-                self.lower_pointer_offset(
-                    left,
-                    right,
-                    matches!(left_ty, Some(Type::Ref { mutable: true, .. })),
-                    false,
-                ),
+            BinOp::Plus if left_is_pointer && self.is_integer_like_expr(&right) => {
+                Ok(Some(self.lower_pointer_offset(left, right, false)))
+            }
+            BinOp::Plus if right_is_pointer && self.is_integer_like_expr(&left) => {
+                Ok(Some(self.lower_pointer_offset(right, left, false)))
+            }
+            BinOp::Minus if left_is_pointer && self.is_integer_like_expr(&right) => {
+                Ok(Some(self.lower_pointer_offset(left, right, true)))
+            }
+            BinOp::Minus if left_is_pointer && right_is_pointer => self.memory_lowering_required(
+                "pointer difference requires an explicit raw-memory lowering strategy",
             ),
-            BinOp::Plus if right_is_pointer && self.is_integer_like_expr(&left) => Some(
-                self.lower_pointer_offset(
-                    right,
-                    left,
-                    matches!(right_ty, Some(Type::Ref { mutable: true, .. })),
-                    false,
-                ),
+            BinOp::Plus if left_is_pointer || right_is_pointer => self.memory_lowering_required(
+                "pointer arithmetic currently supports only pointer +/- integer forms",
             ),
-            BinOp::Minus if left_is_pointer && self.is_integer_like_expr(&right) => Some(
-                self.lower_pointer_offset(
-                    left,
-                    right,
-                    matches!(left_ty, Some(Type::Ref { mutable: true, .. })),
-                    true,
-                ),
+            BinOp::Minus if left_is_pointer || right_is_pointer => self.memory_lowering_required(
+                "pointer arithmetic currently supports only pointer - integer forms",
             ),
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -1446,14 +1486,26 @@ impl CTransformer {
                 match &bin_op.node.operator.node {
                     BinOp::Index => {
                         // Array subscript: lhs[rhs]
-                        let object = Box::new(self.transform_expression(&bin_op.node.lhs.node)?);
-                        let idx = Box::new(self.transform_expression(&bin_op.node.rhs.node)?);
-                        
-                        Ok(Expr::Index {
-                            object,
-                            index: idx,
-                            span: Span::default(),
-                        })
+                        let object_expr = self.transform_expression(&bin_op.node.lhs.node)?;
+                        let idx_expr = self.transform_expression(&bin_op.node.rhs.node)?;
+
+                        if self
+                            .infer_expr_type(&object_expr)
+                            .as_ref()
+                            .is_some_and(|ty| matches!(ty, Type::Ptr { .. } | Type::Ref { .. }))
+                        {
+                            Ok(self.lower_memory_load(self.lower_pointer_offset(
+                                object_expr,
+                                idx_expr,
+                                false,
+                            )))
+                        } else {
+                            Ok(Expr::Index {
+                                object: Box::new(object_expr),
+                                index: Box::new(idx_expr),
+                                span: Span::default(),
+                            })
+                        }
                     }
                     BinOp::Assign
                     | BinOp::AssignPlus
@@ -1478,7 +1530,7 @@ impl CTransformer {
                             &bin_op.node.operator.node,
                             left_expr.clone(),
                             right_expr.clone(),
-                        ) {
+                        )? {
                             return Ok(lowered);
                         }
 
@@ -1511,7 +1563,10 @@ impl CTransformer {
                     c_ast::UnaryOperator::Indirection => {
                         let value =
                             Box::new(self.transform_expression(&unary_op.node.operand.node)?);
-                        Ok(Expr::Deref(value, Span::default()))
+                        Ok(Expr::MemLoad {
+                            pointer: value,
+                            span: Span::default(),
+                        })
                     }
                     c_ast::UnaryOperator::PreIncrement => {
                         self.lower_inc_dec(&unary_op.node.operand.node, true, true)
@@ -1886,7 +1941,7 @@ mod tests {
     }
 
     #[test]
-    fn test_transform_lowers_pointer_arithmetic_to_ref_index() {
+    fn test_transform_lowers_pointer_arithmetic_to_ptr_offset() {
         let source = r#"
             char *advance(char *s, int i) {
                 return s + i;
@@ -1899,16 +1954,62 @@ mod tests {
         let Item::Function(func) = &program.items[0] else {
             panic!("expected function item");
         };
-        let Stmt::Return(Some(Expr::Ref { mutable, value, .. }), _) = &func.body.stmts[0] else {
-            panic!("expected pointer arithmetic to lower into ref-index form");
+        let Stmt::Return(Some(Expr::PtrOffset { pointer, offset, .. }), _) = &func.body.stmts[0] else {
+            panic!("expected pointer arithmetic to lower into ptr_offset form");
         };
-        assert!(*mutable);
+        assert!(matches!(pointer.as_ref(), Expr::Ident(name, _) if name == "s"));
+        assert!(matches!(offset.as_ref(), Expr::Ident(name, _) if name == "i"));
+    }
 
-        let Expr::Index { object, index, .. } = value.as_ref() else {
-            panic!("expected ref(index)");
+    #[test]
+    fn test_transform_rejects_pointer_difference_without_lowering_policy() {
+        let source = r#"
+            int delta(char *a, char *b) {
+                return a - b;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let err = transform(c_ast).expect_err("expected pointer difference to be rejected");
+        let rendered = err.to_string();
+
+        assert!(rendered.contains("KAIN-MEM-0001"));
+        assert!(rendered.contains("pointer difference"));
+    }
+
+    #[test]
+    fn test_transform_lowers_deref_and_pointer_subscript_to_memory_ops() {
+        let source = r#"
+            int read_pair(int *ptr, int i) {
+                *ptr = ptr[i];
+                return *ptr;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function item");
         };
-        assert!(matches!(object.as_ref(), Expr::Ident(name, _) if name == "s"));
-        assert!(matches!(index.as_ref(), Expr::Ident(name, _) if name == "i"));
+
+        let Stmt::Expr(Expr::MemStore { pointer, value, .. }) = &func.body.stmts[0] else {
+            panic!("expected memory store statement");
+        };
+        assert!(matches!(pointer.as_ref(), Expr::Ident(name, _) if name == "ptr"));
+        let Expr::MemLoad { pointer: load_pointer, .. } = value.as_ref() else {
+            panic!("expected memory load on store rhs");
+        };
+        let Expr::PtrOffset { pointer: base, offset, .. } = load_pointer.as_ref() else {
+            panic!("expected pointer offset for subscript");
+        };
+        assert!(matches!(base.as_ref(), Expr::Ident(name, _) if name == "ptr"));
+        assert!(matches!(offset.as_ref(), Expr::Ident(name, _) if name == "i"));
+
+        let Stmt::Return(Some(Expr::MemLoad { pointer, .. }), _) = &func.body.stmts[1] else {
+            panic!("expected memory load return");
+        };
+        assert!(matches!(pointer.as_ref(), Expr::Ident(name, _) if name == "ptr"));
     }
     
     #[test]
@@ -2365,13 +2466,13 @@ mod tests {
             _ => panic!("expected function"),
         };
 
-        let Stmt::Expr(Expr::Assign { target, .. }) = &push_fn.body.stmts[0] else {
-            panic!("expected assignment expression");
+        let Stmt::Expr(Expr::MemStore { pointer, .. }) = &push_fn.body.stmts[0] else {
+            panic!("expected memory store expression");
         };
-        let Expr::Index { index, .. } = &**target else {
-            panic!("expected indexed assignment target");
+        let Expr::PtrOffset { offset, .. } = &**pointer else {
+            panic!("expected pointer offset store target");
         };
-        let Expr::Match { .. } = &**index else {
+        let Expr::Match { .. } = &**offset else {
             panic!("expected sequenced match-based postfix lowering");
         };
     }

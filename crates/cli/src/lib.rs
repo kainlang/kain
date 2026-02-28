@@ -145,6 +145,11 @@ const TARGET_SPECS: &[TargetSpec] = &[
         extension: "txt",
         aliases: &["test", "t"],
     },
+    TargetSpec {
+        target: CompileTarget::Ks,
+        extension: "ks",
+        aliases: &["ks", "kainscript", "kscript"],
+    },
 ];
 
 fn find_target_spec_by_alias(alias: &str) -> Option<&'static TargetSpec> {
@@ -243,6 +248,12 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
         CompileTarget::Ts => {
             let typed_for_codegen = TypedProgram { items: mono_ast.items };
             web::generate_ts(&typed_for_codegen)
+        }
+
+        #[cfg(feature = "web")]
+        CompileTarget::Ks => {
+            let typed_for_codegen = TypedProgram { items: mono_ast.items };
+            web::generate_ks(&typed_for_codegen)
         }
         
         #[cfg(feature = "web")]

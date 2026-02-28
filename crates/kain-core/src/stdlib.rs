@@ -276,6 +276,7 @@ const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
     (CompileTarget::Cpp, &[""]),
     (CompileTarget::Interpret, &[""]),
     (CompileTarget::Test, &[""]),
+    (CompileTarget::Ks, &[""]),  // KainScript shares stdlib with JS
 ];
 
 fn resolve_profile_path(root: &std::path::Path, profile: &str) -> std::path::PathBuf {

@@ -599,6 +599,11 @@ impl TSGen {
                 self.gen_expr(inner);
             }
 
+            Expr::PtrOffset { pointer, .. } => {
+                // Raw pointer arithmetic is rejected before TS codegen; keep fallback transparent.
+                self.gen_expr(pointer);
+            }
+
             Expr::Call { callee, args, .. } => {
                 self.gen_expr(callee);
                 self.write("(");

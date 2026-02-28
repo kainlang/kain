@@ -2859,6 +2859,22 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
         // This keeps imported C-like code parseable/executable in non-native backends.
         Expr::Deref(inner, _) => eval_expr(env, inner),
 
+        // Pointer offset is currently modeled as transparent pointer propagation.
+        // Backend memory validation should stop unsupported targets before codegen.
+        Expr::PtrOffset { pointer, .. } => eval_expr(env, pointer),
+
+        // Raw memory load currently falls back to pointer propagation in the interpreter.
+        Expr::MemLoad { pointer, .. } => eval_expr(env, pointer),
+
+        // Raw memory store currently evaluates the value and returns unit in the interpreter.
+        Expr::MemStore { value, .. } => {
+            let evaluated = eval_expr(env, value)?;
+            if let Value::Return(_) = evaluated {
+                return Ok(evaluated);
+            }
+            Ok(Value::Unit)
+        }
+
         Expr::Paren(inner, _) => eval_expr(env, inner),
 
         // Await expression: await future_expr
