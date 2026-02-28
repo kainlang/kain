@@ -29,6 +29,28 @@ struct ReservedEngineNames {
 
 /// Global cache — loaded exactly once from the JSON metadata file.
 static RESERVED_NAMES: OnceLock<HashSet<String>> = OnceLock::new();
+static NAMING_POLICY: OnceLock<NamingPolicy> = OnceLock::new();
+
+/// Data-driven naming policy loaded from environment with safe defaults.
+#[derive(Debug, Clone)]
+struct NamingPolicy {
+    collision_prefix: String,
+}
+
+impl Default for NamingPolicy {
+    fn default() -> Self {
+        let collision_prefix = std::env::var("KAIN_UE5_NAME_PREFIX")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "Kain".to_string());
+        Self { collision_prefix }
+    }
+}
+
+fn naming_policy() -> &'static NamingPolicy {
+    NAMING_POLICY.get_or_init(NamingPolicy::default)
+}
 
 /// Load the reserved engine names set (all categories merged into one HashSet).
 fn reserved_engine_names() -> &'static HashSet<String> {
@@ -96,6 +118,42 @@ pub fn check_engine_name_collision(engine_name: &str, kain_name: &str) -> KainRe
     } else {
         Ok(())
     }
+}
+
+fn strip_prefixed_engine_name<'a>(name: &'a str, prefix: char) -> &'a str {
+    if name.starts_with(prefix) && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
+        &name[1..]
+    } else {
+        name
+    }
+}
+
+fn remap_engine_name(engine_name: &str) -> String {
+    let reserved = reserved_engine_names();
+    if !reserved.contains(engine_name) {
+        return engine_name.to_string();
+    }
+
+    let prefix = &naming_policy().collision_prefix;
+    let mut candidate = format!("{}{}", prefix, engine_name);
+    let mut counter = 2usize;
+    while reserved.contains(&candidate) {
+        candidate = format!("{}{}{}", prefix, engine_name, counter);
+        counter += 1;
+    }
+    candidate
+}
+
+fn format_prefixed_name(name: &str, prefix: char, check_collision: bool) -> KainResult<String> {
+    validate_identifier(name)?;
+    let engine_name = strip_prefixed_engine_name(name, prefix);
+    let resolved_engine_name = if check_collision {
+        remap_engine_name(engine_name)
+    } else {
+        engine_name.to_string()
+    };
+    validate_identifier(&resolved_engine_name)?;
+    Ok(format!("{}{}", prefix, resolved_engine_name))
 }
 
 /// C++ keywords that cannot be used as identifiers
@@ -171,14 +229,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
 /// Actor names get 'A' prefix: Player -> APlayer
 /// Returns error if name is invalid
 pub fn to_actor_name_checked(name: &str) -> KainResult<String> {
-    validate_identifier(name)?;
-    check_engine_name_collision(name, name)?;
-    
-    if name.starts_with('A') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
-        Ok(name.to_string())
-    } else {
-        Ok(format!("A{}", name))
-    }
+    format_prefixed_name(name, 'A', true)
 }
 
 /// Actor names get 'A' prefix: Player -> APlayer
@@ -192,14 +243,7 @@ pub fn to_actor_name(name: &str) -> String {
 /// Struct names get 'F' prefix: Transform -> FTransform
 /// Returns error if name is invalid
 pub fn to_struct_name_checked(name: &str) -> KainResult<String> {
-    validate_identifier(name)?;
-    check_engine_name_collision(name, name)?;
-    
-    if name.starts_with('F') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
-        Ok(name.to_string())
-    } else {
-        Ok(format!("F{}", name))
-    }
+    format_prefixed_name(name, 'F', true)
 }
 
 /// Struct names get 'F' prefix: Transform -> FTransform
@@ -213,14 +257,7 @@ pub fn to_struct_name(name: &str) -> String {
 /// Enum names get 'E' prefix: Direction -> EDirection
 /// Returns error if name is invalid
 pub fn to_enum_name_checked(name: &str) -> KainResult<String> {
-    validate_identifier(name)?;
-    check_engine_name_collision(name, name)?;
-    
-    if name.starts_with('E') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
-        Ok(name.to_string())
-    } else {
-        Ok(format!("E{}", name))
-    }
+    format_prefixed_name(name, 'E', true)
 }
 
 /// Enum names get 'E' prefix: Direction -> EDirection
@@ -234,13 +271,7 @@ pub fn to_enum_name(name: &str) -> String {
 /// UObject names get 'U' prefix: Component -> UComponent
 /// Returns error if name is invalid
 pub fn to_uobject_name_checked(name: &str) -> KainResult<String> {
-    validate_identifier(name)?;
-    
-    if name.starts_with('U') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
-        Ok(name.to_string())
-    } else {
-        Ok(format!("U{}", name))
-    }
+    format_prefixed_name(name, 'U', true)
 }
 
 /// UObject names get 'U' prefix: Component -> UComponent
@@ -255,9 +286,6 @@ pub fn to_uobject_name(name: &str) -> String {
 /// Note: Components are UObjects, so they follow UObject naming
 /// Returns error if name is invalid
 pub fn to_component_name_checked(name: &str) -> KainResult<String> {
-    validate_identifier(name)?;
-    check_engine_name_collision(name, name)?;
-    
     // If name already ends with "Component", just add U prefix
     if name.ends_with("Component") {
         return to_uobject_name_checked(name);
@@ -279,17 +307,18 @@ pub fn to_component_name(name: &str) -> String {
 /// Subsystem names get 'U' prefix and 'Subsystem' suffix: TickOptimizer -> UTickOptimizerSubsystem
 /// If name already ends with "Subsystem", just add U prefix.
 pub fn to_subsystem_name(name: &str) -> String {
-    if name.starts_with('U') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
-        if name.ends_with("Subsystem") {
-            name.to_string()
-        } else {
-            format!("{}Subsystem", name)
-        }
-    } else if name.ends_with("Subsystem") {
-        format!("U{}", name)
+    let raw_name = if name.starts_with('U') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
+        strip_prefixed_engine_name(name, 'U').to_string()
     } else {
-        format!("U{}Subsystem", name)
-    }
+        name.to_string()
+    };
+    let subsystem_base = if raw_name.ends_with("Subsystem") {
+        raw_name
+    } else {
+        format!("{}Subsystem", raw_name)
+    };
+    let resolved = remap_engine_name(&subsystem_base);
+    format!("U{}", resolved)
 }
 
 /// Generate module API macro from plugin name: "UltimateVFX" -> "ULTIMATEVFX_API"
@@ -319,15 +348,31 @@ mod tests {
 
     #[test]
     fn test_actor_naming() {
-        assert_eq!(to_actor_name("Player"), "APlayer");
-        assert_eq!(to_actor_name("APlayer"), "APlayer");
-        assert_eq!(to_actor_name("GameMode"), "AGameMode");
+        assert_eq!(to_actor_name("SampleActor"), "ASampleActor");
+        assert_eq!(to_actor_name("ASampleActor"), "ASampleActor");
+        assert!(to_actor_name("GameMode").starts_with('A'));
     }
 
     #[test]
     fn test_struct_naming() {
-        assert_eq!(to_struct_name("Vector"), "FVector");
-        assert_eq!(to_struct_name("FVector"), "FVector");
+        assert_eq!(to_struct_name("SampleStruct"), "FSampleStruct");
+        assert_eq!(to_struct_name("FSampleStruct"), "FSampleStruct");
+    }
+
+    #[test]
+    fn test_reserved_struct_collision_is_remapped() {
+        let result = to_struct_name("Color");
+        assert_ne!(result, "FColor");
+        assert!(result.starts_with('F'));
+        assert!(result.contains("Color"));
+    }
+
+    #[test]
+    fn test_prefixed_reserved_struct_collision_is_remapped() {
+        let result = to_struct_name("FColor");
+        assert_ne!(result, "FColor");
+        assert!(result.starts_with('F'));
+        assert!(result.contains("Color"));
     }
 
     #[test]

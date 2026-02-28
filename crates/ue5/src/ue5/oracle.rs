@@ -15,6 +15,9 @@ use kain_core::ast::Visibility;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::span::Span;
 use super::engine_knowledge::EngineKnowledge;
+use super::naming::{
+    to_actor_name, to_component_name, to_enum_name, to_struct_name, to_uobject_name,
+};
 use super::uht_rules::UhtRules;
 use super::validation_rules::{ValidationRules, ValidationRule, RuleCondition, Severity};
 use std::collections::{HashMap, HashSet};
@@ -430,7 +433,7 @@ fn validate_struct(ctx: &mut ValidationContext, struct_def: &TypedStruct, kb: &E
     }
 
     // RULE: Struct Naming Prefix (F)
-    let engine_name = crate::ue5::naming::to_struct_name(struct_name);
+    let engine_name = to_struct_name(struct_name);
     if engine_name.len() <= 1 {
         ctx.error(format!(
             "Struct '{}': Resulting engine name '{}' is too short or empty. Use a more descriptive name.",
@@ -467,7 +470,7 @@ fn validate_enum(ctx: &mut ValidationContext, enum_def: &kain_core::types::Typed
     }
 
     // RULE: Enum Naming Prefix (E)
-    let engine_name = crate::ue5::naming::to_enum_name(enum_name);
+    let engine_name = to_enum_name(enum_name);
     if engine_name.len() <= 1 {
         ctx.error(format!(
             "Enum '{}': Resulting engine name '{}' is invalid.",
@@ -483,7 +486,7 @@ fn validate_component(ctx: &mut ValidationContext, comp: &TypedComponent, kb: &E
     let comp_name = &comp.ast.name;
     
     // RULE: Component Naming Prefix (U)
-    let engine_name = crate::ue5::naming::to_component_name(comp_name);
+    let engine_name = to_component_name(comp_name);
     if engine_name.len() <= 1 {
         ctx.error(format!(
             "Component '{}': Resulting engine name '{}' is invalid.",
@@ -768,23 +771,40 @@ fn is_delegate_type(ty: &Type) -> bool {
 /// Uses EngineKnowledge for comprehensive collision detection instead of a hardcoded list.
 /// This prevents UHT errors like "shares engine name with class/struct in Engine"
 fn check_engine_name_collision(ctx: &mut ValidationContext, type_name: &str, type_kind: &str, kb: &EngineKnowledge) {
-    // Check against the full EngineKnowledge database
-    // This covers ALL known engine types, not just a hardcoded subset
-    let collides = kb.is_known_type(type_name)
-        || kb.is_known_type(&format!("A{}", type_name))
-        || kb.is_known_type(&format!("U{}", type_name))
-        || kb.is_known_type(&format!("F{}", type_name))
-        || kb.is_known_type(&format!("E{}", type_name))
-        // Also check type aliases (e.g. "Vec3" → "FVector")
-        || kb.resolve_type_alias(type_name).is_some();
+    let emitted_name = match type_kind {
+        "Actor" => to_actor_name(type_name),
+        "Component" => to_component_name(type_name),
+        "Struct" => to_struct_name(type_name),
+        "Enum" => to_enum_name(type_name),
+        "UObject" => to_uobject_name(type_name),
+        _ => type_name.to_string(),
+    };
 
-    if collides {
+    let emitted_engine_name = strip_ue_prefix(&emitted_name);
+
+    // If the emitted name is already safe, validation should not reject the source name.
+    let emitted_collides = kb.is_known_type(&emitted_name)
+        || kb.is_known_type(emitted_engine_name)
+        || kb.resolve_type_alias(emitted_engine_name).is_some();
+
+    if emitted_collides {
         ctx.error(format!(
             "{} '{}': This name collides with a UE5 engine type. UHT will reject it with 'shares engine name' error. \
             Please rename to something more specific (e.g., 'My{}', 'Custom{}', 'Game{}', etc.).",
             type_kind, type_name, type_name, type_name, type_name
         ));
     }
+}
+
+fn strip_ue_prefix(name: &str) -> &str {
+    if let Some(first) = name.chars().next() {
+        if matches!(first, 'A' | 'U' | 'F' | 'E' | 'I')
+            && name.chars().nth(1).map_or(false, |c| c.is_uppercase())
+        {
+            return &name[1..];
+        }
+    }
+    name
 }
 
 // ═══════════════════════════════════════════════════════════════════

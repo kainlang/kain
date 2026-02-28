@@ -183,3 +183,19 @@ fn parser_accepts_ref_and_deref_prefix_operators() {
     let typed = parse_and_typecheck(source).expect("ref/deref operators should parse and typecheck");
     assert!(!typed.items.is_empty());
 }
+
+#[test]
+fn typecheck_flattens_inline_module_items() {
+    let source = r#"mod imported:
+    struct Point:
+        x: Int
+
+    fn make_point(x: Int) -> Int:
+        return x
+
+fn main() -> Int:
+    return make_point(7)"#;
+
+    let typed = parse_and_typecheck(source).expect("inline module items should typecheck");
+    assert_eq!(typed.items.len(), 3);
+}

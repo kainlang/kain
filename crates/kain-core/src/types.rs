@@ -215,35 +215,70 @@ pub fn check(program: &Program, span_mapper: &SpanMapper, filename: &str) -> Kai
     
     // First pass: Register all struct and enum types
     for item in &program.items {
-        match item {
-            Item::Struct(s) => {
-                let mut fields = HashMap::new();
-                for f in &s.fields {
-                    fields.insert(f.name.clone(), resolve_type(&f.ty)?);
-                }
-                env.types.insert(s.name.clone(), ResolvedType::Struct(s.name.clone(), fields));
-            }
-            Item::Enum(e) => {
-                let variants: Vec<(String, ResolvedType)> = e.variants.iter()
-                    .map(|v| (v.name.clone(), ResolvedType::Unit))
-                    .collect();
-                env.types.insert(e.name.clone(), ResolvedType::Enum(e.name.clone(), variants));
-            }
-            _ => {}
-        }
+        register_item_types(&mut env, item)?;
     }
     
     // Second pass: Type check all items
     let mut typed_items = Vec::new();
     for item in &program.items {
-        // Skip traits for now - trait type checking not yet implemented
-        if matches!(item, Item::Trait(_)) {
-            continue;
-        }
-        typed_items.push(check_item(&mut env, item)?);
+        check_item_into(&mut env, item, &mut typed_items)?;
     }
     
     Ok(TypedProgram { items: typed_items })
+}
+
+fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
+    match item {
+        Item::Struct(s) => {
+            let mut fields = HashMap::new();
+            for f in &s.fields {
+                fields.insert(f.name.clone(), resolve_type(&f.ty)?);
+            }
+            env.types
+                .insert(s.name.clone(), ResolvedType::Struct(s.name.clone(), fields));
+        }
+        Item::Enum(e) => {
+            let variants: Vec<(String, ResolvedType)> = e
+                .variants
+                .iter()
+                .map(|v| (v.name.clone(), ResolvedType::Unit))
+                .collect();
+            env.types
+                .insert(e.name.clone(), ResolvedType::Enum(e.name.clone(), variants));
+        }
+        Item::Mod(module) => {
+            if let Some(children) = &module.inline {
+                for child in children {
+                    register_item_types(env, child)?;
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+fn check_item_into(
+    env: &mut TypeEnv,
+    item: &Item,
+    out: &mut Vec<TypedItem>,
+) -> KainResult<()> {
+    match item {
+        Item::Trait(_) => {
+            // Skip traits for now - trait type checking not yet implemented
+        }
+        Item::Mod(module) => {
+            if let Some(children) = &module.inline {
+                for child in children {
+                    check_item_into(env, child, out)?;
+                }
+            }
+        }
+        _ => out.push(check_item(env, item)?),
+    }
+
+    Ok(())
 }
 
 fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
@@ -276,6 +311,9 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
             // This should never be reached because we filter traits in check()
             unreachable!("Traits should be filtered before check_item")
         },
+        Item::Mod(_) => {
+            unreachable!("Modules should be flattened before check_item")
+        }
         _ => {
             Err(env.type_error("Item type not yet supported in type checker", item_span(item)))
         }
@@ -423,6 +461,7 @@ fn item_span(item: &Item) -> Span {
         Item::Const(c) => c.span,
         Item::Macro(m) => m.span,
         Item::Use(u) => u.span,
+        Item::Mod(m) => m.span,
         Item::Impl(i) => i.span,
         Item::Test(t) => t.span,
         _ => Span::new(0, 0),
