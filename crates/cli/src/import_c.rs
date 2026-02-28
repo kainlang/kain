@@ -598,6 +598,9 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             write_line(output, indent, &line)
         }
         kain_core::ast::Stmt::Expr(expr) => {
+            if let Some(block) = desugar_sequence_stmt(expr) {
+                return write_block(output, &block, indent);
+            }
             if let kain_core::ast::Expr::Block(block, _) = expr {
                 return write_block(output, block, indent);
             }
@@ -1042,6 +1045,149 @@ fn single_expr_from_block(block: &kain_core::ast::Block) -> Option<&kain_core::a
         Some(kain_core::ast::Stmt::Return(Some(expr), _)) => Some(expr),
         _ => None,
     }
+}
+
+struct IncDecSequence<'a> {
+    binding: &'a str,
+    target: &'a kain_core::ast::Expr,
+    op: kain_core::ast::BinaryOp,
+    prefix: bool,
+}
+
+fn desugar_sequence_stmt(expr: &kain_core::ast::Expr) -> Option<kain_core::ast::Block> {
+    let span = expr.span();
+
+    if let Some(sequence) = decode_incdec_sequence(expr) {
+        return Some(kain_core::ast::Block {
+            stmts: vec![kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
+                target: Box::new(sequence.target.clone()),
+                value: Box::new(kain_core::ast::Expr::Binary {
+                    left: Box::new(sequence.target.clone()),
+                    op: sequence.op,
+                    right: Box::new(kain_core::ast::Expr::Int(1, span)),
+                    span,
+                }),
+                span,
+            })],
+            span,
+        });
+    }
+
+    let kain_core::ast::Expr::Assign { target, value, .. } = expr else {
+        return None;
+    };
+    let kain_core::ast::Expr::Index { object, index, .. } = &**target else {
+        return None;
+    };
+    let sequence = decode_incdec_sequence(index)?;
+
+    let mut stmts = Vec::new();
+    if !sequence.prefix {
+        stmts.push(kain_core::ast::Stmt::Let {
+            pattern: kain_core::ast::Pattern::Binding {
+                name: sequence.binding.to_string(),
+                mutable: true,
+                span,
+            },
+            ty: None,
+            value: Some(sequence.target.clone()),
+            span,
+        });
+    }
+
+    stmts.push(kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
+        target: Box::new(sequence.target.clone()),
+        value: Box::new(kain_core::ast::Expr::Binary {
+            left: Box::new(sequence.target.clone()),
+            op: sequence.op,
+            right: Box::new(kain_core::ast::Expr::Int(1, span)),
+            span,
+        }),
+        span,
+    }));
+
+    let lowered_index = if sequence.prefix {
+        sequence.target.clone()
+    } else {
+        kain_core::ast::Expr::Ident(sequence.binding.to_string(), span)
+    };
+
+    stmts.push(kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
+        target: Box::new(kain_core::ast::Expr::Index {
+            object: object.clone(),
+            index: Box::new(lowered_index),
+            span,
+        }),
+        value: value.clone(),
+        span,
+    }));
+
+    Some(kain_core::ast::Block { stmts, span })
+}
+
+fn decode_incdec_sequence(expr: &kain_core::ast::Expr) -> Option<IncDecSequence<'_>> {
+    let kain_core::ast::Expr::Match { scrutinee, arms, .. } = expr else {
+        return None;
+    };
+    let [arm] = arms.as_slice() else {
+        return None;
+    };
+    let kain_core::ast::Pattern::Binding { name, .. } = &arm.pattern else {
+        return None;
+    };
+    let kain_core::ast::Expr::Index { object, index, .. } = &arm.body else {
+        return None;
+    };
+    let kain_core::ast::Expr::Array(items, _) = &**object else {
+        return None;
+    };
+    let [assign_expr, result_expr] = items.as_slice() else {
+        return None;
+    };
+    let kain_core::ast::Expr::Int(1, _) = &**index else {
+        return None;
+    };
+    let kain_core::ast::Expr::Assign { target, value, .. } = assign_expr else {
+        return None;
+    };
+    if **target != **scrutinee {
+        return None;
+    }
+    let kain_core::ast::Expr::Binary { left, op, right, .. } = &**value else {
+        return None;
+    };
+    let kain_core::ast::Expr::Ident(left_name, _) = &**left else {
+        return None;
+    };
+    if left_name != name {
+        return None;
+    }
+    if !matches!(&**right, kain_core::ast::Expr::Int(1, _)) {
+        return None;
+    }
+
+    let prefix = matches!(
+        result_expr,
+        kain_core::ast::Expr::Binary {
+            left,
+            op: result_op,
+            right,
+            ..
+        } if matches!(&**left, kain_core::ast::Expr::Ident(result_name, _) if result_name == name)
+            && result_op == op
+            && matches!(&**right, kain_core::ast::Expr::Int(1, _))
+    );
+    let postfix = matches!(result_expr, kain_core::ast::Expr::Ident(result_name, _) if result_name == name);
+    if !prefix && !postfix {
+        return None;
+    }
+
+    Some(IncDecSequence {
+        binding: name,
+        target: scrutinee,
+        op: *op,
+        prefix,
+    })
 }
 
 fn call_arg_to_string(arg: &kain_core::ast::CallArg) -> String {

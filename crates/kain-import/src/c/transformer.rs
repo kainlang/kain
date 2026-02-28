@@ -40,6 +40,9 @@ pub struct CTransformer {
 
     /// KAIN language capability profile used for data-driven lowering decisions.
     language_capabilities: LanguageCapabilities,
+
+    /// Synthetic temporary counter for sequence-preserving lowering.
+    temp_counter: usize,
 }
 
 impl CTransformer {
@@ -56,6 +59,7 @@ impl CTransformer {
             typedefs: HashMap::new(),
             identifier_renamer: StableIdentifierRenamer::default(),
             language_capabilities,
+            temp_counter: 0,
         }
     }
 
@@ -77,6 +81,12 @@ impl CTransformer {
 
     fn rename_variant_identifier(&mut self, raw: &str) -> String {
         self.rename_identifier(IdentifierDomain::Variant, raw)
+    }
+
+    fn fresh_temp(&mut self, prefix: &str) -> String {
+        let name = format!("{}_{}", prefix, self.temp_counter);
+        self.temp_counter += 1;
+        self.rename_value_identifier(&name)
     }
 
     fn sanitize_type(&mut self, ty: Type) -> Type {
@@ -195,7 +205,7 @@ impl CTransformer {
         let params = self.extract_function_params(&func.declarator.node)?;
         
         // Extract return type from declaration specifiers
-        let return_type = self.extract_return_type(&func.specifiers)?;
+        let return_type = self.extract_return_type(&func.specifiers, Some(&func.declarator.node))?;
         
         // Transform function body
         let body = self.transform_compound_statement(&func.statement.node)?;
@@ -234,7 +244,11 @@ impl CTransformer {
                     };
                     
                     // Extract parameter type
-                    let param_type = self.extract_type_from_specifiers(&param_decl.node.specifiers)?;
+                    let param_type = if let Some(ref decl) = param_decl.node.declarator {
+                        self.extract_type_from_declaration(&param_decl.node.specifiers, &decl.node)?
+                    } else {
+                        self.extract_type_from_specifiers(&param_decl.node.specifiers)?
+                    };
                     
                     params.push(Param {
                         name: param_name,
@@ -253,8 +267,17 @@ impl CTransformer {
     }
     
     /// Extract return type from declaration specifiers
-    fn extract_return_type(&mut self, specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> Result<Type> {
-        self.extract_type_from_specifiers(specifiers)
+    fn extract_return_type(
+        &mut self,
+        specifiers: &[Node<c_ast::DeclarationSpecifier>],
+        declarator: Option<&c_ast::Declarator>,
+    ) -> Result<Type> {
+        let base = self.extract_type_from_specifiers(specifiers)?;
+        if let Some(declarator) = declarator {
+            self.apply_declarator_type(base, declarator)
+        } else {
+            Ok(base)
+        }
     }
     
     /// Extract type from declaration specifiers
@@ -272,6 +295,15 @@ impl CTransformer {
         Ok(Type::Unit(Span::default()))
     }
 
+    fn extract_type_from_declaration(
+        &mut self,
+        specifiers: &[Node<c_ast::DeclarationSpecifier>],
+        declarator: &c_ast::Declarator,
+    ) -> Result<Type> {
+        let base = self.extract_type_from_specifiers(specifiers)?;
+        self.apply_declarator_type(base, declarator)
+    }
+
     /// Extract type from specifier qualifiers (used in casts/compound literals).
     fn extract_type_from_specifier_qualifiers(
         &mut self,
@@ -285,6 +317,95 @@ impl CTransformer {
         }
 
         Ok(Type::Unit(Span::default()))
+    }
+
+    fn extract_type_from_type_name(&mut self, type_name: &c_ast::TypeName) -> Result<Type> {
+        let base = self.extract_type_from_specifier_qualifiers(&type_name.specifiers)?;
+        if let Some(ref declarator) = type_name.declarator {
+            self.apply_declarator_type(base, &declarator.node)
+        } else {
+            Ok(base)
+        }
+    }
+
+    fn apply_declarator_type(
+        &mut self,
+        mut ty: Type,
+        declarator: &c_ast::Declarator,
+    ) -> Result<Type> {
+        for derived in declarator.derived.iter().rev() {
+            ty = match &derived.node {
+                c_ast::DerivedDeclarator::Pointer(qualifiers) => {
+                    let qualifiers = qualifiers
+                        .iter()
+                        .filter_map(|qualifier| {
+                            if let c_ast::PointerQualifier::TypeQualifier(type_qualifier) =
+                                &qualifier.node
+                            {
+                                Some(type_qualifier.node.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    self.type_transformer.transform_pointer(ty, &qualifiers)
+                }
+                c_ast::DerivedDeclarator::Array(array_decl) => {
+                    let size = self.extract_array_size(&array_decl.node.size);
+                    self.type_transformer.transform_array(ty, size)
+                }
+                c_ast::DerivedDeclarator::Function(_) | c_ast::DerivedDeclarator::KRFunction(_) => {
+                    ty
+                }
+                c_ast::DerivedDeclarator::Block(qualifiers) => {
+                    let qualifiers = qualifiers
+                        .iter()
+                        .filter_map(|qualifier| {
+                            if let c_ast::PointerQualifier::TypeQualifier(type_qualifier) =
+                                &qualifier.node
+                            {
+                                Some(type_qualifier.node.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    self.type_transformer.transform_pointer(ty, &qualifiers)
+                }
+            };
+        }
+
+        Ok(self.sanitize_type(ty))
+    }
+
+    fn extract_array_size(&self, size: &c_ast::ArraySize) -> Option<usize> {
+        let expr = match size {
+            c_ast::ArraySize::VariableExpression(expr)
+            | c_ast::ArraySize::StaticExpression(expr) => Some(&expr.node),
+            c_ast::ArraySize::Unknown | c_ast::ArraySize::VariableUnknown => None,
+        }?;
+
+        self.extract_const_usize(expr)
+    }
+
+    fn extract_const_usize(&self, expr: &c_ast::Expression) -> Option<usize> {
+        match expr {
+            c_ast::Expression::Constant(constant) => {
+                if let c_ast::Constant::Integer(int) = &constant.node {
+                    parse_c_integer_literal(&int.number)
+                } else {
+                    None
+                }
+            }
+            c_ast::Expression::UnaryOperator(unary) => {
+                if matches!(unary.node.operator.node, c_ast::UnaryOperator::Plus) {
+                    self.extract_const_usize(&unary.node.operand.node)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
     
     /// Extract name from declarator
@@ -342,6 +463,25 @@ impl CTransformer {
         use c_ast::DeclarationSpecifier::*;
         
         let mut items = Vec::new();
+        let mut anonymous_struct = None;
+        let mut anonymous_enum = None;
+
+        for spec in &decl.specifiers {
+            match &spec.node {
+                TypeSpecifier(type_spec) => match &type_spec.node {
+                    c_ast::TypeSpecifier::Struct(struct_type)
+                        if struct_type.node.identifier.is_none() =>
+                    {
+                        anonymous_struct = Some(struct_type.node.clone());
+                    }
+                    c_ast::TypeSpecifier::Enum(enum_type) if enum_type.node.identifier.is_none() => {
+                        anonymous_enum = Some(enum_type.node.clone());
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
         
         // Check for struct/enum/typedef in specifiers
         for spec in &decl.specifiers {
@@ -349,12 +489,12 @@ impl CTransformer {
                 TypeSpecifier(type_spec) => {
                     match &type_spec.node {
                         c_ast::TypeSpecifier::Struct(struct_type) => {
-                            if let Some(item) = self.transform_struct_declaration(&struct_type.node)? {
+                            if let Some(item) = self.transform_struct_declaration(&struct_type.node, None)? {
                                 items.push(item);
                             }
                         }
                         c_ast::TypeSpecifier::Enum(enum_type) => {
-                            if let Some(item) = self.transform_enum_declaration(&enum_type.node)? {
+                            if let Some(item) = self.transform_enum_declaration(&enum_type.node, None)? {
                                 items.push(item);
                             }
                         }
@@ -369,30 +509,50 @@ impl CTransformer {
                             let raw_name =
                                 self.extract_declarator_name(&init_decl.node.declarator.node)?;
                             let name = self.rename_type_identifier(&raw_name);
-                            let mut ty = self.extract_type_from_specifiers(&decl.specifiers)?;
-                            if matches!(
-                                &ty,
-                                Type::Named { name, .. } if name == "AnonymousStruct" || name == "AnonymousEnum"
-                            ) {
-                                ty = Type::Named {
+                            if let Some(struct_type) = &anonymous_struct {
+                                if let Some(item) =
+                                    self.transform_struct_declaration(struct_type, Some(name.clone()))?
+                                {
+                                    items.push(item);
+                                }
+                            }
+                            if let Some(enum_type) = &anonymous_enum {
+                                if let Some(item) =
+                                    self.transform_enum_declaration(enum_type, Some(name.clone()))?
+                                {
+                                    items.push(item);
+                                }
+                            }
+                            let ty = if anonymous_struct.is_some() || anonymous_enum.is_some() {
+                                Type::Named {
                                     name: name.clone(),
                                     generics: Vec::new(),
                                     span: Span::default(),
-                                };
-                            }
+                                }
+                            } else {
+                                self.extract_type_from_declaration(
+                                    &decl.specifiers,
+                                    &init_decl.node.declarator.node,
+                                )?
+                            };
                             self.typedefs.insert(raw_name.clone(), ty.clone());
                             if raw_name != name {
                                 self.typedefs.insert(name.clone(), ty.clone());
                             }
                             self.type_transformer.add_typedef(raw_name.clone(), ty.clone());
-                            
-                            items.push(Item::TypeAlias(TypeAlias {
-                                name,
-                                generics: Vec::new(),
-                                target: ty,
-                                visibility: Visibility::Public,
-                                span: Span::default(),
-                            }));
+                            if raw_name != name {
+                                self.type_transformer.add_typedef(name.clone(), ty.clone());
+                            }
+
+                            if !matches!(&ty, Type::Named { name: ty_name, .. } if ty_name == &name) {
+                                items.push(Item::TypeAlias(TypeAlias {
+                                    name,
+                                    generics: Vec::new(),
+                                    target: ty,
+                                    visibility: Visibility::Public,
+                                    span: Span::default(),
+                                }));
+                            }
                         }
                     }
                 }
@@ -405,7 +565,8 @@ impl CTransformer {
             for init_decl in &decl.declarators {
                 let raw_name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
                 let name = self.rename_value_identifier(&raw_name);
-                let ty = self.extract_type_from_specifiers(&decl.specifiers)?;
+                let ty =
+                    self.extract_type_from_declaration(&decl.specifiers, &init_decl.node.declarator.node)?;
                 
                 // Extract initializer if present
                 let value = if let Some(ref init) = init_decl.node.initializer {
@@ -429,12 +590,18 @@ impl CTransformer {
     }
     
     /// Transform struct declaration
-    fn transform_struct_declaration(&mut self, struct_type: &c_ast::StructType) -> Result<Option<Item>> {
+    fn transform_struct_declaration(
+        &mut self,
+        struct_type: &c_ast::StructType,
+        fallback_name: Option<String>,
+    ) -> Result<Option<Item>> {
         // Get struct name
         let (raw_name, name) = if let Some(ref ident) = struct_type.identifier {
             let raw_name = ident.node.name.clone();
             let sanitized = self.rename_type_identifier(&raw_name);
             (raw_name, sanitized)
+        } else if let Some(name) = fallback_name {
+            (name.clone(), name)
         } else {
             // Anonymous struct, skip for now
             return Ok(None);
@@ -450,16 +617,18 @@ impl CTransformer {
                 };
 
                 let field_decl = &field_decl.node;
-                let field_type = self.extract_type_from_specifier_qualifiers(&field_decl.specifiers)?;
-
                 for declarator in &field_decl.declarators {
-                    if let Some(ref field_decl) = declarator.node.declarator {
-                        let raw_field_name = self.extract_declarator_name(&field_decl.node)?;
+                    if let Some(ref field_declarator) = declarator.node.declarator {
+                        let raw_field_name = self.extract_declarator_name(&field_declarator.node)?;
                         let field_name = self.rename_field_identifier(&raw_field_name);
+                        let field_type =
+                            self.extract_type_from_specifier_qualifiers(&field_decl.specifiers)?;
+                        let field_type =
+                            self.apply_declarator_type(field_type, &field_declarator.node)?;
 
                         fields.push(Field {
                             name: field_name,
-                            ty: field_type.clone(),
+                            ty: field_type,
                             attributes: Vec::new(),
                             visibility: Visibility::Public,
                             default: None,
@@ -490,12 +659,18 @@ impl CTransformer {
     }
     
     /// Transform enum declaration
-    fn transform_enum_declaration(&mut self, enum_type: &c_ast::EnumType) -> Result<Option<Item>> {
+    fn transform_enum_declaration(
+        &mut self,
+        enum_type: &c_ast::EnumType,
+        fallback_name: Option<String>,
+    ) -> Result<Option<Item>> {
         // Get enum name
         let (raw_name, name) = if let Some(ref ident) = enum_type.identifier {
             let raw_name = ident.node.name.clone();
             let sanitized = self.rename_type_identifier(&raw_name);
             (raw_name, sanitized)
+        } else if let Some(name) = fallback_name {
+            (name.clone(), name)
         } else {
             // Anonymous enum, skip for now
             return Ok(None);
@@ -538,12 +713,13 @@ impl CTransformer {
         for init_decl in &decl.declarators {
             let raw_name = self.extract_declarator_name(&init_decl.node.declarator.node)?;
             let name = self.rename_value_identifier(&raw_name);
-            let ty = self.extract_type_from_specifiers(&decl.specifiers)?;
+            let ty =
+                self.extract_type_from_declaration(&decl.specifiers, &init_decl.node.declarator.node)?;
             
             let value = if let Some(ref init) = init_decl.node.initializer {
                 Some(self.transform_initializer(&init.node)?)
             } else {
-                None
+                Some(self.default_value_for_type(&ty))
             };
             
             stmts.push(Stmt::Let {
@@ -581,6 +757,12 @@ impl CTransformer {
     /// Default value for a type
     fn default_value_for_type(&self, ty: &Type) -> Expr {
         match ty {
+            Type::Array(inner, count, _) => Expr::Array(
+                (0..*count)
+                    .map(|_| self.default_value_for_type(inner))
+                    .collect(),
+                Span::default(),
+            ),
             Type::Named { name, .. } => {
                 match name.as_str() {
                     "Int" | "i32" | "i64" => Expr::Int(0, Span::default()),
@@ -665,8 +847,7 @@ impl CTransformer {
                 }
             }
             Cast(cast) => {
-                let ty =
-                    self.extract_type_from_specifier_qualifiers(&cast.node.type_name.node.specifiers);
+                let ty = self.extract_type_from_type_name(&cast.node.type_name.node);
                 match ty {
                     Ok(ty) => self.estimate_sizeof_type(&ty),
                     Err(_) => 8,
@@ -682,19 +863,56 @@ impl CTransformer {
         }
     }
 
-    fn lower_inc_dec(&mut self, operand: &c_ast::Expression, increment: bool) -> Result<Expr> {
+    fn lower_inc_dec(
+        &mut self,
+        operand: &c_ast::Expression,
+        increment: bool,
+        prefix: bool,
+    ) -> Result<Expr> {
         let operand_expr = self.transform_expression(operand)?;
+        if !matches!(
+            operand_expr,
+            Expr::Ident(_, _) | Expr::Field { .. } | Expr::Index { .. } | Expr::Deref(_, _)
+        ) {
+            return Err(ImportError::UnsupportedFeature(
+                "Increment/decrement target must be assignable".to_string(),
+            ));
+        }
+
+        let span = Span::default();
+        let binding = self.fresh_temp("__kain_c_incdec");
+        let bound_ident = Expr::Ident(binding.clone(), span);
         let updated = Expr::Binary {
-            left: Box::new(operand_expr.clone()),
+            left: Box::new(bound_ident.clone()),
             op: if increment { BinaryOp::Add } else { BinaryOp::Sub },
-            right: Box::new(Expr::Int(1, Span::default())),
-            span: Span::default(),
+            right: Box::new(Expr::Int(1, span)),
+            span,
+        };
+        let assign_expr = Expr::Assign {
+            target: Box::new(operand_expr.clone()),
+            value: Box::new(updated.clone()),
+            span,
+        };
+        let result_expr = if prefix { updated } else { bound_ident };
+        let sequenced = Expr::Index {
+            object: Box::new(Expr::Array(vec![assign_expr, result_expr], span)),
+            index: Box::new(Expr::Int(1, span)),
+            span,
         };
 
-        Ok(Expr::Assign {
-            target: Box::new(operand_expr),
-            value: Box::new(updated),
-            span: Span::default(),
+        Ok(Expr::Match {
+            scrutinee: Box::new(operand_expr),
+            arms: vec![MatchArm {
+                pattern: Pattern::Binding {
+                    name: binding,
+                    mutable: false,
+                    span,
+                },
+                guard: None,
+                body: sequenced,
+                span,
+            }],
+            span,
         })
     }
 
@@ -971,11 +1189,17 @@ impl CTransformer {
                             Box::new(self.transform_expression(&unary_op.node.operand.node)?);
                         Ok(Expr::Deref(value, Span::default()))
                     }
-                    c_ast::UnaryOperator::PostIncrement | c_ast::UnaryOperator::PreIncrement => {
-                        self.lower_inc_dec(&unary_op.node.operand.node, true)
+                    c_ast::UnaryOperator::PreIncrement => {
+                        self.lower_inc_dec(&unary_op.node.operand.node, true, true)
                     }
-                    c_ast::UnaryOperator::PostDecrement | c_ast::UnaryOperator::PreDecrement => {
-                        self.lower_inc_dec(&unary_op.node.operand.node, false)
+                    c_ast::UnaryOperator::PostIncrement => {
+                        self.lower_inc_dec(&unary_op.node.operand.node, true, false)
+                    }
+                    c_ast::UnaryOperator::PreDecrement => {
+                        self.lower_inc_dec(&unary_op.node.operand.node, false, true)
+                    }
+                    c_ast::UnaryOperator::PostDecrement => {
+                        self.lower_inc_dec(&unary_op.node.operand.node, false, false)
                     }
                     c_ast::UnaryOperator::Plus => {
                         self.transform_expression(&unary_op.node.operand.node)
@@ -996,8 +1220,7 @@ impl CTransformer {
 
             // sizeof(type)
             SizeOfTy(size_of_ty) => {
-                let target_ty =
-                    self.extract_type_from_specifier_qualifiers(&size_of_ty.node.0.node.specifiers)?;
+                let target_ty = self.extract_type_from_type_name(&size_of_ty.node.0.node)?;
                 Ok(Expr::Int(
                     self.estimate_sizeof_type(&target_ty),
                     Span::default(),
@@ -1048,7 +1271,7 @@ impl CTransformer {
             // Cast
             Cast(cast) => {
                 let value = Box::new(self.transform_expression(&cast.node.expression.node)?);
-                let target = self.extract_type_from_specifier_qualifiers(&cast.node.type_name.node.specifiers)?;
+                let target = self.extract_type_from_type_name(&cast.node.type_name.node)?;
                 
                 Ok(Expr::Cast {
                     value,
@@ -1089,7 +1312,7 @@ impl CTransformer {
             // Compound literal (struct initialization)
             CompoundLiteral(compound) => {
                 // Extract type name
-                let type_name = self.extract_type_from_specifier_qualifiers(&compound.node.type_name.node.specifiers)?;
+                let type_name = self.extract_type_from_type_name(&compound.node.type_name.node)?;
                 
                 if let Type::Named { name, .. } = type_name {
                     // Transform initializer list to struct fields
@@ -1219,6 +1442,22 @@ pub fn transform_with_language_capabilities(
 ) -> Result<Program> {
     let mut transformer = CTransformer::with_language_capabilities(language_capabilities);
     transformer.transform(tu)
+}
+
+fn parse_c_integer_literal(number: &str) -> Option<usize> {
+    let digits = number
+        .trim()
+        .trim_end_matches(|c: char| matches!(c, 'u' | 'U' | 'l' | 'L'));
+
+    if let Some(hex) = digits.strip_prefix("0x").or_else(|| digits.strip_prefix("0X")) {
+        usize::from_str_radix(hex, 16).ok()
+    } else if let Some(bin) = digits.strip_prefix("0b").or_else(|| digits.strip_prefix("0B")) {
+        usize::from_str_radix(bin, 2).ok()
+    } else if digits.len() > 1 && digits.starts_with('0') {
+        usize::from_str_radix(&digits[1..], 8).ok()
+    } else {
+        digits.parse::<usize>().ok()
+    }
 }
 
 #[cfg(test)]
@@ -1658,5 +1897,92 @@ mod tests {
             panic!("expected identifier callee");
         };
         assert_eq!(name, "type_");
+    }
+
+    #[test]
+    fn test_typedef_anonymous_struct_preserves_layout_for_sizeof() {
+        let source = r#"
+            typedef struct {
+                int *data;
+                int len;
+                int cap;
+            } KainArray;
+
+            int alloc_size() {
+                return sizeof(KainArray);
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        assert!(program.items.iter().any(|item| matches!(item, Item::Struct(s) if s.name == "KainArray")));
+
+        let alloc_fn = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "alloc_size" => Some(f),
+                _ => None,
+            })
+            .expect("expected alloc_size function");
+
+        let Stmt::Return(Some(Expr::Int(size, _)), _) = &alloc_fn.body.stmts[0] else {
+            panic!("expected integer sizeof return");
+        };
+        assert_eq!(*size, 24);
+    }
+
+    #[test]
+    fn test_local_fixed_array_gets_real_storage_default() {
+        let source = r#"
+            int run() {
+                char buf[2];
+                buf[0] = 'a';
+                return 0;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let run_fn = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Let { ty: Some(Type::Array(_, count, _)), value: Some(Expr::Array(items, _)), .. } =
+            &run_fn.body.stmts[0]
+        else {
+            panic!("expected fixed array local");
+        };
+        assert_eq!(*count, 2);
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn test_post_increment_preserves_old_index_value() {
+        let source = r#"
+            int push(int *arr, int len, int value) {
+                arr[len++] = value;
+                return len;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let push_fn = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Expr(Expr::Assign { target, .. }) = &push_fn.body.stmts[0] else {
+            panic!("expected assignment expression");
+        };
+        let Expr::Index { index, .. } = &**target else {
+            panic!("expected indexed assignment target");
+        };
+        let Expr::Match { .. } = &**index else {
+            panic!("expected sequenced match-based postfix lowering");
+        };
     }
 }

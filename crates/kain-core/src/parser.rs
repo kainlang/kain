@@ -1970,6 +1970,44 @@ impl<'a> Parser<'a> {
 
     fn parse_type(&mut self) -> KainResult<Type> {
         let span = self.current_span();
+
+        if self.check(TokenKind::Amp) {
+            self.advance();
+            let mutable = if self.check(TokenKind::Mut) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+            let inner = self.parse_type()?;
+            return Ok(Type::Ref {
+                mutable,
+                inner: Box::new(inner),
+                lifetime: None,
+                span: span.merge(self.current_span()),
+            });
+        }
+
+        if self.check(TokenKind::LBracket) {
+            self.advance();
+            let inner = self.parse_type()?;
+            if self.check(TokenKind::Semi) {
+                self.advance();
+                let TokenKind::Int(size) = self.peek_kind() else {
+                    return Err(self.parser_error("Expected array size integer", self.current_span()));
+                };
+                self.advance();
+                self.expect(TokenKind::RBracket)?;
+                return Ok(Type::Array(
+                    Box::new(inner),
+                    size as usize,
+                    span.merge(self.current_span()),
+                ));
+            }
+
+            self.expect(TokenKind::RBracket)?;
+            return Ok(Type::Slice(Box::new(inner), span.merge(self.current_span())));
+        }
         
         // Handle tuple types: (A, B) or unit type: ()
         if self.check(TokenKind::LParen) {

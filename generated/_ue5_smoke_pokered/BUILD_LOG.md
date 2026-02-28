@@ -1,6 +1,6 @@
 # Build Log - PokeredFirmwareSmoke 
  
-**Build Date**: Sat 02 28 2026 04:04 
+**Build Date**: Sat 02 28 2026 06:48 
 **Status**: FAILED 
 **Error Type**: KAIN COMPILATION 
  
@@ -11,7 +11,7 @@
 🚀 Building UE5 Plugin: PokeredFirmwareSmoke
 📍 Plugin directory: .
 
-📚 Loaded stdlib from: m:\Code\Kain\stdlib\ue5
+📚 Loaded stdlib from: M:\Code\Kain\stdlib\ue5
 📁 Source files: 13 (stdlib: 12, user: 1)
    📚 Stdlib files:
       1. actor.kn
