@@ -365,6 +365,14 @@ pub struct Impl {
 // === TYPE SYSTEM ===
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum PointerProvenance {
+    Raw,
+    ImportedC,
+    ImportedAsm,
+    LoweredRef,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     /// Named type: `Int`, `String`, `Vec<T>`
     Named {
@@ -383,6 +391,13 @@ pub enum Type {
         mutable: bool,
         inner: Box<Type>,
         lifetime: Option<String>,
+        span: Span,
+    },
+    /// Raw pointer: `ptr<T>`, `ptr_mut<T>`
+    Ptr {
+        mutable: bool,
+        inner: Box<Type>,
+        provenance: PointerProvenance,
         span: Span,
     },
     /// Function type: `fn(A, B) -> C with Effects`
@@ -418,6 +433,7 @@ impl Type {
             | Type::Array(_, _, span)
             | Type::Slice(_, span)
             | Type::Ref { span, .. }
+            | Type::Ptr { span, .. }
             | Type::Function { span, .. }
             | Type::Option(_, span)
             | Type::Result(_, _, span)
@@ -425,6 +441,26 @@ impl Type {
             | Type::Never(span)
             | Type::Unit(span)
             | Type::Impl { span, .. } => *span,
+        }
+    }
+
+    pub fn contains_raw_ptr(&self) -> bool {
+        match self {
+            Type::Ptr { .. } => true,
+            Type::Named { generics, .. } => generics.iter().any(Self::contains_raw_ptr),
+            Type::Tuple(types, _) => types.iter().any(Self::contains_raw_ptr),
+            Type::Array(inner, _, _)
+            | Type::Slice(inner, _)
+            | Type::Ref { inner, .. }
+            | Type::Option(inner, _) => inner.contains_raw_ptr(),
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => params.iter().any(Self::contains_raw_ptr) || return_type.contains_raw_ptr(),
+            Type::Result(ok, err, _) => ok.contains_raw_ptr() || err.contains_raw_ptr(),
+            Type::Impl { generics, .. } => generics.iter().any(Self::contains_raw_ptr),
+            Type::Infer(_) | Type::Never(_) | Type::Unit(_) => false,
         }
     }
 }
@@ -1696,6 +1732,9 @@ fn collect_type_names_from_type(ty: &Type, out: &mut HashSet<String>) {
             collect_type_names_from_type(inner, out);
         }
         Type::Ref { inner, .. } => {
+            collect_type_names_from_type(inner, out);
+        }
+        Type::Ptr { inner, .. } => {
             collect_type_names_from_type(inner, out);
         }
         Type::Function { params, return_type, .. } => {

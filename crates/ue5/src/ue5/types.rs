@@ -164,6 +164,9 @@ pub fn map_type_with_knowledge(ty: &Type, config: &TypeMapConfig, kb: Option<&En
                 format!("const {}&", map_type_with_knowledge(inner, config, kb))
             }
         }
+        Type::Ptr { inner, .. } => {
+            format!("{}*", map_type_with_knowledge(inner, config, kb))
+        }
         Type::Function { params, return_type, .. } => {
             let param_strs: Vec<String> = params.iter()
                 .map(|p| map_type_with_knowledge(p, config, kb))

@@ -1313,6 +1313,13 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
                 format!("&{}", type_to_string(inner))
             }
         }
+        kain_core::ast::Type::Ptr { mutable, inner, .. } => {
+            if *mutable {
+                format!("ptr_mut<{}>", type_to_string(inner))
+            } else {
+                format!("ptr<{}>", type_to_string(inner))
+            }
+        }
         kain_core::ast::Type::Function {
             params,
             return_type,

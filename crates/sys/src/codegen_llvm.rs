@@ -125,6 +125,7 @@ impl LlvmGenerator {
             ResolvedType::Generic(name) => self.map_type_from_str(name),
             ResolvedType::Tuple(_) => "i64".into(),
             ResolvedType::Ref { inner, .. } => self.map_type(inner),
+            ResolvedType::Ptr { inner, .. } => format!("{}*", self.map_type(inner)),
             ResolvedType::Never => "void".into(),
             ResolvedType::Unknown => "i64".into(),
         }

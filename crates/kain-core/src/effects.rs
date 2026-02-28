@@ -63,7 +63,7 @@ pub fn check_effect_call(
     callee: &EffectSet, 
     caller_name: &str,
     callee_name: &str,
-    span: Span
+    _span: Span
 ) -> KainResult<()> {
     if !caller.can_call(callee) {
         let caller_effect_str = if caller.is_pure() { 

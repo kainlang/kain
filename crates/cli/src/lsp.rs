@@ -192,6 +192,13 @@ fn format_type(ty: &Type) -> String {
                 format!("&{}", format_type(inner))
             }
         }
+        Type::Ptr { mutable, inner, .. } => {
+            if *mutable {
+                format!("ptr_mut<{}>", format_type(inner))
+            } else {
+                format!("ptr<{}>", format_type(inner))
+            }
+        }
         Type::Function { params, return_type, .. } => format!(
             "fn({}) -> {}",
             params.iter().map(format_type).collect::<Vec<_>>().join(", "),

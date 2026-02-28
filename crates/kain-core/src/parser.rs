@@ -2296,6 +2296,15 @@ impl<'a> Parser<'a> {
             }
         }
         
+        if (name == "ptr" || name == "ptr_mut") && type_args.len() == 1 {
+            return Ok(Type::Ptr {
+                mutable: name == "ptr_mut",
+                inner: Box::new(type_args.into_iter().next().unwrap()),
+                provenance: crate::ast::PointerProvenance::Raw,
+                span,
+            });
+        }
+
         Ok(Type::Named { name, generics: type_args, span })
     }
 

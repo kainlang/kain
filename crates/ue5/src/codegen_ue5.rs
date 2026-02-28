@@ -18,6 +18,7 @@
 use kain_core::{TypedProgram, MonomorphizedProgram};
 use kain_core::types::{TypedItem, TypedShader};
 use kain_core::error::KainResult;
+use kain_core::{validate_typed_program_memory_support, CompileTarget};
 use kain_core::ast::{
     Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
     Field, Variant, VariantFields, Impl, Param, Actor, MessageHandler,
@@ -73,6 +74,7 @@ pub struct Ue5Output {
 /// This is a compatibility function for the packager which still works with TypedProgram.
 /// New code should use `generate()` which accepts MonomorphizedProgram.
 pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
+    validate_typed_program_memory_support(program, CompileTarget::Ue5)?;
     let module_name = output_name.unwrap_or("Kain");
     generate_filtered_typed(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None, false)
 }
@@ -90,6 +92,12 @@ pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, co
 /// resolved to concrete types. Generic functions like `identity<T>` will have been
 /// instantiated as `identity_Int`, `identity_Float`, etc.
 pub fn generate(program: &MonomorphizedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
+    validate_typed_program_memory_support(
+        &TypedProgram {
+            items: program.items.clone(),
+        },
+        CompileTarget::Ue5,
+    )?;
     let module_name = output_name.unwrap_or("Kain");
     generate_filtered(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
 }
@@ -112,6 +120,12 @@ pub fn generate_with_context(
     copyright: Option<&str>,
     context: &Ue5Context
 ) -> KainResult<Ue5Output> {
+    validate_typed_program_memory_support(
+        &TypedProgram {
+            items: program.items.clone(),
+        },
+        CompileTarget::Ue5,
+    )?;
     let module_name = output_name.unwrap_or("Kain");
     let mut gen = Ue5Gen::new(module_name, output_name, copyright, None, std::collections::HashMap::new());
     

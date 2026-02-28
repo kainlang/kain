@@ -138,6 +138,7 @@ pub enum ResolvedType {
     Option(Box<ResolvedType>),
     Result(Box<ResolvedType>, Box<ResolvedType>),
     Ref { mutable: bool, inner: Box<ResolvedType> },
+    Ptr { mutable: bool, inner: Box<ResolvedType> },
     Function { params: Vec<ResolvedType>, ret: Box<ResolvedType>, effects: EffectSet },
     Struct(String, HashMap<String, ResolvedType>),
     Enum(String, Vec<(String, ResolvedType)>),
@@ -445,6 +446,10 @@ pub fn resolve_type(ty: &Type) -> KainResult<ResolvedType> {
                 effects: EffectSet::from(effects.clone()),
             })
         }
+        Type::Ptr { mutable, inner, .. } => Ok(ResolvedType::Ptr {
+            mutable: *mutable,
+            inner: Box::new(resolve_type(inner)?),
+        }),
         _ => Ok(ResolvedType::Unknown),
     }
 }

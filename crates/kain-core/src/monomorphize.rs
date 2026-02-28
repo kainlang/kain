@@ -465,6 +465,10 @@ fn substitute_type(ty: &ResolvedType, mapping: &HashMap<String, ResolvedType>) -
             mutable: *mutable,
             inner: Box::new(substitute_type(inner, mapping))
         },
+        ResolvedType::Ptr { mutable, inner } => ResolvedType::Ptr {
+            mutable: *mutable,
+            inner: Box::new(substitute_type(inner, mapping)),
+        },
         ResolvedType::Slice(inner) => ResolvedType::Slice(Box::new(substitute_type(inner, mapping))),
         _ => ty.clone() 
     }
@@ -624,6 +628,9 @@ fn substitute_type_ast(ty: &mut Type, mapping: &HashMap<String, ResolvedType>) {
          Type::Slice(inner, _) => {
              substitute_type_ast(inner, mapping);
          }
+         Type::Ref { inner, .. } | Type::Ptr { inner, .. } | Type::Option(inner, _) => {
+             substitute_type_ast(inner, mapping);
+         }
          _ => {}
     }
 }
@@ -636,6 +643,12 @@ fn resolved_to_ast_type(res: &ResolvedType, span: crate::span::Span) -> Type {
         ResolvedType::String => Type::Named { name: "String".into(), generics: vec![], span },
         ResolvedType::Unit => Type::Unit(span),
         ResolvedType::Struct(n, _) => Type::Named { name: n.clone(), generics: vec![], span },
+        ResolvedType::Ptr { mutable, inner } => Type::Ptr {
+            mutable: *mutable,
+            inner: Box::new(resolved_to_ast_type(inner, span)),
+            provenance: crate::ast::PointerProvenance::LoweredRef,
+            span,
+        },
         _ => Type::Named { name: "Any".into(), generics: vec![], span }, // Fallback
     }
 }

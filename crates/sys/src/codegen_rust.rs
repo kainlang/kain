@@ -660,6 +660,13 @@ impl RustGen {
                     format!("&{}", self.map_type(inner))
                 }
             }
+            Type::Ptr { mutable, inner, .. } => {
+                if *mutable {
+                    format!("*mut {}", self.map_type(inner))
+                } else {
+                    format!("*const {}", self.map_type(inner))
+                }
+            }
             Type::Function { params, return_type, .. } => {
                 let param_strs: Vec<String> = params.iter().map(|p| self.map_type(p)).collect();
                 format!("fn({}) -> {}", param_strs.join(", "), self.map_type(return_type))

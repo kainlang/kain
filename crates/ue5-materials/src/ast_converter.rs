@@ -45,6 +45,13 @@ impl MaterialGraphConverter {
                     format!("&{}", Self::type_to_string(inner))
                 }
             }
+            Type::Ptr { mutable, inner, .. } => {
+                if *mutable {
+                    format!("ptr_mut<{}>", Self::type_to_string(inner))
+                } else {
+                    format!("ptr<{}>", Self::type_to_string(inner))
+                }
+            }
             Type::Never(_) => "!".to_string(),
             Type::Unit(_) => "()".to_string(),
             Type::Impl { trait_name, generics, .. } => {

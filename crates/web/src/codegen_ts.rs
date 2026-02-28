@@ -11,6 +11,7 @@ use kain_core::ast::{
     Pattern, Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
 };
 use kain_core::error::KainResult;
+use kain_core::{validate_typed_program_memory_support, CompileTarget};
 use kain_core::types::{
     FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem, TypedProgram,
     TypedStruct,
@@ -19,6 +20,7 @@ use std::collections::HashSet;
 
 /// Generate TypeScript source code from a typed program.
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
+    validate_typed_program_memory_support(program, CompileTarget::Ts)?;
     let mut gen = TSGen::new();
     Ok(gen.gen_program(program))
 }
@@ -1616,6 +1618,7 @@ impl TSGen {
                 format!("Array<{}>", self.type_to_ts(inner))
             }
             Type::Ref { inner, .. } => self.type_to_ts(inner),
+            Type::Ptr { inner, .. } => self.type_to_ts(inner),
             Type::Function { params, return_type, .. } => {
                 let params = params
                     .iter()
@@ -1673,6 +1676,7 @@ impl TSGen {
                 format!("{{ ok: true; value: {} }} | {{ ok: false; error: {} }}", ok_t, err_t)
             }
             ResolvedType::Ref { inner, .. } => self.resolved_type_to_ts(inner),
+            ResolvedType::Ptr { inner, .. } => self.resolved_type_to_ts(inner),
             ResolvedType::Function { params, ret, .. } => {
                 let ps = params
                     .iter()
