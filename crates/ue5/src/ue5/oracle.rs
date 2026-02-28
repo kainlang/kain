@@ -788,9 +788,9 @@ fn check_engine_name_collision(ctx: &mut ValidationContext, type_name: &str, typ
         || kb.resolve_type_alias(emitted_engine_name).is_some();
 
     if emitted_collides {
-        ctx.error(format!(
-            "{} '{}': This name collides with a UE5 engine type. UHT will reject it with 'shares engine name' error. \
-            Please rename to something more specific (e.g., 'My{}', 'Custom{}', 'Game{}', etc.).",
+        ctx.warning(format!(
+            "{} '{}': This name may collide with a UE5 engine type. The UE5 naming layer should remap hard collisions, \
+            but this name deserves review if generated code still trips UHT. Consider a more specific name (e.g., 'My{}', 'Custom{}', 'Game{}').",
             type_kind, type_name, type_name, type_name, type_name
         ));
     }

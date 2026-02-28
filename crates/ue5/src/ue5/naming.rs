@@ -57,39 +57,10 @@ fn reserved_engine_names() -> &'static HashSet<String> {
     RESERVED_NAMES.get_or_init(|| {
         let mut set = HashSet::new();
 
-        // Search for the JSON file using the same strategy as other metadata files
-        let relative = std::path::Path::new("unreal")
+        let reserved_relative = std::path::Path::new("unreal")
             .join("metadata")
             .join("reserved_engine_names.json");
-
-        // 1. KAIN_ROOT env var
-        let from_env = std::env::var("KAIN_ROOT")
-            .ok()
-            .map(|root| std::path::PathBuf::from(root).join(&relative))
-            .filter(|p| p.exists());
-
-        // 2. Walk up from CWD
-        let from_walk = {
-            let mut found = None;
-            if let Ok(mut dir) = std::env::current_dir() {
-                for _ in 0..10 {
-                    let candidate = dir.join(&relative);
-                    if candidate.exists() {
-                        found = Some(candidate);
-                        break;
-                    }
-                    match dir.parent() {
-                        Some(p) => dir = p.to_path_buf(),
-                        None => break,
-                    }
-                }
-            }
-            found
-        };
-
-        let path = from_env.or(from_walk);
-
-        if let Some(path) = path {
+        if let Some(path) = find_metadata_file(&reserved_relative) {
             if let Ok(data) = std::fs::read_to_string(&path) {
                 if let Ok(names) = serde_json::from_str::<ReservedEngineNames>(&data) {
                     set.extend(names.reserved_component_names);
@@ -101,8 +72,67 @@ fn reserved_engine_names() -> &'static HashSet<String> {
             }
         }
 
+        let knowledge_relative = std::path::Path::new("unreal")
+            .join("metadata")
+            .join("engine_knowledge.json");
+        if let Some(path) = find_metadata_file(&knowledge_relative) {
+            if let Ok(data) = std::fs::read_to_string(&path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                    extend_names_from_engine_knowledge(&mut set, &json);
+                }
+            }
+        }
+
         set
     })
+}
+
+fn find_metadata_file(relative: &std::path::Path) -> Option<std::path::PathBuf> {
+    let from_env = std::env::var("KAIN_ROOT")
+        .ok()
+        .map(|root| std::path::PathBuf::from(root).join(relative))
+        .filter(|p| p.exists());
+
+    let from_walk = {
+        let mut found = None;
+        if let Ok(mut dir) = std::env::current_dir() {
+            for _ in 0..10 {
+                let candidate = dir.join(relative);
+                if candidate.exists() {
+                    found = Some(candidate);
+                    break;
+                }
+                match dir.parent() {
+                    Some(p) => dir = p.to_path_buf(),
+                    None => break,
+                }
+            }
+        }
+        found
+    };
+
+    from_env.or(from_walk)
+}
+
+fn extend_names_from_engine_knowledge(set: &mut HashSet<String>, json: &serde_json::Value) {
+    for key in ["classes", "structs", "enums"] {
+        let Some(entries) = json.get(key).and_then(|value| value.as_array()) else {
+            continue;
+        };
+        for entry in entries {
+            if let Some(name) = entry.get("name").and_then(|value| value.as_str()) {
+                set.insert(strip_any_ue_prefix(name).to_string());
+            }
+        }
+    }
+
+    if let Some(entries) = json.get("type_aliases").and_then(|value| value.as_array()) {
+        for entry in entries {
+            if let Some(name) = entry.get("ue5_name").and_then(|value| value.as_str()) {
+                set.insert(strip_any_ue_prefix(name).to_string());
+            }
+        }
+    }
 }
 
 /// Check if a name (engine name, i.e. without prefix) clashes with a UE5 built-in.
@@ -126,6 +156,17 @@ fn strip_prefixed_engine_name<'a>(name: &'a str, prefix: char) -> &'a str {
     } else {
         name
     }
+}
+
+fn strip_any_ue_prefix(name: &str) -> &str {
+    if let Some(first) = name.chars().next() {
+        if matches!(first, 'A' | 'U' | 'F' | 'E' | 'I')
+            && name.chars().nth(1).map_or(false, |c| c.is_uppercase())
+        {
+            return &name[1..];
+        }
+    }
+    name
 }
 
 fn remap_engine_name(engine_name: &str) -> String {
