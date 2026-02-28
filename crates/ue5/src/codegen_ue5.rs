@@ -18,7 +18,10 @@
 use kain_core::{TypedProgram, MonomorphizedProgram};
 use kain_core::types::{TypedItem, TypedShader};
 use kain_core::error::KainResult;
-use kain_core::{validate_typed_program_memory_support, CompileTarget};
+use kain_core::{
+    lower_monomorphized_program_memory_for_target, lower_typed_program_memory_for_target,
+    validate_typed_program_memory_support, CompileTarget,
+};
 use kain_core::ast::{
     Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
     Field, Variant, VariantFields, Impl, Param, Actor, MessageHandler,
@@ -74,9 +77,10 @@ pub struct Ue5Output {
 /// This is a compatibility function for the packager which still works with TypedProgram.
 /// New code should use `generate()` which accepts MonomorphizedProgram.
 pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
-    validate_typed_program_memory_support(program, CompileTarget::Ue5)?;
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Ue5)?;
+    validate_typed_program_memory_support(&lowered, CompileTarget::Ue5)?;
     let module_name = output_name.unwrap_or("Kain");
-    generate_filtered_typed(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None, false)
+    generate_filtered_typed(&lowered, module_name, output_name, None, copyright, std::collections::HashMap::new(), None, false)
 }
 
 /// Generate UE5 C++ code from a monomorphized program
@@ -92,14 +96,15 @@ pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, co
 /// resolved to concrete types. Generic functions like `identity<T>` will have been
 /// instantiated as `identity_Int`, `identity_Float`, etc.
 pub fn generate(program: &MonomorphizedProgram, output_name: Option<&str>, copyright: Option<&str>) -> KainResult<Ue5Output> {
+    let lowered = lower_monomorphized_program_memory_for_target(program, CompileTarget::Ue5)?;
     validate_typed_program_memory_support(
         &TypedProgram {
-            items: program.items.clone(),
+            items: lowered.items.clone(),
         },
         CompileTarget::Ue5,
     )?;
     let module_name = output_name.unwrap_or("Kain");
-    generate_filtered(program, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
+    generate_filtered(&lowered, module_name, output_name, None, copyright, std::collections::HashMap::new(), None)
 }
 
 /// Generate UE5 C++ code with a pre-configured context (includes metadata)
@@ -120,9 +125,10 @@ pub fn generate_with_context(
     copyright: Option<&str>,
     context: &Ue5Context
 ) -> KainResult<Ue5Output> {
+    let lowered = lower_monomorphized_program_memory_for_target(program, CompileTarget::Ue5)?;
     validate_typed_program_memory_support(
         &TypedProgram {
-            items: program.items.clone(),
+            items: lowered.items.clone(),
         },
         CompileTarget::Ue5,
     )?;
@@ -133,7 +139,7 @@ pub fn generate_with_context(
     gen.context = context.clone();
     
     // PRE-PASS: Register all types
-    for item in program.items() {
+    for item in lowered.items() {
         match item {
             kain_core::types::TypedItem::Enum(en) => {
                 let prefixed_name = to_enum_name(&en.ast.name);
@@ -180,7 +186,7 @@ pub fn generate_with_context(
         }
     }
     
-    Ok(gen.gen_program(program))
+    Ok(gen.gen_program(&lowered))
 }
 
 /// Legacy version for TypedProgram (packager compatibility)
@@ -190,6 +196,7 @@ pub fn generate_with_context_typed(
     copyright: Option<&str>,
     context: &Ue5Context
 ) -> KainResult<Ue5Output> {
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Ue5)?;
     let module_name = output_name.unwrap_or("Kain");
     let mut gen = Ue5Gen::new(module_name, output_name, copyright, None, std::collections::HashMap::new());
     
@@ -197,7 +204,7 @@ pub fn generate_with_context_typed(
     gen.context = context.clone();
     
     // PRE-PASS: Register all types
-    for item in &program.items {
+    for item in &lowered.items {
         match item {
             kain_core::types::TypedItem::Enum(en) => {
                 let prefixed_name = to_enum_name(&en.ast.name);
@@ -251,7 +258,7 @@ pub fn generate_with_context_typed(
         }
     }
     
-    Ok(gen.gen_program(program))
+    Ok(gen.gen_program(&lowered))
 }
 
 /// Generate UE5 C++ code limited to a specific item
@@ -1355,6 +1362,9 @@ impl Ue5Gen {
         }
         self.source.push_line("#include \"AbilitySystemBlueprintLibrary.h\"");
         self.source.push_line("#include \"GameplayTagContainer.h\"");
+        self.source.push_line("#include \"Containers/Map.h\"");
+        self.source.push_line("#include \"Containers/Array.h\"");
+        self.source.push_line("#include \"HAL/Platform.h\"");
         // Only include RenderGraph/shader headers if this actor actually dispatches shaders.
         // In sliced mode, check for @dispatch attribute on the target actor.
         // In monolithic mode (no target_item), include if any shaders exist.
@@ -1371,6 +1381,48 @@ impl Ue5Gen {
                 self.source.push_line(&format!("#include \"{}\"", shader_header));
             }
         }
+
+        self.source.push_line("");
+        self.source.push_line("namespace {");
+        self.source.push_line("struct FKainMemoryValue {");
+        self.source.push_line("    TArray<uint8> Bytes;");
+        self.source.push_line("    template<typename T> operator T() const");
+        self.source.push_line("    {");
+        self.source.push_line("        T Result{};");
+        self.source.push_line("        const int32 CopySize = FMath::Min<int32>(Bytes.Num(), static_cast<int32>(sizeof(T)));");
+        self.source.push_line("        if (CopySize > 0) { FMemory::Memcpy(&Result, Bytes.GetData(), CopySize); }");
+        self.source.push_line("        return Result;");
+        self.source.push_line("    }");
+        self.source.push_line("};");
+        self.source.push_line("static TMap<int64, FKainMemoryValue> GKainMemory;");
+        self.source.push_line("static int64 GKainNextPtr = 1;");
+        self.source.push_line("template<typename T> int64 __kain_addr_of(const T& Value)");
+        self.source.push_line("{");
+        self.source.push_line("    const int64 Ptr = GKainNextPtr++;");
+        self.source.push_line("    FKainMemoryValue Cell;");
+        self.source.push_line("    Cell.Bytes.SetNumUninitialized(sizeof(T));");
+        self.source.push_line("    FMemory::Memcpy(Cell.Bytes.GetData(), &Value, sizeof(T));");
+        self.source.push_line("    GKainMemory.Add(Ptr, MoveTemp(Cell));");
+        self.source.push_line("    return Ptr;");
+        self.source.push_line("}");
+        self.source.push_line("static int64 __kain_ptr_offset(int64 Ptr, int64 Offset, int64 Stride)");
+        self.source.push_line("{");
+        self.source.push_line("    return Ptr + (Offset * FMath::Max<int64>(Stride, 1));");
+        self.source.push_line("}");
+        self.source.push_line("static FKainMemoryValue __kain_mem_load(int64 Ptr)");
+        self.source.push_line("{");
+        self.source.push_line("    if (const FKainMemoryValue* Value = GKainMemory.Find(Ptr)) { return *Value; }");
+        self.source.push_line("    return FKainMemoryValue{};");
+        self.source.push_line("}");
+        self.source.push_line("template<typename T> T __kain_mem_store(int64 Ptr, const T& Value)");
+        self.source.push_line("{");
+        self.source.push_line("    FKainMemoryValue Cell;");
+        self.source.push_line("    Cell.Bytes.SetNumUninitialized(sizeof(T));");
+        self.source.push_line("    FMemory::Memcpy(Cell.Bytes.GetData(), &Value, sizeof(T));");
+        self.source.push_line("    GKainMemory.Add(Ptr, MoveTemp(Cell));");
+        self.source.push_line("    return Value;");
+        self.source.push_line("}");
+        self.source.push_line("}");
 
         if !shaders.is_empty() {
             self.source.push_line("");

@@ -11,7 +11,7 @@ use kain_core::ast::{
     Pattern, Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
 };
 use kain_core::error::KainResult;
-use kain_core::{validate_typed_program_memory_support, CompileTarget};
+use kain_core::{lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget};
 use kain_core::types::{
     FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem, TypedProgram,
     TypedStruct,
@@ -20,9 +20,10 @@ use std::collections::HashSet;
 
 /// Generate TypeScript source code from a typed program.
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
-    validate_typed_program_memory_support(program, CompileTarget::Ts)?;
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Ts)?;
+    validate_typed_program_memory_support(&lowered, CompileTarget::Ts)?;
     let mut gen = TSGen::new();
-    Ok(gen.gen_program(program))
+    Ok(gen.gen_program(&lowered))
 }
 
 #[derive(Default)]
@@ -105,6 +106,15 @@ impl TSGen {
         self.writeln("function i16(n: number): number { return (n << 16) >> 16; }");
         self.writeln("function i32(n: number): number { return n | 0; }");
         self.writeln("function f32(n: number): number { return Math.fround(n); }");
+        self.writeln("");
+
+        self.writeln("// Low-level memory emulation runtime");
+        self.writeln("const __kainMem = new Map<number, any>();");
+        self.writeln("let __kainNextPtr = 1;");
+        self.writeln("function __kain_addr_of<T>(value: T): number { const ptr = __kainNextPtr++; __kainMem.set(ptr, value); return ptr; }");
+        self.writeln("function __kain_ptr_offset(ptr: number, offset: number, stride: number): number { return ptr + (offset * Math.max(stride, 1)); }");
+        self.writeln("function __kain_mem_load<T>(ptr: number): T { return __kainMem.get(ptr) as T; }");
+        self.writeln("function __kain_mem_store<T>(ptr: number, value: T): T { __kainMem.set(ptr, value); return value; }");
         self.writeln("");
 
         // Only emit DOM type alias when JSX/components are actually used
@@ -1773,6 +1783,8 @@ mod tests {
         assert!(output.contains("function i16(n: number)"));
         assert!(output.contains("function i32(n: number)"));
         assert!(output.contains("function f32(n: number)"));
+        assert!(output.contains("function __kain_addr_of"));
+        assert!(output.contains("function __kain_mem_load"));
     }
 
     #[test]

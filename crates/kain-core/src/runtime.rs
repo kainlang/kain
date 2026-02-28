@@ -2854,6 +2854,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
         // Pointer/reference model is currently represented as direct value pass-through.
         Expr::Ref { value, .. } => eval_expr(env, value),
+        Expr::AddrOf { value, .. } => eval_expr(env, value),
 
         // Pointer-style dereference is currently modeled as identity at runtime.
         // This keeps imported C-like code parseable/executable in non-native backends.

@@ -3093,30 +3093,55 @@ impl<'a> Parser<'a> {
         if let Expr::Ident(name, _) = &callee {
             if args.iter().all(|arg| arg.name.is_none()) {
                 match (name.as_str(), args.len()) {
-                    ("ptr_offset", 2) => {
+                    ("addr_of", 1 | 2) => {
+                        let mut values = args.into_iter();
+                        let value = values.next().expect("addr_of must have first arg").value;
+                        let pointee_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return Expr::AddrOf {
+                            value: Box::new(value),
+                            pointee_ty,
+                            span,
+                        };
+                    }
+                    ("ptr_offset", 2 | 3) => {
                         let mut values = args.into_iter();
                         let pointer = values.next().expect("ptr_offset must have first arg").value;
                         let offset = values.next().expect("ptr_offset must have second arg").value;
+                        let element_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
                         return Expr::PtrOffset {
                             pointer: Box::new(pointer),
                             offset: Box::new(offset),
+                            element_ty,
                             span,
                         };
                     }
-                    ("mem_load", 1) => {
-                        let pointer = args.into_iter().next().expect("mem_load must have arg").value;
+                    ("mem_load", 1 | 2) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("mem_load must have arg").value;
+                        let load_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
                         return Expr::MemLoad {
                             pointer: Box::new(pointer),
+                            load_ty,
                             span,
                         };
                     }
-                    ("mem_store", 2) => {
+                    ("mem_store", 2 | 3) => {
                         let mut values = args.into_iter();
                         let pointer = values.next().expect("mem_store must have first arg").value;
                         let value = values.next().expect("mem_store must have second arg").value;
+                        let store_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
                         return Expr::MemStore {
                             pointer: Box::new(pointer),
                             value: Box::new(value),
+                            store_ty,
                             span,
                         };
                     }
@@ -3129,6 +3154,85 @@ impl<'a> Parser<'a> {
             callee: Box::new(callee),
             args,
             span,
+        }
+    }
+
+    fn parse_type_hint_arg(&self, expr: &Expr, span: Span) -> Option<Type> {
+        match expr {
+            Expr::String(value, _) => self.parse_type_hint_string(value, span),
+            Expr::Ident(value, _) => self.parse_type_hint_string(value, span),
+            _ => None,
+        }
+    }
+
+    fn parse_type_hint_string(&self, value: &str, span: Span) -> Option<Type> {
+        let tokens = Lexer::new(value).tokenize().ok()?;
+        let span_mapper = SpanMapper::new(value);
+        let mut parser = Parser::new(&tokens, &span_mapper, "<memory-type-hint>");
+        let ty = parser.parse_type().ok()?;
+        if !parser.check(TokenKind::Eof) {
+            return None;
+        }
+        Some(Self::re_span_type(ty, span))
+    }
+
+    fn re_span_type(ty: Type, span: Span) -> Type {
+        match ty {
+            Type::Named { name, generics, .. } => Type::Named {
+                name,
+                generics: generics
+                    .into_iter()
+                    .map(|g| Self::re_span_type(g, span))
+                    .collect(),
+                span,
+            },
+            Type::Array(inner, size, _) => Type::Array(Box::new(Self::re_span_type(*inner, span)), size, span),
+            Type::Slice(inner, _) => Type::Slice(Box::new(Self::re_span_type(*inner, span)), span),
+            Type::Tuple(types, _) => Type::Tuple(types.into_iter().map(|t| Self::re_span_type(t, span)).collect(), span),
+            Type::Ref {
+                mutable,
+                inner,
+                lifetime,
+                ..
+            } => Type::Ref {
+                mutable,
+                inner: Box::new(Self::re_span_type(*inner, span)),
+                lifetime,
+                span,
+            },
+            Type::Ptr { mutable, inner, provenance, .. } => Type::Ptr {
+                mutable,
+                inner: Box::new(Self::re_span_type(*inner, span)),
+                provenance,
+                span,
+            },
+            Type::Function { params, return_type, effects, .. } => Type::Function {
+                params: params.into_iter().map(|p| Self::re_span_type(p, span)).collect(),
+                return_type: Box::new(Self::re_span_type(*return_type, span)),
+                effects,
+                span,
+            },
+            Type::Option(inner, _) => Type::Option(Box::new(Self::re_span_type(*inner, span)), span),
+            Type::Result(ok, err, _) => Type::Result(
+                Box::new(Self::re_span_type(*ok, span)),
+                Box::new(Self::re_span_type(*err, span)),
+                span,
+            ),
+            Type::Infer(_) => Type::Infer(span),
+            Type::Never(_) => Type::Never(span),
+            Type::Unit(_) => Type::Unit(span),
+            Type::Impl {
+                trait_name,
+                generics,
+                ..
+            } => Type::Impl {
+                trait_name,
+                generics: generics
+                    .into_iter()
+                    .map(|g| Self::re_span_type(g, span))
+                    .collect(),
+                span,
+            },
         }
     }
 

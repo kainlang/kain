@@ -1086,23 +1086,52 @@ impl CTransformer {
                 provenance: PointerProvenance::ImportedC,
                 span: Span::default(),
             }),
-            Expr::PtrOffset { pointer, .. } => match self.infer_expr_type(pointer)? {
+            Expr::AddrOf {
+                value,
+                pointee_ty,
+                ..
+            } => Some(Type::Ptr {
+                mutable: false,
+                inner: Box::new(
+                    pointee_ty
+                        .clone()
+                        .or_else(|| self.infer_expr_type(value))
+                        .unwrap_or(Type::Named {
+                            name: "Int".to_string(),
+                            generics: vec![],
+                            span: Span::default(),
+                        }),
+                ),
+                provenance: PointerProvenance::ImportedC,
+                span: Span::default(),
+            }),
+            Expr::PtrOffset {
+                pointer,
+                element_ty,
+                ..
+            } => match self.infer_expr_type(pointer)? {
                 Type::Ptr { mutable, inner, provenance, .. } => Some(Type::Ptr {
                     mutable,
-                    inner,
+                    inner: Box::new(element_ty.clone().unwrap_or(*inner)),
                     provenance,
                     span: Span::default(),
                 }),
                 Type::Ref { mutable, inner, .. } => Some(Type::Ptr {
                     mutable,
-                    inner,
+                    inner: Box::new(element_ty.clone().unwrap_or(*inner)),
                     provenance: PointerProvenance::ImportedC,
                     span: Span::default(),
                 }),
                 _ => None,
             },
-            Expr::MemLoad { pointer, .. } => match self.infer_expr_type(pointer)? {
-                Type::Ref { inner, .. } | Type::Ptr { inner, .. } => Some(*inner),
+            Expr::MemLoad {
+                pointer,
+                load_ty,
+                ..
+            } => match self.infer_expr_type(pointer)? {
+                Type::Ref { inner, .. } | Type::Ptr { inner, .. } => {
+                    Some(load_ty.clone().unwrap_or(*inner))
+                }
                 _ => None,
             },
             Expr::Deref(inner, _) => match self.infer_expr_type(inner)? {
@@ -1146,25 +1175,42 @@ impl CTransformer {
             offset
         };
 
+        let element_ty = match self.infer_expr_type(&base) {
+            Some(Type::Ptr { inner, .. }) | Some(Type::Ref { inner, .. }) => Some(*inner),
+            Some(Type::Array(inner, _, _)) | Some(Type::Slice(inner, _)) => Some(*inner),
+            _ => None,
+        };
+
         Expr::PtrOffset {
             pointer: Box::new(base),
             offset: Box::new(offset),
+            element_ty,
             span,
         }
     }
 
     fn lower_memory_load(&self, pointer: Expr) -> Expr {
+        let load_ty = match self.infer_expr_type(&pointer) {
+            Some(Type::Ref { inner, .. }) | Some(Type::Ptr { inner, .. }) => Some(*inner),
+            _ => None,
+        };
         Expr::MemLoad {
             pointer: Box::new(pointer),
+            load_ty,
             span: Span::default(),
         }
     }
 
     fn lower_store_or_assign(&self, target: Expr, value: Expr) -> Result<Expr> {
         match target {
-            Expr::MemLoad { pointer, .. } => Ok(Expr::MemStore {
+            Expr::MemLoad {
+                pointer,
+                load_ty,
+                ..
+            } => Ok(Expr::MemStore {
                 pointer,
                 value: Box::new(value),
+                store_ty: load_ty,
                 span: Span::default(),
             }),
             other => Ok(Expr::Assign {
@@ -1213,6 +1259,50 @@ impl CTransformer {
                 "pointer arithmetic currently supports only pointer - integer forms",
             ),
             _ => Ok(None),
+        }
+    }
+
+    fn lower_address_of_expression(&mut self, operand: &c_ast::Expression) -> Result<Expr> {
+        use c_ast::BinaryOperator as BinOp;
+
+        match operand {
+            c_ast::Expression::BinaryOperator(bin_op)
+                if matches!(bin_op.node.operator.node, BinOp::Index) =>
+            {
+                let object_expr = self.transform_expression(&bin_op.node.lhs.node)?;
+                let idx_expr = self.transform_expression(&bin_op.node.rhs.node)?;
+                if self
+                    .infer_expr_type(&object_expr)
+                    .as_ref()
+                    .is_some_and(|ty| matches!(ty, Type::Ptr { .. } | Type::Ref { .. }))
+                {
+                    Ok(self.lower_pointer_offset(object_expr, idx_expr, false))
+                } else {
+                    let pointee_ty = self.infer_expr_type(&Expr::Index {
+                        object: Box::new(object_expr.clone()),
+                        index: Box::new(idx_expr.clone()),
+                        span: Span::default(),
+                    });
+                    Ok(Expr::AddrOf {
+                        value: Box::new(Expr::Index {
+                            object: Box::new(object_expr),
+                            index: Box::new(idx_expr),
+                            span: Span::default(),
+                        }),
+                        pointee_ty,
+                        span: Span::default(),
+                    })
+                }
+            }
+            _ => {
+                let value = self.transform_expression(operand)?;
+                let pointee_ty = self.infer_expr_type(&value);
+                Ok(Expr::AddrOf {
+                    value: Box::new(value),
+                    pointee_ty,
+                    span: Span::default(),
+                })
+            }
         }
     }
 
@@ -1552,19 +1642,14 @@ impl CTransformer {
             UnaryOperator(unary_op) => {
                 match unary_op.node.operator.node {
                     c_ast::UnaryOperator::Address => {
-                        let value =
-                            Box::new(self.transform_expression(&unary_op.node.operand.node)?);
-                        Ok(Expr::Ref {
-                            mutable: false,
-                            value,
-                            span: Span::default(),
-                        })
+                        self.lower_address_of_expression(&unary_op.node.operand.node)
                     }
                     c_ast::UnaryOperator::Indirection => {
                         let value =
                             Box::new(self.transform_expression(&unary_op.node.operand.node)?);
                         Ok(Expr::MemLoad {
                             pointer: value,
+                            load_ty: None,
                             span: Span::default(),
                         })
                     }
@@ -2010,6 +2095,49 @@ mod tests {
             panic!("expected memory load return");
         };
         assert!(matches!(pointer.as_ref(), Expr::Ident(name, _) if name == "ptr"));
+    }
+
+    #[test]
+    fn test_transform_lowers_address_taken_subscript_to_typed_ptr_offset() {
+        let source = r#"
+            int *slot(int *ptr, int i) {
+                return &ptr[i];
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function item");
+        };
+        let Stmt::Return(Some(Expr::PtrOffset { pointer, offset, element_ty, .. }), _) = &func.body.stmts[0] else {
+            panic!("expected address-of subscript to lower into ptr_offset");
+        };
+        assert!(matches!(pointer.as_ref(), Expr::Ident(name, _) if name == "ptr"));
+        assert!(matches!(offset.as_ref(), Expr::Ident(name, _) if name == "i"));
+        assert!(matches!(element_ty, Some(Type::Named { name, .. }) if name == "Int"));
+    }
+
+    #[test]
+    fn test_transform_lowers_address_of_local_to_addr_of_expr() {
+        let source = r#"
+            int *slot(int value) {
+                return &value;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function item");
+        };
+        let Stmt::Return(Some(Expr::AddrOf { value, pointee_ty, .. }), _) = &func.body.stmts[0] else {
+            panic!("expected address-of local to lower into addr_of");
+        };
+        assert!(matches!(value.as_ref(), Expr::Ident(name, _) if name == "value"));
+        assert!(matches!(pointee_ty, Some(Type::Named { name, .. }) if name == "Int"));
     }
     
     #[test]

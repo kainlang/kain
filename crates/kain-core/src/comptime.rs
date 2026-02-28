@@ -95,6 +95,7 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
              }
         }
         Expr::Assign { value, .. } => eval_expr_in_place(env, value)?,
+        Expr::AddrOf { value, .. } => eval_expr_in_place(env, value)?,
         Expr::MemLoad { pointer, .. } => eval_expr_in_place(env, pointer)?,
         Expr::MemStore { pointer, value, .. } => {
             eval_expr_in_place(env, pointer)?;

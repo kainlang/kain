@@ -1,7 +1,10 @@
 use kain_core::ast::Type;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
-use kain_core::{validate_typed_program_memory_support, CompileTarget, Lexer, Parser};
+use kain_core::{
+    lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
+    Lexer, Parser,
+};
 
 #[test]
 fn parser_recognizes_ptr_type_syntax() {
@@ -118,4 +121,75 @@ fn ts_backend_validation_rejects_raw_memory_ops() {
     let rendered = err.to_string();
     assert!(rendered.contains("KAIN-MEM-0002"));
     assert!(rendered.contains("raw memory operation"));
+}
+
+#[test]
+fn parser_preserves_typed_memory_intrinsics() {
+    let source = "fn poke(p: ptr<Int>, i: Int, v: Int) -> Int:\n    mem_store(ptr_offset(addr_of(v, \"Int\"), i, \"Int\"), v, \"Int\")\n    return mem_load(ptr_offset(p, i, \"Int\"), \"Int\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "typed_mem.kn")
+        .parse()
+        .expect("parse");
+
+    let function = match &program.items[0] {
+        kain_core::ast::Item::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::MemStore { pointer, store_ty, .. }) =
+        &function.body.stmts[0]
+    else {
+        panic!("expected typed mem_store");
+    };
+    assert!(matches!(store_ty, Some(Type::Named { name, .. }) if name == "Int"));
+    let kain_core::ast::Expr::PtrOffset { pointer: base, element_ty, .. } = pointer.as_ref() else {
+        panic!("expected ptr_offset in mem_store");
+    };
+    assert!(matches!(element_ty, Some(Type::Named { name, .. }) if name == "Int"));
+    assert!(matches!(base.as_ref(), kain_core::ast::Expr::AddrOf { .. }));
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::MemLoad { pointer, load_ty, .. }), _) =
+        &function.body.stmts[1]
+    else {
+        panic!("expected typed mem_load");
+    };
+    assert!(matches!(load_ty, Some(Type::Named { name, .. }) if name == "Int"));
+    assert!(matches!(pointer.as_ref(), kain_core::ast::Expr::PtrOffset { .. }));
+}
+
+#[test]
+fn ts_memory_lowering_rewrites_raw_ops_into_helper_calls() {
+    let source = "fn poke(p: ptr<Int>, i: Int, v: Int) -> Int:\n    mem_store(ptr_offset(p, i, \"Int\"), v, \"Int\")\n    return mem_load(ptr_offset(p, i, \"Int\"), \"Int\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "typed_mem.kn")
+        .parse()
+        .expect("parse");
+    let typed = kain_core::types::check(&program, &mapper, "typed_mem.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[0] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    assert!(matches!(function.ast.params[0].ty, Type::Named { ref name, .. } if name == "Int"));
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Call { callee, .. }) =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected lowered mem_store helper call");
+    };
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_store"));
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Cast { value, target, .. }), _) =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected lowered mem_load cast");
+    };
+    assert!(matches!(target, Type::Named { name, .. } if name == "Int"));
+    let kain_core::ast::Expr::Call { callee, .. } = value.as_ref() else {
+        panic!("expected helper call inside cast");
+    };
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load"));
 }

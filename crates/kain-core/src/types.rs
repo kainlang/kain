@@ -628,6 +628,9 @@ fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
         Expr::Ref { value, .. } => {
             check_expr_for_syntax_errors(env, value)?;
         }
+        Expr::AddrOf { value, .. } => {
+            check_expr_for_syntax_errors(env, value)?;
+        }
         Expr::PtrOffset { pointer, offset, .. } => {
             check_expr_for_syntax_errors(env, pointer)?;
             check_expr_for_syntax_errors(env, offset)?;

@@ -947,22 +947,64 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 format!("(&{})", expr_to_string(value))
             }
         }
-        kain_core::ast::Expr::PtrOffset { pointer, offset, .. } => {
-            format!(
+        kain_core::ast::Expr::AddrOf {
+            value,
+            pointee_ty,
+            ..
+        } => match pointee_ty {
+            Some(ty) => format!(
+                "addr_of({}, \"{}\")",
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!("addr_of({})", expr_to_string(value)),
+        },
+        kain_core::ast::Expr::PtrOffset {
+            pointer,
+            offset,
+            element_ty,
+            ..
+        } => {
+            let base = format!(
                 "ptr_offset({}, {})",
                 expr_to_string(pointer),
                 expr_to_string(offset)
-            )
+            );
+            match element_ty {
+                Some(ty) => format!(
+                    "ptr_offset({}, {}, \"{}\")",
+                    expr_to_string(pointer),
+                    expr_to_string(offset),
+                    type_to_string(ty)
+                ),
+                None => base,
+            }
         }
-        kain_core::ast::Expr::MemLoad { pointer, .. } => {
-            format!("mem_load({})", expr_to_string(pointer))
+        kain_core::ast::Expr::MemLoad { pointer, load_ty, .. } => {
+            match load_ty {
+                Some(ty) => format!("mem_load({}, \"{}\")", expr_to_string(pointer), type_to_string(ty)),
+                None => format!("mem_load({})", expr_to_string(pointer)),
+            }
         }
-        kain_core::ast::Expr::MemStore { pointer, value, .. } => {
-            format!(
-                "mem_store({}, {})",
-                expr_to_string(pointer),
-                expr_to_string(value)
-            )
+        kain_core::ast::Expr::MemStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => {
+            match store_ty {
+                Some(ty) => format!(
+                    "mem_store({}, {}, \"{}\")",
+                    expr_to_string(pointer),
+                    expr_to_string(value),
+                    type_to_string(ty)
+                ),
+                None => format!(
+                    "mem_store({}, {})",
+                    expr_to_string(pointer),
+                    expr_to_string(value)
+                ),
+            }
         }
         kain_core::ast::Expr::Deref(value, _) => format!("(*{})", expr_to_string(value)),
         kain_core::ast::Expr::Cast { value, target, .. } => {
@@ -1090,8 +1132,13 @@ fn desugar_sequence_stmt(expr: &kain_core::ast::Expr) -> Option<kain_core::ast::
         });
     }
 
-    if let kain_core::ast::Expr::MemStore { pointer, value, .. } = expr {
-        let kain_core::ast::Expr::PtrOffset { pointer: base, offset, .. } = &**pointer else {
+    if let kain_core::ast::Expr::MemStore { pointer, value, store_ty, .. } = expr {
+        let kain_core::ast::Expr::PtrOffset {
+            pointer: base,
+            offset,
+            element_ty,
+            ..
+        } = &**pointer else {
             return None;
         };
         let sequence = decode_incdec_sequence(offset)?;
@@ -1131,9 +1178,11 @@ fn desugar_sequence_stmt(expr: &kain_core::ast::Expr) -> Option<kain_core::ast::
             pointer: Box::new(kain_core::ast::Expr::PtrOffset {
                 pointer: base.clone(),
                 offset: Box::new(lowered_index),
+                element_ty: element_ty.clone(),
                 span,
             }),
             value: value.clone(),
+            store_ty: store_ty.clone(),
             span,
         }));
 

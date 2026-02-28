@@ -719,6 +719,13 @@ pub enum Expr {
         value: Box<Expr>,
         span: Span,
     },
+
+    /// Address of an addressable location: `addr_of(value)`
+    AddrOf {
+        value: Box<Expr>,
+        pointee_ty: Option<Type>,
+        span: Span,
+    },
     
     /// Dereference: `*ptr`
     Deref(Box<Expr>, Span),
@@ -727,12 +734,14 @@ pub enum Expr {
     PtrOffset {
         pointer: Box<Expr>,
         offset: Box<Expr>,
+        element_ty: Option<Type>,
         span: Span,
     },
 
     /// Raw memory load: `mem_load(ptr)`
     MemLoad {
         pointer: Box<Expr>,
+        load_ty: Option<Type>,
         span: Span,
     },
 
@@ -740,6 +749,7 @@ pub enum Expr {
     MemStore {
         pointer: Box<Expr>,
         value: Box<Expr>,
+        store_ty: Option<Type>,
         span: Span,
     },
     
@@ -821,6 +831,7 @@ impl Expr {
             | Expr::Match { span: s, .. }
             | Expr::Lambda { span: s, .. }
             | Expr::Ref { span: s, .. }
+            | Expr::AddrOf { span: s, .. }
             | Expr::Deref(_, s)
             | Expr::PtrOffset { span: s, .. }
             | Expr::MemLoad { span: s, .. }
@@ -1900,20 +1911,35 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         Expr::Ref { value, .. } => {
             collect_type_names_from_expr(value, out);
         }
+        Expr::AddrOf { value, pointee_ty, .. } => {
+            collect_type_names_from_expr(value, out);
+            if let Some(ty) = pointee_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
         Expr::Deref(inner, _) | Expr::Try(inner, _) | Expr::Await(inner, _)
         | Expr::Comptime(inner, _) | Expr::Paren(inner, _) => {
             collect_type_names_from_expr(inner, out);
         }
-        Expr::PtrOffset { pointer, offset, .. } => {
+        Expr::PtrOffset { pointer, offset, element_ty, .. } => {
             collect_type_names_from_expr(pointer, out);
             collect_type_names_from_expr(offset, out);
+            if let Some(ty) = element_ty {
+                collect_type_names_from_type(ty, out);
+            }
         }
-        Expr::MemLoad { pointer, .. } => {
+        Expr::MemLoad { pointer, load_ty, .. } => {
             collect_type_names_from_expr(pointer, out);
+            if let Some(ty) = load_ty {
+                collect_type_names_from_type(ty, out);
+            }
         }
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemStore { pointer, value, store_ty, .. } => {
             collect_type_names_from_expr(pointer, out);
             collect_type_names_from_expr(value, out);
+            if let Some(ty) = store_ty {
+                collect_type_names_from_type(ty, out);
+            }
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
             collect_type_names_from_expr(inner, out);

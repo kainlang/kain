@@ -1,0 +1,3 @@
+fn poke(p: ptr<Int>, i: Int, v: Int) -> Int:
+    mem_store(ptr_offset(p, i, "Int"), v, "Int")
+    return mem_load(ptr_offset(p, i, "Int"), "Int")
