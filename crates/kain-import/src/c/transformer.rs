@@ -57,6 +57,12 @@ pub struct CTransformer {
 
     /// Source-derived layout metadata such as active pragma-pack state and attribute hints.
     layout_metadata: Option<CSourceLayoutMetadata>,
+
+    /// Synthetic top-level items created while lowering nested anonymous C aggregates.
+    pending_items: Vec<Item>,
+
+    /// Dedup set for synthetic anonymous aggregate types.
+    emitted_synthetic_type_keys: HashSet<String>,
 }
 
 impl CTransformer {
@@ -76,6 +82,8 @@ impl CTransformer {
             temp_counter: 0,
             symbol_scopes: vec![HashMap::new()],
             layout_metadata: None,
+            pending_items: Vec::new(),
+            emitted_synthetic_type_keys: HashSet::new(),
         }
     }
 
@@ -112,6 +120,32 @@ impl CTransformer {
         let name = format!("{}_{}", prefix, self.temp_counter);
         self.temp_counter += 1;
         self.rename_value_identifier(&name)
+    }
+
+    fn anonymous_type_name(
+        &mut self,
+        owner_name: &str,
+        field_name: &str,
+        kind: &str,
+    ) -> String {
+        let raw = format!("{}_{}_{}", owner_name, field_name, kind);
+        self.rename_type_identifier(&raw)
+    }
+
+    fn register_pending_synthetic_item(&mut self, item: Item) {
+        let key = match &item {
+            Item::Struct(s) => format!("struct:{}", s.name),
+            Item::Enum(e) => format!("enum:{}", e.name),
+            _ => return,
+        };
+
+        if self.emitted_synthetic_type_keys.insert(key) {
+            self.pending_items.push(item);
+        }
+    }
+
+    fn drain_pending_items(&mut self, out: &mut Vec<Item>) {
+        out.extend(self.pending_items.drain(..));
     }
 
     fn memory_lowering_required<T>(&self, context: impl Into<String>) -> Result<T> {
@@ -369,12 +403,15 @@ impl CTransformer {
             match decl.node {
                 c_ast::ExternalDeclaration::FunctionDefinition(func) => {
                     if let Some(item) = self.transform_function(func.node)? {
+                        self.drain_pending_items(&mut items);
                         items.push(item);
                     }
                 }
                 c_ast::ExternalDeclaration::Declaration(decl) => {
                     // Handle structs, enums, typedefs, globals
-                    items.extend(self.transform_declaration(decl.node, decl_span)?);
+                    let mut decl_items = self.transform_declaration(decl.node, decl_span)?;
+                    self.drain_pending_items(&mut items);
+                    items.append(&mut decl_items);
                 }
                 _ => {
                     // Skip other declarations for now
@@ -837,10 +874,70 @@ impl CTransformer {
                     if let Some(ref field_declarator) = declarator.node.declarator {
                         let raw_field_name = self.extract_declarator_name(&field_declarator.node)?;
                         let field_name = self.rename_field_identifier(&raw_field_name);
-                        let field_type =
-                            self.extract_type_from_specifier_qualifiers(&field_decl.specifiers)?;
-                        let field_type =
-                            self.apply_declarator_type(field_type, &field_declarator.node)?;
+                        let mut anonymous_field_struct = None;
+                        let mut anonymous_field_enum = None;
+                        for spec in &field_decl.specifiers {
+                            if let c_ast::SpecifierQualifier::TypeSpecifier(type_spec) = &spec.node {
+                                match &type_spec.node {
+                                    c_ast::TypeSpecifier::Struct(struct_type)
+                                        if struct_type.node.identifier.is_none() =>
+                                    {
+                                        anonymous_field_struct = Some(struct_type.node.clone());
+                                    }
+                                    c_ast::TypeSpecifier::Enum(enum_type)
+                                        if enum_type.node.identifier.is_none() =>
+                                    {
+                                        anonymous_field_enum = Some(enum_type.node.clone());
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        let field_type = if let Some(struct_type) = anonymous_field_struct {
+                            let synthetic_name =
+                                self.anonymous_type_name(&name, &field_name, "AnonStruct");
+                            if !self.structs.contains_key(&synthetic_name) {
+                                if let Some(item) = self.transform_struct_declaration(
+                                    &struct_type,
+                                    Some(synthetic_name.clone()),
+                                    &[],
+                                )? {
+                                    self.register_pending_synthetic_item(item);
+                                }
+                            }
+                            self.apply_declarator_type(
+                                Type::Named {
+                                    name: synthetic_name,
+                                    generics: Vec::new(),
+                                    span: Span::default(),
+                                },
+                                &field_declarator.node,
+                            )?
+                        } else if let Some(enum_type) = anonymous_field_enum {
+                            let synthetic_name =
+                                self.anonymous_type_name(&name, &field_name, "AnonEnum");
+                            if !self.enums.contains_key(&synthetic_name) {
+                                if let Some(item) = self.transform_enum_declaration(
+                                    &enum_type,
+                                    Some(synthetic_name.clone()),
+                                )? {
+                                    self.register_pending_synthetic_item(item);
+                                }
+                            }
+                            self.apply_declarator_type(
+                                Type::Named {
+                                    name: synthetic_name,
+                                    generics: Vec::new(),
+                                    span: Span::default(),
+                                },
+                                &field_declarator.node,
+                            )?
+                        } else {
+                            let field_type =
+                                self.extract_type_from_specifier_qualifiers(&field_decl.specifiers)?;
+                            self.apply_declarator_type(field_type, &field_declarator.node)?
+                        };
                         let mut attributes = Vec::new();
                         let (storage_bits, storage_align_bits) =
                             self.c_storage_layout_for_specifiers(&field_decl.specifiers);
@@ -3151,6 +3248,47 @@ mod tests {
             panic!("expected sizeof_type return");
         };
         assert!(matches!(target, Type::Named { name, .. } if name == "KainArray"));
+    }
+
+    #[test]
+    fn test_named_struct_field_with_anonymous_nested_struct_emits_real_type() {
+        let source = r#"
+            struct du {
+                float d;
+                struct {
+                    int hi;
+                    int lo;
+                } word;
+            };
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+
+        assert!(program.items.iter().any(|item| matches!(
+            item,
+            Item::Struct(s) if s.name == "du_word_AnonStruct"
+        )));
+
+        let du_struct = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Struct(s) if s.name == "du" => Some(s),
+                _ => None,
+            })
+            .expect("expected du struct");
+
+        let word_field = du_struct
+            .fields
+            .iter()
+            .find(|field| field.name == "word")
+            .expect("expected word field");
+
+        assert!(matches!(
+            &word_field.ty,
+            Type::Named { name, .. } if name == "du_word_AnonStruct"
+        ));
     }
 
     #[test]

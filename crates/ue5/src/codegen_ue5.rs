@@ -735,9 +735,14 @@ impl Ue5Gen {
         match item {
             TypedItem::Struct(st) => st.ast.fields.len() * 16 + st.ast.methods.len() * 8 + st.ast.attributes.len() * 4,
             TypedItem::Enum(en) => en.ast.variants.len() * 16,
-            TypedItem::Actor(a) => a.ast.fields.len() * 16 + a.ast.methods.len() * 8 + a.ast.attributes.len() * 4,
+            TypedItem::Actor(a) => {
+                a.ast.state.len() * 16
+                    + a.ast.handlers.len() * 8
+                    + a.ast.methods.len() * 8
+                    + a.ast.attributes.len() * 4
+            }
             TypedItem::Component(c) => c.ast.state.len() * 16 + c.ast.attributes.len() * 4,
-            TypedItem::TypeAlias(alias) => alias.ast.attributes.len() * 4 + 1,
+            TypedItem::TypeAlias(alias) => alias.ast.generics.len() * 4 + 1,
             TypedItem::Function(f) => f.ast.params.len() * 4 + usize::from(!f.ast.body.stmts.is_empty()) * 8 + f.ast.attributes.len() * 2,
             _ => 0,
         }
@@ -1742,20 +1747,15 @@ impl Ue5Gen {
         let mut delegates = Vec::new();
         let mut blueprint_funcs = Vec::new();
         let mut other_items = Vec::new();
+        let mut delegate_indices: std::collections::HashMap<(String, &'static str), usize> = std::collections::HashMap::new();
+        let mut blueprint_indices: std::collections::HashMap<(String, &'static str), usize> = std::collections::HashMap::new();
+        let mut other_indices: std::collections::HashMap<(String, &'static str), usize> = std::collections::HashMap::new();
         
         // Check if we're in blueprint-library-only mode
         let blueprint_library_only = self.target_item.as_ref().map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__").unwrap_or(false);
         
         for item in program.items() {
-            let item_name = match item {
-                TypedItem::Actor(a) => &a.ast.name,
-                TypedItem::Struct(s) => &s.ast.name,
-                TypedItem::Enum(e) => &e.ast.name,
-                TypedItem::Function(f) => &f.ast.name,
-                TypedItem::Component(c) => &c.ast.name,
-                TypedItem::TypeAlias(a) => &a.ast.name,
-                _ => "",
-            };
+            let item_name = self.item_symbol_name(item);
 
             // STDLIB POLLUTION FIX: Skip items marked @stdlib_optional unless they're explicitly referenced
             // This prevents stdlib pattern types (EBuffType, ELootRarity, etc.) from polluting every plugin
@@ -1777,7 +1777,7 @@ impl Ue5Gen {
                 if blueprint_library_only {
                     if let TypedItem::Function(f) = item {
                         if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5") {
-                            blueprint_funcs.push(item);
+                            self.push_unique_item(&mut blueprint_funcs, &mut blueprint_indices, item);
                         }
                     }
                     continue;
@@ -1793,19 +1793,19 @@ impl Ue5Gen {
                 TypedItem::TypeAlias(alias) => {
                     // Check if this is a delegate (function type)
                     if let Type::Function { .. } = &alias.ast.target {
-                        delegates.push(item);
+                        self.push_unique_item(&mut delegates, &mut delegate_indices, item);
                     } else {
-                        other_items.push(item);
+                        self.push_unique_item(&mut other_items, &mut other_indices, item);
                     }
                 },
                 TypedItem::Function(f) => {
                     if f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5") {
-                        blueprint_funcs.push(item);
+                        self.push_unique_item(&mut blueprint_funcs, &mut blueprint_indices, item);
                     } else {
-                        other_items.push(item);
+                        self.push_unique_item(&mut other_items, &mut other_indices, item);
                     }
                 },
-                _ => other_items.push(item),
+                _ => self.push_unique_item(&mut other_items, &mut other_indices, item),
             }
         }
 

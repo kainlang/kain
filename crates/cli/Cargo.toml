@@ -19,6 +19,7 @@ ue5-blueprints = { path = "../ue5-blueprints", optional = true }
 ue5-graphs = { path = "../ue5-graphs", optional = true }
 ue5-gas = { path = "../ue5-gas", optional = true }
 ue5-asset-utils = { path = "../ue5-asset-utils", optional = true }
+ue5-config = { path = "../ue5-config", optional = true }
 unreal_asset_registry = { workspace = true, optional = true }
 unreal_asset_base = { workspace = true, optional = true }
 unreal_asset = { workspace = true, optional = true }
@@ -50,7 +51,7 @@ quick-xml = "0.36"
 
 [features]
 default = ["ue5", "gpu", "web", "sys"]
-ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders", "dep:ue5-materials", "dep:ue5-blueprints", "dep:ue5-graphs", "dep:ue5-gas", "dep:ue5-asset-utils", "dep:unreal_asset_registry", "dep:unreal_asset_base", "dep:unreal_asset"]
+ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders", "dep:ue5-materials", "dep:ue5-blueprints", "dep:ue5-graphs", "dep:ue5-gas", "dep:ue5-asset-utils", "dep:ue5-config", "dep:unreal_asset_registry", "dep:unreal_asset_base", "dep:unreal_asset"]
 gpu = ["dep:gpu"]
 web = ["dep:web"]
 sys = ["dep:sys"]
