@@ -1,6 +1,9 @@
 use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::error::{DiagnosticBuilder, ErrorKind, KainResult};
+use crate::low_level_memory_metadata::{
+    attr_usize_arg, has_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+};
 use crate::monomorphize::MonomorphizedProgram;
 use crate::span::Span;
 use crate::types::{
@@ -14,11 +17,15 @@ use std::collections::{HashMap, HashSet};
 struct LayoutField {
     offset: usize,
     ty: Type,
+    bit_width: Option<usize>,
+    bit_offset: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default)]
 struct StructLayoutInfo {
     size: usize,
+    align: usize,
+    is_union: bool,
     field_order: Vec<String>,
     fields: HashMap<String, LayoutField>,
 }
@@ -33,30 +40,105 @@ impl LayoutRegistry {
         let mut registry = Self::default();
         for item in items {
             if let TypedItem::Struct(st) = item {
+                let is_union = has_attr(&st.ast.attributes, C_UNION_ATTR);
                 let mut offset = 0usize;
+                let mut max_field_size = 0usize;
+                let mut max_align = 1usize;
                 let mut fields = HashMap::new();
                 let mut field_order = Vec::new();
+                let mut bit_pack: Option<BitfieldPack> = None;
                 for field in &st.ast.fields {
                     let size = registry.type_size_fallback(&field.ty);
                     let align = registry.type_align_fallback(&field.ty).max(1);
-                    if offset % align != 0 {
-                        offset += align - (offset % align);
-                    }
+                    let bit_width = attr_usize_arg(&field.attributes, C_BITFIELD_ATTR);
+                    max_field_size = max_field_size.max(size.max(1));
+                    max_align = max_align.max(align);
                     let field_name = field.name.clone();
+                    let (field_offset, field_bit_offset) = if is_union {
+                        (0usize, bit_width.map(|_| 0usize))
+                    } else if let Some(width) = bit_width {
+                        let width = width.max(1);
+                        let unit_size = size.max(1);
+                        let unit_bits = unit_size.saturating_mul(8).max(1);
+
+                        if width >= unit_bits {
+                            if let Some(pack) = bit_pack.take() {
+                                offset = offset.max(pack.unit_offset + pack.unit_size);
+                            }
+                            offset = align_up(offset, align);
+                            let field_offset = offset;
+                            offset += unit_size;
+                            (field_offset, Some(0usize))
+                        } else {
+                            let needs_new_pack = match bit_pack.as_ref() {
+                                Some(pack) => {
+                                    pack.unit_size != unit_size
+                                        || pack.align != align
+                                        || pack.used_bits + width > unit_bits
+                                }
+                                None => true,
+                            };
+
+                            if needs_new_pack {
+                                if let Some(pack) = bit_pack.take() {
+                                    offset = offset.max(pack.unit_offset + pack.unit_size);
+                                }
+                                offset = align_up(offset, align);
+                                bit_pack = Some(BitfieldPack {
+                                    unit_offset: offset,
+                                    unit_size,
+                                    align,
+                                    used_bits: 0,
+                                });
+                            }
+
+                            let pack = bit_pack
+                                .as_mut()
+                                .expect("bitfield pack should exist before recording field");
+                            let field_offset = pack.unit_offset;
+                            let field_bit_offset = pack.used_bits;
+                            pack.used_bits += width;
+                            if pack.used_bits >= unit_bits {
+                                let flushed = bit_pack.take().expect("bitfield pack should flush");
+                                offset = offset.max(flushed.unit_offset + flushed.unit_size);
+                            }
+                            (field_offset, Some(field_bit_offset))
+                        }
+                    } else {
+                        if let Some(pack) = bit_pack.take() {
+                            offset = offset.max(pack.unit_offset + pack.unit_size);
+                        }
+                        offset = align_up(offset, align);
+                        let field_offset = offset;
+                        offset += size.max(1);
+                        (field_offset, None)
+                    };
                     fields.insert(
                         field_name.clone(),
                         LayoutField {
-                            offset,
+                            offset: field_offset,
                             ty: field.ty.clone(),
+                            bit_width,
+                            bit_offset: field_bit_offset,
                         },
                     );
-                    offset += size;
                     field_order.push(field_name);
                 }
+                if let Some(pack) = bit_pack.take() {
+                    offset = offset.max(pack.unit_offset + pack.unit_size);
+                }
+                let raw_size = if is_union {
+                    max_field_size
+                } else {
+                    offset
+                };
+                let size = align_up(raw_size.max(1), max_align);
                 registry.structs.insert(
                     st.ast.name.clone(),
                     StructLayoutInfo {
-                        size: offset.max(1),
+                        size,
+                        align: max_align,
+                        is_union,
                         field_order,
                         fields,
                     },
@@ -99,13 +181,7 @@ impl LayoutRegistry {
                 other => self
                     .structs
                     .get(other)
-                    .map(|info| {
-                        info.fields
-                            .values()
-                            .map(|field| self.type_align_fallback(&field.ty))
-                            .max()
-                            .unwrap_or(1)
-                    })
+                    .map(|info| info.align.max(1))
                     .unwrap_or(8),
             },
             Type::Array(inner, _, _) => self.type_align_fallback(inner),
@@ -123,6 +199,24 @@ impl LayoutRegistry {
             Type::Unit(_) | Type::Never(_) => 1,
             _ => 8,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BitfieldPack {
+    unit_offset: usize,
+    unit_size: usize,
+    align: usize,
+    used_bits: usize,
+}
+
+fn align_up(value: usize, align: usize) -> usize {
+    let align = align.max(1);
+    let remainder = value % align;
+    if remainder == 0 {
+        value
+    } else {
+        value + (align - remainder)
     }
 }
 
@@ -1016,6 +1110,13 @@ fn pointer_for_addressable(value: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> Opt
             span,
         } => {
             let base_ptr = pointer_for_addressable(object, ctx)?;
+            if let Some(layout) = field_layout_from_object(object, field, ctx) {
+                if let Some(bit_width) = layout.bit_width {
+                    let _bit_offset = layout.bit_offset.unwrap_or(0);
+                    let _bit_width = bit_width;
+                    return None;
+                }
+            }
             let offset = infer_field_offset(object, field, ctx).unwrap_or(0);
             Some(helper_call(
                 "__kain_field_ptr",
@@ -1196,16 +1297,31 @@ fn field_type_from_object(
     }
 }
 
-fn infer_field_offset(object: &Expr, field: &str, ctx: &FunctionMemoryCtx<'_>) -> Option<usize> {
-    let object_ty = infer_expr_type(object, ctx)?;
+fn field_layout_from_object_ty<'a>(
+    object_ty: &Type,
+    field: &str,
+    ctx: &'a FunctionMemoryCtx<'_>,
+) -> Option<&'a LayoutField> {
     match object_ty {
-        Type::Named { name, .. } => ctx.layouts.field(&name, field).map(|field| field.offset),
-        Type::Ref { inner, .. } | Type::Ptr { inner, .. } => match inner.as_ref() {
-            Type::Named { name, .. } => ctx.layouts.field(name, field).map(|field| field.offset),
-            _ => None,
-        },
+        Type::Named { name, .. } => ctx.layouts.field(name, field),
+        Type::Ref { inner, .. } | Type::Ptr { inner, .. } => {
+            field_layout_from_object_ty(inner, field, ctx)
+        }
         _ => None,
     }
+}
+
+fn field_layout_from_object<'a>(
+    object: &Expr,
+    field: &str,
+    ctx: &'a FunctionMemoryCtx<'_>,
+) -> Option<&'a LayoutField> {
+    let object_ty = infer_expr_type(object, ctx)?;
+    field_layout_from_object_ty(&object_ty, field, ctx)
+}
+
+fn infer_field_offset(object: &Expr, field: &str, ctx: &FunctionMemoryCtx<'_>) -> Option<usize> {
+    field_layout_from_object(object, field, ctx).map(|field| field.offset)
 }
 
 fn type_key(ty: &Type) -> String {
@@ -1490,21 +1606,32 @@ fn lower_aggregate_init_expr(
                 .structs
                 .get(name)
                 .map(|info| {
-                    info.field_order
-                        .iter()
-                        .filter_map(|field_name| {
-                            info.fields.get(field_name).map(|field| {
-                                let value = provided.get(field_name).cloned().unwrap_or_else(|| {
-                                    if zero_fill_rest {
-                                        lower_storage_expr(&field.ty, layouts, span, true)
-                                    } else {
-                                        Expr::None(span)
-                                    }
-                                });
-                                (field_name.clone(), value)
+                    if info.is_union {
+                        lower_union_aggregate_fields(
+                            info,
+                            fields,
+                            &provided,
+                            layouts,
+                            span,
+                            zero_fill_rest,
+                        )
+                    } else {
+                        info.field_order
+                            .iter()
+                            .filter_map(|field_name| {
+                                info.fields.get(field_name).map(|field| {
+                                    let value = provided.get(field_name).cloned().unwrap_or_else(|| {
+                                        if zero_fill_rest {
+                                            lower_storage_expr(&field.ty, layouts, span, true)
+                                        } else {
+                                            Expr::None(span)
+                                        }
+                                    });
+                                    (field_name.clone(), value)
+                                })
                             })
-                        })
-                        .collect::<Vec<_>>()
+                            .collect::<Vec<_>>()
+                    }
                 })
                 .unwrap_or_else(|| fields.to_vec());
             Expr::Struct {
@@ -1518,6 +1645,39 @@ fn lower_aggregate_init_expr(
             span,
         ),
     }
+}
+
+fn lower_union_aggregate_fields(
+    info: &StructLayoutInfo,
+    original_fields: &[(String, Expr)],
+    provided: &HashMap<String, Expr>,
+    layouts: &LayoutRegistry,
+    span: Span,
+    zero_fill_rest: bool,
+) -> Vec<(String, Expr)> {
+    let active_name = original_fields
+        .iter()
+        .rev()
+        .find_map(|(field_name, _)| info.fields.contains_key(field_name).then(|| field_name.clone()))
+        .or_else(|| info.field_order.first().cloned());
+
+    let Some(active_name) = active_name else {
+        return Vec::new();
+    };
+
+    let Some(active_field) = info.fields.get(&active_name) else {
+        return Vec::new();
+    };
+
+    let value = provided.get(&active_name).cloned().unwrap_or_else(|| {
+        if zero_fill_rest {
+            lower_storage_expr(&active_field.ty, layouts, span, true)
+        } else {
+            Expr::None(span)
+        }
+    });
+
+    vec![(active_name, value)]
 }
 
 fn first_unsupported_memory_context(

@@ -1,6 +1,7 @@
 use kain_core::ast::Type;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
+use kain_core::low_level_memory_metadata::{marker_attr, C_UNION_ATTR};
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
     Lexer, Parser,
@@ -452,4 +453,127 @@ fn ts_memory_lowering_rewrites_heap_nodes_and_zero_fills_struct_aggregates() {
     };
     assert!(matches!(&fields[0].1, kain_core::ast::Expr::Int(1, _)));
     assert!(matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _)));
+}
+
+#[test]
+fn ts_memory_lowering_uses_union_layout_metadata() {
+    let span = kain_core::span::Span::default();
+    let int_ty = Type::Named {
+        name: "Int".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let float_ty = Type::Named {
+        name: "Float".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let union_ty = Type::Named {
+        name: "Number".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+
+    let program = kain_core::ast::Program {
+        items: vec![
+            kain_core::ast::Item::Struct(kain_core::ast::Struct {
+                name: "Number".to_string(),
+                generics: Vec::new(),
+                fields: vec![
+                    kain_core::ast::Field {
+                        name: "as_int".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: Vec::new(),
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                    kain_core::ast::Field {
+                        name: "as_float".to_string(),
+                        ty: float_ty.clone(),
+                        attributes: Vec::new(),
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                ],
+                methods: Vec::new(),
+                attributes: vec![marker_attr(C_UNION_ATTR, span)],
+                visibility: kain_core::ast::Visibility::Public,
+                span,
+            }),
+            kain_core::ast::Item::Function(kain_core::ast::Function {
+                name: "make_number".to_string(),
+                generics: Vec::new(),
+                params: Vec::new(),
+                return_type: Some(union_ty.clone()),
+                effects: Vec::new(),
+                body: kain_core::ast::Block {
+                    stmts: vec![
+                        kain_core::ast::Stmt::Let {
+                            pattern: kain_core::ast::Pattern::Binding {
+                                name: "n".to_string(),
+                                mutable: true,
+                                span,
+                            },
+                            ty: Some(union_ty.clone()),
+                            value: Some(kain_core::ast::Expr::AggregateInit {
+                                ty: union_ty.clone(),
+                                fields: vec![
+                                    ("as_int".to_string(), kain_core::ast::Expr::Int(7, span)),
+                                    (
+                                        "as_float".to_string(),
+                                        kain_core::ast::Expr::Float(3.0, span),
+                                    ),
+                                ],
+                                zero_fill_rest: true,
+                                span,
+                            }),
+                            span,
+                        },
+                        kain_core::ast::Stmt::Return(
+                            Some(kain_core::ast::Expr::SizeOfType {
+                                target: union_ty,
+                                span,
+                            }),
+                            span,
+                        ),
+                    ],
+                    span,
+                },
+                visibility: kain_core::ast::Visibility::Public,
+                attributes: Vec::new(),
+                span,
+            }),
+        ],
+        span,
+    };
+
+    let mapper = SpanMapper::new("");
+    let typed = kain_core::types::check(&program, &mapper, "union_lowering.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[1] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Struct { fields, .. }),
+        ..
+    } = &function.ast.body.stmts[0]
+    else {
+        panic!("expected lowered union aggregate");
+    };
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].0, "as_float");
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Int(size, _)), _) =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected lowered union sizeof");
+    };
+    assert_eq!(*size, 8);
 }

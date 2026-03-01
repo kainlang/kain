@@ -8,6 +8,9 @@ use kain_core::ast::*;
 use kain_core::diagnostic_registry::DiagnosticCode;
 use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
+use kain_core::low_level_memory_metadata::{
+    marker_attr, usize_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+};
 use kain_core::span::Span;
 use crate::c::types::CTypeTransformer;
 use crate::common::c_registry::{
@@ -197,6 +200,34 @@ impl CTransformer {
             },
             other => other,
         }
+    }
+
+    fn struct_def_for_type(&self, ty: &Type) -> Option<&Struct> {
+        let Type::Named { name, .. } = ty else {
+            return None;
+        };
+        self.structs.get(name)
+    }
+
+    fn struct_is_union_type(&self, ty: &Type) -> bool {
+        self.struct_def_for_type(ty)
+            .map(|st| st.attributes.iter().any(|attr| attr.name == C_UNION_ATTR))
+            .unwrap_or(false)
+    }
+
+    fn normalize_aggregate_fields_for_type(
+        &self,
+        ty: &Type,
+        fields: Vec<(String, Expr)>,
+    ) -> Vec<(String, Expr)> {
+        if !self.struct_is_union_type(ty) {
+            return fields;
+        }
+
+        let Some((active_name, active_value)) = fields.last().cloned() else {
+            return fields;
+        };
+        vec![(active_name, active_value)]
     }
     
     /// Transform a C translation unit to KAIN program
@@ -656,6 +687,11 @@ impl CTransformer {
         
         // Get struct fields
         let mut fields = Vec::new();
+        let mut struct_attributes = Vec::new();
+
+        if matches!(struct_type.kind.node, c_ast::StructKind::Union) {
+            struct_attributes.push(marker_attr(C_UNION_ATTR, Span::default()));
+        }
         
         if let Some(ref declarations) = struct_type.declarations {
             for decl in declarations {
@@ -672,11 +708,16 @@ impl CTransformer {
                             self.extract_type_from_specifier_qualifiers(&field_decl.specifiers)?;
                         let field_type =
                             self.apply_declarator_type(field_type, &field_declarator.node)?;
+                        let mut attributes = Vec::new();
+                        if let Some(bit_width) = declarator.node.bit_width.as_deref() {
+                            let width = self.extract_const_usize_expr(&bit_width.node, "bitfield width")?;
+                            attributes.push(usize_attr(C_BITFIELD_ATTR, width, Span::default()));
+                        }
 
                         fields.push(Field {
                             name: field_name,
                             ty: field_type,
-                            attributes: Vec::new(),
+                            attributes,
                             visibility: Visibility::Public,
                             default: None,
                             weak: false,
@@ -692,7 +733,7 @@ impl CTransformer {
             generics: Vec::new(),
             fields,
             methods: Vec::new(),
-            attributes: Vec::new(),
+            attributes: struct_attributes,
             visibility: Visibility::Public,
             span: Span::default(),
         };
@@ -827,7 +868,7 @@ impl CTransformer {
                 let fields = self.transform_compound_initializer_for_type(ty, items)?;
                 Ok(Expr::AggregateInit {
                     ty: ty.clone(),
-                    fields,
+                    fields: self.normalize_aggregate_fields_for_type(ty, fields),
                     zero_fill_rest: true,
                     span: Span::default(),
                 })
@@ -946,7 +987,7 @@ impl CTransformer {
             cursor = next_cursor;
         }
 
-        Ok(fields)
+        Ok(self.normalize_aggregate_fields_for_type(ty, fields))
     }
 
     fn transform_initializer_for_type(
@@ -1017,11 +1058,20 @@ impl CTransformer {
     }
 
     fn extract_designator_index(&mut self, expr: &c_ast::Expression) -> Result<usize> {
+        self.extract_const_usize_expr(expr, "designated initializer index")
+    }
+
+    fn extract_const_usize_expr(
+        &mut self,
+        expr: &c_ast::Expression,
+        context: &str,
+    ) -> Result<usize> {
         match self.transform_expression(expr)? {
             Expr::Int(value, _) if value >= 0 => Ok(value as usize),
-            _ => Err(ImportError::UnsupportedFeature(
-                "Non-constant designated initializer index".to_string(),
-            )),
+            _ => Err(ImportError::UnsupportedFeature(format!(
+                "Non-constant {}",
+                context
+            ))),
         }
     }
 
@@ -1089,7 +1139,7 @@ impl CTransformer {
                 Self::upsert_named_expr(&mut fields, field_name, nested_value);
                 Ok(Expr::AggregateInit {
                     ty: ty.clone(),
-                    fields,
+                    fields: self.normalize_aggregate_fields_for_type(ty, fields),
                     zero_fill_rest: true,
                     span: Span::default(),
                 })
@@ -1130,11 +1180,10 @@ impl CTransformer {
     }
 
     fn upsert_named_expr(fields: &mut Vec<(String, Expr)>, field_name: String, value: Expr) {
-        if let Some((_, slot)) = fields.iter_mut().find(|(name, _)| name == &field_name) {
-            *slot = value;
-        } else {
-            fields.push((field_name, value));
+        if let Some(index) = fields.iter().position(|(name, _)| name == &field_name) {
+            fields.remove(index);
         }
+        fields.push((field_name, value));
     }
 
     fn try_lower_allocator_call(&mut self, call: &c_ast::CallExpression) -> Result<Option<Expr>> {
@@ -3230,6 +3279,131 @@ mod tests {
         };
         assert!(fields.iter().any(|(name, _)| name == "left"));
         assert!(fields.iter().any(|(name, _)| name == "right"));
+    }
+
+    #[test]
+    fn test_union_declaration_carries_layout_metadata() {
+        let source = r#"
+            union Number {
+                int as_int;
+                float as_float;
+            };
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let union_decl = match &program.items[0] {
+            Item::Struct(st) => st,
+            _ => panic!("expected struct item for imported union"),
+        };
+
+        assert!(union_decl
+            .attributes
+            .iter()
+            .any(|attr| attr.name == C_UNION_ATTR));
+    }
+
+    #[test]
+    fn test_bitfield_declaration_carries_width_metadata() {
+        let source = r#"
+            struct Flags {
+                unsigned int ready: 1;
+                unsigned int mode: 3;
+                unsigned int value;
+            };
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let flags = match &program.items[0] {
+            Item::Struct(st) => st,
+            _ => panic!("expected struct"),
+        };
+
+        let ready = flags.fields.iter().find(|field| field.name == "ready").expect("ready field");
+        let mode = flags.fields.iter().find(|field| field.name == "mode").expect("mode field");
+        let value = flags.fields.iter().find(|field| field.name == "value").expect("value field");
+
+        assert!(ready
+            .attributes
+            .iter()
+            .any(|attr| attr.name == C_BITFIELD_ATTR && matches!(attr.args.first(), Some(Expr::Int(1, _)))));
+        assert!(mode
+            .attributes
+            .iter()
+            .any(|attr| attr.name == C_BITFIELD_ATTR && matches!(attr.args.first(), Some(Expr::Int(3, _)))));
+        assert!(value.attributes.iter().all(|attr| attr.name != C_BITFIELD_ATTR));
+    }
+
+    #[test]
+    fn test_union_designated_initializer_keeps_only_active_field() {
+        let source = r#"
+            union Number {
+                int as_int;
+                float as_float;
+            };
+
+            union Number make_number() {
+                return (union Number){ .as_int = 7, .as_float = 3 };
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let make_number = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "make_number" => Some(f),
+                _ => None,
+            })
+            .expect("expected make_number");
+
+        let Stmt::Return(Some(Expr::AggregateInit { fields, .. }), _) = &make_number.body.stmts[0] else {
+            panic!("expected aggregate_init return");
+        };
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].0, "as_float");
+    }
+
+    #[test]
+    fn test_nested_union_designator_preserves_only_selected_member() {
+        let source = r#"
+            union Number {
+                int as_int;
+                float as_float;
+            };
+
+            struct Wrapper {
+                union Number number;
+                int tag;
+            };
+
+            struct Wrapper make_wrapper() {
+                return (struct Wrapper){ .number.as_int = 7, .number.as_float = 3, .tag = 1 };
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let make_wrapper = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "make_wrapper" => Some(f),
+                _ => None,
+            })
+            .expect("expected make_wrapper");
+
+        let Stmt::Return(Some(Expr::AggregateInit { fields, .. }), _) = &make_wrapper.body.stmts[0] else {
+            panic!("expected aggregate_init return");
+        };
+        let number = fields.iter().find(|(name, _)| name == "number").expect("missing nested union");
+        let Expr::AggregateInit { fields: number_fields, .. } = &number.1 else {
+            panic!("expected nested aggregate_init for union");
+        };
+        assert_eq!(number_fields.len(), 1);
+        assert_eq!(number_fields[0].0, "as_float");
     }
 
     #[test]
