@@ -9,7 +9,7 @@ use kain_core::diagnostic_registry::DiagnosticCode;
 use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
 use kain_core::low_level_memory_metadata::{
-    marker_attr, usize_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+    marker_attr, usize_bool_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
 };
 use kain_core::span::Span;
 use crate::c::types::CTypeTransformer;
@@ -247,6 +247,24 @@ impl CTransformer {
         self.lookup_field(&object_ty, field)
             .map(|field_def| field_def.attributes.iter().any(|attr| attr.name == C_BITFIELD_ATTR))
             .unwrap_or(false)
+    }
+
+    fn bitfield_is_signed(
+        &self,
+        specifiers: &[Node<c_ast::SpecifierQualifier>],
+    ) -> bool {
+        let mut saw_unsigned = false;
+
+        for spec in specifiers {
+            if let c_ast::SpecifierQualifier::TypeSpecifier(type_spec) = &spec.node {
+                match &type_spec.node {
+                    c_ast::TypeSpecifier::Unsigned => saw_unsigned = true,
+                    _ => {}
+                }
+            }
+        }
+
+        !saw_unsigned
     }
     
     /// Transform a C translation unit to KAIN program
@@ -730,7 +748,12 @@ impl CTransformer {
                         let mut attributes = Vec::new();
                         if let Some(bit_width) = declarator.node.bit_width.as_deref() {
                             let width = self.extract_const_usize_expr(&bit_width.node, "bitfield width")?;
-                            attributes.push(usize_attr(C_BITFIELD_ATTR, width, Span::default()));
+                            attributes.push(usize_bool_attr(
+                                C_BITFIELD_ATTR,
+                                width,
+                                self.bitfield_is_signed(&field_decl.specifiers),
+                                Span::default(),
+                            ));
                         }
 
                         fields.push(Field {
@@ -3356,12 +3379,49 @@ mod tests {
         assert!(ready
             .attributes
             .iter()
-            .any(|attr| attr.name == C_BITFIELD_ATTR && matches!(attr.args.first(), Some(Expr::Int(1, _)))));
+            .any(|attr| attr.name == C_BITFIELD_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(1, _)))
+                && matches!(attr.args.get(1), Some(Expr::Bool(false, _)))));
         assert!(mode
             .attributes
             .iter()
-            .any(|attr| attr.name == C_BITFIELD_ATTR && matches!(attr.args.first(), Some(Expr::Int(3, _)))));
+            .any(|attr| attr.name == C_BITFIELD_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(3, _)))
+                && matches!(attr.args.get(1), Some(Expr::Bool(false, _)))));
         assert!(value.attributes.iter().all(|attr| attr.name != C_BITFIELD_ATTR));
+    }
+
+    #[test]
+    fn test_signed_bitfield_declaration_carries_signedness_metadata() {
+        let source = r#"
+            struct Flags {
+                signed int delta: 5;
+                int implicit_signed: 2;
+            };
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let flags = match &program.items[0] {
+            Item::Struct(st) => st,
+            _ => panic!("expected struct"),
+        };
+
+        let delta = flags.fields.iter().find(|field| field.name == "delta").expect("delta field");
+        let implicit_signed = flags.fields.iter().find(|field| field.name == "implicit_signed").expect("implicit_signed field");
+
+        assert!(delta
+            .attributes
+            .iter()
+            .any(|attr| attr.name == C_BITFIELD_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(5, _)))
+                && matches!(attr.args.get(1), Some(Expr::Bool(true, _)))));
+        assert!(implicit_signed
+            .attributes
+            .iter()
+            .any(|attr| attr.name == C_BITFIELD_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(2, _)))
+                && matches!(attr.args.get(1), Some(Expr::Bool(true, _)))));
     }
 
     #[test]

@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::error::{DiagnosticBuilder, ErrorKind, KainResult};
 use crate::low_level_memory_metadata::{
-    attr_usize_arg, has_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+    attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
 };
 use crate::monomorphize::MonomorphizedProgram;
 use crate::span::Span;
@@ -19,6 +19,7 @@ struct LayoutField {
     ty: Type,
     bit_width: Option<usize>,
     bit_offset: Option<usize>,
+    bit_signed: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -50,7 +51,9 @@ impl LayoutRegistry {
                 for field in &st.ast.fields {
                     let size = registry.type_size_fallback(&field.ty);
                     let align = registry.type_align_fallback(&field.ty).max(1);
-                    let bit_width = attr_usize_arg(&field.attributes, C_BITFIELD_ATTR);
+                    let (bit_width, bit_signed) = attr_usize_bool_args(&field.attributes, C_BITFIELD_ATTR)
+                        .map(|(width, signed)| (Some(width), signed))
+                        .unwrap_or_else(|| (attr_usize_arg(&field.attributes, C_BITFIELD_ATTR), true));
                     max_field_size = max_field_size.max(size.max(1));
                     max_align = max_align.max(align);
                     let field_name = field.name.clone();
@@ -120,6 +123,7 @@ impl LayoutRegistry {
                             ty: field.ty.clone(),
                             bit_width,
                             bit_offset: field_bit_offset,
+                            bit_signed,
                         },
                     );
                     field_order.push(field_name);
@@ -771,6 +775,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                     let field_offset = field_layout.offset;
                     let field_bit_width = field_layout.bit_width;
                     let field_bit_offset = field_layout.bit_offset.unwrap_or(0);
+                    let field_bit_signed = field_layout.bit_signed;
                     let lowered_object = lower_expr_memory_with_ctx(object, ctx);
                     let lowered_value = lower_expr_memory_with_ctx(value, ctx);
                     if let Some(bit_width) = field_bit_width {
@@ -782,21 +787,33 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                                 Expr::Int(field_offset as i64, *span),
                                 Expr::Int(field_bit_offset as i64, *span),
                                 Expr::Int(bit_width as i64, *span),
+                                Expr::Bool(field_bit_signed, *span),
                                 lowered_value,
                             ],
                             *span,
                         );
                     }
                 }
-                if struct_layout_from_object(object, ctx)
-                    .map(|layout| layout.is_union)
-                    .unwrap_or(false)
+                if let Some(layout_size) = struct_layout_from_object(object, ctx)
+                    .filter(|layout| layout.is_union)
+                    .map(|layout| layout.size)
                 {
+                    let field_ty = field_type_from_object(
+                        &infer_expr_type(object, ctx).unwrap_or(Type::Unit(*span)),
+                        field,
+                        ctx,
+                    );
                     return helper_call(
                         "__kain_union_set",
                         vec![
                             lower_expr_memory_with_ctx(object, ctx),
                             Expr::String(field.clone(), *span),
+                            Expr::String(
+                                field_ty.as_ref().map(type_key).unwrap_or_else(|| "unknown".to_string()),
+                                *span,
+                            ),
+                            Expr::Int(field_ty.as_ref().and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts)).unwrap_or(1), *span),
+                            Expr::Int(layout_size as i64, *span),
                             lower_expr_memory_with_ctx(value, ctx),
                         ],
                         *span,
@@ -874,6 +891,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 let field_offset = field_layout.offset;
                 let field_bit_width = field_layout.bit_width;
                 let field_bit_offset = field_layout.bit_offset.unwrap_or(0);
+                let field_bit_signed = field_layout.bit_signed;
                 if let Some(bit_width) = field_bit_width {
                     return helper_call(
                         "__kain_bitfield_get",
@@ -883,15 +901,18 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             Expr::Int(field_offset as i64, *span),
                             Expr::Int(field_bit_offset as i64, *span),
                             Expr::Int(bit_width as i64, *span),
+                            Expr::Bool(field_bit_signed, *span),
                         ],
                         *span,
                     );
                 }
             }
-            if struct_layout_from_object(object, ctx)
-                .map(|layout| layout.is_union)
-                .unwrap_or(false)
+            if let Some(layout_size) = struct_layout_from_object(object, ctx)
+                .filter(|layout| layout.is_union)
+                .map(|layout| layout.size)
             {
+                let field_ty = infer_expr_type(object, ctx)
+                    .and_then(|object_ty| field_type_from_object(&object_ty, field, ctx));
                 let fallback = infer_expr_type(object, ctx)
                     .and_then(|object_ty| field_type_from_object(&object_ty, field, ctx))
                     .map(|ty| lower_storage_expr(&ty, ctx.layouts, *span, true))
@@ -901,6 +922,12 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                     vec![
                         lower_expr_memory_with_ctx(object, ctx),
                         Expr::String(field.clone(), *span),
+                        Expr::String(
+                            field_ty.as_ref().map(type_key).unwrap_or_else(|| "unknown".to_string()),
+                            *span,
+                        ),
+                        Expr::Int(field_ty.as_ref().and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts)).unwrap_or(1), *span),
+                        Expr::Int(layout_size as i64, *span),
                         fallback,
                     ],
                     *span,
@@ -1701,7 +1728,7 @@ fn lower_aggregate_init_expr(
                 .get(name)
                 .map(|info| {
                     if info.is_union {
-                        let (field_values, active_field) = lower_union_aggregate_fields(
+                        let (field_values, active_field, active_value) = lower_union_aggregate_fields(
                             info,
                             fields,
                             &provided,
@@ -1715,9 +1742,23 @@ fn lower_aggregate_init_expr(
                             span,
                         };
                         return if let Some(active_field) = active_field {
+                            let active_ty = info
+                                .fields
+                                .get(&active_field)
+                                .map(|field| field.ty.clone());
                             helper_call(
                                 "__kain_union_wrap",
-                                vec![base_struct, Expr::String(active_field, span)],
+                                vec![
+                                    base_struct,
+                                    Expr::String(active_field, span),
+                                    Expr::String(
+                                        active_ty.as_ref().map(type_key).unwrap_or_else(|| "unknown".to_string()),
+                                        span,
+                                    ),
+                                    Expr::Int(active_ty.as_ref().and_then(|ty| memory_stride_for_type(Some(ty), layouts)).unwrap_or(1), span),
+                                    Expr::Int(info.size as i64, span),
+                                    active_value,
+                                ],
                                 span,
                             )
                         } else {
@@ -1767,7 +1808,7 @@ fn lower_union_aggregate_fields(
     layouts: &LayoutRegistry,
     span: Span,
     zero_fill_rest: bool,
-) -> (Vec<(String, Expr)>, Option<String>) {
+) -> (Vec<(String, Expr)>, Option<String>, Expr) {
     let active_name = original_fields
         .iter()
         .rev()
@@ -1775,8 +1816,22 @@ fn lower_union_aggregate_fields(
         .or_else(|| info.field_order.first().cloned());
 
     let Some(active_name) = active_name else {
-        return (Vec::new(), None);
+        return (Vec::new(), None, Expr::None(span));
     };
+
+    let active_value = info
+        .fields
+        .get(&active_name)
+        .map(|field| {
+            provided.get(&active_name).cloned().unwrap_or_else(|| {
+                if zero_fill_rest {
+                    lower_storage_expr(&field.ty, layouts, span, true)
+                } else {
+                    Expr::None(span)
+                }
+            })
+        })
+        .unwrap_or_else(|| Expr::None(span));
 
     let field_values = info
         .field_order
@@ -1801,7 +1856,7 @@ fn lower_union_aggregate_fields(
         })
         .collect::<Vec<_>>();
 
-    (field_values, Some(active_name))
+    (field_values, Some(active_name), active_value)
 }
 
 fn first_unsupported_memory_context(

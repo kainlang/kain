@@ -1,7 +1,9 @@
 use kain_core::ast::Type;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
-use kain_core::low_level_memory_metadata::{marker_attr, usize_attr, C_BITFIELD_ATTR, C_UNION_ATTR};
+use kain_core::low_level_memory_metadata::{
+    marker_attr, usize_bool_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+};
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
     Lexer, Parser,
@@ -573,6 +575,8 @@ fn ts_memory_lowering_uses_union_layout_metadata() {
     };
     assert_eq!(fields.len(), 2);
     assert_eq!(args[1].value, kain_core::ast::Expr::String("as_float".to_string(), span));
+    assert_eq!(args.len(), 6);
+    assert_eq!(args[5].value, kain_core::ast::Expr::Float(3.0, span));
 
     let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Int(size, _)), _) =
         &function.ast.body.stmts[1]
@@ -605,7 +609,7 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
                     kain_core::ast::Field {
                         name: "ready".to_string(),
                         ty: int_ty.clone(),
-                        attributes: vec![usize_attr(C_BITFIELD_ATTR, 1, span)],
+                        attributes: vec![usize_bool_attr(C_BITFIELD_ATTR, 1, true, span)],
                         visibility: kain_core::ast::Visibility::Public,
                         default: None,
                         weak: false,
@@ -614,7 +618,7 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
                     kain_core::ast::Field {
                         name: "mode".to_string(),
                         ty: int_ty.clone(),
-                        attributes: vec![usize_attr(C_BITFIELD_ATTR, 3, span)],
+                        attributes: vec![usize_bool_attr(C_BITFIELD_ATTR, 3, false, span)],
                         visibility: kain_core::ast::Visibility::Public,
                         default: None,
                         weak: false,
@@ -683,6 +687,12 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
         panic!("expected bitfield set helper");
     };
     assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_set"));
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Call { args: set_args, .. }) =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected bitfield set helper args");
+    };
+    assert_eq!(set_args[5].value, kain_core::ast::Expr::Bool(false, span));
 
     let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Call { callee, .. }), _) =
         &function.ast.body.stmts[1]
@@ -690,4 +700,10 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
         panic!("expected bitfield get helper");
     };
     assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_get"));
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Call { args: get_args, .. }), _) =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected bitfield get helper args");
+    };
+    assert_eq!(get_args[5].value, kain_core::ast::Expr::Bool(true, span));
 }
