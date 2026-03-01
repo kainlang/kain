@@ -2,7 +2,7 @@
 
 use kain_core::types::{TypedProgram, TypedItem, TypedShader};
 use kain_core::error::{KainResult, KainError};
-use kain_core::ast::{Type, ShaderStage, Expr, Stmt, Block, BinaryOp};
+use kain_core::ast::{Type, ShaderStage, Expr, Stmt, Block, BinaryOp, UnaryOp, ElseBranch, Pattern};
 use rspirv::binary::Assemble;
 use rspirv::dr::{Builder, Operand};
 use rspirv::spirv::{Capability, AddressingModel, MemoryModel, ExecutionModel, ExecutionMode, StorageClass, Decoration};
@@ -38,6 +38,8 @@ struct ShaderContext<'a> {
     storage_buffers: HashSet<String>,
     // Cache GLSL extension import
     glsl_ext: Option<u32>,
+    loop_continue_targets: Vec<u32>,
+    loop_break_targets: Vec<u32>,
 }
 
 #[derive(Clone)]
@@ -66,6 +68,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     let mut ctx_vars = HashMap::new();
     let mut struct_uniforms = HashSet::new();
     let mut storage_buffers = HashSet::new();
+    let mut local_size_spec_ids: Option<[u32; 3]> = None;
 
     // Inputs
     for (i, param) in shader.ast.inputs.iter().enumerate() {
@@ -98,6 +101,45 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
 
     // Uniforms
     for uniform in &shader.ast.uniforms {
+        if matches!(shader.ast.stage, ShaderStage::Compute) && is_local_size_param(&uniform.name) {
+            let slot = match uniform.name.as_str() {
+                "LOCAL_SIZE_X" => 0usize,
+                "LOCAL_SIZE_Y" => 1usize,
+                "LOCAL_SIZE_Z" => 2usize,
+                _ => 0usize,
+            };
+            let default_value = match slot {
+                0 | 1 => 8,
+                _ => 1,
+            };
+            let spec = emit_u32_spec_constant(b, default_value, uniform.binding);
+            let mut ids = local_size_spec_ids.unwrap_or([0, 0, 0]);
+            ids[slot] = spec;
+            local_size_spec_ids = Some(ids);
+            ctx_vars.insert(
+                uniform.name.clone(),
+                VarBinding {
+                    id: spec,
+                    ty: Type::Named { name: "UInt".into(), generics: vec![], span: uniform.span },
+                    is_ptr: false,
+                },
+            );
+            continue;
+        }
+        if is_permutation_param(&uniform.name) {
+            if let Some(spec_id) = emit_permutation_spec_constant(b, &uniform.ty, uniform.binding) {
+                ctx_vars.insert(
+                    uniform.name.clone(),
+                    VarBinding {
+                        id: spec_id,
+                        ty: uniform.ty.clone(),
+                        is_ptr: false,
+                    },
+                );
+                continue;
+            }
+        }
+
         let inner_ty = map_ast_type(b, &uniform.ty);
         
         // Check if this is a sampler type (uses UniformConstant) or data type (uses Uniform with struct)
@@ -188,6 +230,8 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
         struct_uniforms,
         storage_buffers,
         glsl_ext: None,
+        loop_continue_targets: vec![],
+        loop_break_targets: vec![],
     };
 
     emit_block(&mut ctx, &shader.ast.body)?;
@@ -205,11 +249,15 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     if exec_model == ExecutionModel::Fragment {
         b.execution_mode(main_fn, ExecutionMode::OriginUpperLeft, vec![]);
     } else if exec_model == ExecutionModel::GLCompute {
-        b.execution_mode(
-            main_fn,
-            ExecutionMode::LocalSize,
-            vec![8, 8, 1],
-        );
+        if let Some([sx, sy, sz]) = local_size_spec_ids {
+            if sx != 0 && sy != 0 && sz != 0 {
+                b.execution_mode_id(main_fn, ExecutionMode::LocalSizeId, vec![sx, sy, sz]);
+            } else {
+                b.execution_mode(main_fn, ExecutionMode::LocalSize, vec![8, 8, 1]);
+            }
+        } else {
+            b.execution_mode(main_fn, ExecutionMode::LocalSize, vec![8, 8, 1]);
+        }
     }
     
     Ok(())
@@ -253,7 +301,37 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
                 }
             },
             Stmt::Expr(expr) => {
-                emit_expr(ctx, expr)?;
+                if let Expr::If { condition, then_branch, else_branch, .. } = expr {
+                    emit_if_statement(ctx, condition, then_branch, else_branch.as_deref())?;
+                } else {
+                    emit_expr(ctx, expr)?;
+                }
+            },
+            Stmt::While { condition, body, .. } => {
+                emit_while_statement(ctx, condition, body)?;
+            },
+            Stmt::For { binding, iter, body, span } => {
+                emit_for_statement(ctx, binding, iter, body, *span)?;
+            },
+            Stmt::Break(_, span) => {
+                let break_target = ctx
+                    .loop_break_targets
+                    .last()
+                    .copied()
+                    .ok_or_else(|| KainError::codegen("break outside loop", *span))?;
+                terminate_with_branch(ctx, break_target)?;
+                let cont_label = ctx.b.id();
+                ctx.b.begin_block(Some(cont_label)).unwrap();
+            },
+            Stmt::Continue(span) => {
+                let continue_target = ctx
+                    .loop_continue_targets
+                    .last()
+                    .copied()
+                    .ok_or_else(|| KainError::codegen("continue outside loop", *span))?;
+                terminate_with_branch(ctx, continue_target)?;
+                let cont_label = ctx.b.id();
+                ctx.b.begin_block(Some(cont_label)).unwrap();
             },
             _ => {} // Ignore others for now
         }
@@ -337,12 +415,27 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                     }
                 },
                 BinaryOp::Div => {
-                    if is_int(&lhs_ty) && is_int(&rhs_ty) {
+                    if is_uint(&lhs_ty) && is_uint(&rhs_ty) {
+                        ctx.b.u_div(res_ty_id, None, lhs, rhs).unwrap()
+                    } else if is_int(&lhs_ty) && is_int(&rhs_ty) {
                         ctx.b.s_div(res_ty_id, None, lhs, rhs).unwrap()
                     } else {
                         ctx.b.f_div(res_ty_id, None, lhs, rhs).unwrap()
                     }
                 },
+                BinaryOp::Mod => {
+                    if is_uint(&lhs_ty) && is_uint(&rhs_ty) {
+                        ctx.b.u_mod(res_ty_id, None, lhs, rhs).unwrap()
+                    } else if is_int(&lhs_ty) && is_int(&rhs_ty) {
+                        ctx.b.s_mod(res_ty_id, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.f_mod(res_ty_id, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::Pow => {
+                    let glsl = ctx.get_glsl_ext();
+                    ctx.b.ext_inst(res_ty_id, None, glsl, 26, vec![Operand::IdRef(lhs), Operand::IdRef(rhs)]).unwrap()
+                }
                 BinaryOp::Eq => {
                     let bool_ty = ctx.b.type_bool();
                     if is_float(&lhs_ty) && is_float(&rhs_ty) {
@@ -407,6 +500,17 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                     let bool_ty = ctx.b.type_bool();
                     ctx.b.logical_or(bool_ty, None, lhs, rhs).unwrap()
                 }
+                BinaryOp::BitAnd => ctx.b.bitwise_and(res_ty_id, None, lhs, rhs).unwrap(),
+                BinaryOp::BitOr => ctx.b.bitwise_or(res_ty_id, None, lhs, rhs).unwrap(),
+                BinaryOp::BitXor => ctx.b.bitwise_xor(res_ty_id, None, lhs, rhs).unwrap(),
+                BinaryOp::Shl => ctx.b.shift_left_logical(res_ty_id, None, lhs, rhs).unwrap(),
+                BinaryOp::Shr => {
+                    if is_uint(&lhs_ty) {
+                        ctx.b.shift_right_logical(res_ty_id, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.shift_right_arithmetic(res_ty_id, None, lhs, rhs).unwrap()
+                    }
+                }
                 _ => return Err(KainError::codegen("Unsupported binary op in shader", expr.span())),
             };
             
@@ -424,6 +528,8 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
         Expr::Call { callee, args, .. } => {
             if let Expr::Ident(name, _) = &**callee {
                 let float = ctx.b.type_float(32);
+                let int = ctx.b.type_int(32, 1);
+                let uint = ctx.b.type_int(32, 0);
                 
                 // Vector constructors
                 match name.as_str() {
@@ -457,6 +563,100 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                         let res_id = ctx.b.composite_construct(vec4, None, components).unwrap();
                         return Ok((res_id, Type::Named { name: "Vec4".into(), generics: vec![], span: expr.span() }));
                     },
+                    "uvec2" | "UVec2" if args.len() == 2 => {
+                        let uvec2 = ctx.b.type_vector(uint, 2);
+                        let mut components = vec![];
+                        for arg in args {
+                            let (val, _) = emit_expr(ctx, &arg.value)?;
+                            components.push(val);
+                        }
+                        let res_id = ctx.b.composite_construct(uvec2, None, components).unwrap();
+                        return Ok((res_id, Type::Named { name: "UVec2".into(), generics: vec![], span: expr.span() }));
+                    },
+                    "uvec3" | "UVec3" if args.len() == 3 => {
+                        let uvec3 = ctx.b.type_vector(uint, 3);
+                        let mut components = vec![];
+                        for arg in args {
+                            let (val, _) = emit_expr(ctx, &arg.value)?;
+                            components.push(val);
+                        }
+                        let res_id = ctx.b.composite_construct(uvec3, None, components).unwrap();
+                        return Ok((res_id, Type::Named { name: "UVec3".into(), generics: vec![], span: expr.span() }));
+                    },
+                    "uvec4" | "UVec4" if args.len() == 4 => {
+                        let uvec4 = ctx.b.type_vector(uint, 4);
+                        let mut components = vec![];
+                        for arg in args {
+                            let (val, _) = emit_expr(ctx, &arg.value)?;
+                            components.push(val);
+                        }
+                        let res_id = ctx.b.composite_construct(uvec4, None, components).unwrap();
+                        return Ok((res_id, Type::Named { name: "UVec4".into(), generics: vec![], span: expr.span() }));
+                    },
+                    "ivec2" | "IVec2" if args.len() == 2 => {
+                        let ivec2 = ctx.b.type_vector(int, 2);
+                        let mut components = vec![];
+                        for arg in args {
+                            let (val, _) = emit_expr(ctx, &arg.value)?;
+                            components.push(val);
+                        }
+                        let res_id = ctx.b.composite_construct(ivec2, None, components).unwrap();
+                        return Ok((res_id, Type::Named { name: "IVec2".into(), generics: vec![], span: expr.span() }));
+                    },
+                    "ivec3" | "IVec3" if args.len() == 3 => {
+                        let ivec3 = ctx.b.type_vector(int, 3);
+                        let mut components = vec![];
+                        for arg in args {
+                            let (val, _) = emit_expr(ctx, &arg.value)?;
+                            components.push(val);
+                        }
+                        let res_id = ctx.b.composite_construct(ivec3, None, components).unwrap();
+                        return Ok((res_id, Type::Named { name: "IVec3".into(), generics: vec![], span: expr.span() }));
+                    },
+                    "ivec4" | "IVec4" if args.len() == 4 => {
+                        let ivec4 = ctx.b.type_vector(int, 4);
+                        let mut components = vec![];
+                        for arg in args {
+                            let (val, _) = emit_expr(ctx, &arg.value)?;
+                            components.push(val);
+                        }
+                        let res_id = ctx.b.composite_construct(ivec4, None, components).unwrap();
+                        return Ok((res_id, Type::Named { name: "IVec4".into(), generics: vec![], span: expr.span() }));
+                    },
+
+                    // Scalar constructors/casts (Float(x), Int(x), UInt(x), Bool(x))
+                    "float" | "Float" if args.len() == 1 => {
+                        let cast_expr = Expr::Cast {
+                            value: Box::new(args[0].value.clone()),
+                            target: Type::Named { name: "Float".into(), generics: vec![], span: expr.span() },
+                            span: expr.span(),
+                        };
+                        return emit_expr(ctx, &cast_expr);
+                    }
+                    "int" | "Int" if args.len() == 1 => {
+                        let cast_expr = Expr::Cast {
+                            value: Box::new(args[0].value.clone()),
+                            target: Type::Named { name: "Int".into(), generics: vec![], span: expr.span() },
+                            span: expr.span(),
+                        };
+                        return emit_expr(ctx, &cast_expr);
+                    }
+                    "uint" | "UInt" if args.len() == 1 => {
+                        let cast_expr = Expr::Cast {
+                            value: Box::new(args[0].value.clone()),
+                            target: Type::Named { name: "UInt".into(), generics: vec![], span: expr.span() },
+                            span: expr.span(),
+                        };
+                        return emit_expr(ctx, &cast_expr);
+                    }
+                    "bool" | "Bool" if args.len() == 1 => {
+                        let cast_expr = Expr::Cast {
+                            value: Box::new(args[0].value.clone()),
+                            target: Type::Named { name: "Bool".into(), generics: vec![], span: expr.span() },
+                            span: expr.span(),
+                        };
+                        return emit_expr(ctx, &cast_expr);
+                    }
                     
                     // Math functions (GLSL extended instructions)
                     "sin" if args.len() == 1 => {
@@ -655,6 +855,71 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
             };
             Ok((bool_id, Type::Named { name: "Bool".into(), generics: vec![], span: *span }))
         }
+        Expr::Paren(inner, _) => emit_expr(ctx, inner),
+        Expr::Cast { value, target, span } => {
+            let (src_val, src_ty) = emit_expr(ctx, value)?;
+            let dst_ty = target.clone();
+            let dst_ty_id = map_ast_type(ctx.b, &dst_ty);
+
+            if is_same_type_family(&src_ty, &dst_ty) {
+                return Ok((src_val, dst_ty));
+            }
+
+            if is_bool(&dst_ty) {
+                let as_b = as_bool(ctx, src_val, &src_ty);
+                return Ok((as_b, dst_ty));
+            }
+
+            if is_bool(&src_ty) {
+                let src_b = as_bool(ctx, src_val, &src_ty);
+                let out = if is_float(&dst_ty) || is_float_vector(&dst_ty) {
+                    let one = float_one(ctx.b, &dst_ty);
+                    let zero = float_zero(ctx.b, &dst_ty);
+                    ctx.b.select(dst_ty_id, None, src_b, one, zero).unwrap()
+                } else if is_uint_like(&dst_ty) {
+                    let one = uint_one(ctx.b, &dst_ty);
+                    let zero = uint_zero(ctx.b, &dst_ty);
+                    ctx.b.select(dst_ty_id, None, src_b, one, zero).unwrap()
+                } else if is_int_like(&dst_ty) {
+                    let one = int_one(ctx.b, &dst_ty);
+                    let zero = int_zero(ctx.b, &dst_ty);
+                    ctx.b.select(dst_ty_id, None, src_b, one, zero).unwrap()
+                } else {
+                    return Err(KainError::codegen("Unsupported bool cast target in shader", *span));
+                };
+                return Ok((out, dst_ty));
+            }
+
+            let src_dim = numeric_dim(&src_ty);
+            let dst_dim = numeric_dim(&dst_ty);
+            if src_dim == 0 || dst_dim == 0 || src_dim != dst_dim {
+                return Err(KainError::codegen(
+                    "Invalid cast in shader: source/target dimensions or categories are incompatible",
+                    *span,
+                ));
+            }
+
+            let converted = if is_float_like(&src_ty) && is_int_like(&dst_ty) {
+                ctx.b.convert_f_to_s(dst_ty_id, None, src_val).unwrap()
+            } else if is_float_like(&src_ty) && is_uint_like(&dst_ty) {
+                ctx.b.convert_f_to_u(dst_ty_id, None, src_val).unwrap()
+            } else if is_int_like(&src_ty) && is_float_like(&dst_ty) {
+                ctx.b.convert_s_to_f(dst_ty_id, None, src_val).unwrap()
+            } else if is_uint_like(&src_ty) && is_float_like(&dst_ty) {
+                ctx.b.convert_u_to_f(dst_ty_id, None, src_val).unwrap()
+            } else if is_int_like(&src_ty) && is_uint_like(&dst_ty) {
+                ctx.b.bitcast(dst_ty_id, None, src_val).unwrap()
+            } else if is_uint_like(&src_ty) && is_int_like(&dst_ty) {
+                ctx.b.bitcast(dst_ty_id, None, src_val).unwrap()
+            } else if is_int_like(&src_ty) && is_int_like(&dst_ty) {
+                ctx.b.s_convert(dst_ty_id, None, src_val).unwrap()
+            } else if is_uint_like(&src_ty) && is_uint_like(&dst_ty) {
+                ctx.b.u_convert(dst_ty_id, None, src_val).unwrap()
+            } else {
+                return Err(KainError::codegen("Unsupported numeric cast in shader", *span));
+            };
+            Ok((converted, dst_ty))
+        }
         Expr::Assign { target, value, .. } => {
             let (next_val, next_ty) = emit_expr(ctx, value)?;
             match target.as_ref() {
@@ -707,69 +972,388 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
         }
         Expr::Field { object, field, span } => {
             let (obj_id, obj_ty) = emit_expr(ctx, object)?;
-            
-            // Swizzle/component access
-            let scalar_ty = vector_scalar_type(ctx, &obj_ty);
-            let scalar_spv = map_ast_type(ctx.b, &scalar_ty);
-            match field.as_str() {
-                // Single component access
-                "x" | "r" => {
-                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![0]).unwrap();
-                    Ok((res_id, scalar_ty))
-                },
-                "y" | "g" => {
-                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![1]).unwrap();
-                    Ok((res_id, scalar_ty))
-                },
-                "z" | "b" => {
-                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![2]).unwrap();
-                    Ok((res_id, scalar_ty))
-                },
-                "w" | "a" => {
-                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![3]).unwrap();
-                    Ok((res_id, scalar_ty))
-                },
-                // Vec2 swizzles
-                "xy" | "rg" => {
-                    let vec2 = ctx.b.type_vector(scalar_spv, 2);
-                    let res_id = ctx.b.vector_shuffle(vec2, None, obj_id, obj_id, vec![0, 1]).unwrap();
-                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 2, *span)))
-                },
-                "xz" | "rb" => {
-                    let vec2 = ctx.b.type_vector(scalar_spv, 2);
-                    let res_id = ctx.b.vector_shuffle(vec2, None, obj_id, obj_id, vec![0, 2]).unwrap();
-                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 2, *span)))
-                },
-                "yz" | "gb" => {
-                    let vec2 = ctx.b.type_vector(scalar_spv, 2);
-                    let res_id = ctx.b.vector_shuffle(vec2, None, obj_id, obj_id, vec![1, 2]).unwrap();
-                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 2, *span)))
-                },
-                // Vec3 swizzles
-                "xyz" | "rgb" => {
-                    let vec3 = ctx.b.type_vector(scalar_spv, 3);
-                    let res_id = ctx.b.vector_shuffle(vec3, None, obj_id, obj_id, vec![0, 1, 2]).unwrap();
-                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 3, *span)))
-                },
-                _ => Err(KainError::codegen(format!("Unsupported field access: {}", field), *span))
+            if let Some(indices) = swizzle_indices(field) {
+                let scalar_ty = vector_scalar_type(ctx, &obj_ty);
+                let scalar_spv = map_ast_type(ctx.b, &scalar_ty);
+                if indices.len() == 1 {
+                    let res_id = ctx
+                        .b
+                        .composite_extract(scalar_spv, None, obj_id, vec![indices[0]])
+                        .unwrap();
+                    return Ok((res_id, scalar_ty));
+                }
+                let swizzle_len = indices.len();
+                let out_vec = ctx.b.type_vector(scalar_spv, swizzle_len as u32);
+                let res_id = ctx
+                    .b
+                    .vector_shuffle(out_vec, None, obj_id, obj_id, indices)
+                    .unwrap();
+                return Ok((res_id, vec_type_from_scalar(&scalar_ty, swizzle_len, *span)));
             }
+            Err(KainError::codegen(format!("Unsupported field access: {}", field), *span))
         },
-        _ => Err(KainError::codegen("Unsupported expression in shader", expr.span())),
+        Expr::Unary { op, operand, .. } => {
+            let (val, ty) = emit_expr(ctx, operand)?;
+            let ty_id = map_ast_type(ctx.b, &ty);
+            let out = match op {
+                UnaryOp::Neg => {
+                    if is_float(&ty) {
+                        ctx.b.f_negate(ty_id, None, val).unwrap()
+                    } else {
+                        ctx.b.s_negate(ty_id, None, val).unwrap()
+                    }
+                }
+                UnaryOp::Not => {
+                    let bool_ty = ctx.b.type_bool();
+                    let b = as_bool(ctx, val, &ty);
+                    return Ok((ctx.b.logical_not(bool_ty, None, b).unwrap(), Type::Named { name: "Bool".into(), generics: vec![], span: expr.span() }));
+                }
+                UnaryOp::BitNot => ctx.b.not(ty_id, None, val).unwrap(),
+                UnaryOp::Ref | UnaryOp::RefMut | UnaryOp::Deref => val,
+            };
+            Ok((out, ty))
+        }
+        Expr::MethodCall { receiver, method, args, span } => {
+            let (recv_val, recv_ty) = emit_expr(ctx, receiver)?;
+            let float = ctx.b.type_float(32);
+            match method.as_str() {
+                "length" if args.is_empty() => {
+                    let glsl = ctx.get_glsl_ext();
+                    let id = ctx.b.ext_inst(float, None, glsl, 66, vec![Operand::IdRef(recv_val)]).unwrap();
+                    Ok((id, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
+                }
+                "normalize" if args.is_empty() => {
+                    let res_ty = map_ast_type(ctx.b, &recv_ty);
+                    let glsl = ctx.get_glsl_ext();
+                    let id = ctx.b.ext_inst(res_ty, None, glsl, 69, vec![Operand::IdRef(recv_val)]).unwrap();
+                    Ok((id, recv_ty))
+                }
+                "dot" if args.len() == 1 => {
+                    let (rhs, _) = emit_expr(ctx, &args[0].value)?;
+                    let id = ctx.b.dot(float, None, recv_val, rhs).unwrap();
+                    Ok((id, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
+                }
+                "cross" if args.len() == 1 => {
+                    let (rhs, _) = emit_expr(ctx, &args[0].value)?;
+                    let res_ty = map_ast_type(ctx.b, &recv_ty);
+                    let glsl = ctx.get_glsl_ext();
+                    let id = ctx.b.ext_inst(res_ty, None, glsl, 68, vec![Operand::IdRef(recv_val), Operand::IdRef(rhs)]).unwrap();
+                    Ok((id, recv_ty))
+                }
+                "reflect" if args.len() == 1 => {
+                    let (rhs, _) = emit_expr(ctx, &args[0].value)?;
+                    let res_ty = map_ast_type(ctx.b, &recv_ty);
+                    let glsl = ctx.get_glsl_ext();
+                    let id = ctx.b.ext_inst(res_ty, None, glsl, 71, vec![Operand::IdRef(recv_val), Operand::IdRef(rhs)]).unwrap();
+                    Ok((id, recv_ty))
+                }
+                _ => Err(KainError::codegen(format!("Unsupported method call in shader: {}", method), *span)),
+            }
+        }
+        Expr::If { condition, then_branch, else_branch, span } => {
+            let (cond_raw, cond_ty) = emit_expr(ctx, condition)?;
+            let cond = as_bool(ctx, cond_raw, &cond_ty);
+
+            let then_expr = single_expr_from_block(then_branch, *span)?;
+            let (then_val, then_ty) = emit_expr(ctx, then_expr)?;
+
+            let else_expr = match else_branch.as_deref() {
+                Some(ElseBranch::Else(block)) => single_expr_from_block(block, *span)?,
+                Some(ElseBranch::ElseIf(_, _, _)) => {
+                    return Err(KainError::codegen(
+                        "Else-if expression chains are not yet supported in SPIR-V value expressions",
+                        *span,
+                    ));
+                }
+                None => {
+                    return Err(KainError::codegen(
+                        "If expression requires an else branch in SPIR-V backend",
+                        *span,
+                    ));
+                }
+            };
+            let (else_val, else_ty) = emit_expr(ctx, else_expr)?;
+            if std::mem::discriminant(&then_ty) != std::mem::discriminant(&else_ty) {
+                return Err(KainError::codegen(
+                    "If expression branches must return compatible types",
+                    *span,
+                ));
+            }
+            let res_ty = map_ast_type(ctx.b, &then_ty);
+            let selected = ctx.b.select(res_ty, None, cond, then_val, else_val).unwrap();
+            Ok((selected, then_ty))
+        }
+        _ => Err(KainError::codegen(
+            format!("Unsupported expression in shader: {}", expr_kind_name(expr)),
+            expr.span(),
+        )),
     }
+}
+
+fn expr_kind_name(expr: &Expr) -> &'static str {
+    match expr {
+        Expr::Int(..) => "Int",
+        Expr::Float(..) => "Float",
+        Expr::Bool(..) => "Bool",
+        Expr::None(..) => "None",
+        Expr::String(..) => "String",
+        Expr::FString(..) => "FString",
+        Expr::Ident(..) => "Ident",
+        Expr::MacroCall { .. } => "MacroCall",
+        Expr::Binary { .. } => "Binary",
+        Expr::Unary { .. } => "Unary",
+        Expr::Call { .. } => "Call",
+        Expr::MethodCall { .. } => "MethodCall",
+        Expr::Field { .. } => "Field",
+        Expr::Index { .. } => "Index",
+        Expr::Assign { .. } => "Assign",
+        Expr::Struct { .. } => "Struct",
+        Expr::AggregateInit { .. } => "AggregateInit",
+        Expr::EnumVariant { .. } => "EnumVariant",
+        Expr::Tuple(..) => "Tuple",
+        Expr::Array(..) => "Array",
+        Expr::Range { .. } => "Range",
+        Expr::If { .. } => "If",
+        Expr::Match { .. } => "Match",
+        Expr::Lambda { .. } => "Lambda",
+        Expr::Ref { .. } => "Ref",
+        Expr::AddrOf { .. } => "AddrOf",
+        Expr::Deref(..) => "Deref",
+        Expr::PtrOffset { .. } => "PtrOffset",
+        Expr::MemLoad { .. } => "MemLoad",
+        Expr::MemStore { .. } => "MemStore",
+        Expr::SizeOfType { .. } => "SizeOfType",
+        Expr::AlignOfType { .. } => "AlignOfType",
+        Expr::Alloca { .. } => "Alloca",
+        Expr::Uninit { .. } => "Uninit",
+        Expr::Alloc { .. } => "Alloc",
+        Expr::Realloc { .. } => "Realloc",
+        Expr::Cast { .. } => "Cast",
+        Expr::Try(..) => "Try",
+        Expr::Await(..) => "Await",
+        Expr::Spawn { .. } => "Spawn",
+        Expr::SendMsg { .. } => "SendMsg",
+        Expr::Comptime(..) => "Comptime",
+        Expr::Block(..) => "Block",
+        Expr::JSX(..) => "JSX",
+        Expr::Paren(..) => "Paren",
+        Expr::Return(..) => "Return",
+        Expr::Break(..) => "Break",
+        Expr::Continue(..) => "Continue",
+    }
+}
+
+fn single_expr_from_block<'a>(block: &'a Block, span: kain_core::span::Span) -> KainResult<&'a Expr> {
+    if block.stmts.len() != 1 {
+        return Err(KainError::codegen("Expected single-expression block", span));
+    }
+    match &block.stmts[0] {
+        Stmt::Expr(expr) => Ok(expr),
+        _ => Err(KainError::codegen("Expected expression statement in block", span)),
+    }
+}
+
+fn as_bool(ctx: &mut ShaderContext, value: u32, ty: &Type) -> u32 {
+    if matches!(ty, Type::Named { name, .. } if name == "Bool") {
+        return value;
+    }
+    let bool_ty = ctx.b.type_bool();
+    if is_uint(ty) {
+        let uint_ty = map_ast_type(ctx.b, ty);
+        let zero = ctx.b.constant_bit32(uint_ty, 0);
+        return ctx.b.i_not_equal(bool_ty, None, value, zero).unwrap();
+    }
+    if is_int(ty) {
+        let int_ty = map_ast_type(ctx.b, ty);
+        let zero = ctx.b.constant_bit32(int_ty, 0);
+        return ctx.b.i_not_equal(bool_ty, None, value, zero).unwrap();
+    }
+    let float_ty = ctx.b.type_float(32);
+    let zero = ctx.b.constant_bit32(float_ty, 0f32.to_bits());
+    ctx.b.f_ord_not_equal(bool_ty, None, value, zero).unwrap()
+}
+
+fn terminate_with_branch(ctx: &mut ShaderContext, target: u32) -> KainResult<()> {
+    if ctx.b.selected_block().is_some() {
+        ctx.b.branch(target).unwrap();
+    }
+    Ok(())
+}
+
+fn emit_if_statement(
+    ctx: &mut ShaderContext,
+    condition: &Expr,
+    then_branch: &Block,
+    else_branch: Option<&ElseBranch>,
+) -> KainResult<()> {
+    let (cond_raw, cond_ty) = emit_expr(ctx, condition)?;
+    let cond = as_bool(ctx, cond_raw, &cond_ty);
+
+    let then_label = ctx.b.id();
+    let else_label = ctx.b.id();
+    let merge_label = ctx.b.id();
+    ctx.b.selection_merge(merge_label, rspirv::spirv::SelectionControl::NONE).unwrap();
+    ctx.b.branch_conditional(cond, then_label, else_label, std::iter::empty::<u32>()).unwrap();
+
+    ctx.b.begin_block(Some(then_label)).unwrap();
+    emit_block(ctx, then_branch)?;
+    terminate_with_branch(ctx, merge_label)?;
+
+    ctx.b.begin_block(Some(else_label)).unwrap();
+    if let Some(else_branch) = else_branch {
+        emit_else_branch(ctx, else_branch)?;
+    }
+    terminate_with_branch(ctx, merge_label)?;
+
+    ctx.b.begin_block(Some(merge_label)).unwrap();
+    Ok(())
+}
+
+fn emit_else_branch(ctx: &mut ShaderContext, else_branch: &ElseBranch) -> KainResult<()> {
+    match else_branch {
+        ElseBranch::Else(block) => emit_block(ctx, block),
+        ElseBranch::ElseIf(cond, then_block, nested) => {
+            emit_if_statement(ctx, cond, then_block, nested.as_deref())
+        }
+    }
+}
+
+fn emit_while_statement(ctx: &mut ShaderContext, condition: &Expr, body: &Block) -> KainResult<()> {
+    let header_label = ctx.b.id();
+    let loop_body_label = ctx.b.id();
+    let continue_label = ctx.b.id();
+    let merge_label = ctx.b.id();
+
+    terminate_with_branch(ctx, header_label)?;
+
+    ctx.b.begin_block(Some(header_label)).unwrap();
+    ctx.b.loop_merge(merge_label, continue_label, rspirv::spirv::LoopControl::NONE, std::iter::empty()).unwrap();
+    let (cond_raw, cond_ty) = emit_expr(ctx, condition)?;
+    let cond = as_bool(ctx, cond_raw, &cond_ty);
+    ctx.b.branch_conditional(cond, loop_body_label, merge_label, std::iter::empty::<u32>()).unwrap();
+
+    ctx.loop_continue_targets.push(continue_label);
+    ctx.loop_break_targets.push(merge_label);
+
+    ctx.b.begin_block(Some(loop_body_label)).unwrap();
+    emit_block(ctx, body)?;
+    terminate_with_branch(ctx, continue_label)?;
+
+    ctx.loop_continue_targets.pop();
+    ctx.loop_break_targets.pop();
+
+    ctx.b.begin_block(Some(continue_label)).unwrap();
+    terminate_with_branch(ctx, header_label)?;
+
+    ctx.b.begin_block(Some(merge_label)).unwrap();
+    Ok(())
+}
+
+fn emit_for_statement(
+    ctx: &mut ShaderContext,
+    binding: &Pattern,
+    iter: &Expr,
+    body: &Block,
+    span: kain_core::span::Span,
+) -> KainResult<()> {
+    let (name, bind_span) = match binding {
+        Pattern::Binding { name, span, .. } => (name.clone(), *span),
+        _ => return Err(KainError::codegen("for loop requires binding pattern", span)),
+    };
+
+    let (start_expr, end_expr, inclusive) = match iter {
+        Expr::Range { start, end, inclusive, .. } => (start.as_deref(), end.as_deref(), *inclusive),
+        _ => return Err(KainError::codegen("SPIR-V for loops currently require range iteration", span)),
+    };
+    let end_expr = end_expr.ok_or_else(|| KainError::codegen("for range requires an end bound", span))?;
+
+    let int_ty_ast = Type::Named { name: "Int".into(), generics: vec![], span: bind_span };
+    let int_ty = map_ast_type(ctx.b, &int_ty_ast);
+    let int_ptr_ty = ctx.b.type_pointer(None, StorageClass::Function, int_ty);
+
+    let loop_var = ctx.b.variable(int_ptr_ty, None, StorageClass::Function, None);
+    let init_val = if let Some(start_expr) = start_expr {
+        let (v, _) = emit_expr(ctx, start_expr)?;
+        v
+    } else {
+        ctx.b.constant_bit32(int_ty, 0)
+    };
+    ctx.b.store(loop_var, init_val, None, std::iter::empty()).unwrap();
+
+    let range_end_var = ctx.b.variable(int_ptr_ty, None, StorageClass::Function, None);
+    let (end_val, _) = emit_expr(ctx, end_expr)?;
+    ctx.b.store(range_end_var, end_val, None, std::iter::empty()).unwrap();
+
+    let previous = ctx.vars.insert(
+        name.clone(),
+        VarBinding {
+            id: loop_var,
+            ty: int_ty_ast.clone(),
+            is_ptr: true,
+        },
+    );
+
+    let header_label = ctx.b.id();
+    let loop_body_label = ctx.b.id();
+    let continue_label = ctx.b.id();
+    let merge_label = ctx.b.id();
+
+    terminate_with_branch(ctx, header_label)?;
+    ctx.b.begin_block(Some(header_label)).unwrap();
+    ctx.b.loop_merge(merge_label, continue_label, rspirv::spirv::LoopControl::NONE, std::iter::empty()).unwrap();
+
+    let i_val = ctx.b.load(int_ty, None, loop_var, None, std::iter::empty()).unwrap();
+    let end_loaded = ctx.b.load(int_ty, None, range_end_var, None, std::iter::empty()).unwrap();
+    let bool_ty = ctx.b.type_bool();
+    let cond = if inclusive {
+        ctx.b.s_less_than_equal(bool_ty, None, i_val, end_loaded).unwrap()
+    } else {
+        ctx.b.s_less_than(bool_ty, None, i_val, end_loaded).unwrap()
+    };
+    ctx.b.branch_conditional(cond, loop_body_label, merge_label, std::iter::empty::<u32>()).unwrap();
+
+    ctx.loop_continue_targets.push(continue_label);
+    ctx.loop_break_targets.push(merge_label);
+
+    ctx.b.begin_block(Some(loop_body_label)).unwrap();
+    emit_block(ctx, body)?;
+    terminate_with_branch(ctx, continue_label)?;
+
+    ctx.loop_continue_targets.pop();
+    ctx.loop_break_targets.pop();
+
+    ctx.b.begin_block(Some(continue_label)).unwrap();
+    let cur_i = ctx.b.load(int_ty, None, loop_var, None, std::iter::empty()).unwrap();
+    let one = ctx.b.constant_bit32(int_ty, 1);
+    let next_i = ctx.b.i_add(int_ty, None, cur_i, one).unwrap();
+    ctx.b.store(loop_var, next_i, None, std::iter::empty()).unwrap();
+    terminate_with_branch(ctx, header_label)?;
+
+    ctx.b.begin_block(Some(merge_label)).unwrap();
+    if let Some(prev) = previous {
+        ctx.vars.insert(name, prev);
+    } else {
+        ctx.vars.remove(&name);
+    }
+    Ok(())
 }
 
 fn map_ast_type(b: &mut Builder, ty: &Type) -> u32 {
     let float = b.type_float(32);
+    let int = b.type_int(32, 1);
     let uint = b.type_int(32, 0);
     match ty {
         Type::Named { name, generics, .. } => match name.as_str() {
             "Float" | "f32" => float,
-            "Int" | "i32" => b.type_int(32, 1),
+            "Int" | "i32" => int,
             "UInt" | "u32" => uint,
             "Bool" => b.type_bool(),
             "Vec2" => b.type_vector(float, 2),
             "Vec3" => b.type_vector(float, 3),
             "Vec4" => b.type_vector(float, 4),
+            "IVec2" => b.type_vector(int, 2),
+            "IVec3" => b.type_vector(int, 3),
+            "IVec4" => b.type_vector(int, 4),
             "UVec2" => b.type_vector(uint, 2),
             "UVec3" => b.type_vector(uint, 3),
             "UVec4" => b.type_vector(uint, 4),
@@ -821,16 +1405,252 @@ fn is_float(ty: &Type) -> bool {
     matches!(ty, Type::Named { name, .. } if name == "Float" || name == "f32")
 }
 
+fn is_bool(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if name == "Bool")
+}
+
 fn is_uint(ty: &Type) -> bool {
     matches!(ty, Type::Named { name, .. } if name == "UInt" || name == "u32")
 }
 
 fn is_int(ty: &Type) -> bool {
-    matches!(ty, Type::Named { name, .. } if name == "Int" || name == "i32" || name == "UInt" || name == "u32")
+    matches!(ty, Type::Named { name, .. } if name == "Int" || name == "i32")
+}
+
+fn type_name(ty: &Type) -> Option<&str> {
+    if let Type::Named { name, .. } = ty {
+        Some(name.as_str())
+    } else {
+        None
+    }
+}
+
+fn numeric_dim(ty: &Type) -> usize {
+    match type_name(ty) {
+        Some("Float") | Some("f32")
+        | Some("Int") | Some("i32")
+        | Some("UInt") | Some("u32")
+        | Some("Bool") => 1,
+        Some("Vec2") | Some("IVec2") | Some("UVec2") => 2,
+        Some("Vec3") | Some("IVec3") | Some("UVec3") => 3,
+        Some("Vec4") | Some("IVec4") | Some("UVec4") => 4,
+        _ => 0,
+    }
+}
+
+fn is_float_vector(ty: &Type) -> bool {
+    matches!(type_name(ty), Some("Vec2" | "Vec3" | "Vec4"))
+}
+
+fn is_int_vector(ty: &Type) -> bool {
+    matches!(type_name(ty), Some("IVec2" | "IVec3" | "IVec4"))
+}
+
+fn is_uint_vector(ty: &Type) -> bool {
+    matches!(type_name(ty), Some("UVec2" | "UVec3" | "UVec4"))
+}
+
+fn is_float_like(ty: &Type) -> bool {
+    is_float(ty) || is_float_vector(ty)
+}
+
+fn is_int_like(ty: &Type) -> bool {
+    is_int(ty) || is_int_vector(ty)
+}
+
+fn is_uint_like(ty: &Type) -> bool {
+    is_uint(ty) || is_uint_vector(ty)
+}
+
+fn is_same_type_family(a: &Type, b: &Type) -> bool {
+    type_name(a) == type_name(b)
+}
+
+fn float_zero(b: &mut Builder, ty: &Type) -> u32 {
+    let float = b.type_float(32);
+    match numeric_dim(ty) {
+        2 => {
+            let vec = b.type_vector(float, 2);
+            let z = b.constant_bit32(float, 0.0f32.to_bits());
+            b.constant_composite(vec, vec![z, z])
+        }
+        3 => {
+            let vec = b.type_vector(float, 3);
+            let z = b.constant_bit32(float, 0.0f32.to_bits());
+            b.constant_composite(vec, vec![z, z, z])
+        }
+        4 => {
+            let vec = b.type_vector(float, 4);
+            let z = b.constant_bit32(float, 0.0f32.to_bits());
+            b.constant_composite(vec, vec![z, z, z, z])
+        }
+        _ => b.constant_bit32(float, 0.0f32.to_bits()),
+    }
+}
+
+fn float_one(b: &mut Builder, ty: &Type) -> u32 {
+    let float = b.type_float(32);
+    match numeric_dim(ty) {
+        2 => {
+            let vec = b.type_vector(float, 2);
+            let o = b.constant_bit32(float, 1.0f32.to_bits());
+            b.constant_composite(vec, vec![o, o])
+        }
+        3 => {
+            let vec = b.type_vector(float, 3);
+            let o = b.constant_bit32(float, 1.0f32.to_bits());
+            b.constant_composite(vec, vec![o, o, o])
+        }
+        4 => {
+            let vec = b.type_vector(float, 4);
+            let o = b.constant_bit32(float, 1.0f32.to_bits());
+            b.constant_composite(vec, vec![o, o, o, o])
+        }
+        _ => b.constant_bit32(float, 1.0f32.to_bits()),
+    }
+}
+
+fn int_zero(b: &mut Builder, ty: &Type) -> u32 {
+    let int = b.type_int(32, 1);
+    match numeric_dim(ty) {
+        2 => {
+            let vec = b.type_vector(int, 2);
+            let z = b.constant_bit32(int, 0);
+            b.constant_composite(vec, vec![z, z])
+        }
+        3 => {
+            let vec = b.type_vector(int, 3);
+            let z = b.constant_bit32(int, 0);
+            b.constant_composite(vec, vec![z, z, z])
+        }
+        4 => {
+            let vec = b.type_vector(int, 4);
+            let z = b.constant_bit32(int, 0);
+            b.constant_composite(vec, vec![z, z, z, z])
+        }
+        _ => b.constant_bit32(int, 0),
+    }
+}
+
+fn int_one(b: &mut Builder, ty: &Type) -> u32 {
+    let int = b.type_int(32, 1);
+    match numeric_dim(ty) {
+        2 => {
+            let vec = b.type_vector(int, 2);
+            let o = b.constant_bit32(int, 1);
+            b.constant_composite(vec, vec![o, o])
+        }
+        3 => {
+            let vec = b.type_vector(int, 3);
+            let o = b.constant_bit32(int, 1);
+            b.constant_composite(vec, vec![o, o, o])
+        }
+        4 => {
+            let vec = b.type_vector(int, 4);
+            let o = b.constant_bit32(int, 1);
+            b.constant_composite(vec, vec![o, o, o, o])
+        }
+        _ => b.constant_bit32(int, 1),
+    }
+}
+
+fn uint_zero(b: &mut Builder, ty: &Type) -> u32 {
+    let uint = b.type_int(32, 0);
+    match numeric_dim(ty) {
+        2 => {
+            let vec = b.type_vector(uint, 2);
+            let z = b.constant_bit32(uint, 0);
+            b.constant_composite(vec, vec![z, z])
+        }
+        3 => {
+            let vec = b.type_vector(uint, 3);
+            let z = b.constant_bit32(uint, 0);
+            b.constant_composite(vec, vec![z, z, z])
+        }
+        4 => {
+            let vec = b.type_vector(uint, 4);
+            let z = b.constant_bit32(uint, 0);
+            b.constant_composite(vec, vec![z, z, z, z])
+        }
+        _ => b.constant_bit32(uint, 0),
+    }
+}
+
+fn uint_one(b: &mut Builder, ty: &Type) -> u32 {
+    let uint = b.type_int(32, 0);
+    match numeric_dim(ty) {
+        2 => {
+            let vec = b.type_vector(uint, 2);
+            let o = b.constant_bit32(uint, 1);
+            b.constant_composite(vec, vec![o, o])
+        }
+        3 => {
+            let vec = b.type_vector(uint, 3);
+            let o = b.constant_bit32(uint, 1);
+            b.constant_composite(vec, vec![o, o, o])
+        }
+        4 => {
+            let vec = b.type_vector(uint, 4);
+            let o = b.constant_bit32(uint, 1);
+            b.constant_composite(vec, vec![o, o, o, o])
+        }
+        _ => b.constant_bit32(uint, 1),
+    }
 }
 
 fn is_storage_buffer(ty: &Type) -> bool {
     matches!(ty, Type::Named { name, .. } if name == "StorageBuffer")
+}
+
+fn is_local_size_param(name: &str) -> bool {
+    matches!(name, "LOCAL_SIZE_X" | "LOCAL_SIZE_Y" | "LOCAL_SIZE_Z")
+}
+
+fn is_permutation_param(name: &str) -> bool {
+    if name.starts_with("CFG_")
+        || name.starts_with("ENABLE_")
+        || name.starts_with("USE_")
+        || name.starts_with("WITH_")
+        || name.starts_with("HAS_")
+        || name.starts_with("ALLOW_")
+        || name.starts_with("SUPPORT_")
+    {
+        return true;
+    }
+    name.len() >= 4
+        && name.contains('_')
+        && name.chars().all(|c| c.is_uppercase() || c == '_' || c.is_ascii_digit())
+}
+
+fn emit_permutation_spec_constant(b: &mut Builder, ty: &Type, spec_id: u32) -> Option<u32> {
+    let id = match ty {
+        Type::Named { name, .. } if name == "Bool" => {
+            let bool_ty = b.type_bool();
+            b.spec_constant_false(bool_ty)
+        }
+        Type::Named { name, .. } if name == "UInt" || name == "u32" => {
+            let uint_ty = b.type_int(32, 0);
+            b.spec_constant_bit32(uint_ty, 0)
+        }
+        Type::Named { name, .. } if name == "Int" || name == "i32" => {
+            let int_ty = b.type_int(32, 1);
+            b.spec_constant_bit32(int_ty, 0)
+        }
+        Type::Named { name, .. } if name == "Float" || name == "f32" => {
+            let float_ty = b.type_float(32);
+            b.spec_constant_bit32(float_ty, 0f32.to_bits())
+        }
+        _ => return None,
+    };
+    b.decorate(id, Decoration::SpecId, vec![Operand::LiteralBit32(spec_id)]);
+    Some(id)
+}
+
+fn emit_u32_spec_constant(b: &mut Builder, value: u32, spec_id: u32) -> u32 {
+    let uint_ty = b.type_int(32, 0);
+    let id = b.spec_constant_bit32(uint_ty, value);
+    b.decorate(id, Decoration::SpecId, vec![Operand::LiteralBit32(spec_id)]);
+    id
 }
 
 fn storage_buffer_elem_type(buffer_ty: &Type, span: kain_core::span::Span) -> Type {
@@ -882,6 +1702,24 @@ fn vec_type_from_scalar(scalar_ty: &Type, width: usize, span: kain_core::span::S
         }
     };
     Type::Named { name: name.into(), generics: vec![], span }
+}
+
+fn swizzle_indices(field: &str) -> Option<Vec<u32>> {
+    if field.is_empty() || field.len() > 4 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(field.len());
+    for ch in field.chars() {
+        let idx = match ch {
+            'x' | 'r' => 0,
+            'y' | 'g' => 1,
+            'z' | 'b' => 2,
+            'w' | 'a' => 3,
+            _ => return None,
+        };
+        out.push(idx);
+    }
+    Some(out)
 }
 
 fn emit_index_lvalue_ptr(

@@ -16,6 +16,7 @@ use cli::packager;
 use cli::lsp;
 use cli::import_asm;
 use cli::import_c;
+use cli::import_rust;
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -188,6 +189,40 @@ enum Commands {
         /// Preprocessor defines (-D flags)
         #[arg(short = 'D', long)]
         defines: Vec<String>,
+
+        /// Flatten all imported symbols into one global scope (disables per-file modules)
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write import failure/report JSON (defaults automatically for directory imports with failures)
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+    },
+
+    /// Import Rust source code into KAIN (Project Ouroboros)
+    ImportRust {
+        /// Input Rust source file or directory
+        input: PathBuf,
+
+        /// Output .kn file (optional - if omitted, only compiles if --target specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Compilation target (optional - compile directly without writing .kn)
+        #[arg(short, long)]
+        target: Option<String>,
 
         /// Flatten all imported symbols into one global scope (disables per-file modules)
         #[arg(long)]
@@ -753,7 +788,41 @@ fn main() {
                         // Success message already printed by import_c
                     }
                     Err(e) => {
-                        eprintln!(" import-c failed: {}", e);
+                        eprintln!("❌ import-c failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Some(Commands::ImportRust {
+                input,
+                output,
+                target,
+                flat,
+                include_filters,
+                exclude_filters,
+                fail_fast,
+                report_json,
+            }) => {
+                let batch = import_rust::ImportRustBatchOptions {
+                    recursive: true,
+                    flat,
+                    include_filters,
+                    exclude_filters,
+                    fail_fast,
+                    report_json,
+                };
+
+                match import_rust::import_rust_with_batch(
+                    &input,
+                    output.as_deref(),
+                    target.as_deref(),
+                    &batch,
+                ) {
+                    Ok(_) => {
+                        // Success message already printed by import_rust
+                    }
+                    Err(e) => {
+                        eprintln!("❌ import-rust failed: {}", e);
                         std::process::exit(1);
                     }
                 }

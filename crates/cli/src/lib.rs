@@ -11,6 +11,7 @@ pub mod lsp;
 pub mod packager;
 pub mod import_asm;
 pub mod import_c;
+pub mod import_rust;
 
 // Backend imports
 #[cfg(feature = "ue5")]
