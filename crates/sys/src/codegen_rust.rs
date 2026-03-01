@@ -4,6 +4,7 @@
 //! The generated Rust can be compiled with `rustc` directly or integrated
 //! into a Cargo project.
 
+use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use kain_core::types::{TypedProgram, TypedItem};
 use kain_core::error::KainResult;
 use kain_core::ast::{
@@ -15,8 +16,9 @@ use kain_core::span::Span;
 
 /// Generate Rust source code from a typed program
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Rust)?;
     let mut gen = RustGen::new();
-    Ok(gen.gen_program(program))
+    Ok(gen.gen_program(&lowered))
 }
 
 // StringBuilder helper for accumulated output
@@ -95,6 +97,10 @@ impl RustGen {
         self.write_line("use std::collections::HashMap;");
         self.write_line("use std::rc::Rc;");
         self.write_line("use std::cell::RefCell;");
+        self.write_line("use std::cmp::min;");
+        self.write_line("use std::mem::size_of;");
+        self.write_blank();
+        self.write_low_level_memory_helpers();
         self.write_blank();
 
         // Generate each item
@@ -104,6 +110,82 @@ impl RustGen {
         }
 
         self.output.build()
+    }
+
+    fn write_low_level_memory_helpers(&mut self) {
+        self.write_line("fn __kain_union_wrap<TObject: Copy, TValue: Copy>(mut value: TObject, _active: &str, _type_key: &str, byte_size: i64, union_size: i64, active_value: TValue) -> TObject {");
+        self.push_indent();
+        self.write_line("let zero_span = min(union_size.max(0) as usize, size_of::<TObject>());");
+        self.write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));");
+        self.write_line("unsafe {");
+        self.push_indent();
+        self.write_line("std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);");
+        self.write_line("if copy_span > 0 { std::ptr::copy_nonoverlapping((&active_value as *const TValue).cast::<u8>(), (&mut value as *mut TObject).cast::<u8>(), copy_span); }");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("value");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_union_get<TObject: Copy, TValue: Copy>(value: TObject, _field: &str, _type_key: &str, byte_size: i64, union_size: i64, fallback: TValue) -> TValue {");
+        self.push_indent();
+        self.write_line("let mut result = fallback;");
+        self.write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));");
+        self.write_line("unsafe { if copy_span > 0 { std::ptr::copy_nonoverlapping((&value as *const TObject).cast::<u8>(), (&mut result as *mut TValue).cast::<u8>(), copy_span); } }");
+        self.write_line("result");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_union_set<TObject: Copy, TValue: Copy>(mut value: TObject, _field: &str, _type_key: &str, byte_size: i64, union_size: i64, next: TValue) -> TValue {");
+        self.push_indent();
+        self.write_line("let zero_span = min(union_size.max(0) as usize, size_of::<TObject>());");
+        self.write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));");
+        self.write_line("unsafe {");
+        self.push_indent();
+        self.write_line("std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);");
+        self.write_line("if copy_span > 0 { std::ptr::copy_nonoverlapping((&next as *const TValue).cast::<u8>(), (&mut value as *mut TObject).cast::<u8>(), copy_span); }");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("next");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_load_bitfield_unit<T: Copy>(value: &T, unit_offset: i64) -> u64 {");
+        self.push_indent();
+        self.write_line("if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return 0; }");
+        self.write_line("let mut unit = 0u64;");
+        self.write_line("let available = min(8usize, size_of::<T>() - unit_offset as usize);");
+        self.write_line("unsafe { std::ptr::copy_nonoverlapping((value as *const T).cast::<u8>().add(unit_offset as usize), (&mut unit as *mut u64).cast::<u8>(), available); }");
+        self.write_line("unit");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_store_bitfield_unit<T: Copy>(value: &mut T, unit_offset: i64, unit: u64) {");
+        self.push_indent();
+        self.write_line("if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return; }");
+        self.write_line("let available = min(8usize, size_of::<T>() - unit_offset as usize);");
+        self.write_line("unsafe { std::ptr::copy_nonoverlapping((&unit as *const u64).cast::<u8>(), (value as *mut T).cast::<u8>().add(unit_offset as usize), available); }");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_bitfield_mask(width: i64) -> u64 { if width <= 0 { 0 } else if width >= 64 { u64::MAX } else { (1u64 << width) - 1 } }");
+        self.write_line("fn __kain_sign_extend(value: u64, width: i64) -> i64 { if width <= 0 { 0 } else if width >= 64 { value as i64 } else { let sign_bit = 1u64 << (width - 1); if (value & sign_bit) == 0 { value as i64 } else { (value | !__kain_bitfield_mask(width)) as i64 } } }");
+        self.write_line("fn __kain_bitfield_get<T: Copy>(value: T, _field: &str, unit_offset: i64, bit_offset: i64, width: i64, is_signed: bool, _promoted_bits: i64) -> i64 {");
+        self.push_indent();
+        self.write_line("let mask = __kain_bitfield_mask(width);");
+        self.write_line("let unit = __kain_load_bitfield_unit(&value, unit_offset);");
+        self.write_line("let shifted = if bit_offset <= 0 { unit } else { unit >> bit_offset };");
+        self.write_line("let encoded = shifted & mask;");
+        self.write_line("if is_signed { __kain_sign_extend(encoded, width) } else { encoded as i64 }");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_bitfield_set<T: Copy, TValue: Copy + Into<i64>>(mut value: T, _field: &str, unit_offset: i64, bit_offset: i64, width: i64, is_signed: bool, promoted_bits: i64, next: TValue) -> TValue {");
+        self.push_indent();
+        self.write_line("let mask = __kain_bitfield_mask(width);");
+        self.write_line("let mut unit = __kain_load_bitfield_unit(&value, unit_offset);");
+        self.write_line("let encoded = (next.into() as u64) & mask;");
+        self.write_line("let shifted_mask = if bit_offset <= 0 { mask } else { mask << bit_offset };");
+        self.write_line("unit = (unit & !shifted_mask) | if bit_offset <= 0 { encoded } else { encoded << bit_offset };");
+        self.write_line("__kain_store_bitfield_unit(&mut value, unit_offset, unit);");
+        self.write_line("let _ = __kain_bitfield_get(value, \"\", unit_offset, bit_offset, width, is_signed, promoted_bits);");
+        self.write_line("next");
+        self.pop_indent();
+        self.write_line("}");
     }
 
     fn gen_item(&mut self, item: &TypedItem) {

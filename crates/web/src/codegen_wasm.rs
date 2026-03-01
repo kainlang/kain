@@ -5,13 +5,149 @@
 use kain_core::ast::{Expr, BinaryOp, Stmt, Block};
 use kain_core::types::{ResolvedType, TypedFunction, TypedItem, TypedProgram};
 use kain_core::error::{KainResult, KainError};
+use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use walrus::{FunctionBuilder, InstrSeqBuilder, LocalId, Module, ModuleConfig, ValType};
 use std::collections::HashMap;
 
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Wasm)?;
     let mut compiler = WasmCompiler::new();
-    compiler.compile_program(program)?;
+    compiler.compile_program(&lowered)?;
     Ok(compiler.module.emit_wasm())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::generate;
+    use kain_core::ast::{Expr, Field, Function, Item, Param, Program, Stmt, Struct, Type, Visibility};
+    use kain_core::diagnostics::SpanMapper;
+    use kain_core::low_level_memory_metadata::{marker_attr, usize_bool_attr, C_BITFIELD_ATTR, C_UNION_ATTR};
+    use kain_core::types::check;
+
+    #[test]
+    fn wasm_generate_handles_lowered_union_and_bitfield_memory_helpers() {
+        let span = kain_core::span::Span::default();
+        let int_ty = Type::Named {
+            name: "Int".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+        let float_ty = Type::Named {
+            name: "Float".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+        let union_ty = Type::Named {
+            name: "Number".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+        let flags_ty = Type::Named {
+            name: "Flags".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+
+        let program = Program {
+            items: vec![
+                Item::Struct(Struct {
+                    name: "Number".to_string(),
+                    generics: Vec::new(),
+                    fields: vec![
+                        Field {
+                            name: "as_int".to_string(),
+                            ty: int_ty.clone(),
+                            attributes: Vec::new(),
+                            visibility: Visibility::Public,
+                            default: None,
+                            weak: false,
+                            span,
+                        },
+                        Field {
+                            name: "as_float".to_string(),
+                            ty: float_ty,
+                            attributes: Vec::new(),
+                            visibility: Visibility::Public,
+                            default: None,
+                            weak: false,
+                            span,
+                        },
+                    ],
+                    methods: Vec::new(),
+                    attributes: vec![marker_attr(C_UNION_ATTR, span)],
+                    visibility: Visibility::Public,
+                    span,
+                }),
+                Item::Struct(Struct {
+                    name: "Flags".to_string(),
+                    generics: Vec::new(),
+                    fields: vec![
+                        Field {
+                            name: "ready".to_string(),
+                            ty: int_ty.clone(),
+                            attributes: vec![usize_bool_attr(C_BITFIELD_ATTR, 1, true, span)],
+                            visibility: Visibility::Public,
+                            default: None,
+                            weak: false,
+                            span,
+                        },
+                    ],
+                    methods: Vec::new(),
+                    attributes: Vec::new(),
+                    visibility: Visibility::Public,
+                    span,
+                }),
+                Item::Function(Function {
+                    name: "probe".to_string(),
+                    generics: Vec::new(),
+                    params: vec![Param {
+                        name: "flags".to_string(),
+                        ty: flags_ty,
+                        mutable: true,
+                        default: None,
+                        span,
+                    }],
+                    return_type: Some(union_ty.clone()),
+                    effects: Vec::new(),
+                    body: kain_core::ast::Block {
+                        stmts: vec![
+                            Stmt::Expr(Expr::Assign {
+                                target: Box::new(Expr::Field {
+                                    object: Box::new(Expr::Ident("flags".to_string(), span)),
+                                    field: "ready".to_string(),
+                                    span,
+                                }),
+                                value: Box::new(Expr::Int(1, span)),
+                                span,
+                            }),
+                            Stmt::Return(
+                                Some(Expr::AggregateInit {
+                                    ty: union_ty,
+                                    fields: vec![
+                                        ("as_int".to_string(), Expr::Int(7, span)),
+                                        ("as_float".to_string(), Expr::Float(3.0, span)),
+                                    ],
+                                    zero_fill_rest: true,
+                                    span,
+                                }),
+                                span,
+                            ),
+                        ],
+                        span,
+                    },
+                    visibility: Visibility::Public,
+                    attributes: Vec::new(),
+                    span,
+                }),
+            ],
+            span,
+        };
+
+        let mapper = SpanMapper::new("");
+        let typed = check(&program, &mapper, "wasm_low_level.kn").expect("typecheck");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
 }
 
 struct WasmCompiler {
@@ -1159,6 +1295,267 @@ impl WasmCompiler {
         false
     }
 
+    fn expr_string_literal<'a>(&self, expr: &'a Expr) -> Option<&'a str> {
+        match expr {
+            Expr::String(value, _) => Some(value.as_str()),
+            _ => None,
+        }
+    }
+
+    fn expr_int_literal(&self, expr: &Expr) -> Option<i64> {
+        match expr {
+            Expr::Int(value, _) => Some(*value),
+            _ => None,
+        }
+    }
+
+    fn expr_bool_literal(&self, expr: &Expr) -> Option<bool> {
+        match expr {
+            Expr::Bool(value, _) => Some(*value),
+            _ => None,
+        }
+    }
+
+    fn emit_wasm_load_for_type_key(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        type_key: &str,
+        byte_size: i64,
+    ) {
+        match type_key {
+            "Float" if byte_size <= 4 => {
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::F32,
+                    walrus::ir::MemArg { align: 4, offset: 0 },
+                );
+                builder.unop(walrus::ir::UnaryOp::F64PromoteF32);
+            }
+            "Float" => {
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::F64,
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+            }
+            "Bool" | "Char" => {
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I32_8 { kind: walrus::ir::ExtendedLoad::ZeroExtend },
+                    walrus::ir::MemArg { align: 1, offset: 0 },
+                );
+                builder.unop(walrus::ir::UnaryOp::I64ExtendUI32);
+            }
+            _ => {
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+            }
+        }
+    }
+
+    fn emit_wasm_store_for_type_key(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        type_key: &str,
+        byte_size: i64,
+    ) {
+        match type_key {
+            "Float" if byte_size <= 4 => {
+                builder.unop(walrus::ir::UnaryOp::F32DemoteF64);
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::F32,
+                    walrus::ir::MemArg { align: 4, offset: 0 },
+                );
+            }
+            "Float" => {
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::F64,
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+            }
+            "Bool" | "Char" => {
+                builder.unop(walrus::ir::UnaryOp::I32WrapI64);
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::I32_8 { atomic: false },
+                    walrus::ir::MemArg { align: 1, offset: 0 },
+                );
+            }
+            _ => {
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+            }
+        }
+    }
+
+    fn compile_low_level_helper_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+    ) -> KainResult<bool> {
+        match func_name {
+            "__kain_union_wrap" if args.len() >= 6 => {
+                let type_key = self.expr_string_literal(&args[2].value).unwrap_or("Int");
+                let byte_size = self.expr_int_literal(&args[3].value).unwrap_or(8);
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                builder.local_set(ctx.tmp_i32);
+                builder.local_get(ctx.tmp_i32);
+                self.compile_expr(ctx, builder, &args[5].value)?;
+                self.emit_wasm_store_for_type_key(ctx, builder, type_key, byte_size);
+                builder.local_get(ctx.tmp_i32);
+                Ok(true)
+            }
+            "__kain_union_get" if args.len() >= 6 => {
+                let type_key = self.expr_string_literal(&args[2].value).unwrap_or("Int");
+                let byte_size = self.expr_int_literal(&args[3].value).unwrap_or(8);
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                self.emit_wasm_load_for_type_key(ctx, builder, type_key, byte_size);
+                Ok(true)
+            }
+            "__kain_union_set" if args.len() >= 6 => {
+                let type_key = self.expr_string_literal(&args[2].value).unwrap_or("Int");
+                let byte_size = self.expr_int_literal(&args[3].value).unwrap_or(8);
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                builder.local_set(ctx.tmp_i32);
+                builder.local_get(ctx.tmp_i32);
+                self.compile_expr(ctx, builder, &args[5].value)?;
+                self.emit_wasm_store_for_type_key(ctx, builder, type_key, byte_size);
+                builder.local_get(ctx.tmp_i32);
+                self.emit_wasm_load_for_type_key(ctx, builder, type_key, byte_size);
+                Ok(true)
+            }
+            "__kain_bitfield_get" if args.len() >= 7 => {
+                let unit_offset = self.expr_int_literal(&args[2].value).unwrap_or(0) as i32;
+                let bit_offset = self.expr_int_literal(&args[3].value).unwrap_or(0);
+                let width = self.expr_int_literal(&args[4].value).unwrap_or(0);
+                let is_signed = self.expr_bool_literal(&args[5].value).unwrap_or(false);
+                let mask = if width <= 0 {
+                    0
+                } else if width >= 63 {
+                    i64::MAX
+                } else {
+                    ((1i64 << width) - 1i64)
+                };
+                let sign_bit = if width > 0 && width < 63 {
+                    1i64 << (width - 1)
+                } else {
+                    0
+                };
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                if unit_offset != 0 {
+                    builder.i32_const(unit_offset);
+                    builder.binop(walrus::ir::BinaryOp::I32Add);
+                }
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+                if bit_offset > 0 {
+                    builder.i64_const(bit_offset);
+                    builder.binop(walrus::ir::BinaryOp::I64ShrU);
+                }
+                builder.i64_const(mask);
+                builder.binop(walrus::ir::BinaryOp::I64And);
+                if is_signed && width > 0 && width < 63 {
+                    builder.local_set(ctx.tmp_i64);
+                    builder.local_get(ctx.tmp_i64);
+                    builder.i64_const(sign_bit);
+                    builder.binop(walrus::ir::BinaryOp::I64Xor);
+                    builder.i64_const(sign_bit);
+                    builder.binop(walrus::ir::BinaryOp::I64Sub);
+                }
+                Ok(true)
+            }
+            "__kain_bitfield_set" if args.len() >= 8 => {
+                let unit_offset = self.expr_int_literal(&args[2].value).unwrap_or(0) as i32;
+                let bit_offset = self.expr_int_literal(&args[3].value).unwrap_or(0);
+                let width = self.expr_int_literal(&args[4].value).unwrap_or(0);
+                let is_signed = self.expr_bool_literal(&args[5].value).unwrap_or(false);
+                let mask = if width <= 0 {
+                    0
+                } else if width >= 63 {
+                    i64::MAX
+                } else {
+                    ((1i64 << width) - 1i64)
+                };
+                let shifted_mask = if bit_offset > 0 {
+                    mask.checked_shl(bit_offset as u32).unwrap_or(0)
+                } else {
+                    mask
+                };
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                if unit_offset != 0 {
+                    builder.i32_const(unit_offset);
+                    builder.binop(walrus::ir::BinaryOp::I32Add);
+                }
+                builder.local_set(ctx.tmp_i32);
+                builder.local_get(ctx.tmp_i32);
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+                builder.local_set(ctx.tmp_i64);
+                builder.local_get(ctx.tmp_i64);
+                builder.i64_const(!shifted_mask);
+                builder.binop(walrus::ir::BinaryOp::I64And);
+                self.compile_expr(ctx, builder, &args[7].value)?;
+                builder.i64_const(mask);
+                builder.binop(walrus::ir::BinaryOp::I64And);
+                if bit_offset > 0 {
+                    builder.i64_const(bit_offset);
+                    builder.binop(walrus::ir::BinaryOp::I64Shl);
+                }
+                builder.binop(walrus::ir::BinaryOp::I64Or);
+                builder.local_set(ctx.tmp_i64);
+                builder.local_get(ctx.tmp_i32);
+                builder.local_get(ctx.tmp_i64);
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+                // Return normalized value via the same get semantics.
+                builder.local_get(ctx.tmp_i32);
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+                if bit_offset > 0 {
+                    builder.i64_const(bit_offset);
+                    builder.binop(walrus::ir::BinaryOp::I64ShrU);
+                }
+                builder.i64_const(mask);
+                builder.binop(walrus::ir::BinaryOp::I64And);
+                if is_signed && width > 0 && width < 63 {
+                    let sign_bit = 1i64 << (width - 1);
+                    builder.local_set(ctx.tmp_i64);
+                    builder.local_get(ctx.tmp_i64);
+                    builder.i64_const(sign_bit);
+                    builder.binop(walrus::ir::BinaryOp::I64Xor);
+                    builder.i64_const(sign_bit);
+                    builder.binop(walrus::ir::BinaryOp::I64Sub);
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
     fn compile_expr(&self, ctx: &CompilationContext, builder: &mut InstrSeqBuilder, expr: &Expr) -> KainResult<()> {
         match expr {
             Expr::Int(n, _) => {
@@ -1270,6 +1667,9 @@ impl WasmCompiler {
             Expr::Call { callee, args, span } => {
                 // Get function name from callee
                 if let Expr::Ident(func_name, _) = callee.as_ref() {
+                    if self.compile_low_level_helper_call(ctx, builder, func_name, args)? {
+                        return Ok(());
+                    }
                     // Special intrinsic: print
                     if func_name == "print" {
                         for arg in args {

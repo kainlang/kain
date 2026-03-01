@@ -3,41 +3,132 @@
 use super::CImportOptions;
 use lang_c::ast::TranslationUnit;
 use lang_c::driver::{Config, parse, parse_preprocessed};
+use lang_c::span::Span as CSpan;
 use std::collections::HashSet;
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 use crate::{ImportError, Result};
+
+#[derive(Debug, Clone)]
+pub(crate) struct ParsedCTranslationUnit {
+    pub unit: TranslationUnit,
+    pub layout: CSourceLayoutMetadata,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CSourceLayoutMetadata {
+    source: String,
+    line_starts: Vec<usize>,
+    pack_align_by_line: Vec<Option<usize>>,
+}
+
+impl CSourceLayoutMetadata {
+    pub fn from_source(source: &str) -> Self {
+        let source = source.to_string();
+        let line_starts = compute_line_starts(&source);
+        let pack_align_by_line = collect_pack_align_by_line(&strip_c_comments(source.as_str()));
+        Self {
+            source,
+            line_starts,
+            pack_align_by_line,
+        }
+    }
+
+    pub fn pack_align_bits_for_span(&self, span: CSpan) -> Option<usize> {
+        let line = self.line_for_offset(span.start)?;
+        self.pack_align_by_line
+            .get(line.saturating_sub(1))
+            .and_then(|align| *align)
+            .map(|bytes| bytes.saturating_mul(8))
+    }
+
+    pub fn has_packed_attr_for_span(&self, span: CSpan) -> bool {
+        normalized_span_snippet(self, span)
+            .is_some_and(|snippet| {
+                (snippet.contains("__attribute__((") && snippet.contains("packed"))
+                    || snippet.contains("__packed")
+            })
+    }
+
+    pub fn explicit_type_align_bits_for_span(&self, span: CSpan) -> Option<usize> {
+        let snippet = normalized_span_snippet(self, span)?;
+        parse_attr_align_bytes(snippet.as_str()).map(|bytes| bytes.saturating_mul(8))
+    }
+
+    fn line_for_offset(&self, offset: usize) -> Option<usize> {
+        if self.line_starts.is_empty() {
+            return None;
+        }
+
+        let idx = match self.line_starts.binary_search(&offset) {
+            Ok(idx) => idx,
+            Err(0) => 0,
+            Err(idx) => idx.saturating_sub(1),
+        };
+        Some(idx + 1)
+    }
+
+    fn snippet_for_span(&self, span: CSpan) -> Option<&str> {
+        if span.start >= self.source.len() {
+            return None;
+        }
+        let end = span.end.min(self.source.len());
+        self.source.get(span.start..end)
+    }
+}
 
 /// Parse a C file using lang-c
 #[cfg(test)]
 pub(crate) fn parse_c_file(path: &Path) -> Result<TranslationUnit> {
-    parse_c_file_with_options(path, &CImportOptions::default())
+    parse_c_file_with_metadata(path, &CImportOptions::default()).map(|parsed| parsed.unit)
 }
 
-pub fn parse_c_file_with_options(path: &Path, options: &CImportOptions) -> Result<TranslationUnit> {
+pub(crate) fn parse_c_file_with_metadata(
+    path: &Path,
+    options: &CImportOptions,
+) -> Result<ParsedCTranslationUnit> {
+    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    let layout = CSourceLayoutMetadata::from_source(&source);
     let config = build_driver_config(options);
+    let defined_symbols = collect_defined_symbols(options);
+    let direct_source = sanitize_for_preprocessed_parse(&source, false, &defined_symbols);
 
-    match parse(&config, path) {
-        Ok(parse_result) => Ok(parse_result.unit),
-        Err(primary_err) => {
-            let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
-            let defined_symbols = collect_defined_symbols(options);
+    match parse_preprocessed(&config, direct_source) {
+        Ok(parse_result) => Ok(ParsedCTranslationUnit {
+            unit: parse_result.unit,
+            layout,
+        }),
+        Err(direct_err) => match parse(&config, path) {
+            Ok(parse_result) => Ok(ParsedCTranslationUnit {
+                unit: parse_result.unit,
+                layout,
+            }),
+            Err(primary_err) => {
             let stripped = sanitize_for_preprocessed_parse(&source, true, &defined_symbols);
 
             match parse_preprocessed(&config, stripped) {
-                Ok(parse_result) => Ok(parse_result.unit),
+                Ok(parse_result) => Ok(ParsedCTranslationUnit {
+                    unit: parse_result.unit,
+                    layout,
+                }),
                 Err(fallback_err) => Err(ImportError::CParseError(format!(
-                    "primary parse failed: {}; fallback parse failed: {:?}",
-                    primary_err, fallback_err
+                    "direct source parse failed: {:?}; primary parse failed: {}; fallback parse failed: {:?}",
+                    direct_err, primary_err, fallback_err
                 ))),
             }
-        }
+            }
+        },
     }
 }
 
 /// Parse C source code from a string
 #[cfg(test)]
 pub(crate) fn parse_c_source(source: &str) -> Result<TranslationUnit> {
+    parse_c_source_with_metadata(source).map(|parsed| parsed.unit)
+}
+
+#[cfg(test)]
+pub(crate) fn parse_c_source_with_metadata(source: &str) -> Result<ParsedCTranslationUnit> {
     let config = Config::default();
     let defined_symbols = HashSet::new();
 
@@ -46,8 +137,126 @@ pub(crate) fn parse_c_source(source: &str) -> Result<TranslationUnit> {
         sanitize_for_preprocessed_parse(source, false, &defined_symbols),
     )
         .map_err(|e| ImportError::CParseError(format!("{:?}", e)))?;
-    
-    Ok(parse_result.unit)
+
+    Ok(ParsedCTranslationUnit {
+        unit: parse_result.unit,
+        layout: CSourceLayoutMetadata::from_source(source),
+    })
+}
+
+fn compute_line_starts(source: &str) -> Vec<usize> {
+    let mut starts = vec![0];
+    for (idx, ch) in source.char_indices() {
+        if ch == '\n' && idx + 1 < source.len() {
+            starts.push(idx + 1);
+        }
+    }
+    starts
+}
+
+fn normalized_span_snippet(metadata: &CSourceLayoutMetadata, span: CSpan) -> Option<String> {
+    let snippet = metadata.snippet_for_span(span)?;
+    Some(
+        snippet
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect::<String>()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn parse_attr_align_bytes(normalized_snippet: &str) -> Option<usize> {
+    for marker in ["aligned(", "__declspec(align("] {
+        if let Some(idx) = normalized_snippet.find(marker) {
+            let start = idx + marker.len();
+            let digits = normalized_snippet[start..]
+                .chars()
+                .take_while(|ch| ch.is_ascii_digit())
+                .collect::<String>();
+            if let Ok(value) = digits.parse::<usize>() {
+                if value > 0 {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn collect_pack_align_by_line(source: &str) -> Vec<Option<usize>> {
+    let mut current = None;
+    let mut stack = Vec::<Option<usize>>::new();
+    let mut by_line = Vec::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if let Some(directive) = parse_pack_directive(trimmed) {
+            match directive {
+                PackDirective::Push(next) => {
+                    stack.push(current);
+                    current = next.or(current);
+                }
+                PackDirective::Pop => {
+                    current = stack.pop().unwrap_or(None);
+                }
+                PackDirective::Set(next) => {
+                    current = next;
+                }
+            }
+            by_line.push(current);
+            continue;
+        }
+
+        by_line.push(current);
+    }
+
+    by_line
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PackDirective {
+    Push(Option<usize>),
+    Pop,
+    Set(Option<usize>),
+}
+
+fn parse_pack_directive(line: &str) -> Option<PackDirective> {
+    let normalized = line.replace(' ', "").to_ascii_lowercase();
+    if !normalized.starts_with("#pragmapack") {
+        return None;
+    }
+    let start = normalized.find('(')?;
+    let end = normalized.rfind(')')?;
+    let inner = &normalized[start + 1..end];
+    if inner.is_empty() {
+        return Some(PackDirective::Set(None));
+    }
+
+    let parts = inner
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if parts.is_empty() {
+        return Some(PackDirective::Set(None));
+    }
+
+    match parts[0] {
+        "push" => {
+            let next = parts
+                .iter()
+                .skip(1)
+                .find_map(|part| part.parse::<usize>().ok())
+                .filter(|value| *value > 0);
+            Some(PackDirective::Push(next))
+        }
+        "pop" => Some(PackDirective::Pop),
+        _ => parts[0]
+            .parse::<usize>()
+            .ok()
+            .filter(|value| *value > 0)
+            .map(|value| PackDirective::Set(Some(value))),
+    }
 }
 
 fn build_driver_config(options: &CImportOptions) -> Config {
@@ -609,5 +818,26 @@ mod tests {
         defined.insert("VERSION_US".to_string());
         let sanitized = sanitize_for_preprocessed_parse(source, false, &defined);
         assert!(sanitized.contains("keep_me"));
+    }
+
+    #[test]
+    fn test_layout_metadata_tracks_pragma_pack_state() {
+        let source = "#pragma pack(push, 1)\nstruct Packet { char tag; int value; };\n#pragma pack(pop)\n";
+        let metadata = CSourceLayoutMetadata::from_source(source);
+        let packet_start = source.find("struct Packet").unwrap();
+        let packet_end = source.find("};").unwrap() + 2;
+        let span = CSpan::span(packet_start, packet_end);
+
+        assert_eq!(metadata.pack_align_bits_for_span(span), Some(8));
+    }
+
+    #[test]
+    fn test_layout_metadata_detects_packed_and_aligned_attributes() {
+        let source = "struct __attribute__((packed, aligned(16))) Packet { char tag; int value; };";
+        let metadata = CSourceLayoutMetadata::from_source(source);
+        let span = CSpan::span(0, source.len());
+
+        assert!(metadata.has_packed_attr_for_span(span));
+        assert_eq!(metadata.explicit_type_align_bits_for_span(span), Some(128));
     }
 }

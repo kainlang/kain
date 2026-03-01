@@ -3,6 +3,7 @@
 //! Generic C++ output for non-engine targets. Use `-t ue5` for Unreal Engine.
 //! Generated code uses C++17 features: structured bindings, optional, variant.
 
+use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use kain_core::types::{TypedProgram, TypedItem};
 use kain_core::error::KainResult;
 use kain_core::ast::{
@@ -13,8 +14,9 @@ use kain_core::ast::{
 
 /// Generate C++ source code from a typed program
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Cpp)?;
     let mut gen = CppGen::new();
-    Ok(gen.gen_program(program))
+    Ok(gen.gen_program(&lowered))
 }
 
 struct StringBuilder {
@@ -89,6 +91,9 @@ impl CppGen {
         self.write_line("#include <variant>");
         self.write_line("#include <memory>");
         self.write_line("#include <iostream>");
+        self.write_line("#include <cstring>");
+        self.write_blank();
+        self.write_low_level_memory_helpers();
         self.write_blank();
 
         // Forward declarations for structs
@@ -108,6 +113,86 @@ impl CppGen {
         }
 
         self.output.build()
+    }
+
+    fn write_low_level_memory_helpers(&mut self) {
+        self.write_line("template<typename TObject, typename TValue> TObject __kain_union_wrap(TObject value, const char*, const char*, long long byte_size, long long union_size, const TValue& active_value) {");
+        self.push_indent();
+        self.write_line("const auto copy_span = std::min<long long>(std::min<long long>(byte_size, union_size), std::min<long long>(sizeof(TObject), sizeof(TValue)));");
+        self.write_line("if (union_size > 0) { std::memset(&value, 0, static_cast<size_t>(std::min<long long>(union_size, sizeof(TObject)))); }");
+        self.write_line("if (copy_span > 0) { std::memcpy(&value, &active_value, static_cast<size_t>(copy_span)); }");
+        self.write_line("return value;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("template<typename TObject, typename TValue> TValue __kain_union_get(const TObject& value, const char*, const char*, long long byte_size, long long union_size, const TValue& fallback) {");
+        self.push_indent();
+        self.write_line("TValue result = fallback;");
+        self.write_line("const auto copy_span = std::min<long long>(std::min<long long>(byte_size, union_size), std::min<long long>(sizeof(TObject), sizeof(TValue)));");
+        self.write_line("if (copy_span > 0) { std::memcpy(&result, &value, static_cast<size_t>(copy_span)); }");
+        self.write_line("return result;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("template<typename TObject, typename TValue> TValue __kain_union_set(TObject& value, const char*, const char*, long long byte_size, long long union_size, const TValue& next) {");
+        self.push_indent();
+        self.write_line("if (union_size > 0) { std::memset(&value, 0, static_cast<size_t>(std::min<long long>(union_size, sizeof(TObject)))); }");
+        self.write_line("const auto copy_span = std::min<long long>(std::min<long long>(byte_size, union_size), std::min<long long>(sizeof(TObject), sizeof(TValue)));");
+        self.write_line("if (copy_span > 0) { std::memcpy(&value, &next, static_cast<size_t>(copy_span)); }");
+        self.write_line("return next;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("template<typename TObject> unsigned long long __kain_load_bitfield_unit(const TObject& value, long long unit_offset) {");
+        self.push_indent();
+        self.write_line("if (unit_offset < 0 || unit_offset >= static_cast<long long>(sizeof(TObject))) { return 0ULL; }");
+        self.write_line("unsigned long long unit = 0ULL;");
+        self.write_line("const auto available = std::min<long long>(8, static_cast<long long>(sizeof(TObject)) - unit_offset);");
+        self.write_line("std::memcpy(&unit, reinterpret_cast<const unsigned char*>(&value) + unit_offset, static_cast<size_t>(available));");
+        self.write_line("return unit;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("template<typename TObject> void __kain_store_bitfield_unit(TObject& value, long long unit_offset, unsigned long long unit) {");
+        self.push_indent();
+        self.write_line("if (unit_offset < 0 || unit_offset >= static_cast<long long>(sizeof(TObject))) { return; }");
+        self.write_line("const auto available = std::min<long long>(8, static_cast<long long>(sizeof(TObject)) - unit_offset);");
+        self.write_line("std::memcpy(reinterpret_cast<unsigned char*>(&value) + unit_offset, &unit, static_cast<size_t>(available));");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("inline unsigned long long __kain_bitfield_mask(long long width) {");
+        self.push_indent();
+        self.write_line("if (width <= 0) { return 0ULL; }");
+        self.write_line("if (width >= 64) { return ~0ULL; }");
+        self.write_line("return (1ULL << width) - 1ULL;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("inline long long __kain_sign_extend(unsigned long long value, long long width) {");
+        self.push_indent();
+        self.write_line("if (width <= 0) { return 0LL; }");
+        self.write_line("if (width >= 64) { return static_cast<long long>(value); }");
+        self.write_line("const auto sign_bit = 1ULL << (width - 1);");
+        self.write_line("if ((value & sign_bit) == 0ULL) { return static_cast<long long>(value); }");
+        self.write_line("const auto full_mask = ~__kain_bitfield_mask(width);");
+        self.write_line("return static_cast<long long>(value | full_mask);");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("template<typename TObject> long long __kain_bitfield_get(const TObject& value, const char*, long long unit_offset, long long bit_offset, long long width, bool is_signed, long long) {");
+        self.push_indent();
+        self.write_line("const auto mask = __kain_bitfield_mask(width);");
+        self.write_line("const auto unit = __kain_load_bitfield_unit(value, unit_offset);");
+        self.write_line("const auto shifted = bit_offset <= 0 ? unit : (unit >> bit_offset);");
+        self.write_line("const auto encoded = shifted & mask;");
+        self.write_line("return is_signed ? __kain_sign_extend(encoded, width) : static_cast<long long>(encoded);");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("template<typename TObject, typename TValue> TValue __kain_bitfield_set(TObject& value, const char*, long long unit_offset, long long bit_offset, long long width, bool is_signed, long long promoted_bits, const TValue& next) {");
+        self.push_indent();
+        self.write_line("const auto mask = __kain_bitfield_mask(width);");
+        self.write_line("auto unit = __kain_load_bitfield_unit(value, unit_offset);");
+        self.write_line("const auto encoded = static_cast<unsigned long long>(static_cast<long long>(next)) & mask;");
+        self.write_line("const auto shifted_mask = bit_offset <= 0 ? mask : (mask << bit_offset);");
+        self.write_line("unit = (unit & ~shifted_mask) | (bit_offset <= 0 ? encoded : (encoded << bit_offset));");
+        self.write_line("__kain_store_bitfield_unit(value, unit_offset, unit);");
+        self.write_line("return static_cast<TValue>(__kain_bitfield_get(value, \"\", unit_offset, bit_offset, width, is_signed, promoted_bits));");
+        self.pop_indent();
+        self.write_line("}");
     }
 
     fn gen_item(&mut self, item: &TypedItem) {

@@ -1,8 +1,10 @@
 use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::error::{DiagnosticBuilder, ErrorKind, KainResult};
+use crate::low_level_abi::{c_abi_policy_for_target, promoted_integer_bits, CAbiPolicy};
 use crate::low_level_memory_metadata::{
-    attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+    attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_PACK_ALIGN_ATTR,
+    C_PACKED_ATTR, C_STORAGE_ALIGN_ATTR, C_STORAGE_BITS_ATTR, C_TYPE_ALIGN_ATTR, C_UNION_ATTR,
 };
 use crate::monomorphize::MonomorphizedProgram;
 use crate::span::Span;
@@ -31,17 +33,28 @@ struct StructLayoutInfo {
     fields: HashMap<String, LayoutField>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct LayoutRegistry {
+    abi: &'static CAbiPolicy,
     structs: HashMap<String, StructLayoutInfo>,
 }
 
 impl LayoutRegistry {
-    fn build(items: &[TypedItem]) -> Self {
-        let mut registry = Self::default();
+    fn build_with_abi(items: &[TypedItem], abi: &'static CAbiPolicy) -> Self {
+        let mut registry = Self {
+            abi,
+            structs: HashMap::new(),
+        };
         for item in items {
             if let TypedItem::Struct(st) = item {
                 let is_union = has_attr(&st.ast.attributes, C_UNION_ATTR);
+                let is_packed = has_attr(&st.ast.attributes, C_PACKED_ATTR);
+                let pack_align = attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR)
+                    .map(|bits| bits.div_ceil(8))
+                    .filter(|align| *align > 0);
+                let explicit_type_align = attr_usize_arg(&st.ast.attributes, C_TYPE_ALIGN_ATTR)
+                    .map(|bits| bits.div_ceil(8))
+                    .filter(|align| *align > 0);
                 let mut offset = 0usize;
                 let mut max_field_size = 0usize;
                 let mut max_align = 1usize;
@@ -49,8 +62,20 @@ impl LayoutRegistry {
                 let mut field_order = Vec::new();
                 let mut bit_pack: Option<BitfieldPack> = None;
                 for field in &st.ast.fields {
-                    let size = registry.type_size_fallback(&field.ty);
-                    let align = registry.type_align_fallback(&field.ty).max(1);
+                    let size = attr_usize_arg(&field.attributes, C_STORAGE_BITS_ATTR)
+                        .map(|bits| bits.div_ceil(8))
+                        .unwrap_or_else(|| registry.type_size_fallback(&field.ty));
+                    let natural_align = attr_usize_arg(&field.attributes, C_STORAGE_ALIGN_ATTR)
+                        .map(|bits| bits.div_ceil(8))
+                        .unwrap_or_else(|| registry.type_align_fallback(&field.ty))
+                        .max(1);
+                    let align = if let Some(pack_align) = pack_align {
+                        natural_align.min(pack_align).max(1)
+                    } else if is_packed {
+                        registry.abi.packed_struct_align.max(1)
+                    } else {
+                        natural_align
+                    };
                     let (bit_width, bit_signed) = attr_usize_bool_args(&field.attributes, C_BITFIELD_ATTR)
                         .map(|(width, signed)| (Some(width), signed))
                         .unwrap_or_else(|| (attr_usize_arg(&field.attributes, C_BITFIELD_ATTR), true));
@@ -99,7 +124,11 @@ impl LayoutRegistry {
                                 .as_mut()
                                 .expect("bitfield pack should exist before recording field");
                             let field_offset = pack.unit_offset;
-                            let field_bit_offset = pack.used_bits;
+                            let field_bit_offset = if registry.abi.bitfield_lsb_first {
+                                pack.used_bits
+                            } else {
+                                unit_bits.saturating_sub(pack.used_bits + width)
+                            };
                             pack.used_bits += width;
                             if pack.used_bits >= unit_bits {
                                 let flushed = bit_pack.take().expect("bitfield pack should flush");
@@ -136,12 +165,22 @@ impl LayoutRegistry {
                 } else {
                     offset
                 };
-                let size = align_up(raw_size.max(1), max_align);
+                let base_final_align = if let Some(pack_align) = pack_align {
+                    max_align.min(pack_align).max(1)
+                } else if is_packed {
+                    registry.abi.packed_struct_align.max(1)
+                } else {
+                    max_align
+                };
+                let final_align = explicit_type_align
+                    .map(|align| align.max(base_final_align))
+                    .unwrap_or(base_final_align);
+                let size = align_up(raw_size.max(1), final_align);
                 registry.structs.insert(
                     st.ast.name.clone(),
                     StructLayoutInfo {
                         size,
-                        align: max_align,
+                        align: final_align,
                         is_union,
                         field_order,
                         fields,
@@ -159,9 +198,10 @@ impl LayoutRegistry {
     fn type_size_fallback(&self, ty: &Type) -> usize {
         match ty {
             Type::Named { name, .. } => match name.as_str() {
-                "Bool" | "Char" => 1,
-                "Int" | "isize" | "usize" => 8,
-                "Float" => 8,
+                "Bool" => self.abi.bool_bits.div_ceil(8),
+                "Char" => self.abi.char_bits.div_ceil(8),
+                "Int" | "isize" | "usize" => self.abi.long_bits.div_ceil(8),
+                "Float" => self.abi.double_bits.div_ceil(8),
                 other => self.structs.get(other).map(|info| info.size).unwrap_or(8),
             },
             Type::Array(inner, size, _) => self.type_size_fallback(inner) * size,
@@ -180,8 +220,10 @@ impl LayoutRegistry {
     fn type_align_fallback(&self, ty: &Type) -> usize {
         match ty {
             Type::Named { name, .. } => match name.as_str() {
-                "Bool" | "Char" => 1,
-                "Int" | "isize" | "usize" | "Float" => 8,
+                "Bool" => self.abi.bool_bits.div_ceil(8),
+                "Char" => self.abi.char_bits.div_ceil(8),
+                "Int" | "isize" | "usize" => self.abi.long_bits.div_ceil(8),
+                "Float" => self.abi.double_bits.div_ceil(8),
                 other => self
                     .structs
                     .get(other)
@@ -296,12 +338,15 @@ pub fn lower_typed_program_memory_for_target(
         target,
         CompileTarget::Ts
             | CompileTarget::Js
+            | CompileTarget::Wasm
+            | CompileTarget::Cpp
+            | CompileTarget::Rust
             | CompileTarget::Ue5
             | CompileTarget::Ue5Editor
     ) {
         return Ok(program.clone());
     }
-    let layouts = LayoutRegistry::build(&program.items);
+    let layouts = LayoutRegistry::build_with_abi(&program.items, c_abi_policy_for_target(target));
 
     Ok(TypedProgram {
         items: program
@@ -779,6 +824,8 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                     let lowered_object = lower_expr_memory_with_ctx(object, ctx);
                     let lowered_value = lower_expr_memory_with_ctx(value, ctx);
                     if let Some(bit_width) = field_bit_width {
+                        let promoted_bits =
+                            promoted_integer_bits(bit_width, field_bit_signed, ctx.layouts.abi);
                         return helper_call(
                             "__kain_bitfield_set",
                             vec![
@@ -788,6 +835,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                                 Expr::Int(field_bit_offset as i64, *span),
                                 Expr::Int(bit_width as i64, *span),
                                 Expr::Bool(field_bit_signed, *span),
+                                Expr::Int(promoted_bits as i64, *span),
                                 lowered_value,
                             ],
                             *span,
@@ -893,6 +941,8 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 let field_bit_offset = field_layout.bit_offset.unwrap_or(0);
                 let field_bit_signed = field_layout.bit_signed;
                 if let Some(bit_width) = field_bit_width {
+                    let promoted_bits =
+                        promoted_integer_bits(bit_width, field_bit_signed, ctx.layouts.abi);
                     return helper_call(
                         "__kain_bitfield_get",
                         vec![
@@ -902,6 +952,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             Expr::Int(field_bit_offset as i64, *span),
                             Expr::Int(bit_width as i64, *span),
                             Expr::Bool(field_bit_signed, *span),
+                            Expr::Int(promoted_bits as i64, *span),
                         ],
                         *span,
                     );
@@ -1612,12 +1663,7 @@ fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
 fn estimate_type_align(ty: &Type, layouts: &LayoutRegistry) -> usize {
     match ty {
         Type::Named { name, .. } => match layouts.structs.get(name) {
-            Some(info) => info
-                .fields
-                .values()
-                .map(|field| estimate_type_align(&field.ty, layouts))
-                .max()
-                .unwrap_or(1),
+            Some(info) => info.align.max(1),
             None => layouts.type_align_fallback(ty),
         },
         Type::Array(inner, _, _) => estimate_type_align(inner, layouts),

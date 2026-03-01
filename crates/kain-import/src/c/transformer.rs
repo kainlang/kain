@@ -3,16 +3,20 @@
 //! Transforms lang-c AST into KAIN AST
 
 use lang_c::ast as c_ast;
+use lang_c::span::Span as CSpan;
 use lang_c::span::Node;
 use kain_core::ast::*;
+use kain_core::low_level_abi::default_c_abi_policy;
 use kain_core::diagnostic_registry::DiagnosticCode;
 use kain_core::effects::Effect;
 use kain_core::language_features::{default_language_capabilities, LanguageCapabilities};
 use kain_core::low_level_memory_metadata::{
-    marker_attr, usize_bool_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+    marker_attr, usize_attr, usize_bool_attr, C_BITFIELD_ATTR, C_PACK_ALIGN_ATTR,
+    C_PACKED_ATTR, C_STORAGE_ALIGN_ATTR, C_STORAGE_BITS_ATTR, C_TYPE_ALIGN_ATTR, C_UNION_ATTR,
 };
 use kain_core::span::Span;
 use crate::c::types::CTypeTransformer;
+use crate::c::parser::CSourceLayoutMetadata;
 use crate::common::c_registry::{
     resolve_c_binary_operator,
     resolve_c_compound_assignment_binary_operator,
@@ -50,6 +54,9 @@ pub struct CTransformer {
 
     /// Value symbol scopes used for type-directed lowering decisions.
     symbol_scopes: Vec<HashMap<String, Type>>,
+
+    /// Source-derived layout metadata such as active pragma-pack state and attribute hints.
+    layout_metadata: Option<CSourceLayoutMetadata>,
 }
 
 impl CTransformer {
@@ -68,7 +75,17 @@ impl CTransformer {
             language_capabilities,
             temp_counter: 0,
             symbol_scopes: vec![HashMap::new()],
+            layout_metadata: None,
         }
+    }
+
+    pub fn with_language_capabilities_and_layout_metadata(
+        language_capabilities: LanguageCapabilities,
+        layout_metadata: CSourceLayoutMetadata,
+    ) -> Self {
+        let mut transformer = Self::with_language_capabilities(language_capabilities);
+        transformer.layout_metadata = Some(layout_metadata);
+        transformer
     }
 
     fn rename_identifier(&mut self, domain: IdentifierDomain, raw: &str) -> String {
@@ -249,6 +266,53 @@ impl CTransformer {
             .unwrap_or(false)
     }
 
+    fn c_storage_layout_for_specifiers(
+        &self,
+        specifiers: &[Node<c_ast::SpecifierQualifier>],
+    ) -> (usize, usize) {
+        let abi = default_c_abi_policy();
+        let mut saw_char = false;
+        let mut saw_short = false;
+        let mut saw_long_count = 0usize;
+        let mut saw_float = false;
+        let mut saw_double = false;
+        let mut saw_bool = false;
+
+        for spec in specifiers {
+            if let c_ast::SpecifierQualifier::TypeSpecifier(type_spec) = &spec.node {
+                match &type_spec.node {
+                    c_ast::TypeSpecifier::Char => saw_char = true,
+                    c_ast::TypeSpecifier::Short => saw_short = true,
+                    c_ast::TypeSpecifier::Long => saw_long_count += 1,
+                    c_ast::TypeSpecifier::Float => saw_float = true,
+                    c_ast::TypeSpecifier::Double => saw_double = true,
+                    c_ast::TypeSpecifier::Bool => saw_bool = true,
+                    _ => {}
+                }
+            }
+        }
+
+        let bits = if saw_bool {
+            abi.bool_bits
+        } else if saw_char {
+            abi.char_bits
+        } else if saw_short {
+            abi.short_bits
+        } else if saw_float {
+            abi.float_bits
+        } else if saw_double {
+            abi.double_bits
+        } else if saw_long_count >= 2 {
+            abi.long_long_bits
+        } else if saw_long_count == 1 {
+            abi.long_bits
+        } else {
+            abi.int_bits
+        };
+
+        (bits, bits)
+    }
+
     fn bitfield_is_signed(
         &self,
         specifiers: &[Node<c_ast::SpecifierQualifier>],
@@ -266,12 +330,42 @@ impl CTransformer {
 
         !saw_unsigned
     }
+
+    fn struct_layout_attributes_for_spans(&self, spans: &[CSpan]) -> Vec<Attribute> {
+        let Some(metadata) = &self.layout_metadata else {
+            return Vec::new();
+        };
+
+        let mut attrs = Vec::new();
+        let pack_align_bits = spans
+            .iter()
+            .find_map(|span| metadata.pack_align_bits_for_span(*span));
+        let has_explicit_packed = spans
+            .iter()
+            .any(|span| metadata.has_packed_attr_for_span(*span));
+        let explicit_type_align_bits = spans
+            .iter()
+            .find_map(|span| metadata.explicit_type_align_bits_for_span(*span));
+
+        if has_explicit_packed || matches!(pack_align_bits, Some(8)) {
+            attrs.push(marker_attr(C_PACKED_ATTR, Span::default()));
+        }
+        if let Some(bits) = pack_align_bits {
+            attrs.push(usize_attr(C_PACK_ALIGN_ATTR, bits, Span::default()));
+        }
+        if let Some(bits) = explicit_type_align_bits {
+            attrs.push(usize_attr(C_TYPE_ALIGN_ATTR, bits, Span::default()));
+        }
+
+        attrs
+    }
     
     /// Transform a C translation unit to KAIN program
     pub fn transform(&mut self, tu: c_ast::TranslationUnit) -> Result<Program> {
         let mut items = Vec::new();
         
         for decl in tu.0 {
+            let decl_span = decl.span;
             match decl.node {
                 c_ast::ExternalDeclaration::FunctionDefinition(func) => {
                     if let Some(item) = self.transform_function(func.node)? {
@@ -280,7 +374,7 @@ impl CTransformer {
                 }
                 c_ast::ExternalDeclaration::Declaration(decl) => {
                     // Handle structs, enums, typedefs, globals
-                    items.extend(self.transform_declaration(decl.node)?);
+                    items.extend(self.transform_declaration(decl.node, decl_span)?);
                 }
                 _ => {
                     // Skip other declarations for now
@@ -573,7 +667,7 @@ impl CTransformer {
     }
     
     /// Transform a declaration (struct, enum, typedef, global)
-    fn transform_declaration(&mut self, decl: c_ast::Declaration) -> Result<Vec<Item>> {
+    fn transform_declaration(&mut self, decl: c_ast::Declaration, decl_span: CSpan) -> Result<Vec<Item>> {
         use c_ast::DeclarationSpecifier::*;
         
         let mut items = Vec::new();
@@ -603,7 +697,9 @@ impl CTransformer {
                 TypeSpecifier(type_spec) => {
                     match &type_spec.node {
                         c_ast::TypeSpecifier::Struct(struct_type) => {
-                            if let Some(item) = self.transform_struct_declaration(&struct_type.node, None)? {
+                            if let Some(item) =
+                                self.transform_struct_declaration(&struct_type.node, None, &[type_spec.span, decl_span])?
+                            {
                                 items.push(item);
                             }
                         }
@@ -625,7 +721,7 @@ impl CTransformer {
                             let name = self.rename_type_identifier(&raw_name);
                             if let Some(struct_type) = &anonymous_struct {
                                 if let Some(item) =
-                                    self.transform_struct_declaration(struct_type, Some(name.clone()))?
+                                    self.transform_struct_declaration(struct_type, Some(name.clone()), &[decl_span])?
                                 {
                                     items.push(item);
                                 }
@@ -709,6 +805,7 @@ impl CTransformer {
         &mut self,
         struct_type: &c_ast::StructType,
         fallback_name: Option<String>,
+        metadata_spans: &[CSpan],
     ) -> Result<Option<Item>> {
         // Get struct name
         let (raw_name, name) = if let Some(ref ident) = struct_type.identifier {
@@ -724,12 +821,11 @@ impl CTransformer {
         
         // Get struct fields
         let mut fields = Vec::new();
-        let mut struct_attributes = Vec::new();
+        let mut struct_attributes = self.struct_layout_attributes_for_spans(metadata_spans);
 
         if matches!(struct_type.kind.node, c_ast::StructKind::Union) {
             struct_attributes.push(marker_attr(C_UNION_ATTR, Span::default()));
         }
-        
         if let Some(ref declarations) = struct_type.declarations {
             for decl in declarations {
                 let c_ast::StructDeclaration::Field(field_decl) = &decl.node else {
@@ -746,6 +842,18 @@ impl CTransformer {
                         let field_type =
                             self.apply_declarator_type(field_type, &field_declarator.node)?;
                         let mut attributes = Vec::new();
+                        let (storage_bits, storage_align_bits) =
+                            self.c_storage_layout_for_specifiers(&field_decl.specifiers);
+                        attributes.push(usize_attr(
+                            C_STORAGE_BITS_ATTR,
+                            storage_bits,
+                            Span::default(),
+                        ));
+                        attributes.push(usize_attr(
+                            C_STORAGE_ALIGN_ATTR,
+                            storage_align_bits,
+                            Span::default(),
+                        ));
                         if let Some(bit_width) = declarator.node.bit_width.as_deref() {
                             let width = self.extract_const_usize_expr(&bit_width.node, "bitfield width")?;
                             attributes.push(usize_bool_attr(
@@ -2368,11 +2476,36 @@ pub fn transform(tu: c_ast::TranslationUnit) -> Result<Program> {
     transformer.transform(tu)
 }
 
+#[cfg(test)]
+pub fn transform_with_layout_metadata(
+    tu: c_ast::TranslationUnit,
+    layout_metadata: CSourceLayoutMetadata,
+) -> Result<Program> {
+    let mut transformer = CTransformer::with_language_capabilities_and_layout_metadata(
+        default_language_capabilities(),
+        layout_metadata,
+    );
+    transformer.transform(tu)
+}
+
+#[cfg(test)]
 pub fn transform_with_language_capabilities(
     tu: c_ast::TranslationUnit,
     language_capabilities: LanguageCapabilities,
 ) -> Result<Program> {
     let mut transformer = CTransformer::with_language_capabilities(language_capabilities);
+    transformer.transform(tu)
+}
+
+pub fn transform_with_language_capabilities_and_layout_metadata(
+    tu: c_ast::TranslationUnit,
+    language_capabilities: LanguageCapabilities,
+    layout_metadata: CSourceLayoutMetadata,
+) -> Result<Program> {
+    let mut transformer = CTransformer::with_language_capabilities_and_layout_metadata(
+        language_capabilities,
+        layout_metadata,
+    );
     transformer.transform(tu)
 }
 
@@ -2395,7 +2528,7 @@ fn parse_c_integer_literal(number: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::c::parser::parse_c_source;
+    use crate::c::parser::{parse_c_source, parse_c_source_with_metadata};
     use kain_core::language_features::{LanguageCapability, LanguageCapabilities};
     
     #[test]
@@ -3425,6 +3558,41 @@ mod tests {
     }
 
     #[test]
+    fn test_c_field_storage_metadata_carries_abi_bits_and_alignment() {
+        let source = r#"
+            struct LayoutProbe {
+                unsigned int ready: 1;
+                char marker;
+                double weight;
+            };
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let probe = match &program.items[0] {
+            Item::Struct(st) => st,
+            _ => panic!("expected struct"),
+        };
+
+        let ready = probe.fields.iter().find(|field| field.name == "ready").expect("ready");
+        let marker = probe.fields.iter().find(|field| field.name == "marker").expect("marker");
+        let weight = probe.fields.iter().find(|field| field.name == "weight").expect("weight");
+
+        assert!(ready.attributes.iter().any(|attr| {
+            attr.name == C_STORAGE_BITS_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(32, _)))
+        }));
+        assert!(marker.attributes.iter().any(|attr| {
+            attr.name == C_STORAGE_ALIGN_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(8, _)))
+        }));
+        assert!(weight.attributes.iter().any(|attr| {
+            attr.name == C_STORAGE_BITS_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(64, _)))
+        }));
+    }
+
+    #[test]
     fn test_union_designated_initializer_keeps_only_active_field() {
         let source = r#"
             union Number {
@@ -3512,6 +3680,53 @@ mod tests {
         let rendered = err.to_string();
         assert!(rendered.contains("KAIN-MEM-0003"));
         assert!(rendered.contains("bitfield"));
+    }
+
+    #[test]
+    fn test_pragma_pack_attaches_struct_layout_metadata() {
+        let source = r#"
+            #pragma pack(push, 1)
+            struct Packet {
+                char tag;
+                int value;
+            };
+            #pragma pack(pop)
+        "#;
+
+        let parsed = parse_c_source_with_metadata(source).unwrap();
+        let program = transform_with_layout_metadata(parsed.unit, parsed.layout).unwrap();
+        let packet = match &program.items[0] {
+            Item::Struct(st) => st,
+            _ => panic!("expected struct item"),
+        };
+
+        assert!(packet.attributes.iter().any(|attr| attr.name == C_PACKED_ATTR));
+        assert!(packet.attributes.iter().any(|attr| {
+            attr.name == C_PACK_ALIGN_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(bits, _)) if *bits == 8)
+        }));
+    }
+
+    #[test]
+    fn test_explicit_aligned_attribute_attaches_type_alignment_metadata() {
+        let source = r#"
+            struct __attribute__((aligned(16))) Packet {
+                char tag;
+                int value;
+            };
+        "#;
+
+        let parsed = parse_c_source_with_metadata(source).unwrap();
+        let program = transform_with_layout_metadata(parsed.unit, parsed.layout).unwrap();
+        let packet = match &program.items[0] {
+            Item::Struct(st) => st,
+            _ => panic!("expected struct item"),
+        };
+
+        assert!(packet.attributes.iter().any(|attr| {
+            attr.name == C_TYPE_ALIGN_ATTR
+                && matches!(attr.args.first(), Some(Expr::Int(bits, _)) if *bits == 128)
+        }));
     }
 
     #[test]

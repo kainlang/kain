@@ -2,7 +2,7 @@ use kain_core::ast::Type;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::low_level_memory_metadata::{
-    marker_attr, usize_bool_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
+    marker_attr, usize_attr, usize_bool_attr, C_BITFIELD_ATTR, C_STORAGE_BITS_ATTR, C_UNION_ATTR,
 };
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
@@ -706,4 +706,138 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
         panic!("expected bitfield get helper args");
     };
     assert_eq!(get_args[5].value, kain_core::ast::Expr::Bool(true, span));
+}
+
+#[test]
+fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
+    let span = kain_core::span::Span::default();
+    let int_ty = Type::Named {
+        name: "Int".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let wide_ty = Type::Named {
+        name: "UInt".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let flags_ty = Type::Named {
+        name: "Flags".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+
+    let program = kain_core::ast::Program {
+        items: vec![
+            kain_core::ast::Item::Struct(kain_core::ast::Struct {
+                name: "Flags".to_string(),
+                generics: Vec::new(),
+                fields: vec![
+                    kain_core::ast::Field {
+                        name: "small".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: vec![usize_bool_attr(C_BITFIELD_ATTR, 3, true, span)],
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                    kain_core::ast::Field {
+                        name: "wide".to_string(),
+                        ty: wide_ty,
+                        attributes: vec![
+                            usize_attr(C_STORAGE_BITS_ATTR, 64, span),
+                            usize_bool_attr(C_BITFIELD_ATTR, 40, false, span),
+                        ],
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                ],
+                methods: Vec::new(),
+                attributes: Vec::new(),
+                visibility: kain_core::ast::Visibility::Public,
+                span,
+            }),
+            kain_core::ast::Item::Function(kain_core::ast::Function {
+                name: "promote".to_string(),
+                generics: Vec::new(),
+                params: vec![kain_core::ast::Param {
+                    name: "f".to_string(),
+                    ty: flags_ty,
+                    mutable: true,
+                    default: None,
+                    span,
+                }],
+                return_type: Some(int_ty.clone()),
+                effects: Vec::new(),
+                body: kain_core::ast::Block {
+                    stmts: vec![
+                        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
+                            target: Box::new(kain_core::ast::Expr::Field {
+                                object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                field: "wide".to_string(),
+                                span,
+                            }),
+                            value: Box::new(kain_core::ast::Expr::Int(9, span)),
+                            span,
+                        }),
+                        kain_core::ast::Stmt::Return(
+                            Some(kain_core::ast::Expr::Binary {
+                                left: Box::new(kain_core::ast::Expr::Field {
+                                    object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                    field: "small".to_string(),
+                                    span,
+                                }),
+                                op: kain_core::ast::BinaryOp::Add,
+                                right: Box::new(kain_core::ast::Expr::Field {
+                                    object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                    field: "wide".to_string(),
+                                    span,
+                                }),
+                                span,
+                            }),
+                            span,
+                        ),
+                    ],
+                    span,
+                },
+                visibility: kain_core::ast::Visibility::Public,
+                attributes: Vec::new(),
+                span,
+            }),
+        ],
+        span,
+    };
+
+    let mapper = SpanMapper::new("");
+    let typed = kain_core::types::check(&program, &mapper, "bitfield_promotion.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[1] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Call { args: set_args, .. }) =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected bitfield set helper args");
+    };
+    assert_eq!(set_args[6].value, kain_core::ast::Expr::Int(40, span));
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Binary { left, right, .. }), _) =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected binary return");
+    };
+    let kain_core::ast::Expr::Call { args: left_args, .. } = left.as_ref() else {
+        panic!("expected lowered left helper");
+    };
+    let kain_core::ast::Expr::Call { args: right_args, .. } = right.as_ref() else {
+        panic!("expected lowered right helper");
+    };
+    assert_eq!(left_args[6].value, kain_core::ast::Expr::Int(32, span));
+    assert_eq!(right_args[6].value, kain_core::ast::Expr::Int(40, span));
 }

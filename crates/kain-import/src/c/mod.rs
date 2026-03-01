@@ -74,12 +74,13 @@ pub fn import_c_file_with_language_capabilities_and_options(
     language_capabilities: LanguageCapabilities,
     options: &CImportOptions,
 ) -> Result<Program> {
-    // 1. Parse C with lang-c
-    let c_ast = parser::parse_c_file_with_options(path, options)?;
-    
-    // 2. Transform to KAIN AST
-    let kain_ast = transformer::transform_with_language_capabilities(c_ast, language_capabilities)?;
-    
+    let parsed = parser::parse_c_file_with_metadata(path, options)?;
+    let kain_ast = transformer::transform_with_language_capabilities_and_layout_metadata(
+        parsed.unit,
+        language_capabilities,
+        parsed.layout,
+    )?;
+
     Ok(kain_ast)
 }
 
