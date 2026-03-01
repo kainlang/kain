@@ -15,13 +15,13 @@
 //! - `extern crate` → skipped
 //! - Associated types in traits → skipped for first slice
 
-use syn::{self, spanned::Spanned as _};
+use syn::{self};
 use kain_core::ast::*;
 use kain_core::effects::Effect;
 use kain_core::span::Span;
 use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenamer};
-use crate::{ImportError, Result};
-use std::collections::{HashMap, HashSet};
+use crate::Result;
+use std::collections::HashMap;
 use super::types::RustTypeMapper;
 
 // ── Transformer state ─────────────────────────────────────────────────────────
@@ -42,9 +42,6 @@ pub struct RustTransformer {
     /// Local variable type map (for type-directed lowering when needed).
     local_types: Vec<HashMap<String, Type>>,
 
-    /// Synthetic temp counter.
-    temp_counter: usize,
-
     /// Accumulated warnings / unsupported construct notes.
     pub diagnostics: Vec<String>,
 }
@@ -57,7 +54,6 @@ impl RustTransformer {
             generics_in_scope:  Vec::new(),
             current_function:   None,
             local_types:        vec![HashMap::new()],
-            temp_counter:       0,
             diagnostics:        Vec::new(),
         }
     }
@@ -80,12 +76,6 @@ impl RustTransformer {
 
     fn rename_variant(&mut self, raw: &str) -> String {
         self.identifier_renamer.resolve(IdentifierDomain::Variant, raw)
-    }
-
-    fn fresh_temp(&mut self, prefix: &str) -> String {
-        let n = self.temp_counter;
-        self.temp_counter += 1;
-        format!("__{}__{}", prefix, n)
     }
 
     fn note(&mut self, msg: impl Into<String>) {
@@ -160,9 +150,9 @@ impl RustTransformer {
                     kain_items.extend(self.transform_item(item)?);
                 }
                 let mod_name = self.rename_value(&m.ident.to_string());
-                Ok(vec![Item::Module(Module {
+                Ok(vec![Item::Mod(Mod {
                     name: mod_name,
-                    items: kain_items,
+                    inline: Some(kain_items),
                     visibility: visibility(&m.vis),
                     span: S,
                 })])
@@ -185,7 +175,7 @@ impl RustTransformer {
 
         // Generic params
         let generics = self.type_mapper.map_generic_params(&f.sig.generics.params);
-        self.generics_in_scope = generics.clone();
+        self.generics_in_scope = generics.iter().map(|g| g.name.clone()).collect();
 
         // Params
         let params = self.transform_sig_inputs(&f.sig.inputs)?;
@@ -371,7 +361,7 @@ impl RustTransformer {
                 self.current_function = Some(name.clone());
 
                 let method_generics = self.type_mapper.map_generic_params(&method.sig.generics.params);
-                self.generics_in_scope = method_generics.clone();
+                self.generics_in_scope = method_generics.iter().map(|g| g.name.clone()).collect();
 
                 let params = self.transform_sig_inputs(&method.sig.inputs)?;
                 let return_type = match &method.sig.output {
@@ -459,8 +449,7 @@ impl RustTransformer {
             // `let x = expr;`  /  `let x: T = expr;`
             syn::Stmt::Local(local) => {
                 let (name, mutable) = self.local_pat_name(&local.pat);
-                let ty = local.pat.as_ref().into_iter()
-                    .find_map(|_| None::<Type>); // type from annotation if available
+                let ty = self.type_from_local_pat(&local.pat);
                 let (ty_ann, value) = if let Some(init) = &local.init {
                     let ty_from_pat = self.type_from_local_pat(&local.pat);
                     let val = self.transform_expr(&init.expr)?;
@@ -495,7 +484,12 @@ impl RustTransformer {
             syn::Stmt::Item(item) => {
                 // Nested items in functions are hoisted by Rust; emit them
                 let items = self.transform_item(item)?;
-                Ok(items.into_iter().map(Stmt::Item).collect())
+                Ok(items.into_iter().map(|item| Stmt::Item(Box::new(item))).collect())
+            }
+            syn::Stmt::Macro(stmt_macro) => {
+                let macro_name = path_to_ident(&stmt_macro.mac.path);
+                let args = self.parse_macro_args(&stmt_macro.mac.tokens);
+                Ok(vec![Stmt::Expr(Expr::MacroCall { name: macro_name, args, span: S })])
             }
         }
     }
@@ -548,20 +542,6 @@ impl RustTransformer {
                 Ok(Expr::Assign { target: Box::new(target), value: Box::new(value), span: S })
             }
 
-            // Compound assignment: x += y → x = x + y
-            syn::Expr::AssignOp(a) => {
-                let target = self.transform_expr(&a.left)?;
-                let rhs    = self.transform_expr(&a.right)?;
-                let op     = compound_binop(&a.op);
-                let binary = Expr::Binary {
-                    left:  Box::new(target.clone()),
-                    op,
-                    right: Box::new(rhs),
-                    span:  S,
-                };
-                Ok(Expr::Assign { target: Box::new(target), value: Box::new(binary), span: S })
-            }
-
             // ── Field access ──────────────────────────────────────────────
             syn::Expr::Field(f) => {
                 let object = self.transform_expr(&f.base)?;
@@ -598,7 +578,7 @@ impl RustTransformer {
             syn::Expr::Struct(s) => {
                 let name   = path_to_ident(&s.path);
                 let fields = s.fields.iter().map(|fv| {
-                    let field_name = self.rename_field(&fv.member.to_string());
+                    let field_name = self.rename_field(&member_name(&fv.member));
                     let val        = self.transform_expr(&fv.expr)?;
                     Ok((field_name, val))
                 }).collect::<Result<Vec<_>>>()?;
@@ -732,11 +712,6 @@ impl RustTransformer {
             }
 
             // ── Dereference: `*expr` ──────────────────────────────────────
-            syn::Expr::Unary(u) if matches!(u.op, syn::UnOp::Deref(_)) => {
-                let inner = self.transform_expr(&u.expr)?;
-                Ok(Expr::Deref(Box::new(inner), S))
-            }
-
             // ── Paren ─────────────────────────────────────────────────────
             syn::Expr::Paren(p) => {
                 let inner = self.transform_expr(&p.expr)?;
@@ -854,9 +829,11 @@ impl RustTransformer {
 
     fn transform_arm(&mut self, arm: &syn::Arm) -> Result<MatchArm> {
         let pattern = self.transform_pattern(&arm.pat);
-        // Guard: `if guard_expr` → simplified (emitted as pattern condition)
+        let guard = arm.guard.as_ref()
+            .map(|(_, expr)| self.transform_expr(expr))
+            .transpose()?;
         let body = self.transform_expr(&arm.body)?;
-        Ok(MatchArm { pattern, body, span: S })
+        Ok(MatchArm { pattern, guard, body, span: S })
     }
 
     // ── Patterns ─────────────────────────────────────────────────────────
@@ -870,8 +847,8 @@ impl RustTransformer {
             }
             syn::Pat::Wild(_) => Pattern::Wildcard(S),
             syn::Pat::Lit(pl) => {
-                if let Ok(expr) = self.transform_lit(&syn::ExprLit { attrs: vec![], lit: pl.lit.clone() }) {
-                    Pattern::Literal(expr, S)
+                if let Ok(expr) = self.transform_lit(pl) {
+                    Pattern::Literal(expr)
                 } else {
                     Pattern::Wildcard(S)
                 }
@@ -881,42 +858,28 @@ impl RustTransformer {
                 Pattern::Tuple(pats, S)
             }
             syn::Pat::TupleStruct(pts) => {
-                let name  = path_to_ident(&pts.path);
+                let name  = variant_name(&pts.path);
                 let inner = pts.elems.iter().map(|p| self.transform_pattern(p)).collect();
-                Pattern::Constructor { name, fields: VariantPatternFields::Tuple(inner), span: S }
+                Pattern::Variant { enum_name: None, variant: name, fields: VariantPatternFields::Tuple(inner), span: S }
             }
             syn::Pat::Struct(ps) => {
-                let name   = path_to_ident(&ps.path);
+                let name   = variant_name(&ps.path);
                 let fields = ps.fields.iter().map(|fv| {
-                    let field = fv.member.to_string();
+                    let field = member_name(&fv.member);
                     let pat   = self.transform_pattern(&fv.pat);
                     (field, pat)
                 }).collect();
-                Pattern::Constructor { name, fields: VariantPatternFields::Struct(fields), span: S }
+                Pattern::Variant { enum_name: None, variant: name, fields: VariantPatternFields::Struct(fields), span: S }
             }
             syn::Pat::Path(pp) => {
-                let name = path_to_ident(&pp.path);
-                Pattern::Constructor { name, fields: VariantPatternFields::Unit, span: S }
+                let name = variant_name(&pp.path);
+                Pattern::Variant { enum_name: None, variant: name, fields: VariantPatternFields::Unit, span: S }
             }
             syn::Pat::Range(pr) => {
-                let start = pr.start.as_ref().and_then(|e| {
-                    if let syn::Expr::Lit(l) = e.as_ref() {
-                        if let syn::Lit::Int(i) = &l.lit {
-                            return i.base10_parse::<i64>().ok();
-                        }
-                    }
-                    None
-                });
-                let end = pr.end.as_ref().and_then(|e| {
-                    if let syn::Expr::Lit(l) = e.as_ref() {
-                        if let syn::Lit::Int(i) = &l.lit {
-                            return i.base10_parse::<i64>().ok();
-                        }
-                    }
-                    None
-                });
-                if let (Some(s), Some(e)) = (start, end) {
-                    Pattern::Range { start: s, end: e, inclusive: matches!(pr.limits, syn::RangeLimits::Closed(_)), span: S }
+                let start = pr.start.as_ref().and_then(|e| self.transform_expr(e).ok()).map(Box::new);
+                let end = pr.end.as_ref().and_then(|e| self.transform_expr(e).ok()).map(Box::new);
+                if start.is_some() || end.is_some() {
+                    Pattern::Range { start, end, inclusive: matches!(pr.limits, syn::RangeLimits::Closed(_)), span: S }
                 } else {
                     Pattern::Wildcard(S)
                 }
@@ -931,7 +894,7 @@ impl RustTransformer {
             }
             syn::Pat::Slice(ps) => {
                 let pats = ps.elems.iter().map(|p| self.transform_pattern(p)).collect();
-                Pattern::Array(pats, S)
+                Pattern::Slice { patterns: pats, rest: None, span: S }
             }
             _ => Pattern::Wildcard(S),
         }
@@ -1009,7 +972,7 @@ impl RustTransformer {
 // ── Free helpers ──────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 
-const S: Span = Span::ZERO;
+const S: Span = Span { start: 0, end: 0 };
 
 fn visibility(vis: &syn::Visibility) -> Visibility {
     match vis {
@@ -1026,13 +989,27 @@ fn path_to_ident(path: &syn::Path) -> String {
         .join("::")
 }
 
+fn variant_name(path: &syn::Path) -> String {
+    path.segments
+        .last()
+        .map(|segment| segment.ident.to_string())
+        .unwrap_or_default()
+}
+
+fn member_name(member: &syn::Member) -> String {
+    match member {
+        syn::Member::Named(ident) => ident.to_string(),
+        syn::Member::Unnamed(index) => format!("field_{}", index.index),
+    }
+}
+
 fn binop(op: &syn::BinOp) -> BinaryOp {
     match op {
         syn::BinOp::Add(_)  => BinaryOp::Add,
         syn::BinOp::Sub(_)  => BinaryOp::Sub,
         syn::BinOp::Mul(_)  => BinaryOp::Mul,
         syn::BinOp::Div(_)  => BinaryOp::Div,
-        syn::BinOp::Rem(_)  => BinaryOp::Rem,
+        syn::BinOp::Rem(_)  => BinaryOp::Mod,
         syn::BinOp::And(_)  => BinaryOp::And,
         syn::BinOp::Or(_)   => BinaryOp::Or,
         syn::BinOp::BitAnd(_) => BinaryOp::BitAnd,
@@ -1050,19 +1027,3 @@ fn binop(op: &syn::BinOp) -> BinaryOp {
     }
 }
 
-fn compound_binop(op: &syn::BinOp) -> BinaryOp {
-    // compound ops map to the base operator (x += y → x = x + y)
-    match op {
-        syn::BinOp::AddAssign(_) => BinaryOp::Add,
-        syn::BinOp::SubAssign(_) => BinaryOp::Sub,
-        syn::BinOp::MulAssign(_) => BinaryOp::Mul,
-        syn::BinOp::DivAssign(_) => BinaryOp::Div,
-        syn::BinOp::RemAssign(_) => BinaryOp::Rem,
-        syn::BinOp::BitAndAssign(_) => BinaryOp::BitAnd,
-        syn::BinOp::BitOrAssign(_)  => BinaryOp::BitOr,
-        syn::BinOp::BitXorAssign(_) => BinaryOp::BitXor,
-        syn::BinOp::ShlAssign(_) => BinaryOp::Shl,
-        syn::BinOp::ShrAssign(_) => BinaryOp::Shr,
-        _ => BinaryOp::Add,
-    }
-}

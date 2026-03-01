@@ -81,7 +81,7 @@ impl RustTypeMapper {
         match name.as_str() {
             "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock"
             | "ManuallyDrop" | "MaybeUninit" | "Pin" | "Cow" => {
-                if let Some(inner) = generics.into_iter().next() {
+                if let Some(inner) = generics.first().cloned() {
                     return inner;
                 }
                 return named("Unknown");
@@ -92,17 +92,17 @@ impl RustTypeMapper {
         // Well-known standard-library generics
         match name.as_str() {
             "Vec" | "VecDeque" | "LinkedList" => {
-                if let Some(inner) = generics.into_iter().next() {
+                if let Some(inner) = generics.first().cloned() {
                     return Type::Named { name: "Array".to_string(), generics: vec![inner], span: S };
                 }
             }
             "Option" => {
-                if let Some(inner) = generics.into_iter().next() {
+                if let Some(inner) = generics.first().cloned() {
                     return Type::Option(Box::new(inner), S);
                 }
             }
             "Result" => {
-                let mut g = generics.into_iter();
+                let mut g = generics.iter().cloned();
                 let ok  = g.next().unwrap_or(Type::Unit(S));
                 let err = g.next().unwrap_or(named("Error"));
                 return Type::Result(Box::new(ok), Box::new(err), S);
@@ -115,7 +115,7 @@ impl RustTypeMapper {
             }
             "KainResult" => {
                 // KAIN's own Result alias
-                let mut g = generics.into_iter();
+                let mut g = generics.iter().cloned();
                 let ok  = g.next().unwrap_or(named("String"));
                 let err = g.next().unwrap_or(named("Error"));
                 return Type::Result(Box::new(ok), Box::new(err), S);
@@ -153,7 +153,7 @@ impl RustTypeMapper {
 
     fn map_array(&self, a: &syn::TypeArray) -> Type {
         let inner = self.map_type(&a.elem);
-        let len   = extract_const_usize(&a.len);
+        let len   = extract_const_usize(&a.len).unwrap_or(0);
         Type::Array(Box::new(inner), len, S)
     }
 
@@ -238,12 +238,20 @@ impl RustTypeMapper {
     pub fn map_generic_params(
         &self,
         params: &syn::punctuated::Punctuated<syn::GenericParam, syn::token::Comma>,
-    ) -> Vec<String> {
+    ) -> Vec<kain_core::ast::Generic> {
         params
             .iter()
             .filter_map(|p| match p {
-                syn::GenericParam::Type(tp) => Some(tp.ident.to_string()),
-                syn::GenericParam::Const(cp) => Some(cp.ident.to_string()),
+                syn::GenericParam::Type(tp) => Some(kain_core::ast::Generic {
+                    name: tp.ident.to_string(),
+                    bounds: Vec::new(),
+                    span: S,
+                }),
+                syn::GenericParam::Const(cp) => Some(kain_core::ast::Generic {
+                    name: cp.ident.to_string(),
+                    bounds: Vec::new(),
+                    span: S,
+                }),
                 syn::GenericParam::Lifetime(_) => None, // lifetimes erased
             })
             .collect()
@@ -253,7 +261,7 @@ impl RustTypeMapper {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Shorthand zero span.
-const S: Span = Span::ZERO;
+const S: Span = Span { start: 0, end: 0 };
 
 fn named(n: &str) -> Type {
     Type::Named { name: n.to_string(), generics: vec![], span: S }

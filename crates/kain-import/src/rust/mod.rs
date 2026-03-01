@@ -105,7 +105,7 @@ pub fn import_rust_dir(dir: &Path, flat: bool) -> Result<Program> {
 
 /// Import with per-file module wrapping (mirrors C importer directory mode).
 fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
-    use kain_core::ast::{Item, Module};
+    use kain_core::ast::{Item, Mod};
     let mut top_items = Vec::new();
     let span = kain_core::span::Span::default();
 
@@ -122,9 +122,9 @@ fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
             .unwrap_or("unknown")
             .to_string();
 
-        top_items.push(Item::Module(Module {
+        top_items.push(Item::Mod(Mod {
             name: mod_name,
-            items: program.items,
+            inline: Some(program.items),
             visibility: kain_core::ast::Visibility::Public,
             span,
         }));

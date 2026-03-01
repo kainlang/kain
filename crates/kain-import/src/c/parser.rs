@@ -9,7 +9,8 @@ use std::path::Path;
 use crate::{ImportError, Result};
 
 /// Parse a C file using lang-c
-pub fn parse_c_file(path: &Path) -> Result<TranslationUnit> {
+#[cfg(test)]
+pub(crate) fn parse_c_file(path: &Path) -> Result<TranslationUnit> {
     parse_c_file_with_options(path, &CImportOptions::default())
 }
 
@@ -35,7 +36,8 @@ pub fn parse_c_file_with_options(path: &Path, options: &CImportOptions) -> Resul
 }
 
 /// Parse C source code from a string
-pub fn parse_c_source(source: &str) -> Result<TranslationUnit> {
+#[cfg(test)]
+pub(crate) fn parse_c_source(source: &str) -> Result<TranslationUnit> {
     let config = Config::default();
     let defined_symbols = HashSet::new();
 

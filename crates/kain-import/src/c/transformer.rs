@@ -764,7 +764,7 @@ impl CTransformer {
                 self.extract_type_from_declaration(&decl.specifiers, &init_decl.node.declarator.node)?;
             
             let value = if let Some(ref init) = init_decl.node.initializer {
-                Some(self.transform_initializer(&init.node)?)
+                Some(self.transform_initializer_for_type(&init.node, Some(&ty))?)
             } else {
                 Some(self.storage_default_for_type(&ty))
             };
@@ -817,6 +817,35 @@ impl CTransformer {
         }
     }
 
+    fn transform_compound_literal_for_type(
+        &mut self,
+        ty: &Type,
+        items: &[Node<c_ast::InitializerListItem>],
+    ) -> Result<Expr> {
+        match ty {
+            Type::Named { .. } => {
+                let fields = self.transform_compound_initializer_for_type(ty, items)?;
+                Ok(Expr::AggregateInit {
+                    ty: ty.clone(),
+                    fields,
+                    zero_fill_rest: true,
+                    span: Span::default(),
+                })
+            }
+            Type::Array(inner, count, _) => {
+                let values = self.transform_array_initializer(inner, *count, items)?;
+                Ok(Expr::Array(values, Span::default()))
+            }
+            _ => {
+                let mut exprs = Vec::new();
+                for item in items {
+                    exprs.push(self.transform_initializer(&item.node.initializer.node)?);
+                }
+                Ok(Expr::Array(exprs, Span::default()))
+            }
+        }
+    }
+
     fn default_value_for_type(&self, ty: &Type) -> Expr {
         match ty {
             Type::Array(inner, count, _) => Expr::Array(
@@ -826,6 +855,14 @@ impl CTransformer {
                 Span::default(),
             ),
             Type::Named { name, .. } => {
+                if self.structs.contains_key(name) {
+                    return Expr::AggregateInit {
+                        ty: ty.clone(),
+                        fields: Vec::new(),
+                        zero_fill_rest: true,
+                        span: Span::default(),
+                    };
+                }
                 match name.as_str() {
                     "Int" | "i32" | "i64" => Expr::Int(0, Span::default()),
                     "Float" | "f32" | "f64" => Expr::Float(0.0, Span::default()),
@@ -836,6 +873,267 @@ impl CTransformer {
             }
             Type::Unit(_) => Expr::Tuple(Vec::new(), Span::default()),
             _ => Expr::None(Span::default()),
+        }
+    }
+
+    fn field_name_for_index(&self, ty: &Type, index: usize) -> Option<String> {
+        let Type::Named { name, .. } = ty else {
+            return None;
+        };
+        self.structs
+            .get(name)?
+            .fields
+            .get(index)
+            .map(|field| field.name.clone())
+    }
+
+    fn transform_compound_initializer_for_type(
+        &mut self,
+        ty: &Type,
+        items: &[Node<c_ast::InitializerListItem>],
+    ) -> Result<Vec<(String, Expr)>> {
+        let mut fields: Vec<(String, Expr)> = Vec::new();
+        let mut cursor = 0usize;
+
+        for item in items {
+            let designators = item.node.designation.as_slice();
+            let (field_name, remainder, next_cursor) = if let Some(first) = designators.first() {
+                match &first.node {
+                    c_ast::Designator::Member(ident) => (
+                        self.rename_field_identifier(&ident.node.name),
+                        &designators[1..],
+                        cursor,
+                    ),
+                    c_ast::Designator::Index(index_expr) => {
+                        let index = self.extract_designator_index(&index_expr.node)?;
+                        (
+                            self.field_name_for_index(ty, index)
+                                .unwrap_or_else(|| format!("field_{}", index)),
+                            &designators[1..],
+                            index.saturating_add(1),
+                        )
+                    }
+                    _ => (format!("field_{}", cursor), &designators[1..], cursor.saturating_add(1)),
+                }
+            } else {
+                let field_name = self.field_name_for_index(ty, cursor)
+                    .unwrap_or_else(|| format!("field_{}", cursor));
+                (field_name, &designators[0..0], cursor.saturating_add(1))
+            };
+
+            let field_ty = self.lookup_field_type(ty, &field_name);
+            let current = fields
+                .iter()
+                .find(|(name, _)| name == &field_name)
+                .map(|(_, value)| value.clone())
+                .unwrap_or_else(|| {
+                    field_ty
+                        .as_ref()
+                        .map(|field_ty| self.default_value_for_type(field_ty))
+                        .unwrap_or_else(|| Expr::None(Span::default()))
+                });
+            let value = if let Some(field_ty) = field_ty.as_ref() {
+                self.apply_designators_to_value(
+                    field_ty,
+                    current,
+                    remainder,
+                    &item.node.initializer.node,
+                )?
+            } else {
+                self.transform_initializer(&item.node.initializer.node)?
+            };
+            Self::upsert_named_expr(&mut fields, field_name, value);
+            cursor = next_cursor;
+        }
+
+        Ok(fields)
+    }
+
+    fn transform_initializer_for_type(
+        &mut self,
+        init: &c_ast::Initializer,
+        ty: Option<&Type>,
+    ) -> Result<Expr> {
+        match (init, ty) {
+            (c_ast::Initializer::Expression(expr), _) => self.transform_expression(&expr.node),
+            (c_ast::Initializer::List(items), Some(ty)) => {
+                self.transform_compound_literal_for_type(ty, items)
+            }
+            (c_ast::Initializer::List(items), None) => {
+                let mut exprs = Vec::new();
+                for item in items {
+                    exprs.push(self.transform_initializer(&item.node.initializer.node)?);
+                }
+                Ok(Expr::Array(exprs, Span::default()))
+            }
+        }
+    }
+
+    fn transform_array_initializer(
+        &mut self,
+        element_ty: &Type,
+        count: usize,
+        items: &[Node<c_ast::InitializerListItem>],
+    ) -> Result<Vec<Expr>> {
+        let mut values = (0..count)
+            .map(|_| self.default_value_for_type(element_ty))
+            .collect::<Vec<_>>();
+        let mut cursor = 0usize;
+
+        for item in items {
+            let designators = item.node.designation.as_slice();
+            let (target_index, remainder) = if let Some(first) = designators.first() {
+                match &first.node {
+                    c_ast::Designator::Index(index_expr) => (
+                        self.extract_designator_index(&index_expr.node)?,
+                        &designators[1..],
+                    ),
+                    _ => (cursor, &designators[1..]),
+                }
+            } else {
+                (cursor, &designators[0..0])
+            };
+
+            let current = values
+                .get(target_index)
+                .cloned()
+                .unwrap_or_else(|| self.default_value_for_type(element_ty));
+            let value = self.apply_designators_to_value(
+                element_ty,
+                current,
+                remainder,
+                &item.node.initializer.node,
+            )?;
+            if target_index < values.len() {
+                values[target_index] = value;
+            } else {
+                values.resize_with(target_index, || self.default_value_for_type(element_ty));
+                values.push(value);
+            }
+            cursor = target_index.saturating_add(1);
+        }
+
+        Ok(values)
+    }
+
+    fn extract_designator_index(&mut self, expr: &c_ast::Expression) -> Result<usize> {
+        match self.transform_expression(expr)? {
+            Expr::Int(value, _) if value >= 0 => Ok(value as usize),
+            _ => Err(ImportError::UnsupportedFeature(
+                "Non-constant designated initializer index".to_string(),
+            )),
+        }
+    }
+
+    fn lookup_field_type(&self, ty: &Type, field_name: &str) -> Option<Type> {
+        let Type::Named { name, .. } = ty else {
+            return None;
+        };
+        self.structs
+            .get(name)?
+            .fields
+            .iter()
+            .find(|field| field.name == field_name)
+            .map(|field| field.ty.clone())
+    }
+
+    fn apply_designators_to_value(
+        &mut self,
+        ty: &Type,
+        current: Expr,
+        designators: &[Node<c_ast::Designator>],
+        init: &c_ast::Initializer,
+    ) -> Result<Expr> {
+        if designators.is_empty() {
+            return self.transform_initializer_for_type(init, Some(ty));
+        }
+
+        match ty {
+            Type::Named { .. } => {
+                let (field_name, field_ty) = match &designators[0].node {
+                    c_ast::Designator::Member(ident) => {
+                        let field_name = self.rename_field_identifier(&ident.node.name);
+                        let field_ty = self.lookup_field_type(ty, &field_name);
+                        (field_name, field_ty)
+                    }
+                    c_ast::Designator::Index(index_expr) => {
+                        let index = self.extract_designator_index(&index_expr.node)?;
+                        let field_name = self.field_name_for_index(ty, index)
+                            .unwrap_or_else(|| format!("field_{}", index));
+                        let field_ty = self.lookup_field_type(ty, &field_name);
+                        (field_name, field_ty)
+                    }
+                    _ => {
+                        return self.transform_initializer_for_type(init, Some(ty));
+                    }
+                };
+
+                let mut fields = match current {
+                    Expr::AggregateInit { fields, .. } => fields,
+                    _ => Vec::new(),
+                };
+                let Some(field_ty) = field_ty else {
+                    return self.transform_initializer_for_type(init, Some(ty));
+                };
+                let nested_current = fields
+                    .iter()
+                    .find(|(name, _)| name == &field_name)
+                    .map(|(_, value)| value.clone())
+                    .unwrap_or_else(|| self.default_value_for_type(&field_ty));
+                let nested_value = self.apply_designators_to_value(
+                    &field_ty,
+                    nested_current,
+                    &designators[1..],
+                    init,
+                )?;
+                Self::upsert_named_expr(&mut fields, field_name, nested_value);
+                Ok(Expr::AggregateInit {
+                    ty: ty.clone(),
+                    fields,
+                    zero_fill_rest: true,
+                    span: Span::default(),
+                })
+            }
+            Type::Array(inner, count, _) => {
+                let target_index = match &designators[0].node {
+                    c_ast::Designator::Index(index_expr) => {
+                        self.extract_designator_index(&index_expr.node)?
+                    }
+                    _ => {
+                        return self.transform_initializer_for_type(init, Some(ty));
+                    }
+                };
+                let mut values = match current {
+                    Expr::Array(values, _) => values,
+                    _ => (0..*count)
+                        .map(|_| self.default_value_for_type(inner))
+                        .collect::<Vec<_>>(),
+                };
+                if target_index >= values.len() {
+                    values.resize_with(target_index + 1, || self.default_value_for_type(inner));
+                }
+                let nested_current = values
+                    .get(target_index)
+                    .cloned()
+                    .unwrap_or_else(|| self.default_value_for_type(inner));
+                let nested_value = self.apply_designators_to_value(
+                    inner,
+                    nested_current,
+                    &designators[1..],
+                    init,
+                )?;
+                values[target_index] = nested_value;
+                Ok(Expr::Array(values, Span::default()))
+            }
+            _ => self.transform_initializer_for_type(init, Some(ty)),
+        }
+    }
+
+    fn upsert_named_expr(fields: &mut Vec<(String, Expr)>, field_name: String, value: Expr) {
+        if let Some((_, slot)) = fields.iter_mut().find(|(name, _)| name == &field_name) {
+            *slot = value;
+        } else {
+            fields.push((field_name, value));
         }
     }
 
@@ -1152,7 +1450,24 @@ impl CTransformer {
                 Type::Ref { inner, .. } | Type::Ptr { inner, .. } => Some(*inner),
                 _ => None,
             },
+            Expr::Paren(inner, _) => self.infer_expr_type(inner),
+            Expr::Assign { target, .. } => self.infer_expr_type(target),
             Expr::Cast { target, .. } => Some(target.clone()),
+            Expr::Array(items, _) => {
+                let first = items.first()?;
+                let element_ty = self.infer_expr_type(first)?;
+                Some(Type::Array(
+                    Box::new(element_ty),
+                    items.len(),
+                    Span::default(),
+                ))
+            }
+            Expr::Struct { name, .. } => Some(Type::Named {
+                name: name.clone(),
+                generics: Vec::new(),
+                span: Span::default(),
+            }),
+            Expr::AggregateInit { ty, .. } => Some(ty.clone()),
             Expr::Ref { mutable, value, .. } => Some(Type::Ptr {
                 mutable: *mutable,
                 inner: Box::new(self.infer_expr_type(value)?),
@@ -1765,10 +2080,20 @@ impl CTransformer {
             }
 
             // sizeof(expr)
-            SizeOfVal(size_of_val) => Ok(Expr::Int(
-                self.estimate_sizeof_expression(&size_of_val.node.0.node),
-                Span::default(),
-            )),
+            SizeOfVal(size_of_val) => {
+                let lowered = self.transform_expression(&size_of_val.node.0.node)?;
+                if let Some(ty) = self.infer_expr_type(&lowered) {
+                    Ok(Expr::SizeOfType {
+                        target: ty,
+                        span: Span::default(),
+                    })
+                } else {
+                    Ok(Expr::Int(
+                        self.estimate_sizeof_expression(&size_of_val.node.0.node),
+                        Span::default(),
+                    ))
+                }
+            }
 
             // alignof(type)
             AlignOf(align_of_ty) => {
@@ -1861,28 +2186,7 @@ impl CTransformer {
                 // Extract type name
                 let type_name = self.extract_type_from_type_name(&compound.node.type_name.node)?;
                 
-                if let Type::Named { name, .. } = type_name {
-                    // Transform initializer list to struct fields
-                    let fields = self.transform_compound_initializer(&compound.node.initializer_list)?;
-                    
-                    Ok(Expr::AggregateInit {
-                        ty: Type::Named {
-                            name,
-                            generics: Vec::new(),
-                            span: Span::default(),
-                        },
-                        fields,
-                        zero_fill_rest: true,
-                        span: Span::default(),
-                    })
-                } else {
-                    // Array or other compound literal
-                    let mut exprs = Vec::new();
-                    for item in &compound.node.initializer_list {
-                        exprs.push(self.transform_initializer(&item.node.initializer.node)?);
-                    }
-                    Ok(Expr::Array(exprs, Span::default()))
-                }
+                self.transform_compound_literal_for_type(&type_name, &compound.node.initializer_list)
             }
             
             _ => {
@@ -1948,32 +2252,6 @@ impl CTransformer {
         })
     }
     
-    /// Transform compound initializer to struct fields
-    fn transform_compound_initializer(
-        &mut self,
-        items: &[Node<c_ast::InitializerListItem>],
-    ) -> Result<Vec<(String, Expr)>> {
-        let mut fields = Vec::new();
-
-        for (idx, item) in items.iter().enumerate() {
-            // Check for designated initializer
-            let field_name = if !item.node.designation.is_empty() {
-                // Extract field name from designator
-                if let c_ast::Designator::Member(ident) = &item.node.designation[0].node {
-                    self.rename_field_identifier(&ident.node.name)
-                } else {
-                    format!("field_{}", idx)
-                }
-            } else {
-                format!("field_{}", idx)
-            };
-
-            let value = self.transform_initializer(&item.node.initializer.node)?;
-            fields.push((field_name, value));
-        }
-
-        Ok(fields)
-    }
 }
 
 impl Default for CTransformer {
@@ -1983,6 +2261,7 @@ impl Default for CTransformer {
 }
 
 /// Transform a C translation unit to KAIN program
+#[cfg(test)]
 pub fn transform(tu: c_ast::TranslationUnit) -> Result<Program> {
     let mut transformer = CTransformer::new();
     transformer.transform(tu)
@@ -2712,6 +2991,245 @@ mod tests {
             panic!("expected alignof_type return");
         };
         assert!(matches!(target, Type::Named { name, .. } if name == "Int"));
+    }
+
+    #[test]
+    fn test_sizeof_expr_prefers_inferred_type() {
+        let source = r#"
+            int size_of_local() {
+                int value = 7;
+                return sizeof(value);
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let size_fn = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Return(Some(Expr::SizeOfType { target, .. }), _) = &size_fn.body.stmts[1] else {
+            panic!("expected sizeof_type on inferred local");
+        };
+        assert!(matches!(target, Type::Named { name, .. } if name == "Int"));
+    }
+
+    #[test]
+    fn test_sizeof_expr_handles_aggregate_literal_type() {
+        let source = r#"
+            struct Pair {
+                int left;
+                int right;
+            };
+
+            int size_pair() {
+                return sizeof((struct Pair){ .left = 1, .right = 2 });
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let size_fn = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "size_pair" => Some(f),
+                _ => None,
+            })
+            .expect("expected size_pair function");
+
+        let Stmt::Return(Some(Expr::SizeOfType { target, .. }), _) = &size_fn.body.stmts[0] else {
+            panic!("expected sizeof_type on aggregate literal");
+        };
+        assert!(matches!(target, Type::Named { name, .. } if name == "Pair"));
+    }
+
+    #[test]
+    fn test_sizeof_expr_handles_array_lvalue_type() {
+        let source = r#"
+            int size_values() {
+                int values[4] = { 1, 2, 3, 4 };
+                return sizeof(values);
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let size_fn = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Return(Some(Expr::SizeOfType { target, .. }), _) = &size_fn.body.stmts[1] else {
+            panic!("expected sizeof_type on array local");
+        };
+        assert!(matches!(target, Type::Array(_, 4, _)));
+    }
+
+    #[test]
+    fn test_calloc_preserves_element_count_semantics() {
+        let source = r#"
+            int *make_buf(int count) {
+                return calloc(count, sizeof(int));
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let make_buf = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Return(Some(Expr::Alloc { size, ty, zeroed, .. }), _) = &make_buf.body.stmts[0] else {
+            panic!("expected alloc return");
+        };
+        assert!(*zeroed, "calloc should preserve zeroed heap semantics");
+        assert!(matches!(ty, Some(Type::Named { name, .. }) if name == "Int"));
+        let Expr::Binary { left, op: BinaryOp::Mul, right, .. } = &**size else {
+            panic!("expected calloc size to remain count * sizeof(type)");
+        };
+        assert!(matches!(&**left, Expr::Ident(name, _) if name == "count"));
+        assert!(matches!(&**right, Expr::SizeOfType { target: Type::Named { name, .. }, .. } if name == "Int"));
+    }
+
+    #[test]
+    fn test_designated_struct_initializer_becomes_explicit_aggregate_init() {
+        let source = r#"
+            struct Pair {
+                int left;
+                int right;
+            };
+
+            struct Pair make_pair() {
+                return (struct Pair){ .right = 2, .left = 1 };
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let make_pair = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "make_pair" => Some(f),
+                _ => None,
+            })
+            .expect("expected make_pair function");
+
+        let Stmt::Return(Some(Expr::AggregateInit { ty, fields, zero_fill_rest, .. }), _) =
+            &make_pair.body.stmts[0]
+        else {
+            panic!("expected aggregate_init return");
+        };
+        assert!(*zero_fill_rest);
+        assert!(matches!(ty, Type::Named { name, .. } if name == "Pair"));
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].0, "right");
+        assert_eq!(fields[1].0, "left");
+    }
+
+    #[test]
+    fn test_nested_designated_struct_initializer_becomes_nested_aggregate_init() {
+        let source = r#"
+            struct Inner {
+                int x;
+                int y;
+            };
+
+            struct Outer {
+                struct Inner inner;
+                int z;
+            };
+
+            struct Outer make_outer() {
+                return (struct Outer){ .inner.x = 1, .inner.y = 2, .z = 3 };
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let make_outer = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "make_outer" => Some(f),
+                _ => None,
+            })
+            .expect("expected make_outer");
+
+        let Stmt::Return(Some(Expr::AggregateInit { fields, .. }), _) = &make_outer.body.stmts[0] else {
+            panic!("expected aggregate_init return");
+        };
+
+        let inner = fields.iter().find(|(name, _)| name == "inner").expect("missing inner field");
+        let Expr::AggregateInit { fields: inner_fields, .. } = &inner.1 else {
+            panic!("expected nested aggregate init for inner");
+        };
+        assert!(inner_fields.iter().any(|(name, _)| name == "x"));
+        assert!(inner_fields.iter().any(|(name, _)| name == "y"));
+        assert!(fields.iter().any(|(name, _)| name == "z"));
+    }
+
+    #[test]
+    fn test_designated_array_initializer_becomes_explicit_sparse_array() {
+        let source = r#"
+            int read_value() {
+                int values[4] = { [2] = 7, [0] = 1 };
+                return values[2];
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let read_value = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Let { value: Some(Expr::Array(items, _)), .. } = &read_value.body.stmts[0] else {
+            panic!("expected explicit array initializer");
+        };
+        assert_eq!(items.len(), 4);
+        assert!(matches!(&items[0], Expr::Int(1, _)));
+        assert!(matches!(&items[1], Expr::Int(0, _)));
+        assert!(matches!(&items[2], Expr::Int(7, _)));
+    }
+
+    #[test]
+    fn test_nested_designated_array_of_struct_initializer_preserves_field_updates() {
+        let source = r#"
+            struct Pair {
+                int left;
+                int right;
+            };
+
+            int read_value() {
+                struct Pair values[3] = { [2].right = 7, [2].left = 4 };
+                return values[2].right;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let read_value = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(f) if f.name == "read_value" => Some(f),
+                _ => None,
+            })
+            .expect("expected read_value");
+
+        let Stmt::Let { value: Some(Expr::Array(items, _)), .. } = &read_value.body.stmts[0] else {
+            panic!("expected explicit array initializer");
+        };
+        let Expr::AggregateInit { fields, .. } = &items[2] else {
+            panic!("expected aggregate init at designated array slot");
+        };
+        assert!(fields.iter().any(|(name, _)| name == "left"));
+        assert!(fields.iter().any(|(name, _)| name == "right"));
     }
 
     #[test]
