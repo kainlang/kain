@@ -1,7 +1,7 @@
 use kain_core::ast::Type;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
-use kain_core::low_level_memory_metadata::{marker_attr, C_UNION_ATTR};
+use kain_core::low_level_memory_metadata::{marker_attr, usize_attr, C_BITFIELD_ATTR, C_UNION_ATTR};
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
     Lexer, Parser,
@@ -561,14 +561,18 @@ fn ts_memory_lowering_uses_union_layout_metadata() {
     };
 
     let kain_core::ast::Stmt::Let {
-        value: Some(kain_core::ast::Expr::Struct { fields, .. }),
+        value: Some(kain_core::ast::Expr::Call { callee, args, .. }),
         ..
     } = &function.ast.body.stmts[0]
     else {
         panic!("expected lowered union aggregate");
     };
-    assert_eq!(fields.len(), 1);
-    assert_eq!(fields[0].0, "as_float");
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_union_wrap"));
+    let kain_core::ast::Expr::Struct { fields, .. } = &args[0].value else {
+        panic!("expected wrapped struct value");
+    };
+    assert_eq!(fields.len(), 2);
+    assert_eq!(args[1].value, kain_core::ast::Expr::String("as_float".to_string(), span));
 
     let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Int(size, _)), _) =
         &function.ast.body.stmts[1]
@@ -576,4 +580,114 @@ fn ts_memory_lowering_uses_union_layout_metadata() {
         panic!("expected lowered union sizeof");
     };
     assert_eq!(*size, 8);
+}
+
+#[test]
+fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
+    let span = kain_core::span::Span::default();
+    let int_ty = Type::Named {
+        name: "Int".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let flags_ty = Type::Named {
+        name: "Flags".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+
+    let program = kain_core::ast::Program {
+        items: vec![
+            kain_core::ast::Item::Struct(kain_core::ast::Struct {
+                name: "Flags".to_string(),
+                generics: Vec::new(),
+                fields: vec![
+                    kain_core::ast::Field {
+                        name: "ready".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: vec![usize_attr(C_BITFIELD_ATTR, 1, span)],
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                    kain_core::ast::Field {
+                        name: "mode".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: vec![usize_attr(C_BITFIELD_ATTR, 3, span)],
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                ],
+                methods: Vec::new(),
+                attributes: Vec::new(),
+                visibility: kain_core::ast::Visibility::Public,
+                span,
+            }),
+            kain_core::ast::Item::Function(kain_core::ast::Function {
+                name: "update".to_string(),
+                generics: Vec::new(),
+                params: vec![kain_core::ast::Param {
+                    name: "f".to_string(),
+                    ty: flags_ty.clone(),
+                    mutable: true,
+                    default: None,
+                    span,
+                }],
+                return_type: Some(int_ty.clone()),
+                effects: Vec::new(),
+                body: kain_core::ast::Block {
+                    stmts: vec![
+                        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
+                            target: Box::new(kain_core::ast::Expr::Field {
+                                object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                field: "mode".to_string(),
+                                span,
+                            }),
+                            value: Box::new(kain_core::ast::Expr::Int(5, span)),
+                            span,
+                        }),
+                        kain_core::ast::Stmt::Return(
+                            Some(kain_core::ast::Expr::Field {
+                                object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                field: "ready".to_string(),
+                                span,
+                            }),
+                            span,
+                        ),
+                    ],
+                    span,
+                },
+                visibility: kain_core::ast::Visibility::Public,
+                attributes: Vec::new(),
+                span,
+            }),
+        ],
+        span,
+    };
+
+    let mapper = SpanMapper::new("");
+    let typed = kain_core::types::check(&program, &mapper, "bitfield_lowering.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[1] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Call { callee, .. }) =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected bitfield set helper");
+    };
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_set"));
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Call { callee, .. }), _) =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected bitfield get helper");
+    };
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_get"));
 }

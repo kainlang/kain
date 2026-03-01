@@ -13,6 +13,7 @@ pub enum DiagnosticCode {
     RuntimeGeneric,
     MemoryLoweringRequired,
     MemoryUnsupportedBackend,
+    MemoryIllegalBitfieldAddress,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,6 +102,13 @@ const DIAGNOSTIC_SPECS: &[DiagnosticSpec] = &[
         title: "Memory Semantics Unsupported By Backend",
         docs_key: Some("memory/backend-capabilities"),
         default_suggestion: Some("Choose a backend with low-level memory support or lower pointers and raw storage into a backend-safe form first."),
+    },
+    DiagnosticSpec {
+        code: DiagnosticCode::MemoryIllegalBitfieldAddress,
+        code_str: "KAIN-MEM-0003",
+        title: "Illegal Bitfield Address",
+        docs_key: Some("memory/bitfields"),
+        default_suggestion: Some("Do not take the address of a C bitfield directly; lower it into a load/store/mask operation instead."),
     },
 ];
 

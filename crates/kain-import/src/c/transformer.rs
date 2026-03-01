@@ -229,6 +229,25 @@ impl CTransformer {
         };
         vec![(active_name, active_value)]
     }
+
+    fn lookup_field(&self, ty: &Type, field_name: &str) -> Option<&Field> {
+        self.struct_def_for_type(ty)?
+            .fields
+            .iter()
+            .find(|field| field.name == field_name)
+    }
+
+    fn expr_field_is_bitfield(&self, expr: &Expr) -> bool {
+        let Expr::Field { object, field, .. } = expr else {
+            return false;
+        };
+        let Some(object_ty) = self.infer_expr_type(object) else {
+            return false;
+        };
+        self.lookup_field(&object_ty, field)
+            .map(|field_def| field_def.attributes.iter().any(|attr| attr.name == C_BITFIELD_ATTR))
+            .unwrap_or(false)
+    }
     
     /// Transform a C translation unit to KAIN program
     pub fn transform(&mut self, tu: c_ast::TranslationUnit) -> Result<Program> {
@@ -1733,6 +1752,16 @@ impl CTransformer {
             }
             _ => {
                 let value = self.transform_expression(operand)?;
+                if self.expr_field_is_bitfield(&value) {
+                    let code = kain_core::diagnostic_registry::spec_for_code(
+                        DiagnosticCode::MemoryIllegalBitfieldAddress,
+                    )
+                    .code_str;
+                    return Err(ImportError::UnsupportedFeature(format!(
+                        "{}: cannot take the address of a C bitfield; lower it through bitfield load/store semantics instead",
+                        code
+                    )));
+                }
                 let pointee_ty = self.infer_expr_type(&value);
                 Ok(Expr::AddrOf {
                     value: Box::new(value),
@@ -3404,6 +3433,25 @@ mod tests {
         };
         assert_eq!(number_fields.len(), 1);
         assert_eq!(number_fields[0].0, "as_float");
+    }
+
+    #[test]
+    fn test_address_of_bitfield_reports_dedicated_memory_diagnostic() {
+        let source = r#"
+            struct Flags {
+                unsigned int ready: 1;
+            };
+
+            int *take_ready(struct Flags f) {
+                return &f.ready;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let err = transform(c_ast).expect_err("bitfield address-of should be rejected");
+        let rendered = err.to_string();
+        assert!(rendered.contains("KAIN-MEM-0003"));
+        assert!(rendered.contains("bitfield"));
     }
 
     #[test]
