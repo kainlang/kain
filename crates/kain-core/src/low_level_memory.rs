@@ -19,6 +19,7 @@ struct LayoutField {
 #[derive(Debug, Clone, Default)]
 struct StructLayoutInfo {
     size: usize,
+    field_order: Vec<String>,
     fields: HashMap<String, LayoutField>,
 }
 
@@ -34,21 +35,29 @@ impl LayoutRegistry {
             if let TypedItem::Struct(st) = item {
                 let mut offset = 0usize;
                 let mut fields = HashMap::new();
+                let mut field_order = Vec::new();
                 for field in &st.ast.fields {
                     let size = registry.type_size_fallback(&field.ty);
+                    let align = registry.type_align_fallback(&field.ty).max(1);
+                    if offset % align != 0 {
+                        offset += align - (offset % align);
+                    }
+                    let field_name = field.name.clone();
                     fields.insert(
-                        field.name.clone(),
+                        field_name.clone(),
                         LayoutField {
                             offset,
                             ty: field.ty.clone(),
                         },
                     );
                     offset += size;
+                    field_order.push(field_name);
                 }
                 registry.structs.insert(
                     st.ast.name.clone(),
                     StructLayoutInfo {
                         size: offset.max(1),
+                        field_order,
                         fields,
                     },
                 );
@@ -608,8 +617,47 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
         ),
         Expr::SizeOfType { target, .. } => Expr::Int(estimate_type_size(target, ctx.layouts) as i64, span),
         Expr::AlignOfType { target, .. } => Expr::Int(estimate_type_align(target, ctx.layouts) as i64, span),
-        Expr::Alloca { ty, .. } | Expr::Uninit { ty, .. } => {
-            lower_storage_expr(ty, ctx.layouts, span)
+        Expr::Alloca { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
+        Expr::Uninit { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
+        Expr::Alloc {
+            size,
+            ty,
+            zeroed,
+            ..
+        } => lower_heap_alloc_expr(
+            &lower_expr_memory_with_ctx(size, ctx),
+            ty.as_ref(),
+            *zeroed,
+            ctx.layouts,
+            span,
+        ),
+        Expr::Realloc {
+            pointer,
+            size,
+            ty,
+            zeroed_new,
+            ..
+        } => helper_call(
+            "__kain_realloc",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(size, ctx),
+                Expr::Int(memory_stride_for_type(ty.as_ref(), ctx.layouts).unwrap_or(1), span),
+                storage_seed_expr(ty.as_ref(), ctx.layouts, span, *zeroed_new),
+            ],
+            span,
+        ),
+        Expr::AggregateInit {
+            ty,
+            fields,
+            zero_fill_rest,
+            ..
+        } => {
+            let lowered_fields = fields
+                .iter()
+                .map(|(name, value)| (name.clone(), lower_expr_memory_with_ctx(value, ctx)))
+                .collect::<Vec<_>>();
+            lower_aggregate_init_expr(ty, &lowered_fields, *zero_fill_rest, ctx.layouts, span)
         }
         Expr::Assign { target, value, span } => {
             if let Expr::Ident(name, _) = target.as_ref() {
@@ -1347,31 +1395,128 @@ fn estimate_type_align(ty: &Type, layouts: &LayoutRegistry) -> usize {
     }
 }
 
-fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span) -> Expr {
+fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span, zeroed: bool) -> Expr {
     match ty {
         Type::Array(inner, count, _) => Expr::Array(
             (0..*count)
-                .map(|_| lower_storage_expr(inner, layouts, span))
+                .map(|_| lower_storage_expr(inner, layouts, span, zeroed))
                 .collect(),
             span,
         ),
         Type::Tuple(items, _) => Expr::Tuple(
             items
                 .iter()
-                .map(|item| lower_storage_expr(item, layouts, span))
+                .map(|item| lower_storage_expr(item, layouts, span, zeroed))
                 .collect(),
             span,
         ),
         Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "isize" || name == "usize" => {
-            Expr::Int(0, span)
+            if zeroed { Expr::Int(0, span) } else { Expr::None(span) }
         }
-        Type::Named { name, .. } if name == "Float" => Expr::Float(0.0, span),
-        Type::Named { name, .. } if name == "Bool" => Expr::Bool(false, span),
-        Type::Named { name, .. } if name == "Char" => Expr::String("\0".to_string(), span),
+        Type::Named { name, .. } if name == "Float" => {
+            if zeroed { Expr::Float(0.0, span) } else { Expr::None(span) }
+        }
+        Type::Named { name, .. } if name == "Bool" => {
+            if zeroed { Expr::Bool(false, span) } else { Expr::None(span) }
+        }
+        Type::Named { name, .. } if name == "Char" => {
+            if zeroed { Expr::String("\0".to_string(), span) } else { Expr::None(span) }
+        }
         Type::Unit(_) => Expr::Tuple(Vec::new(), span),
-        Type::Named { name, .. } if layouts.structs.contains_key(name) => Expr::None(span),
+        Type::Named { name, .. } if layouts.structs.contains_key(name) => {
+            let fields = layouts
+                .structs
+                .get(name)
+                .map(|info| {
+                    info.field_order
+                        .iter()
+                        .filter_map(|field_name| {
+                            info.fields.get(field_name).map(|field| {
+                                (
+                                    field_name.clone(),
+                                    lower_storage_expr(&field.ty, layouts, span, zeroed),
+                                )
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            Expr::Struct {
+                name: name.clone(),
+                fields,
+                span,
+            }
+        }
         Type::Ref { .. } | Type::Ptr { .. } => Expr::None(span),
         _ => Expr::None(span),
+    }
+}
+
+fn storage_seed_expr(ty: Option<&Type>, layouts: &LayoutRegistry, span: Span, zeroed: bool) -> Expr {
+    ty.map(|ty| lower_storage_expr(ty, layouts, span, zeroed))
+        .unwrap_or_else(|| if zeroed { Expr::Int(0, span) } else { Expr::None(span) })
+}
+
+fn lower_heap_alloc_expr(
+    size: &Expr,
+    ty: Option<&Type>,
+    zeroed: bool,
+    layouts: &LayoutRegistry,
+    span: Span,
+) -> Expr {
+    helper_call(
+        "__kain_alloc",
+        vec![
+            size.clone(),
+            Expr::Int(memory_stride_for_type(ty, layouts).unwrap_or(1), span),
+            Expr::Bool(zeroed, span),
+            storage_seed_expr(ty, layouts, span, zeroed),
+        ],
+        span,
+    )
+}
+
+fn lower_aggregate_init_expr(
+    ty: &Type,
+    fields: &[(String, Expr)],
+    zero_fill_rest: bool,
+    layouts: &LayoutRegistry,
+    span: Span,
+) -> Expr {
+    match ty {
+        Type::Named { name, .. } if layouts.structs.contains_key(name) => {
+            let provided: HashMap<String, Expr> = fields.iter().cloned().collect();
+            let field_values = layouts
+                .structs
+                .get(name)
+                .map(|info| {
+                    info.field_order
+                        .iter()
+                        .filter_map(|field_name| {
+                            info.fields.get(field_name).map(|field| {
+                                let value = provided.get(field_name).cloned().unwrap_or_else(|| {
+                                    if zero_fill_rest {
+                                        lower_storage_expr(&field.ty, layouts, span, true)
+                                    } else {
+                                        Expr::None(span)
+                                    }
+                                });
+                                (field_name.clone(), value)
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| fields.to_vec());
+            Expr::Struct {
+                name: name.clone(),
+                fields: field_values,
+                span,
+            }
+        }
+        _ => Expr::Tuple(
+            fields.iter().map(|(_, value)| value.clone()).collect(),
+            span,
+        ),
     }
 }
 
@@ -1572,6 +1717,12 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }
         | Expr::Uninit { .. } => None,
+        Expr::Alloc { size, .. } => first_memory_expr_context(size, base),
+        Expr::Realloc { pointer, size, .. } => first_memory_expr_context(pointer, base.clone())
+            .or_else(|| first_memory_expr_context(size, base)),
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .find_map(|(_, value)| first_memory_expr_context(value, base.clone())),
         Expr::Binary { left, right, .. } => {
             first_memory_expr_context(left, base.clone()).or_else(|| first_memory_expr_context(right, base))
         }

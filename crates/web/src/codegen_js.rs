@@ -92,6 +92,7 @@ impl JSGen {
         self.writeln("const __kainPtrMeta = new Map();");
         self.writeln("let __kainNextPtr = 1;");
         self.writeln("function __kain_new_ptr(meta) { const ptr = __kainNextPtr++; __kainPtrMeta.set(ptr, meta); return ptr; }");
+        self.writeln("function __kain_clone_value(value) { if (Array.isArray(value)) { return value.map((item) => __kain_clone_value(item)); } if (value && typeof value === 'object') { return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, __kain_clone_value(v)])); } return value; }");
         self.writeln("function __kain_addr_of(value) { const ptr = __kain_new_ptr({ kind: 'value' }); __kainMem.set(ptr, value); return ptr; }");
         self.writeln("function __kain_bind_local(value) { return __kain_addr_of(value); }");
         self.writeln("function __kain_field_ptr(ptr, field, _offset) { return __kain_new_ptr({ kind: 'field', base: ptr, field }); }");
@@ -99,6 +100,8 @@ impl JSGen {
         self.writeln("function __kain_ptr_offset(ptr, offset, stride) { return ptr + (offset * Math.max(stride, 1)); }");
         self.writeln("function __kain_mem_load(ptr) { const meta = __kainPtrMeta.get(ptr); if (!meta || meta.kind === 'value') { return __kainMem.get(ptr); } if (meta.kind === 'field') { const base = __kain_mem_load(meta.base); return base == null ? undefined : base[meta.field]; } const base = __kain_mem_load(meta.base); return base == null ? undefined : base[meta.index]; }");
         self.writeln("function __kain_mem_store(ptr, value) { const meta = __kainPtrMeta.get(ptr); if (!meta || meta.kind === 'value') { __kainMem.set(ptr, value); return value; } if (meta.kind === 'field') { const base = __kain_mem_load(meta.base); if (base != null) { base[meta.field] = value; } return value; } const base = __kain_mem_load(meta.base); if (base != null) { base[meta.index] = value; } return value; }");
+        self.writeln("function __kain_alloc(size, stride, _zeroed, seed) { const step = Math.max(stride, 1); const count = Math.max(1, Math.ceil(Math.max(size, step) / step)); const base = __kainNextPtr; for (let i = 0; i < count; i++) { __kainMem.set(base + (i * step), __kain_clone_value(seed)); } __kainNextPtr = base + (count * step); return base; }");
+        self.writeln("function __kain_realloc(ptr, size, stride, seed) { if (!ptr) { return __kain_alloc(size, stride, false, seed); } const step = Math.max(stride, 1); const count = Math.max(1, Math.ceil(Math.max(size, step) / step)); for (let i = 0; i < count; i++) { const nextPtr = ptr + (i * step); if (!__kainMem.has(nextPtr)) { __kainMem.set(nextPtr, __kain_clone_value(seed)); } } return ptr; }");
         self.writeln("");
 
         // Generate all items

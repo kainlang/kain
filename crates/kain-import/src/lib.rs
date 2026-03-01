@@ -29,10 +29,10 @@
 pub mod c;
 pub mod common;
 
-// Future importers
-// pub mod rust;
-// pub mod cpp;
-// pub mod python;
+#[cfg(feature = "rust")]
+pub mod rust;
+// pub mod cpp;   // Future: tree-sitter-cpp
+// pub mod python; // Future: rustpython-parser
 
 use kain_core::ast::Program;
 use kain_core::language_features::LanguageCapabilities;
@@ -115,6 +115,12 @@ pub fn import_c_project_with_language_capabilities(
 }
 
 // Future: Rust importer
-// pub fn import_rust(path: &Path) -> Result<Program> {
-//     rust::import_rust_file(path)
-// }
+#[cfg(feature = "rust")]
+pub fn import_rust(path: &std::path::Path) -> Result<Program> {
+    rust::import_rust_file(path)
+}
+
+#[cfg(feature = "rust")]
+pub fn import_rust_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
+    rust::import_rust_dir(dir, flat)
+}

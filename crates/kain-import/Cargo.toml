@@ -13,6 +13,10 @@ kain-core = { path = "../kain-core" }
 # C parsing
 lang-c = { version = "0.15", optional = true }
 
+# Rust parsing (syn — the standard Rust AST library, used by all proc-macros)
+syn         = { version = "2.0", features = ["full", "extra-traits", "parsing", "printing"], optional = true }
+proc-macro2 = { version = "1.0", optional = true }
+
 # Utilities
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -22,8 +26,8 @@ serde_json = "1.0"
 pretty_assertions = "1.4"
 
 [features]
-default = ["c"]
-c = ["lang-c"]
-rust = []  # Future: syn crate for Rust parsing
-cpp = []   # Future: tree-sitter-cpp
-python = [] # Future: rustpython-parser
+default = ["c", "rust"]
+c    = ["dep:lang-c"]
+rust = ["dep:syn", "dep:proc-macro2"]
+cpp  = []        # Future: tree-sitter-cpp
+python = []      # Future: rustpython-parser

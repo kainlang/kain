@@ -622,6 +622,11 @@ fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
                 check_expr_for_syntax_errors(env, field_expr)?;
             }
         }
+        Expr::AggregateInit { fields, .. } => {
+            for (_, field_expr) in fields {
+                check_expr_for_syntax_errors(env, field_expr)?;
+            }
+        }
         Expr::Lambda { body, .. } => {
             check_expr_for_syntax_errors(env, body)?;
         }
@@ -646,6 +651,13 @@ fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }
         | Expr::Uninit { .. } => {}
+        Expr::Alloc { size, .. } => {
+            check_expr_for_syntax_errors(env, size)?;
+        }
+        Expr::Realloc { pointer, size, .. } => {
+            check_expr_for_syntax_errors(env, pointer)?;
+            check_expr_for_syntax_errors(env, size)?;
+        }
         Expr::Deref(inner, _) => {
             check_expr_for_syntax_errors(env, inner)?;
         }

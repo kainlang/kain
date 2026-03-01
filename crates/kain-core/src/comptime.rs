@@ -101,7 +101,20 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
             eval_expr_in_place(env, pointer)?;
             eval_expr_in_place(env, value)?;
         }
-        Expr::SizeOfType { .. } | Expr::AlignOfType { .. } | Expr::Alloca { .. } | Expr::Uninit { .. } => {}
+        Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. } => {}
+        Expr::AggregateInit { fields, .. } => {
+            for (_, value) in fields {
+                eval_expr_in_place(env, value)?;
+            }
+        }
+        Expr::Alloc { size, .. } => eval_expr_in_place(env, size)?,
+        Expr::Realloc { pointer, size, .. } => {
+            eval_expr_in_place(env, pointer)?;
+            eval_expr_in_place(env, size)?;
+        }
         Expr::Paren(e, _) => eval_expr_in_place(env, e)?,
         Expr::Block(b, _) => eval_block(env, b)?,
         Expr::JSX(node, _) => eval_jsx(env, node)?,

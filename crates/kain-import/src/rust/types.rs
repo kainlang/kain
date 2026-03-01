@@ -1,0 +1,273 @@
+//! Rust type → KAIN type mapping.
+//!
+//! Rust and KAIN share the same type-system philosophy (generics, algebraic
+//! types, references, slices) so this mapping is much cleaner than C→KAIN.
+//!
+//! Key design decisions:
+//!
+//! - `Box<T>`, `Arc<T>`, `Rc<T>`, `Cell<T>`, `RefCell<T>` → transparent (inner T)
+//!   These are ownership wrappers; KAIN handles ownership at the language level.
+//! - `Vec<T>` → `Array<T>` (KAIN's growable collection)
+//! - `HashMap<K,V>` / `BTreeMap<K,V>` → `Map<K,V>`
+//! - `HashSet<T>` / `BTreeSet<T>` → `Set<T>`
+//! - `&T` / `&mut T` → `Type::Ref` (lifetime erased)
+//! - `*const T` / `*mut T` → `Type::Ptr` (low-level memory layer)
+//! - `impl Trait` → `Type::Impl`
+//! - Lifetimes → erased (KAIN uses effect system for safety)
+
+use kain_core::ast::{PointerProvenance, Type};
+use kain_core::span::Span;
+
+pub struct RustTypeMapper;
+
+impl RustTypeMapper {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn map_type(&self, ty: &syn::Type) -> Type {
+        match ty {
+            syn::Type::Path(tp)         => self.map_path(tp),
+            syn::Type::Reference(r)     => self.map_ref(r),
+            syn::Type::Ptr(p)           => self.map_ptr(p),
+            syn::Type::Array(a)         => self.map_array(a),
+            syn::Type::Slice(s)         => self.map_slice(s),
+            syn::Type::Tuple(t)         => self.map_tuple(t),
+            syn::Type::BareFn(f)        => self.map_bare_fn(f),
+            syn::Type::ImplTrait(i)     => self.map_impl_trait(i),
+            syn::Type::TraitObject(t)   => self.map_trait_object(t),
+            syn::Type::Paren(p)         => self.map_type(&p.elem),
+            syn::Type::Group(g)         => self.map_type(&g.elem),
+            syn::Type::Never(_)         => Type::Never(S),
+            syn::Type::Infer(_)         => Type::Infer(S),
+            _                           => named("Unknown"),
+        }
+    }
+
+    // ── Path types (most common) ──────────────────────────────────────────
+
+    fn map_path(&self, tp: &syn::TypePath) -> Type {
+        let seg = match tp.path.segments.last() {
+            Some(s) => s,
+            None    => return Type::Unit(S),
+        };
+
+        let name = seg.ident.to_string();
+        let generics = self.generic_args(&seg.arguments);
+
+        // Primitives — map to KAIN canonical names
+        match name.as_str() {
+            "bool"          => return named("Bool"),
+            "str" | "String" => return named("String"),
+            "char"          => return named("Char"),
+            "f32"           => return named("f32"),
+            "f64"           => return named("f64"),
+            "u8"            => return named("u8"),
+            "u16"           => return named("u16"),
+            "u32"           => return named("u32"),
+            "u64"           => return named("u64"),
+            "u128"          => return named("u128"),
+            "usize"         => return named("usize"),
+            "i8"            => return named("i8"),
+            "i16"           => return named("i16"),
+            "i32"           => return named("i32"),
+            "i64"           => return named("i64"),
+            "i128"          => return named("i128"),
+            "isize"         => return named("isize"),
+            _               => {}
+        }
+
+        // Ownership wrappers — unwrap to inner T (KAIN doesn't need these)
+        match name.as_str() {
+            "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock"
+            | "ManuallyDrop" | "MaybeUninit" | "Pin" | "Cow" => {
+                if let Some(inner) = generics.into_iter().next() {
+                    return inner;
+                }
+                return named("Unknown");
+            }
+            _ => {}
+        }
+
+        // Well-known standard-library generics
+        match name.as_str() {
+            "Vec" | "VecDeque" | "LinkedList" => {
+                if let Some(inner) = generics.into_iter().next() {
+                    return Type::Named { name: "Array".to_string(), generics: vec![inner], span: S };
+                }
+            }
+            "Option" => {
+                if let Some(inner) = generics.into_iter().next() {
+                    return Type::Option(Box::new(inner), S);
+                }
+            }
+            "Result" => {
+                let mut g = generics.into_iter();
+                let ok  = g.next().unwrap_or(Type::Unit(S));
+                let err = g.next().unwrap_or(named("Error"));
+                return Type::Result(Box::new(ok), Box::new(err), S);
+            }
+            "HashMap" | "BTreeMap" | "IndexMap" => {
+                return Type::Named { name: "Map".to_string(), generics, span: S };
+            }
+            "HashSet" | "BTreeSet" | "IndexSet" => {
+                return Type::Named { name: "Set".to_string(), generics, span: S };
+            }
+            "KainResult" => {
+                // KAIN's own Result alias
+                let mut g = generics.into_iter();
+                let ok  = g.next().unwrap_or(named("String"));
+                let err = g.next().unwrap_or(named("Error"));
+                return Type::Result(Box::new(ok), Box::new(err), S);
+            }
+            _ => {}
+        }
+
+        // Path with multiple segments → use last segment name (drop module path)
+        Type::Named { name, generics, span: S }
+    }
+
+    // ── References ────────────────────────────────────────────────────────
+
+    fn map_ref(&self, r: &syn::TypeReference) -> Type {
+        Type::Ref {
+            mutable:  r.mutability.is_some(),
+            inner:    Box::new(self.map_type(&r.elem)),
+            lifetime: r.lifetime.as_ref().map(|lt| lt.ident.to_string()),
+            span:     S,
+        }
+    }
+
+    // ── Raw pointers → low-level Ptr ─────────────────────────────────────
+
+    fn map_ptr(&self, p: &syn::TypePtr) -> Type {
+        Type::Ptr {
+            mutable:    p.mutability.is_some(),
+            inner:      Box::new(self.map_type(&p.elem)),
+            provenance: PointerProvenance::LoweredRef,
+            span:       S,
+        }
+    }
+
+    // ── Arrays / slices ───────────────────────────────────────────────────
+
+    fn map_array(&self, a: &syn::TypeArray) -> Type {
+        let inner = self.map_type(&a.elem);
+        let len   = extract_const_usize(&a.len);
+        Type::Array(Box::new(inner), len, S)
+    }
+
+    fn map_slice(&self, s: &syn::TypeSlice) -> Type {
+        Type::Slice(Box::new(self.map_type(&s.elem)), S)
+    }
+
+    // ── Tuples ────────────────────────────────────────────────────────────
+
+    fn map_tuple(&self, t: &syn::TypeTuple) -> Type {
+        if t.elems.is_empty() {
+            return Type::Unit(S);
+        }
+        Type::Tuple(t.elems.iter().map(|e| self.map_type(e)).collect(), S)
+    }
+
+    // ── Function pointers ─────────────────────────────────────────────────
+
+    fn map_bare_fn(&self, f: &syn::TypeBareFn) -> Type {
+        let params      = f.inputs.iter().map(|a| self.map_type(&a.ty)).collect();
+        let return_type = match &f.output {
+            syn::ReturnType::Default  => Type::Unit(S),
+            syn::ReturnType::Type(_, ty) => self.map_type(ty),
+        };
+        Type::Function {
+            params,
+            return_type: Box::new(return_type),
+            effects: vec![],
+            span: S,
+        }
+    }
+
+    // ── impl Trait ────────────────────────────────────────────────────────
+
+    fn map_impl_trait(&self, i: &syn::TypeImplTrait) -> Type {
+        for bound in &i.bounds {
+            if let syn::TypeParamBound::Trait(tb) = bound {
+                if let Some(seg) = tb.path.segments.last() {
+                    let trait_name = seg.ident.to_string();
+                    let generics   = self.generic_args(&seg.arguments);
+                    return Type::Impl { trait_name, generics, span: S };
+                }
+            }
+        }
+        Type::Infer(S)
+    }
+
+    // ── dyn Trait ─────────────────────────────────────────────────────────
+
+    fn map_trait_object(&self, t: &syn::TypeTraitObject) -> Type {
+        // dyn Trait → impl Trait (same structural semantics in KAIN)
+        for bound in &t.bounds {
+            if let syn::TypeParamBound::Trait(tb) = bound {
+                if let Some(seg) = tb.path.segments.last() {
+                    let trait_name = seg.ident.to_string();
+                    let generics   = self.generic_args(&seg.arguments);
+                    return Type::Impl { trait_name, generics, span: S };
+                }
+            }
+        }
+        Type::Infer(S)
+    }
+
+    // ── Generic argument extraction ───────────────────────────────────────
+
+    pub fn generic_args(&self, args: &syn::PathArguments) -> Vec<Type> {
+        match args {
+            syn::PathArguments::AngleBracketed(ab) => ab
+                .args
+                .iter()
+                .filter_map(|arg| match arg {
+                    syn::GenericArgument::Type(ty) => Some(self.map_type(ty)),
+                    _                              => None,
+                })
+                .collect(),
+            _ => vec![],
+        }
+    }
+
+    /// Map generic parameters (the `<T: Foo>` part of a fn/struct/enum)
+    /// into KAIN generic name strings.
+    pub fn map_generic_params(
+        &self,
+        params: &syn::punctuated::Punctuated<syn::GenericParam, syn::token::Comma>,
+    ) -> Vec<String> {
+        params
+            .iter()
+            .filter_map(|p| match p {
+                syn::GenericParam::Type(tp) => Some(tp.ident.to_string()),
+                syn::GenericParam::Const(cp) => Some(cp.ident.to_string()),
+                syn::GenericParam::Lifetime(_) => None, // lifetimes erased
+            })
+            .collect()
+    }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Shorthand zero span.
+const S: Span = Span::ZERO;
+
+fn named(n: &str) -> Type {
+    Type::Named { name: n.to_string(), generics: vec![], span: S }
+}
+
+fn extract_const_usize(expr: &syn::Expr) -> Option<usize> {
+    match expr {
+        syn::Expr::Lit(lit) => {
+            if let syn::Lit::Int(i) = &lit.lit {
+                i.base10_parse::<usize>().ok()
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}

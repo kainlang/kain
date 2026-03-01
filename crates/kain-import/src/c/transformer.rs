@@ -839,6 +839,66 @@ impl CTransformer {
         }
     }
 
+    fn try_lower_allocator_call(&mut self, call: &c_ast::CallExpression) -> Result<Option<Expr>> {
+        let c_ast::Expression::Identifier(ident) = &call.callee.node else {
+            return Ok(None);
+        };
+        let name = ident.node.name.as_str();
+        if !matches!(name, "malloc" | "calloc" | "realloc") {
+            return Ok(None);
+        }
+
+        let args = call
+            .arguments
+            .iter()
+            .map(|arg| self.transform_expression(&arg.node))
+            .collect::<Result<Vec<_>>>()?;
+
+        let span = Span::default();
+        let lowered = match (name, args.as_slice()) {
+            ("malloc", [size]) => Expr::Alloc {
+                size: Box::new(size.clone()),
+                ty: self.infer_heap_type_from_size_expr(size),
+                zeroed: false,
+                span,
+            },
+            ("calloc", [count, elem_size]) => Expr::Alloc {
+                size: Box::new(Expr::Binary {
+                    left: Box::new(count.clone()),
+                    op: BinaryOp::Mul,
+                    right: Box::new(elem_size.clone()),
+                    span,
+                }),
+                ty: self.infer_heap_type_from_size_expr(elem_size),
+                zeroed: true,
+                span,
+            },
+            ("realloc", [pointer, size]) => Expr::Realloc {
+                pointer: Box::new(pointer.clone()),
+                size: Box::new(size.clone()),
+                ty: self.infer_heap_type_from_size_expr(size),
+                zeroed_new: false,
+                span,
+            },
+            _ => {
+                return Ok(None);
+            }
+        };
+
+        Ok(Some(lowered))
+    }
+
+    fn infer_heap_type_from_size_expr(&self, expr: &Expr) -> Option<Type> {
+        match expr {
+            Expr::SizeOfType { target, .. } => Some(target.clone()),
+            Expr::Binary { left, op: BinaryOp::Mul, right, .. } => {
+                self.infer_heap_type_from_size_expr(left)
+                    .or_else(|| self.infer_heap_type_from_size_expr(right))
+            }
+            _ => None,
+        }
+    }
+
     fn estimate_sizeof_named_type(&self, name: &str, visited: &mut HashSet<String>) -> i64 {
         if !visited.insert(name.to_string()) {
             return 8;
@@ -1721,22 +1781,26 @@ impl CTransformer {
             
             // Function call
             Call(call) => {
-                let callee = Box::new(self.transform_expression(&call.node.callee.node)?);
-                let mut args = Vec::new();
-                
-                for arg in &call.node.arguments {
-                    args.push(CallArg {
-                        name: None,
-                        value: self.transform_expression(&arg.node)?,
+                if let Some(lowered) = self.try_lower_allocator_call(&call.node)? {
+                    Ok(lowered)
+                } else {
+                    let callee = Box::new(self.transform_expression(&call.node.callee.node)?);
+                    let mut args = Vec::new();
+
+                    for arg in &call.node.arguments {
+                        args.push(CallArg {
+                            name: None,
+                            value: self.transform_expression(&arg.node)?,
+                            span: Span::default(),
+                        });
+                    }
+
+                    Ok(Expr::Call {
+                        callee,
+                        args,
                         span: Span::default(),
-                    });
+                    })
                 }
-                
-                Ok(Expr::Call {
-                    callee,
-                    args,
-                    span: Span::default(),
-                })
             }
             
             // Member access
@@ -1801,9 +1865,14 @@ impl CTransformer {
                     // Transform initializer list to struct fields
                     let fields = self.transform_compound_initializer(&compound.node.initializer_list)?;
                     
-                    Ok(Expr::Struct {
-                        name,
+                    Ok(Expr::AggregateInit {
+                        ty: Type::Named {
+                            name,
+                            generics: Vec::new(),
+                            span: Span::default(),
+                        },
                         fields,
+                        zero_fill_rest: true,
                         span: Span::default(),
                     })
                 } else {

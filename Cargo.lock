@@ -1358,8 +1358,10 @@ dependencies = [
  "kain-core",
  "lang-c",
  "pretty_assertions",
+ "proc-macro2",
  "serde",
  "serde_json",
+ "syn 2.0.111",
  "thiserror",
 ]
 

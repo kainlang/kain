@@ -2637,6 +2637,21 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 Arc::new(RwLock::new(field_vals)),
             ))
         }
+        Expr::AggregateInit { ty, fields, .. } => {
+            let mut field_vals = HashMap::new();
+            for (k, expr) in fields {
+                let v = eval_expr(env, expr)?;
+                if let Value::Return(_) = v {
+                    return Ok(v);
+                }
+                field_vals.insert(k.clone(), v);
+            }
+            let name = match ty {
+                Type::Named { name, .. } => name.clone(),
+                _ => "<aggregate>".to_string(),
+            };
+            Ok(Value::Struct(name, Arc::new(RwLock::new(field_vals))))
+        }
 
         // JSX
         Expr::JSX(node, _) => eval_jsx(env, node),
@@ -2897,22 +2912,15 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             Type::Unit(_) | Type::Never(_) => 1,
             _ => 8,
         })),
-        Expr::Alloca { ty, .. } | Expr::Uninit { ty, .. } => Ok(match ty {
-            Type::Array(inner, count, _) => Value::Array(Arc::new(RwLock::new(
-                (0..*count)
-                    .map(|_| match inner.as_ref() {
-                        Type::Named { name, .. } if name == "Float" => Value::Float(0.0),
-                        Type::Named { name, .. } if name == "Bool" => Value::Bool(false),
-                        Type::Named { name, .. } if name == "Char" => Value::String("\0".to_string()),
-                        _ => Value::Int(0),
-                    })
-                    .collect(),
+        Expr::Alloca { ty, .. } => Ok(match ty {
+            Type::Array(_, count, _) => Value::Array(Arc::new(RwLock::new(
+                (0..*count).map(|_| Value::None).collect(),
             ))),
-            Type::Named { name, .. } if name == "Float" => Value::Float(0.0),
-            Type::Named { name, .. } if name == "Bool" => Value::Bool(false),
-            Type::Named { name, .. } if name == "Char" => Value::String("\0".to_string()),
-            _ => Value::Int(0),
+            _ => Value::None,
         }),
+        Expr::Uninit { .. } => Ok(Value::None),
+        Expr::Alloc { zeroed, .. } => Ok(if *zeroed { Value::Int(0) } else { Value::None }),
+        Expr::Realloc { .. } => Ok(Value::Int(0)),
 
         Expr::Paren(inner, _) => eval_expr(env, inner),
 

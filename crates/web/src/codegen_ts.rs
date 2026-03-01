@@ -114,6 +114,7 @@ impl TSGen {
         self.writeln("const __kainPtrMeta = new Map<number, __KainPtrMeta>();");
         self.writeln("let __kainNextPtr = 1;");
         self.writeln("function __kain_new_ptr(meta: __KainPtrMeta): number { const ptr = __kainNextPtr++; __kainPtrMeta.set(ptr, meta); return ptr; }");
+        self.writeln("function __kain_clone_value<T>(value: T): T { if (Array.isArray(value)) { return value.map((item) => __kain_clone_value(item)) as T; } if (value && typeof value === \"object\") { return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, __kain_clone_value(v)])) as T; } return value; }");
         self.writeln("function __kain_addr_of<T>(value: T): number { const ptr = __kain_new_ptr({ kind: \"value\" }); __kainMem.set(ptr, value); return ptr; }");
         self.writeln("function __kain_bind_local<T>(value: T): number { return __kain_addr_of(value); }");
         self.writeln("function __kain_field_ptr(ptr: number, field: string, _offset: number): number { return __kain_new_ptr({ kind: \"field\", base: ptr, field }); }");
@@ -121,6 +122,8 @@ impl TSGen {
         self.writeln("function __kain_ptr_offset(ptr: number, offset: number, stride: number): number { return ptr + (offset * Math.max(stride, 1)); }");
         self.writeln("function __kain_mem_load<T>(ptr: number): T { const meta = __kainPtrMeta.get(ptr); if (!meta || meta.kind === \"value\") { return __kainMem.get(ptr) as T; } if (meta.kind === \"field\") { const base = __kain_mem_load<any>(meta.base); return base?.[meta.field] as T; } const base = __kain_mem_load<any>(meta.base); return base?.[meta.index] as T; }");
         self.writeln("function __kain_mem_store<T>(ptr: number, value: T): T { const meta = __kainPtrMeta.get(ptr); if (!meta || meta.kind === \"value\") { __kainMem.set(ptr, value); return value; } if (meta.kind === \"field\") { const base = __kain_mem_load<any>(meta.base); if (base != null) { base[meta.field] = value; } return value; } const base = __kain_mem_load<any>(meta.base); if (base != null) { base[meta.index] = value; } return value; }");
+        self.writeln("function __kain_alloc(size: number, stride: number, _zeroed: boolean, seed: any): number { const step = Math.max(stride, 1); const count = Math.max(1, Math.ceil(Math.max(size, step) / step)); const base = __kainNextPtr; for (let i = 0; i < count; i++) { __kainMem.set(base + (i * step), __kain_clone_value(seed)); } __kainNextPtr = base + (count * step); return base; }");
+        self.writeln("function __kain_realloc(ptr: number, size: number, stride: number, seed: any): number { if (!ptr) { return __kain_alloc(size, stride, false, seed); } const step = Math.max(stride, 1); const count = Math.max(1, Math.ceil(Math.max(size, step) / step)); for (let i = 0; i < count; i++) { const nextPtr = ptr + (i * step); if (!__kainMem.has(nextPtr)) { __kainMem.set(nextPtr, __kain_clone_value(seed)); } } return ptr; }");
         self.writeln("");
 
         // Only emit DOM type alias when JSX/components are actually used

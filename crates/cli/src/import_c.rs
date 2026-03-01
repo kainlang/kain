@@ -860,6 +860,23 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         }
         // Struct literals are currently not supported by the parser; emit a constructor-shaped fallback.
         kain_core::ast::Expr::Struct { name, .. } => format!("{name}()"),
+        kain_core::ast::Expr::AggregateInit {
+            ty,
+            fields,
+            zero_fill_rest,
+            ..
+        } => {
+            let mut args = vec![
+                format!("\"{}\"", type_to_string(ty)),
+                zero_fill_rest.to_string(),
+            ];
+            args.extend(
+                fields
+                    .iter()
+                    .map(|(name, value)| format!("{name} = {}", expr_to_string(value))),
+            );
+            format!("aggregate_init({})", args.join(", "))
+        }
         kain_core::ast::Expr::EnumVariant {
             enum_name,
             variant,
@@ -1018,6 +1035,41 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::Uninit { ty, .. } => {
             format!("uninit(\"{}\")", type_to_string(ty))
         }
+        kain_core::ast::Expr::Alloc {
+            size,
+            ty,
+            zeroed,
+            ..
+        } => {
+            let name = if *zeroed { "alloc_zeroed" } else { "alloc" };
+            match ty {
+                Some(ty) => format!(
+                    "{}({}, \"{}\")",
+                    name,
+                    expr_to_string(size),
+                    type_to_string(ty)
+                ),
+                None => format!("{}({})", name, expr_to_string(size)),
+            }
+        }
+        kain_core::ast::Expr::Realloc {
+            pointer,
+            size,
+            ty,
+            ..
+        } => match ty {
+            Some(ty) => format!(
+                "realloc_mem({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(size),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "realloc_mem({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(size)
+            ),
+        },
         kain_core::ast::Expr::Deref(value, _) => format!("(*{})", expr_to_string(value)),
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!("({} as {})", expr_to_string(value), type_to_string(target))

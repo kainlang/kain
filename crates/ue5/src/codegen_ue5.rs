@@ -1434,6 +1434,36 @@ impl Ue5Gen {
         self.source.push_line("    GKainMemory.Add(Ptr, MoveTemp(Cell));");
         self.source.push_line("    return Value;");
         self.source.push_line("}");
+        self.source.push_line("template<typename T> int64 __kain_alloc(int64 Size, int64 Stride, bool, const T& Seed)");
+        self.source.push_line("{");
+        self.source.push_line("    const int64 Step = FMath::Max<int64>(Stride, 1);");
+        self.source.push_line("    const int64 Count = FMath::Max<int64>(1, (FMath::Max<int64>(Size, Step) + Step - 1) / Step);");
+        self.source.push_line("    const int64 Base = GKainNextPtr;");
+        self.source.push_line("    for (int64 Index = 0; Index < Count; ++Index)");
+        self.source.push_line("    {");
+        self.source.push_line("        __kain_mem_store(Base + (Index * Step), Seed);");
+        self.source.push_line("    }");
+        self.source.push_line("    GKainNextPtr = Base + (Count * Step);");
+        self.source.push_line("    return Base;");
+        self.source.push_line("}");
+        self.source.push_line("template<typename T> int64 __kain_realloc(int64 Ptr, int64 Size, int64 Stride, const T& Seed)");
+        self.source.push_line("{");
+        self.source.push_line("    if (Ptr == 0)");
+        self.source.push_line("    {");
+        self.source.push_line("        return __kain_alloc(Size, Stride, false, Seed);");
+        self.source.push_line("    }");
+        self.source.push_line("    const int64 Step = FMath::Max<int64>(Stride, 1);");
+        self.source.push_line("    const int64 Count = FMath::Max<int64>(1, (FMath::Max<int64>(Size, Step) + Step - 1) / Step);");
+        self.source.push_line("    for (int64 Index = 0; Index < Count; ++Index)");
+        self.source.push_line("    {");
+        self.source.push_line("        const int64 NextPtr = Ptr + (Index * Step);");
+        self.source.push_line("        if (!GKainMemory.Contains(NextPtr))");
+        self.source.push_line("        {");
+        self.source.push_line("            __kain_mem_store(NextPtr, Seed);");
+        self.source.push_line("        }");
+        self.source.push_line("    }");
+        self.source.push_line("    return Ptr;");
+        self.source.push_line("}");
         self.source.push_line("}");
 
         if !shaders.is_empty() {

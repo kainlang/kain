@@ -3177,8 +3177,68 @@ impl<'a> Parser<'a> {
                             .expect("uninit must have parseable type arg");
                         return Expr::Uninit { ty, span };
                     }
+                    ("alloc" | "alloc_zeroed", 1 | 2) => {
+                        let zeroed = name == "alloc_zeroed";
+                        let mut values = args.into_iter();
+                        let size = values.next().expect("alloc must have size arg").value;
+                        let ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return Expr::Alloc {
+                            size: Box::new(size),
+                            ty,
+                            zeroed,
+                            span,
+                        };
+                    }
+                    ("realloc_mem", 2 | 3) => {
+                        let mut values = args.into_iter();
+                        let pointer = values
+                            .next()
+                            .expect("realloc_mem must have pointer arg")
+                            .value;
+                        let size = values
+                            .next()
+                            .expect("realloc_mem must have size arg")
+                            .value;
+                        let ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return Expr::Realloc {
+                            pointer: Box::new(pointer),
+                            size: Box::new(size),
+                            ty,
+                            zeroed_new: false,
+                            span,
+                        };
+                    }
                     _ => {}
                 }
+            }
+        }
+
+        if let Expr::Ident(name, _) = &callee {
+            if name == "aggregate_init" && !args.is_empty() {
+                let mut values = args.into_iter();
+                let ty = values
+                    .next()
+                    .and_then(|arg| self.parse_type_hint_arg(&arg.value, span))
+                    .expect("aggregate_init must have parseable type arg");
+                let mut zero_fill_rest = true;
+                let mut fields = Vec::new();
+                for arg in values {
+                    match (&arg.name, &arg.value) {
+                        (None, Expr::Bool(value, _)) => zero_fill_rest = *value,
+                        (Some(name), value) => fields.push((name.clone(), value.clone())),
+                        _ => {}
+                    }
+                }
+                return Expr::AggregateInit {
+                    ty,
+                    fields,
+                    zero_fill_rest,
+                    span,
+                };
             }
         }
 

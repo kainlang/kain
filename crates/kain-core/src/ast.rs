@@ -669,6 +669,13 @@ pub enum Expr {
         span: Span,
     },
 
+    AggregateInit {
+        ty: Type,
+        fields: Vec<(String, Expr)>,
+        zero_fill_rest: bool,
+        span: Span,
+    },
+
     EnumVariant {
         enum_name: String,
         variant: String,
@@ -776,6 +783,21 @@ pub enum Expr {
         ty: Type,
         span: Span,
     },
+
+    Alloc {
+        size: Box<Expr>,
+        ty: Option<Type>,
+        zeroed: bool,
+        span: Span,
+    },
+
+    Realloc {
+        pointer: Box<Expr>,
+        size: Box<Expr>,
+        ty: Option<Type>,
+        zeroed_new: bool,
+        span: Span,
+    },
     
     /// Cast: `value as Type`
     Cast {
@@ -847,6 +869,7 @@ impl Expr {
             | Expr::Field { span: s, .. }
             | Expr::Index { span: s, .. }
             | Expr::Struct { span: s, .. }
+            | Expr::AggregateInit { span: s, .. }
             | Expr::EnumVariant { span: s, .. }
             | Expr::Array(_, s)
             | Expr::Tuple(_, s)
@@ -864,6 +887,8 @@ impl Expr {
             | Expr::AlignOfType { span: s, .. }
             | Expr::Alloca { span: s, .. }
             | Expr::Uninit { span: s, .. }
+            | Expr::Alloc { span: s, .. }
+            | Expr::Realloc { span: s, .. }
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
@@ -1835,6 +1860,12 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_expr(field_expr, out);
             }
         }
+        Expr::AggregateInit { ty, fields, .. } => {
+            collect_type_names_from_type(ty, out);
+            for (_, field_expr) in fields {
+                collect_type_names_from_expr(field_expr, out);
+            }
+        }
         Expr::EnumVariant { enum_name, fields, .. } => {
             out.insert(enum_name.clone());
             match fields {
@@ -1977,6 +2008,24 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         }
         Expr::Alloca { ty, .. } | Expr::Uninit { ty, .. } => {
             collect_type_names_from_type(ty, out);
+        }
+        Expr::Alloc { size, ty, .. } => {
+            collect_type_names_from_expr(size, out);
+            if let Some(ty) = ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
+        Expr::Realloc {
+            pointer,
+            size,
+            ty,
+            ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(size, out);
+            if let Some(ty) = ty {
+                collect_type_names_from_type(ty, out);
+            }
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
             collect_type_names_from_expr(inner, out);
