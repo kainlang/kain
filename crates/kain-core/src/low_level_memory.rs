@@ -81,6 +81,40 @@ impl LayoutRegistry {
             _ => 8,
         }
     }
+
+    fn type_align_fallback(&self, ty: &Type) -> usize {
+        match ty {
+            Type::Named { name, .. } => match name.as_str() {
+                "Bool" | "Char" => 1,
+                "Int" | "isize" | "usize" | "Float" => 8,
+                other => self
+                    .structs
+                    .get(other)
+                    .map(|info| {
+                        info.fields
+                            .values()
+                            .map(|field| self.type_align_fallback(&field.ty))
+                            .max()
+                            .unwrap_or(1)
+                    })
+                    .unwrap_or(8),
+            },
+            Type::Array(inner, _, _) => self.type_align_fallback(inner),
+            Type::Slice(_, _) => 8,
+            Type::Tuple(types, _) => types
+                .iter()
+                .map(|ty| self.type_align_fallback(ty))
+                .max()
+                .unwrap_or(1),
+            Type::Ref { .. } | Type::Ptr { .. } => 8,
+            Type::Option(inner, _) => self.type_align_fallback(inner),
+            Type::Result(ok, err, _) => {
+                self.type_align_fallback(ok).max(self.type_align_fallback(err))
+            }
+            Type::Unit(_) | Type::Never(_) => 1,
+            _ => 8,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -398,8 +432,14 @@ fn lower_function_memory(
     }
 }
 
-fn lower_free_expr_memory(expr: &Expr, target: CompileTarget, _layouts: &LayoutRegistry) -> Expr {
-    lower_expr_memory(expr, target)
+fn lower_free_expr_memory(expr: &Expr, target: CompileTarget, layouts: &LayoutRegistry) -> Expr {
+    let mut ctx = FunctionMemoryCtx {
+        _target: target,
+        layouts,
+        address_taken: HashSet::new(),
+        local_types: HashMap::new(),
+    };
+    lower_expr_memory_with_ctx(expr, &mut ctx)
 }
 
 fn lower_actor_handler_memory(
@@ -506,337 +546,6 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
     }
 }
 
-fn lower_block_memory(block: &Block, target: CompileTarget) -> Block {
-    Block {
-        stmts: block
-            .stmts
-            .iter()
-            .map(|stmt| lower_stmt_memory(stmt, target))
-            .collect(),
-        ..block.clone()
-    }
-}
-
-fn lower_stmt_memory(stmt: &Stmt, target: CompileTarget) -> Stmt {
-    match stmt {
-        Stmt::Expr(expr) => Stmt::Expr(lower_expr_memory(expr, target)),
-        Stmt::Let {
-            pattern,
-            ty,
-            value,
-            span,
-        } => Stmt::Let {
-            pattern: pattern.clone(),
-            ty: ty.as_ref().map(lower_type_memory),
-            value: value.as_ref().map(|expr| lower_expr_memory(expr, target)),
-            span: *span,
-        },
-        Stmt::Return(value, span) => {
-            Stmt::Return(value.as_ref().map(|expr| lower_expr_memory(expr, target)), *span)
-        }
-        Stmt::For {
-            binding,
-            iter,
-            body,
-            span,
-        } => Stmt::For {
-            binding: binding.clone(),
-            iter: lower_expr_memory(iter, target),
-            body: lower_block_memory(body, target),
-            span: *span,
-        },
-        Stmt::While {
-            condition,
-            body,
-            span,
-        } => Stmt::While {
-            condition: lower_expr_memory(condition, target),
-            body: lower_block_memory(body, target),
-            span: *span,
-        },
-        Stmt::Loop { body, span } => Stmt::Loop {
-            body: lower_block_memory(body, target),
-            span: *span,
-        },
-        _ => stmt.clone(),
-    }
-}
-
-fn lower_expr_memory(expr: &Expr, target: CompileTarget) -> Expr {
-    let span = expr.span();
-    match expr {
-        Expr::AddrOf { value, .. } => helper_call("__kain_addr_of", vec![lower_expr_memory(value, target)], span),
-        Expr::PtrOffset {
-            pointer,
-            offset,
-            element_ty,
-            ..
-        } => helper_call(
-            "__kain_ptr_offset",
-            vec![
-                lower_expr_memory(pointer, target),
-                lower_expr_memory(offset, target),
-                Expr::Int(
-                    memory_stride_for_type(element_ty.as_ref(), &LayoutRegistry::default())
-                        .unwrap_or(1),
-                    span,
-                ),
-            ],
-            span,
-        ),
-        Expr::MemLoad {
-            pointer,
-            load_ty,
-            ..
-        } => {
-            let call = helper_call("__kain_mem_load", vec![lower_expr_memory(pointer, target)], span);
-            if let Some(ty) = load_ty.as_ref() {
-                Expr::Cast {
-                    value: Box::new(call),
-                    target: lower_type_memory(ty),
-                    span,
-                }
-            } else {
-                call
-            }
-        }
-        Expr::MemStore { pointer, value, .. } => helper_call(
-            "__kain_mem_store",
-            vec![lower_expr_memory(pointer, target), lower_expr_memory(value, target)],
-            span,
-        ),
-        Expr::Ref { mutable, value, span } => Expr::Ref {
-            mutable: *mutable,
-            value: Box::new(lower_expr_memory(value, target)),
-            span: *span,
-        },
-        Expr::Deref(inner, span) => Expr::Deref(Box::new(lower_expr_memory(inner, target)), *span),
-        Expr::Binary {
-            left,
-            op,
-            right,
-            span,
-        } => Expr::Binary {
-            left: Box::new(lower_expr_memory(left, target)),
-            op: op.clone(),
-            right: Box::new(lower_expr_memory(right, target)),
-            span: *span,
-        },
-        Expr::Unary { op, operand, span } => Expr::Unary {
-            op: op.clone(),
-            operand: Box::new(lower_expr_memory(operand, target)),
-            span: *span,
-        },
-        Expr::Call { callee, args, span } => Expr::Call {
-            callee: Box::new(lower_expr_memory(callee, target)),
-            args: args
-                .iter()
-                .map(|arg| CallArg {
-                    value: lower_expr_memory(&arg.value, target),
-                    ..arg.clone()
-                })
-                .collect(),
-            span: *span,
-        },
-        Expr::MethodCall {
-            receiver,
-            method,
-            args,
-            span,
-        } => Expr::MethodCall {
-            receiver: Box::new(lower_expr_memory(receiver, target)),
-            method: method.clone(),
-            args: args
-                .iter()
-                .map(|arg| CallArg {
-                    value: lower_expr_memory(&arg.value, target),
-                    ..arg.clone()
-                })
-                .collect(),
-            span: *span,
-        },
-        Expr::Field { object, field, span } => Expr::Field {
-            object: Box::new(lower_expr_memory(object, target)),
-            field: field.clone(),
-            span: *span,
-        },
-        Expr::Index { object, index, span } => Expr::Index {
-            object: Box::new(lower_expr_memory(object, target)),
-            index: Box::new(lower_expr_memory(index, target)),
-            span: *span,
-        },
-        Expr::Assign {
-            target: assign_target,
-            value,
-            span,
-        } => Expr::Assign {
-            target: Box::new(lower_expr_memory(assign_target, target)),
-            value: Box::new(lower_expr_memory(value, target)),
-            span: *span,
-        },
-        Expr::Array(items, span) => Expr::Array(
-            items.iter().map(|item| lower_expr_memory(item, target)).collect(),
-            *span,
-        ),
-        Expr::Tuple(items, span) => Expr::Tuple(
-            items.iter().map(|item| lower_expr_memory(item, target)).collect(),
-            *span,
-        ),
-        Expr::Struct {
-            name,
-            fields,
-            span,
-        } => Expr::Struct {
-            name: name.clone(),
-            fields: fields
-                .iter()
-                .map(|(field, value)| (field.clone(), lower_expr_memory(value, target)))
-                .collect(),
-            span: *span,
-        },
-        Expr::EnumVariant {
-            enum_name,
-            variant,
-            fields,
-            span,
-        } => Expr::EnumVariant {
-            enum_name: enum_name.clone(),
-            variant: variant.clone(),
-            fields: match fields {
-                EnumVariantFields::Unit => EnumVariantFields::Unit,
-                EnumVariantFields::Tuple(items) => EnumVariantFields::Tuple(
-                    items.iter().map(|item| lower_expr_memory(item, target)).collect(),
-                ),
-                EnumVariantFields::Struct(items) => EnumVariantFields::Struct(
-                    items
-                        .iter()
-                        .map(|(field, value)| (field.clone(), lower_expr_memory(value, target)))
-                        .collect(),
-                ),
-            },
-            span: *span,
-        },
-        Expr::If {
-            condition,
-            then_branch,
-            else_branch,
-            span,
-        } => Expr::If {
-            condition: Box::new(lower_expr_memory(condition, target)),
-            then_branch: lower_block_memory(then_branch, target),
-            else_branch: else_branch
-                .as_ref()
-                .map(|branch| Box::new(lower_else_branch_memory(branch, target))),
-            span: *span,
-        },
-        Expr::Match {
-            scrutinee,
-            arms,
-            span,
-        } => Expr::Match {
-            scrutinee: Box::new(lower_expr_memory(scrutinee, target)),
-            arms: arms
-                .iter()
-                .map(|arm| MatchArm {
-                    body: lower_expr_memory(&arm.body, target),
-                    ..arm.clone()
-                })
-                .collect(),
-            span: *span,
-        },
-        Expr::Lambda {
-            params,
-            return_type,
-            body,
-            span,
-        } => Expr::Lambda {
-            params: params
-                .iter()
-                .map(|param| Param {
-                    ty: lower_type_memory(&param.ty),
-                    ..param.clone()
-                })
-                .collect(),
-            return_type: return_type.as_ref().map(lower_type_memory),
-            body: Box::new(lower_expr_memory(body, target)),
-            span: *span,
-        },
-        Expr::Cast { value, target: ty, span } => Expr::Cast {
-            value: Box::new(lower_expr_memory(value, target)),
-            target: lower_type_memory(ty),
-            span: *span,
-        },
-        Expr::Try(inner, span) => Expr::Try(Box::new(lower_expr_memory(inner, target)), *span),
-        Expr::Await(inner, span) => Expr::Await(Box::new(lower_expr_memory(inner, target)), *span),
-        Expr::Block(block, span) => Expr::Block(lower_block_memory(block, target), *span),
-        Expr::Paren(inner, span) => Expr::Paren(Box::new(lower_expr_memory(inner, target)), *span),
-        Expr::Return(Some(inner), span) => {
-            Expr::Return(Some(Box::new(lower_expr_memory(inner, target))), *span)
-        }
-        Expr::Break(Some(inner), span) => {
-            Expr::Break(Some(Box::new(lower_expr_memory(inner, target))), *span)
-        }
-        Expr::Spawn { actor, init, span } => Expr::Spawn {
-            actor: actor.clone(),
-            init: init
-                .iter()
-                .map(|(name, value)| (name.clone(), lower_expr_memory(value, target)))
-                .collect(),
-            span: *span,
-        },
-        Expr::SendMsg {
-            target: msg_target,
-            message,
-            data,
-            span,
-        } => Expr::SendMsg {
-            target: Box::new(lower_expr_memory(msg_target, target)),
-            message: message.clone(),
-            data: data
-                .iter()
-                .map(|(name, value)| (name.clone(), lower_expr_memory(value, target)))
-                .collect(),
-            span: *span,
-        },
-        Expr::Comptime(inner, span) => {
-            Expr::Comptime(Box::new(lower_expr_memory(inner, target)), *span)
-        }
-        Expr::MacroCall { name, args, span } => Expr::MacroCall {
-            name: name.clone(),
-            args: args.iter().map(|arg| lower_expr_memory(arg, target)).collect(),
-            span: *span,
-        },
-        Expr::Range {
-            start,
-            end,
-            inclusive,
-            span,
-        } => Expr::Range {
-            start: start.as_ref().map(|expr| Box::new(lower_expr_memory(expr, target))),
-            end: end.as_ref().map(|expr| Box::new(lower_expr_memory(expr, target))),
-            inclusive: *inclusive,
-            span: *span,
-        },
-        Expr::FString(items, span) => Expr::FString(
-            items.iter().map(|item| lower_expr_memory(item, target)).collect(),
-            *span,
-        ),
-        _ => expr.clone(),
-    }
-}
-
-fn lower_else_branch_memory(branch: &ElseBranch, target: CompileTarget) -> ElseBranch {
-    match branch {
-        ElseBranch::Else(block) => ElseBranch::Else(lower_block_memory(block, target)),
-        ElseBranch::ElseIf(condition, block, next) => ElseBranch::ElseIf(
-            Box::new(lower_expr_memory(condition, target)),
-            lower_block_memory(block, target),
-            next.as_ref()
-                .map(|branch| Box::new(lower_else_branch_memory(branch, target))),
-        ),
-    }
-}
-
 fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> Expr {
     let span = expr.span();
     match expr {
@@ -897,6 +606,11 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ],
             span,
         ),
+        Expr::SizeOfType { target, .. } => Expr::Int(estimate_type_size(target, ctx.layouts) as i64, span),
+        Expr::AlignOfType { target, .. } => Expr::Int(estimate_type_align(target, ctx.layouts) as i64, span),
+        Expr::Alloca { ty, .. } | Expr::Uninit { ty, .. } => {
+            lower_storage_expr(ty, ctx.layouts, span)
+        }
         Expr::Assign { target, value, span } => {
             if let Expr::Ident(name, _) = target.as_ref() {
                 if should_load_from_pointer(name, ctx) {
@@ -1610,6 +1324,57 @@ fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
     }
 }
 
+fn estimate_type_align(ty: &Type, layouts: &LayoutRegistry) -> usize {
+    match ty {
+        Type::Named { name, .. } => match layouts.structs.get(name) {
+            Some(info) => info
+                .fields
+                .values()
+                .map(|field| estimate_type_align(&field.ty, layouts))
+                .max()
+                .unwrap_or(1),
+            None => layouts.type_align_fallback(ty),
+        },
+        Type::Array(inner, _, _) => estimate_type_align(inner, layouts),
+        Type::Tuple(types, _) => types
+            .iter()
+            .map(|ty| estimate_type_align(ty, layouts))
+            .max()
+            .unwrap_or(1),
+        Type::Option(inner, _) => estimate_type_align(inner, layouts),
+        Type::Result(ok, err, _) => estimate_type_align(ok, layouts).max(estimate_type_align(err, layouts)),
+        _ => layouts.type_align_fallback(ty),
+    }
+}
+
+fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span) -> Expr {
+    match ty {
+        Type::Array(inner, count, _) => Expr::Array(
+            (0..*count)
+                .map(|_| lower_storage_expr(inner, layouts, span))
+                .collect(),
+            span,
+        ),
+        Type::Tuple(items, _) => Expr::Tuple(
+            items
+                .iter()
+                .map(|item| lower_storage_expr(item, layouts, span))
+                .collect(),
+            span,
+        ),
+        Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "isize" || name == "usize" => {
+            Expr::Int(0, span)
+        }
+        Type::Named { name, .. } if name == "Float" => Expr::Float(0.0, span),
+        Type::Named { name, .. } if name == "Bool" => Expr::Bool(false, span),
+        Type::Named { name, .. } if name == "Char" => Expr::String("\0".to_string(), span),
+        Type::Unit(_) => Expr::Tuple(Vec::new(), span),
+        Type::Named { name, .. } if layouts.structs.contains_key(name) => Expr::None(span),
+        Type::Ref { .. } | Type::Ptr { .. } => Expr::None(span),
+        _ => Expr::None(span),
+    }
+}
+
 fn first_unsupported_memory_context(
     items: &[TypedItem],
     caps: BackendMemoryCapabilities,
@@ -1803,6 +1568,10 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::PtrOffset { .. } => Some(format!("{base}: pointer offset expression")),
         Expr::MemLoad { .. } => Some(format!("{base}: raw memory load expression")),
         Expr::MemStore { .. } => Some(format!("{base}: raw memory store expression")),
+        Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. } => None,
         Expr::Binary { left, right, .. } => {
             first_memory_expr_context(left, base.clone()).or_else(|| first_memory_expr_context(right, base))
         }

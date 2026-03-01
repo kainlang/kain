@@ -2876,6 +2876,44 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             Ok(Value::Unit)
         }
 
+        // Layout-backed size query currently uses the same coarse scalar sizing as lowering fallback.
+        Expr::SizeOfType { target, .. } => Ok(Value::Int(match target {
+            Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "Float" => 8,
+            Type::Named { name, .. } if name == "Bool" || name == "Byte" || name == "Char" => 1,
+            Type::Ptr { .. } | Type::Ref { .. } => 8,
+            Type::Array(inner, size, _) => {
+                let inner_size = match inner.as_ref() {
+                    Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "Float" => 8,
+                    Type::Named { name, .. } if name == "Bool" || name == "Byte" || name == "Char" => 1,
+                    Type::Ptr { .. } | Type::Ref { .. } => 8,
+                    _ => 8,
+                };
+                inner_size * *size as i64
+            }
+            _ => 8,
+        })),
+        Expr::AlignOfType { target, .. } => Ok(Value::Int(match target {
+            Type::Named { name, .. } if name == "Bool" || name == "Byte" || name == "Char" => 1,
+            Type::Unit(_) | Type::Never(_) => 1,
+            _ => 8,
+        })),
+        Expr::Alloca { ty, .. } | Expr::Uninit { ty, .. } => Ok(match ty {
+            Type::Array(inner, count, _) => Value::Array(Arc::new(RwLock::new(
+                (0..*count)
+                    .map(|_| match inner.as_ref() {
+                        Type::Named { name, .. } if name == "Float" => Value::Float(0.0),
+                        Type::Named { name, .. } if name == "Bool" => Value::Bool(false),
+                        Type::Named { name, .. } if name == "Char" => Value::String("\0".to_string()),
+                        _ => Value::Int(0),
+                    })
+                    .collect(),
+            ))),
+            Type::Named { name, .. } if name == "Float" => Value::Float(0.0),
+            Type::Named { name, .. } if name == "Bool" => Value::Bool(false),
+            Type::Named { name, .. } if name == "Char" => Value::String("\0".to_string()),
+            _ => Value::Int(0),
+        }),
+
         Expr::Paren(inner, _) => eval_expr(env, inner),
 
         // Await expression: await future_expr

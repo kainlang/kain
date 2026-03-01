@@ -159,6 +159,64 @@ fn parser_preserves_typed_memory_intrinsics() {
 }
 
 #[test]
+fn parser_normalizes_sizeof_type_call() {
+    let source = "fn size() -> Int:\n    return sizeof_type(\"ptr<Int>\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "sizeof_type.kn")
+        .parse()
+        .expect("parse");
+
+    let function = match &program.items[0] {
+        kain_core::ast::Item::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::SizeOfType { target, .. }), _) =
+        &function.body.stmts[0]
+    else {
+        panic!("expected sizeof_type return");
+    };
+    assert!(matches!(target, Type::Ptr { inner, .. } if matches!(inner.as_ref(), Type::Named { name, .. } if name == "Int")));
+}
+
+#[test]
+fn parser_normalizes_alignof_alloca_and_uninit_calls() {
+    let source = "fn storage() -> Int:\n    let mut buf: [Int; 2] = alloca(\"[Int; 2]\")\n    let mut x: Int = uninit(\"Int\")\n    return alignof_type(\"Int\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "storage_intrinsics.kn")
+        .parse()
+        .expect("parse");
+
+    let function = match &program.items[0] {
+        kain_core::ast::Item::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Alloca { ty, .. }), .. } =
+        &function.body.stmts[0]
+    else {
+        panic!("expected alloca initializer");
+    };
+    assert!(matches!(ty, Type::Array(_, 2, _)));
+
+    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Uninit { ty, .. }), .. } =
+        &function.body.stmts[1]
+    else {
+        panic!("expected uninit initializer");
+    };
+    assert!(matches!(ty, Type::Named { name, .. } if name == "Int"));
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::AlignOfType { target, .. }), _) =
+        &function.body.stmts[2]
+    else {
+        panic!("expected alignof_type return");
+    };
+    assert!(matches!(target, Type::Named { name, .. } if name == "Int"));
+}
+
+#[test]
 fn ts_memory_lowering_rewrites_raw_ops_into_helper_calls() {
     let source = "fn poke(p: ptr<Int>, i: Int, v: Int) -> Int:\n    mem_store(ptr_offset(p, i, \"Int\"), v, \"Int\")\n    return mem_load(ptr_offset(p, i, \"Int\"), \"Int\")\n";
     let tokens = Lexer::new(source).tokenize().expect("lex");
@@ -255,4 +313,66 @@ fn ts_memory_lowering_uses_layout_offsets_for_field_addresses() {
     assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_field_ptr"));
     assert!(matches!(&args[1].value, kain_core::ast::Expr::String(field, _) if field == "right"));
     assert!(matches!(&args[2].value, kain_core::ast::Expr::Int(offset, _) if *offset == 8));
+}
+
+#[test]
+fn ts_memory_lowering_resolves_sizeof_type_from_layouts() {
+    let source = "struct Pair:\n    left: Int\n    right: Int\n\nfn size() -> Int:\n    return sizeof_type(\"Pair\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "sizeof_layout.kn")
+        .parse()
+        .expect("parse");
+    let typed = kain_core::types::check(&program, &mapper, "sizeof_layout.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[1] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Int(size, _)), _) =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected lowered integer sizeof");
+    };
+    assert_eq!(*size, 16);
+}
+
+#[test]
+fn ts_memory_lowering_resolves_alignof_and_storage_nodes() {
+    let source = "fn storage() -> Int:\n    let mut buf: [Int; 2] = alloca(\"[Int; 2]\")\n    let mut x: Int = uninit(\"Int\")\n    return alignof_type(\"Int\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "storage_lowering.kn")
+        .parse()
+        .expect("parse");
+    let typed = kain_core::types::check(&program, &mapper, "storage_lowering.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[0] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Array(items, _)), .. } =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected lowered alloca array");
+    };
+    assert_eq!(items.len(), 2);
+
+    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Int(value, _)), .. } =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected lowered uninit scalar");
+    };
+    assert_eq!(*value, 0);
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Int(align, _)), _) =
+        &function.ast.body.stmts[2]
+    else {
+        panic!("expected lowered align integer");
+    };
+    assert_eq!(*align, 8);
 }

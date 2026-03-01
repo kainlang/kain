@@ -1006,6 +1006,18 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 ),
             }
         }
+        kain_core::ast::Expr::SizeOfType { target, .. } => {
+            format!("sizeof_type(\"{}\")", type_to_string(target))
+        }
+        kain_core::ast::Expr::AlignOfType { target, .. } => {
+            format!("alignof_type(\"{}\")", type_to_string(target))
+        }
+        kain_core::ast::Expr::Alloca { ty, .. } => {
+            format!("alloca(\"{}\")", type_to_string(ty))
+        }
+        kain_core::ast::Expr::Uninit { ty, .. } => {
+            format!("uninit(\"{}\")", type_to_string(ty))
+        }
         kain_core::ast::Expr::Deref(value, _) => format!("(*{})", expr_to_string(value)),
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!("({} as {})", expr_to_string(value), type_to_string(target))

@@ -752,6 +752,30 @@ pub enum Expr {
         store_ty: Option<Type>,
         span: Span,
     },
+
+    /// Layout-backed size query: `sizeof_type("T")`
+    SizeOfType {
+        target: Type,
+        span: Span,
+    },
+
+    /// Layout-backed alignment query: `alignof_type("T")`
+    AlignOfType {
+        target: Type,
+        span: Span,
+    },
+
+    /// Explicit stack/local storage allocation.
+    Alloca {
+        ty: Type,
+        span: Span,
+    },
+
+    /// Explicit uninitialized storage placeholder.
+    Uninit {
+        ty: Type,
+        span: Span,
+    },
     
     /// Cast: `value as Type`
     Cast {
@@ -836,6 +860,10 @@ impl Expr {
             | Expr::PtrOffset { span: s, .. }
             | Expr::MemLoad { span: s, .. }
             | Expr::MemStore { span: s, .. }
+            | Expr::SizeOfType { span: s, .. }
+            | Expr::AlignOfType { span: s, .. }
+            | Expr::Alloca { span: s, .. }
+            | Expr::Uninit { span: s, .. }
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
@@ -1940,6 +1968,15 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             if let Some(ty) = store_ty {
                 collect_type_names_from_type(ty, out);
             }
+        }
+        Expr::SizeOfType { target, .. } => {
+            collect_type_names_from_type(target, out);
+        }
+        Expr::AlignOfType { target, .. } => {
+            collect_type_names_from_type(target, out);
+        }
+        Expr::Alloca { ty, .. } | Expr::Uninit { ty, .. } => {
+            collect_type_names_from_type(ty, out);
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
             collect_type_names_from_expr(inner, out);

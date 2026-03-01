@@ -766,7 +766,7 @@ impl CTransformer {
             let value = if let Some(ref init) = init_decl.node.initializer {
                 Some(self.transform_initializer(&init.node)?)
             } else {
-                Some(self.default_value_for_type(&ty))
+                Some(self.storage_default_for_type(&ty))
             };
 
             self.define_symbol_type(name.clone(), ty.clone());
@@ -804,6 +804,19 @@ impl CTransformer {
     }
     
     /// Default value for a type
+    fn storage_default_for_type(&self, ty: &Type) -> Expr {
+        match ty {
+            Type::Array(_, _, _) => Expr::Alloca {
+                ty: ty.clone(),
+                span: Span::default(),
+            },
+            _ => Expr::Uninit {
+                ty: ty.clone(),
+                span: Span::default(),
+            },
+        }
+    }
+
     fn default_value_for_type(&self, ty: &Type) -> Expr {
         match ty {
             Type::Array(inner, count, _) => Expr::Array(
@@ -1685,10 +1698,10 @@ impl CTransformer {
             // sizeof(type)
             SizeOfTy(size_of_ty) => {
                 let target_ty = self.extract_type_from_type_name(&size_of_ty.node.0.node)?;
-                Ok(Expr::Int(
-                    self.estimate_sizeof_type(&target_ty),
-                    Span::default(),
-                ))
+                Ok(Expr::SizeOfType {
+                    target: target_ty,
+                    span: Span::default(),
+                })
             }
 
             // sizeof(expr)
@@ -1697,8 +1710,14 @@ impl CTransformer {
                 Span::default(),
             )),
 
-            // alignof(type) -> conservative machine-word approximation.
-            AlignOf(_) => Ok(Expr::Int(8, Span::default())),
+            // alignof(type)
+            AlignOf(align_of_ty) => {
+                let target_ty = self.extract_type_from_type_name(&align_of_ty.node.0.node)?;
+                Ok(Expr::AlignOfType {
+                    target: target_ty,
+                    span: Span::default(),
+                })
+            }
             
             // Function call
             Call(call) => {
@@ -2546,10 +2565,10 @@ mod tests {
             })
             .expect("expected alloc_size function");
 
-        let Stmt::Return(Some(Expr::Int(size, _)), _) = &alloc_fn.body.stmts[0] else {
-            panic!("expected integer sizeof return");
+        let Stmt::Return(Some(Expr::SizeOfType { target, .. }), _) = &alloc_fn.body.stmts[0] else {
+            panic!("expected sizeof_type return");
         };
-        assert_eq!(*size, 24);
+        assert!(matches!(target, Type::Named { name, .. } if name == "KainArray"));
     }
 
     #[test]
@@ -2569,13 +2588,61 @@ mod tests {
             _ => panic!("expected function"),
         };
 
-        let Stmt::Let { ty: Some(Type::Array(_, count, _)), value: Some(Expr::Array(items, _)), .. } =
+        let Stmt::Let { ty: Some(Type::Array(_, count, _)), value: Some(Expr::Alloca { .. }), .. } =
             &run_fn.body.stmts[0]
         else {
             panic!("expected fixed array local");
         };
         assert_eq!(*count, 2);
-        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn test_uninitialized_scalar_local_uses_uninit_storage() {
+        let source = r#"
+            int run() {
+                int value;
+                return 0;
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let run_fn = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Let {
+            ty: Some(Type::Named { name, .. }),
+            value: Some(Expr::Uninit { ty, .. }),
+            ..
+        } = &run_fn.body.stmts[0]
+        else {
+            panic!("expected uninit scalar local");
+        };
+        assert_eq!(name, "Int");
+        assert!(matches!(ty, Type::Named { name, .. } if name == "Int"));
+    }
+
+    #[test]
+    fn test_alignof_type_preserves_layout_query() {
+        let source = r#"
+            int align() {
+                return __alignof__(int);
+            }
+        "#;
+
+        let c_ast = parse_c_source(source).unwrap();
+        let program = transform(c_ast).unwrap();
+        let align_fn = match &program.items[0] {
+            Item::Function(f) => f,
+            _ => panic!("expected function"),
+        };
+
+        let Stmt::Return(Some(Expr::AlignOfType { target, .. }), _) = &align_fn.body.stmts[0] else {
+            panic!("expected alignof_type return");
+        };
+        assert!(matches!(target, Type::Named { name, .. } if name == "Int"));
     }
 
     #[test]

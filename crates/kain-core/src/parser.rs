@@ -3145,6 +3145,38 @@ impl<'a> Parser<'a> {
                             span,
                         };
                     }
+                    ("sizeof_type", 1) => {
+                        let mut values = args.into_iter();
+                        let target = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span))
+                            .expect("sizeof_type must have parseable type arg");
+                        return Expr::SizeOfType { target, span };
+                    }
+                    ("alignof_type", 1) => {
+                        let mut values = args.into_iter();
+                        let target = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span))
+                            .expect("alignof_type must have parseable type arg");
+                        return Expr::AlignOfType { target, span };
+                    }
+                    ("alloca", 1) => {
+                        let mut values = args.into_iter();
+                        let ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span))
+                            .expect("alloca must have parseable type arg");
+                        return Expr::Alloca { ty, span };
+                    }
+                    ("uninit", 1) => {
+                        let mut values = args.into_iter();
+                        let ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span))
+                            .expect("uninit must have parseable type arg");
+                        return Expr::Uninit { ty, span };
+                    }
                     _ => {}
                 }
             }

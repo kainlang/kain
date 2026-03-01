@@ -642,6 +642,10 @@ fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
             check_expr_for_syntax_errors(env, pointer)?;
             check_expr_for_syntax_errors(env, value)?;
         }
+        Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. } => {}
         Expr::Deref(inner, _) => {
             check_expr_for_syntax_errors(env, inner)?;
         }
