@@ -115,7 +115,17 @@ pub fn parse_setting_attribute(field: &Field) -> Result<Option<ConfigField>> {
 fn extract_string_param(args: &[Expr], param_name: &str) -> Option<String> {
     for arg in args {
         match arg {
-            // Named argument: name: "value"
+            // Actual KAIN attribute encoding: @attr(name: value) => Expr::Tuple([Ident(name), value])
+            Expr::Tuple(elems, _) if elems.len() == 2 => {
+                if let Expr::Ident(name, _) = &elems[0] {
+                    if name == param_name {
+                        if let Expr::String(value, _) = &elems[1] {
+                            return Some(value.clone());
+                        }
+                    }
+                }
+            }
+            // Named argument via BinaryOp::Assign (name = value)
             Expr::Binary { left, op, right, .. } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
                 if let Expr::Ident(name, _) = &**left {
                     if name == param_name {
@@ -145,7 +155,17 @@ fn extract_string_param(args: &[Expr], param_name: &str) -> Option<String> {
 fn extract_bool_param(args: &[Expr], param_name: &str) -> Option<bool> {
     for arg in args {
         match arg {
-            // Named argument: name: true
+            // Actual KAIN attribute encoding: @attr(name: value) => Expr::Tuple([Ident(name), value])
+            Expr::Tuple(elems, _) if elems.len() == 2 => {
+                if let Expr::Ident(name, _) = &elems[0] {
+                    if name == param_name {
+                        if let Expr::Bool(value, _) = &elems[1] {
+                            return Some(*value);
+                        }
+                    }
+                }
+            }
+            // Named argument via BinaryOp::Assign (name = value)
             Expr::Binary { left, op, right, .. } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
                 if let Expr::Ident(name, _) = &**left {
                     if name == param_name {
@@ -175,7 +195,19 @@ fn extract_bool_param(args: &[Expr], param_name: &str) -> Option<bool> {
 fn extract_float_param(args: &[Expr], param_name: &str) -> Option<f64> {
     for arg in args {
         match arg {
-            // Named argument: name: 10.0
+            // Actual KAIN attribute encoding: @attr(name: value) => Expr::Tuple([Ident(name), value])
+            Expr::Tuple(elems, _) if elems.len() == 2 => {
+                if let Expr::Ident(name, _) = &elems[0] {
+                    if name == param_name {
+                        match &elems[1] {
+                            Expr::Float(value, _) => return Some(*value),
+                            Expr::Int(value, _) => return Some(*value as f64),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            // Named argument via BinaryOp::Assign (name = value)
             Expr::Binary { left, op, right, .. } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
                 if let Expr::Ident(name, _) = &**left {
                     if name == param_name {

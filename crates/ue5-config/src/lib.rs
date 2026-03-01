@@ -42,39 +42,7 @@ pub struct GeneratedFile {
     pub content: String,
 }
 
-/// Generate UE5 configuration code from a KAIN program
-///
-/// This is the main entry point for the ue5-config crate.
-/// It parses @config structs from the program and generates:
-/// - UDeveloperSettings .h/.cpp files
-/// - Console variable registration
-/// - Blueprint accessor functions
-/// - .ini file sections
-///
-/// # Arguments
-///
-/// * `program` - The parsed KAIN program
-/// * `plugin_name` - The plugin name (used for .ini sections and CVar prefixes)
-/// * `module_api` - The module API macro (e.g., "MYPLUGIN_API")
-///
-/// # Returns
-///
-/// A vector of generated files with their paths and content
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use ue5_config::generate_config_code;
-/// use kain_core::ast::Program;
-///
-/// let program = /* parsed KAIN program */;
-/// let files = generate_config_code(&program, "MyPlugin", "MYPLUGIN_API")?;
-///
-/// for file in files {
-///     println!("Generated: {}", file.path);
-///     std::fs::write(&file.path, &file.content)?;
-/// }
-/// ```
+/// Generate UE5 configuration code from a KAIN program (AST entry point)
 pub fn generate_config_code(
     program: &Program,
     plugin_name: &str,
@@ -86,34 +54,73 @@ pub fn generate_config_code(
 
     let mut generated_files = Vec::new();
 
-    // Find all @config structs
     for item in &program.items {
         if let Item::Struct(struct_def) = item {
             if let Some(config_struct) = parse_config_attribute(struct_def)? {
-                // Phase 2: Generate UDeveloperSettings .h/.cpp
                 let output = generate(&config_struct, plugin_name)?;
-                
                 let struct_name = &config_struct.name;
-                
                 generated_files.push(GeneratedFile {
                     path: format!("Source/Public/{}.h", struct_name),
                     content: output.header,
                 });
-                
                 generated_files.push(GeneratedFile {
                     path: format!("Source/Private/{}.cpp", struct_name),
                     content: output.source,
                 });
-                
-                // TODO: Phase 3 - Generate console variables
-                // TODO: Phase 3 - Generate .ini file sections
-                // TODO: Phase 4 - Generate Blueprint accessors
             }
         }
     }
 
     Ok(generated_files)
 }
+
+/// Generate UE5 configuration code from a TypedProgram (pipeline entry point)
+///
+/// This is the entry point used by the CLI pipeline which works with
+/// TypedProgram after type-checking. Extracts struct ASTs from TypedStruct
+/// items and delegates to the same codegen logic.
+pub fn generate_config_code_typed(
+    program: &kain_core::types::TypedProgram,
+    plugin_name: &str,
+    module_api: &str,
+) -> Result<Vec<GeneratedFile>> {
+    use crate::parser::parse_config_attribute;
+    use crate::developer_settings_codegen::generate;
+    use kain_core::types::TypedItem;
+
+    let mut generated_files = Vec::new();
+
+    for item in &program.items {
+        if let TypedItem::Struct(typed_struct) = item {
+            if let Some(config_struct) = parse_config_attribute(&typed_struct.ast)? {
+                let output = generate(&config_struct, plugin_name)?;
+                let struct_name = &config_struct.name;
+                generated_files.push(GeneratedFile {
+                    path: format!("Source/Public/{}.h", struct_name),
+                    content: output.header,
+                });
+                generated_files.push(GeneratedFile {
+                    path: format!("Source/Private/{}.cpp", struct_name),
+                    content: output.source,
+                });
+                                // .ini section — write alongside the .h/.cpp
+                                let ini_file_name = config_struct.get_ini_file();
+                                if let Ok(ini_content) = crate::ini_file_generator::generate_ini_section(&config_struct, plugin_name) {
+                                    if !ini_content.is_empty() {
+                                        generated_files.push(GeneratedFile {
+                                            path: format!("Config/{}", ini_file_name),
+                                            content: ini_content,
+                                        });
+                                    }
+                                }
+            }
+        }
+    }
+
+    let _ = module_api; // reserved for future use
+    Ok(generated_files)
+}
+
 
 #[cfg(test)]
 mod tests {

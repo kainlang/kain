@@ -1199,6 +1199,41 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         println!();
     }
 
+    // STEP 3.14: Generate Config Settings (UDeveloperSettings + CVars + .ini + Blueprint accessors)
+    #[cfg(feature = "ue5")]
+    {
+        use ue5_config::generate_config_code_typed;
+        let module_api = format!("{}_API", ue5_config.plugin_name.to_uppercase());
+        match generate_config_code_typed(&typed_program, &ue5_config.plugin_name, &module_api) {
+            Ok(config_files) => {
+                if !config_files.is_empty() {
+                    println!();
+                    println!("⚙️  Generating {} config class(es)...", config_files.iter().filter(|f| f.path.ends_with(".h")).count());
+                    for file in &config_files {
+                        let dest = if file.path.ends_with(".h") {
+                            layout.public_dir.join(std::path::Path::new(&file.path).file_name().unwrap_or_default())
+                        } else if file.path.ends_with(".cpp") {
+                            layout.private_dir.join(std::path::Path::new(&file.path).file_name().unwrap_or_default())
+                        } else {
+                            // .ini files go to Config/ at plugin root
+                            let config_dir = layout.plugin_root.join("Config");
+                            let _ = fs::create_dir_all(&config_dir);
+                            config_dir.join(std::path::Path::new(&file.path).file_name().unwrap_or_default())
+                        };
+                        match fs::write(&dest, &file.content) {
+                            Ok(_) => println!("   ✓ Config: {}", dest.file_name().unwrap_or_default().to_string_lossy()),
+                            Err(e) => eprintln!("   ⚠️  Failed to write config file {}: {}", file.path, e),
+                        }
+                    }
+                    println!();
+                }
+            }
+            Err(e) => {
+                eprintln!("   ⚠️  Config codegen failed: {}", e);
+            }
+        }
+    }
+
     // STEP 4: Generate main plugin files
     println!();
 
