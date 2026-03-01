@@ -9,6 +9,28 @@ use kain_core::{
     Lexer, Parser,
 };
 
+fn unwrap_cast(expr: &kain_core::ast::Expr) -> &kain_core::ast::Expr {
+    match expr {
+        kain_core::ast::Expr::Cast { value, .. } => value.as_ref(),
+        other => other,
+    }
+}
+
+fn expect_call<'a>(
+    expr: &'a kain_core::ast::Expr,
+    name: &str,
+) -> &'a Vec<kain_core::ast::CallArg> {
+    let expr = unwrap_cast(expr);
+    let kain_core::ast::Expr::Call { callee, args, .. } = expr else {
+        panic!("expected call expression, got {expr:?}");
+    };
+    assert!(matches!(
+        callee.as_ref(),
+        kain_core::ast::Expr::Ident(found, _) if found == name
+    ));
+    args
+}
+
 #[test]
 fn parser_recognizes_ptr_type_syntax() {
     let source = "fn take_ptr(p: ptr<Int>) -> Int:\n    return 0\n";
@@ -832,12 +854,140 @@ fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
     else {
         panic!("expected binary return");
     };
-    let kain_core::ast::Expr::Call { args: left_args, .. } = left.as_ref() else {
-        panic!("expected lowered left helper");
-    };
-    let kain_core::ast::Expr::Call { args: right_args, .. } = right.as_ref() else {
-        panic!("expected lowered right helper");
-    };
+    let left_args = expect_call(left.as_ref(), "__kain_bitfield_get");
+    let right_args = expect_call(right.as_ref(), "__kain_bitfield_get");
     assert_eq!(left_args[6].value, kain_core::ast::Expr::Int(32, span));
     assert_eq!(right_args[6].value, kain_core::ast::Expr::Int(40, span));
+}
+
+#[test]
+fn ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract() {
+    let span = kain_core::span::Span::default();
+    let int_ty = Type::Named {
+        name: "Int".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let pair_ty = Type::Named {
+        name: "Pair".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+    let union_ty = Type::Named {
+        name: "Payload".to_string(),
+        generics: Vec::new(),
+        span,
+    };
+
+    let program = kain_core::ast::Program {
+        items: vec![
+            kain_core::ast::Item::Struct(kain_core::ast::Struct {
+                name: "Pair".to_string(),
+                generics: Vec::new(),
+                fields: vec![
+                    kain_core::ast::Field {
+                        name: "x".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: Vec::new(),
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                    kain_core::ast::Field {
+                        name: "y".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: Vec::new(),
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                ],
+                methods: Vec::new(),
+                attributes: Vec::new(),
+                visibility: kain_core::ast::Visibility::Public,
+                span,
+            }),
+            kain_core::ast::Item::Struct(kain_core::ast::Struct {
+                name: "Payload".to_string(),
+                generics: Vec::new(),
+                fields: vec![
+                    kain_core::ast::Field {
+                        name: "pair".to_string(),
+                        ty: pair_ty.clone(),
+                        attributes: Vec::new(),
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                    kain_core::ast::Field {
+                        name: "raw".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: Vec::new(),
+                        visibility: kain_core::ast::Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                ],
+                methods: Vec::new(),
+                attributes: vec![marker_attr(C_UNION_ATTR, span)],
+                visibility: kain_core::ast::Visibility::Public,
+                span,
+            }),
+            kain_core::ast::Item::Function(kain_core::ast::Function {
+                name: "read_pair".to_string(),
+                generics: Vec::new(),
+                params: vec![kain_core::ast::Param {
+                    name: "u".to_string(),
+                    ty: union_ty.clone(),
+                    mutable: true,
+                    default: None,
+                    span,
+                }],
+                return_type: Some(pair_ty.clone()),
+                effects: Vec::new(),
+                body: kain_core::ast::Block {
+                    stmts: vec![kain_core::ast::Stmt::Return(
+                        Some(kain_core::ast::Expr::Field {
+                            object: Box::new(kain_core::ast::Expr::Ident("u".to_string(), span)),
+                            field: "pair".to_string(),
+                            span,
+                        }),
+                        span,
+                    )],
+                    span,
+                },
+                visibility: kain_core::ast::Visibility::Public,
+                attributes: Vec::new(),
+                span,
+            }),
+        ],
+        span,
+    };
+
+    let mapper = SpanMapper::new("");
+    let typed = kain_core::types::check(&program, &mapper, "union_non_scalar.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+    let function = match &lowered.items[2] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(expr), _) = &function.ast.body.stmts[0] else {
+        panic!("expected return stmt");
+    };
+    let args = expect_call(expr, "__kain_union_get");
+    assert_eq!(args[1].value, kain_core::ast::Expr::String("pair".to_string(), span));
+    assert_eq!(args[2].value, kain_core::ast::Expr::String("Pair".to_string(), span));
+    assert_eq!(args[3].value, kain_core::ast::Expr::Int(16, span));
+    assert_eq!(args[4].value, kain_core::ast::Expr::Int(16, span));
+    let kain_core::ast::Expr::Struct { fields, .. } = &args[5].value else {
+        panic!("expected aggregate fallback seed");
+    };
+    assert_eq!(fields.len(), 2);
+    assert!(matches!(&fields[0].1, kain_core::ast::Expr::Int(0, _)));
+    assert!(matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _)));
 }

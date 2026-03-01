@@ -123,3 +123,61 @@ fn explicit_aligned_attribute_conformance_survives_import_and_lowering_targets()
         assert_eq!(lowered_return_int(lowered, "wide_align"), 16);
     }
 }
+
+#[test]
+fn named_pragma_pack_stack_conformance_survives_import_and_lowering_targets() {
+    let path = temp_c_path("named_pack");
+    let source = r#"
+        #pragma pack(push, outer, 4)
+        struct Outer {
+            char tag;
+            int value;
+        };
+        #pragma pack(push, inner, 1)
+        struct Inner {
+            char tag;
+            int value;
+        };
+        #pragma pack(pop, inner)
+        struct AfterInner {
+            char tag;
+            int value;
+        };
+        #pragma pack(pop, outer)
+        struct Natural {
+            char tag;
+            int value;
+        };
+
+        int inner_size() { return sizeof(struct Inner); }
+        int after_inner_align() { return _Alignof(struct AfterInner); }
+        int natural_align() { return _Alignof(struct Natural); }
+    "#;
+    write_source(&path, source);
+
+    let (program, lowered_ts) = import_and_lower(&path, CompileTarget::Ts);
+    let (_, lowered_wasm) = import_and_lower(&path, CompileTarget::Wasm);
+    let (_, lowered_cpp) = import_and_lower(&path, CompileTarget::Cpp);
+    let _ = std::fs::remove_file(&path);
+
+    let mut pack_attrs = std::collections::HashMap::new();
+    for item in &program.items {
+        if let Item::Struct(st) = item {
+            pack_attrs.insert(
+                st.name.as_str(),
+                attr_usize_arg(&st.attributes, C_PACK_ALIGN_ATTR),
+            );
+        }
+    }
+
+    assert_eq!(pack_attrs.get("Outer").copied().flatten(), Some(32));
+    assert_eq!(pack_attrs.get("Inner").copied().flatten(), Some(8));
+    assert_eq!(pack_attrs.get("AfterInner").copied().flatten(), Some(32));
+    assert_eq!(pack_attrs.get("Natural").copied().flatten(), None);
+
+    for lowered in [&lowered_ts, &lowered_wasm, &lowered_cpp] {
+        assert_eq!(lowered_return_int(lowered, "inner_size"), 5);
+        assert_eq!(lowered_return_int(lowered, "after_inner_align"), 4);
+        assert_eq!(lowered_return_int(lowered, "natural_align"), 4);
+    }
+}

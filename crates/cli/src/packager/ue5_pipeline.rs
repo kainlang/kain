@@ -1208,7 +1208,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
         // Generate headers (master, delegates, EditorTypes)
         let (master_header_path, _delegate_count, mut type_headers) =
-            super::codegen::generate_headers(&layout, &ue5_config, &typed_program)?;
+            super::codegen::generate_headers(&layout, &ue5_config, &typed_program, &symbol_source_map)?;
 
         // Register runtime graph aliases so regular UE5 codegen can resolve types used
         // by subsystems/components/functions (e.g., DialogueGraph -> DialogueGraphInstance.h).

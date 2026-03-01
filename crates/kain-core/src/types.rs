@@ -171,8 +171,10 @@ impl<'a> TypeEnv<'a> {
         };
         // Built-in types
         env.types.insert("Int".into(), ResolvedType::Int(IntSize::I64));
+        env.types.insert("UInt".into(), ResolvedType::Int(IntSize::U64));
         env.types.insert("Float".into(), ResolvedType::Float(FloatSize::F64));
         env.types.insert("Bool".into(), ResolvedType::Bool);
+        env.types.insert("Char".into(), ResolvedType::Char);
         env.types.insert("String".into(), ResolvedType::String);
         env.types.insert("Vec2".into(), ResolvedType::Tuple(vec![
             ResolvedType::Float(FloatSize::F32),
@@ -418,8 +420,10 @@ pub fn resolve_type(ty: &Type) -> KainResult<ResolvedType> {
     match ty {
         Type::Named { name, .. } => match name.as_str() {
             "Int" => Ok(ResolvedType::Int(IntSize::I64)),
+            "UInt" => Ok(ResolvedType::Int(IntSize::U64)),
             "Float" => Ok(ResolvedType::Float(FloatSize::F64)),
             "Bool" => Ok(ResolvedType::Bool),
+            "Char" => Ok(ResolvedType::Char),
             "String" => Ok(ResolvedType::String),
             _ => {
                 // Check if this is a generic type parameter (single uppercase letter or _T style)

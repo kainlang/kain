@@ -1,4 +1,5 @@
 pub mod codegen_wasm;
+pub mod c_runtime_shims;
 pub mod codegen_js;
 pub mod codegen_ts;
 pub mod codegen_hybrid;

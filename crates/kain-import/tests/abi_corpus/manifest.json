@@ -1,0 +1,66 @@
+{
+  "cases": [
+    {
+      "name": "pragma_pack",
+      "source": "fixtures/pragma_pack.c",
+      "targets": ["ts", "wasm", "cpp"],
+      "struct_attrs": [
+        { "struct_name": "Packet", "packed": true, "pack_align_bits": 8 }
+      ],
+      "returns": [
+        { "function": "packet_size", "value": 5 },
+        { "function": "packet_align", "value": 1 }
+      ]
+    },
+    {
+      "name": "aligned_attr",
+      "source": "fixtures/aligned_attr.c",
+      "targets": ["ts", "wasm", "rust"],
+      "struct_attrs": [
+        { "struct_name": "Wide", "type_align_bits": 128 }
+      ],
+      "returns": [
+        { "function": "wide_size", "value": 16 },
+        { "function": "wide_align", "value": 16 }
+      ]
+    },
+    {
+      "name": "named_pack_stack",
+      "source": "fixtures/named_pack_stack.c",
+      "targets": ["ts", "wasm", "cpp"],
+      "struct_attrs": [
+        { "struct_name": "Outer", "pack_align_bits": 32 },
+        { "struct_name": "Inner", "packed": true, "pack_align_bits": 8 },
+        { "struct_name": "AfterInner", "pack_align_bits": 32 },
+        { "struct_name": "Natural" }
+      ],
+      "returns": [
+        { "function": "inner_size", "value": 5 },
+        { "function": "after_inner_align", "value": 4 },
+        { "function": "natural_align", "value": 4 }
+      ]
+    },
+    {
+      "name": "bitfield_promotion",
+      "source": "fixtures/bitfield_promotion.c",
+      "targets": ["ts"],
+      "bitfield_promotions": [
+        { "function": "promote", "widths": [32, 40] }
+      ]
+    },
+    {
+      "name": "union_pair",
+      "source": "fixtures/union_pair.c",
+      "targets": ["ts"],
+      "union_gets": [
+        {
+          "function": "read_pair",
+          "field": "pair",
+          "type_name": "Pair",
+          "stride": 8,
+          "layout_size": 8
+        }
+      ]
+    }
+  ]
+}

@@ -2,12 +2,15 @@
 //! 
 //! This module converts the Typed AST into WebAssembly.
 
-use kain_core::ast::{Expr, BinaryOp, Stmt, Block};
+use kain_core::ast::{Expr, BinaryOp, Stmt, Block, CallArg};
 use kain_core::types::{ResolvedType, TypedFunction, TypedItem, TypedProgram};
 use kain_core::error::{KainResult, KainError};
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use walrus::{FunctionBuilder, InstrSeqBuilder, LocalId, Module, ModuleConfig, ValType};
 use std::collections::HashMap;
+use crate::c_runtime_shims::{
+    wasm_c_runtime_constant, wasm_c_runtime_shim, wasm_import_signature_types, WasmCRuntimeShimKind,
+};
 
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Wasm)?;
@@ -193,6 +196,300 @@ struct CompilationContext<'a> {
 }
 
 impl WasmCompiler {
+    fn compile_print_like_args(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        args: &[CallArg],
+    ) -> KainResult<()> {
+        for arg in args {
+            match &arg.value {
+                Expr::Int(_, _) => {
+                    self.compile_expr(ctx, builder, &arg.value)?;
+                    if let Some(func_id) = ctx.functions.get("print_i64") {
+                        builder.call(*func_id);
+                    }
+                }
+                Expr::Float(_, _) => {
+                    self.compile_expr(ctx, builder, &arg.value)?;
+                    if let Some(func_id) = ctx.functions.get("print_f64") {
+                        builder.call(*func_id);
+                    }
+                }
+                Expr::Bool(_, _) => {
+                    self.compile_expr(ctx, builder, &arg.value)?;
+                    if let Some(func_id) = ctx.functions.get("print_bool") {
+                        builder.call(*func_id);
+                    }
+                }
+                Expr::String(s, _) => {
+                    if let Some(&offset) = ctx.string_table.get(s) {
+                        builder.i32_const((offset + 4) as i32);
+                        builder.i32_const(s.len() as i32);
+                        if let Some(func_id) = ctx.functions.get("print_str") {
+                            builder.call(*func_id);
+                        }
+                    }
+                }
+                _ => {
+                    let is_string = self.is_string_expr(&arg.value);
+                    let is_i32_var = match &arg.value {
+                        Expr::Ident(name, _) => self.is_i32_local(name, &ctx.locals),
+                        _ => self.is_i32_expr(&arg.value),
+                    };
+
+                    self.compile_expr(ctx, builder, &arg.value)?;
+
+                    if is_string {
+                        builder.local_set(ctx.tmp_i32);
+                        builder.local_get(ctx.tmp_i32);
+                        builder.local_get(ctx.tmp_i32);
+                        builder.i32_const(4);
+                        builder.binop(walrus::ir::BinaryOp::I32Sub);
+                        builder.load(
+                            ctx.memory_id,
+                            walrus::ir::LoadKind::I32 { atomic: false },
+                            walrus::ir::MemArg { align: 4, offset: 0 },
+                        );
+                        if let Some(func_id) = ctx.functions.get("print_str") {
+                            builder.call(*func_id);
+                        }
+                    } else if is_i32_var {
+                        builder.drop();
+                    } else if let Some(func_id) = ctx.functions.get("print_i64") {
+                        builder.call(*func_id);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_expr_as_i32(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        expr: &Expr,
+    ) -> KainResult<()> {
+        let already_i32 = self.is_string_expr(expr)
+            || self.is_i32_expr(expr)
+            || matches!(expr, Expr::Ident(name, _) if self.is_i32_local(name, &ctx.locals));
+        self.compile_expr(ctx, builder, expr)?;
+        if !already_i32 {
+            builder.unop(walrus::ir::UnaryOp::I32WrapI64);
+        }
+        Ok(())
+    }
+
+    fn compile_expr_as_i64(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        expr: &Expr,
+    ) -> KainResult<()> {
+        let already_i32 = self.is_string_expr(expr)
+            || self.is_i32_expr(expr)
+            || matches!(expr, Expr::Ident(name, _) if self.is_i32_local(name, &ctx.locals));
+        self.compile_expr(ctx, builder, expr)?;
+        if already_i32 {
+            builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
+        }
+        Ok(())
+    }
+
+    fn compile_c_runtime_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        func_name: &str,
+        args: &[CallArg],
+    ) -> KainResult<bool> {
+        let Some(shim) = wasm_c_runtime_shim(func_name) else {
+            return Ok(false);
+        };
+
+        match shim.kind {
+            WasmCRuntimeShimKind::Printf => {
+                let print_args: Vec<CallArg> = args.iter().skip(1).cloned().collect();
+                self.compile_print_like_args(ctx, builder, &print_args)?;
+                builder.i64_const(0);
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Fprintf => {
+                let print_args: Vec<CallArg> = args.iter().skip(2).cloned().collect();
+                self.compile_print_like_args(ctx, builder, &print_args)?;
+                builder.i64_const(0);
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Puts => {
+                let print_args: Vec<CallArg> = args.iter().take(1).cloned().collect();
+                self.compile_print_like_args(ctx, builder, &print_args)?;
+                if let Some(&offset) = ctx.string_table.get("\n") {
+                    builder.i32_const((offset + 4) as i32);
+                    builder.i32_const(1);
+                    if let Some(func_id) = ctx.functions.get("print_str") {
+                        builder.call(*func_id);
+                    }
+                }
+                builder.i64_const(0);
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Atoll => {
+                if let Some(arg) = args.first() {
+                    self.compile_expr_as_i32(ctx, builder, &arg.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Sprintf => {
+                if let Some(dst) = args.first() {
+                    self.compile_expr_as_i32(ctx, builder, &dst.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(fmt) = args.get(1) {
+                    self.compile_expr_as_i32(ctx, builder, &fmt.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(value) = args.get(2) {
+                    self.compile_expr_as_i64(ctx, builder, &value.value)?;
+                } else {
+                    builder.i64_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i32_const(0);
+                }
+                builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Exit => {
+                if let Some(arg) = args.first() {
+                    self.compile_expr(ctx, builder, &arg.value)?;
+                    builder.unop(walrus::ir::UnaryOp::I32WrapI64);
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                }
+                builder.i64_const(0);
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Free => {
+                if let Some(arg) = args.first() {
+                    self.compile_expr(ctx, builder, &arg.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                }
+                builder.i64_const(0);
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Fopen => {
+                if let Some(path) = args.first() {
+                    self.compile_expr_as_i32(ctx, builder, &path.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(mode) = args.get(1) {
+                    self.compile_expr_as_i32(ctx, builder, &mode.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i64_const(0);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Fseek => {
+                for idx in 0..3 {
+                    if let Some(arg) = args.get(idx) {
+                        self.compile_expr_as_i64(ctx, builder, &arg.value)?;
+                    } else {
+                        builder.i64_const(0);
+                    }
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i64_const(0);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Ftell | WasmCRuntimeShimKind::Fclose => {
+                if let Some(arg) = args.first() {
+                    self.compile_expr_as_i64(ctx, builder, &arg.value)?;
+                } else {
+                    builder.i64_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i64_const(0);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Fread | WasmCRuntimeShimKind::Fwrite => {
+                for idx in 0..4 {
+                    if let Some(arg) = args.get(idx) {
+                        self.compile_expr_as_i64(ctx, builder, &arg.value)?;
+                    } else {
+                        builder.i64_const(0);
+                    }
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i64_const(0);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Strncpy => {
+                for idx in 0..3 {
+                    if let Some(arg) = args.get(idx) {
+                        self.compile_expr_as_i64(ctx, builder, &arg.value)?;
+                    } else {
+                        builder.i64_const(0);
+                    }
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i64_const(0);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Strdup => {
+                if let Some(arg) = args.first() {
+                    self.compile_expr_as_i32(ctx, builder, &arg.value)?;
+                } else {
+                    builder.i32_const(0);
+                }
+                if let Some(func_id) = ctx.functions.get(func_name) {
+                    builder.call(*func_id);
+                } else {
+                    builder.i64_const(0);
+                }
+                Ok(true)
+            }
+            WasmCRuntimeShimKind::Strlen
+            | WasmCRuntimeShimKind::Strcmp
+            | WasmCRuntimeShimKind::Strcpy
+            | WasmCRuntimeShimKind::Strcat => Ok(false),
+        }
+    }
+
     fn new() -> Self {
         let config = ModuleConfig::new();
         let mut module = Module::with_config(config);
@@ -259,6 +556,19 @@ impl WasmCompiler {
         let time_now_type = module.types.add(&[], &[ValType::I64]);
         let (time_now_func, _) = module.add_import_func("host", "time_now", time_now_type);
         functions.insert("time_now".to_string(), time_now_func);
+
+        for shim in crate::c_runtime_shims::WASM_C_RUNTIME_SHIMS {
+            let Some(host_symbol) = shim.host_symbol else {
+                continue;
+            };
+            let Some(signature) = shim.signature else {
+                continue;
+            };
+            let (params, results) = wasm_import_signature_types(signature);
+            let import_type = module.types.add(params, results);
+            let (func_id, _) = module.add_import_func("host", host_symbol, import_type);
+            functions.insert(shim.c_symbol.to_string(), func_id);
+        }
 
         // --- DOM Imports ---
         // dom_create(tag_ptr: i32, tag_len: i32) -> node_id: i32
@@ -1406,6 +1716,54 @@ impl WasmCompiler {
         args: &[kain_core::ast::CallArg],
     ) -> KainResult<bool> {
         match func_name {
+            "__kain_ptr_offset" if args.len() >= 3 => {
+                self.compile_expr_as_i32(ctx, builder, &args[0].value)?;
+                self.compile_expr_as_i32(ctx, builder, &args[1].value)?;
+                self.compile_expr_as_i32(ctx, builder, &args[2].value)?;
+                builder.binop(walrus::ir::BinaryOp::I32Mul);
+                builder.binop(walrus::ir::BinaryOp::I32Add);
+                Ok(true)
+            }
+            "__kain_mem_load" if !args.is_empty() => {
+                self.compile_expr_as_i32(ctx, builder, &args[0].value)?;
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+                Ok(true)
+            }
+            "__kain_mem_store" if args.len() >= 2 => {
+                self.compile_expr_as_i32(ctx, builder, &args[0].value)?;
+                builder.local_set(ctx.tmp_i32);
+                self.compile_expr_as_i64(ctx, builder, &args[1].value)?;
+                builder.local_set(ctx.tmp_i64);
+                builder.local_get(ctx.tmp_i32);
+                builder.local_get(ctx.tmp_i64);
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::I64 { atomic: false },
+                    walrus::ir::MemArg { align: 8, offset: 0 },
+                );
+                builder.local_get(ctx.tmp_i64);
+                Ok(true)
+            }
+            "__kain_alloc" if args.len() >= 4 => {
+                builder.global_get(ctx.heap_ptr_global);
+                builder.local_set(ctx.tmp_i32);
+                self.compile_expr_as_i32(ctx, builder, &args[0].value)?;
+                builder.local_set(ctx.tmp_i32_2);
+                builder.global_get(ctx.heap_ptr_global);
+                builder.local_get(ctx.tmp_i32_2);
+                builder.binop(walrus::ir::BinaryOp::I32Add);
+                builder.global_set(ctx.heap_ptr_global);
+                builder.local_get(ctx.tmp_i32);
+                Ok(true)
+            }
+            "__kain_realloc" if args.len() >= 4 => {
+                self.compile_expr_as_i32(ctx, builder, &args[0].value)?;
+                Ok(true)
+            }
             "__kain_union_wrap" if args.len() >= 6 => {
                 let type_key = self.expr_string_literal(&args[2].value).unwrap_or("Int");
                 let byte_size = self.expr_int_literal(&args[3].value).unwrap_or(8);
@@ -1642,6 +2000,8 @@ impl WasmCompiler {
             Expr::Ident(name, span) => {
                 if let Some(local_id) = ctx.locals.get(name) {
                     builder.local_get(*local_id);
+                } else if let Some(value) = wasm_c_runtime_constant(name) {
+                    builder.i64_const(value);
                 } else {
                      return Err(KainError::codegen(format!("Variable '{}' not found in locals", name), *span));
                 }
@@ -1670,73 +2030,12 @@ impl WasmCompiler {
                     if self.compile_low_level_helper_call(ctx, builder, func_name, args)? {
                         return Ok(());
                     }
+                    if self.compile_c_runtime_call(ctx, builder, func_name, args)? {
+                        return Ok(());
+                    }
                     // Special intrinsic: print
                     if func_name == "print" {
-                        for arg in args {
-                            match &arg.value {
-                                Expr::Int(_, _) => {
-                                    self.compile_expr(ctx, builder, &arg.value)?;
-                                    if let Some(func_id) = ctx.functions.get("print_i64") {
-                                        builder.call(*func_id);
-                                    }
-                                }
-                                Expr::Float(_, _) => {
-                                    self.compile_expr(ctx, builder, &arg.value)?;
-                                    if let Some(func_id) = ctx.functions.get("print_f64") {
-                                        builder.call(*func_id);
-                                    }
-                                }
-                                Expr::Bool(_, _) => {
-                                    self.compile_expr(ctx, builder, &arg.value)?;
-                                    if let Some(func_id) = ctx.functions.get("print_bool") {
-                                        builder.call(*func_id);
-                                    }
-                                }
-                                Expr::String(s, _) => {
-                                    if let Some(&offset) = ctx.string_table.get(s) {
-                                        builder.i32_const((offset + 4) as i32);
-                                        builder.i32_const(s.len() as i32);
-                                        if let Some(func_id) = ctx.functions.get("print_str") {
-                                            builder.call(*func_id);
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    let is_string = self.is_string_expr(&arg.value);
-                                    
-                                    // Check if this is an i32 variable (JSX, bool, string ptr)
-                                    let is_i32_var = match &arg.value {
-                                        Expr::Ident(name, _) => self.is_i32_local(name, &ctx.locals),
-                                        _ => self.is_i32_expr(&arg.value),
-                                    };
-                                    
-                                    self.compile_expr(ctx, builder, &arg.value)?;
-                                    
-                                    if is_string {
-                                        // ptr is on stack. Len is at ptr - 4.
-                                        builder.local_set(ctx.tmp_i32);
-                                        builder.local_get(ctx.tmp_i32); // ptr
-                                        
-                                        builder.local_get(ctx.tmp_i32);
-                                        builder.i32_const(4);
-                                        builder.binop(walrus::ir::BinaryOp::I32Sub);
-                                        builder.load(ctx.memory_id, walrus::ir::LoadKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 }); // len
-                                        
-                                        if let Some(func_id) = ctx.functions.get("print_str") {
-                                            builder.call(*func_id);
-                                        }
-                                    } else if is_i32_var {
-                                        // JSX nodes, bools, components return i32
-                                        // For JSX the rendering already happened, just drop the node ID
-                                        builder.drop();
-                                    } else {
-                                        if let Some(func_id) = ctx.functions.get("print_i64") {
-                                            builder.call(*func_id);
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        self.compile_print_like_args(ctx, builder, args)?;
                         builder.i64_const(0); // Return Unit/0
                         return Ok(());
                     }

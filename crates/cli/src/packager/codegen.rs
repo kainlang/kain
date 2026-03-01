@@ -25,13 +25,17 @@ fn enhance_codegen_result<T>(
 pub struct SymbolRoutingManifest {
     pub symbol_owner: HashMap<String, String>,
     pub symbol_header: HashMap<String, String>,
+    pub symbol_output_stem: HashMap<String, String>,
+    pub output_name_collisions: Vec<OutputNameCollision>,
 }
 
 impl SymbolRoutingManifest {
-    fn register(&mut self, symbol: &str, module: &str, include_path: &str) {
+    fn register(&mut self, symbol: &str, module: &str, include_path: &str, output_stem: &str) {
         self.symbol_owner.insert(symbol.to_string(), module.to_string());
         self.symbol_header
             .insert(symbol.to_string(), include_path.replace('\\', "/"));
+        self.symbol_output_stem
+            .insert(symbol.to_string(), output_stem.to_string());
     }
 
     fn extend_from(&mut self, other: &SymbolRoutingManifest) {
@@ -41,7 +45,140 @@ impl SymbolRoutingManifest {
         for (k, v) in &other.symbol_header {
             self.symbol_header.insert(k.clone(), v.clone());
         }
+        for (k, v) in &other.symbol_output_stem {
+            self.symbol_output_stem.insert(k.clone(), v.clone());
+        }
+        self.output_name_collisions
+            .extend(other.output_name_collisions.clone());
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OutputNameCollision {
+    pub symbol: String,
+    pub requested_stem: String,
+    pub resolved_stem: String,
+    pub conflicting_symbol: String,
+    pub source_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct OutputNameRegistry {
+    resolved_for_symbol: HashMap<String, String>,
+    owner_for_resolved: HashMap<String, String>,
+    collisions: Vec<OutputNameCollision>,
+}
+
+impl OutputNameRegistry {
+    fn resolve(
+        &mut self,
+        symbol: &str,
+        requested_stem: &str,
+        bucket: &str,
+        symbol_source_map: &HashMap<String, PathBuf>,
+    ) -> String {
+        if let Some(existing) = self.resolved_for_symbol.get(symbol) {
+            return existing.clone();
+        }
+
+        if !self.owner_for_resolved.contains_key(requested_stem) {
+            self.owner_for_resolved
+                .insert(requested_stem.to_string(), symbol.to_string());
+            self.resolved_for_symbol
+                .insert(symbol.to_string(), requested_stem.to_string());
+            return requested_stem.to_string();
+        }
+
+        let conflicting_symbol = self
+            .owner_for_resolved
+            .get(requested_stem)
+            .cloned()
+            .unwrap_or_default();
+        let source_hint = symbol_source_map
+            .get(symbol)
+            .and_then(|path| path.file_stem())
+            .and_then(|stem| stem.to_str())
+            .map(sanitize_output_fragment)
+            .filter(|value| !value.is_empty());
+
+        let mut candidates = Vec::new();
+        if let Some(hint) = source_hint.as_ref() {
+            candidates.push(format!("{}{}", requested_stem, hint));
+        }
+        let symbol_hint = sanitize_output_fragment(symbol);
+        if !symbol_hint.is_empty() {
+            candidates.push(format!("{}{}", requested_stem, symbol_hint));
+        }
+        let bucket_hint = sanitize_output_fragment(bucket);
+        if !bucket_hint.is_empty() {
+            candidates.push(format!("{}{}", requested_stem, bucket_hint));
+        }
+
+        let mut counter = 2usize;
+        loop {
+            candidates.push(format!("{}{}", requested_stem, counter));
+            counter += 1;
+            if counter > 6 {
+                break;
+            }
+        }
+
+        let resolved_stem = candidates
+            .into_iter()
+            .find(|candidate| !self.owner_for_resolved.contains_key(candidate))
+            .unwrap_or_else(|| format!("{}{}", requested_stem, self.owner_for_resolved.len() + 1));
+
+        self.owner_for_resolved
+            .insert(resolved_stem.clone(), symbol.to_string());
+        self.resolved_for_symbol
+            .insert(symbol.to_string(), resolved_stem.clone());
+        self.collisions.push(OutputNameCollision {
+            symbol: symbol.to_string(),
+            requested_stem: requested_stem.to_string(),
+            resolved_stem: resolved_stem.clone(),
+            conflicting_symbol,
+            source_hint,
+        });
+        resolved_stem
+    }
+}
+
+fn sanitize_output_fragment(value: &str) -> String {
+    let mut out = String::new();
+    let mut capitalize = true;
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            if capitalize {
+                out.push(ch.to_ascii_uppercase());
+                capitalize = false;
+            } else {
+                out.push(ch);
+            }
+        } else {
+            capitalize = true;
+        }
+    }
+    out
+}
+
+fn build_runtime_output_name_registry(
+    program: &kain_core::types::TypedProgram,
+    symbol_source_map: &HashMap<String, PathBuf>,
+) -> OutputNameRegistry {
+    let mut registry = OutputNameRegistry::default();
+    for item in &program.items {
+        let (item_name, requested_output_name, bucket) = match item {
+            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, ue5::naming::to_actor_name(&a.ast.name), "actors"),
+            kain_core::types::TypedItem::Component(c) => (&c.ast.name, ue5::naming::to_component_name(&c.ast.name), "components"),
+            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, ue5::naming::to_struct_name(&s.ast.name), "structs"),
+            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name), "enums"),
+            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone(), "state_machines"),
+            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone(), "async_tasks"),
+            _ => continue,
+        };
+        registry.resolve(item_name, &requested_output_name, bucket, symbol_source_map);
+    }
+    registry
 }
 
 #[derive(Debug, Clone)]
@@ -324,6 +461,7 @@ pub fn generate_headers(
     layout: &PluginLayout,
     config: &Ue5Config,
     program: &kain_core::types::TypedProgram,
+    symbol_source_map: &HashMap<String, PathBuf>,
 ) -> KainResult<(PathBuf, usize, HashMap<String, String>)> {
     // STEP 1: Generate master header FIRST (forward declarations only)
     println!("   📦 Generating master header with forward declarations...");
@@ -392,14 +530,15 @@ pub fn generate_headers(
     
     // Build Global Type Registry
     let mut type_headers = HashMap::new();
+    let output_registry = build_runtime_output_name_registry(program, symbol_source_map);
     for item in &program.items {
         let (item_name, output_name) = match item {
-            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, ue5::naming::to_actor_name(&a.ast.name)),
-            kain_core::types::TypedItem::Component(c) => (&c.ast.name, ue5::naming::to_component_name(&c.ast.name)),
-            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, ue5::naming::to_struct_name(&s.ast.name)),
-            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name)),
-            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone()),
-            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone()),
+            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, output_registry.resolved_for_symbol.get(&a.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_actor_name(&a.ast.name))),
+            kain_core::types::TypedItem::Component(c) => (&c.ast.name, output_registry.resolved_for_symbol.get(&c.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_component_name(&c.ast.name))),
+            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, output_registry.resolved_for_symbol.get(&s.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_struct_name(&s.ast.name))),
+            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, output_registry.resolved_for_symbol.get(&e.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_enum_name(&e.ast.name))),
+            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, output_registry.resolved_for_symbol.get(&sm.name).cloned().unwrap_or_else(|| sm.name.clone())),
+            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, output_registry.resolved_for_symbol.get(&at.name).cloned().unwrap_or_else(|| at.name.clone())),
             kain_core::types::TypedItem::TypeAlias(a) => {
                 // Delegates go in master header, not separate files
                 (&a.ast.name, format!("{}", config.plugin_name))
@@ -654,6 +793,8 @@ pub fn generate_runtime_items(
     embed_kain: bool,
 ) -> KainResult<SymbolRoutingManifest> {
     let mut routing_manifest = SymbolRoutingManifest::default();
+    let output_registry = build_runtime_output_name_registry(program, symbol_source_map);
+    routing_manifest.output_name_collisions = output_registry.collisions.clone();
     let runtime_consumer_module = default_runtime_module_name(config)
         .unwrap_or_else(|| config.plugin_name.clone());
     for item in &program.items {
@@ -680,14 +821,19 @@ pub fn generate_runtime_items(
         let is_async_task = matches!(item, kain_core::types::TypedItem::AsyncTask(_));
         
         let (item_name, output_name) = match item {
-            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, ue5::naming::to_actor_name(&a.ast.name)),
-            kain_core::types::TypedItem::Component(c) => (&c.ast.name, ue5::naming::to_component_name(&c.ast.name)),
-            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, ue5::naming::to_struct_name(&s.ast.name)),
-            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name)),
-            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone()),
-            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone()),
+            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, output_registry.resolved_for_symbol.get(&a.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_actor_name(&a.ast.name))),
+            kain_core::types::TypedItem::Component(c) => (&c.ast.name, output_registry.resolved_for_symbol.get(&c.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_component_name(&c.ast.name))),
+            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, output_registry.resolved_for_symbol.get(&s.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_struct_name(&s.ast.name))),
+            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, output_registry.resolved_for_symbol.get(&e.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_enum_name(&e.ast.name))),
+            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, output_registry.resolved_for_symbol.get(&sm.name).cloned().unwrap_or_else(|| sm.name.clone())),
+            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, output_registry.resolved_for_symbol.get(&at.name).cloned().unwrap_or_else(|| at.name.clone())),
             _ => continue,
         };
+
+        if routing_manifest.symbol_output_stem.contains_key(item_name) {
+            println!("   ⊘ Skipping duplicate symbol slice: {}", item_name);
+            continue;
+        }
 
         let bucket = match item {
             kain_core::types::TypedItem::Actor(_) => "actors",
@@ -773,7 +919,7 @@ pub fn generate_runtime_items(
                 fs::write(&header_path, &ue5_output.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", output_name);
                 let include_path = build_include_path(&route, &header_filename, Some(&runtime_consumer_module));
-                routing_manifest.register(item_name, &route.module_name, &include_path);
+                routing_manifest.register(item_name, &route.module_name, &include_path, &output_name);
                 
                 // Only write .cpp if it has meaningful content (not just includes)
                 let has_implementation = ue5_output.source.lines()
@@ -1015,7 +1161,7 @@ pub fn generate_editor_items(
                     &header_filename,
                     Some(&editor_consumer_module),
                 );
-                routing_manifest.register(&editor_item.name, &route.module_name, &include_path);
+                routing_manifest.register(&editor_item.name, &route.module_name, &include_path, &editor_item.name);
                 
                 // Only write .cpp if it has meaningful content (not just includes)
                 let has_implementation = editor_item.source.lines()

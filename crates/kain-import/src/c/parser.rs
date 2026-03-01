@@ -166,7 +166,7 @@ fn normalized_span_snippet(metadata: &CSourceLayoutMetadata, span: CSpan) -> Opt
 }
 
 fn parse_attr_align_bytes(normalized_snippet: &str) -> Option<usize> {
-    for marker in ["aligned(", "__declspec(align("] {
+    for marker in ["aligned(", "__declspec(align(", "alignas("] {
         if let Some(idx) = normalized_snippet.find(marker) {
             let start = idx + marker.len();
             let digits = normalized_snippet[start..]
@@ -185,19 +185,22 @@ fn parse_attr_align_bytes(normalized_snippet: &str) -> Option<usize> {
 
 fn collect_pack_align_by_line(source: &str) -> Vec<Option<usize>> {
     let mut current = None;
-    let mut stack = Vec::<Option<usize>>::new();
+    let mut stack = Vec::<PackFrame>::new();
     let mut by_line = Vec::new();
 
     for line in source.lines() {
         let trimmed = line.trim_start();
         if let Some(directive) = parse_pack_directive(trimmed) {
             match directive {
-                PackDirective::Push(next) => {
-                    stack.push(current);
+                PackDirective::Push { id, next } => {
+                    stack.push(PackFrame {
+                        id,
+                        previous: current,
+                    });
                     current = next.or(current);
                 }
-                PackDirective::Pop => {
-                    current = stack.pop().unwrap_or(None);
+                PackDirective::Pop { id } => {
+                    current = pop_pack_frame(&mut stack, id).unwrap_or(None);
                 }
                 PackDirective::Set(next) => {
                     current = next;
@@ -213,11 +216,29 @@ fn collect_pack_align_by_line(source: &str) -> Vec<Option<usize>> {
     by_line
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum PackDirective {
-    Push(Option<usize>),
-    Pop,
+    Push { id: Option<String>, next: Option<usize> },
+    Pop { id: Option<String> },
     Set(Option<usize>),
+}
+
+#[derive(Debug, Clone)]
+struct PackFrame {
+    id: Option<String>,
+    previous: Option<usize>,
+}
+
+fn pop_pack_frame(stack: &mut Vec<PackFrame>, id: Option<String>) -> Option<Option<usize>> {
+    match id {
+        None => stack.pop().map(|frame| frame.previous),
+        Some(target) => {
+            let idx = stack.iter().rposition(|frame| frame.id.as_deref() == Some(target.as_str()))?;
+            let frame = stack.remove(idx);
+            stack.truncate(idx);
+            Some(frame.previous)
+        }
+    }
 }
 
 fn parse_pack_directive(line: &str) -> Option<PackDirective> {
@@ -243,14 +264,26 @@ fn parse_pack_directive(line: &str) -> Option<PackDirective> {
 
     match parts[0] {
         "push" => {
+            let id = parts
+                .iter()
+                .skip(1)
+                .find(|part| part.parse::<usize>().is_err())
+                .map(|part| (*part).to_string());
             let next = parts
                 .iter()
                 .skip(1)
                 .find_map(|part| part.parse::<usize>().ok())
                 .filter(|value| *value > 0);
-            Some(PackDirective::Push(next))
+            Some(PackDirective::Push { id, next })
         }
-        "pop" => Some(PackDirective::Pop),
+        "pop" => {
+            let id = parts
+                .iter()
+                .skip(1)
+                .find(|part| part.parse::<usize>().is_err())
+                .map(|part| (*part).to_string());
+            Some(PackDirective::Pop { id })
+        }
         _ => parts[0]
             .parse::<usize>()
             .ok()
@@ -587,9 +620,13 @@ fn sanitize_for_preprocessed_parse(
             } else if trimmed.starts_with("#endif") {
                 conditional_stack.pop();
             }
+            out.push_str(&blank_like(line));
+            out.push('\n');
             continue;
         }
         if !conditional_active(&conditional_stack) {
+            out.push_str(&blank_like(line));
+            out.push('\n');
             continue;
         }
         let line = strip_fallback_annotations(line);
@@ -610,14 +647,35 @@ fn strip_fallback_annotations(line: &str) -> String {
         "ALIGNED32",
     ];
 
-    let mut cleaned = line.to_string();
+    let mut bytes = line.as_bytes().to_vec();
+    let upper = line.to_ascii_uppercase();
+
     for token in TOKENS {
-        cleaned = cleaned
-            .replace(&format!("{token} "), "")
-            .replace(&format!(" {token}"), " ")
-            .replace(token, "");
+        let mut start_at = 0;
+        while let Some(found) = upper[start_at..].find(token) {
+            let idx = start_at + found;
+            let end = idx + token.len();
+            let prev_ok = idx == 0
+                || !line.as_bytes()[idx - 1].is_ascii_alphanumeric()
+                    && line.as_bytes()[idx - 1] != b'_';
+            let next_ok = end == line.len()
+                || !line.as_bytes()[end].is_ascii_alphanumeric() && line.as_bytes()[end] != b'_';
+            if prev_ok && next_ok {
+                for slot in &mut bytes[idx..end] {
+                    *slot = b' ';
+                }
+            }
+            start_at = end;
+        }
     }
-    cleaned
+
+    String::from_utf8(bytes).unwrap_or_else(|_| line.to_string())
+}
+
+fn blank_like(line: &str) -> String {
+    line.chars()
+        .map(|ch| if ch == '\t' { '\t' } else { ' ' })
+        .collect()
 }
 
 const FALLBACK_PRELUDE: &str = r#"
@@ -712,22 +770,28 @@ fn strip_c_comments(input: &str) -> String {
         }
 
         if c == '/' && next == Some('/') {
+            out.push(' ');
+            out.push(' ');
+            i += 2;
             while i < bytes.len() && bytes[i] as char != '\n' {
+                out.push(' ');
                 i += 1;
             }
             continue;
         }
 
         if c == '/' && next == Some('*') {
+            out.push(' ');
+            out.push(' ');
             i += 2;
             while i + 1 < bytes.len() {
                 if bytes[i] as char == '*' && bytes[i + 1] as char == '/' {
+                    out.push(' ');
+                    out.push(' ');
                     i += 2;
                     break;
                 }
-                if bytes[i] as char == '\n' {
-                    out.push('\n');
-                }
+                out.push(if bytes[i] as char == '\n' { '\n' } else { ' ' });
                 i += 1;
             }
             continue;
@@ -839,5 +903,18 @@ mod tests {
 
         assert!(metadata.has_packed_attr_for_span(span));
         assert_eq!(metadata.explicit_type_align_bits_for_span(span), Some(128));
+    }
+
+    #[test]
+    fn test_layout_metadata_tracks_named_pragma_pack_stack() {
+        let source = "#pragma pack(push, outer, 4)\nstruct A { char tag; int value; };\n#pragma pack(push, inner, 1)\nstruct B { char tag; int value; };\n#pragma pack(pop, inner)\nstruct C { char tag; int value; };\n#pragma pack(pop, outer)\n";
+        let metadata = CSourceLayoutMetadata::from_source(source);
+        let a_span = CSpan::span(source.find("struct A").unwrap(), source.find("struct B").unwrap());
+        let b_span = CSpan::span(source.find("struct B").unwrap(), source.find("struct C").unwrap());
+        let c_span = CSpan::span(source.find("struct C").unwrap(), source.len());
+
+        assert_eq!(metadata.pack_align_bits_for_span(a_span), Some(32));
+        assert_eq!(metadata.pack_align_bits_for_span(b_span), Some(8));
+        assert_eq!(metadata.pack_align_bits_for_span(c_span), Some(32));
     }
 }

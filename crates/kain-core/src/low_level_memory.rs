@@ -1,7 +1,10 @@
 use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::error::{DiagnosticBuilder, ErrorKind, KainResult};
-use crate::low_level_abi::{c_abi_policy_for_target, promoted_integer_bits, CAbiPolicy};
+use crate::low_level_abi::{
+    c_abi_policy_for_target, promoted_integer_bits, promoted_type_for_arithmetic,
+    should_apply_usual_arithmetic_conversions, usual_arithmetic_conversion_type, CAbiPolicy,
+};
 use crate::low_level_memory_metadata::{
     attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_PACK_ALIGN_ATTR,
     C_PACKED_ATTR, C_STORAGE_ALIGN_ATTR, C_STORAGE_BITS_ATTR, C_TYPE_ALIGN_ATTR, C_UNION_ATTR,
@@ -891,17 +894,68 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             op,
             right,
             span,
-        } => Expr::Binary {
-            left: Box::new(lower_expr_memory_with_ctx(left, ctx)),
-            op: *op,
-            right: Box::new(lower_expr_memory_with_ctx(right, ctx)),
-            span: *span,
-        },
-        Expr::Unary { op, operand, span } => Expr::Unary {
-            op: *op,
-            operand: Box::new(lower_expr_memory_with_ctx(operand, ctx)),
-            span: *span,
-        },
+        } => {
+            let left_ty = infer_expr_type(left, ctx);
+            let right_ty = infer_expr_type(right, ctx);
+            let lowered_left = lower_expr_memory_with_ctx(left, ctx);
+            let lowered_right = lower_expr_memory_with_ctx(right, ctx);
+
+            if should_apply_usual_arithmetic_conversions(*op) {
+                let common_ty = left_ty
+                    .as_ref()
+                    .zip(right_ty.as_ref())
+                    .and_then(|(lhs, rhs)| usual_arithmetic_conversion_type(lhs, rhs, ctx.layouts.abi));
+                return Expr::Binary {
+                    left: Box::new(cast_if_needed(lowered_left, common_ty.clone(), *span)),
+                    op: *op,
+                    right: Box::new(cast_if_needed(lowered_right, common_ty, *span)),
+                    span: *span,
+                };
+            }
+
+            let normalized_left = if matches!(op, BinaryOp::Shl | BinaryOp::Shr) {
+                cast_if_needed(
+                    lowered_left,
+                    left_ty
+                        .as_ref()
+                        .and_then(|ty| promoted_type_for_arithmetic(ty, ctx.layouts.abi)),
+                    *span,
+                )
+            } else {
+                lowered_left
+            };
+            let normalized_right = if matches!(op, BinaryOp::Shl | BinaryOp::Shr) {
+                cast_if_needed(lowered_right, Some(named_int_type(*span)), *span)
+            } else {
+                lowered_right
+            };
+
+            Expr::Binary {
+                left: Box::new(normalized_left),
+                op: *op,
+                right: Box::new(normalized_right),
+                span: *span,
+            }
+        }
+        Expr::Unary { op, operand, span } => {
+            let operand_ty = infer_expr_type(operand, ctx);
+            let lowered_operand = lower_expr_memory_with_ctx(operand, ctx);
+            let normalized_operand = match op {
+                UnaryOp::Neg | UnaryOp::BitNot => cast_if_needed(
+                    lowered_operand,
+                    operand_ty
+                        .as_ref()
+                        .and_then(|ty| promoted_type_for_arithmetic(ty, ctx.layouts.abi)),
+                    *span,
+                ),
+                _ => lowered_operand,
+            };
+            Expr::Unary {
+                op: *op,
+                operand: Box::new(normalized_operand),
+                span: *span,
+            }
+        }
         Expr::Call { callee, args, span } => Expr::Call {
             callee: Box::new(lower_expr_memory_with_ctx(callee, ctx)),
             args: args
@@ -1414,6 +1468,21 @@ fn root_ident_of_addressable(expr: &Expr) -> Option<&str> {
 
 fn infer_expr_type(expr: &Expr, ctx: &FunctionMemoryCtx<'_>) -> Option<Type> {
     match expr {
+        Expr::Int(_, span) => Some(Type::Named {
+            name: "Int".to_string(),
+            generics: Vec::new(),
+            span: *span,
+        }),
+        Expr::Float(_, span) => Some(Type::Named {
+            name: "Float".to_string(),
+            generics: Vec::new(),
+            span: *span,
+        }),
+        Expr::Bool(_, span) => Some(Type::Named {
+            name: "Bool".to_string(),
+            generics: Vec::new(),
+            span: *span,
+        }),
         Expr::Ident(name, _) => ctx.local_types.get(name).cloned(),
         Expr::Field { object, field, .. } => {
             let object_ty = infer_expr_type(object, ctx)?;
@@ -1515,6 +1584,25 @@ fn type_key(ty: &Type) -> String {
         Type::Unit(_) => "()".to_string(),
         Type::Never(_) => "!".to_string(),
         _ => "unknown".to_string(),
+    }
+}
+
+fn cast_if_needed(expr: Expr, target: Option<Type>, span: Span) -> Expr {
+    let Some(target) = target else {
+        return expr;
+    };
+    Expr::Cast {
+        value: Box::new(expr),
+        target,
+        span,
+    }
+}
+
+fn named_int_type(span: Span) -> Type {
+    Type::Named {
+        name: "Int".to_string(),
+        generics: Vec::new(),
+        span,
     }
 }
 

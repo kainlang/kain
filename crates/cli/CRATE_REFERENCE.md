@@ -1,528 +1,180 @@
-# CLI Crate Reference
+# cli — KAIN Compiler CLI Reference
 
-> **Last Updated:** 2026-02-20  
-> **Purpose:** Complete command reference for the KAIN CLI  
-> **Status:** Production-ready
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Commands](#commands)
-3. [Global Flags](#global-flags)
-4. [Compilation Targets](#compilation-targets)
-5. [Examples](#examples)
+> **Last Updated:** 2026-03-01
+> **Status:** Production — full pipeline for all 15 targets, LSP, UE5 packager, C importer, Rust importer, ASM importer.
 
 ---
 
-## Overview
+## Purpose
 
-The KAIN CLI (`kain`) is the command-line interface for the KAIN compiler. It provides commands for project initialization, building, running, and injecting code into existing projects.
+The KAIN compiler entry point. Orchestrates all compilation pipelines, the UE5 packager, the language server, watch mode, project init, and all import commands.
 
-**Binary:** `kain` or `kain.exe`  
-**Version:** Check with `kain --version`
+---
+
+## Source Files
+
+| File | Size | Purpose |
+|---|---|---|
+| `packager/ue5_pipeline.rs` | 124KB (2658L) | UE5 plugin build orchestrator — the largest file in the CLI |
+| `import_c.rs` | 57KB | C import command handler |
+| `main.rs` | 40KB | CLI arg parsing, command dispatch, compile pipeline |
+| `lsp.rs` | 22KB | Language Server Protocol implementation |
+| `lib.rs` | 17KB | Public CLI library API |
+| `packager/codegen.rs` | 76KB | Per-module code generation coordinator |
+| `packager/dependencies.rs` | 16KB | Build dependency resolution |
+| `packager/inject.rs` | 17KB | `kain inject` — non-destructive plugin injection |
+| `packager/registry_writer.rs` | 16KB | `AssetRegistry.bin` generation |
+| `packager/build_cs_gen.rs` | 14KB | `Build.cs` generation |
+| `packager/plugin_layout.rs` | 11KB | Plugin directory structure |
+| `packager/config.rs` | 8KB | `KAIN.toml` + `Ue5Config` schema |
+| `packager/cpp_validator.rs` | 10KB | Generated C++ validation |
+| `packager/post_process.rs` | 7KB | 5 post-processing fix passes |
+| `packager/uplugin_gen.rs` | 4KB | `.uplugin` JSON generation |
 
 ---
 
 ## Commands
 
-### `kain init`
-Initialize a new KAIN project with KAIN.toml configuration.
+### `kain build` — Compile a file or project
 
-**Usage:**
-```bash
-kain init [PATH] [OPTIONS]
+```
+kain build [FILE] [OPTIONS]
+
+Options:
+  --ue5                   Build UE5 plugin from KAIN.toml
+  --target / -t <TARGET>  Compilation target
+  --targets <LIST>        Multiple targets (comma-separated)
+  --output / -o <PATH>    Output file or directory
+  --verbose               Verbose output
+  --emit-ast              Dump parsed AST
+  --emit-typed            Dump type-annotated AST
+  --dry-run               Preview actions without writing
+  --watch / -w            Watch mode — auto-recompile on change
+  --strict                Treat warnings as errors
+  --analyze               Analyze shader complexity (USF only)
+  --plugin <NAME>         Target plugin name
+  --plugins-dir <DIR>     Base plugins directory
+  --embed                 Embed KAIN markers in generated output
 ```
 
-**Arguments:**
-- `[PATH]` - Project directory (default: current directory `.`)
+### `kain run` — Execute immediately (interpreter)
 
-**Options:**
-- `--name <NAME>` - Explicit project name (default: directory name)
-
-**Examples:**
-```bash
-# Initialize in current directory
-kain init
-
-# Initialize in new directory
-kain init MyProject
-
-# Initialize with explicit name
-kain init MyProject --name "My Awesome Plugin"
+```
+kain run <FILE> [--verbose]
 ```
 
-**Generated Files:**
-- `KAIN.toml` - Project configuration
-- `src/` - Source directory
-- `.gitignore` - Git ignore file
+### `kain init` — Initialize new project
 
----
-
-### `kain build`
-Build project or file. Without input, reads KAIN.toml for multi-target build.
-
-**Usage:**
-```bash
-kain build [INPUT] [OPTIONS]
+```
+kain init [PATH] [--name <PROJECT_NAME>]
 ```
 
-**Arguments:**
-- `[INPUT]` - Optional input file. If omitted, builds all targets from KAIN.toml
+Generates: `KAIN.toml`, `src/main.kn`, `stdlib/`, `.gitignore`.
 
-**Options:**
-- `--targets <TARGETS>` - Override targets (comma-separated: wasm,js,rust)
-- `--ue5` - Build UE5 plugin from KAIN.toml [ue5] config
-- `-o, --output <OUTPUT>` - Output file
-- `-v, --verbose` - Verbose output
-- `--emit-ast` - Emit AST for debugging
-- `--emit-typed` - Emit typed AST
-- `--dry-run` - Print planned actions without executing
-- `--strict` - Treat warnings as errors
-- `--analyze` - Analyze shader complexity (USF target only)
+### `kain inject` — Non-destructive plugin injection
 
-**Examples:**
-```bash
-# Build entire project from KAIN.toml
-kain build
+```
+kain inject <FILES...> [OPTIONS]
 
-# Build specific file
-kain build src/main.kn
-
-# Build UE5 plugin
-kain build --ue5
-
-# Build with multiple targets
-kain build --targets wasm,js,rust
-
-# Build with verbose output
-kain build --ue5 --verbose
-
-# Dry run (show what would be built)
-kain build --ue5 --dry-run
+Options:
+  --ue5                   Use UE5 mode
+  --plugin <NAME>         Target plugin name (auto-detected if omitted)
+  --plugin-dir <DIR>      Explicit plugin directory
+  --dry-run               Preview changes without writing
+  --force                 Overwrite existing generated files
 ```
 
-**UE5 Plugin Build:**
-When using `--ue5`, the CLI:
-1. Reads `KAIN.toml` [ue5] section
-2. Parses all `.kn` files in `src/`
-3. Generates C++ code in `Source/`
-4. Generates Blueprints in `Content/Blueprints/`
-5. Generates Materials in `Content/Materials/`
-6. Generates Shaders in `Shaders/`
-7. Creates `.uplugin` and `.Build.cs` files
+Inject preserves all existing plugin code — only adds new generated files to `Source/Private/Generated/`.
 
----
+### `kain import-c` — Import C source
 
-### `kain run`
-Run a KAIN file immediately (interpret mode).
+```
+kain import-c <INPUT> [OPTIONS]
 
-**Usage:**
-```bash
-kain run <INPUT>
+Options:
+  --output / -o <FILE>    Output .kn file
+  --target / -t <TARGET>  Compile target for ABI policy selection
+  --validate              Parse/transform only, no output
+  --fail-fast             Stop on first error (for directories)
+  --report-json <FILE>    Write import failure/report JSON
 ```
 
-**Arguments:**
-- `<INPUT>` - Input file to run
+Processes a single `.c` file or a directory of `.c` files.
 
-**Examples:**
-```bash
-# Run a script
-kain run examples/hello.kn
+### `kain import-asm` — Import assembly
 
-# Run with verbose output
-kain run examples/test.kn --verbose
+```
+kain import-asm <INPUT> [OPTIONS]
+
+Options:
+  --format <FORMAT>       Dialect: gameboy, 6502-furby, z80, etc.
+  --out / -o <FILE>       Output .kn file
+  --validate-only         Parse/validate without writing
 ```
 
----
+### LSP Mode
 
-### `kain inject`
-Inject KAIN file(s) into existing UE5 plugin (non-destructive).
-
-**Usage:**
-```bash
-kain inject <INPUTS>... [OPTIONS]
 ```
-
-**Arguments:**
-- `<INPUTS>...` - Input .kn file(s) to inject
-
-**Options:**
-- `--plugin-dir <DIR>` - Target plugin directory (auto-detected if omitted)
-- `--plugin <NAME>` - Plugin name (auto-detected if omitted)
-- `--force` - Force overwrite existing files
-- `--dry-run` - Show what would be generated without writing
-- `--ue5` - Use UE5 codegen (required)
-
-**Examples:**
-```bash
-# Inject into auto-detected plugin
-kain inject src/new_actor.kn --ue5
-
-# Inject multiple files
-kain inject src/actor1.kn src/actor2.kn --ue5
-
-# Inject with explicit plugin directory
-kain inject src/new_actor.kn --ue5 --plugin-dir /path/to/MyPlugin
-
-# Inject with explicit plugin name
-kain inject src/new_actor.kn --ue5 --plugin MyPlugin
-
-# Dry run (preview changes)
-kain inject src/new_actor.kn --ue5 --dry-run
-
-# Force overwrite existing files
-kain inject src/new_actor.kn --ue5 --force
-```
-
-**How It Works:**
-1. Detects existing plugin structure
-2. Parses input `.kn` files
-3. Generates new C++ files in `Source/Private/Generated/`
-4. Updates existing headers if needed
-5. Preserves existing code (non-destructive)
-6. Registers new types in module
-
----
-
-### `kain lsp`
-Start the KAIN Language Server for IDE integration.
-
-**Usage:**
-```bash
 kain lsp
 ```
 
-**Purpose:**
-- Provides IDE features (autocomplete, diagnostics, hover, etc.)
-- Used by VS Code extension
-- Communicates via JSON-RPC over stdin/stdout
-
-**Note:** This command is typically invoked by your IDE, not manually.
-
----
-
-## Global Flags
-
-These flags work with most commands:
-
-### `-o, --output <OUTPUT>`
-Specify output file or directory.
-
-```bash
-kain build src/main.kn -o dist/output.wasm
-```
-
-### `-t, --target <TARGET>`
-Compilation target (legacy, use `build --targets` instead).
-
-**Available targets:**
-- `wasm` / `w` - WebAssembly
-- `js` / `javascript` - JavaScript
-- `rust` / `rs` - Rust
-- `llvm` / `native` / `n` - Native LLVM
-- `spirv` / `gpu` / `shader` / `s` - SPIR-V shader
-- `hlsl` / `h` - HLSL shader
-- `usf` - Unreal Shader Format
-- `cpp` / `c++` - C++
-- `ue5` / `unreal` - UE5 C++
-- `ue5editor` / `editor` / `slate` - UE5 Editor UI
-- `run` / `r` / `interpret` / `i` - Interpret
-- `test` / `t` - Test mode
-- `hybrid` / `web` - Hybrid (WASM + JS)
-
-```bash
-kain src/main.kn --target wasm
-kain src/shader.kn --target hlsl
-```
-
-### `-r, --run`
-Run immediately after compilation.
-
-```bash
-kain build src/main.kn --target wasm --run
-```
-
-### `-w, --watch`
-Watch for file changes and recompile automatically.
-
-```bash
-kain build src/main.kn --watch
-```
-
-### `-v, --verbose`
-Enable verbose output (shows detailed compilation steps).
-
-```bash
-kain build --ue5 --verbose
-```
-
-### `--emit-ast`
-Emit AST (Abstract Syntax Tree) for debugging.
-
-```bash
-kain build src/main.kn --emit-ast
-```
-
-### `--emit-typed`
-Emit typed AST after type checking.
-
-```bash
-kain build src/main.kn --emit-typed
-```
-
-### `--dry-run`
-Print planned actions without executing.
-
-```bash
-kain build --ue5 --dry-run
-kain inject src/actor.kn --ue5 --dry-run
-```
-
-### `--strict`
-Treat transpiler warnings as errors.
-
-```bash
-kain build --ue5 --strict
-```
-
-### `--analyze`
-Analyze shader complexity (USF target only).
-
-```bash
-kain build src/shader.kn --target usf --analyze
-```
-
-### `--plugin <NAME>`
-Target plugin name for UE5 operations.
-
-```bash
-kain build --ue5 --plugin MyPlugin
-```
-
-### `--plugins-dir <DIR>`
-Base plugins directory (defaults to `u:\ue_factory\src-plugins`).
-
-```bash
-kain build --ue5 --plugins-dir /path/to/plugins
-```
+Invoked by IDEs. Implements LSP over stdin/stdout with:
+- Diagnostics on file change
+- Hover (type info for identifiers)
+- Go-to-definition
+- Completion (stdlib functions, KAIN keywords)
 
 ---
 
-## Compilation Targets
+## UE5 Plugin Build Pipeline (`ue5_pipeline.rs`, 124KB)
 
-### WebAssembly (`wasm`)
-Compile to WebAssembly for web browsers.
+### `build_ue5_plugin_with_options()` — Core Orchestrator (1431 lines)
 
-```bash
-kain build src/main.kn --target wasm
-```
+11-stage pipeline:
 
-**Output:** `.wasm` file
+| Stage | Action |
+|---|---|
+| 1 | Read `KAIN.toml` or auto-detect config (`create_default_config`) |
+| 2 | Resolve source files per module via `source_globs` |
+| 3 | Load stdlib + user source, parse, type-check |
+| 4 | Run The Oracle (`validate_program_with_custom_rules`) |
+| 5 | Generate C++ per-item (`codegen.rs`) |
+| 6 | Generate GAS code (tags, attributes; abilities/effects if CLI-wired) |
+| 7 | Generate shaders via `ue5-shaders` |
+| 8 | Serialize material graphs → binary `.uasset` via `ue5-materials` |
+| 9 | Post-process C++ (5 fix passes) |
+| 10 | Write output files (`Source/`, `Shaders/`, `Content/`) |
+| 11 | Generate `.uplugin`, per-module `Build.cs`, `AssetRegistry.bin` |
 
----
+### `load_and_parse_sources()` (556 lines)
 
-### JavaScript (`js`)
-Compile to JavaScript for Node.js or browsers.
+Multi-source loader:
+- Reads stdlib files in profile order
+- Reads user `.kn` files per module glob
+- Merges into single source string
+- Calls `Parser::new().parse()`
+- Calls `types::check()`
+- Returns `TypedProgram` + `shader_names` + `material_graphs` + `graph_editors` + `graph_runtimes`
 
-```bash
-kain build src/main.kn --target js
-```
+### Material Pipeline (`convert_material_graph`, `emit_expr`)
 
-**Output:** `.js` file
+`convert_material_graph()` maps AST `MaterialGraphDef` to `ue5_materials::MaterialGraph`:
+- Recursively calls `emit_expr()` — 252-line recursive material node emitter
+- Handles `call(shader_name)` nodes via `surface_shaders` map (pre-emitted HLSL for surface shaders)
+- Assigns `(x, y)` layout positions automatically for graph display
 
----
+### Engine Version Parsing
 
-### Rust (`rust`)
-Transpile to Rust source code.
+`parse_engine_version(s)` accepts:
+- `"5.4"` / `"5.7"`
+- `"UE5_4"` / `"UE5_7"`
+- `"VER_UE5_4"` / `"VER_UE5_7"`
 
-```bash
-kain build src/main.kn --target rust
-```
-
-**Output:** `.rs` file
-
----
-
-### LLVM (`llvm`)
-Compile to native code via LLVM.
-
-```bash
-kain build src/main.kn --target llvm
-```
-
-**Output:** Native executable
-
----
-
-### HLSL (`hlsl`)
-Compile to HLSL shader code.
-
-```bash
-kain build src/shader.kn --target hlsl
-```
-
-**Output:** `.hlsl` file
+Maps to `unreal_asset_base::engine_version::EngineVersion` — native true version, not capped.
 
 ---
 
-### USF (`usf`)
-Compile to Unreal Shader Format.
-
-```bash
-kain build src/shader.kn --target usf
-```
-
-**Output:** `.usf` file
-
----
-
-### UE5 (`ue5`)
-Generate UE5 C++ plugin code.
-
-```bash
-kain build --ue5
-```
-
-**Output:** Complete UE5 plugin with:
-- `Source/` - C++ code
-- `Content/` - Assets
-- `Shaders/` - Shader files
-- `.uplugin` - Plugin descriptor
-- `.Build.cs` - Build configuration
-
----
-
-### UE5 Editor (`ue5editor`)
-Generate UE5 editor UI code (Slate, Details, Viewports).
-
-```bash
-kain build src/editor.kn --target ue5editor
-```
-
-**Output:** Editor UI C++ code
-
----
-
-### Interpret (`run`)
-Run immediately without compilation.
-
-```bash
-kain run src/main.kn
-```
-
-**Output:** Execution output
-
----
-
-## Examples
-
-### Example 1: Create New UE5 Plugin
-
-```bash
-# Initialize project
-kain init MyPlugin --name "My Awesome Plugin"
-
-# Edit KAIN.toml to configure UE5 settings
-# Add your .kn files to src/
-
-# Build plugin
-cd MyPlugin
-kain build --ue5
-
-# Output: MyPlugin/ with complete UE5 plugin structure
-```
-
----
-
-### Example 2: Inject New Actor into Existing Plugin
-
-```bash
-# Create new actor file
-cat > src/new_enemy.kn << 'EOF'
-actor Enemy:
-    state health: Float = 100.0
-    state damage: Float = 10.0
-    
-    on BeginPlay():
-        println("Enemy spawned!")
-    
-    on Tick(delta_time: Float):
-        // AI logic here
-EOF
-
-# Inject into existing plugin
-kain inject src/new_enemy.kn --ue5 --plugin MyPlugin
-
-# Output: New C++ files in MyPlugin/Source/Private/Generated/
-```
-
----
-
-### Example 3: Multi-Target Build
-
-```bash
-# Build for multiple targets at once
-kain build --targets wasm,js,rust
-
-# Output:
-# - dist/output.wasm
-# - dist/output.js
-# - dist/output.rs
-```
-
----
-
-### Example 4: Watch Mode Development
-
-```bash
-# Start watch mode
-kain build src/main.kn --target wasm --watch
-
-# Now edit src/main.kn
-# CLI automatically rebuilds on save
-```
-
----
-
-### Example 5: Shader Development
-
-```bash
-# Compile shader to HLSL
-kain build src/particle.kn --target hlsl -o shaders/particle.hlsl
-
-# Compile shader to USF with analysis
-kain build src/particle.kn --target usf --analyze
-
-# Output: Complexity analysis + .usf file
-```
-
----
-
-## Environment Variables
-
-### `KAIN_RUNTIME_C_PATH`
-Path to runtime C library.
-
-```bash
-export KAIN_RUNTIME_C_PATH=/path/to/runtime.c
-kain build src/main.kn --target llvm
-```
-
----
-
-## Exit Codes
-
-- `0` - Success
-- `1` - Compilation error
-- `1` - Command failed
-
----
-
-## Configuration File (KAIN.toml)
-
-The CLI reads `KAIN.toml` for project configuration:
+## KAIN.toml Schema (`packager/config.rs`)
 
 ```toml
 [package]
@@ -532,29 +184,100 @@ authors = ["Your Name"]
 
 [ue5]
 plugin_name = "MyPlugin"
-engine_version = "5.3"
+engine_version = "5.4"          # "5.0" - "5.7"
 category = "Gameplay"
-description = "My awesome UE5 plugin"
+description = "My plugin"
 
 [[ue5.modules]]
 name = "MyPlugin"
-type = "Runtime"
+type = "Runtime"               # Runtime | Editor | Developer | UncookedOnly
 loading_phase = "Default"
+source_globs = ["src/runtime/**/*.kn"]
+
+[[ue5.modules]]
+name = "MyPluginEditor"
+type = "Editor"
+depends_on = ["MyPlugin"]
+source_globs = ["src/editor/**/*.kn"]
 
 [build]
 targets = ["wasm", "js"]
 output_dir = "dist"
 ```
 
+**Module validation:** duplicate module names, unknown dependency names, circular dependency detection — all at parse time before any codegen.
+
 ---
 
-## Summary
+## Compile Pipeline (non-UE5 targets, `run_compile`)
 
-The KAIN CLI provides 5 main commands:
-1. `init` - Initialize new project
-2. `build` - Build project or file
-3. `run` - Run file immediately
-4. `inject` - Inject into existing plugin
-5. `lsp` - Start language server
+```
+load stdlib (load_stdlib_for_target)
+    ↓
+Lexer::new().tokenize()
+    ↓
+Parser::new().parse()
+    ↓
+comptime::eval_program()     [if comptime annotations present]
+    ↓
+types::check()
+    ↓
+monomorphize::monomorphize()
+    ↓
+lower_typed_program_memory_for_target()   [low-level semantics]
+    ↓
+backend::generate()         [web / sys / gpu / ue5 crate]
+    ↓
+write output
+```
 
-With 15+ compilation targets and comprehensive flags for debugging, analysis, and customization.
+### Watch Mode
+
+`watch_mode()` uses `notify` crate to monitor file changes, debounces 100ms, re-runs full `run_compile()` on modification.
+
+---
+
+## `kain doctor` Output
+
+`print_doctor()` reports:
+- Compiler version + build timestamp
+- Detected UE5 installations (path + version)
+- Stdlib search roots (resolved paths)
+- Active language capabilities
+- Available dialect formats (ASM importer)
+
+---
+
+## LSP (`lsp.rs`, 22KB)
+
+Full LSP server over stdin/stdout:
+- `textDocument/didOpen`, `textDocument/didChange` → parse + diagnostics push
+- `textDocument/hover` → identifier type lookup
+- `textDocument/definition` → go-to-definition (function/struct/enum)
+- `textDocument/completion` → stdlib functions + KAIN keywords
+- Message framing: `Content-Length: N\r\n\r\n{json}` (standard LSP wire format)
+
+---
+
+## Dependencies
+
+| Crate | Role |
+|---|---|
+| `clap` | CLI argument parsing |
+| `kain-core` | Lexer, Parser, TypeChecker, Monomorphize, Stdlib |
+| `kain-import` | C + Rust importers |
+| `kain-asm` | Assembly importer |
+| `web` | WASM / JS / TS / KS / Hybrid backends |
+| `sys` | LLVM / Rust / C++ backends |
+| `gpu` | SPIR-V / HLSL backends |
+| `ue5` | UE5 runtime codegen |
+| `ue5-shaders` | USF codegen |
+| `ue5-materials` | Material `.uasset` codegen |
+| `ue5-blueprints` | Blueprint codegen |
+| `ue5-editor` | Editor UI codegen |
+| `ue5-gas` | GAS codegen |
+| `ue5-graphs` | Graph editor + runtime codegen |
+| `ue5-asset-utils` | Binary asset primitives |
+| `notify` | File system watching (watch mode) |
+| `serde` / `serde_json` | KAIN.toml + LSP JSON |
+| `unreal_asset_base` | UE5 engine version enum |
