@@ -109,12 +109,18 @@ impl TSGen {
         self.writeln("");
 
         self.writeln("// Low-level memory emulation runtime");
+        self.writeln("type __KainPtrMeta = { kind: \"value\" } | { kind: \"field\"; base: number; field: string } | { kind: \"index\"; base: number; index: number };");
         self.writeln("const __kainMem = new Map<number, any>();");
+        self.writeln("const __kainPtrMeta = new Map<number, __KainPtrMeta>();");
         self.writeln("let __kainNextPtr = 1;");
-        self.writeln("function __kain_addr_of<T>(value: T): number { const ptr = __kainNextPtr++; __kainMem.set(ptr, value); return ptr; }");
+        self.writeln("function __kain_new_ptr(meta: __KainPtrMeta): number { const ptr = __kainNextPtr++; __kainPtrMeta.set(ptr, meta); return ptr; }");
+        self.writeln("function __kain_addr_of<T>(value: T): number { const ptr = __kain_new_ptr({ kind: \"value\" }); __kainMem.set(ptr, value); return ptr; }");
+        self.writeln("function __kain_bind_local<T>(value: T): number { return __kain_addr_of(value); }");
+        self.writeln("function __kain_field_ptr(ptr: number, field: string, _offset: number): number { return __kain_new_ptr({ kind: \"field\", base: ptr, field }); }");
+        self.writeln("function __kain_index_ptr(ptr: number, index: number, _stride: number): number { return __kain_new_ptr({ kind: \"index\", base: ptr, index }); }");
         self.writeln("function __kain_ptr_offset(ptr: number, offset: number, stride: number): number { return ptr + (offset * Math.max(stride, 1)); }");
-        self.writeln("function __kain_mem_load<T>(ptr: number): T { return __kainMem.get(ptr) as T; }");
-        self.writeln("function __kain_mem_store<T>(ptr: number, value: T): T { __kainMem.set(ptr, value); return value; }");
+        self.writeln("function __kain_mem_load<T>(ptr: number): T { const meta = __kainPtrMeta.get(ptr); if (!meta || meta.kind === \"value\") { return __kainMem.get(ptr) as T; } if (meta.kind === \"field\") { const base = __kain_mem_load<any>(meta.base); return base?.[meta.field] as T; } const base = __kain_mem_load<any>(meta.base); return base?.[meta.index] as T; }");
+        self.writeln("function __kain_mem_store<T>(ptr: number, value: T): T { const meta = __kainPtrMeta.get(ptr); if (!meta || meta.kind === \"value\") { __kainMem.set(ptr, value); return value; } if (meta.kind === \"field\") { const base = __kain_mem_load<any>(meta.base); if (base != null) { base[meta.field] = value; } return value; } const base = __kain_mem_load<any>(meta.base); if (base != null) { base[meta.index] = value; } return value; }");
         self.writeln("");
 
         // Only emit DOM type alias when JSX/components are actually used
@@ -1784,6 +1790,9 @@ mod tests {
         assert!(output.contains("function i32(n: number)"));
         assert!(output.contains("function f32(n: number)"));
         assert!(output.contains("function __kain_addr_of"));
+        assert!(output.contains("function __kain_bind_local"));
+        assert!(output.contains("function __kain_field_ptr"));
+        assert!(output.contains("function __kain_index_ptr"));
         assert!(output.contains("function __kain_mem_load"));
     }
 

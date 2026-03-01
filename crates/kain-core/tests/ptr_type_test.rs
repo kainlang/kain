@@ -193,3 +193,66 @@ fn ts_memory_lowering_rewrites_raw_ops_into_helper_calls() {
     };
     assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load"));
 }
+
+#[test]
+fn ts_memory_lowering_binds_address_taken_locals() {
+    let source = "fn mutate() -> Int:\n    let mut x: Int = 1\n    let p: ptr<Int> = addr_of(x, \"Int\")\n    mem_store(p, 7, \"Int\")\n    return x\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "local_addr.kn")
+        .parse()
+        .expect("parse");
+    let typed = kain_core::types::check(&program, &mapper, "local_addr.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[0] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Let {
+        pattern: kain_core::ast::Pattern::Binding { name, .. },
+        ..
+    } = &function.ast.body.stmts[1]
+    else {
+        panic!("expected pointer binding stmt");
+    };
+    assert_eq!(name, "__kain_ptr_x");
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Cast { value, .. }), _) =
+        &function.ast.body.stmts[4]
+    else {
+        panic!("expected return of lowered mem_load");
+    };
+    let kain_core::ast::Expr::Call { callee, args, .. } = value.as_ref() else {
+        panic!("expected helper call");
+    };
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load"));
+    assert!(matches!(&args[0].value, kain_core::ast::Expr::Ident(name, _) if name == "__kain_ptr_x"));
+}
+
+#[test]
+fn ts_memory_lowering_uses_layout_offsets_for_field_addresses() {
+    let source = "struct Pair:\n    left: Int\n    right: Int\n\nfn field_ptr(pair: Pair) -> ptr<Int>:\n    return addr_of(pair.right, \"Int\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "field_addr.kn")
+        .parse()
+        .expect("parse");
+    let typed = kain_core::types::check(&program, &mapper, "field_addr.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[1] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Call { callee, args, .. }), _) =
+        &function.ast.body.stmts[1]
+    else {
+        panic!("expected lowered field pointer helper");
+    };
+    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_field_ptr"));
+    assert!(matches!(&args[1].value, kain_core::ast::Expr::String(field, _) if field == "right"));
+    assert!(matches!(&args[2].value, kain_core::ast::Expr::Int(offset, _) if *offset == 8));
+}

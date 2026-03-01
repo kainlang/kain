@@ -1405,6 +1405,18 @@ impl Ue5Gen {
         self.source.push_line("    GKainMemory.Add(Ptr, MoveTemp(Cell));");
         self.source.push_line("    return Ptr;");
         self.source.push_line("}");
+        self.source.push_line("template<typename T> int64 __kain_bind_local(const T& Value)");
+        self.source.push_line("{");
+        self.source.push_line("    return __kain_addr_of(Value);");
+        self.source.push_line("}");
+        self.source.push_line("static int64 __kain_field_ptr(int64 Ptr, const TCHAR*, int64 Offset)");
+        self.source.push_line("{");
+        self.source.push_line("    return Ptr + Offset;");
+        self.source.push_line("}");
+        self.source.push_line("static int64 __kain_index_ptr(int64 Ptr, int64 Index, int64 Stride)");
+        self.source.push_line("{");
+        self.source.push_line("    return Ptr + (Index * FMath::Max<int64>(Stride, 1));");
+        self.source.push_line("}");
         self.source.push_line("static int64 __kain_ptr_offset(int64 Ptr, int64 Offset, int64 Stride)");
         self.source.push_line("{");
         self.source.push_line("    return Ptr + (Offset * FMath::Max<int64>(Stride, 1));");

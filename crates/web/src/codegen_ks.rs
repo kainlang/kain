@@ -189,6 +189,27 @@ impl KsGen {
         self.out.push("/** @param {number} n @returns {number} */ function i32(n) { return n | 0; }".to_string());
         self.out.push("/** @param {number} n @returns {number} */ function f32(n) { return Math.fround(n); }".to_string());
         self.blank();
+        // KAIN stdlib bridge — maps bare KAIN names to JS globals so .ks runs
+        // natively in Node.js, Deno, Bun, and browsers with no polyfills needed.
+        self.out.push("// ── KAIN stdlib bridge (auto-generated) ───────────────────────────────────".to_string());
+        self.out.push("function __kain_clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }".to_string());
+        self.out.push("function println(...a) { console.log(...a); }".to_string());
+        self.out.push("function print(...a) { process?.stdout?.write(String(a[0])) ?? console.log(...a); }".to_string());
+        self.out.push("function push(arr, v) { arr.push(v); return arr; }".to_string());
+        self.out.push("function pop(arr) { return arr.pop(); }".to_string());
+        self.out.push("function len(v) { return v?.length ?? 0; }".to_string());
+        self.out.push("function is_empty(v) { return (v?.length ?? 0) === 0; }".to_string());
+        self.out.push("function map(arr, f) { return arr.map(f); }".to_string());
+        self.out.push("function filter(arr, f) { return arr.filter(f); }".to_string());
+        self.out.push("function reduce(arr, f, init) { return arr.reduce(f, init); }".to_string());
+        self.out.push("function to_string(v) { return String(v); }".to_string());
+        self.out.push("function parse_int(s) { return parseInt(s, 10); }".to_string());
+        self.out.push("function parse_float(s) { return parseFloat(s); }".to_string());
+        self.out.push("function http_get(url) { return fetch(url).then(r => r.text()); }".to_string());
+        self.out.push("function http_post(url, body) { return fetch(url, { method: 'POST', body: JSON.stringify(body) }).then(r => r.text()); }".to_string());
+        self.out.push("function json_parse(s) { return JSON.parse(s); }".to_string());
+        self.out.push("function json_stringify(v) { return JSON.stringify(v); }".to_string());
+        self.blank();
 
         if self.needs_dom {
             self.out.push("// DOM type hints for JSX components".to_string());
@@ -217,6 +238,15 @@ impl KsGen {
                 TypedItem::Impl(i) => self.gen_impl(&i.ast),
                 _ => {}
             }
+        }
+        // Auto-call main() if defined — makes `node file.ks` work directly
+        let has_main = program.items.iter().any(|item| {
+            matches!(item, TypedItem::Function(f) if f.ast.name == "main")
+        });
+        if has_main {
+            self.blank();
+            self.out.push("// Auto-entry: call main() if defined (node file.ks just works)".to_string());
+            self.out.push("if (typeof main === 'function') main();".to_string());
         }
 
         std::mem::take(&mut self.out).build()
@@ -471,9 +501,44 @@ impl KsGen {
                 }
             }
             Stmt::Expr(expr) => {
-                let mut vs = String::new();
-                self.expr_to_str(expr, &mut vs);
-                self.line(format!("{};", vs));
+                // If the expression is an `if/else` expression at statement level,
+                // emit it as proper if/else statements instead of an IIFE so that
+                // `return` statements inside branches actually return from the function.
+                if let Expr::If { condition, then_branch, else_branch, .. } = expr {
+                    let mut cond_s = String::new();
+                    self.expr_to_str(condition, &mut cond_s);
+                    self.line(format!("if ({}) {{", cond_s));
+                    self.indent();
+                    self.gen_block(then_branch);
+                    self.dedent();
+                    // walk else chain
+                    let mut cur = else_branch.as_ref();
+                    while let Some(b) = cur {
+                        match b.as_ref() {
+                            ElseBranch::Else(blk) => {
+                                self.line("} else {");
+                                self.indent();
+                                self.gen_block(blk);
+                                self.dedent();
+                                cur = None;
+                            }
+                            ElseBranch::ElseIf(cond, blk, next) => {
+                                let mut cs = String::new();
+                                self.expr_to_str(cond, &mut cs);
+                                self.line(format!("}} else if ({}) {{", cs));
+                                self.indent();
+                                self.gen_block(blk);
+                                self.dedent();
+                                cur = next.as_ref();
+                            }
+                        }
+                    }
+                    self.line("}");
+                } else {
+                    let mut vs = String::new();
+                    self.expr_to_str(expr, &mut vs);
+                    self.line(format!("{};", vs));
+                }
             }
             Stmt::Return(Some(expr), _) => {
                 let mut vs = String::new();
@@ -555,7 +620,35 @@ impl KsGen {
                 }
                 out.push('`');
             }
-            Expr::Ident(n, _) => out.push_str(n),
+            Expr::Ident(n, _) => {
+                // Map KAIN stdlib bare names to JS global equivalents
+                let mapped = match n.as_str() {
+                    "sqrt"  => "Math.sqrt",
+                    "sin"   => "Math.sin",
+                    "cos"   => "Math.cos",
+                    "tan"   => "Math.tan",
+                    "atan"  => "Math.atan",
+                    "atan2" => "Math.atan2",
+                    "asin"  => "Math.asin",
+                    "acos"  => "Math.acos",
+                    "floor" => "Math.floor",
+                    "ceil"  => "Math.ceil",
+                    "round" => "Math.round",
+                    "abs"   => "Math.abs",
+                    "pow"   => "Math.pow",
+                    "exp"   => "Math.exp",
+                    "log"   => "Math.log",
+                    "log2"  => "Math.log2",
+                    "log10" => "Math.log10",
+                    "min"   => "Math.min",
+                    "max"   => "Math.max",
+                    "fmin"  => "Math.min",
+                    "fmax"  => "Math.max",
+                    "clamp" => "__kain_clamp",
+                    other   => other,
+                };
+                out.push_str(mapped);
+            }
             Expr::Paren(inner, _) => {
                 out.push('(');
                 self.expr_to_str(inner, out);
