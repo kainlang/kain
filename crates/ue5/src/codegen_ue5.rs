@@ -705,6 +705,74 @@ struct Ue5Gen {
 }
 
 impl Ue5Gen {
+    fn item_symbol_name<'a>(&self, item: &'a TypedItem) -> &'a str {
+        match item {
+            TypedItem::Actor(a) => &a.ast.name,
+            TypedItem::Struct(s) => &s.ast.name,
+            TypedItem::Enum(e) => &e.ast.name,
+            TypedItem::Function(f) => &f.ast.name,
+            TypedItem::Component(c) => &c.ast.name,
+            TypedItem::TypeAlias(a) => &a.ast.name,
+            _ => "",
+        }
+    }
+
+    fn item_symbol_kind(&self, item: &TypedItem) -> &'static str {
+        match item {
+            TypedItem::Actor(_) => "actor",
+            TypedItem::Struct(_) => "struct",
+            TypedItem::Enum(_) => "enum",
+            TypedItem::Function(_) => "function",
+            TypedItem::Component(_) => "component",
+            TypedItem::TypeAlias(_) => "type_alias",
+            TypedItem::Impl(_) => "impl",
+            TypedItem::Shader(_) => "shader",
+            _ => "other",
+        }
+    }
+
+    fn item_specificity_score(&self, item: &TypedItem) -> usize {
+        match item {
+            TypedItem::Struct(st) => st.ast.fields.len() * 16 + st.ast.methods.len() * 8 + st.ast.attributes.len() * 4,
+            TypedItem::Enum(en) => en.ast.variants.len() * 16,
+            TypedItem::Actor(a) => a.ast.fields.len() * 16 + a.ast.methods.len() * 8 + a.ast.attributes.len() * 4,
+            TypedItem::Component(c) => c.ast.state.len() * 16 + c.ast.attributes.len() * 4,
+            TypedItem::TypeAlias(alias) => alias.ast.attributes.len() * 4 + 1,
+            TypedItem::Function(f) => f.ast.params.len() * 4 + usize::from(!f.ast.body.stmts.is_empty()) * 8 + f.ast.attributes.len() * 2,
+            _ => 0,
+        }
+    }
+
+    fn push_unique_item<'a>(
+        &self,
+        items: &mut Vec<&'a TypedItem>,
+        indices: &mut std::collections::HashMap<(String, &'static str), usize>,
+        item: &'a TypedItem,
+    ) {
+        let name = self.item_symbol_name(item);
+        if name.is_empty() {
+            items.push(item);
+            return;
+        }
+
+        let key = (name.to_string(), self.item_symbol_kind(item));
+        let score = self.item_specificity_score(item);
+
+        match indices.entry(key) {
+            std::collections::hash_map::Entry::Vacant(vacant) => {
+                let idx = items.len();
+                items.push(item);
+                vacant.insert(idx);
+            }
+            std::collections::hash_map::Entry::Occupied(occupied) => {
+                let idx = *occupied.get();
+                if score > self.item_specificity_score(items[idx]) {
+                    items[idx] = item;
+                }
+            }
+        }
+    }
+
     fn new(module_name: &str, output_name: Option<&str>, copyright: Option<&str>, target_item: Option<String>, type_to_header: std::collections::HashMap<String, String>) -> Self {
         // module_name = plugin name for API macro (e.g., "UltimateTest" → "ULTIMATETEST_API")
         // output_name = per-item name for file naming (e.g., "AMaterialTestActor")

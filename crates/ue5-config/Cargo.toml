@@ -1,0 +1,17 @@
+[package]
+name = "ue5-config"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+ue5 = { path = "../ue5" }
+heck = { workspace = true }
+minijinja = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = "1.0"
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.8"

@@ -1,0 +1,7 @@
+{# .ini Section Template for UE5 Config #}
+{# Usage: Generates .ini file sections for UDeveloperSettings #}
+
+[{{ section_name }}]
+{% for field in fields -%}
+{{ field.property_name }}={{ field.value }}
+{% endfor %}

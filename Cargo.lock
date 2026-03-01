@@ -3046,6 +3046,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ue5-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "heck 0.5.0",
+ "kain-core",
+ "minijinja",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "ue5",
+]
+
+[[package]]
 name = "ue5-editor"
 version = "0.1.0"
 dependencies = [

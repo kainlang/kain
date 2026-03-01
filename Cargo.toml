@@ -8,6 +8,7 @@ members = [
     "crates/ue5-graphs",
     "crates/ue5-editor",
     "crates/ue5-gas",
+    "crates/ue5-config",
     "crates/gpu",
     "crates/web",
     "crates/sys",
