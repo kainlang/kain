@@ -3,6 +3,9 @@ use crate::span::Span;
 
 pub const C_UNION_ATTR: &str = "c_union";
 pub const C_BITFIELD_ATTR: &str = "c_bitfield";
+pub const C_STORAGE_BITS_ATTR: &str = "c_storage_bits";
+pub const C_STORAGE_ALIGN_ATTR: &str = "c_storage_align";
+pub const C_PACKED_ATTR: &str = "c_packed";
 
 pub fn marker_attr(name: &str, span: Span) -> Attribute {
     Attribute {
