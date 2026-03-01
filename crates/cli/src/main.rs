@@ -226,6 +226,27 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
         println!(" Source: {} bytes, {} lines", source.len(), source.lines().count());
     }
 
+    // Compile SPIR-V as binary bytes (not the string summary used by compile()).
+    if target == CompileTarget::Spirv {
+        let output_path = output
+            .cloned()
+            .unwrap_or_else(|| input.with_extension(target_extension(target)));
+        match cli::compile_spirv_binary(&source) {
+            Ok(spv_bytes) => {
+                if let Err(e) = fs::write(&output_path, &spv_bytes) {
+                    eprintln!(" Failed to write output: {}", e);
+                    return false;
+                }
+                println!(" Compiled to: {} ({} bytes)", output_path.display(), spv_bytes.len());
+                return true;
+            }
+            Err(e) => {
+                eprintln!(" Compile error: {}", e);
+                return false;
+            }
+        }
+    }
+
     // Compile
     match compile(&source, target) {
         Ok(compiled_output) => {
@@ -965,7 +986,7 @@ fn run_ue5_shader_pipeline(input: &PathBuf, args: &Args) -> bool {
         println!(" Compiling: {}", input.display());
     }
 
-    let compiled_spv = match compile(&source, CompileTarget::Spirv) {
+    let compiled_spv = match cli::compile_spirv_binary(&source) {
         Ok(bytes) => bytes,
         Err(e) => {
             let filename = input.file_name().and_then(|s| s.to_str()).unwrap_or("input.kn");

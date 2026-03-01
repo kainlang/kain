@@ -6,7 +6,7 @@ use kain_core::ast::{Type, ShaderStage, Expr, Stmt, Block, BinaryOp};
 use rspirv::binary::Assemble;
 use rspirv::dr::{Builder, Operand};
 use rspirv::spirv::{Capability, AddressingModel, MemoryModel, ExecutionModel, ExecutionMode, StorageClass, Decoration};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     let mut builder = Builder::new();
@@ -30,12 +30,21 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
 struct ShaderContext<'a> {
     b: &'a mut Builder,
     // Name -> (SPIR-V ID, AST Type, IsPointer)
-    vars: HashMap<String, (u32, Type, bool)>,
+    vars: HashMap<String, VarBinding>,
     output_var: Option<u32>,
     // Track which variables are struct-wrapped uniforms (need AccessChain)
-    struct_uniforms: std::collections::HashSet<String>,
+    struct_uniforms: HashSet<String>,
+    // Track storage-buffer uniforms to emit runtime array indexing loads/stores.
+    storage_buffers: HashSet<String>,
     // Cache GLSL extension import
     glsl_ext: Option<u32>,
+}
+
+#[derive(Clone)]
+struct VarBinding {
+    id: u32,
+    ty: Type,
+    is_ptr: bool,
 }
 
 fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
@@ -55,7 +64,8 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     // 3. Declare Variables (Global Interface)
     let mut interface_vars = vec![];
     let mut ctx_vars = HashMap::new();
-    let mut struct_uniforms = std::collections::HashSet::new();
+    let mut struct_uniforms = HashSet::new();
+    let mut storage_buffers = HashSet::new();
 
     // Inputs
     for (i, param) in shader.ast.inputs.iter().enumerate() {
@@ -64,7 +74,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
         let var = b.variable(ptr_ty, None, StorageClass::Input, None);
         b.decorate(var, Decoration::Location, vec![Operand::LiteralBit32(i as u32)]);
         interface_vars.push(var);
-        ctx_vars.insert(param.name.clone(), (var, param.ty.clone(), true));
+        ctx_vars.insert(param.name.clone(), VarBinding { id: var, ty: param.ty.clone(), is_ptr: true });
     }
 
     // Outputs
@@ -99,27 +109,72 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
             let var = b.variable(ptr_ty, None, StorageClass::UniformConstant, None);
             b.decorate(var, Decoration::DescriptorSet, vec![Operand::LiteralBit32(0)]);
             b.decorate(var, Decoration::Binding, vec![Operand::LiteralBit32(uniform.binding)]);
-            ctx_vars.insert(uniform.name.clone(), (var, uniform.ty.clone(), true));
+            ctx_vars.insert(uniform.name.clone(), VarBinding { id: var, ty: uniform.ty.clone(), is_ptr: true });
         } else {
-            // Data uniforms (matrices, vectors, etc.) need a struct wrapper with Block decoration
+            let is_storage_buffer = is_storage_buffer(&uniform.ty);
+            // Data uniforms (matrices, vectors, etc.) need a struct wrapper with Block decoration.
             let struct_ty = b.type_struct(vec![inner_ty]);
             b.decorate(struct_ty, Decoration::Block, vec![]);
             // Offset decoration for the first (and only) member
             b.member_decorate(struct_ty, 0, Decoration::Offset, vec![Operand::LiteralBit32(0)]);
-            
+
             // For matrices, we need ColMajor and MatrixStride decorations
             if matches!(&uniform.ty, Type::Named { name, .. } if name == "Mat4") {
                 b.member_decorate(struct_ty, 0, Decoration::ColMajor, vec![]);
                 b.member_decorate(struct_ty, 0, Decoration::MatrixStride, vec![Operand::LiteralBit32(16)]);
             }
-            
-            let ptr_ty = b.type_pointer(None, StorageClass::Uniform, struct_ty);
-            let var = b.variable(ptr_ty, None, StorageClass::Uniform, None);
+
+            let storage_class = if is_storage_buffer {
+                StorageClass::StorageBuffer
+            } else {
+                StorageClass::Uniform
+            };
+            let ptr_ty = b.type_pointer(None, storage_class, struct_ty);
+            let var = b.variable(ptr_ty, None, storage_class, None);
             b.decorate(var, Decoration::DescriptorSet, vec![Operand::LiteralBit32(0)]);
             b.decorate(var, Decoration::Binding, vec![Operand::LiteralBit32(uniform.binding)]);
-            ctx_vars.insert(uniform.name.clone(), (var, uniform.ty.clone(), true));
-            struct_uniforms.insert(uniform.name.clone());
+            ctx_vars.insert(uniform.name.clone(), VarBinding { id: var, ty: uniform.ty.clone(), is_ptr: true });
+            if is_storage_buffer {
+                storage_buffers.insert(uniform.name.clone());
+            } else {
+                struct_uniforms.insert(uniform.name.clone());
+            }
         }
+    }
+
+    if exec_model == ExecutionModel::GLCompute {
+        let uint = b.type_int(32, 0);
+        let uvec3 = b.type_vector(uint, 3);
+        let uvec3_ptr = b.type_pointer(None, StorageClass::Input, uvec3);
+        let uint_ptr = b.type_pointer(None, StorageClass::Input, uint);
+
+        let gid = b.variable(uvec3_ptr, None, StorageClass::Input, None);
+        b.decorate(gid, Decoration::BuiltIn, vec![Operand::BuiltIn(rspirv::spirv::BuiltIn::GlobalInvocationId)]);
+        interface_vars.push(gid);
+
+        let lid = b.variable(uvec3_ptr, None, StorageClass::Input, None);
+        b.decorate(lid, Decoration::BuiltIn, vec![Operand::BuiltIn(rspirv::spirv::BuiltIn::LocalInvocationId)]);
+        interface_vars.push(lid);
+
+        let wid = b.variable(uvec3_ptr, None, StorageClass::Input, None);
+        b.decorate(wid, Decoration::BuiltIn, vec![Operand::BuiltIn(rspirv::spirv::BuiltIn::WorkgroupId)]);
+        interface_vars.push(wid);
+
+        let lindex = b.variable(uint_ptr, None, StorageClass::Input, None);
+        b.decorate(lindex, Decoration::BuiltIn, vec![Operand::BuiltIn(rspirv::spirv::BuiltIn::LocalInvocationIndex)]);
+        interface_vars.push(lindex);
+
+        let uvec3_ty = Type::Named { name: "UVec3".into(), generics: vec![], span: shader.ast.span };
+        let uint_ty = Type::Named { name: "UInt".into(), generics: vec![], span: shader.ast.span };
+        ctx_vars.insert("global_invocation_id".into(), VarBinding { id: gid, ty: uvec3_ty.clone(), is_ptr: true });
+        ctx_vars.insert("local_invocation_id".into(), VarBinding { id: lid, ty: uvec3_ty.clone(), is_ptr: true });
+        ctx_vars.insert("workgroup_id".into(), VarBinding { id: wid, ty: uvec3_ty, is_ptr: true });
+        ctx_vars.insert("local_invocation_index".into(), VarBinding { id: lindex, ty: uint_ty.clone(), is_ptr: true });
+        // Friendly aliases matching the HLSL backend naming.
+        ctx_vars.insert("dispatch_thread_id".into(), VarBinding { id: gid, ty: Type::Named { name: "UVec3".into(), generics: vec![], span: shader.ast.span }, is_ptr: true });
+        ctx_vars.insert("group_thread_id".into(), VarBinding { id: lid, ty: Type::Named { name: "UVec3".into(), generics: vec![], span: shader.ast.span }, is_ptr: true });
+        ctx_vars.insert("group_id".into(), VarBinding { id: wid, ty: Type::Named { name: "UVec3".into(), generics: vec![], span: shader.ast.span }, is_ptr: true });
+        ctx_vars.insert("group_index".into(), VarBinding { id: lindex, ty: uint_ty, is_ptr: true });
     }
 
     // 4. Function Body
@@ -131,6 +186,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
         vars: ctx_vars,
         output_var,
         struct_uniforms,
+        storage_buffers,
         glsl_ext: None,
     };
 
@@ -148,6 +204,12 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     
     if exec_model == ExecutionModel::Fragment {
         b.execution_mode(main_fn, ExecutionMode::OriginUpperLeft, vec![]);
+    } else if exec_model == ExecutionModel::GLCompute {
+        b.execution_mode(
+            main_fn,
+            ExecutionMode::LocalSize,
+            vec![8, 8, 1],
+        );
     }
     
     Ok(())
@@ -180,11 +242,13 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
             Stmt::Let { pattern, value, .. } => {
                 if let Some(value) = value {
                     let (val, ty) = emit_expr(ctx, value)?;
-                    // For now, only simple bindings
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
-                        // In SSA, we just map name -> value ID
-                        // We don't support mutation of locals yet (need OpVariable + Store/Load)
-                        ctx.vars.insert(name.clone(), (val, ty, false));
+                        // Function-scope locals are pointers to support mutation/assignments.
+                        let type_id = map_ast_type(ctx.b, &ty);
+                        let ptr_ty = ctx.b.type_pointer(None, StorageClass::Function, type_id);
+                        let local_var = ctx.b.variable(ptr_ty, None, StorageClass::Function, None);
+                        ctx.b.store(local_var, val, None, std::iter::empty()).unwrap();
+                        ctx.vars.insert(name.clone(), VarBinding { id: local_var, ty, is_ptr: true });
                     }
                 }
             },
@@ -200,10 +264,14 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
 fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
     match expr {
         Expr::Ident(name, span) => {
-            if let Some((id, ty, is_ptr)) = ctx.vars.get(name).cloned() {
-                if is_ptr {
+            if let Some(binding) = ctx.vars.get(name).cloned() {
+                if binding.is_ptr {
+                    if is_storage_buffer(&binding.ty) {
+                        // Storage buffers are pointer-backed structs and must be consumed via indexing.
+                        return Ok((binding.id, binding.ty));
+                    }
                     // Need to load from pointer
-                    let type_id = map_ast_type(ctx.b, &ty);
+                    let type_id = map_ast_type(ctx.b, &binding.ty);
                     
                     // Check if this is a struct-wrapped uniform
                     if ctx.struct_uniforms.contains(name) {
@@ -211,16 +279,16 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                         let ptr_ty = ctx.b.type_pointer(None, StorageClass::Uniform, type_id);
                         let int_ty = ctx.b.type_int(32, 0);
                         let zero = ctx.b.constant_bit32(int_ty, 0);
-                        let member_ptr = ctx.b.access_chain(ptr_ty, None, id, vec![zero]).unwrap();
+                        let member_ptr = ctx.b.access_chain(ptr_ty, None, binding.id, vec![zero]).unwrap();
                         let val_id = ctx.b.load(type_id, None, member_ptr, None, std::iter::empty()).unwrap();
-                        Ok((val_id, ty))
+                        Ok((val_id, binding.ty))
                     } else {
                         // Direct load for inputs and non-wrapped uniforms
-                        let val_id = ctx.b.load(type_id, None, id, None, std::iter::empty()).unwrap();
-                        Ok((val_id, ty))
+                        let val_id = ctx.b.load(type_id, None, binding.id, None, std::iter::empty()).unwrap();
+                        Ok((val_id, binding.ty))
                     }
                 } else {
-                    Ok((id, ty))
+                    Ok((binding.id, binding.ty))
                 }
             } else {
                  Err(KainError::codegen(format!("Unknown variable: {}", name), *span))
@@ -231,7 +299,7 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
             let (rhs, rhs_ty) = emit_expr(ctx, right)?;
             
             // Map types to SPIR-V types
-            let res_ty_id = map_ast_type(ctx.b, &lhs_ty); // Assume result type matches lhs for now
+            let res_ty_id = map_ast_type(ctx.b, &lhs_ty);
             
             let res_id = match op {
                 BinaryOp::Mul => {
@@ -247,19 +315,105 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                          ctx.b.vector_times_matrix(vec4_ty, None, lhs, rhs).unwrap()
                     } else if is_float(&lhs_ty) && is_float(&rhs_ty) {
                         ctx.b.f_mul(res_ty_id, None, lhs, rhs).unwrap()
+                    } else if is_int(&lhs_ty) && is_int(&rhs_ty) {
+                        ctx.b.i_mul(res_ty_id, None, lhs, rhs).unwrap()
                     } else {
-                         // Fallback to FMul (vector * scalar, etc - simplified)
+                        // Fallback for mixed vectors/scalars.
                         ctx.b.f_mul(res_ty_id, None, lhs, rhs).unwrap()
                     }
                 },
-                BinaryOp::Add => ctx.b.f_add(res_ty_id, None, lhs, rhs).unwrap(),
-                BinaryOp::Sub => ctx.b.f_sub(res_ty_id, None, lhs, rhs).unwrap(),
-                BinaryOp::Div => ctx.b.f_div(res_ty_id, None, lhs, rhs).unwrap(),
+                BinaryOp::Add => {
+                    if is_int(&lhs_ty) && is_int(&rhs_ty) {
+                        ctx.b.i_add(res_ty_id, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.f_add(res_ty_id, None, lhs, rhs).unwrap()
+                    }
+                },
+                BinaryOp::Sub => {
+                    if is_int(&lhs_ty) && is_int(&rhs_ty) {
+                        ctx.b.i_sub(res_ty_id, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.f_sub(res_ty_id, None, lhs, rhs).unwrap()
+                    }
+                },
+                BinaryOp::Div => {
+                    if is_int(&lhs_ty) && is_int(&rhs_ty) {
+                        ctx.b.s_div(res_ty_id, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.f_div(res_ty_id, None, lhs, rhs).unwrap()
+                    }
+                },
+                BinaryOp::Eq => {
+                    let bool_ty = ctx.b.type_bool();
+                    if is_float(&lhs_ty) && is_float(&rhs_ty) {
+                        ctx.b.f_ord_equal(bool_ty, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.i_equal(bool_ty, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::Ne => {
+                    let bool_ty = ctx.b.type_bool();
+                    if is_float(&lhs_ty) && is_float(&rhs_ty) {
+                        ctx.b.f_ord_not_equal(bool_ty, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.i_not_equal(bool_ty, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::Lt => {
+                    let bool_ty = ctx.b.type_bool();
+                    if is_float(&lhs_ty) && is_float(&rhs_ty) {
+                        ctx.b.f_ord_less_than(bool_ty, None, lhs, rhs).unwrap()
+                    } else if is_uint(&lhs_ty) && is_uint(&rhs_ty) {
+                        ctx.b.u_less_than(bool_ty, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.s_less_than(bool_ty, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::Le => {
+                    let bool_ty = ctx.b.type_bool();
+                    if is_float(&lhs_ty) && is_float(&rhs_ty) {
+                        ctx.b.f_ord_less_than_equal(bool_ty, None, lhs, rhs).unwrap()
+                    } else if is_uint(&lhs_ty) && is_uint(&rhs_ty) {
+                        ctx.b.u_less_than_equal(bool_ty, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.s_less_than_equal(bool_ty, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::Gt => {
+                    let bool_ty = ctx.b.type_bool();
+                    if is_float(&lhs_ty) && is_float(&rhs_ty) {
+                        ctx.b.f_ord_greater_than(bool_ty, None, lhs, rhs).unwrap()
+                    } else if is_uint(&lhs_ty) && is_uint(&rhs_ty) {
+                        ctx.b.u_greater_than(bool_ty, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.s_greater_than(bool_ty, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::Ge => {
+                    let bool_ty = ctx.b.type_bool();
+                    if is_float(&lhs_ty) && is_float(&rhs_ty) {
+                        ctx.b.f_ord_greater_than_equal(bool_ty, None, lhs, rhs).unwrap()
+                    } else if is_uint(&lhs_ty) && is_uint(&rhs_ty) {
+                        ctx.b.u_greater_than_equal(bool_ty, None, lhs, rhs).unwrap()
+                    } else {
+                        ctx.b.s_greater_than_equal(bool_ty, None, lhs, rhs).unwrap()
+                    }
+                }
+                BinaryOp::And => {
+                    let bool_ty = ctx.b.type_bool();
+                    ctx.b.logical_and(bool_ty, None, lhs, rhs).unwrap()
+                }
+                BinaryOp::Or => {
+                    let bool_ty = ctx.b.type_bool();
+                    ctx.b.logical_or(bool_ty, None, lhs, rhs).unwrap()
+                }
                 _ => return Err(KainError::codegen("Unsupported binary op in shader", expr.span())),
             };
             
-            // Result type inference (simplified)
-            let res_ty = if is_mat4(&lhs_ty) && is_vec4(&rhs_ty) {
+            // Result type inference
+            let res_ty = if matches!(op, BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or) {
+                Type::Named { name: "Bool".into(), generics: vec![], span: expr.span() }
+            } else if is_mat4(&lhs_ty) && is_vec4(&rhs_ty) {
                 rhs_ty
             } else {
                 lhs_ty
@@ -487,50 +641,115 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
             let val = ctx.b.constant_bit32(float, (*f as f32).to_bits());
             Ok((val, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
         },
+        Expr::Int(i, span) => {
+            let int = ctx.b.type_int(32, 1);
+            let val = ctx.b.constant_bit32(int, *i as u32);
+            Ok((val, Type::Named { name: "Int".into(), generics: vec![], span: *span }))
+        }
+        Expr::Bool(v, span) => {
+            let bool_ty = ctx.b.type_bool();
+            let bool_id = if *v {
+                ctx.b.constant_true(bool_ty)
+            } else {
+                ctx.b.constant_false(bool_ty)
+            };
+            Ok((bool_id, Type::Named { name: "Bool".into(), generics: vec![], span: *span }))
+        }
+        Expr::Assign { target, value, .. } => {
+            let (next_val, next_ty) = emit_expr(ctx, value)?;
+            match target.as_ref() {
+                Expr::Ident(name, span) => {
+                    if let Some(binding) = ctx.vars.get(name).cloned() {
+                        if !binding.is_ptr {
+                            return Err(KainError::codegen(format!("Cannot assign to immutable value '{}'", name), *span));
+                        }
+                        if is_storage_buffer(&binding.ty) {
+                            return Err(KainError::codegen(format!("Assigning a whole storage buffer '{}' is not supported", name), *span));
+                        }
+                        ctx.b.store(binding.id, next_val, None, std::iter::empty()).unwrap();
+                        Ok((next_val, next_ty))
+                    } else {
+                        Err(KainError::codegen(format!("Unknown assignment target: {}", name), *span))
+                    }
+                }
+                Expr::Index { object, index, .. } => {
+                    let elem_ptr = emit_index_lvalue_ptr(ctx, object, index, &next_ty, target.span())?;
+                    ctx.b.store(elem_ptr, next_val, None, std::iter::empty()).unwrap();
+                    Ok((next_val, next_ty))
+                }
+                _ => Err(KainError::codegen("Unsupported assignment target in shader", target.span())),
+            }
+        }
+        Expr::Index { object, index, .. } => {
+            // StorageBuffer<T> indexing: emit AccessChain to runtime array element.
+            if let Expr::Ident(buffer_name, span) = object.as_ref() {
+                if ctx.storage_buffers.contains(buffer_name) {
+                    let binding = ctx
+                        .vars
+                        .get(buffer_name)
+                        .cloned()
+                        .ok_or_else(|| KainError::codegen(format!("Unknown storage buffer: {}", buffer_name), *span))?;
+                    let (index_id, _) = emit_expr(ctx, index)?;
+                    let elem_ty = storage_buffer_elem_type(&binding.ty, expr.span());
+                    let elem_ty_id = map_ast_type(ctx.b, &elem_ty);
+                    let elem_ptr_ty = ctx.b.type_pointer(None, StorageClass::StorageBuffer, elem_ty_id);
+                    let uint_ty = ctx.b.type_int(32, 0);
+                    let zero = ctx.b.constant_bit32(uint_ty, 0);
+                    let elem_ptr = ctx
+                        .b
+                        .access_chain(elem_ptr_ty, None, binding.id, vec![zero, index_id])
+                        .unwrap();
+                    let loaded = ctx.b.load(elem_ty_id, None, elem_ptr, None, std::iter::empty()).unwrap();
+                    return Ok((loaded, elem_ty));
+                }
+            }
+            Err(KainError::codegen("Unsupported index expression in shader", expr.span()))
+        }
         Expr::Field { object, field, span } => {
-            let (obj_id, _obj_ty) = emit_expr(ctx, object)?;
+            let (obj_id, obj_ty) = emit_expr(ctx, object)?;
             
             // Swizzle/component access
-            let float = ctx.b.type_float(32);
+            let scalar_ty = vector_scalar_type(ctx, &obj_ty);
+            let scalar_spv = map_ast_type(ctx.b, &scalar_ty);
             match field.as_str() {
                 // Single component access
                 "x" | "r" => {
-                    let res_id = ctx.b.composite_extract(float, None, obj_id, vec![0]).unwrap();
-                    Ok((res_id, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
+                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![0]).unwrap();
+                    Ok((res_id, scalar_ty))
                 },
                 "y" | "g" => {
-                    let res_id = ctx.b.composite_extract(float, None, obj_id, vec![1]).unwrap();
-                    Ok((res_id, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
+                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![1]).unwrap();
+                    Ok((res_id, scalar_ty))
                 },
                 "z" | "b" => {
-                    let res_id = ctx.b.composite_extract(float, None, obj_id, vec![2]).unwrap();
-                    Ok((res_id, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
+                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![2]).unwrap();
+                    Ok((res_id, scalar_ty))
                 },
                 "w" | "a" => {
-                    let res_id = ctx.b.composite_extract(float, None, obj_id, vec![3]).unwrap();
-                    Ok((res_id, Type::Named { name: "Float".into(), generics: vec![], span: *span }))
+                    let res_id = ctx.b.composite_extract(scalar_spv, None, obj_id, vec![3]).unwrap();
+                    Ok((res_id, scalar_ty))
                 },
                 // Vec2 swizzles
                 "xy" | "rg" => {
-                    let vec2 = ctx.b.type_vector(float, 2);
+                    let vec2 = ctx.b.type_vector(scalar_spv, 2);
                     let res_id = ctx.b.vector_shuffle(vec2, None, obj_id, obj_id, vec![0, 1]).unwrap();
-                    Ok((res_id, Type::Named { name: "Vec2".into(), generics: vec![], span: *span }))
+                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 2, *span)))
                 },
                 "xz" | "rb" => {
-                    let vec2 = ctx.b.type_vector(float, 2);
+                    let vec2 = ctx.b.type_vector(scalar_spv, 2);
                     let res_id = ctx.b.vector_shuffle(vec2, None, obj_id, obj_id, vec![0, 2]).unwrap();
-                    Ok((res_id, Type::Named { name: "Vec2".into(), generics: vec![], span: *span }))
+                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 2, *span)))
                 },
                 "yz" | "gb" => {
-                    let vec2 = ctx.b.type_vector(float, 2);
+                    let vec2 = ctx.b.type_vector(scalar_spv, 2);
                     let res_id = ctx.b.vector_shuffle(vec2, None, obj_id, obj_id, vec![1, 2]).unwrap();
-                    Ok((res_id, Type::Named { name: "Vec2".into(), generics: vec![], span: *span }))
+                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 2, *span)))
                 },
                 // Vec3 swizzles
                 "xyz" | "rgb" => {
-                    let vec3 = ctx.b.type_vector(float, 3);
+                    let vec3 = ctx.b.type_vector(scalar_spv, 3);
                     let res_id = ctx.b.vector_shuffle(vec3, None, obj_id, obj_id, vec![0, 1, 2]).unwrap();
-                    Ok((res_id, Type::Named { name: "Vec3".into(), generics: vec![], span: *span }))
+                    Ok((res_id, vec_type_from_scalar(&scalar_ty, 3, *span)))
                 },
                 _ => Err(KainError::codegen(format!("Unsupported field access: {}", field), *span))
             }
@@ -541,14 +760,19 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
 
 fn map_ast_type(b: &mut Builder, ty: &Type) -> u32 {
     let float = b.type_float(32);
+    let uint = b.type_int(32, 0);
     match ty {
-        Type::Named { name, .. } => match name.as_str() {
+        Type::Named { name, generics, .. } => match name.as_str() {
             "Float" | "f32" => float,
             "Int" | "i32" => b.type_int(32, 1),
+            "UInt" | "u32" => uint,
             "Bool" => b.type_bool(),
             "Vec2" => b.type_vector(float, 2),
             "Vec3" => b.type_vector(float, 3),
             "Vec4" => b.type_vector(float, 4),
+            "UVec2" => b.type_vector(uint, 2),
+            "UVec3" => b.type_vector(uint, 3),
+            "UVec4" => b.type_vector(uint, 4),
             "Mat4" => {
                 let v4 = b.type_vector(float, 4);
                 b.type_matrix(v4, 4)
@@ -559,9 +783,15 @@ fn map_ast_type(b: &mut Builder, ty: &Type) -> u32 {
                 b.type_sampled_image(image)
             },
             "StorageBuffer" => {
-                // Struct wrapper needed for buffer block
-                // Simplified: just array of floats for now
-                let rt_array = b.type_runtime_array(float);
+                // StorageBuffer<T> lowers to Block-wrapped runtime array of T.
+                let elem_type_ast = if let Some(first) = generics.first() {
+                    first.clone()
+                } else {
+                    Type::Named { name: "Float".into(), generics: vec![], span: kain_core::span::Span::default() }
+                };
+                let elem_ty = map_ast_type(b, &elem_type_ast);
+                let rt_array = b.type_runtime_array(elem_ty);
+                b.decorate(rt_array, Decoration::ArrayStride, vec![Operand::LiteralBit32(storage_buffer_stride(ty))]);
                 let struct_ty = b.type_struct(vec![rt_array]);
                 b.decorate(struct_ty, Decoration::Block, vec![]);
                 struct_ty
@@ -569,6 +799,8 @@ fn map_ast_type(b: &mut Builder, ty: &Type) -> u32 {
             "Void" => b.type_void(),
             _ => b.type_void(),
         },
+        Type::Ref { inner, .. } => map_ast_type(b, inner),
+        Type::Array(inner, _, _) | Type::Slice(inner, _) => map_ast_type(b, inner),
         _ => b.type_void(),
     }
 }
@@ -587,4 +819,96 @@ fn is_mat4(ty: &Type) -> bool {
 
 fn is_float(ty: &Type) -> bool {
     matches!(ty, Type::Named { name, .. } if name == "Float" || name == "f32")
+}
+
+fn is_uint(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if name == "UInt" || name == "u32")
+}
+
+fn is_int(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if name == "Int" || name == "i32" || name == "UInt" || name == "u32")
+}
+
+fn is_storage_buffer(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if name == "StorageBuffer")
+}
+
+fn storage_buffer_elem_type(buffer_ty: &Type, span: kain_core::span::Span) -> Type {
+    match buffer_ty {
+        Type::Named { name, generics, .. } if name == "StorageBuffer" => {
+            generics
+                .first()
+                .cloned()
+                .unwrap_or(Type::Named { name: "Float".into(), generics: vec![], span })
+        }
+        _ => Type::Named { name: "Float".into(), generics: vec![], span },
+    }
+}
+
+fn storage_buffer_stride(buffer_ty: &Type) -> u32 {
+    let elem_ty = storage_buffer_elem_type(buffer_ty, kain_core::span::Span::default());
+    match elem_ty {
+        Type::Named { ref name, .. } if name == "Vec4" || name == "UVec4" => 16,
+        Type::Named { ref name, .. } if name == "Vec3" || name == "UVec3" => 12,
+        Type::Named { ref name, .. } if name == "Vec2" || name == "UVec2" => 8,
+        _ => 4,
+    }
+}
+
+fn vector_scalar_type(ctx: &mut ShaderContext, vec_ty: &Type) -> Type {
+    if matches!(vec_ty, Type::Named { name, .. } if name.starts_with('U')) {
+        Type::Named { name: "UInt".into(), generics: vec![], span: kain_core::span::Span::default() }
+    } else if is_uint(vec_ty) {
+        Type::Named { name: "UInt".into(), generics: vec![], span: kain_core::span::Span::default() }
+    } else {
+        let _ = ctx; // keep signature uniform for future extension
+        Type::Named { name: "Float".into(), generics: vec![], span: kain_core::span::Span::default() }
+    }
+}
+
+fn vec_type_from_scalar(scalar_ty: &Type, width: usize, span: kain_core::span::Span) -> Type {
+    let is_u = matches!(scalar_ty, Type::Named { name, .. } if name == "UInt" || name == "u32");
+    let name = if is_u {
+        match width {
+            2 => "UVec2",
+            3 => "UVec3",
+            _ => "UVec4",
+        }
+    } else {
+        match width {
+            2 => "Vec2",
+            3 => "Vec3",
+            _ => "Vec4",
+        }
+    };
+    Type::Named { name: name.into(), generics: vec![], span }
+}
+
+fn emit_index_lvalue_ptr(
+    ctx: &mut ShaderContext,
+    object: &Expr,
+    index: &Expr,
+    elem_ty: &Type,
+    span: kain_core::span::Span,
+) -> KainResult<u32> {
+    if let Expr::Ident(buffer_name, _) = object {
+        if ctx.storage_buffers.contains(buffer_name) {
+            let binding = ctx
+                .vars
+                .get(buffer_name)
+                .cloned()
+                .ok_or_else(|| KainError::codegen(format!("Unknown storage buffer: {}", buffer_name), span))?;
+            let (index_id, _) = emit_expr(ctx, index)?;
+            let elem_ty_id = map_ast_type(ctx.b, elem_ty);
+            let elem_ptr_ty = ctx.b.type_pointer(None, StorageClass::StorageBuffer, elem_ty_id);
+            let uint_ty = ctx.b.type_int(32, 0);
+            let zero = ctx.b.constant_bit32(uint_ty, 0);
+            let elem_ptr = ctx
+                .b
+                .access_chain(elem_ptr_ty, None, binding.id, vec![zero, index_id])
+                .unwrap();
+            return Ok(elem_ptr);
+        }
+    }
+    Err(KainError::codegen("Unsupported lvalue index target in shader", span))
 }

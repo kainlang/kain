@@ -791,6 +791,7 @@ pub fn generate_runtime_items(
     master_header_path: &PathBuf,
     symbol_source_map: &HashMap<String, PathBuf>,
     embed_kain: bool,
+    has_gas_features: bool,
 ) -> KainResult<SymbolRoutingManifest> {
     let mut routing_manifest = SymbolRoutingManifest::default();
     let output_registry = build_runtime_output_name_registry(program, symbol_source_map);
@@ -851,7 +852,7 @@ pub fn generate_runtime_items(
         println!("   📄 Slicing item: {} → {}.h/cpp", item_name, output_name);
 
         // Generate filtered output for this specific item using the FULL program shared state and type map
-        match ue5::generate_filtered_typed(program, &route.module_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec()), embed_kain) {
+        match ue5::generate_filtered_typed(program, &route.module_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec()), embed_kain, has_gas_features) {
             Ok(ue5_output) => {
                 if is_state_machine || is_async_task {
                     let expected_files: Vec<String> = if is_state_machine {
@@ -958,9 +959,10 @@ pub fn generate_stdlib_functions(
     program: &kain_core::types::TypedProgram,
     type_headers: &HashMap<String, String>,
     master_header_path: &PathBuf,
+    has_gas_features: bool,
 ) -> KainResult<()> {
     println!("   📦 Generating stdlib functions header...");
-    match ue5::generate_stdlib_functions(program, &config.plugin_name, config.copyright.as_deref(), type_headers.clone()) {
+    match ue5::generate_stdlib_functions(program, &config.plugin_name, config.copyright.as_deref(), type_headers.clone(), has_gas_features) {
         Ok(stdlib_output) => {
             // Check if there are any functions in the output (look for "static inline" which indicates functions)
             if stdlib_output.header.contains("static inline") {
@@ -1009,7 +1011,7 @@ pub fn generate_blueprint_library(
             .unwrap_or_else(|| config.plugin_name.clone());
         // Generate blueprint functions with special target to skip type definitions
         let bp_lib_name = format!("{}BlueprintLibrary", config.plugin_name);
-        match ue5::generate_filtered_typed(program, &runtime_module_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None, false) {
+        match ue5::generate_filtered_typed(program, &runtime_module_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None, false, false) {
             Ok(bp_output) => {
                 let bp_header_path = layout.public_dir.join(format!("{}.h", bp_lib_name));
                 fs::write(&bp_header_path, &bp_output.header).map_err(|e| KainError::Io(e))?;

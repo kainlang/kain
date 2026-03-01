@@ -433,6 +433,7 @@ fn generate_injection_files(
             type_headers.clone(),
             None,
             false,
+            false,
         ) {
             Ok(ue5_output) => {
                 // Add header

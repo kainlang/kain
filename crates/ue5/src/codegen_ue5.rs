@@ -80,7 +80,7 @@ pub fn generate_from_typed(program: &TypedProgram, output_name: Option<&str>, co
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Ue5)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Ue5)?;
     let module_name = output_name.unwrap_or("Kain");
-    generate_filtered_typed(&lowered, module_name, output_name, None, copyright, std::collections::HashMap::new(), None, false)
+    generate_filtered_typed(&lowered, module_name, output_name, None, copyright, std::collections::HashMap::new(), None, false, false)
 }
 
 /// Generate UE5 C++ code from a monomorphized program
@@ -398,9 +398,11 @@ pub fn generate_filtered_typed(
     type_to_header: std::collections::HashMap<String, String>,
     shader_file_names: Option<Vec<String>>,
     embed_kain: bool,
+    has_gas_features: bool,
 ) -> KainResult<Ue5Output> {
     let mut gen = Ue5Gen::new(module_name, output_name, copyright, target_item, type_to_header.clone());
     gen.shader_file_names = shader_file_names.unwrap_or_default();
+    gen.has_gas_features = has_gas_features;
     
     // Enable KAIN markers if requested
     if embed_kain {
@@ -500,10 +502,12 @@ pub fn generate_stdlib_functions(
     module_name: &str,
     copyright: Option<&str>,
     type_to_header: std::collections::HashMap<String, String>,
+    has_gas_features: bool,
 ) -> KainResult<Ue5Output> {
     use kain_core::types::TypedItem;
     
     let mut gen = Ue5Gen::new(module_name, Some("KainStdlib"), copyright, None, type_to_header.clone());
+    gen.has_gas_features = has_gas_features;
     
     // PRE-PASS: Register all types so type lookups work during codegen
     // Use the type_to_header map that was passed in (which has correct prefixed names)
@@ -702,6 +706,8 @@ struct Ue5Gen {
     /// Populated during gen_program so gen_ucomponent/gen_usubsystem can look up
     /// lifecycle method bodies (begin_play, tick, etc.) and emit real implementations.
     impl_methods: std::collections::HashMap<String, Vec<kain_core::ast::Function>>,
+    /// True only when the packaged program actually uses Gameplay Ability System features.
+    has_gas_features: bool,
 }
 
 impl Ue5Gen {
@@ -778,6 +784,43 @@ impl Ue5Gen {
         }
     }
 
+    fn should_emit_kain_runtime_helpers<P: ProgramItems>(&self, program: &P) -> bool {
+        let blueprint_library_only = self
+            .target_item
+            .as_ref()
+            .map(|t| t == "__BLUEPRINT_LIBRARY_ONLY__")
+            .unwrap_or(false);
+
+        for item in program.items() {
+            if let Some(target) = &self.target_item {
+                if blueprint_library_only {
+                    if let TypedItem::Function(f) = item {
+                        let is_blueprint_fn = f
+                            .ast
+                            .attributes
+                            .iter()
+                            .any(|a| a.name == "blueprint" || a.name == "blueprint_pure" || a.name == "ue5");
+                        if is_blueprint_fn && item_uses_kain_runtime(item) {
+                            return true;
+                        }
+                    }
+                    continue;
+                }
+
+                let item_name = self.item_symbol_name(item);
+                if !item_name.is_empty() && item_name != target {
+                    continue;
+                }
+            }
+
+            if item_uses_kain_runtime(item) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn new(module_name: &str, output_name: Option<&str>, copyright: Option<&str>, target_item: Option<String>, type_to_header: std::collections::HashMap<String, String>) -> Self {
         // module_name = plugin name for API macro (e.g., "UltimateTest" → "ULTIMATETEST_API")
         // output_name = per-item name for file naming (e.g., "AMaterialTestActor")
@@ -808,6 +851,7 @@ impl Ue5Gen {
             type_mapper,
             stdlib_resolver,
             impl_methods: std::collections::HashMap::new(),
+            has_gas_features: false,
         }
     }
 
@@ -1433,8 +1477,10 @@ impl Ue5Gen {
             self.source.push_line(&format!("#include \"{}.h\"", module_blueprint_header));
             self.source.push_line("#endif");
         }
-        self.source.push_line("#include \"AbilitySystemBlueprintLibrary.h\"");
-        self.source.push_line("#include \"GameplayTagContainer.h\"");
+        if self.has_gas_features {
+            self.source.push_line("#include \"AbilitySystemBlueprintLibrary.h\"");
+            self.source.push_line("#include \"GameplayTagContainer.h\"");
+        }
         self.source.push_line("#include \"Containers/Map.h\"");
         self.source.push_line("#include \"Containers/Array.h\"");
         self.source.push_line("#include \"HAL/Platform.h\"");
@@ -1455,6 +1501,7 @@ impl Ue5Gen {
             }
         }
 
+        if self.should_emit_kain_runtime_helpers(program) {
         self.source.push_line("");
         self.source.push_line("namespace {");
         self.source.push_line("struct FKainMemoryValue {");
@@ -1628,6 +1675,7 @@ impl Ue5Gen {
         self.source.push_line("    return Ptr;");
         self.source.push_line("}");
         self.source.push_line("}");
+        }
 
         if !shaders.is_empty() {
             self.source.push_line("");
@@ -5953,6 +6001,187 @@ fn collect_type_names(ty: &Type, out: &mut std::collections::HashSet<String>) {
             collect_type_names(return_type, out);
         }
         _ => {}
+    }
+}
+
+fn item_uses_kain_runtime(item: &TypedItem) -> bool {
+    match item {
+        TypedItem::Function(f) => block_uses_kain_runtime(&f.ast.body),
+        TypedItem::Component(c) => {
+            c.ast
+                .state
+                .iter()
+                .any(|s| expr_uses_kain_runtime(&s.initial))
+                || c.ast.methods.iter().any(|m| block_uses_kain_runtime(&m.body))
+        }
+        TypedItem::Shader(s) => block_uses_kain_runtime(&s.ast.body),
+        TypedItem::Actor(a) => {
+            a.ast
+                .state
+                .iter()
+                .any(|s| expr_uses_kain_runtime(&s.initial))
+                || a.ast
+                    .handlers
+                    .iter()
+                    .any(|h| block_uses_kain_runtime(&h.body))
+                || a.ast.methods.iter().any(|m| block_uses_kain_runtime(&m.body))
+        }
+        TypedItem::Struct(s) => {
+            s.ast
+                .fields
+                .iter()
+                .filter_map(|f| f.default.as_ref())
+                .any(expr_uses_kain_runtime)
+                || s.ast.methods.iter().any(|m| block_uses_kain_runtime(&m.body))
+        }
+        TypedItem::Const(c) => expr_uses_kain_runtime(&c.ast.value),
+        TypedItem::Comptime(c) => block_uses_kain_runtime(&c.ast),
+        TypedItem::Impl(i) => i.ast.methods.iter().any(|m| block_uses_kain_runtime(&m.body)),
+        TypedItem::Test(t) => block_uses_kain_runtime(&t.ast.body),
+        TypedItem::TypeAlias(_)
+        | TypedItem::Enum(_)
+        | TypedItem::Macro(_)
+        | TypedItem::Use(_)
+        | TypedItem::MaterialGraph(_)
+        | TypedItem::MaterialFunction(_)
+        | TypedItem::GraphEditor(_)
+        | TypedItem::GraphRuntime(_)
+        | TypedItem::StateMachine(_)
+        | TypedItem::AsyncTask(_)
+        | TypedItem::EditorModule(_)
+        | TypedItem::GameplayTags(_)
+        | TypedItem::GameplayAbility(_)
+        | TypedItem::GameplayEffect(_)
+        | TypedItem::GameplayCue(_) => false,
+    }
+}
+
+fn block_uses_kain_runtime(block: &Block) -> bool {
+    block.stmts.iter().any(stmt_uses_kain_runtime)
+}
+
+fn stmt_uses_kain_runtime(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_uses_kain_runtime),
+        Stmt::Expr(e) => expr_uses_kain_runtime(e),
+        Stmt::Return(v, _) | Stmt::Break(v, _) => v.as_ref().is_some_and(expr_uses_kain_runtime),
+        Stmt::Continue(_) => false,
+        Stmt::For { iter, body, .. } => expr_uses_kain_runtime(iter) || block_uses_kain_runtime(body),
+        Stmt::While { condition, body, .. } => {
+            expr_uses_kain_runtime(condition) || block_uses_kain_runtime(body)
+        }
+        Stmt::Loop { body, .. } => block_uses_kain_runtime(body),
+        Stmt::Item(_) => false,
+    }
+}
+
+fn else_branch_uses_kain_runtime(branch: &ElseBranch) -> bool {
+    match branch {
+        ElseBranch::Else(block) => block_uses_kain_runtime(block),
+        ElseBranch::ElseIf(cond, block, next) => {
+            expr_uses_kain_runtime(cond)
+                || block_uses_kain_runtime(block)
+                || next.as_ref().is_some_and(|b| else_branch_uses_kain_runtime(b.as_ref()))
+        }
+    }
+}
+
+fn expr_uses_kain_runtime(expr: &Expr) -> bool {
+    match expr {
+        Expr::Ident(name, _) => name.starts_with("__kain_"),
+        Expr::AddrOf { .. } | Expr::Deref(_, _) => true,
+        Expr::PtrOffset { .. } | Expr::MemLoad { .. } | Expr::MemStore { .. } => true,
+        Expr::Alloca { .. } | Expr::Uninit { .. } => true,
+        Expr::Alloc { .. } | Expr::Realloc { .. } => true,
+        Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Continue(_) => false,
+        Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => {
+            parts.iter().any(expr_uses_kain_runtime)
+        }
+        Expr::MacroCall { args, .. } => args.iter().any(expr_uses_kain_runtime),
+        Expr::Binary { left, right, .. } => {
+            expr_uses_kain_runtime(left) || expr_uses_kain_runtime(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::Cast { value: operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Paren(operand, _) => expr_uses_kain_runtime(operand),
+        Expr::Call { callee, args, .. } => {
+            expr_uses_kain_runtime(callee)
+                || args.iter().any(|arg| expr_uses_kain_runtime(&arg.value))
+        }
+        Expr::MethodCall { receiver, args, .. } => {
+            expr_uses_kain_runtime(receiver)
+                || args.iter().any(|arg| expr_uses_kain_runtime(&arg.value))
+        }
+        Expr::Field { object, .. } => expr_uses_kain_runtime(object),
+        Expr::Index { object, index, .. } => {
+            expr_uses_kain_runtime(object) || expr_uses_kain_runtime(index)
+        }
+        Expr::Assign { target, value, .. } => {
+            expr_uses_kain_runtime(target) || expr_uses_kain_runtime(value)
+        }
+        Expr::Struct { fields, .. } | Expr::AggregateInit { fields, .. } => {
+            fields.iter().any(|(_, e)| expr_uses_kain_runtime(e))
+        }
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Unit => false,
+            EnumVariantFields::Tuple(values) => values.iter().any(expr_uses_kain_runtime),
+            EnumVariantFields::Struct(values) => {
+                values.iter().any(|(_, e)| expr_uses_kain_runtime(e))
+            }
+        },
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|e| expr_uses_kain_runtime(e.as_ref()))
+                || end
+                    .as_ref()
+                    .is_some_and(|e| expr_uses_kain_runtime(e.as_ref()))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_uses_kain_runtime(condition)
+                || block_uses_kain_runtime(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|b| else_branch_uses_kain_runtime(b.as_ref()))
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            expr_uses_kain_runtime(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_ref()
+                        .is_some_and(expr_uses_kain_runtime)
+                        || expr_uses_kain_runtime(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_uses_kain_runtime(body),
+        Expr::Spawn { init, .. } => init.iter().any(|(_, e)| expr_uses_kain_runtime(e)),
+        Expr::SendMsg { target, data, .. } => {
+            expr_uses_kain_runtime(target)
+                || data.iter().any(|(_, e)| expr_uses_kain_runtime(e))
+        }
+        Expr::Block(block, _) => block_uses_kain_runtime(block),
+        Expr::JSX(_, _) => false,
+        Expr::Return(value, _) | Expr::Break(value, _) => {
+            value
+                .as_ref()
+                .is_some_and(|v| expr_uses_kain_runtime(v.as_ref()))
+        }
     }
 }
 

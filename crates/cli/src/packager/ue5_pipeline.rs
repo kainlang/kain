@@ -1241,6 +1241,14 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         // MODULAR MODE: Generate separate .h/.cpp for each source file
         println!("🎯 Generating modular plugin files (per-file output)...");
 
+        let has_gas_features =
+            !gameplay_tags.is_empty()
+            || !gameplay_abilities.is_empty()
+            || !gameplay_effects.is_empty()
+            || !gameplay_cues.is_empty()
+            || !ability_tasks.is_empty()
+            || !target_actors.is_empty();
+
         // Generate headers (master, delegates, EditorTypes)
         let (master_header_path, _delegate_count, mut type_headers) =
             super::codegen::generate_headers(&layout, &ue5_config, &typed_program, &symbol_source_map)?;
@@ -1261,10 +1269,11 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             &master_header_path,
             &symbol_source_map,
             embed_kain,
+            has_gas_features,
         )?;
 
         // Generate stdlib functions
-        super::codegen::generate_stdlib_functions(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path)?;
+        super::codegen::generate_stdlib_functions(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path, has_gas_features)?;
 
         // Generate blueprint function library
         super::codegen::generate_blueprint_library(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path)?;

@@ -183,126 +183,126 @@ pub fn supported_targets_csv() -> String {
         .join(", ")
 }
 
-/// Compile with backend selection
-pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
+fn frontend_to_monomorphized_program(
+    source: &str,
+    target: CompileTarget,
+) -> Result<monomorphize::MonomorphizedProgram, KainError> {
     // Load stdlib
     let stdlib = stdlib::load_stdlib_for_target(target);
     let full_source = format!("{}\n{}", stdlib, source);
 
     // 1. Lex
     let tokens = Lexer::new(&full_source).tokenize()?;
-    
+
     // 2. Parse
     let span_mapper = diagnostics::SpanMapper::new(&full_source);
     let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
-    
+
     // 2.5 Comptime
     comptime::eval_program(&mut ast)?;
-    
+
     // 3. Type check
     let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
-    
-    // 3.5 Monomorphize (NEW: Instantiate generic functions with concrete types)
-    let mono_ast = monomorphize::monomorphize(&typed_ast)?;
-    
-    // 4. Codegen based on target
+
+    // 3.5 Monomorphize (instantiate generic functions with concrete types)
+    monomorphize::monomorphize(&typed_ast)
+}
+
+fn frontend_to_typed_program(source: &str, target: CompileTarget) -> Result<TypedProgram, KainError> {
+    let mono_ast = frontend_to_monomorphized_program(source, target)?;
+    Ok(TypedProgram { items: mono_ast.items })
+}
+
+#[cfg(feature = "gpu")]
+pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
+    let typed_for_codegen = frontend_to_typed_program(source, CompileTarget::Spirv)?;
+    gpu::generate_spirv(&typed_for_codegen)
+}
+
+#[cfg(not(feature = "gpu"))]
+pub fn compile_spirv_binary(_source: &str) -> Result<Vec<u8>, KainError> {
+    Err(KainError::runtime("SPIR-V target requires gpu feature"))
+}
+
+/// Compile with backend selection
+pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
     match target {
         #[cfg(feature = "ue5")]
         CompileTarget::Ue5 => {
-            let output = ue5::generate(&mono_ast, None, None)?;
+            let mono_for_codegen = frontend_to_monomorphized_program(source, target)?;
+            let output = ue5::generate(&mono_for_codegen, None, None)?;
             Ok(output.header + "\n" + &output.source)
         }
-        
-        #[cfg(feature = "ue5")]
-        CompileTarget::Usf => {
-            // Convert to TypedProgram for shader codegen (shaders don't use generics yet)
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            ue5_shaders::generate_usf(&typed_for_codegen)
-        }
-        
-        #[cfg(feature = "gpu")]
-        CompileTarget::Spirv => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            gpu::generate_spirv(&typed_for_codegen).map(|bytes| format!("{} bytes", bytes.len()))
-        }
-        
-        #[cfg(feature = "gpu")]
-        CompileTarget::Hlsl => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            gpu::generate_hlsl(&typed_for_codegen)
-        }
-        
-        #[cfg(feature = "web")]
-        CompileTarget::Wasm => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            web::generate_wasm(&typed_for_codegen).map(|bytes| format!("{} bytes", bytes.len()))
-        }
-        
-        #[cfg(feature = "web")]
-        CompileTarget::Js => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            web::generate_js(&typed_for_codegen)
-        }
+        _ => {
+            let typed_for_codegen = frontend_to_typed_program(source, target)?;
 
-        #[cfg(feature = "web")]
-        CompileTarget::Ts => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            web::generate_ts(&typed_for_codegen)
-        }
+            // 4. Codegen based on target
+            match target {
+                #[cfg(feature = "ue5")]
+                CompileTarget::Usf => ue5_shaders::generate_usf(&typed_for_codegen),
 
-        #[cfg(feature = "web")]
-        CompileTarget::Ks => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            web::generate_ks(&typed_for_codegen)
+                #[cfg(feature = "gpu")]
+                CompileTarget::Spirv => {
+                    gpu::generate_spirv(&typed_for_codegen).map(|bytes| format!("{} bytes", bytes.len()))
+                }
+
+                #[cfg(feature = "gpu")]
+                CompileTarget::Hlsl => gpu::generate_hlsl(&typed_for_codegen),
+
+                #[cfg(feature = "web")]
+                CompileTarget::Wasm => {
+                    web::generate_wasm(&typed_for_codegen).map(|bytes| format!("{} bytes", bytes.len()))
+                }
+
+                #[cfg(feature = "web")]
+                CompileTarget::Js => web::generate_js(&typed_for_codegen),
+
+                #[cfg(feature = "web")]
+                CompileTarget::Ts => web::generate_ts(&typed_for_codegen),
+
+                #[cfg(feature = "web")]
+                CompileTarget::Ks => web::generate_ks(&typed_for_codegen),
+
+                #[cfg(feature = "web")]
+                CompileTarget::Hybrid => {
+                    let output = web::generate_hybrid(&typed_for_codegen)?;
+                    Ok(output.js)
+                }
+
+                #[cfg(feature = "sys")]
+                CompileTarget::Llvm => {
+                    sys::generate_llvm(&typed_for_codegen).map(|_| "LLVM IR generated".to_string())
+                }
+
+                #[cfg(feature = "sys")]
+                CompileTarget::Rust => sys::generate_rust(&typed_for_codegen),
+
+                #[cfg(feature = "sys")]
+                CompileTarget::Cpp => sys::generate_cpp(&typed_for_codegen),
+
+                CompileTarget::Interpret | CompileTarget::Test => {
+                    // Use runtime interpreter
+                    Err(KainError::runtime("Interpret/Test targets not yet implemented in workspace"))
+                }
+
+                #[cfg(feature = "ue5")]
+                CompileTarget::Ue5Editor => {
+                    let output = ue5_editor::generate(&typed_for_codegen, "EditorTools", None)?;
+                    Ok(output.header + "\n" + &output.source)
+                }
+
+                #[cfg(not(feature = "ue5"))]
+                CompileTarget::Ue5Editor => {
+                    Err(KainError::runtime("UE5 Editor target requires ue5 feature"))
+                }
+
+                #[allow(unreachable_patterns)]
+                _ => Err(KainError::runtime(format!(
+                    "Target {:?} not enabled. Recompile with appropriate feature flag.",
+                    target
+                ))),
+            }
         }
-        
-        #[cfg(feature = "web")]
-        CompileTarget::Hybrid => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            let output = web::generate_hybrid(&typed_for_codegen)?;
-            Ok(output.js)
-        }
-        
-        #[cfg(feature = "sys")]
-        CompileTarget::Llvm => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            sys::generate_llvm(&typed_for_codegen).map(|_| "LLVM IR generated".to_string())
-        }
-        
-        #[cfg(feature = "sys")]
-        CompileTarget::Rust => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            sys::generate_rust(&typed_for_codegen)
-        }
-        
-        #[cfg(feature = "sys")]
-        CompileTarget::Cpp => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            sys::generate_cpp(&typed_for_codegen)
-        }
-        
-        CompileTarget::Interpret | CompileTarget::Test => {
-            // Use runtime interpreter
-            Err(KainError::runtime("Interpret/Test targets not yet implemented in workspace"))
-        }
-        
-        #[cfg(feature = "ue5")]
-        CompileTarget::Ue5Editor => {
-            let typed_for_codegen = TypedProgram { items: mono_ast.items };
-            let output = ue5_editor::generate(&typed_for_codegen, "EditorTools", None)?;
-            Ok(output.header + "\n" + &output.source)
-        }
-        
-        #[cfg(not(feature = "ue5"))]
-        CompileTarget::Ue5Editor => {
-            Err(KainError::runtime("UE5 Editor target requires ue5 feature"))
-        }
-        
-        #[allow(unreachable_patterns)]
-        _ => Err(KainError::runtime(format!(
-            "Target {:?} not enabled. Recompile with appropriate feature flag.",
-            target
-        ))),
     }
 }
 
