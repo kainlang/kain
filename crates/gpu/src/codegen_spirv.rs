@@ -68,7 +68,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     let mut ctx_vars = HashMap::new();
     let mut struct_uniforms = HashSet::new();
     let mut storage_buffers = HashSet::new();
-    let mut local_size_spec_ids: Option<[u32; 3]> = None;
+    let mut local_size_values: [u32; 3] = [8, 8, 1];
 
     // Inputs
     for (i, param) in shader.ast.inputs.iter().enumerate() {
@@ -112,14 +112,13 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
                 0 | 1 => 8,
                 _ => 1,
             };
-            let spec = emit_u32_spec_constant(b, default_value, uniform.binding);
-            let mut ids = local_size_spec_ids.unwrap_or([0, 0, 0]);
-            ids[slot] = spec;
-            local_size_spec_ids = Some(ids);
+            local_size_values[slot] = default_value;
+            let uint_ty = b.type_int(32, 0);
+            let const_id = b.constant_bit32(uint_ty, default_value);
             ctx_vars.insert(
                 uniform.name.clone(),
                 VarBinding {
-                    id: spec,
+                    id: const_id,
                     ty: Type::Named { name: "UInt".into(), generics: vec![], span: uniform.span },
                     is_ptr: false,
                 },
@@ -249,15 +248,9 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     if exec_model == ExecutionModel::Fragment {
         b.execution_mode(main_fn, ExecutionMode::OriginUpperLeft, vec![]);
     } else if exec_model == ExecutionModel::GLCompute {
-        if let Some([sx, sy, sz]) = local_size_spec_ids {
-            if sx != 0 && sy != 0 && sz != 0 {
-                b.execution_mode_id(main_fn, ExecutionMode::LocalSizeId, vec![sx, sy, sz]);
-            } else {
-                b.execution_mode(main_fn, ExecutionMode::LocalSize, vec![8, 8, 1]);
-            }
-        } else {
-            b.execution_mode(main_fn, ExecutionMode::LocalSize, vec![8, 8, 1]);
-        }
+        // Emit fixed local size for broad runtime compatibility.
+        // Some wgpu backends reject ExecutionModeId/LocalSizeId in SPIR-V modules.
+        b.execution_mode(main_fn, ExecutionMode::LocalSize, local_size_values.to_vec());
     }
     
     Ok(())
