@@ -261,9 +261,9 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     b.begin_block(None).unwrap();
 
     // Now emit the actual OpVariable instructions at the very top of the first block.
-    for (name, ptr_ty) in hoisted_vars.iter_mut() {
-        let var_id = b.variable(*ptr_ty, None, StorageClass::Function, None);
-        ptr_ty.0 = var_id; // store var id in first slot
+    for (_name, slot) in hoisted_vars.iter_mut() {
+        let var_id = b.variable(slot.1, None, StorageClass::Function, None);
+        slot.0 = var_id; // store var_id in first slot
     }
     // Repackage: rename from (var_placeholder, ptr_ty) to (var_id, ptr_ty)
     // The map already has var_id in slot 0 now, ptr_ty in slot 1.
@@ -315,171 +315,120 @@ impl<'a> ShaderContext<'a> {
     }
 }
 
-/// Lightweight AST type inference used during the variable hoist pre-pass.
-/// Returns (spirv_type_id, ptr_type_id) for the given expression, or None if unknown.
-/// `known` carries already-hoisted variable types so Ident nodes can be resolved.
-fn infer_let_type(b: &mut Builder, expr: &Expr, known: &HashMap<String, (u32, u32)>) -> Option<(u32, u32)> {
-    let float  = b.type_float(32);
-    let int    = b.type_int(32, 1);
-    let uint   = b.type_int(32, 0);
-    let bool_t = b.type_bool();
-    let vec2   = b.type_vector(float, 2);
-    let vec3   = b.type_vector(float, 3);
-    let vec4   = b.type_vector(float, 4);
-    let ivec2  = b.type_vector(int, 2);
-    let ivec3  = b.type_vector(int, 3);
-    let ivec4  = b.type_vector(int, 4);
-    let uvec2  = b.type_vector(uint, 2);
-    let uvec3  = b.type_vector(uint, 3);
-    let uvec4  = b.type_vector(uint, 4);
-
-    let sc = StorageClass::Function;
-    let mk = |b: &mut Builder, ty: u32| -> Option<(u32, u32)> {
-        let ptr = b.type_pointer(None, sc, ty);
-        Some((ty, ptr))
-    };
+/// Pure AST type inference — no Builder calls. Returns KAIN Type for a let-binding RHS.
+/// Uses a known-names map to resolve Ident references from previously seen let-bindings.
+fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
+    let span = expr.span();
+    let named = |n: &str| -> Type { Type::Named { name: n.into(), generics: vec![], span } };
 
     match expr {
-        Expr::Float(_, _) => mk(b, float),
-        Expr::Int(_, _)   => mk(b, int),
-        Expr::Bool(_, _)  => mk(b, bool_t),
-        // Resolve already-registered variables.
-        Expr::Ident(name, _) => known.get(name.as_str()).copied(),
-        Expr::Unary { operand, .. } => infer_let_type(b, operand, known),
-        Expr::Binary { left, op, .. } => {
-            match op {
-                BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le |
-                BinaryOp::Gt | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or => mk(b, bool_t),
-                _ => infer_let_type(b, left, known),
-            }
+        Expr::Float(_, _) => Some(named("Float")),
+        Expr::Int(_, _)   => Some(named("Int")),
+        Expr::Bool(_, _)  => Some(named("Bool")),
+        Expr::Ident(name, _) => known.get(name.as_str()).cloned(),
+        Expr::Unary { operand, .. } => infer_kain_type(operand, known),
+        Expr::Paren(inner, _)       => infer_kain_type(inner, known),
+        Expr::Binary { left, op, .. } => match op {
+            BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le |
+            BinaryOp::Gt | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or => Some(named("Bool")),
+            _ => infer_kain_type(left, known),
         },
-        Expr::Paren(inner, _) => infer_let_type(b, inner, known),
-        Expr::Cast { target, .. } => {
-            let ty = match target {
-                Type::Named { name, .. } => match name.as_str() {
-                    "Float" | "f32" => Some(float),
-                    "Int"  | "i32"  => Some(int),
-                    "UInt" | "u32"  => Some(uint),
-                    "Bool"          => Some(bool_t),
-                    "Vec2" => Some(vec2), "Vec3" => Some(vec3), "Vec4" => Some(vec4),
-                    "IVec2"=> Some(ivec2),"IVec3"=> Some(ivec3),"IVec4"=> Some(ivec4),
-                    "UVec2"=> Some(uvec2),"UVec3"=> Some(uvec3),"UVec4"=> Some(uvec4),
-                    _ => None,
-                },
-                _ => None,
-            }?;
-            let ptr = b.type_pointer(None, sc, ty);
-            Some((ty, ptr))
+        Expr::Cast { target, .. } => Some(target.clone()),
+        Expr::Field { field, .. } => match field.len() {
+            1 => Some(named("Float")),
+            2 => Some(named("Vec2")),
+            3 => Some(named("Vec3")),
+            _ => None,
         },
         Expr::Call { callee, args, .. } => {
             if let Expr::Ident(fn_name, _) = callee.as_ref() {
-                // Constructor calls
-                let ty = match (fn_name.as_str(), args.len()) {
-                    ("vec2" | "Vec2", 2) => Some(vec2),
-                    ("vec3" | "Vec3", 3) => Some(vec3),
-                    ("vec4" | "Vec4", 4) => Some(vec4),
-                    ("ivec2"| "IVec2", 2) => Some(ivec2),
-                    ("ivec3"| "IVec3", 3) => Some(ivec3),
-                    ("ivec4"| "IVec4", 4) => Some(ivec4),
-                    ("uvec2"| "UVec2", 2) => Some(uvec2),
-                    ("uvec3"| "UVec3", 3) => Some(uvec3),
-                    ("uvec4"| "UVec4", 4) => Some(uvec4),
-                    ("Float" | "Int" | "UInt", 1) => {
-                        let t = match fn_name.as_str() {
-                            "Float" => float, "Int" => int, _ => uint
-                        };
-                        Some(t)
-                    },
-                    // Scalar math: 1-arg returning same type as arg
+                match (fn_name.as_str(), args.len()) {
+                    // Constructors
+                    ("vec2"|"Vec2", 2) => Some(named("Vec2")),
+                    ("vec3"|"Vec3", 3) => Some(named("Vec3")),
+                    ("vec4"|"Vec4", 4) => Some(named("Vec4")),
+                    ("ivec2"|"IVec2", 2) => Some(named("IVec2")),
+                    ("ivec3"|"IVec3", 3) => Some(named("IVec3")),
+                    ("ivec4"|"IVec4", 4) => Some(named("IVec4")),
+                    ("uvec2"|"UVec2", 2) => Some(named("UVec2")),
+                    ("uvec3"|"UVec3", 3) => Some(named("UVec3")),
+                    ("uvec4"|"UVec4", 4) => Some(named("UVec4")),
+                    ("Float",1) => Some(named("Float")),
+                    ("Int",  1) => Some(named("Int")),
+                    ("UInt", 1) => Some(named("UInt")),
+                    // Scalar math (same type as first arg)
                     ("sin"|"cos"|"tan"|"asin"|"acos"|"atan"|"sqrt"|"abs"|"floor"|"ceil"|
                      "fract"|"round"|"trunc"|"sign"|"exp"|"log"|"exp2"|"log2"|
                      "inversesqrt"|"radians"|"degrees", 1) => {
-                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
+                        infer_kain_type(&args[0].value, known)
                     },
-                    // 2-arg scalar
-                    ("pow"|"atan2"|"min"|"max"|"step"|"mod", 2) => {
-                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
+                    ("pow"|"atan2"|"min"|"max"|"step", 2) => {
+                        infer_kain_type(&args[0].value, known)
                     },
-                    // 3-arg scalar
                     ("clamp"|"mix"|"smoothstep", 3) => {
-                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
+                        infer_kain_type(&args[0].value, known)
                     },
-                    // Scalar reductions on vectors
-                    ("length"|"distance"|"dot", _) => Some(float),
-                    // Vector ops preserving type
+                    // Scalar reductions
+                    ("length"|"distance"|"dot", _) => Some(named("Float")),
+                    // Vector-preserving
                     ("normalize"|"cross"|"reflect", _) => {
-                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
+                        infer_kain_type(&args[0].value, known)
                     },
-                    ("refract", 3) => infer_let_type(b, &args[0].value, known).map(|(t, _)| t),
-                    // Texture sample → vec4
-                    ("sample"|"sample_lod", _) => Some(vec4),
+                    ("refract", 3) => infer_kain_type(&args[0].value, known),
+                    // Texture
+                    ("sample"|"sample_lod", _) => Some(named("Vec4")),
                     _ => None,
-                }?;
-                let ptr = b.type_pointer(None, sc, ty);
-                Some((ty, ptr))
-            } else {
-                None
-            }
-        },
-        Expr::Field { object, field, .. } => {
-            // swizzle/component access
-            let flen = field.len();
-            match flen {
-                1 => mk(b, float),
-                2 => mk(b, vec2),
-                3 => mk(b, vec3),
-                _ => infer_let_type(b, object, known).map(|(t, _)| { let p = b.type_pointer(None, sc, t); (t, p) }),
-            }
+                }
+            } else { None }
         },
         _ => None,
     }
 }
 
-/// Recursive body walker: emits OpVariable for every let-binding BEFORE any
-/// other instructions, satisfying SPIR-V §2.16. Must be called immediately
-/// after begin_block() while the builder cursor is at the top of the first block.
-fn hoist_variables(b: &mut Builder, block: &Block, hoisted: &mut HashMap<String, (u32, u32)>) {
+/// Pure AST walk — collects (binding_name, inferred_KainType) for every let in the block tree.
+/// No Builder interaction at all. Unknown types are mapped to Float as safe fallback.
+fn collect_binding_types(block: &Block, out: &mut Vec<(String, Type)>) {
+    let mut known: HashMap<String, Type> = HashMap::new();
+    collect_block_types(block, &mut known, out);
+}
+
+fn collect_block_types(block: &Block, known: &mut HashMap<String, Type>, out: &mut Vec<(String, Type)>) {
+    let float_ty = |span: kain_core::span::Span| Type::Named { name: "Float".into(), generics: vec![], span };
+
     for stmt in &block.stmts {
         match stmt {
             Stmt::Let { pattern, value, .. } => {
                 if let (kain_core::ast::Pattern::Binding { name, .. }, Some(value)) = (pattern, value) {
-                    if hoisted.contains_key(name.as_str()) { continue; }
-                    if let Some((ty_id, ptr_ty_id)) = infer_let_type(b, value, hoisted) {
-                        let var_id = b.variable(ptr_ty_id, None, StorageClass::Function, None);
-                        hoisted.insert(name.clone(), (var_id, ptr_ty_id));
-                    } else {
-                        // Unknown type: allocate a float slot as fallback.
-                        let float  = b.type_float(32);
-                        let ptr    = b.type_pointer(None, StorageClass::Function, float);
-                        let var_id = b.variable(ptr, None, StorageClass::Function, None);
-                        hoisted.insert(name.clone(), (var_id, ptr));
-                    }
+                    let span = value.span();
+                    let ty = infer_kain_type(value, known).unwrap_or_else(|| float_ty(span));
+                    known.insert(name.clone(), ty.clone());
+                    out.push((name.clone(), ty));
                 }
             },
-            // Recurse into nested blocks so vars inside if/for/while are also hoisted.
             Stmt::Expr(Expr::If { then_branch, else_branch, .. }) => {
-                hoist_variables(b, then_branch, hoisted);
-                if let Some(else_br) = else_branch {
-                    match else_br.as_ref() {
-                        ElseBranch::Else(blk) => hoist_variables(b, blk, hoisted),
+                collect_block_types(then_branch, known, out);
+                if let Some(eb) = else_branch {
+                    match eb.as_ref() {
+                        ElseBranch::Else(blk) => collect_block_types(blk, known, out),
                         ElseBranch::ElseIf(_, blk, next) => {
-                            hoist_variables(b, blk, hoisted);
+                            collect_block_types(blk, known, out);
                             if let Some(nb) = next {
                                 if let ElseBranch::Else(b2) = nb.as_ref() {
-                                    hoist_variables(b, b2, hoisted);
+                                    collect_block_types(b2, known, out);
                                 }
                             }
                         },
                     }
                 }
             },
-            Stmt::While { body, .. } => hoist_variables(b, body, hoisted),
-            Stmt::For   { body, .. } => hoist_variables(b, body, hoisted),
-            Stmt::Loop  { body, .. } => hoist_variables(b, body, hoisted),
+            Stmt::While { body, .. } => collect_block_types(body, known, out),
+            Stmt::For   { body, .. } => collect_block_types(body, known, out),
+            Stmt::Loop  { body, .. } => collect_block_types(body, known, out),
             _ => {}
         }
     }
 }
+
 
 fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
     for stmt in &block.stmts {
