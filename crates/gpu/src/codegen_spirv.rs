@@ -238,17 +238,35 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
         }
     }
 
+    // SPIR-V §2.16: All OpVariable must be the first instructions of the first block.
+    // Strategy: collect all let-binding (name, KainType) pairs via pure AST walk,
+    // then emit type_pointer + variable BEFORE begin_function (global type section),
+    // then inside the function body Stmt::Let just stores into pre-allocated slots.
+    let mut binding_types: Vec<(String, Type)> = Vec::new();
+    collect_binding_types(&shader.ast.body, &mut binding_types);
+
+    // Emit all Function-pointer types and OpVariable allocations in the global section.
+    let mut hoisted_vars: HashMap<String, (u32, u32)> = HashMap::new();
+    for (name, kain_ty) in &binding_types {
+        if hoisted_vars.contains_key(name.as_str()) { continue; }
+        let type_id = map_ast_type(b, kain_ty);
+        let ptr_ty  = b.type_pointer(None, StorageClass::Function, type_id);
+        // OpVariable with Function storage class must be inside a function —
+        // we emit it right after begin_function/begin_block below. Store ptr_ty for now.
+        hoisted_vars.insert(name.clone(), (0, ptr_ty)); // 0 = placeholder, replaced below
+    }
+
     // 4. Function Body
     let main_fn = b.begin_function(void, None, rspirv::spirv::FunctionControl::NONE, fn_void_void).unwrap();
     b.begin_block(None).unwrap();
 
-    // SPIR-V §2.16: All OpVariable must be the first instructions of the first block.
-    // Two-pass solution:
-    //   Pass 1 (hoist): walk the entire AST, infer the type of every let-binding,
-    //                   emit OpVariable immediately (while still at top of first block).
-    //   Pass 2 (emit):  emit_block runs normally; Stmt::Let reuses the pre-allocated ID.
-    let mut hoisted_vars: HashMap<String, (u32, u32)> = HashMap::new();
-    hoist_variables(b, &shader.ast.body, &mut hoisted_vars);
+    // Now emit the actual OpVariable instructions at the very top of the first block.
+    for (name, ptr_ty) in hoisted_vars.iter_mut() {
+        let var_id = b.variable(*ptr_ty, None, StorageClass::Function, None);
+        ptr_ty.0 = var_id; // store var id in first slot
+    }
+    // Repackage: rename from (var_placeholder, ptr_ty) to (var_id, ptr_ty)
+    // The map already has var_id in slot 0 now, ptr_ty in slot 1.
 
     let mut ctx = ShaderContext {
         b,
