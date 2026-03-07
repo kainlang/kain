@@ -41,8 +41,8 @@ struct ShaderContext<'a> {
     loop_continue_targets: Vec<u32>,
     loop_break_targets: Vec<u32>,
     // Pre-hoisted local variable slots — all OpVariable must be in the first block.
-    // Maps binding name -> pre-allocated (ptr_id, ptr_ty_id) pairs.
-    hoisted_vars: HashMap<String, (u32, u32)>,
+    // Maps binding name -> pre-allocated slots in source discovery order.
+    hoisted_vars: HashMap<String, Vec<(u32, u32)>>,
 }
 
 #[derive(Clone)]
@@ -71,6 +71,8 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     let mut ctx_vars = HashMap::new();
     let mut struct_uniforms = HashSet::new();
     let mut storage_buffers = HashSet::new();
+    let mut storage_buffer_type_cache: HashMap<String, u32> = HashMap::new();
+    let mut uniform_wrapper_type_cache: HashMap<String, u32> = HashMap::new();
     let mut compute_input_params: Vec<(String, Type)> = Vec::new();
     let mut local_size_values: [u32; 3] = [8, 8, 1];
 
@@ -147,42 +149,29 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
             }
         }
 
-        let inner_ty = map_ast_type(b, &uniform.ty);
-        
-        // Check if this is a sampler type (uses UniformConstant) or data type (uses Uniform with struct)
         let is_sampler = matches!(&uniform.ty, Type::Named { name, .. } if name == "Sampler2D");
-        
+
         if is_sampler {
-            // Samplers use UniformConstant storage class directly
+            let inner_ty = map_ast_type(b, &uniform.ty);
             let ptr_ty = b.type_pointer(None, StorageClass::UniformConstant, inner_ty);
             let var = b.variable(ptr_ty, None, StorageClass::UniformConstant, None);
             b.decorate(var, Decoration::DescriptorSet, vec![Operand::LiteralBit32(0)]);
             b.decorate(var, Decoration::Binding, vec![Operand::LiteralBit32(uniform.binding)]);
+            interface_vars.push(var);
             ctx_vars.insert(uniform.name.clone(), VarBinding { id: var, ty: uniform.ty.clone(), is_ptr: true });
         } else {
             let is_storage_buffer = is_storage_buffer(&uniform.ty);
             let (storage_class, pointee_ty) = if is_storage_buffer {
-                // StorageBuffer<T> is already lowered by map_ast_type to:
-                //   Block struct { runtime_array<T> }
-                // Do not wrap it again or indexing becomes invalid.
-                (StorageClass::StorageBuffer, inner_ty)
+                // StorageBuffer<T> is already lowered to a decorated block-wrapped runtime array.
+                (StorageClass::StorageBuffer, get_or_create_storage_buffer_type(b, &uniform.ty, &mut storage_buffer_type_cache))
             } else {
-                // Data uniforms (matrices, vectors, scalars) need a struct wrapper with Block.
-                let struct_ty = b.type_struct(vec![inner_ty]);
-                b.decorate(struct_ty, Decoration::Block, vec![]);
-                b.member_decorate(struct_ty, 0, Decoration::Offset, vec![Operand::LiteralBit32(0)]);
-
-                // Mat4 requires matrix layout decorations on the wrapped member.
-                if matches!(&uniform.ty, Type::Named { name, .. } if name == "Mat4") {
-                    b.member_decorate(struct_ty, 0, Decoration::ColMajor, vec![]);
-                    b.member_decorate(struct_ty, 0, Decoration::MatrixStride, vec![Operand::LiteralBit32(16)]);
-                }
-                (StorageClass::Uniform, struct_ty)
+                (StorageClass::Uniform, get_or_create_uniform_wrapper_type(b, &uniform.ty, &mut uniform_wrapper_type_cache))
             };
             let ptr_ty = b.type_pointer(None, storage_class, pointee_ty);
             let var = b.variable(ptr_ty, None, storage_class, None);
             b.decorate(var, Decoration::DescriptorSet, vec![Operand::LiteralBit32(0)]);
             b.decorate(var, Decoration::Binding, vec![Operand::LiteralBit32(uniform.binding)]);
+            interface_vars.push(var);
             ctx_vars.insert(uniform.name.clone(), VarBinding { id: var, ty: uniform.ty.clone(), is_ptr: true });
             if is_storage_buffer {
                 storage_buffers.insert(uniform.name.clone());
@@ -239,21 +228,38 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     }
 
     // SPIR-V §2.16: All OpVariable must be the first instructions of the first block.
-    // Strategy: collect all let-binding (name, KainType) pairs via pure AST walk,
-    // then emit type_pointer + variable BEFORE begin_function (global type section),
-    // then inside the function body Stmt::Let just stores into pre-allocated slots.
+    // Seed known-types with shader input parameters (e.g. id: UVec3), then
+    // walk the body to collect all let-binding types for pre-hoisting.
     let mut binding_types: Vec<(String, Type)> = Vec::new();
-    collect_binding_types(&shader.ast.body, &mut binding_types);
+    let mut seed_known: HashMap<String, Type> = shader.ast.inputs.iter()
+        .map(|p| (p.name.clone(), p.ty.clone()))
+        .collect();
+    seed_known.extend(
+        shader.ast.uniforms.iter()
+            .map(|u| (u.name.clone(), u.ty.clone()))
+    );
+    if exec_model == ExecutionModel::GLCompute {
+        let uvec3_ty = Type::Named { name: "UVec3".into(), generics: vec![], span: shader.ast.span };
+        let uint_ty = Type::Named { name: "UInt".into(), generics: vec![], span: shader.ast.span };
+        seed_known.insert("global_invocation_id".into(), uvec3_ty.clone());
+        seed_known.insert("local_invocation_id".into(), uvec3_ty.clone());
+        seed_known.insert("workgroup_id".into(), uvec3_ty.clone());
+        seed_known.insert("dispatch_thread_id".into(), uvec3_ty.clone());
+        seed_known.insert("group_thread_id".into(), uvec3_ty.clone());
+        seed_known.insert("group_id".into(), uvec3_ty);
+        seed_known.insert("local_invocation_index".into(), uint_ty.clone());
+        seed_known.insert("group_index".into(), uint_ty);
+    }
+    collect_binding_types_seeded(&shader.ast.body, seed_known, &mut binding_types);
 
     // Emit all Function-pointer types and OpVariable allocations in the global section.
-    let mut hoisted_vars: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut hoisted_vars: HashMap<String, Vec<(u32, u32)>> = HashMap::new();
     for (name, kain_ty) in &binding_types {
-        if hoisted_vars.contains_key(name.as_str()) { continue; }
         let type_id = map_ast_type(b, kain_ty);
         let ptr_ty  = b.type_pointer(None, StorageClass::Function, type_id);
         // OpVariable with Function storage class must be inside a function —
         // we emit it right after begin_function/begin_block below. Store ptr_ty for now.
-        hoisted_vars.insert(name.clone(), (0, ptr_ty)); // 0 = placeholder, replaced below
+        hoisted_vars.entry(name.clone()).or_default().push((0, ptr_ty)); // 0 = placeholder, replaced below
     }
 
     // 4. Function Body
@@ -261,9 +267,11 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     b.begin_block(None).unwrap();
 
     // Now emit the actual OpVariable instructions at the very top of the first block.
-    for (_name, slot) in hoisted_vars.iter_mut() {
-        let var_id = b.variable(slot.1, None, StorageClass::Function, None);
-        slot.0 = var_id; // store var_id in first slot
+    for (_name, slots) in hoisted_vars.iter_mut() {
+        for slot in slots.iter_mut() {
+            let var_id = b.variable(slot.1, None, StorageClass::Function, None);
+            slot.0 = var_id;
+        }
     }
     // Repackage: rename from (var_placeholder, ptr_ty) to (var_id, ptr_ty)
     // The map already has var_id in slot 0 now, ptr_ty in slot 1.
@@ -303,6 +311,150 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     Ok(())
 }
 
+fn get_or_create_storage_buffer_type(
+    b: &mut Builder,
+    buffer_ty: &Type,
+    cache: &mut HashMap<String, u32>,
+) -> u32 {
+    let key = format!("storage:{}", type_cache_key(&storage_buffer_elem_type(buffer_ty, kain_core::span::Span::default())));
+    if let Some(existing) = cache.get(&key) {
+        return *existing;
+    }
+
+    let elem_type_ast = storage_buffer_elem_type(buffer_ty, kain_core::span::Span::default());
+    let elem_ty = map_ast_type(b, &elem_type_ast);
+    let rt_array = b.type_runtime_array(elem_ty);
+    b.decorate(rt_array, Decoration::ArrayStride, vec![Operand::LiteralBit32(storage_buffer_stride(buffer_ty))]);
+    let struct_ty = b.type_struct(vec![rt_array]);
+    b.decorate(struct_ty, Decoration::Block, vec![]);
+    b.member_decorate(struct_ty, 0, Decoration::Offset, vec![Operand::LiteralBit32(0)]);
+    cache.insert(key, struct_ty);
+    struct_ty
+}
+
+fn get_or_create_uniform_wrapper_type(
+    b: &mut Builder,
+    uniform_ty: &Type,
+    cache: &mut HashMap<String, u32>,
+) -> u32 {
+    let key = format!("uniform:{}", type_cache_key(uniform_ty));
+    if let Some(existing) = cache.get(&key) {
+        return *existing;
+    }
+
+    let inner_ty = map_ast_type(b, uniform_ty);
+    let struct_ty = b.type_struct(vec![inner_ty]);
+    b.decorate(struct_ty, Decoration::Block, vec![]);
+    b.member_decorate(struct_ty, 0, Decoration::Offset, vec![Operand::LiteralBit32(0)]);
+    if matches!(uniform_ty, Type::Named { name, .. } if name == "Mat4") {
+        b.member_decorate(struct_ty, 0, Decoration::ColMajor, vec![]);
+        b.member_decorate(struct_ty, 0, Decoration::MatrixStride, vec![Operand::LiteralBit32(16)]);
+    }
+    cache.insert(key, struct_ty);
+    struct_ty
+}
+
+fn type_cache_key(ty: &Type) -> String {
+    match ty {
+        Type::Named { name, generics, .. } => {
+            if generics.is_empty() {
+                name.clone()
+            } else {
+                let inner = generics.iter().map(type_cache_key).collect::<Vec<_>>().join(",");
+                format!("{}<{}>", name, inner)
+            }
+        }
+        Type::Ref { inner, .. } => format!("ref:{}", type_cache_key(inner)),
+        Type::Array(inner, size, ..) => format!("array:{}:{}", type_cache_key(inner), size),
+        Type::Slice(inner, ..) => format!("slice:{}", type_cache_key(inner)),
+        other => format!("{:?}", other),
+    }
+}
+
+fn infer_numeric_result_type(left: Option<&Type>, right: Option<&Type>, span: kain_core::span::Span) -> Option<Type> {
+    let left = left?;
+    let right = right?;
+    let left_dim = infer_numeric_dim(left);
+    let right_dim = infer_numeric_dim(right);
+    if left_dim == 0 && right_dim == 0 {
+        return None;
+    }
+
+    let out_dim = left_dim.max(right_dim).max(1);
+    let scalar_name = if is_uint_family_name(left) || is_uint_family_name(right) {
+        "UInt"
+    } else if is_int_family_name(left) || is_int_family_name(right) {
+        "Int"
+    } else {
+        "Float"
+    };
+
+    Some(if out_dim == 1 {
+        Type::Named { name: scalar_name.into(), generics: vec![], span }
+    } else {
+        infer_vec_type_from_scalar_name(scalar_name, out_dim, span)
+    })
+}
+
+fn infer_numeric_dim(ty: &Type) -> usize {
+    match ty {
+        Type::Named { name, .. } => match name.as_str() {
+            "Float" | "f32" | "Int" | "i32" | "UInt" | "u32" | "Bool" => 1,
+            "Vec2" | "IVec2" | "UVec2" => 2,
+            "Vec3" | "IVec3" | "UVec3" => 3,
+            "Vec4" | "IVec4" | "UVec4" => 4,
+            _ => 0,
+        },
+        _ => 0,
+    }
+}
+
+fn is_uint_family_name(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if matches!(name.as_str(), "UInt" | "u32" | "UVec2" | "UVec3" | "UVec4"))
+}
+
+fn is_int_family_name(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if matches!(name.as_str(), "Int" | "i32" | "IVec2" | "IVec3" | "IVec4"))
+}
+
+fn infer_vec_type_from_scalar_name(scalar_name: &str, width: usize, span: kain_core::span::Span) -> Type {
+    let name = match (scalar_name, width) {
+        ("UInt", 2) => "UVec2",
+        ("UInt", 3) => "UVec3",
+        ("UInt", _) => "UVec4",
+        ("Int", 2) => "IVec2",
+        ("Int", 3) => "IVec3",
+        ("Int", _) => "IVec4",
+        ("Float", 2) => "Vec2",
+        ("Float", 3) => "Vec3",
+        _ => "Vec4",
+    };
+    Type::Named { name: name.into(), generics: vec![], span }
+}
+
+fn infer_single_expr_block_type(block: &Block, known: &HashMap<String, Type>) -> Option<Type> {
+    if block.stmts.len() != 1 {
+        return None;
+    }
+    match &block.stmts[0] {
+        Stmt::Expr(expr) => infer_kain_type(expr, known),
+        _ => None,
+    }
+}
+
+fn infer_else_branch_type(else_branch: &ElseBranch, known: &HashMap<String, Type>) -> Option<Type> {
+    match else_branch {
+        ElseBranch::Else(block) => infer_single_expr_block_type(block, known),
+        ElseBranch::ElseIf(_, then_block, nested) => {
+            let then_ty = infer_single_expr_block_type(then_block, known);
+            let nested_ty = nested.as_deref().and_then(|next| infer_else_branch_type(next, known));
+            infer_numeric_result_type(then_ty.as_ref(), nested_ty.as_ref(), then_block.span)
+                .or(then_ty)
+                .or(nested_ty)
+        }
+    }
+}
+
 impl<'a> ShaderContext<'a> {
     fn get_glsl_ext(&mut self) -> u32 {
         if let Some(ext) = self.glsl_ext {
@@ -328,17 +480,43 @@ fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
         Expr::Ident(name, _) => known.get(name.as_str()).cloned(),
         Expr::Unary { operand, .. } => infer_kain_type(operand, known),
         Expr::Paren(inner, _)       => infer_kain_type(inner, known),
-        Expr::Binary { left, op, .. } => match op {
+        Expr::Binary { left, op, right, .. } => match op {
             BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le |
             BinaryOp::Gt | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or => Some(named("Bool")),
-            _ => infer_kain_type(left, known),
+            _ => {
+                let left_ty = infer_kain_type(left, known);
+                let right_ty = infer_kain_type(right, known);
+                infer_numeric_result_type(left_ty.as_ref(), right_ty.as_ref(), span)
+                    .or(left_ty)
+                    .or(right_ty)
+            }
+        },
+        Expr::If { then_branch, else_branch, .. } => {
+            let then_ty = infer_single_expr_block_type(then_branch, known);
+            let else_ty = else_branch.as_deref().and_then(|eb| infer_else_branch_type(eb, known));
+            infer_numeric_result_type(then_ty.as_ref(), else_ty.as_ref(), span)
+                .or(then_ty)
+                .or(else_ty)
         },
         Expr::Cast { target, .. } => Some(target.clone()),
-        Expr::Field { field, .. } => match field.len() {
-            1 => Some(named("Float")),
-            2 => Some(named("Vec2")),
-            3 => Some(named("Vec3")),
-            _ => None,
+        Expr::Field { object, field, .. } => {
+            // Derive element type from parent vector type.
+            let parent_ty = infer_kain_type(object, known);
+            let elem_scalar = match parent_ty.as_ref().and_then(|t| if let Type::Named { name, .. } = t { Some(name.as_str()) } else { None }) {
+                Some("IVec2"|"IVec3"|"IVec4") => "Int",
+                Some("UVec2"|"UVec3"|"UVec4") => "UInt",
+                _ => "Float", // Vec2/3/4 and scalars default to Float
+            };
+            let elem_vec2 = match elem_scalar { "Int" => "IVec2", "UInt" => "UVec2", _ => "Vec2" };
+            let elem_vec3 = match elem_scalar { "Int" => "IVec3", "UInt" => "UVec3", _ => "Vec3" };
+            let elem_vec4 = match elem_scalar { "Int" => "IVec4", "UInt" => "UVec4", _ => "Vec4" };
+            match field.len() {
+                1 => Some(named(elem_scalar)),
+                2 => Some(named(elem_vec2)),
+                3 => Some(named(elem_vec3)),
+                4 => Some(named(elem_vec4)),
+                _ => parent_ty,
+            }
         },
         Expr::Call { callee, args, .. } => {
             if let Expr::Ident(fn_name, _) = callee.as_ref() {
@@ -356,6 +534,7 @@ fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
                     ("Float",1) => Some(named("Float")),
                     ("Int",  1) => Some(named("Int")),
                     ("UInt", 1) => Some(named("UInt")),
+                    ("Bool", 1) => Some(named("Bool")),
                     // Scalar math (same type as first arg)
                     ("sin"|"cos"|"tan"|"asin"|"acos"|"atan"|"sqrt"|"abs"|"floor"|"ceil"|
                      "fract"|"round"|"trunc"|"sign"|"exp"|"log"|"exp2"|"log2"|
@@ -381,6 +560,16 @@ fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
                 }
             } else { None }
         },
+        Expr::Index { object, .. } => {
+            let object_ty = infer_kain_type(object, known)?;
+            match object_ty {
+                Type::Named { name, generics, .. } if name == "StorageBuffer" => {
+                    generics.first().cloned().or_else(|| Some(named("Float")))
+                }
+                Type::Array(inner, _, _) | Type::Slice(inner, _) => Some((*inner).clone()),
+                _ => None,
+            }
+        },
         _ => None,
     }
 }
@@ -388,12 +577,21 @@ fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
 /// Pure AST walk — collects (binding_name, inferred_KainType) for every let in the block tree.
 /// No Builder interaction at all. Unknown types are mapped to Float as safe fallback.
 fn collect_binding_types(block: &Block, out: &mut Vec<(String, Type)>) {
-    let mut known: HashMap<String, Type> = HashMap::new();
-    collect_block_types(block, &mut known, out);
+    let known: HashMap<String, Type> = HashMap::new();
+    collect_block_types(block, &mut { known }, out);
+}
+
+fn collect_binding_types_seeded(block: &Block, seed: HashMap<String, Type>, out: &mut Vec<(String, Type)>) {
+    collect_block_types(block, &mut { seed }, out);
+}
+
+fn internal_hoist_name(prefix: &str, span: kain_core::span::Span) -> String {
+    format!("__{}_{}_{}", prefix, span.start, span.end)
 }
 
 fn collect_block_types(block: &Block, known: &mut HashMap<String, Type>, out: &mut Vec<(String, Type)>) {
     let float_ty = |span: kain_core::span::Span| Type::Named { name: "Float".into(), generics: vec![], span };
+    let int_ty = |span: kain_core::span::Span| Type::Named { name: "Int".into(), generics: vec![], span };
 
     for stmt in &block.stmts {
         match stmt {
@@ -422,11 +620,25 @@ fn collect_block_types(block: &Block, known: &mut HashMap<String, Type>, out: &m
                 }
             },
             Stmt::While { body, .. } => collect_block_types(body, known, out),
-            Stmt::For   { body, .. } => collect_block_types(body, known, out),
+            Stmt::For   { body, span, .. } => {
+                out.push((internal_hoist_name("for_iter", *span), int_ty(*span)));
+                out.push((internal_hoist_name("for_end", *span), int_ty(*span)));
+                collect_block_types(body, known, out)
+            },
             Stmt::Loop  { body, .. } => collect_block_types(body, known, out),
-            _ => {}
+            _ => {} // Ignore others for now
         }
     }
+}
+
+fn take_hoisted_slot(ctx: &mut ShaderContext, name: &str, ptr_ty: u32) -> Option<u32> {
+    ctx
+        .hoisted_vars
+        .get_mut(name)
+        .and_then(|slots| {
+            let idx = slots.iter().position(|(_, hoisted_ptr)| *hoisted_ptr == ptr_ty)?;
+            Some(slots.remove(idx).0)
+        })
 }
 
 
@@ -453,10 +665,8 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
                         // If there's a mismatch, emit a new correctly-typed variable here.
                         let type_id = map_ast_type(ctx.b, &ty);
                         let ptr_ty = ctx.b.type_pointer(None, StorageClass::Function, type_id);
-                        let local_var = match ctx.hoisted_vars.get(name.as_str()) {
-                            Some(&(id, hoisted_ptr)) if hoisted_ptr == ptr_ty => id,
-                            _ => ctx.b.variable(ptr_ty, None, StorageClass::Function, None),
-                        };
+                        let local_var = take_hoisted_slot(ctx, name, ptr_ty)
+                            .unwrap_or_else(|| ctx.b.variable(ptr_ty, None, StorageClass::Function, None));
                         ctx.b.store(local_var, val, None, std::iter::empty()).unwrap();
                         ctx.vars.insert(name.clone(), VarBinding { id: local_var, ty, is_ptr: true });
                     }
@@ -951,54 +1161,62 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                     },
                     "min" if args.len() == 2 => {
                         let (a, ty) = emit_expr(ctx, &args[0].value)?;
-                        let (b, _) = emit_expr(ctx, &args[1].value)?;
-                        let res_ty = map_ast_type(ctx.b, &ty);
-                        let glsl = ctx.get_glsl_ext();
-                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 37, vec![Operand::IdRef(a), Operand::IdRef(b)]).unwrap(); // FMin = 37
+                        let (b, _)  = emit_expr(ctx, &args[1].value)?;
+                        let res_ty  = map_ast_type(ctx.b, &ty);
+                        let glsl    = ctx.get_glsl_ext();
+                        // GLSL.std.450: FMin=37, UMin=38, SMin=39
+                        let opcode = if is_float_like(&ty) { 37 } else if is_uint_like(&ty) { 38 } else { 39 };
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, opcode, vec![Operand::IdRef(a), Operand::IdRef(b)]).unwrap();
                         return Ok((res_id, ty));
                     },
                     "max" if args.len() == 2 => {
                         let (a, ty) = emit_expr(ctx, &args[0].value)?;
-                        let (b, _) = emit_expr(ctx, &args[1].value)?;
-                        let res_ty = map_ast_type(ctx.b, &ty);
-                        let glsl = ctx.get_glsl_ext();
-                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 40, vec![Operand::IdRef(a), Operand::IdRef(b)]).unwrap(); // FMax = 40
+                        let (b, _)  = emit_expr(ctx, &args[1].value)?;
+                        let res_ty  = map_ast_type(ctx.b, &ty);
+                        let glsl    = ctx.get_glsl_ext();
+                        // GLSL.std.450: FMax=40, UMax=41, SMax=42
+                        let opcode = if is_float_like(&ty) { 40 } else if is_uint_like(&ty) { 41 } else { 42 };
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, opcode, vec![Operand::IdRef(a), Operand::IdRef(b)]).unwrap();
                         return Ok((res_id, ty));
                     },
                     "clamp" if args.len() == 3 => {
-                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
-                        let (min_val, _) = emit_expr(ctx, &args[1].value)?;
-                        let (max_val, _) = emit_expr(ctx, &args[2].value)?;
-                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let (val, val_ty) = emit_expr(ctx, &args[0].value)?;
+                        let (min_val, min_ty) = emit_expr(ctx, &args[1].value)?;
+                        let (max_val, max_ty) = emit_expr(ctx, &args[2].value)?;
+                        let (val_f, min_f, max_f, out_ty) = coerce_float_ternary_operands(ctx, val, &val_ty, min_val, &min_ty, max_val, &max_ty);
+                        let res_ty = map_ast_type(ctx.b, &out_ty);
                         let glsl = ctx.get_glsl_ext();
-                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 43, vec![Operand::IdRef(val), Operand::IdRef(min_val), Operand::IdRef(max_val)]).unwrap(); // FClamp = 43
-                        return Ok((res_id, ty));
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 43, vec![Operand::IdRef(val_f), Operand::IdRef(min_f), Operand::IdRef(max_f)]).unwrap(); // FClamp = 43
+                        return Ok((res_id, out_ty));
                     },
                     "mix" if args.len() == 3 => {
                         let (a, ty) = emit_expr(ctx, &args[0].value)?;
-                        let (b, _) = emit_expr(ctx, &args[1].value)?;
-                        let (t, _) = emit_expr(ctx, &args[2].value)?;
-                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let (b, b_ty) = emit_expr(ctx, &args[1].value)?;
+                        let (t, t_ty) = emit_expr(ctx, &args[2].value)?;
+                        let (a_f, b_f, t_f, out_ty) = coerce_float_ternary_operands(ctx, a, &ty, b, &b_ty, t, &t_ty);
+                        let res_ty = map_ast_type(ctx.b, &out_ty);
                         let glsl = ctx.get_glsl_ext();
-                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 46, vec![Operand::IdRef(a), Operand::IdRef(b), Operand::IdRef(t)]).unwrap(); // FMix = 46
-                        return Ok((res_id, ty));
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 46, vec![Operand::IdRef(a_f), Operand::IdRef(b_f), Operand::IdRef(t_f)]).unwrap(); // FMix = 46
+                        return Ok((res_id, out_ty));
                     },
                     "step" if args.len() == 2 => {
-                        let (edge, ty) = emit_expr(ctx, &args[0].value)?;
-                        let (x, _) = emit_expr(ctx, &args[1].value)?;
-                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let (edge, edge_ty) = emit_expr(ctx, &args[0].value)?;
+                        let (x, x_ty) = emit_expr(ctx, &args[1].value)?;
+                        let (edge_f, x_f, out_ty) = coerce_float_binary_operands(ctx, edge, &edge_ty, x, &x_ty);
+                        let res_ty = map_ast_type(ctx.b, &out_ty);
                         let glsl = ctx.get_glsl_ext();
-                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 48, vec![Operand::IdRef(edge), Operand::IdRef(x)]).unwrap(); // Step = 48
-                        return Ok((res_id, ty));
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 48, vec![Operand::IdRef(edge_f), Operand::IdRef(x_f)]).unwrap(); // Step = 48
+                        return Ok((res_id, out_ty));
                     },
                     "smoothstep" if args.len() == 3 => {
-                        let (edge0, ty) = emit_expr(ctx, &args[0].value)?;
-                        let (edge1, _) = emit_expr(ctx, &args[1].value)?;
-                        let (x, _) = emit_expr(ctx, &args[2].value)?;
-                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let (edge0, edge0_ty) = emit_expr(ctx, &args[0].value)?;
+                        let (edge1, edge1_ty) = emit_expr(ctx, &args[1].value)?;
+                        let (x, x_ty) = emit_expr(ctx, &args[2].value)?;
+                        let (edge0_f, edge1_f, x_f, out_ty) = coerce_float_ternary_operands(ctx, edge0, &edge0_ty, edge1, &edge1_ty, x, &x_ty);
+                        let res_ty = map_ast_type(ctx.b, &out_ty);
                         let glsl = ctx.get_glsl_ext();
-                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 49, vec![Operand::IdRef(edge0), Operand::IdRef(edge1), Operand::IdRef(x)]).unwrap(); // SmoothStep = 49
-                        return Ok((res_id, ty));
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 49, vec![Operand::IdRef(edge0_f), Operand::IdRef(edge1_f), Operand::IdRef(x_f)]).unwrap(); // SmoothStep = 49
+                        return Ok((res_id, out_ty));
                     },
                     "length" if args.len() == 1 => {
                         let (val, _) = emit_expr(ctx, &args[0].value)?;
@@ -1353,7 +1571,7 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
             let ty_id = map_ast_type(ctx.b, &ty);
             let out = match op {
                 UnaryOp::Neg => {
-                    if is_float(&ty) {
+                    if is_float_like(&ty) {
                         ctx.b.f_negate(ty_id, None, val).unwrap()
                     } else {
                         ctx.b.s_negate(ty_id, None, val).unwrap()
@@ -1576,6 +1794,7 @@ fn emit_else_branch(ctx: &mut ShaderContext, else_branch: &ElseBranch) -> KainRe
 
 fn emit_while_statement(ctx: &mut ShaderContext, condition: &Expr, body: &Block) -> KainResult<()> {
     let header_label = ctx.b.id();
+    let condition_label = ctx.b.id();
     let loop_body_label = ctx.b.id();
     let continue_label = ctx.b.id();
     let merge_label = ctx.b.id();
@@ -1584,6 +1803,9 @@ fn emit_while_statement(ctx: &mut ShaderContext, condition: &Expr, body: &Block)
 
     ctx.b.begin_block(Some(header_label)).unwrap();
     ctx.b.loop_merge(merge_label, continue_label, rspirv::spirv::LoopControl::NONE, std::iter::empty()).unwrap();
+    ctx.b.branch(condition_label).unwrap();
+
+    ctx.b.begin_block(Some(condition_label)).unwrap();
     let (cond_raw, cond_ty) = emit_expr(ctx, condition)?;
     let cond = as_bool(ctx, cond_raw, &cond_ty);
     ctx.b.branch_conditional(cond, loop_body_label, merge_label, std::iter::empty::<u32>()).unwrap();
@@ -1619,6 +1841,26 @@ fn emit_for_statement(
 
     let (start_expr, end_expr, inclusive) = match iter {
         Expr::Range { start, end, inclusive, .. } => (start.as_deref(), end.as_deref(), *inclusive),
+        Expr::Call { callee, args, .. } => {
+            if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                if fn_name == "range" {
+                    match args.len() {
+                        1 => (None, Some(&args[0].value), false),
+                        2 => (Some(&args[0].value), Some(&args[1].value), false),
+                        _ => {
+                            return Err(KainError::codegen(
+                                "SPIR-V for loops support range(end) or range(start, end)",
+                                span,
+                            ))
+                        }
+                    }
+                } else {
+                    return Err(KainError::codegen("SPIR-V for loops currently require range iteration", span));
+                }
+            } else {
+                return Err(KainError::codegen("SPIR-V for loops currently require range iteration", span));
+            }
+        }
         _ => return Err(KainError::codegen("SPIR-V for loops currently require range iteration", span)),
     };
     let end_expr = end_expr.ok_or_else(|| KainError::codegen("for range requires an end bound", span))?;
@@ -1627,7 +1869,9 @@ fn emit_for_statement(
     let int_ty = map_ast_type(ctx.b, &int_ty_ast);
     let int_ptr_ty = ctx.b.type_pointer(None, StorageClass::Function, int_ty);
 
-    let loop_var = ctx.b.variable(int_ptr_ty, None, StorageClass::Function, None);
+    let loop_var_name = internal_hoist_name("for_iter", span);
+    let loop_var = take_hoisted_slot(ctx, &loop_var_name, int_ptr_ty)
+        .unwrap_or_else(|| ctx.b.variable(int_ptr_ty, None, StorageClass::Function, None));
     let init_val = if let Some(start_expr) = start_expr {
         let (v, _) = emit_expr(ctx, start_expr)?;
         v
@@ -1636,7 +1880,9 @@ fn emit_for_statement(
     };
     ctx.b.store(loop_var, init_val, None, std::iter::empty()).unwrap();
 
-    let range_end_var = ctx.b.variable(int_ptr_ty, None, StorageClass::Function, None);
+    let range_end_name = internal_hoist_name("for_end", span);
+    let range_end_var = take_hoisted_slot(ctx, &range_end_name, int_ptr_ty)
+        .unwrap_or_else(|| ctx.b.variable(int_ptr_ty, None, StorageClass::Function, None));
     let (end_val, _) = emit_expr(ctx, end_expr)?;
     ctx.b.store(range_end_var, end_val, None, std::iter::empty()).unwrap();
 
@@ -1650,6 +1896,7 @@ fn emit_for_statement(
     );
 
     let header_label = ctx.b.id();
+    let condition_label = ctx.b.id();
     let loop_body_label = ctx.b.id();
     let continue_label = ctx.b.id();
     let merge_label = ctx.b.id();
@@ -1657,7 +1904,9 @@ fn emit_for_statement(
     terminate_with_branch(ctx, header_label)?;
     ctx.b.begin_block(Some(header_label)).unwrap();
     ctx.b.loop_merge(merge_label, continue_label, rspirv::spirv::LoopControl::NONE, std::iter::empty()).unwrap();
+    ctx.b.branch(condition_label).unwrap();
 
+    ctx.b.begin_block(Some(condition_label)).unwrap();
     let i_val = ctx.b.load(int_ty, None, loop_var, None, std::iter::empty()).unwrap();
     let end_loaded = ctx.b.load(int_ty, None, range_end_var, None, std::iter::empty()).unwrap();
     let bool_ty = ctx.b.type_bool();
@@ -1731,9 +1980,7 @@ fn map_ast_type(b: &mut Builder, ty: &Type) -> u32 {
                 };
                 let elem_ty = map_ast_type(b, &elem_type_ast);
                 let rt_array = b.type_runtime_array(elem_ty);
-                b.decorate(rt_array, Decoration::ArrayStride, vec![Operand::LiteralBit32(storage_buffer_stride(ty))]);
                 let struct_ty = b.type_struct(vec![rt_array]);
-                b.decorate(struct_ty, Decoration::Block, vec![]);
                 struct_ty
             },
             "Void" => b.type_void(),
@@ -2204,11 +2451,46 @@ fn coerce_float_binary_operands(
     )
 }
 
+fn coerce_float_ternary_operands(
+    ctx: &mut ShaderContext,
+    a_id: u32,
+    a_ty: &Type,
+    b_id: u32,
+    b_ty: &Type,
+    c_id: u32,
+    c_ty: &Type,
+) -> (u32, u32, u32, Type) {
+    let a_f = cast_to_f32(ctx, a_id, a_ty);
+    let b_f = cast_to_f32(ctx, b_id, b_ty);
+    let c_f = cast_to_f32(ctx, c_id, c_ty);
+    let out_dim = numeric_dim(a_ty).max(numeric_dim(b_ty)).max(numeric_dim(c_ty));
+
+    if out_dim <= 1 {
+        return (
+            a_f,
+            b_f,
+            c_f,
+            Type::Named { name: "Float".into(), generics: vec![], span: a_ty.span() },
+        );
+    }
+
+    let scalar_ty = Type::Named { name: "Float".into(), generics: vec![], span: a_ty.span() };
+    let a_out = if numeric_dim(a_ty) == 1 { splat_to_vec(ctx, a_f, &scalar_ty, out_dim) } else { a_f };
+    let b_out = if numeric_dim(b_ty) == 1 { splat_to_vec(ctx, b_f, &scalar_ty, out_dim) } else { b_f };
+    let c_out = if numeric_dim(c_ty) == 1 { splat_to_vec(ctx, c_f, &scalar_ty, out_dim) } else { c_f };
+    let out_ty = vec_type_from_scalar(&scalar_ty, out_dim, a_ty.span());
+    (a_out, b_out, c_out, out_ty)
+}
+
 fn vector_scalar_type(ctx: &mut ShaderContext, vec_ty: &Type) -> Type {
     if matches!(vec_ty, Type::Named { name, .. } if name.starts_with('U')) {
         Type::Named { name: "UInt".into(), generics: vec![], span: kain_core::span::Span::default() }
+    } else if matches!(vec_ty, Type::Named { name, .. } if name.starts_with('I')) {
+        Type::Named { name: "Int".into(), generics: vec![], span: kain_core::span::Span::default() }
     } else if is_uint(vec_ty) {
         Type::Named { name: "UInt".into(), generics: vec![], span: kain_core::span::Span::default() }
+    } else if is_int(vec_ty) {
+        Type::Named { name: "Int".into(), generics: vec![], span: kain_core::span::Span::default() }
     } else {
         let _ = ctx; // keep signature uniform for future extension
         Type::Named { name: "Float".into(), generics: vec![], span: kain_core::span::Span::default() }
@@ -2217,11 +2499,18 @@ fn vector_scalar_type(ctx: &mut ShaderContext, vec_ty: &Type) -> Type {
 
 fn vec_type_from_scalar(scalar_ty: &Type, width: usize, span: kain_core::span::Span) -> Type {
     let is_u = matches!(scalar_ty, Type::Named { name, .. } if name == "UInt" || name == "u32");
+    let is_i = matches!(scalar_ty, Type::Named { name, .. } if name == "Int" || name == "i32");
     let name = if is_u {
         match width {
             2 => "UVec2",
             3 => "UVec3",
             _ => "UVec4",
+        }
+    } else if is_i {
+        match width {
+            2 => "IVec2",
+            3 => "IVec3",
+            _ => "IVec4",
         }
     } else {
         match width {

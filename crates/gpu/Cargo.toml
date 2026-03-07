@@ -8,3 +8,6 @@ kain-core = { path = "../kain-core" }
 rspirv = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+ash = "0.37.3"
