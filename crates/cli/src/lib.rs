@@ -12,6 +12,8 @@ pub mod packager;
 pub mod import_asm;
 pub mod import_c;
 pub mod import_rust;
+#[cfg(all(feature = "gpu", feature = "sys"))]
+pub mod gpu_artifacts;
 
 // Backend imports
 #[cfg(feature = "ue5")]
@@ -30,7 +32,7 @@ use gpu;
 use web;
 
 #[cfg(feature = "sys")]
-use sys;
+use kain_sys_codegen as sys;
 
 // Constants
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

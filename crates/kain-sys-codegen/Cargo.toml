@@ -1,10 +1,12 @@
 [package]
-name = "sys"
+name = "kain-sys-codegen"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 kain-core = { path = "../kain-core" }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 # inkwell = { workspace = true, optional = true } 
 
 [features]

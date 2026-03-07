@@ -385,13 +385,13 @@ dependencies = [
  "kain-asm",
  "kain-core",
  "kain-import",
+ "kain-sys-codegen",
  "minijinja",
  "notify",
  "quick-xml",
  "reqwest",
  "serde",
  "serde_json",
- "sys",
  "tar",
  "tempfile",
  "tokio",
@@ -1374,6 +1374,13 @@ dependencies = [
  "serde_json",
  "syn 2.0.111",
  "thiserror",
+]
+
+[[package]]
+name = "kain-sys-codegen"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
 ]
 
 [[package]]
@@ -2616,13 +2623,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
-]
-
-[[package]]
-name = "sys"
-version = "0.1.0"
-dependencies = [
- "kain-core",
 ]
 
 [[package]]

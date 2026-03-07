@@ -4,6 +4,9 @@
 //! The generated Rust can be compiled with `rustc` directly or integrated
 //! into a Cargo project.
 
+pub mod gpu_artifacts;
+pub mod gpu_host;
+
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use kain_core::types::{TypedProgram, TypedItem};
 use kain_core::error::KainResult;
@@ -14,11 +17,28 @@ use kain_core::ast::{
 };
 use kain_core::span::Span;
 
+pub use gpu_artifacts::{
+    collect_gpu_artifacts,
+    collect_gpu_artifacts_json,
+    RustGpuArtifactOutput,
+    RustGpuBindingArtifact,
+    RustGpuBindingKind,
+    RustGpuInputArtifact,
+    RustGpuShaderStage,
+    RustGpuShaderArtifact,
+};
+pub use gpu_host::generate_gpu_host;
+
 /// Generate Rust source code from a typed program
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Rust)?;
     let mut gen = RustGen::new();
     Ok(gen.gen_program(&lowered))
+}
+
+pub fn generate_gpu_host_wrappers(program: &TypedProgram) -> KainResult<String> {
+    let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Rust)?;
+    Ok(gpu_host::generate_gpu_host(&lowered))
 }
 
 // StringBuilder helper for accumulated output

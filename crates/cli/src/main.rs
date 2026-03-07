@@ -17,6 +17,8 @@ use cli::lsp;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_rust;
+#[cfg(all(feature = "gpu", feature = "sys"))]
+use cli::gpu_artifacts;
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -127,6 +129,15 @@ enum Commands {
     /// Run a file (explicit command)
     Run {
         input: PathBuf,
+    },
+
+    /// Generate paired GPU artifacts (SPIR-V, Rust host wrappers, reflection JSON)
+    GpuArtifacts {
+        input: PathBuf,
+
+        /// Output base path for generated GPU artifacts
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
     
     /// Inject KAIN file into existing plugin (non-destructive)
@@ -748,6 +759,29 @@ fn main() {
             }
             Some(Commands::Run { input }) => {
                 run_compile(&input, CompileTarget::Interpret, None, args.emit_ast, args.emit_typed, args.verbose, args.analyze, args.plugin.as_deref());
+            }
+            Some(Commands::GpuArtifacts { input, output }) => {
+                #[cfg(all(feature = "gpu", feature = "sys"))]
+                {
+                    match gpu_artifacts::run_gpu_artifact_pipeline(&input, output.as_ref()) {
+                        Ok(paths) => {
+                            println!(" Generated {} GPU artifact files:", paths.len());
+                            for path in paths {
+                                println!("   - {}", path.display());
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!(" GPU artifact generation failed: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+
+                #[cfg(not(all(feature = "gpu", feature = "sys")))]
+                {
+                    eprintln!(" GPU artifact generation requires both gpu and sys features");
+                    std::process::exit(1);
+                }
             }
             Some(Commands::Inject { inputs, plugin_dir, plugin, force, dry_run, ue5 }) => {
                 if ue5 {

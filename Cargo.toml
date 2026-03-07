@@ -11,7 +11,7 @@ members = [
     "crates/ue5-config",
     "crates/gpu",
     "crates/web",
-    "crates/sys",
+    "crates/kain-sys-codegen",
     "crates/cli",
     # "crates/browser" # Uncomment when ready to integrate
 
