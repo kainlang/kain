@@ -299,8 +299,8 @@ impl<'a> ShaderContext<'a> {
 
 /// Lightweight AST type inference used during the variable hoist pre-pass.
 /// Returns (spirv_type_id, ptr_type_id) for the given expression, or None if unknown.
-/// Only covers the common cases that appear in shader let-bindings.
-fn infer_let_type(b: &mut Builder, expr: &Expr) -> Option<(u32, u32)> {
+/// `known` carries already-hoisted variable types so Ident nodes can be resolved.
+fn infer_let_type(b: &mut Builder, expr: &Expr, known: &HashMap<String, (u32, u32)>) -> Option<(u32, u32)> {
     let float  = b.type_float(32);
     let int    = b.type_int(32, 1);
     let uint   = b.type_int(32, 0);
@@ -325,15 +325,17 @@ fn infer_let_type(b: &mut Builder, expr: &Expr) -> Option<(u32, u32)> {
         Expr::Float(_, _) => mk(b, float),
         Expr::Int(_, _)   => mk(b, int),
         Expr::Bool(_, _)  => mk(b, bool_t),
-        Expr::Unary { operand, .. } => infer_let_type(b, operand),
+        // Resolve already-registered variables.
+        Expr::Ident(name, _) => known.get(name.as_str()).copied(),
+        Expr::Unary { operand, .. } => infer_let_type(b, operand, known),
         Expr::Binary { left, op, .. } => {
             match op {
                 BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le |
                 BinaryOp::Gt | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or => mk(b, bool_t),
-                _ => infer_let_type(b, left),
+                _ => infer_let_type(b, left, known),
             }
         },
-        Expr::Paren(inner, _) => infer_let_type(b, inner),
+        Expr::Paren(inner, _) => infer_let_type(b, inner, known),
         Expr::Cast { target, .. } => {
             let ty = match target {
                 Type::Named { name, .. } => match name.as_str() {
@@ -374,23 +376,23 @@ fn infer_let_type(b: &mut Builder, expr: &Expr) -> Option<(u32, u32)> {
                     ("sin"|"cos"|"tan"|"asin"|"acos"|"atan"|"sqrt"|"abs"|"floor"|"ceil"|
                      "fract"|"round"|"trunc"|"sign"|"exp"|"log"|"exp2"|"log2"|
                      "inversesqrt"|"radians"|"degrees", 1) => {
-                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
                     },
                     // 2-arg scalar
                     ("pow"|"atan2"|"min"|"max"|"step"|"mod", 2) => {
-                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
                     },
-                    // 3-arg scalar  
+                    // 3-arg scalar
                     ("clamp"|"mix"|"smoothstep", 3) => {
-                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
                     },
                     // Scalar reductions on vectors
                     ("length"|"distance"|"dot", _) => Some(float),
                     // Vector ops preserving type
                     ("normalize"|"cross"|"reflect", _) => {
-                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                        infer_let_type(b, &args[0].value, known).map(|(t, _)| t)
                     },
-                    ("refract", 3) => infer_let_type(b, &args[0].value).map(|(t, _)| t),
+                    ("refract", 3) => infer_let_type(b, &args[0].value, known).map(|(t, _)| t),
                     // Texture sample → vec4
                     ("sample"|"sample_lod", _) => Some(vec4),
                     _ => None,
@@ -402,14 +404,13 @@ fn infer_let_type(b: &mut Builder, expr: &Expr) -> Option<(u32, u32)> {
             }
         },
         Expr::Field { object, field, .. } => {
-            // swizzle/component access → scalar or sub-vector
-            let parent = infer_let_type(b, object);
+            // swizzle/component access
             let flen = field.len();
             match flen {
-                1 => mk(b, float),                       // .x / .y / .z / .w → Float
-                2 => mk(b, vec2),                        // .xy etc → Vec2
-                3 => mk(b, vec3),                        // .xyz etc → Vec3
-                _ => parent.map(|(t, _)| { let p = b.type_pointer(None, sc, t); (t, p) }),
+                1 => mk(b, float),
+                2 => mk(b, vec2),
+                3 => mk(b, vec3),
+                _ => infer_let_type(b, object, known).map(|(t, _)| { let p = b.type_pointer(None, sc, t); (t, p) }),
             }
         },
         _ => None,
@@ -425,7 +426,7 @@ fn hoist_variables(b: &mut Builder, block: &Block, hoisted: &mut HashMap<String,
             Stmt::Let { pattern, value, .. } => {
                 if let (kain_core::ast::Pattern::Binding { name, .. }, Some(value)) = (pattern, value) {
                     if hoisted.contains_key(name.as_str()) { continue; }
-                    if let Some((ty_id, ptr_ty_id)) = infer_let_type(b, value) {
+                    if let Some((ty_id, ptr_ty_id)) = infer_let_type(b, value, hoisted) {
                         let var_id = b.variable(ptr_ty_id, None, StorageClass::Function, None);
                         hoisted.insert(name.clone(), (var_id, ptr_ty_id));
                     } else {
