@@ -5,7 +5,8 @@
 //! ## Supported Languages
 //!
 //! - **C** (via `lang-c`) - Full C11 support with preprocessor
-//! - **Rust** (planned) - Import Rust code into KAIN
+//! - **Rust** (via `syn`) - Import Rust code into KAIN
+//! - **TypeScript** (via `swc_ecma_parser`) - Import TypeScript code into KAIN
 //! - **C++** (planned) - Import C++ code into KAIN
 //! - **Python** (planned) - Import Python code into KAIN
 //!
@@ -31,6 +32,10 @@ pub mod common;
 
 #[cfg(feature = "rust")]
 pub mod rust;
+
+#[cfg(feature = "typescript")]
+pub mod typescript;
+
 // pub mod cpp;   // Future: tree-sitter-cpp
 // pub mod python; // Future: rustpython-parser
 
@@ -46,6 +51,9 @@ pub enum ImportError {
     
     #[error("Failed to parse Rust file: {0}")]
     RustParseError(String),
+    
+    #[error("Failed to parse TypeScript file: {0}")]
+    TypeScriptParseError(String),
     
     #[error("Failed to transform to KAIN AST: {0}")]
     TransformError(String),
@@ -123,4 +131,15 @@ pub fn import_rust(path: &std::path::Path) -> Result<Program> {
 #[cfg(feature = "rust")]
 pub fn import_rust_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
     rust::import_rust_dir(dir, flat)
+}
+
+// TypeScript importer
+#[cfg(feature = "typescript")]
+pub fn import_typescript(path: &std::path::Path) -> Result<Program> {
+    typescript::import_typescript_file(path)
+}
+
+#[cfg(feature = "typescript")]
+pub fn import_typescript_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
+    typescript::import_typescript_dir(dir, flat)
 }

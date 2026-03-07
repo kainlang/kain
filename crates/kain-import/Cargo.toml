@@ -17,6 +17,11 @@ lang-c = { version = "0.15", optional = true }
 syn         = { version = "2.0", features = ["full", "extra-traits", "parsing", "printing"], optional = true }
 proc-macro2 = { version = "1.0", optional = true }
 
+# TypeScript/JavaScript parsing (SWC — used by Deno, Next.js, Vercel, Parcel)
+swc_ecma_parser = { version = "0.147", optional = true }
+swc_ecma_ast    = { version = "0.116", optional = true }
+swc_common      = { version = "0.36", optional = true }
+
 # Utilities
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -26,8 +31,9 @@ serde_json = "1.0"
 pretty_assertions = "1.4"
 
 [features]
-default = ["c", "rust"]
+default = ["c", "rust", "typescript"]
 c    = ["dep:lang-c"]
 rust = ["dep:syn", "dep:proc-macro2"]
+typescript = ["dep:swc_ecma_parser", "dep:swc_ecma_ast", "dep:swc_common"]
 cpp  = []        # Future: tree-sitter-cpp
 python = []      # Future: rustpython-parser
