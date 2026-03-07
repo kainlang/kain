@@ -103,6 +103,10 @@ enum Commands {
         /// Optional input file. If omitted, builds all targets from KAIN.toml
         input: Option<PathBuf>,
 
+        /// Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
         /// Single target override for file builds (e.g. ts, rust, wasm)
         #[arg(short, long)]
         target: Option<String>,
@@ -268,6 +272,9 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
             .unwrap_or_else(|| input.with_extension(target_extension(target)));
         match cli::compile_spirv_binary(&source) {
             Ok(spv_bytes) => {
+                if !ensure_parent_dir(&output_path) {
+                    return false;
+                }
                 if let Err(e) = fs::write(&output_path, &spv_bytes) {
                     eprintln!(" Failed to write output: {}", e);
                     return false;
@@ -319,6 +326,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     })
                 };
                 
+                
+                if !ensure_parent_dir(&output_path) {
+                    return false;
+                }
                 if let Err(e) = fs::write(&output_path, &compiled_output) {
                     eprintln!(" Failed to write output: {}", e);
                     return false;
@@ -373,7 +384,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     match cli::generate_usf_header(&source, &shader_name) {
                         Ok(header_code) => {
                             let header_path = output_path.with_extension("h");
-                            if let Err(e) = fs::write(&header_path, header_code.as_bytes()) {
+                            let header_path = output_path.with_extension("h");
+                            if !ensure_parent_dir(&header_path) {
+                                eprintln!(" Warning: Failed to create directory for header");
+                            } else if let Err(e) = fs::write(&header_path, header_code.as_bytes()) {
                                 eprintln!(" Warning: Failed to write header: {}", e);
                             } else {
                                 println!(" Generated header: {}", header_path.display());
@@ -389,7 +403,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     match cli::generate_usf_implementation(&source, &shader_name, plugin_name_str) {
                         Ok(cpp_code) => {
                             let cpp_path = output_path.with_extension("cpp");
-                            if let Err(e) = fs::write(&cpp_path, cpp_code.as_bytes()) {
+                            let cpp_path = output_path.with_extension("cpp");
+                            if !ensure_parent_dir(&cpp_path) {
+                                eprintln!(" Warning: Failed to create directory for implementation");
+                            } else if let Err(e) = fs::write(&cpp_path, cpp_code.as_bytes()) {
                                 eprintln!(" Warning: Failed to write implementation: {}", e);
                             } else {
                                 println!(" Generated implementation: {}", cpp_path.display());
@@ -423,7 +440,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                         Ok(ue5_output) => {
                             // Write header file
                             let header_path = output_path.with_extension("h");
-                            if let Err(e) = fs::write(&header_path, ue5_output.header.as_bytes()) {
+                            let header_path = output_path.with_extension("h");
+                            if !ensure_parent_dir(&header_path) {
+                                eprintln!(" Warning: Failed to create directory for header");
+                            } else if let Err(e) = fs::write(&header_path, ue5_output.header.as_bytes()) {
                                 eprintln!(" Warning: Failed to write header: {}", e);
                             } else {
                                 println!(" Generated header: {} ({} bytes)", header_path.display(), ue5_output.header.len());
@@ -431,7 +451,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                             
                             // Write source file
                             let source_path = output_path.with_extension("cpp");
-                            if let Err(e) = fs::write(&source_path, ue5_output.source.as_bytes()) {
+                            let source_path = output_path.with_extension("cpp");
+                            if !ensure_parent_dir(&source_path) {
+                                eprintln!(" Warning: Failed to create directory for source");
+                            } else if let Err(e) = fs::write(&source_path, ue5_output.source.as_bytes()) {
                                 eprintln!(" Warning: Failed to write source: {}", e);
                             } else {
                                 println!(" Generated source: {} ({} bytes)", source_path.display(), ue5_output.source.len());
@@ -442,7 +465,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                                 println!(" Generated {} shader files:", ue5_output.shader_files.len());
                                 for (filename, content) in &ue5_output.shader_files {
                                     let shader_path = output_path.with_file_name(filename);
-                                    if let Err(e) = fs::write(&shader_path, content.as_bytes()) {
+                                    let shader_path = output_path.with_file_name(filename);
+                                    if !ensure_parent_dir(&shader_path) {
+                                        eprintln!("   Warning: Failed to create directory for {}", filename);
+                                    } else if let Err(e) = fs::write(&shader_path, content.as_bytes()) {
                                         eprintln!("   Warning: Failed to write {}: {}", filename, e);
                                     } else {
                                         println!("   - {} ({} bytes)", shader_path.display(), content.len());
@@ -462,7 +488,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                         Ok(editor_output) => {
                             // Write header file
                             let header_path = output_path.with_extension("h");
-                            if let Err(e) = fs::write(&header_path, editor_output.header.as_bytes()) {
+                            let header_path = output_path.with_extension("h");
+                            if !ensure_parent_dir(&header_path) {
+                                eprintln!(" Warning: Failed to create directory for header");
+                            } else if let Err(e) = fs::write(&header_path, editor_output.header.as_bytes()) {
                                 eprintln!(" Warning: Failed to write header: {}", e);
                             } else {
                                 println!(" Generated header: {} ({} bytes)", header_path.display(), editor_output.header.len());
@@ -470,7 +499,10 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                             
                             // Write source file
                             let source_path = output_path.with_extension("cpp");
-                            if let Err(e) = fs::write(&source_path, editor_output.source.as_bytes()) {
+                            let source_path = output_path.with_extension("cpp");
+                            if !ensure_parent_dir(&source_path) {
+                                eprintln!(" Warning: Failed to create directory for source");
+                            } else if let Err(e) = fs::write(&source_path, editor_output.source.as_bytes()) {
                                 eprintln!(" Warning: Failed to write source: {}", e);
                             } else {
                                 println!(" Generated source: {} ({} bytes)", source_path.display(), editor_output.source.len());
@@ -661,6 +693,7 @@ fn main() {
             }
             Some(Commands::Build {
                 input,
+                output,
                 target,
                 targets,
                 ue5,
@@ -690,7 +723,7 @@ fn main() {
                             run_compile(
                                 &file,
                                 resolved_target,
-                                None,
+                                output.as_ref(),
                                 args.emit_ast,
                                 args.emit_typed,
                                 args.verbose,
@@ -959,6 +992,21 @@ fn ensure_dir(p: &PathBuf) -> bool {
     true
 }
 
+/// Ensure parent directory exists for a file path.
+/// Creates all missing parent directories recursively.
+/// Returns true on success, false on failure (with error printed).
+fn ensure_parent_dir(file_path: &PathBuf) -> bool {
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                eprintln!(" Failed to create directory {}: {}", parent.display(), e);
+                return false;
+            }
+        }
+    }
+    true
+}
+
 fn find_runtime_c() -> Option<PathBuf> {
     if let Ok(env_path) = std::env::var("KAIN_RUNTIME_C_PATH") {
         let p = PathBuf::from(env_path);
@@ -1163,4 +1211,3 @@ fn run_ue5_shader_pipeline(input: &PathBuf, args: &Args) -> bool {
 
     true
 }
-
