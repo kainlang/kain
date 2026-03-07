@@ -428,12 +428,10 @@ fn hoist_variables(b: &mut Builder, block: &Block, hoisted: &mut HashMap<String,
                     if let Some((ty_id, ptr_ty_id)) = infer_let_type(b, value) {
                         let var_id = b.variable(ptr_ty_id, None, StorageClass::Function, None);
                         hoisted.insert(name.clone(), (var_id, ptr_ty_id));
-                    }
-                    // If type unknown, fallback: allocate a float slot (covers most
-                    // scalar temporaries). emit_block will use a fresh variable if needed.
-                    else {
-                        let float = b.type_float(32);
-                        let ptr   = b.type_pointer(None, StorageClass::Function, float);
+                    } else {
+                        // Unknown type: allocate a float slot as fallback.
+                        let float  = b.type_float(32);
+                        let ptr    = b.type_pointer(None, StorageClass::Function, float);
                         let var_id = b.variable(ptr, None, StorageClass::Function, None);
                         hoisted.insert(name.clone(), (var_id, ptr));
                     }
@@ -444,14 +442,12 @@ fn hoist_variables(b: &mut Builder, block: &Block, hoisted: &mut HashMap<String,
                 hoist_variables(b, then_branch, hoisted);
                 if let Some(else_br) = else_branch {
                     match else_br.as_ref() {
-                        ElseBranch::Block(blk) => hoist_variables(b, blk, hoisted),
-                        ElseBranch::If(expr)   => {
-                            if let Expr::If { then_branch, else_branch, .. } = expr.as_ref() {
-                                hoist_variables(b, then_branch, hoisted);
-                                if let Some(eb) = else_branch {
-                                    if let ElseBranch::Block(blk) = eb.as_ref() {
-                                        hoist_variables(b, blk, hoisted);
-                                    }
+                        ElseBranch::Else(blk) => hoist_variables(b, blk, hoisted),
+                        ElseBranch::ElseIf(_, blk, next) => {
+                            hoist_variables(b, blk, hoisted);
+                            if let Some(nb) = next {
+                                if let ElseBranch::Else(b2) = nb.as_ref() {
+                                    hoist_variables(b, b2, hoisted);
                                 }
                             }
                         },
@@ -460,6 +456,7 @@ fn hoist_variables(b: &mut Builder, block: &Block, hoisted: &mut HashMap<String,
             },
             Stmt::While { body, .. } => hoist_variables(b, body, hoisted),
             Stmt::For   { body, .. } => hoist_variables(b, body, hoisted),
+            Stmt::Loop  { body, .. } => hoist_variables(b, body, hoisted),
             _ => {}
         }
     }
@@ -482,12 +479,16 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
                     let (val, ty) = emit_expr(ctx, value)?;
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
                         // Look up the pre-hoisted OpVariable slot (emitted at function top).
-                        // If somehow missing (e.g. complex nested pattern), emit here as fallback.
+                        // Validate the slot type matches the actual value type — the hoist
+                        // pre-pass may have used a float fallback for Ident-typed RHS expressions
+                        // it couldn't statically resolve (e.g. `refract(i_vec, n_vec, eta)`).
+                        // If there's a mismatch, emit a new correctly-typed variable here.
                         let type_id = map_ast_type(ctx.b, &ty);
                         let ptr_ty = ctx.b.type_pointer(None, StorageClass::Function, type_id);
-                        let local_var = ctx.hoisted_vars.get(name.as_str())
-                            .map(|&(id, _)| id)
-                            .unwrap_or_else(|| ctx.b.variable(ptr_ty, None, StorageClass::Function, None));
+                        let local_var = match ctx.hoisted_vars.get(name.as_str()) {
+                            Some(&(id, hoisted_ptr)) if hoisted_ptr == ptr_ty => id,
+                            _ => ctx.b.variable(ptr_ty, None, StorageClass::Function, None),
+                        };
                         ctx.b.store(local_var, val, None, std::iter::empty()).unwrap();
                         ctx.vars.insert(name.clone(), VarBinding { id: local_var, ty, is_ptr: true });
                     }
