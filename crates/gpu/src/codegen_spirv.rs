@@ -40,6 +40,9 @@ struct ShaderContext<'a> {
     glsl_ext: Option<u32>,
     loop_continue_targets: Vec<u32>,
     loop_break_targets: Vec<u32>,
+    // Pre-hoisted local variable slots — all OpVariable must be in the first block.
+    // Maps binding name -> pre-allocated (ptr_id, ptr_ty_id) pairs.
+    hoisted_vars: HashMap<String, (u32, u32)>,
 }
 
 #[derive(Clone)]
@@ -239,6 +242,14 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     let main_fn = b.begin_function(void, None, rspirv::spirv::FunctionControl::NONE, fn_void_void).unwrap();
     b.begin_block(None).unwrap();
 
+    // SPIR-V §2.16: All OpVariable must be the first instructions of the first block.
+    // Two-pass solution:
+    //   Pass 1 (hoist): walk the entire AST, infer the type of every let-binding,
+    //                   emit OpVariable immediately (while still at top of first block).
+    //   Pass 2 (emit):  emit_block runs normally; Stmt::Let reuses the pre-allocated ID.
+    let mut hoisted_vars: HashMap<String, (u32, u32)> = HashMap::new();
+    hoist_variables(b, &shader.ast.body, &mut hoisted_vars);
+
     let mut ctx = ShaderContext {
         b,
         vars: ctx_vars,
@@ -248,6 +259,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
         glsl_ext: None,
         loop_continue_targets: vec![],
         loop_break_targets: vec![],
+        hoisted_vars,
     };
 
     emit_block(&mut ctx, &shader.ast.body)?;
@@ -285,6 +297,174 @@ impl<'a> ShaderContext<'a> {
     }
 }
 
+/// Lightweight AST type inference used during the variable hoist pre-pass.
+/// Returns (spirv_type_id, ptr_type_id) for the given expression, or None if unknown.
+/// Only covers the common cases that appear in shader let-bindings.
+fn infer_let_type(b: &mut Builder, expr: &Expr) -> Option<(u32, u32)> {
+    let float  = b.type_float(32);
+    let int    = b.type_int(32, 1);
+    let uint   = b.type_int(32, 0);
+    let bool_t = b.type_bool();
+    let vec2   = b.type_vector(float, 2);
+    let vec3   = b.type_vector(float, 3);
+    let vec4   = b.type_vector(float, 4);
+    let ivec2  = b.type_vector(int, 2);
+    let ivec3  = b.type_vector(int, 3);
+    let ivec4  = b.type_vector(int, 4);
+    let uvec2  = b.type_vector(uint, 2);
+    let uvec3  = b.type_vector(uint, 3);
+    let uvec4  = b.type_vector(uint, 4);
+
+    let sc = StorageClass::Function;
+    let mk = |b: &mut Builder, ty: u32| -> Option<(u32, u32)> {
+        let ptr = b.type_pointer(None, sc, ty);
+        Some((ty, ptr))
+    };
+
+    match expr {
+        Expr::Float(_, _) => mk(b, float),
+        Expr::Int(_, _)   => mk(b, int),
+        Expr::Bool(_, _)  => mk(b, bool_t),
+        Expr::Unary { operand, .. } => infer_let_type(b, operand),
+        Expr::Binary { left, op, .. } => {
+            match op {
+                BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le |
+                BinaryOp::Gt | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or => mk(b, bool_t),
+                _ => infer_let_type(b, left),
+            }
+        },
+        Expr::Paren(inner, _) => infer_let_type(b, inner),
+        Expr::Cast { target, .. } => {
+            let ty = match target {
+                Type::Named { name, .. } => match name.as_str() {
+                    "Float" | "f32" => Some(float),
+                    "Int"  | "i32"  => Some(int),
+                    "UInt" | "u32"  => Some(uint),
+                    "Bool"          => Some(bool_t),
+                    "Vec2" => Some(vec2), "Vec3" => Some(vec3), "Vec4" => Some(vec4),
+                    "IVec2"=> Some(ivec2),"IVec3"=> Some(ivec3),"IVec4"=> Some(ivec4),
+                    "UVec2"=> Some(uvec2),"UVec3"=> Some(uvec3),"UVec4"=> Some(uvec4),
+                    _ => None,
+                },
+                _ => None,
+            }?;
+            let ptr = b.type_pointer(None, sc, ty);
+            Some((ty, ptr))
+        },
+        Expr::Call { callee, args, .. } => {
+            if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                // Constructor calls
+                let ty = match (fn_name.as_str(), args.len()) {
+                    ("vec2" | "Vec2", 2) => Some(vec2),
+                    ("vec3" | "Vec3", 3) => Some(vec3),
+                    ("vec4" | "Vec4", 4) => Some(vec4),
+                    ("ivec2"| "IVec2", 2) => Some(ivec2),
+                    ("ivec3"| "IVec3", 3) => Some(ivec3),
+                    ("ivec4"| "IVec4", 4) => Some(ivec4),
+                    ("uvec2"| "UVec2", 2) => Some(uvec2),
+                    ("uvec3"| "UVec3", 3) => Some(uvec3),
+                    ("uvec4"| "UVec4", 4) => Some(uvec4),
+                    ("Float" | "Int" | "UInt", 1) => {
+                        let t = match fn_name.as_str() {
+                            "Float" => float, "Int" => int, _ => uint
+                        };
+                        Some(t)
+                    },
+                    // Scalar math: 1-arg returning same type as arg
+                    ("sin"|"cos"|"tan"|"asin"|"acos"|"atan"|"sqrt"|"abs"|"floor"|"ceil"|
+                     "fract"|"round"|"trunc"|"sign"|"exp"|"log"|"exp2"|"log2"|
+                     "inversesqrt"|"radians"|"degrees", 1) => {
+                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                    },
+                    // 2-arg scalar
+                    ("pow"|"atan2"|"min"|"max"|"step"|"mod", 2) => {
+                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                    },
+                    // 3-arg scalar  
+                    ("clamp"|"mix"|"smoothstep", 3) => {
+                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                    },
+                    // Scalar reductions on vectors
+                    ("length"|"distance"|"dot", _) => Some(float),
+                    // Vector ops preserving type
+                    ("normalize"|"cross"|"reflect", _) => {
+                        infer_let_type(b, &args[0].value).map(|(t, _)| t)
+                    },
+                    ("refract", 3) => infer_let_type(b, &args[0].value).map(|(t, _)| t),
+                    // Texture sample → vec4
+                    ("sample"|"sample_lod", _) => Some(vec4),
+                    _ => None,
+                }?;
+                let ptr = b.type_pointer(None, sc, ty);
+                Some((ty, ptr))
+            } else {
+                None
+            }
+        },
+        Expr::Field { object, field, .. } => {
+            // swizzle/component access → scalar or sub-vector
+            let parent = infer_let_type(b, object);
+            let flen = field.len();
+            match flen {
+                1 => mk(b, float),                       // .x / .y / .z / .w → Float
+                2 => mk(b, vec2),                        // .xy etc → Vec2
+                3 => mk(b, vec3),                        // .xyz etc → Vec3
+                _ => parent.map(|(t, _)| { let p = b.type_pointer(None, sc, t); (t, p) }),
+            }
+        },
+        _ => None,
+    }
+}
+
+/// Recursive body walker: emits OpVariable for every let-binding BEFORE any
+/// other instructions, satisfying SPIR-V §2.16. Must be called immediately
+/// after begin_block() while the builder cursor is at the top of the first block.
+fn hoist_variables(b: &mut Builder, block: &Block, hoisted: &mut HashMap<String, (u32, u32)>) {
+    for stmt in &block.stmts {
+        match stmt {
+            Stmt::Let { pattern, value, .. } => {
+                if let (kain_core::ast::Pattern::Binding { name, .. }, Some(value)) = (pattern, value) {
+                    if hoisted.contains_key(name.as_str()) { continue; }
+                    if let Some((ty_id, ptr_ty_id)) = infer_let_type(b, value) {
+                        let var_id = b.variable(ptr_ty_id, None, StorageClass::Function, None);
+                        hoisted.insert(name.clone(), (var_id, ptr_ty_id));
+                    }
+                    // If type unknown, fallback: allocate a float slot (covers most
+                    // scalar temporaries). emit_block will use a fresh variable if needed.
+                    else {
+                        let float = b.type_float(32);
+                        let ptr   = b.type_pointer(None, StorageClass::Function, float);
+                        let var_id = b.variable(ptr, None, StorageClass::Function, None);
+                        hoisted.insert(name.clone(), (var_id, ptr));
+                    }
+                }
+            },
+            // Recurse into nested blocks so vars inside if/for/while are also hoisted.
+            Stmt::Expr(Expr::If { then_branch, else_branch, .. }) => {
+                hoist_variables(b, then_branch, hoisted);
+                if let Some(else_br) = else_branch {
+                    match else_br.as_ref() {
+                        ElseBranch::Block(blk) => hoist_variables(b, blk, hoisted),
+                        ElseBranch::If(expr)   => {
+                            if let Expr::If { then_branch, else_branch, .. } = expr.as_ref() {
+                                hoist_variables(b, then_branch, hoisted);
+                                if let Some(eb) = else_branch {
+                                    if let ElseBranch::Block(blk) = eb.as_ref() {
+                                        hoist_variables(b, blk, hoisted);
+                                    }
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+            Stmt::While { body, .. } => hoist_variables(b, body, hoisted),
+            Stmt::For   { body, .. } => hoist_variables(b, body, hoisted),
+            _ => {}
+        }
+    }
+}
+
 fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
     for stmt in &block.stmts {
         match stmt {
@@ -301,10 +481,13 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
                 if let Some(value) = value {
                     let (val, ty) = emit_expr(ctx, value)?;
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
-                        // Function-scope locals are pointers to support mutation/assignments.
+                        // Look up the pre-hoisted OpVariable slot (emitted at function top).
+                        // If somehow missing (e.g. complex nested pattern), emit here as fallback.
                         let type_id = map_ast_type(ctx.b, &ty);
                         let ptr_ty = ctx.b.type_pointer(None, StorageClass::Function, type_id);
-                        let local_var = ctx.b.variable(ptr_ty, None, StorageClass::Function, None);
+                        let local_var = ctx.hoisted_vars.get(name.as_str())
+                            .map(|&(id, _)| id)
+                            .unwrap_or_else(|| ctx.b.variable(ptr_ty, None, StorageClass::Function, None));
                         ctx.b.store(local_var, val, None, std::iter::empty()).unwrap();
                         ctx.vars.insert(name.clone(), VarBinding { id: local_var, ty, is_ptr: true });
                     }
@@ -883,7 +1066,136 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                         let res_id = ctx.b.ext_inst(res_ty, None, glsl, 71, vec![Operand::IdRef(i), Operand::IdRef(n)]).unwrap(); // Reflect = 71
                         return Ok((res_id, ty));
                     },
-                    
+                    "asin" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 16, vec![Operand::IdRef(val)]).unwrap(); // Asin = 16
+                        return Ok((res_id, ty));
+                    },
+                    "acos" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 17, vec![Operand::IdRef(val)]).unwrap(); // Acos = 17
+                        return Ok((res_id, ty));
+                    },
+                    "atan" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 18, vec![Operand::IdRef(val)]).unwrap(); // Atan = 18
+                        return Ok((res_id, ty));
+                    },
+                    // atan2(y, x) — GLSL.std.450 opcode 25 (Atan2). Note: opcode 19 = Sinh, not atan2!
+                    "atan2" if args.len() == 2 => {
+                        let (y, ty) = emit_expr(ctx, &args[0].value)?;
+                        let (x, _)  = emit_expr(ctx, &args[1].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 25, vec![Operand::IdRef(y), Operand::IdRef(x)]).unwrap(); // Atan2 = 25
+                        return Ok((res_id, ty));
+                    },
+                    // -------------------------------------------------------------------------
+                    // Extended math — GLSL.std.450 opcodes verified against spec anchors
+                    // -------------------------------------------------------------------------
+                    "round" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 1, vec![Operand::IdRef(val)]).unwrap(); // Round = 1
+                        return Ok((res_id, ty));
+                    },
+                    "trunc" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 3, vec![Operand::IdRef(val)]).unwrap(); // Trunc = 3
+                        return Ok((res_id, ty));
+                    },
+                    "sign" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 6, vec![Operand::IdRef(val)]).unwrap(); // FSign = 6
+                        return Ok((res_id, ty));
+                    },
+                    "radians" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 11, vec![Operand::IdRef(val)]).unwrap(); // Radians = 11
+                        return Ok((res_id, ty));
+                    },
+                    "degrees" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 12, vec![Operand::IdRef(val)]).unwrap(); // Degrees = 12
+                        return Ok((res_id, ty));
+                    },
+                    "exp" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 27, vec![Operand::IdRef(val)]).unwrap(); // Exp = 27
+                        return Ok((res_id, ty));
+                    },
+                    "log" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 28, vec![Operand::IdRef(val)]).unwrap(); // Log = 28
+                        return Ok((res_id, ty));
+                    },
+                    "exp2" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 29, vec![Operand::IdRef(val)]).unwrap(); // Exp2 = 29
+                        return Ok((res_id, ty));
+                    },
+                    "log2" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 30, vec![Operand::IdRef(val)]).unwrap(); // Log2 = 30
+                        return Ok((res_id, ty));
+                    },
+                    "inversesqrt" if args.len() == 1 => {
+                        let (val, ty) = emit_expr(ctx, &args[0].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 32, vec![Operand::IdRef(val)]).unwrap(); // InverseSqrt = 32
+                        return Ok((res_id, ty));
+                    },
+                    // mod(x, y) = x - y * floor(x/y) — uses core OpFMod (not ext_inst)
+                    "mod" if args.len() == 2 => {
+                        let (x, ty) = emit_expr(ctx, &args[0].value)?;
+                        let (y, _)  = emit_expr(ctx, &args[1].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let res_id = ctx.b.f_mod(res_ty, None, x, y).unwrap();
+                        return Ok((res_id, ty));
+                    },
+                    // distance(a, b) = length(a - b) — returns Float scalar
+                    "distance" if args.len() == 2 => {
+                        let (a, _) = emit_expr(ctx, &args[0].value)?;
+                        let (b, _) = emit_expr(ctx, &args[1].value)?;
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(float, None, glsl, 67, vec![Operand::IdRef(a), Operand::IdRef(b)]).unwrap(); // Distance = 67
+                        return Ok((res_id, Type::Named { name: "Float".into(), generics: vec![], span: expr.span() }));
+                    },
+                    // refract(incident, normal, eta) — eta is ratio of indices of refraction
+                    "refract" if args.len() == 3 => {
+                        let (i, ty) = emit_expr(ctx, &args[0].value)?;
+                        let (n, _)  = emit_expr(ctx, &args[1].value)?;
+                        let (eta, _) = emit_expr(ctx, &args[2].value)?;
+                        let res_ty = map_ast_type(ctx.b, &ty);
+                        let glsl = ctx.get_glsl_ext();
+                        let res_id = ctx.b.ext_inst(res_ty, None, glsl, 72, vec![Operand::IdRef(i), Operand::IdRef(n), Operand::IdRef(eta)]).unwrap(); // Refract = 72
+                        return Ok((res_id, ty));
+                    },
+
                     // Texture sampling
                     "sample" if args.len() == 2 => {
                         let (sampler, _) = emit_expr(ctx, &args[0].value)?;
