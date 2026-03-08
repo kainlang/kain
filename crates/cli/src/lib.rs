@@ -15,6 +15,8 @@ pub mod import_c;
 pub mod import_rust;
 pub mod import_typescript;
 pub mod rust_build;
+pub mod selfhost;
+pub mod selfhost_report;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub mod gpu_artifacts;
 

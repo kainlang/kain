@@ -20,6 +20,7 @@ use cli::import_c;
 use cli::import_rust;
 use cli::import_typescript;
 use cli::rust_build;
+use cli::selfhost;
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -100,6 +101,12 @@ enum Commands {
 
     /// Show binary/build diagnostics and resolved compiler capabilities
     Doctor,
+
+    /// Run self-host bootstrap workflows
+    Selfhost {
+        #[command(subcommand)]
+        command: selfhost::SelfHostCommand,
+    },
 
     /// Build mixed-language omni manifests through the dedicated orchestration layer
     Omni {
@@ -770,6 +777,12 @@ fn main() {
             }
             Some(Commands::Doctor) => {
                 print_doctor();
+            }
+            Some(Commands::Selfhost { command }) => {
+                if let Err(e) = selfhost::run(command) {
+                    eprintln!(" Selfhost failed: {}", e);
+                    std::process::exit(1);
+                }
             }
             Some(Commands::Omni { command }) => {
                 if let Err(e) = omni::run(command) {

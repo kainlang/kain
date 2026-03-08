@@ -483,6 +483,21 @@ impl Env {
             Ok(Value::Unit)
         });
 
+        self.define_native("eprint", |_env, args| {
+            for arg in args {
+                eprint!("{} ", arg);
+            }
+            Ok(Value::Unit)
+        });
+
+        self.define_native("eprintln", |_env, args| {
+            for arg in args {
+                eprint!("{} ", arg);
+            }
+            eprintln!("");
+            Ok(Value::Unit)
+        });
+
         // Math functions
         self.define_native("min", |_env, args| {
             if args.len() != 2 {
@@ -2434,6 +2449,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         res.push_str(&format!("{}", v));
                     }
                     Ok(Value::String(res))
+                }
+                "__kain_write_fmt" | "__kain_writeln_fmt" => {
+                    if args.len() != 2 {
+                        return Err(KainError::runtime(format!("{name}: expected destination and message")));
+                    }
+                    let message = eval_expr(env, &args[1])?;
+                    let suffix = if name == "__kain_writeln_fmt" { "\n" } else { "" };
+                    Ok(Value::String(format!("{}{}", message, suffix)))
                 }
                 "type_name" => {
                     if let Some(arg) = args.first() {

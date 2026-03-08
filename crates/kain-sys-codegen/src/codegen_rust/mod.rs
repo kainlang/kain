@@ -605,6 +605,20 @@ impl RustGen {
             Expr::MacroCall { name, args, .. } => {
                 let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
                 match name.as_str() {
+                    "__kain_write_fmt" => {
+                        if arg_strs.len() == 2 {
+                            format!("write!({}, \"{{}}\", {})", arg_strs[0], arg_strs[1])
+                        } else {
+                            format!("write!({})", arg_strs.join(", "))
+                        }
+                    }
+                    "__kain_writeln_fmt" => {
+                        if arg_strs.len() == 2 {
+                            format!("writeln!({}, \"{{}}\", {})", arg_strs[0], arg_strs[1])
+                        } else {
+                            format!("writeln!({})", arg_strs.join(", "))
+                        }
+                    }
                     "println" | "print" | "eprintln" => {
                         if arg_strs.is_empty() {
                             format!("{}!()", name)
@@ -628,7 +642,7 @@ impl RustGen {
             Expr::Unary { op, operand, .. } => format!("({}{})", self.map_unaryop(op), self.gen_expr(operand)),
             Expr::Call { callee, args, .. } => {
                 let fn_name = self.gen_expr(callee);
-                if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" {
+                if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" || fn_name == "eprint" {
                     let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                     if arg_strs.is_empty() {
                         return format!("{}!()", fn_name);

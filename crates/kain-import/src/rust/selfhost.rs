@@ -166,7 +166,7 @@ fn collect_modules_from_spec(
     entry_points: &mut BTreeMap<String, PathBuf>,
 ) -> Result<()> {
     let src_dir = crate_root.join("src");
-    let root_path = crate_root.join(normalize_rel_path(&spec.root));
+    let root_path = crate_root.join(relative_path_within_crate(&spec.root));
     if root_path.exists() {
         entry_points.insert("crate".to_string(), root_path.clone());
         modules.push(RustModuleNode {
@@ -244,6 +244,17 @@ fn is_allowed_diagnostic(diag: &str, options: &RustSelfHostOptions) -> bool {
 fn normalize_rel_path(path: &str) -> PathBuf {
     let trimmed = path.strip_prefix("crates/").unwrap_or(path);
     PathBuf::from(trimmed.replace('/', "\\"))
+}
+
+fn relative_path_within_crate(path: &str) -> PathBuf {
+    let normalized = path.replace('\\', "/");
+    if let Some(idx) = normalized.find("/src/") {
+        return PathBuf::from(normalized[idx + 1..].replace('/', "\\"));
+    }
+    if normalized == "src/lib.rs" || normalized == "src/main.rs" {
+        return PathBuf::from(normalized.replace('/', "\\"));
+    }
+    PathBuf::from(normalized.replace('/', "\\"))
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

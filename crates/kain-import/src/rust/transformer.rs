@@ -39,6 +39,43 @@ pub struct RustMacroPolicy {
     pub reject: HashSet<String>,
 }
 
+impl RustMacroPolicy {
+    pub fn phase1_default() -> Self {
+        Self {
+            lower_directly: [
+                "eprint",
+                "eprintln",
+                "format",
+                "matches",
+                "print",
+                "println",
+                "vec",
+                "write",
+                "writeln",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+            preserve: [
+                "cfg",
+                "derive",
+                "arg",
+                "command",
+                "error",
+                "from",
+                "test",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+            reject: ["assert", "assert_eq", "debug_assert", "panic", "unreachable"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+        }
+    }
+}
+
 pub struct RustTransformer {
     /// Maps Rust types to KAIN types.
     type_mapper: RustTypeMapper,
@@ -70,7 +107,7 @@ impl RustTransformer {
     pub fn new_selfhost() -> Self {
         Self::with_options(RustTransformOptions {
             strict_selfhost: true,
-            macro_policy: RustMacroPolicy::default(),
+            macro_policy: RustMacroPolicy::phase1_default(),
         })
     }
 
@@ -1091,9 +1128,38 @@ impl RustTransformer {
             self.note_lossy(format!("macro {macro_name}! is rejected by self-host policy"));
         }
 
-        if macro_name == "vec" {
-            let args = self.parse_macro_args(tokens);
-            return Expr::Array(args, S);
+        if self.options.macro_policy.lower_directly.contains(macro_name) {
+            match macro_name {
+                "vec" => {
+                    let args = self.parse_macro_args(tokens);
+                    return Expr::Array(args, S);
+                }
+                "format" => {
+                    if let Some(expr) = self.lower_format_macro(tokens) {
+                        return expr;
+                    }
+                    self.note_lossy("format! could not be lowered directly".to_string());
+                }
+                "matches" => {
+                    if let Some(expr) = self.lower_matches_macro(tokens) {
+                        return expr;
+                    }
+                    self.note_lossy("matches! could not be lowered directly".to_string());
+                }
+                "print" | "println" | "eprint" | "eprintln" => {
+                    if let Some(expr) = self.lower_print_macro(macro_name, tokens) {
+                        return expr;
+                    }
+                    self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                }
+                "write" | "writeln" => {
+                    if let Some(expr) = self.lower_write_macro(macro_name, tokens) {
+                        return expr;
+                    }
+                    self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                }
+                _ => {}
+            }
         }
 
         let args = self.parse_macro_args(tokens);
@@ -1102,6 +1168,180 @@ impl RustTransformer {
             args,
             span: S,
         }
+    }
+
+    fn lower_format_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        let args = self.parse_macro_args(tokens);
+        let fmt = match args.first()? {
+            Expr::String(fmt, _) => fmt.clone(),
+            _ => return None,
+        };
+        let values = args.into_iter().skip(1).collect::<Vec<_>>();
+        let parts = self.interpolate_format_string(&fmt, values)?;
+        Some(match parts.as_slice() {
+            [] => Expr::String(String::new(), S),
+            [single] => single.clone(),
+            _ => Expr::FString(parts, S),
+        })
+    }
+
+    fn lower_print_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        let args = if let Some(expr) = self.lower_format_macro(tokens) {
+            vec![CallArg { name: None, value: expr, span: S }]
+        } else {
+            self.parse_macro_args(tokens)
+                .into_iter()
+                .map(|value| CallArg { name: None, value, span: S })
+                .collect::<Vec<_>>()
+        };
+
+        Some(Expr::Call {
+            callee: Box::new(Expr::Ident(macro_name.to_string(), S)),
+            args,
+            span: S,
+        })
+    }
+
+    fn lower_write_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        struct WriteMacroInput {
+            dest: syn::Expr,
+            _comma: syn::token::Comma,
+            rest: proc_macro2::TokenStream,
+        }
+
+        impl syn::parse::Parse for WriteMacroInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                Ok(Self {
+                    dest: input.parse()?,
+                    _comma: input.parse()?,
+                    rest: input.parse()?,
+                })
+            }
+        }
+
+        let parsed = syn::parse2::<WriteMacroInput>(tokens.clone()).ok()?;
+        let dest = self.transform_expr(&parsed.dest).ok()?;
+        let message = self
+            .lower_format_macro(&parsed.rest)
+            .unwrap_or_else(|| Expr::MacroCall {
+                name: "format".to_string(),
+                args: self.parse_macro_args(&parsed.rest),
+                span: S,
+            });
+        let helper_name = if macro_name == "writeln" {
+            "__kain_writeln_fmt"
+        } else {
+            "__kain_write_fmt"
+        };
+        Some(Expr::MacroCall {
+            name: helper_name.to_string(),
+            args: vec![dest, message],
+            span: S,
+        })
+    }
+
+    fn lower_matches_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        struct MatchesMacroInput {
+            scrutinee: syn::Expr,
+            _comma: syn::token::Comma,
+            pattern: syn::Pat,
+            guard: Option<(syn::Token![if], syn::Expr)>,
+        }
+
+        impl syn::parse::Parse for MatchesMacroInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                Ok(Self {
+                    scrutinee: input.parse()?,
+                    _comma: input.parse()?,
+                    pattern: input.call(syn::Pat::parse_multi)?,
+                    guard: if input.peek(syn::Token![if]) {
+                        Some((input.parse()?, input.parse()?))
+                    } else {
+                        None
+                    },
+                })
+            }
+        }
+
+        let parsed = syn::parse2::<MatchesMacroInput>(tokens.clone()).ok()?;
+        let scrutinee = self.transform_expr(&parsed.scrutinee).ok()?;
+        let pattern = self.transform_pattern(&parsed.pattern);
+        let guard = parsed
+            .guard
+            .as_ref()
+            .and_then(|(_, expr)| self.transform_expr(expr).ok());
+
+        Some(Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms: vec![
+                MatchArm {
+                    pattern,
+                    guard,
+                    body: Expr::Bool(true, S),
+                    span: S,
+                },
+                MatchArm {
+                    pattern: Pattern::Wildcard(S),
+                    guard: None,
+                    body: Expr::Bool(false, S),
+                    span: S,
+                },
+            ],
+            span: S,
+        })
+    }
+
+    fn interpolate_format_string(&mut self, fmt: &str, values: Vec<Expr>) -> Option<Vec<Expr>> {
+        let mut parts = Vec::new();
+        let mut literal = String::new();
+        let mut chars = fmt.chars().peekable();
+        let mut values = values.into_iter();
+
+        while let Some(ch) = chars.next() {
+            if ch == '{' {
+                if chars.peek() == Some(&'{') {
+                    chars.next();
+                    literal.push('{');
+                    continue;
+                }
+
+                if !literal.is_empty() {
+                    parts.push(Expr::String(std::mem::take(&mut literal), S));
+                }
+
+                let mut closed = false;
+                for next in chars.by_ref() {
+                    if next == '}' {
+                        closed = true;
+                        break;
+                    }
+                }
+                if !closed {
+                    return None;
+                }
+
+                parts.push(values.next()?);
+            } else if ch == '}' {
+                if chars.peek() == Some(&'}') {
+                    chars.next();
+                    literal.push('}');
+                } else {
+                    return None;
+                }
+            } else {
+                literal.push(ch);
+            }
+        }
+
+        if !literal.is_empty() {
+            parts.push(Expr::String(literal, S));
+        }
+
+        if values.next().is_some() {
+            return None;
+        }
+
+        Some(parts)
     }
 
     fn resolve_value_path(&mut self, path: &syn::Path) -> String {
@@ -1179,6 +1419,99 @@ fn binop(op: &syn::BinOp) -> BinaryOp {
         syn::BinOp::Gt(_)  => BinaryOp::Gt,
         syn::BinOp::Ge(_)  => BinaryOp::Ge,
         _ => BinaryOp::Add, // fallback
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn transform_source(source: &str) -> Program {
+        let file = syn::parse_file(source).expect("rust should parse");
+        RustTransformer::new_selfhost()
+            .transform(file)
+            .expect("transform should succeed")
+    }
+
+    #[test]
+    fn lowers_format_macro_to_fstring() {
+        let program = transform_source(
+            r#"
+            fn demo(name: String, count: i32) {
+                let msg = format!("Hello {}, {}", name, count);
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let { value: Some(Expr::FString(parts, _)), .. } = &func.body.stmts[0] else {
+            panic!("expected lowered fstring");
+        };
+
+        assert_eq!(parts.len(), 4);
+        assert!(matches!(&parts[0], Expr::String(s, _) if s == "Hello "));
+        assert!(matches!(&parts[1], Expr::Ident(name, _) if name == "name"));
+        assert!(matches!(&parts[2], Expr::String(s, _) if s == ", "));
+        assert!(matches!(&parts[3], Expr::Ident(name, _) if name == "count"));
+    }
+
+    #[test]
+    fn lowers_matches_macro_to_match_expr() {
+        let program = transform_source(
+            r#"
+            fn demo(value: Option<i32>) {
+                let ok = matches!(value, Some(v) if v > 0);
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let { value: Some(Expr::Match { arms, .. }), .. } = &func.body.stmts[0] else {
+            panic!("expected lowered match");
+        };
+
+        assert_eq!(arms.len(), 2);
+        assert!(matches!(arms[0].body, Expr::Bool(true, _)));
+        assert!(arms[0].guard.is_some());
+        assert!(matches!(arms[1].pattern, Pattern::Wildcard(_)));
+        assert!(matches!(arms[1].body, Expr::Bool(false, _)));
+    }
+
+    #[test]
+    fn preserves_use_alias_and_resolves_expression_path() {
+        let program = transform_source(
+            r#"
+            use crate::diagnostics::SpanMapper as Mapper;
+
+            fn demo() {
+                let _x = Mapper::new();
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            &program.items[0],
+            Item::Use(Use { alias: Some(alias), .. }) if alias == "Mapper"
+        ));
+
+        let Item::Function(func) = &program.items[1] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let { value: Some(Expr::Call { callee, .. }), .. } = &func.body.stmts[0] else {
+            panic!("expected call");
+        };
+
+        assert!(matches!(
+            callee.as_ref(),
+            Expr::Ident(path, _) if path == "crate::diagnostics::SpanMapper::new"
+        ));
     }
 }
 
