@@ -277,7 +277,14 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
 
                 #[cfg(feature = "sys")]
                 CompileTarget::Llvm => {
-                    sys::generate_llvm(&typed_for_codegen).map(|_| "LLVM IR generated".to_string())
+                    sys::generate_llvm(&typed_for_codegen).and_then(|bytes| {
+                        String::from_utf8(bytes).map_err(|err| {
+                            KainError::codegen(
+                                format!("LLVM output was not valid UTF-8: {}", err),
+                                Span::default(),
+                            )
+                        })
+                    })
                 }
 
                 #[cfg(feature = "sys")]

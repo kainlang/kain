@@ -571,13 +571,21 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
 
                 // Post-processing for LLVM
                 if target == CompileTarget::Llvm {
-                    let exe_path = output.cloned().unwrap_or_else(|| {
-                        if cfg!(windows) {
-                            input.with_extension("exe")
+                    let exe_path = if let Some(out) = output {
+                        if out.extension().map_or(false, |e| e == "ll") {
+                            if cfg!(windows) {
+                                out.with_extension("exe")
+                            } else {
+                                out.with_extension("")
+                            }
                         } else {
-                            input.with_extension("")
+                            out.clone()
                         }
-                    });
+                    } else if cfg!(windows) {
+                        input.with_extension("exe")
+                    } else {
+                        input.with_extension("")
+                    };
 
                     println!(" Linking executable...");
                     
@@ -620,7 +628,11 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                                 cmd.arg(&runtime_o);
                             } else {
                                 eprintln!(" Failed to compile runtime library.");
+                                return false;
                             }
+                        } else {
+                            eprintln!(" Failed to invoke clang for runtime library compilation.");
+                            return false;
                         }
                     }
 
@@ -642,11 +654,13 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                         },
                         Ok(_) => {
                             eprintln!(" Linking failed."); 
+                            return false;
                         },
                         Err(_) => {
                             eprintln!(" 'clang' not found in PATH or standard locations.");
                             eprintln!("   To generate an executable, install LLVM and run:");
                             eprintln!("   clang {} -o {}", output_path.display(), exe_path.display());
+                            return false;
                         }
                     }
                 }
@@ -1094,6 +1108,12 @@ fn print_doctor() {
         if cfg!(feature = "gpu") { "on" } else { "off" },
         if cfg!(feature = "sys") { "on" } else { "off" },
     );
+    if cfg!(feature = "sys") {
+        match find_bundled_clang() {
+            Some(path) => println!(" Resolved LLVM Clang: {}", path),
+            None => println!(" Resolved LLVM Clang: <not found in bundled locations>"),
+        }
+    }
 }
 
 fn format_build_time(unix_time: &str) -> String {
