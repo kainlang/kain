@@ -3622,7 +3622,12 @@ impl<'a> Parser<'a> {
             self.expect(TokenKind::Eq)?;
             let value = if self.check(TokenKind::LBrace) {
                 self.advance();
-                let e = self.parse_expr()?;
+                let e = if self.check(TokenKind::Lt) {
+                    let jsx = self.parse_jsx_element()?;
+                    Expr::JSX(jsx, self.current_span())
+                } else {
+                    self.parse_expr()?
+                };
                 self.expect(TokenKind::RBrace)?;
                 JSXAttrValue::Expr(e)
             } else if let TokenKind::String(s) = self.peek_kind() {
@@ -6987,5 +6992,37 @@ mod tests {
         assert_eq!(attributes.len(), 2);
         assert_eq!(attributes[0].name, "type");
         assert_eq!(attributes[1].name, "className");
+    }
+
+    #[test]
+    fn parses_component_valued_jsx_attributes() {
+        let program = parse_program(
+            "component App():\n    render <Shell topBar={<TopBar title={title} />} bottom={<Footer />} />\n",
+        )
+        .expect("program should parse");
+
+        let Item::Component(component) = &program.items[0] else {
+            panic!("expected component");
+        };
+
+        let JSXNode::ComponentCall { props, .. } = &component.body else {
+            panic!("expected component call body");
+        };
+
+        assert_eq!(props.len(), 2);
+
+        match &props[0].value {
+            JSXAttrValue::Expr(Expr::JSX(JSXNode::ComponentCall { name, .. }, _)) => {
+                assert_eq!(name, "TopBar");
+            }
+            other => panic!("expected nested JSX component prop, got {other:?}"),
+        }
+
+        match &props[1].value {
+            JSXAttrValue::Expr(Expr::JSX(JSXNode::ComponentCall { name, .. }, _)) => {
+                assert_eq!(name, "Footer");
+            }
+            other => panic!("expected nested JSX component prop, got {other:?}"),
+        }
     }
 }

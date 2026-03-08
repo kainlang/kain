@@ -804,3 +804,279 @@ fn llvm_generates_match_patterns_for_ranges_or_and_literals() {
     assert!(llvm.contains("icmp eq i1"));
     assert!(llvm.contains("call i1 @deep_eq(i8*"));
 }
+
+#[test]
+fn llvm_generates_tuple_values_and_tuple_destructuring() {
+    let source = r#"
+fn step() -> (Int, Int, Int):
+    return (1, 2, 3)
+
+fn unpack_sum() -> Int:
+    let (a, b, c) = step()
+    return a + b + c
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%__kain_tuple_i64_i64_i64 = type { i64, i64, i64 }"));
+    assert!(llvm.contains("define %__kain_tuple_i64_i64_i64* @step()"));
+    assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
+    assert!(llvm.contains("getelementptr inbounds %__kain_tuple_i64_i64_i64"));
+    assert!(llvm.contains("define i64 @unpack_sum()"));
+}
+
+#[test]
+fn llvm_generates_indexed_array_assignment_and_readback() {
+    let source = r#"
+fn mutate_items() -> Int:
+    let items = [1, 2, 3]
+    items[1] = 42
+    return items[1]
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("call void @array_set(i8*"));
+    assert!(llvm.contains("call i64 @array_get(i8*"));
+    assert!(llvm.contains("define i64 @mutate_items()"));
+}
+
+#[test]
+fn llvm_generates_struct_destructuring_patterns() {
+    let point = TypedItem::Struct(TypedStruct {
+        ast: Struct {
+            name: "Point".to_string(),
+            generics: vec![],
+            fields: vec![
+                Field {
+                    name: "x".to_string(),
+                    ty: int_type(),
+                    attributes: vec![],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: span(),
+                },
+                Field {
+                    name: "y".to_string(),
+                    ty: int_type(),
+                    attributes: vec![],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: span(),
+                },
+            ],
+            methods: vec![],
+            attributes: vec![],
+            visibility: Visibility::Public,
+            span: span(),
+        },
+        field_types: HashMap::from([
+            ("x".to_string(), ResolvedType::Int(IntSize::I64)),
+            ("y".to_string(), ResolvedType::Int(IntSize::I64)),
+        ]),
+    });
+
+    let sum_point = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "sum_point".to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![
+                    Stmt::Let {
+                        pattern: Pattern::Binding {
+                            name: "p".to_string(),
+                            mutable: false,
+                            span: span(),
+                        },
+                        ty: None,
+                        value: Some(Expr::Struct {
+                            name: "Point".to_string(),
+                            fields: vec![
+                                ("x".to_string(), Expr::Int(4, span())),
+                                ("y".to_string(), Expr::Int(5, span())),
+                            ],
+                            span: span(),
+                        }),
+                        span: span(),
+                    },
+                    Stmt::Let {
+                        pattern: Pattern::Struct {
+                            name: "Point".to_string(),
+                            fields: vec![
+                                (
+                                    "x".to_string(),
+                                    Pattern::Binding {
+                                        name: "x".to_string(),
+                                        mutable: false,
+                                        span: span(),
+                                    },
+                                ),
+                                (
+                                    "y".to_string(),
+                                    Pattern::Binding {
+                                        name: "y".to_string(),
+                                        mutable: false,
+                                        span: span(),
+                                    },
+                                ),
+                            ],
+                            rest: false,
+                            span: span(),
+                        },
+                        ty: None,
+                        value: Some(Expr::Ident("p".to_string(), span())),
+                        span: span(),
+                    },
+                    Stmt::Return(
+                        Some(Expr::Binary {
+                            left: Box::new(Expr::Ident("x".to_string(), span())),
+                            op: BinaryOp::Add,
+                            right: Box::new(Expr::Ident("y".to_string(), span())),
+                            span: span(),
+                        }),
+                        span(),
+                    ),
+                ],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
+        items: vec![point, sum_point],
+    }).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%Point = type { i64, i64 }"));
+    assert!(llvm.contains("getelementptr inbounds %Point, %Point*"));
+    assert!(llvm.contains("define i64 @sum_point()"));
+}
+
+#[test]
+fn llvm_generates_raw_address_indexing_reads_and_writes() {
+    let mutate_ptr = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "mutate_ptr".to_string(),
+            generics: vec![],
+            params: vec![Param {
+                name: "ptr".to_string(),
+                ty: int_type(),
+                mutable: false,
+                default: None,
+                span: span(),
+            }],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![
+                    Stmt::Expr(Expr::Assign {
+                        target: Box::new(Expr::Index {
+                            object: Box::new(Expr::Ident("ptr".to_string(), span())),
+                            index: Box::new(Expr::Int(1, span())),
+                            span: span(),
+                        }),
+                        value: Box::new(Expr::Int(99, span())),
+                        span: span(),
+                    }),
+                    Stmt::Return(
+                        Some(Expr::Index {
+                            object: Box::new(Expr::Ident("ptr".to_string(), span())),
+                            index: Box::new(Expr::Int(1, span())),
+                            span: span(),
+                        }),
+                        span(),
+                    ),
+                ],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![ResolvedType::Int(IntSize::I64)],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
+        items: vec![mutate_ptr],
+    }).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define i64 @mutate_ptr(i64 %arg0)"));
+    assert!(llvm.contains("inttoptr i64"));
+    assert!(llvm.contains("getelementptr inbounds i64, i64*"));
+    assert!(llvm.contains("store i64 99, i64*"));
+    assert!(llvm.contains("load i64, i64*"));
+}
+
+#[test]
+fn llvm_lowers_tuple_aggregate_init_without_dummy_fallback() {
+    let build_pair = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "build_pair".to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: Some(Type::Tuple(vec![int_type(), int_type()], span())),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(
+                    Some(Expr::AggregateInit {
+                        ty: Type::Tuple(vec![int_type(), int_type()], span()),
+                        fields: vec![
+                            ("0".to_string(), Expr::Int(10, span())),
+                            ("1".to_string(), Expr::Int(20, span())),
+                        ],
+                        zero_fill_rest: false,
+                        span: span(),
+                    }),
+                    span(),
+                )],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![],
+            ret: Box::new(ResolvedType::Tuple(vec![
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+            ])),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
+        items: vec![build_pair],
+    }).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%__kain_tuple_i64_i64 = type { i64, i64 }"));
+    assert!(llvm.contains("define %__kain_tuple_i64_i64* @build_pair()"));
+    assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
+    assert!(!llvm.contains("ret i64 0"));
+}

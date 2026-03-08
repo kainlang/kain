@@ -1036,9 +1036,7 @@ fn jsx_attrs_to_string(attrs: &[kain_core::ast::JSXAttribute]) -> String {
             }
             kain_core::ast::JSXAttrValue::Expr(expr) => {
                 let rendered = match expr {
-                    // KAIN JSX attribute expressions currently parse `expr`, not nested JSX.
-                    kain_core::ast::Expr::JSX(_, _)
-                    | kain_core::ast::Expr::Lambda { .. } => "none".to_string(),
+                    kain_core::ast::Expr::Lambda { .. } => "none".to_string(),
                     _ => expr_to_string(expr),
                 };
                 format!("{}={{{}}}", attr.name, rendered)

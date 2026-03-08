@@ -1,0 +1,6 @@
+fn step() -> (Int, Int, Int):
+    return (1, 2, 3)
+
+fn main() -> Int:
+    let (a, b, c) = step()
+    return a + b + c

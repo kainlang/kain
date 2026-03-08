@@ -6,7 +6,7 @@
 
 use kain_core::types::{TypedProgram, TypedItem, TypedFunction, TypedComponent, ResolvedType};
 use kain_core::ast::{
-    Expr, Stmt, BinaryOp, UnaryOp, Block, Pattern, ElseBranch, EnumVariantFields,
+    Expr, Stmt, BinaryOp, UnaryOp, Block, Pattern, ElseBranch,
     VariantPatternFields, JSXNode, JSXAttrValue,
 };
 use kain_core::error::{KainError, KainResult};
@@ -103,10 +103,158 @@ impl LlvmGenerator {
         }
     }
 
+    fn sanitize_type_fragment(fragment: &str) -> String {
+        fragment
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+            .collect()
+    }
+
+    fn tuple_struct_name_from_types(field_tys: &[String]) -> String {
+        let mut name = String::from("__kain_tuple");
+        for field_ty in field_tys {
+            name.push('_');
+            name.push_str(&Self::sanitize_type_fragment(field_ty));
+        }
+        name
+    }
+
+    fn tuple_struct_ptr_type_from_types(field_tys: &[String]) -> String {
+        format!("%{}*", Self::tuple_struct_name_from_types(field_tys))
+    }
+
+    fn register_tuple_struct(&mut self, field_tys: Vec<String>) -> String {
+        let name = Self::tuple_struct_name_from_types(&field_tys);
+        if !self.struct_defs.contains_key(&name) {
+            let fields = field_tys
+                .iter()
+                .enumerate()
+                .map(|(index, ty)| (format!("_{}", index), ty.clone()))
+                .collect::<Vec<_>>();
+            self.struct_defs.insert(name.clone(), fields);
+            self.emit(&format!("%{} = type {{ {} }}", name, field_tys.join(", ")));
+        }
+        name
+    }
+
+    fn collect_tuple_types_from_ast(&mut self, ty: &kain_core::ast::Type) {
+        match ty {
+            kain_core::ast::Type::Tuple(items, _) => {
+                for item in items {
+                    self.collect_tuple_types_from_ast(item);
+                }
+                let field_tys = items
+                    .iter()
+                    .map(|item| self.map_type_from_ast(item))
+                    .collect::<Vec<_>>();
+                self.register_tuple_struct(field_tys);
+            }
+            kain_core::ast::Type::Array(inner, _, _)
+            | kain_core::ast::Type::Slice(inner, _)
+            | kain_core::ast::Type::Option(inner, _)
+            | kain_core::ast::Type::Result(inner, _, _)
+            | kain_core::ast::Type::Ref { inner, .. }
+            | kain_core::ast::Type::Ptr { inner, .. } => self.collect_tuple_types_from_ast(inner),
+            _ => {}
+        }
+    }
+
+    fn collect_tuple_types_from_resolved(&mut self, ty: &ResolvedType) {
+        match ty {
+            ResolvedType::Tuple(items) => {
+                for item in items {
+                    self.collect_tuple_types_from_resolved(item);
+                }
+                let field_tys = items.iter().map(|item| self.map_type(item)).collect::<Vec<_>>();
+                self.register_tuple_struct(field_tys);
+            }
+            ResolvedType::Array(inner, _)
+            | ResolvedType::Slice(inner)
+            | ResolvedType::Option(inner)
+            | ResolvedType::Ref { inner, .. }
+            | ResolvedType::Ptr { inner, .. } => self.collect_tuple_types_from_resolved(inner),
+            ResolvedType::Result(ok, err) => {
+                self.collect_tuple_types_from_resolved(ok);
+                self.collect_tuple_types_from_resolved(err);
+            }
+            ResolvedType::Function { params, ret, .. } => {
+                for param in params {
+                    self.collect_tuple_types_from_resolved(param);
+                }
+                self.collect_tuple_types_from_resolved(ret);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_program_tuple_types(&mut self, program: &TypedProgram) {
+        for item in &program.items {
+            match item {
+                TypedItem::Function(func) => {
+                    self.collect_tuple_types_from_resolved(&func.resolved_type);
+                    for param in &func.ast.params {
+                        self.collect_tuple_types_from_ast(&param.ty);
+                    }
+                    if let Some(ret) = &func.ast.return_type {
+                        self.collect_tuple_types_from_ast(ret);
+                    }
+                }
+                TypedItem::Struct(s) => {
+                    for ty in s.field_types.values() {
+                        self.collect_tuple_types_from_resolved(ty);
+                    }
+                }
+                TypedItem::Component(component) => {
+                    for ty in component.prop_types.values() {
+                        self.collect_tuple_types_from_resolved(ty);
+                    }
+                    for prop in &component.ast.props {
+                        self.collect_tuple_types_from_ast(&prop.ty);
+                    }
+                }
+                TypedItem::Actor(actor) => {
+                    for ty in actor.state_types.values() {
+                        self.collect_tuple_types_from_resolved(ty);
+                    }
+                    for state in &actor.ast.state {
+                        self.collect_tuple_types_from_ast(&state.ty);
+                    }
+                    for handler in &actor.ast.handlers {
+                        for param in &handler.params {
+                            self.collect_tuple_types_from_ast(&param.ty);
+                        }
+                    }
+                }
+                TypedItem::Enum(en) => {
+                    for payload_types in en.variant_payload_types.values() {
+                        for ty in payload_types {
+                            self.collect_tuple_types_from_resolved(ty);
+                        }
+                    }
+                }
+                TypedItem::Impl(imp) => {
+                    self.collect_tuple_types_from_ast(&imp.ast.target_type);
+                    for method in &imp.ast.methods {
+                        for param in &method.params {
+                            self.collect_tuple_types_from_ast(&param.ty);
+                        }
+                        if let Some(ret) = &method.return_type {
+                            self.collect_tuple_types_from_ast(ret);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn map_type_from_ast(&self, ty: &kain_core::ast::Type) -> String {
         match ty {
             kain_core::ast::Type::Named { name, .. } => self.map_type_from_str(name),
-            kain_core::ast::Type::Tuple(_, _) => "i64".into(),
+            kain_core::ast::Type::Tuple(items, _) => {
+                let field_tys = items.iter().map(|item| self.map_type_from_ast(item)).collect::<Vec<_>>();
+                Self::tuple_struct_ptr_type_from_types(&field_tys)
+            }
             kain_core::ast::Type::Array(_, _, _) => "i8*".into(),
             kain_core::ast::Type::Slice(_, _) => "i8*".into(),
             kain_core::ast::Type::Ref { inner, .. } => format!("{}*", self.map_type_from_ast(inner)),
@@ -160,7 +308,10 @@ impl LlvmGenerator {
             ResolvedType::Result(ok, _) => self.map_type(ok),
             ResolvedType::Function { .. } => "i64".into(), // Function pointers
             ResolvedType::Generic(name) => self.map_type_from_str(name),
-            ResolvedType::Tuple(_) => "i64".into(),
+            ResolvedType::Tuple(items) => {
+                let field_tys = items.iter().map(|item| self.map_type(item)).collect::<Vec<_>>();
+                Self::tuple_struct_ptr_type_from_types(&field_tys)
+            }
             ResolvedType::Ref { inner, .. } => self.map_type(inner),
             ResolvedType::Ptr { inner, .. } => format!("{}*", self.map_type(inner)),
             ResolvedType::Never => "void".into(),
@@ -508,8 +659,99 @@ impl LlvmGenerator {
                 }
                 Ok(())
             }
+            Pattern::Tuple(patterns, span) => {
+                let struct_name = ty
+                    .strip_prefix('%')
+                    .and_then(|name| name.strip_suffix('*'))
+                    .ok_or_else(|| {
+                        KainError::codegen(
+                            format!("Tuple pattern requires tuple pointer value, got {}", ty),
+                            *span,
+                        )
+                    })?
+                    .to_string();
+
+                let field_defs = self.struct_defs.get(&struct_name).cloned().ok_or_else(|| {
+                    KainError::codegen(
+                        format!("Unknown tuple storage type for pattern: {}", struct_name),
+                        *span,
+                    )
+                })?;
+
+                for (index, sub_pattern) in patterns.iter().enumerate() {
+                    let field_ty = field_defs
+                        .get(index)
+                        .map(|(_, ty)| ty.clone())
+                        .unwrap_or_else(|| "i64".to_string());
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                        field_ptr, struct_name, ty, val, index
+                    ));
+                    let field_val = self.next_reg();
+                    self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
+                    if field_ty == "i8*" {
+                        self.emit(&format!("  call void @rc_retain(i8* {})", field_val));
+                    }
+                    self.bind_local_pattern_value(sub_pattern, field_val, field_ty)?;
+                }
+                Ok(())
+            }
+            Pattern::Struct { name, fields, span, .. } => {
+                let struct_name = ty
+                    .strip_prefix('%')
+                    .and_then(|name| name.strip_suffix('*'))
+                    .ok_or_else(|| {
+                        KainError::codegen(
+                            format!("Struct pattern requires struct pointer value, got {}", ty),
+                            *span,
+                        )
+                    })?
+                    .to_string();
+
+                if &struct_name != name {
+                    return Err(KainError::codegen(
+                        format!("Struct pattern expected {}, got {}", name, struct_name),
+                        *span,
+                    ));
+                }
+
+                let field_defs = self.struct_defs.get(&struct_name).cloned().ok_or_else(|| {
+                    KainError::codegen(
+                        format!("Unknown struct storage type for pattern: {}", struct_name),
+                        *span,
+                    )
+                })?;
+
+                for (field_name, sub_pattern) in fields {
+                    let (index, field_ty) = field_defs
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (name, _))| name == field_name)
+                        .map(|(index, (_, ty))| (index, ty.clone()))
+                        .ok_or_else(|| {
+                            KainError::codegen(
+                                format!("Unknown struct field '{}' on {}", field_name, struct_name),
+                                *span,
+                            )
+                        })?;
+
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                        field_ptr, struct_name, ty, val, index
+                    ));
+                    let field_val = self.next_reg();
+                    self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
+                    if field_ty == "i8*" {
+                        self.emit(&format!("  call void @rc_retain(i8* {})", field_val));
+                    }
+                    self.bind_local_pattern_value(sub_pattern, field_val, field_ty)?;
+                }
+                Ok(())
+            }
             _ => Err(KainError::codegen(
-                "Local pattern binding currently supports only wildcard and binding patterns",
+                "Local pattern binding currently supports wildcard, binding, tuple, and struct patterns",
                 kain_core::Span::default(),
             )),
         }
@@ -599,7 +841,9 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         match pattern {
             Pattern::Wildcard(_) => Ok(()),
-            Pattern::Binding { .. } => self.bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string()),
+            Pattern::Binding { .. } | Pattern::Tuple(_, _) | Pattern::Struct { .. } => {
+                self.bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string())
+            }
             Pattern::Variant { variant, fields, .. } => {
                 let enum_name = enum_name.ok_or_else(|| {
                     KainError::codegen("Variant pattern requires an enum scrutinee", span)
@@ -638,6 +882,34 @@ impl LlvmGenerator {
         Ok((addr, ty))
     }
 
+    fn compile_index_address_from_compiled(
+        &mut self,
+        obj_val: &str,
+        obj_ty: &str,
+        idx_val: &str,
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        if let Some(pointee_ty) = obj_ty.strip_suffix('*') {
+            let field_ptr = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds {}, {} {}, i64 {}",
+                field_ptr, pointee_ty, obj_ty, obj_val, idx_val
+            ));
+            Ok((field_ptr, pointee_ty.to_string()))
+        } else if obj_ty == "i64" {
+            let base_ptr = self.next_reg();
+            self.emit(&format!("  {} = inttoptr i64 {} to i64*", base_ptr, obj_val));
+            let field_ptr = self.next_reg();
+            self.emit(&format!("  {} = getelementptr inbounds i64, i64* {}, i64 {}", field_ptr, base_ptr, idx_val));
+            Ok((field_ptr, "i64".to_string()))
+        } else {
+            Err(KainError::codegen(
+                format!("Indexing is not supported for LLVM type {}", obj_ty),
+                span,
+            ))
+        }
+    }
+
     fn compile_addressable_ptr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
         match expr {
             Expr::Ident(name, span) => self.locals.get(name).cloned().map(|(addr, ty)| (addr, ty)).ok_or_else(|| {
@@ -660,6 +932,15 @@ impl LlvmGenerator {
                     }
                 } else {
                     Err(KainError::codegen("Field address requires a struct pointer", *span))
+                }
+            }
+            Expr::Index { object, index, span } => {
+                let (obj_val, obj_ty) = self.compile_expr(object)?;
+                let (idx_val, _) = self.compile_expr(index)?;
+                if obj_ty == "i8*" {
+                    Err(KainError::codegen("Runtime array indexing is not addressable in LLVM", *span))
+                } else {
+                    self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, *span)
                 }
             }
             _ => self.compile_temporary_address(expr),
@@ -966,6 +1247,8 @@ impl LlvmGenerator {
         self.emit(&format!("target triple = \"{}\"", self.target_triple()));
         self.emit("");
 
+        self.collect_program_tuple_types(program);
+        
         // 2a. Pre-scan Structs to register and emit definitions
         for item in &program.items {
             if let TypedItem::Struct(s) = item {
@@ -1634,6 +1917,7 @@ impl LlvmGenerator {
         match expr {
             Expr::String(..) => true,
             Expr::Array(..) => true,
+            Expr::Tuple(..) => true,
             Expr::Struct { .. } => true,
             Expr::Call { .. } => true, // Function calls return owned values
             Expr::Binary { op, .. } => *op == BinaryOp::Add, // String concat
@@ -1668,6 +1952,8 @@ impl LlvmGenerator {
                         if let Some(scope) = self.scopes.last_mut() {
                             scope.push(name.clone());
                         }
+                    } else {
+                        self.bind_local_pattern_value(pattern, val_reg, val_ty)?;
                     }
                 }
             }
@@ -2045,6 +2331,19 @@ impl LlvmGenerator {
                             Err(KainError::codegen("Field assignment requires a struct pointer", *span))
                         }
                     }
+                    Expr::Index { object, index, .. } => {
+                        let (obj_val, obj_ty) = self.compile_expr(object)?;
+                        let (idx_val, _) = self.compile_expr(index)?;
+                        if obj_ty == "i8*" {
+                            let stored = self.coerce_to_i64_storage(&rhs, &rhs_ty);
+                            self.emit(&format!("  call void @array_set(i8* {}, i64 {}, i64 {})", obj_val, idx_val, stored));
+                            Ok((rhs, rhs_ty))
+                        } else {
+                            let (field_ptr, field_ty) = self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, *span)?;
+                            self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, field_ty, field_ptr));
+                            Ok((rhs, rhs_ty))
+                        }
+                    }
                     _ => Err(KainError::codegen("Unsupported assignment target", *span)),
                 }
             }
@@ -2079,7 +2378,13 @@ impl LlvmGenerator {
             Expr::AggregateInit { ty, fields, span, .. } => {
                 match ty {
                     kain_core::ast::Type::Named { name, .. } => self.compile_expr(&Expr::Struct { name: name.clone(), fields: fields.clone(), span: *span }),
-                    _ => Ok(("0".into(), "i64".into())),
+                    kain_core::ast::Type::Tuple(_, _) => {
+                        self.compile_expr(&Expr::Tuple(fields.iter().map(|(_, value)| value.clone()).collect(), *span))
+                    }
+                    _ => Err(KainError::codegen(
+                        format!("Unsupported LLVM aggregate init type: {:?}", ty),
+                        *span,
+                    )),
                 }
             }
             Expr::Array(items, _) => {
@@ -2092,7 +2397,45 @@ impl LlvmGenerator {
                 }
                 Ok((arr, "i8*".into()))
             }
-            Expr::Tuple(_, _) => Ok(("0".into(), "i64".into())),
+            Expr::Tuple(items, span) => {
+                let mut compiled_fields = Vec::new();
+                let mut field_tys = Vec::new();
+                for item in items {
+                    let (val, ty) = self.compile_expr(item)?;
+                    compiled_fields.push((val, ty.clone()));
+                    field_tys.push(ty);
+                }
+
+                let tuple_name = Self::tuple_struct_name_from_types(&field_tys);
+                let tuple_ptr_ty = format!("%{}*", tuple_name);
+                if !self.struct_defs.contains_key(&tuple_name) {
+                    return Err(KainError::codegen(
+                        format!("Tuple LLVM type '{}' was not registered before codegen", tuple_name),
+                        *span,
+                    ));
+                }
+
+                let null_ptr = format!("{} null", tuple_ptr_ty);
+                let size_ptr_reg = self.next_reg();
+                self.emit(&format!("  {} = getelementptr %{}, {}, i32 1", size_ptr_reg, tuple_name, null_ptr));
+                let size_reg = self.next_reg();
+                self.emit(&format!("  {} = ptrtoint {} {} to i64", size_reg, tuple_ptr_ty, size_ptr_reg));
+                let mem_reg = self.next_reg();
+                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", mem_reg, size_reg));
+                let tuple_ptr = self.next_reg();
+                self.emit(&format!("  {} = bitcast i8* {} to {}", tuple_ptr, mem_reg, tuple_ptr_ty));
+
+                for (index, (field_val, field_ty)) in compiled_fields.iter().enumerate() {
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                        field_ptr, tuple_name, tuple_ptr_ty, tuple_ptr, index
+                    ));
+                    self.emit(&format!("  store {} {}, {}* {}", field_ty, field_val, field_ty, field_ptr));
+                }
+
+                Ok((tuple_ptr, tuple_ptr_ty))
+            }
             Expr::Index { object, index, span: _ } => {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (idx_val, _) = self.compile_expr(index)?;
@@ -2101,7 +2444,10 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = call i64 @array_get(i8* {}, i64 {})", res, obj_val, idx_val));
                     Ok((res, "i64".into()))
                 } else {
-                    Ok(("0".into(), "i64".into()))
+                    let (field_ptr, field_ty) = self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, index.span())?;
+                    let loaded = self.next_reg();
+                    self.emit(&format!("  {} = load {}, {}* {}", loaded, field_ty, field_ty, field_ptr));
+                    Ok((loaded, field_ty))
                 }
             }
             Expr::Spawn { actor, init, span } => {
@@ -2290,8 +2636,10 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = phi {} {}", res_reg, res_ty, phi_args));
                     Ok((res_reg, res_ty))
                 } else {
-                    // Type mismatch or mixed void/value. Return 0 to be safe.
-                    Ok(("0".into(), "i64".into()))
+                    Err(KainError::codegen(
+                        "LLVM if-expression branches produced inconsistent result types",
+                        *span,
+                    ))
                 }
             }
             Expr::Ident(name, span) => {
@@ -2460,7 +2808,10 @@ impl LlvmGenerator {
                         self.emit(&format!("  {} = ashr {} {}, {}", res, ty, lhs, rhs));
                         Ok((res, ty))
                     }
-                    _ => Ok(("0".into(), "i64".into())),
+                    _ => Err(KainError::codegen(
+                        format!("Unsupported LLVM binary operator: {:?}", op),
+                        expr.span(),
+                    )),
                 }
             }
             Expr::MethodCall { receiver, method, args, span } => {
@@ -2784,9 +3135,10 @@ impl LlvmGenerator {
             }
             // Catch-all for unsupported expressions
             other => {
-                // For unsupported expressions, return a dummy value
-                // This allows compilation to continue for partial codegen
-                Ok(("0".into(), "i64".into()))
+                Err(KainError::codegen(
+                    format!("Unsupported LLVM expression: {:?}", other),
+                    other.span(),
+                ))
             }
         }
     }
