@@ -27,3 +27,5 @@ git-fetch-with-cli = false
 [alias]
 # Build and auto-install to cargo bin (use: cargo bi)
 bi = "build --release"
+# Release build with warnings suppressed so only errors stand out
+br = "build --release --config target.x86_64-pc-windows-msvc.rustflags=['-Awarnings','-C','link-arg=-fuse-ld=lld'] --config target.x86_64-pc-windows-gnu.rustflags=['-Awarnings','-C','link-arg=-fuse-ld=lld']"

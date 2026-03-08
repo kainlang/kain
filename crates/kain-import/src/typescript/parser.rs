@@ -2,13 +2,9 @@
 //!
 //! This module wraps the `swc_ecma_parser` crate to parse TypeScript source files.
 
-use swc_common::{
-    errors::{ColorConfig, Handler},
-    sync::Lrc,
-    FileName, FilePathMapping, SourceMap,
-};
-use swc_ecma_ast::Module;
-use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsConfig, EsConfig};
+use swc_common::{sync::Lrc, FileName, SourceMap};
+use swc_ecma_ast::{EsVersion, Module};
+use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax};
 use std::path::Path;
 use crate::{ImportError, Result};
 
@@ -29,7 +25,7 @@ pub fn parse_typescript(source: &str, path: &Path) -> Result<Module> {
     );
 
     // Configure TypeScript parser
-    let syntax = Syntax::Typescript(TsConfig {
+    let syntax = Syntax::Typescript(TsSyntax {
         tsx: path.extension().and_then(|e| e.to_str()) == Some("tsx"),
         decorators: true,
         dts: false,
@@ -40,7 +36,7 @@ pub fn parse_typescript(source: &str, path: &Path) -> Result<Module> {
     // Create lexer
     let lexer = Lexer::new(
         syntax,
-        EsConfig::default(), // ES2022
+        EsVersion::Es2022,
         StringInput::from(&*fm),
         None,
     );

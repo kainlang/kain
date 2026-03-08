@@ -11,10 +11,11 @@ pub mod gpu_host;
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use kain_core::types::{TypedProgram, TypedItem};
 use kain_core::error::KainResult;
+use kain_core::effects::Effect;
 use kain_core::ast::{
     Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
     Field, Variant, VariantFields, Impl, Param, MatchArm, CallArg, ElseBranch,
-    VariantPatternFields, EnumVariantFields,
+    VariantPatternFields, EnumVariantFields, Component, JSXNode, JSXAttrValue,
 };
 use kain_core::span::Span;
 
@@ -125,7 +126,10 @@ impl RustGen {
         self.write_line("use std::rc::Rc;");
         self.write_line("use std::cell::RefCell;");
         self.write_line("use std::cmp::min;");
+        self.write_line("use std::ffi::c_void;");
         self.write_line("use std::mem::size_of;");
+        self.write_blank();
+        self.emit_runtime_helpers();
         self.write_blank();
         self.write_low_level_memory_helpers();
         self.write_blank();
@@ -137,6 +141,35 @@ impl RustGen {
         }
 
         self.output.build()
+    }
+
+    fn emit_runtime_helpers(&mut self) {
+        self.write_line("unsafe extern \"C\" {");
+        self.push_indent();
+        self.write_line("fn malloc(size: usize) -> *mut c_void;");
+        self.write_line("fn calloc(count: usize, size: usize) -> *mut c_void;");
+        self.write_line("fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_pow(left: f64, right: f64) -> f64 {");
+        self.push_indent();
+        self.write_line("left.powf(right)");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_alloc_bytes(size: usize, zeroed: bool) -> *mut u8 {");
+        self.push_indent();
+        self.write_line("unsafe {");
+        self.push_indent();
+        self.write_line("if zeroed { calloc(1, size) as *mut u8 } else { malloc(size) as *mut u8 }");
+        self.pop_indent();
+        self.write_line("}");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_line("fn __kain_realloc_bytes(ptr: *mut u8, size: usize, _zeroed_new: bool) -> *mut u8 {");
+        self.push_indent();
+        self.write_line("unsafe { realloc(ptr.cast::<c_void>(), size) as *mut u8 }");
+        self.pop_indent();
+        self.write_line("}");
     }
 
     fn write_low_level_memory_helpers(&mut self) {
@@ -218,37 +251,32 @@ impl RustGen {
     fn gen_item(&mut self, item: &TypedItem) {
         match item {
             TypedItem::Function(fn_typed) => self.gen_function(&fn_typed.ast),
+            TypedItem::Component(component) => self.gen_component(&component.ast),
             TypedItem::Struct(st) => self.gen_struct(&st.ast),
             TypedItem::Enum(en) => self.gen_enum(&en.ast),
             TypedItem::Impl(im) => self.gen_impl(&im.ast),
-            _ => {} // Skip shaders, actors, components, traits, etc. for Rust output
+            _ => {}
         }
     }
 
     // Generate a function definition
     fn gen_function(&mut self, func: &Function) {
-        let vis = match func.visibility {
-            kain_core::ast::Visibility::Public => "pub ",
-            _ => "",
-        };
-
-        // Parameters
+        let vis = self.visibility_prefix(func.visibility);
+        let modifiers = self.function_modifiers(&func.effects);
         let params = self.gen_params(&func.params);
-
-        // Return type
         let ret = if let Some(ty) = &func.return_type {
             format!(" -> {}", self.map_type(ty))
         } else {
             String::new()
         };
+        let has_implicit_return = func
+            .return_type
+            .as_ref()
+            .is_some_and(|ty| !matches!(ty, Type::Unit(_)));
 
-        // Function signature
-        self.write_line(&format!("{}fn {}({}){} {{", vis, func.name, params, ret));
+        self.write_line(&format!("{}{}fn {}({}){} {{", vis, modifiers, func.name, params, ret));
         self.push_indent();
-
-        // Body
-        self.gen_block(&func.body);
-
+        self.gen_block_with_implicit_return(&func.body, has_implicit_return);
         self.pop_indent();
         self.write_line("}");
     }
@@ -269,26 +297,46 @@ impl RustGen {
     }
 
     fn gen_struct(&mut self, struct_def: &Struct) {
-        let vis = match struct_def.visibility {
-            kain_core::ast::Visibility::Public => "pub ",
-            _ => "",
-        };
+        let vis = self.visibility_prefix(struct_def.visibility);
 
-        self.write_line("#[derive(Debug, Clone)]");
+        self.write_line("#[derive(Debug, Clone, Default)]");
         self.write_line(&format!("{}struct {} {{", vis, struct_def.name));
         self.push_indent();
 
         for field in &struct_def.fields {
-            self.write_line(&format!("pub {}: {},", field.name, self.map_type(&field.ty)));
+            self.write_line(&format!(
+                "{}{}: {},",
+                self.visibility_prefix(field.visibility),
+                field.name,
+                self.map_type(&field.ty)
+            ));
         }
 
         self.pop_indent();
         self.write_line("}");
     }
 
+    fn gen_impl(&mut self, impl_def: &Impl) {
+        let target = self.map_type(&impl_def.target_type);
+
+        if let Some(trait_name) = &impl_def.trait_name {
+            self.write_line(&format!("impl {} for {} {{", trait_name, target));
+        } else {
+            self.write_line(&format!("impl {} {{", target));
+        }
+
+        self.push_indent();
+        for method in &impl_def.methods {
+            self.gen_function(method);
+            self.write_blank();
+        }
+        self.pop_indent();
+        self.write_line("}");
+    }
+
     fn gen_enum(&mut self, enum_def: &Enum) {
         self.write_line("#[derive(Debug, Clone, PartialEq)]");
-        self.write_line(&format!("pub enum {} {{", enum_def.name));
+        self.write_line(&format!("{}enum {} {{", self.visibility_prefix(enum_def.visibility), enum_def.name));
         self.push_indent();
 
         for variant in &enum_def.variants {
@@ -316,27 +364,101 @@ impl RustGen {
         self.write_line("}");
     }
 
-    fn gen_impl(&mut self, impl_def: &Impl) {
-        let target = self.map_type(&impl_def.target_type);
-        
-        if let Some(trait_name) = &impl_def.trait_name {
-            self.write_line(&format!("impl {} for {} {{", trait_name, target));
-        } else {
-            self.write_line(&format!("impl {} {{", target));
-        }
-        self.push_indent();
+    fn component_props_name(&self, name: &str) -> String {
+        format!("{}Props", name)
+    }
 
-        for method in &impl_def.methods {
-            self.gen_function(method);
+    fn gen_component_props_struct(&mut self, comp: &Component) {
+        let props_name = self.component_props_name(&comp.name);
+        let vis = self.visibility_prefix(comp.visibility);
+
+        self.write_line("#[derive(Debug, Clone, Default)]");
+        self.write_line(&format!("{}struct {} {{", vis, props_name));
+        self.push_indent();
+        for prop in &comp.props {
+            self.write_line(&format!("pub {}: {},", prop.name, self.map_type(&prop.ty)));
+        }
+        self.write_line("pub children: String,");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_blank();
+    }
+
+    fn gen_component(&mut self, comp: &Component) {
+        let vis = self.visibility_prefix(comp.visibility);
+        let modifiers = self.function_modifiers(&comp.effects);
+        let props_name = self.component_props_name(&comp.name);
+        let mut prop_bindings: Vec<String> = comp.props.iter().map(|prop| prop.name.clone()).collect();
+        prop_bindings.push("children".to_string());
+
+        self.gen_component_props_struct(comp);
+        self.write_line(&format!("{}{}fn {}(props: {}) -> String {{", vis, modifiers, comp.name, props_name));
+        self.push_indent();
+        self.write_line(&format!("let {} {{ {} }} = props;", props_name, prop_bindings.join(", ")));
+
+        if !comp.state.is_empty() || !comp.methods.is_empty() {
             self.write_blank();
         }
 
+        for state in &comp.state {
+            self.write_line(&format!("let mut {}: {} = {};", state.name, self.map_type(&state.ty), self.gen_expr(&state.initial)));
+        }
+
+        if !comp.state.is_empty() && !comp.methods.is_empty() {
+            self.write_blank();
+        }
+
+        for (index, method) in comp.methods.iter().enumerate() {
+            self.gen_component_method_binding(method);
+            if index + 1 != comp.methods.len() {
+                self.write_blank();
+            }
+        }
+
+        if !comp.methods.is_empty() {
+            self.write_blank();
+        }
+
+        self.write_line(&self.gen_jsx(&comp.body));
         self.pop_indent();
         self.write_line("}");
     }
 
+    fn gen_component_method_binding(&mut self, method: &Function) {
+        let params = self.gen_params(&method.params);
+        let ret = if let Some(ty) = &method.return_type {
+            format!(" -> {}", self.map_type(ty))
+        } else {
+            String::new()
+        };
+        let has_implicit_return = method
+            .return_type
+            .as_ref()
+            .is_some_and(|ty| !matches!(ty, Type::Unit(_)));
+
+        self.write_line(&format!("let mut {} = |{}|{} {{", method.name, params, ret));
+        self.push_indent();
+        self.gen_block_with_implicit_return(&method.body, has_implicit_return);
+        self.pop_indent();
+        self.write_line("};");
+    }
+
     fn gen_block(&mut self, block: &Block) {
-        for stmt in &block.stmts {
+        self.gen_block_with_implicit_return(block, false);
+    }
+
+    fn gen_block_with_implicit_return(&mut self, block: &Block, implicit_return: bool) {
+        let len = block.stmts.len();
+        for (i, stmt) in block.stmts.iter().enumerate() {
+            let is_last = i + 1 == len;
+            if implicit_return && is_last {
+                if let Stmt::Expr(expr) = stmt {
+                    if !matches!(expr, Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)) {
+                        self.write_line(&self.gen_expr(expr));
+                        continue;
+                    }
+                }
+            }
             self.gen_stmt(stmt);
         }
     }
@@ -352,7 +474,6 @@ impl RustGen {
                     self.write_line(&format!("let {}{};", pat_str, ty_str));
                 }
             }
-
             Stmt::Return(maybe_expr, _) => {
                 if let Some(expr) = maybe_expr {
                     self.write_line(&format!("return {};", self.gen_expr(expr)));
@@ -360,7 +481,6 @@ impl RustGen {
                     self.write_line("return;");
                 }
             }
-
             Stmt::Break(maybe_expr, _) => {
                 if let Some(expr) = maybe_expr {
                     self.write_line(&format!("break {};", self.gen_expr(expr)));
@@ -368,11 +488,9 @@ impl RustGen {
                     self.write_line("break;");
                 }
             }
-
             Stmt::Continue(_) => {
                 self.write_line("continue;");
             }
-
             Stmt::For { binding, iter, body, .. } => {
                 let pat = self.gen_pattern(binding);
                 self.write_line(&format!("for {} in {} {{", pat, self.gen_expr(iter)));
@@ -381,7 +499,6 @@ impl RustGen {
                 self.pop_indent();
                 self.write_line("}");
             }
-
             Stmt::While { condition, body, .. } => {
                 self.write_line(&format!("while {} {{", self.gen_expr(condition)));
                 self.push_indent();
@@ -389,7 +506,6 @@ impl RustGen {
                 self.pop_indent();
                 self.write_line("}");
             }
-
             Stmt::Loop { body, .. } => {
                 self.write_line("loop {");
                 self.push_indent();
@@ -397,19 +513,77 @@ impl RustGen {
                 self.pop_indent();
                 self.write_line("}");
             }
-
             Stmt::Expr(expr) => {
-                // Check for assignment expression
                 if let Expr::Assign { target, value, .. } = expr {
                     self.write_line(&format!("{} = {};", self.gen_expr(target), self.gen_expr(value)));
                 } else {
                     self.write_line(&format!("{};", self.gen_expr(expr)));
                 }
             }
+            Stmt::Item(_) => {}
+        }
+    }
 
-            Stmt::Item(item) => {
-                // Nested items - convert to TypedItem and generate
-                // For now, skip nested items in Rust output
+    fn gen_block_expr(&self, block: &Block) -> String {
+        let len = block.stmts.len();
+        let mut stmt_strs = Vec::new();
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            stmt_strs.push(self.gen_stmt_inline(stmt, index + 1 == len));
+        }
+        if stmt_strs.is_empty() {
+            "{ () }".to_string()
+        } else {
+            format!("{{ {} }}", stmt_strs.join(" "))
+        }
+    }
+
+    fn gen_stmt_inline(&self, stmt: &Stmt, is_last: bool) -> String {
+        match stmt {
+            Stmt::Let { pattern, ty, value, .. } => {
+                let pat_str = self.gen_pattern(pattern);
+                let ty_str = ty.as_ref().map(|t| format!(": {}", self.map_type(t))).unwrap_or_default();
+                if let Some(val) = value {
+                    format!("let {}{} = {};", pat_str, ty_str, self.gen_expr(val))
+                } else {
+                    format!("let {}{};", pat_str, ty_str)
+                }
+            }
+            Stmt::Expr(expr) => {
+                let expr_str = self.gen_expr(expr);
+                if is_last { expr_str } else { format!("{};", expr_str) }
+            }
+            Stmt::Return(maybe_expr, _) => {
+                if let Some(expr) = maybe_expr {
+                    format!("return {};", self.gen_expr(expr))
+                } else {
+                    "return;".to_string()
+                }
+            }
+            Stmt::Break(maybe_expr, _) => {
+                if let Some(expr) = maybe_expr {
+                    format!("break {};", self.gen_expr(expr))
+                } else {
+                    "break;".to_string()
+                }
+            }
+            Stmt::Continue(_) => "continue;".to_string(),
+            Stmt::For { binding, iter, body, .. } => {
+                format!("for {} in {} {}", self.gen_pattern(binding), self.gen_expr(iter), self.gen_block_expr(body))
+            }
+            Stmt::While { condition, body, .. } => {
+                format!("while {} {}", self.gen_expr(condition), self.gen_block_expr(body))
+            }
+            Stmt::Loop { body, .. } => format!("loop {}", self.gen_block_expr(body)),
+            Stmt::Item(_) => "()".to_string(),
+        }
+    }
+
+    fn gen_else_branch_expr(&self, else_branch: &ElseBranch) -> String {
+        match else_branch {
+            ElseBranch::Else(block) => self.gen_block_expr(block),
+            ElseBranch::ElseIf(condition, block, tail) => {
+                let else_tail = tail.as_ref().map(|next| format!(" else {}", self.gen_else_branch_expr(next))).unwrap_or_default();
+                format!("if {} {}{}", self.gen_expr(condition), self.gen_block_expr(block), else_tail)
             }
         }
     }
@@ -419,247 +593,257 @@ impl RustGen {
             Expr::Int(n, _) => n.to_string(),
             Expr::Float(f, _) => format!("{:.1}", f),
             Expr::String(s, _) => format!("\"{}\".to_string()", self.escape_string(s)),
-            Expr::Bool(b, _) => if *b { "true".to_string() } else { "false".to_string() },
+            Expr::FString(parts, _) => {
+                if parts.is_empty() {
+                    "String::new()".to_string()
+                } else {
+                    let placeholders = vec!["{}"; parts.len()].join("");
+                    let args: Vec<String> = parts.iter().map(|part| self.gen_expr(part)).collect();
+                    format!("format!(\"{}\", {})", placeholders, args.join(", "))
+                }
+            }
+            Expr::Bool(b, _) => b.to_string(),
             Expr::None(_) => "None".to_string(),
             Expr::Ident(name, _) => name.clone(),
-
+            Expr::MacroCall { name, args, .. } => {
+                let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
+                match name.as_str() {
+                    "println" | "print" | "eprintln" => {
+                        if arg_strs.is_empty() {
+                            format!("{}!()", name)
+                        } else {
+                            let placeholders = vec!["{}"; arg_strs.len()].join(" " );
+                            format!("{}!(\"{}\", {})", name, placeholders, arg_strs.join(", "))
+                        }
+                    }
+                    _ => format!("{}!({})", name, arg_strs.join(", ")),
+                }
+            }
             Expr::Binary { left, op, right, .. } => {
                 let l = self.gen_expr(left);
                 let r = self.gen_expr(right);
-                let rust_op = self.map_binop(op);
-                format!("({} {} {})", l, rust_op, r)
+                if matches!(op, BinaryOp::Pow) {
+                    format!("__kain_pow(({}) as f64, ({}) as f64)", l, r)
+                } else {
+                    format!("({} {} {})", l, self.map_binop(op), r)
+                }
             }
-
-            Expr::Unary { op, operand, .. } => {
-                let o = self.gen_expr(operand);
-                let rust_op = self.map_unaryop(op);
-                format!("({}{})", rust_op, o)
-            }
-
+            Expr::Unary { op, operand, .. } => format!("({}{})", self.map_unaryop(op), self.gen_expr(operand)),
             Expr::Call { callee, args, .. } => {
                 let fn_name = self.gen_expr(callee);
-
-                // Handle KAIN builtins
-                if fn_name == "println" || fn_name == "print" {
+                if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" {
                     let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
-                    let placeholders: Vec<&str> = arg_strs.iter().map(|_| "{}").collect();
-                    let format_str = format!("\"{}\"", placeholders.join(" "));
-                    if !arg_strs.is_empty() {
-                        return format!("{}!({}, {})", fn_name, format_str, arg_strs.join(", "));
+                    if arg_strs.is_empty() {
+                        return format!("{}!()", fn_name);
                     }
-                    return format!("{}!()", fn_name);
+                    let placeholders = vec!["{}"; arg_strs.len()].join(" " );
+                    return format!("{}!(\"{}\", {})", fn_name, placeholders, arg_strs.join(", "));
                 }
-
-                let arg_strs: Vec<String> = args.iter().map(|a| {
-                    if let Some(name) = &a.name {
-                        format!("{}: {}", name, self.gen_expr(&a.value))
-                    } else {
-                        self.gen_expr(&a.value)
-                    }
-                }).collect();
+                let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!("{}({})", fn_name, arg_strs.join(", "))
             }
-
             Expr::MethodCall { receiver, method, args, .. } => {
                 let recv = self.gen_expr(receiver);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!("{}.{}({})", recv, method, arg_strs.join(", "))
             }
-
-            Expr::Field { object, field, .. } => {
-                format!("{}.{}", self.gen_expr(object), field)
-            }
-
-            Expr::Index { object, index, .. } => {
-                format!("{}[{}]", self.gen_expr(object), self.gen_expr(index))
-            }
-
-            Expr::Array(elements, _) => {
-                let elems: Vec<String> = elements.iter().map(|e| self.gen_expr(e)).collect();
-                format!("vec![{}]", elems.join(", "))
-            }
-
-            Expr::Tuple(elements, _) => {
-                let elems: Vec<String> = elements.iter().map(|e| self.gen_expr(e)).collect();
-                if elems.len() == 1 {
-                    format!("({},)", elems[0])
-                } else {
-                    format!("({})", elems.join(", "))
-                }
-            }
-
+            Expr::Field { object, field, .. } => format!("{}.{}", self.gen_expr(object), field),
+            Expr::Index { object, index, .. } => format!("{}[{}]", self.gen_expr(object), self.gen_expr(index)),
+            Expr::Assign { target, value, .. } => format!("({} = {})", self.gen_expr(target), self.gen_expr(value)),
             Expr::Struct { name, fields, .. } => {
-                let field_strs: Vec<String> = fields
-                    .iter()
-                    .map(|(fname, fval)| format!("{}: {}", fname, self.gen_expr(fval)))
-                    .collect();
+                let field_strs: Vec<String> = fields.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
                 format!("{} {{ {} }}", name, field_strs.join(", "))
             }
-
+            Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => {
+                let ty_name = self.map_type(ty);
+                let field_strs: Vec<String> = fields.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                if *zero_fill_rest {
+                    if field_strs.is_empty() {
+                        format!("{} {{ ..Default::default() }}", ty_name)
+                    } else {
+                        format!("{} {{ {}, ..Default::default() }}", ty_name, field_strs.join(", "))
+                    }
+                } else {
+                    format!("{} {{ {} }}", ty_name, field_strs.join(", "))
+                }
+            }
             Expr::EnumVariant { enum_name, variant, fields, .. } => {
                 match fields {
                     EnumVariantFields::Unit => format!("{}::{}", enum_name, variant),
-                    EnumVariantFields::Tuple(args) => {
-                        let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(a)).collect();
-                        format!("{}::{}({})", enum_name, variant, arg_strs.join(", "))
+                    EnumVariantFields::Tuple(values) => {
+                        let parts: Vec<String> = values.iter().map(|value| self.gen_expr(value)).collect();
+                        format!("{}::{}({})", enum_name, variant, parts.join(", "))
                     }
-                    EnumVariantFields::Struct(fields) => {
-                        let field_strs: Vec<String> = fields
-                            .iter()
-                            .map(|(n, v)| format!("{}: {}", n, self.gen_expr(v)))
-                            .collect();
-                        format!("{}::{} {{ {} }}", enum_name, variant, field_strs.join(", "))
+                    EnumVariantFields::Struct(values) => {
+                        let parts: Vec<String> = values.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                        format!("{}::{} {{ {} }}", enum_name, variant, parts.join(", "))
                     }
                 }
             }
-
-            Expr::If { condition, then_branch, else_branch, .. } => {
-                let cond = self.gen_expr(condition);
-                let then_str = self.gen_block_expr(then_branch);
-                if let Some(else_b) = else_branch {
-                    let else_str = self.gen_else_branch(else_b);
-                    format!("if {} {{ {} }} else {}", cond, then_str, else_str)
+            Expr::Array(items, _) => {
+                let parts: Vec<String> = items.iter().map(|item| self.gen_expr(item)).collect();
+                format!("vec![{}]", parts.join(", "))
+            }
+            Expr::Tuple(items, _) => {
+                let parts: Vec<String> = items.iter().map(|item| self.gen_expr(item)).collect();
+                if parts.len() == 1 {
+                    format!("({},)", parts[0])
                 } else {
-                    format!("if {} {{ {} }}", cond, then_str)
+                    format!("({})", parts.join(", "))
                 }
             }
-
-            Expr::Match { scrutinee, arms, .. } => {
-                let scrut = self.gen_expr(scrutinee);
-                let mut result = format!("match {} {{\n", scrut);
-                for arm in arms {
-                    let pat = self.gen_pattern(&arm.pattern);
-                    let body = self.gen_expr(&arm.body);
-                    result.push_str(&format!("    {} => {{ {} }}\n", pat, body));
-                }
-                result.push_str("}");
-                result
-            }
-
-            Expr::Lambda { params, body, .. } => {
-                let param_strs: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
-                format!("|{}| {}", param_strs.join(", "), self.gen_expr(body))
-            }
-
-            Expr::Await(future, _) => {
-                format!("{}.await", self.gen_expr(future))
-            }
-
-            Expr::Ref { mutable, value, .. } => {
-                if *mutable {
-                    format!("&mut {}", self.gen_expr(value))
-                } else {
-                    format!("&{}", self.gen_expr(value))
-                }
-            }
-
-            Expr::Deref(inner, _) => {
-                format!("*{}", self.gen_expr(inner))
-            }
-
-            Expr::Cast { value, target, .. } => {
-                format!("{} as {}", self.gen_expr(value), self.map_type(target))
-            }
-
-            Expr::Try(inner, _) => {
-                format!("{}?", self.gen_expr(inner))
-            }
-
             Expr::Range { start, end, inclusive, .. } => {
-                let s = start.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
-                let e = end.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
-                if *inclusive {
-                    format!("{}..={}", s, e)
+                let start = start.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
+                let end = end.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
+                if *inclusive { format!("{}..={}", start, end) } else { format!("{}..{}", start, end) }
+            }
+            Expr::If { condition, then_branch, else_branch, .. } => {
+                let then_expr = self.gen_block_expr(then_branch);
+                if let Some(else_branch) = else_branch {
+                    format!("if {} {} else {}", self.gen_expr(condition), then_expr, self.gen_else_branch_expr(else_branch))
                 } else {
-                    format!("{}..{}", s, e)
+                    format!("if {} {}", self.gen_expr(condition), then_expr)
                 }
             }
-
-            Expr::Block(block, _) => {
-                format!("{{ {} }}", self.gen_block_expr(block))
+            Expr::Match { scrutinee, arms, .. } => {
+                let arm_strs: Vec<String> = arms.iter().map(|arm| {
+                    let guard = arm.guard.as_ref().map(|guard| format!(" if {}", self.gen_expr(guard))).unwrap_or_default();
+                    format!("{}{} => {}", self.gen_pattern(&arm.pattern), guard, self.gen_expr(&arm.body))
+                }).collect();
+                format!("match {} {{ {} }}", self.gen_expr(scrutinee), arm_strs.join(", "))
             }
-
-            Expr::Paren(inner, _) => {
-                format!("({})", self.gen_expr(inner))
+            Expr::Lambda { params, return_type, body, .. } => {
+                let params = self.gen_params(params);
+                let ret = return_type.as_ref().map(|ty| format!(" -> {}", self.map_type(ty))).unwrap_or_default();
+                format!("|{}|{} {}", params, ret, self.gen_expr(body))
             }
-
-            Expr::Return(maybe_expr, _) => {
-                if let Some(expr) = maybe_expr {
-                    format!("return {}", self.gen_expr(expr))
+            Expr::Ref { mutable, value, .. } => {
+                if *mutable { format!("&mut {}", self.gen_expr(value)) } else { format!("&{}", self.gen_expr(value)) }
+            }
+            Expr::AddrOf { value, pointee_ty, .. } => {
+                if let Some(ty) = pointee_ty {
+                    format!("((&{}) as *const {})", self.gen_expr(value), self.map_type(ty))
                 } else {
-                    "return".to_string()
+                    format!("std::ptr::addr_of!({})", self.gen_expr(value))
                 }
             }
-
-            Expr::Break(maybe_expr, _) => {
-                if let Some(expr) = maybe_expr {
-                    format!("break {}", self.gen_expr(expr))
-                } else {
-                    "break".to_string()
-                }
+            Expr::Deref(value, _) => format!("(*{})", self.gen_expr(value)),
+            Expr::PtrOffset { pointer, offset, element_ty, .. } => {
+                let ty = element_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("(({}) as *mut {}).wrapping_offset(({}) as isize)", self.gen_expr(pointer), ty, self.gen_expr(offset))
             }
-
+            Expr::MemLoad { pointer, load_ty, .. } => {
+                let ty = load_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("unsafe {{ std::ptr::read(({}) as *const {}) }}", self.gen_expr(pointer), ty)
+            }
+            Expr::MemStore { pointer, value, store_ty, .. } => {
+                let ty = store_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("unsafe {{ std::ptr::write(({}) as *mut {}, {}) }}", self.gen_expr(pointer), ty, self.gen_expr(value))
+            }
+            Expr::SizeOfType { target, .. } => format!("size_of::<{}>() as i64", self.map_type(target)),
+            Expr::AlignOfType { target, .. } => format!("std::mem::align_of::<{}>() as i64", self.map_type(target)),
+            Expr::Alloca { ty, .. } => format!("Box::into_raw(Box::new(unsafe {{ std::mem::MaybeUninit::<{}>::zeroed().assume_init() }}))", self.map_type(ty)),
+            Expr::Uninit { ty, .. } => format!("unsafe {{ std::mem::MaybeUninit::<{}>::uninit().assume_init() }}", self.map_type(ty)),
+            Expr::Alloc { size, ty, zeroed, .. } => {
+                let pointee = ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("__kain_alloc_bytes(({}) as usize, {}) as *mut {}", self.gen_expr(size), zeroed, pointee)
+            }
+            Expr::Realloc { pointer, size, ty, zeroed_new, .. } => {
+                let pointee = ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("__kain_realloc_bytes(({}) as *mut u8, ({}) as usize, {}) as *mut {}", self.gen_expr(pointer), self.gen_expr(size), zeroed_new, pointee)
+            }
+            Expr::Cast { value, target, .. } => format!("(({}) as {})", self.gen_expr(value), self.map_type(target)),
+            Expr::Try(value, _) => format!("({}?)", self.gen_expr(value)),
+            Expr::Await(value, _) => format!("({}.await)", self.gen_expr(value)),
+            Expr::Spawn { actor, init, .. } => {
+                let init_fields: Vec<String> = init.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                format!("{} {{ {} }}", actor, init_fields.join(", "))
+            }
+            Expr::SendMsg { target, message, data, .. } => {
+                let data_expr = if data.is_empty() {
+                    "()".to_string()
+                } else {
+                    let fields: Vec<String> = data.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                    format!("{{ {} }}", fields.join(", "))
+                };
+                format!("{{ let _target = {}; let _message = \"{}\"; let _data = {}; () }}", self.gen_expr(target), message, data_expr)
+            }
+            Expr::Comptime(expr, _) => self.gen_expr(expr),
+            Expr::Block(block, _) => self.gen_block_expr(block),
+            Expr::JSX(node, _) => self.gen_jsx(node),
+            Expr::Paren(expr, _) => format!("({})", self.gen_expr(expr)),
+            Expr::Return(expr, _) => expr.as_ref().map(|expr| format!("return {}", self.gen_expr(expr))).unwrap_or_else(|| "return".to_string()),
+            Expr::Break(expr, _) => expr.as_ref().map(|expr| format!("break {}", self.gen_expr(expr))).unwrap_or_else(|| "break".to_string()),
             Expr::Continue(_) => "continue".to_string(),
+        }
+    }
 
-            // FString - format string with interpolation
-            Expr::FString(parts, _) => {
-                let mut format_str = String::new();
-                let mut args = Vec::new();
-                for part in parts {
-                    if let Expr::String(s, _) = part {
-                        format_str.push_str(s);
-                    } else {
-                        format_str.push_str("{}");
-                        args.push(self.gen_expr(part));
-                    }
-                }
-                if args.is_empty() {
-                    format!("format!(\"{}\")", format_str)
+    fn gen_jsx_attr_value_expr(&self, value: &JSXAttrValue) -> String {
+        match value {
+            JSXAttrValue::String(value) => format!("\"{}\".to_string()", self.escape_string(value)),
+            JSXAttrValue::Expr(expr) => self.gen_expr(expr),
+            JSXAttrValue::Bool(value) => value.to_string(),
+        }
+    }
+
+    fn gen_jsx_children_expr(&self, children: &[JSXNode]) -> String {
+        if children.is_empty() {
+            "String::new()".to_string()
+        } else {
+            let child_strs: Vec<String> = children.iter().map(|child| self.gen_jsx(child)).collect();
+            format!("vec![{}].join(\"\")", child_strs.join(", "))
+        }
+    }
+
+    fn gen_jsx(&self, node: &JSXNode) -> String {
+        match node {
+            JSXNode::Text(text, _) => format!("\"{}\".to_string()", self.escape_string(text)),
+            JSXNode::Expression(expr) => format!("format!(\"{{}}\", {})", self.gen_expr(expr)),
+            JSXNode::Fragment(children, _) => self.gen_jsx_children_expr(children),
+            JSXNode::Element { tag, attributes, children, .. } => {
+                let attr_strs: Vec<String> = attributes
+                    .iter()
+                    .map(|attr| match &attr.value {
+                        JSXAttrValue::String(value) => format!("format!(\" {}=\\\"{{}}\\\"\", \"{}\")", attr.name, self.escape_string(value)),
+                        JSXAttrValue::Expr(expr) => format!("format!(\" {}=\\\"{{}}\\\"\", {})", attr.name, self.gen_expr(expr)),
+                        JSXAttrValue::Bool(value) => {
+                            if *value {
+                                format!("\" {}\".to_string()", attr.name)
+                            } else {
+                                "String::new()".to_string()
+                            }
+                        }
+                    })
+                    .collect();
+                let attrs_expr = if attr_strs.is_empty() {
+                    "String::new()".to_string()
                 } else {
-                    format!("format!(\"{}\", {})", format_str, args.join(", "))
-                }
+                    format!("vec![{}].join(\"\")", attr_strs.join(", "))
+                };
+                let children_expr = self.gen_jsx_children_expr(children);
+                format!("format!(\"<{}{{}}{{}}</{}>\", {}, {})", tag, tag, attrs_expr, children_expr)
             }
-
-            // Fallback for unhandled expressions
-            _ => "/* unhandled expr */".to_string(),
-        }
-    }
-
-    fn gen_block_expr(&self, block: &Block) -> String {
-        // For expression context, return the last expression value
-        if block.stmts.is_empty() {
-            return "()".to_string();
-        }
-        
-        let mut parts = Vec::new();
-        for stmt in &block.stmts {
-            match stmt {
-                Stmt::Expr(e) => parts.push(self.gen_expr(e)),
-                Stmt::Return(Some(e), _) => parts.push(format!("return {}", self.gen_expr(e))),
-                Stmt::Return(None, _) => parts.push("return".to_string()),
-                _ => {} // Skip other statements in expression context
+            JSXNode::ComponentCall { name, props, children, .. } => {
+                let props_name = self.component_props_name(name);
+                let mut field_strs: Vec<String> = props
+                    .iter()
+                    .map(|prop| format!("{}: {}", prop.name, self.gen_jsx_attr_value_expr(&prop.value)))
+                    .collect();
+                field_strs.push(format!("children: {}", self.gen_jsx_children_expr(children)));
+                format!("{}({} {{ {} }})", name, props_name, field_strs.join(", "))
             }
-        }
-        parts.join("; ")
-    }
-
-    fn gen_else_branch(&self, branch: &ElseBranch) -> String {
-        match branch {
-            ElseBranch::Else(block) => {
-                format!("{{ {} }}", self.gen_block_expr(block))
+            JSXNode::For { binding, iter, body, .. } => {
+                format!("({}).into_iter().map(|{}| {}).collect::<Vec<String>>().join(\"\")", self.gen_expr(iter), binding, self.gen_jsx(body))
             }
-            ElseBranch::ElseIf(cond, block, maybe_else) => {
-                let cond_str = self.gen_expr(cond);
-                let then_str = self.gen_block_expr(block);
-                if let Some(else_b) = maybe_else {
-                    format!("if {} {{ {} }} else {}", cond_str, then_str, self.gen_else_branch(else_b))
-                } else {
-                    format!("if {} {{ {} }}", cond_str, then_str)
-                }
+            JSXNode::If { condition, then_branch, else_branch, .. } => {
+                let else_expr = else_branch
+                    .as_ref()
+                    .map(|branch| self.gen_jsx(branch))
+                    .unwrap_or_else(|| "String::new()".to_string());
+                format!("if {} {{ {} }} else {{ {} }}", self.gen_expr(condition), self.gen_jsx(then_branch), else_expr)
             }
         }
     }
-
     fn gen_pattern(&self, pattern: &Pattern) -> String {
         match pattern {
             Pattern::Wildcard(_) => "_".to_string(),
@@ -731,19 +915,10 @@ impl RustGen {
         }
     }
 
-    // Type mapping from KAIN to Rust
     fn map_type(&self, ty: &Type) -> String {
         match ty {
             Type::Named { name, generics, .. } => {
-                let rust_name = match name.as_str() {
-                    "Int" => "i64",
-                    "Float" => "f64",
-                    "Bool" => "bool",
-                    "String" => "String",
-                    "Unit" => "()",
-                    "Array" => "Vec",
-                    _ => name,
-                };
+                let rust_name = self.map_named_type(name);
 
                 if generics.is_empty() {
                     rust_name.to_string()
@@ -754,7 +929,11 @@ impl RustGen {
             }
             Type::Tuple(types, _) => {
                 let type_strs: Vec<String> = types.iter().map(|t| self.map_type(t)).collect();
-                format!("({})", type_strs.join(", "))
+                if type_strs.len() == 1 {
+                    format!("({},)", type_strs[0])
+                } else {
+                    format!("({})", type_strs.join(", "))
+                }
             }
             Type::Array(inner, size, _) => {
                 format!("[{}; {}]", self.map_type(inner), size)
@@ -800,6 +979,54 @@ impl RustGen {
         }
     }
 
+    fn visibility_prefix(&self, visibility: kain_core::ast::Visibility) -> &'static str {
+        match visibility {
+            kain_core::ast::Visibility::Public => "pub ",
+            kain_core::ast::Visibility::Private => "",
+            kain_core::ast::Visibility::Crate => "pub(crate) ",
+            kain_core::ast::Visibility::Super => "pub(super) ",
+        }
+    }
+
+    fn function_modifiers(&self, effects: &[Effect]) -> String {
+        let mut parts = Vec::new();
+        if effects.contains(&Effect::Async) {
+            parts.push("async");
+        }
+        if effects.contains(&Effect::Unsafe) {
+            parts.push("unsafe");
+        }
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!("{} ", parts.join(" "))
+        }
+    }
+
+    fn map_named_type<'a>(&self, name: &'a str) -> &'a str {
+        match name {
+            "Int" => "i64",
+            "UInt" => "u64",
+            "Int8" => "i8",
+            "Int16" => "i16",
+            "Int32" => "i32",
+            "Int64" => "i64",
+            "UInt8" => "u8",
+            "UInt16" => "u16",
+            "UInt32" => "u32",
+            "UInt64" => "u64",
+            "Float" => "f64",
+            "Float32" => "f32",
+            "Float64" => "f64",
+            "Bool" => "bool",
+            "String" => "String",
+            "Char" => "char",
+            "Unit" => "()",
+            "Array" => "Vec",
+            _ => name,
+        }
+    }
+
     fn map_binop(&self, op: &BinaryOp) -> &'static str {
         match op {
             BinaryOp::Add => "+",
@@ -807,7 +1034,7 @@ impl RustGen {
             BinaryOp::Mul => "*",
             BinaryOp::Div => "/",
             BinaryOp::Mod => "%",
-            BinaryOp::Pow => ".pow", // Rust uses method call, but we approximate
+            BinaryOp::Pow => ".pow",
             BinaryOp::And => "&&",
             BinaryOp::Or => "||",
             BinaryOp::Eq => "==",
@@ -837,7 +1064,7 @@ impl RustGen {
             UnaryOp::Neg => "-",
             UnaryOp::Ref => "&",
             UnaryOp::RefMut => "&mut ",
-            UnaryOp::BitNot => "!", // Rust uses ! for bitwise not too
+            UnaryOp::BitNot => "!",
             UnaryOp::Deref => "*",
         }
     }
@@ -880,6 +1107,10 @@ pub fn gen_cargo_toml(name: &str, deps: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kain_core::ast::Visibility;
+    use kain_core::effects::EffectSet;
+    use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram, TypedStruct};
+    use std::collections::HashMap;
 
     #[test]
     fn test_type_mapping() {
@@ -890,5 +1121,354 @@ mod tests {
             span: Span::default(),
         };
         assert_eq!(gen.map_type(&int_ty), "i64");
+
+        let uint_ty = Type::Named {
+            name: "UInt".to_string(),
+            generics: vec![],
+            span: Span::default(),
+        };
+        assert_eq!(gen.map_type(&uint_ty), "u64");
+
+        let tuple_ty = Type::Tuple(vec![int_ty.clone()], Span::default());
+        assert_eq!(gen.map_type(&tuple_ty), "(i64,)");
+    }
+
+    #[test]
+    fn test_function_modifiers_and_implicit_return() {
+        let mut gen = RustGen::new();
+        let func = Function {
+            name: "compute".to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: Some(Type::Named {
+                name: "Int".to_string(),
+                generics: vec![],
+                span: Span::default(),
+            }),
+            effects: vec![Effect::Async, Effect::Unsafe],
+            body: Block {
+                stmts: vec![Stmt::Expr(Expr::Int(42, Span::default()))],
+                span: Span::default(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: Span::default(),
+        };
+
+        gen.gen_function(&func);
+        let output = gen.output.build();
+        assert!(output.contains("pub async unsafe fn compute() -> i64 {"));
+        assert!(output.contains("    42\n"));
+        assert!(!output.contains("return 42;"));
+    }
+
+    #[test]
+    fn test_low_level_memory_expr_lowering() {
+        let gen = RustGen::new();
+        let span = Span::default();
+        let int_ty = Type::Named {
+            name: "Int".to_string(),
+            generics: vec![],
+            span,
+        };
+
+        let mem_store = Expr::MemStore {
+            pointer: Box::new(Expr::Ident("ptr".to_string(), span)),
+            value: Box::new(Expr::Ident("value".to_string(), span)),
+            store_ty: Some(int_ty.clone()),
+            span,
+        };
+        assert!(gen.gen_expr(&mem_store).contains("std::ptr::write"));
+
+        let mem_load = Expr::MemLoad {
+            pointer: Box::new(Expr::Ident("ptr".to_string(), span)),
+            load_ty: Some(int_ty.clone()),
+            span,
+        };
+        assert!(gen.gen_expr(&mem_load).contains("std::ptr::read"));
+
+        let ptr_offset = Expr::PtrOffset {
+            pointer: Box::new(Expr::Ident("ptr".to_string(), span)),
+            offset: Box::new(Expr::Int(4, span)),
+            element_ty: Some(int_ty.clone()),
+            span,
+        };
+        assert!(gen.gen_expr(&ptr_offset).contains("wrapping_offset"));
+
+        let size_of = Expr::SizeOfType {
+            target: int_ty.clone(),
+            span,
+        };
+        assert_eq!(gen.gen_expr(&size_of), "size_of::<i64>() as i64");
+
+        let alloca = Expr::Alloca {
+            ty: int_ty.clone(),
+            span,
+        };
+        assert!(gen.gen_expr(&alloca).contains("MaybeUninit::<i64>::zeroed"));
+    }
+
+    #[test]
+    fn test_component_and_system_expr_codegen_fixture() {
+        let span = Span::default();
+        let int_ty = Type::Named {
+            name: "Int".to_string(),
+            generics: vec![],
+            span,
+        };
+        let string_ty = Type::Named {
+            name: "String".to_string(),
+            generics: vec![],
+            span,
+        };
+        let ptr_int_ty = Type::Ptr {
+            mutable: true,
+            inner: Box::new(int_ty.clone()),
+            provenance: kain_core::ast::PointerProvenance::Raw,
+            span,
+        };
+
+        let view_model = TypedItem::Struct(TypedStruct {
+            ast: Struct {
+                name: "ViewModel".to_string(),
+                generics: vec![],
+                fields: vec![
+                    Field {
+                        name: "value".to_string(),
+                        ty: int_ty.clone(),
+                        attributes: vec![],
+                        visibility: Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                    Field {
+                        name: "label".to_string(),
+                        ty: string_ty.clone(),
+                        attributes: vec![],
+                        visibility: Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span,
+                    },
+                ],
+                methods: vec![],
+                attributes: vec![],
+                visibility: Visibility::Public,
+                span,
+            },
+            field_types: HashMap::new(),
+        });
+
+        let raw_roundtrip = TypedItem::Function(TypedFunction {
+            ast: Function {
+                name: "raw_roundtrip".to_string(),
+                generics: vec![],
+                params: vec![
+                    Param {
+                        name: "ptr".to_string(),
+                        ty: ptr_int_ty.clone(),
+                        mutable: false,
+                        default: None,
+                        span,
+                    },
+                    Param {
+                        name: "value".to_string(),
+                        ty: int_ty.clone(),
+                        mutable: false,
+                        default: None,
+                        span,
+                    },
+                ],
+                return_type: Some(int_ty.clone()),
+                effects: vec![Effect::Unsafe],
+                body: Block {
+                    stmts: vec![
+                        Stmt::Expr(Expr::MemStore {
+                            pointer: Box::new(Expr::Ident("ptr".to_string(), span)),
+                            value: Box::new(Expr::Ident("value".to_string(), span)),
+                            store_ty: Some(int_ty.clone()),
+                            span,
+                        }),
+                        Stmt::Expr(Expr::MemLoad {
+                            pointer: Box::new(Expr::Ident("ptr".to_string(), span)),
+                            load_ty: Some(int_ty.clone()),
+                            span,
+                        }),
+                    ],
+                    span,
+                },
+                visibility: Visibility::Private,
+                attributes: vec![],
+                span,
+            },
+            resolved_type: ResolvedType::Int(kain_core::types::IntSize::I64),
+            effects: EffectSet::default(),
+        });
+
+        let build_model = TypedItem::Function(TypedFunction {
+            ast: Function {
+                name: "build_model".to_string(),
+                generics: vec![],
+                params: vec![Param {
+                    name: "value".to_string(),
+                    ty: int_ty.clone(),
+                    mutable: false,
+                    default: None,
+                    span,
+                }],
+                return_type: Some(Type::Named {
+                    name: "ViewModel".to_string(),
+                    generics: vec![],
+                    span,
+                }),
+                effects: vec![],
+                body: Block {
+                    stmts: vec![Stmt::Expr(Expr::AggregateInit {
+                        ty: Type::Named {
+                            name: "ViewModel".to_string(),
+                            generics: vec![],
+                            span,
+                        },
+                        fields: vec![("value".to_string(), Expr::Ident("value".to_string(), span))],
+                        zero_fill_rest: true,
+                        span,
+                    })],
+                    span,
+                },
+                visibility: Visibility::Private,
+                attributes: vec![],
+                span,
+            },
+            resolved_type: ResolvedType::Struct("ViewModel".to_string(), HashMap::new()),
+            effects: EffectSet::default(),
+        });
+
+        let hud_panel = TypedItem::Component(TypedComponent {
+            ast: Component {
+                name: "HudPanel".to_string(),
+                props: vec![Param {
+                    name: "title".to_string(),
+                    ty: string_ty.clone(),
+                    mutable: false,
+                    default: None,
+                    span,
+                }],
+                state: vec![kain_core::ast::StateDecl {
+                    name: "count".to_string(),
+                    ty: int_ty.clone(),
+                    initial: Expr::Int(0, span),
+                    weak: false,
+                    attributes: vec![],
+                    span,
+                }],
+                methods: vec![Function {
+                    name: "increment".to_string(),
+                    generics: vec![],
+                    params: vec![Param {
+                        name: "delta".to_string(),
+                        ty: int_ty.clone(),
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: Some(int_ty.clone()),
+                    effects: vec![],
+                    body: Block {
+                        stmts: vec![
+                            Stmt::Expr(Expr::Assign {
+                                target: Box::new(Expr::Ident("count".to_string(), span)),
+                                value: Box::new(Expr::Binary {
+                                    left: Box::new(Expr::Ident("count".to_string(), span)),
+                                    op: BinaryOp::Add,
+                                    right: Box::new(Expr::Ident("delta".to_string(), span)),
+                                    span,
+                                }),
+                                span,
+                            }),
+                            Stmt::Expr(Expr::Ident("count".to_string(), span)),
+                        ],
+                        span,
+                    },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span,
+                }],
+                effects: vec![],
+                body: JSXNode::Element {
+                    tag: "div".to_string(),
+                    attributes: vec![kain_core::ast::JSXAttribute {
+                        name: "class".to_string(),
+                        value: JSXAttrValue::String("hud".to_string()),
+                        span,
+                    }],
+                    children: vec![
+                        JSXNode::Text("Title: ".to_string(), span),
+                        JSXNode::Expression(Box::new(Expr::Ident("title".to_string(), span))),
+                        JSXNode::Text(" Count: ".to_string(), span),
+                        JSXNode::Expression(Box::new(Expr::Ident("count".to_string(), span))),
+                        JSXNode::Text(" ".to_string(), span),
+                        JSXNode::Expression(Box::new(Expr::Ident("children".to_string(), span))),
+                    ],
+                    span,
+                },
+                visibility: Visibility::Public,
+                attributes: vec![],
+                span,
+            },
+            prop_types: HashMap::new(),
+        });
+
+        let app_shell = TypedItem::Component(TypedComponent {
+            ast: Component {
+                name: "AppShell".to_string(),
+                props: vec![],
+                state: vec![],
+                methods: vec![],
+                effects: vec![],
+                body: JSXNode::ComponentCall {
+                    name: "HudPanel".to_string(),
+                    props: vec![kain_core::ast::JSXAttribute {
+                        name: "title".to_string(),
+                        value: JSXAttrValue::String("Status".to_string()),
+                        span,
+                    }],
+                    children: vec![JSXNode::Text("Inner body".to_string(), span)],
+                    span,
+                },
+                visibility: Visibility::Public,
+                attributes: vec![],
+                span,
+            },
+            prop_types: HashMap::new(),
+        });
+
+        let program = TypedProgram {
+            items: vec![view_model, raw_roundtrip, build_model, hud_panel, app_shell],
+        };
+
+        let output = generate(&program).expect("rust generation should succeed");
+        assert!(output.contains("pub struct ViewModel {"));
+        assert!(output.contains("raw_roundtrip("));
+        assert!(output.contains("value: i64"));
+        assert!(output.contains("fn build_model(value: i64) -> ViewModel {"));
+        assert!(output.contains("ViewModel {"));
+        assert!(output.contains("value: value"));
+        assert!(output.contains("pub struct HudPanelProps {"));
+        assert!(output.contains("pub children: String,"));
+        assert!(output.contains("pub fn HudPanel(props: HudPanelProps) -> String {"));
+        assert!(output.contains("let HudPanelProps { title, children } = props;"));
+        assert!(output.contains("let mut count: i64 = 0;"));
+        assert!(output.contains("let mut increment = |delta: i64| -> i64 {"));
+        assert!(output.contains("count = (count + delta)"));
+        assert!(output.contains("class="));
+        assert!(output.contains("hud"));
+        assert!(output.contains("Title: "));
+        assert!(output.contains("Count: "));
+        assert!(output.contains("format!(\"{}\", children)"));
+        assert!(output.contains("pub struct AppShellProps {"));
+        assert!(output.contains("pub fn AppShell(props: AppShellProps) -> String {"));
+        assert!(output.contains("let AppShellProps { children } = props;"));
+        assert!(output.contains("HudPanel(HudPanelProps { title: \"Status\".to_string(), children: vec![\"Inner body\".to_string()].join(\"\") })"));
     }
 }

@@ -1,156 +1,254 @@
-//! TypeScript → KAIN type mapping
+//! TypeScript -> KAIN type mapping.
 //!
-//! This module handles the conversion of TypeScript type annotations to KAIN types.
+//! The mapping is intentionally table-driven for the stable primitive/container
+//! cases so the importer can stay aligned with the existing web TypeScript
+//! backend without scattering string checks throughout the transformer.
 
 use kain_core::ast::Type;
+use kain_core::effects::Effect;
 use kain_core::span::Span;
-use swc_ecma_ast::{TsType, TsKeywordType, TsKeywordTypeKind, TsTypeRef, TsArrayType, TsUnionOrIntersectionType};
-use crate::{ImportError, Result};
+use swc_ecma_ast as ts;
+
+use crate::Result;
+
+const PRIMITIVE_TYPE_MAP: &[(ts::TsKeywordTypeKind, &str)] = &[
+    (ts::TsKeywordTypeKind::TsNumberKeyword, "Float"),
+    (ts::TsKeywordTypeKind::TsStringKeyword, "String"),
+    (ts::TsKeywordTypeKind::TsBooleanKeyword, "Bool"),
+    (ts::TsKeywordTypeKind::TsBigIntKeyword, "Int"),
+];
+
+const NULLISH_KINDS: &[ts::TsKeywordTypeKind] = &[
+    ts::TsKeywordTypeKind::TsNullKeyword,
+    ts::TsKeywordTypeKind::TsUndefinedKeyword,
+];
 
 pub struct TypeMapper;
 
 impl TypeMapper {
-    /// Map a TypeScript type to a KAIN type.
-    pub fn map_type(ts_type: &TsType, span: Span) -> Result<Type> {
-        match ts_type {
-            // Keyword types (primitives)
-            TsType::TsKeywordType(kw) => Self::map_keyword_type(kw, span),
-            
-            // Type references (e.g., Array<T>, custom types)
-            TsType::TsTypeRef(type_ref) => Self::map_type_ref(type_ref, span),
-            
-            // Array types (T[])
-            TsType::TsArrayType(array) => Self::map_array_type(array, span),
-            
-            // Union types (T | U)
-            TsType::TsUnionOrIntersectionType(union_or_intersection) => {
-                Self::map_union_or_intersection(union_or_intersection, span)
-            }
-            
-            // Tuple types ([T, U, V])
-            TsType::TsTupleType(_tuple) => {
-                // TODO: Map to KAIN tuple type
-                Ok(Type::Infer(span))
-            }
-            
-            // Function types ((a: T) => U)
-            TsType::TsFnOrConstructorType(_) => {
-                // TODO: Map to KAIN function type
-                Ok(Type::Infer(span))
-            }
-            
-            // Literal types (e.g., "hello", 42, true)
-            TsType::TsLitType(_) => {
-                // TODO: Map to KAIN literal type
-                Ok(Type::Infer(span))
-            }
-            
-            // Fallback: use type inference
-            _ => Ok(Type::Infer(span)),
-        }
+    pub fn new() -> Self {
+        Self
     }
 
-    fn map_keyword_type(kw: &TsKeywordType, span: Span) -> Result<Type> {
-        match kw.kind {
-            TsKeywordTypeKind::TsNumberKeyword => Ok(Type::Named {
-                name: "Float".to_string(),
-                generics: vec![],
-                span,
-            }),
-            TsKeywordTypeKind::TsStringKeyword => Ok(Type::Named {
-                name: "String".to_string(),
-                generics: vec![],
-                span,
-            }),
-            TsKeywordTypeKind::TsBooleanKeyword => Ok(Type::Named {
-                name: "Bool".to_string(),
-                generics: vec![],
-                span,
-            }),
-            TsKeywordTypeKind::TsVoidKeyword => Ok(Type::Unit(span)),
-            TsKeywordTypeKind::TsUndefinedKeyword => Ok(Type::Named {
-                name: "None".to_string(),
-                generics: vec![],
-                span,
-            }),
-            TsKeywordTypeKind::TsNullKeyword => Ok(Type::Named {
-                name: "None".to_string(),
-                generics: vec![],
-                span,
-            }),
-            TsKeywordTypeKind::TsAnyKeyword => Ok(Type::Infer(span)),
-            TsKeywordTypeKind::TsUnknownKeyword => Ok(Type::Infer(span)),
-            TsKeywordTypeKind::TsNeverKeyword => Ok(Type::Never(span)),
-            _ => Ok(Type::Infer(span)),
-        }
-    }
-
-    fn map_type_ref(type_ref: &TsTypeRef, span: Span) -> Result<Type> {
-        // Extract type name
-        let type_name = match &type_ref.type_name {
-            swc_ecma_ast::TsEntityName::Ident(ident) => ident.sym.to_string(),
-            swc_ecma_ast::TsEntityName::TsQualifiedName(_) => {
-                // TODO: Handle qualified names (e.g., Namespace.Type)
-                return Ok(Type::Infer(span));
+    pub fn map_type(&self, ts_type: &ts::TsType, span: Span) -> Result<Type> {
+        let mapped = match ts_type {
+            ts::TsType::TsKeywordType(keyword) => self.map_keyword_type(keyword.kind, span),
+            ts::TsType::TsTypeRef(type_ref) => self.map_type_ref(type_ref, span)?,
+            ts::TsType::TsArrayType(array) => {
+                Type::Slice(Box::new(self.map_type(&array.elem_type, span)?), span)
             }
+            ts::TsType::TsTupleType(tuple) => Type::Tuple(
+                tuple
+                    .elem_types
+                    .iter()
+                    .map(|elem| self.map_type(&elem.ty, span))
+                    .collect::<Result<Vec<_>>>()?,
+                span,
+            ),
+            ts::TsType::TsUnionOrIntersectionType(union_or_intersection) => {
+                self.map_union_or_intersection(union_or_intersection, span)?
+            }
+            ts::TsType::TsOptionalType(optional) => {
+                Type::Option(Box::new(self.map_type(&optional.type_ann, span)?), span)
+            }
+            ts::TsType::TsFnOrConstructorType(function) => self.map_function_type(function, span)?,
+            ts::TsType::TsParenthesizedType(paren) => self.map_type(&paren.type_ann, span)?,
+            ts::TsType::TsLitType(lit) => match &lit.lit {
+                ts::TsLit::Number(_) => Type::Named {
+                    name: "Float".to_string(),
+                    generics: Vec::new(),
+                    span,
+                },
+                ts::TsLit::Str(_) => Type::Named {
+                    name: "String".to_string(),
+                    generics: Vec::new(),
+                    span,
+                },
+                ts::TsLit::Bool(_) => Type::Named {
+                    name: "Bool".to_string(),
+                    generics: Vec::new(),
+                    span,
+                },
+                ts::TsLit::BigInt(_) => Type::Named {
+                    name: "Int".to_string(),
+                    generics: Vec::new(),
+                    span,
+                },
+                ts::TsLit::Tpl(_) => Type::Named {
+                    name: "String".to_string(),
+                    generics: Vec::new(),
+                    span,
+                },
+            },
+            ts::TsType::TsThisType(_) => Type::Named {
+                name: "Self".to_string(),
+                generics: Vec::new(),
+                span,
+            },
+            _ => Type::Infer(span),
         };
 
-        // Handle generic types (e.g., Array<T>, Promise<T>)
-        if let Some(type_params) = &type_ref.type_params {
-            if type_name == "Array" && type_params.params.len() == 1 {
-                let elem_type = Self::map_type(&type_params.params[0], span)?;
-                // KAIN uses Slice for dynamic arrays
-                return Ok(Type::Slice(Box::new(elem_type), span));
-            }
-            
-            if type_name == "Promise" && type_params.params.len() == 1 {
-                // Promise<T> → async function returning T
-                // For now, just return the inner type
-                return Self::map_type(&type_params.params[0], span);
-            }
-            
-            // Generic type with parameters
-            let generic_types = type_params.params.iter()
-                .map(|p| Self::map_type(p, span))
-                .collect::<Result<Vec<_>>>()?;
-            
-            return Ok(Type::Named {
-                name: type_name,
-                generics: generic_types,
-                span,
-            });
-        }
-
-        // Default: use the type name as-is
-        Ok(Type::Named {
-            name: type_name,
-            generics: vec![],
-            span,
-        })
+        Ok(mapped)
     }
 
-    fn map_array_type(array: &TsArrayType, span: Span) -> Result<Type> {
-        let elem_type = Self::map_type(&array.elem_type, span)?;
-        // KAIN uses Slice for dynamic arrays
-        Ok(Type::Slice(Box::new(elem_type), span))
+    fn map_keyword_type(&self, kind: ts::TsKeywordTypeKind, span: Span) -> Type {
+        if let Some((_, name)) = PRIMITIVE_TYPE_MAP.iter().find(|(key, _)| *key == kind) {
+            return Type::Named {
+                name: (*name).to_string(),
+                generics: Vec::new(),
+                span,
+            };
+        }
+
+        match kind {
+            ts::TsKeywordTypeKind::TsVoidKeyword => Type::Unit(span),
+            ts::TsKeywordTypeKind::TsNeverKeyword => Type::Never(span),
+            ts::TsKeywordTypeKind::TsNullKeyword | ts::TsKeywordTypeKind::TsUndefinedKeyword => {
+                Type::Option(Box::new(Type::Infer(span)), span)
+            }
+            _ => Type::Infer(span),
+        }
+    }
+
+    fn map_type_ref(&self, type_ref: &ts::TsTypeRef, span: Span) -> Result<Type> {
+        let name = entity_name_to_string(&type_ref.type_name);
+        let generics = type_ref
+            .type_params
+            .as_ref()
+            .map(|params| {
+                params
+                    .params
+                    .iter()
+                    .map(|param| self.map_type(param, span))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        match name.as_str() {
+            "Array" if generics.len() == 1 => Ok(Type::Slice(Box::new(generics[0].clone()), span)),
+            "Promise" if generics.len() == 1 => Ok(Type::Impl {
+                trait_name: "Async".to_string(),
+                generics,
+                span,
+            }),
+            "ReadonlyArray" if generics.len() == 1 => {
+                Ok(Type::Slice(Box::new(generics[0].clone()), span))
+            }
+            _ => Ok(Type::Named { name, generics, span }),
+        }
     }
 
     fn map_union_or_intersection(
-        union_or_intersection: &TsUnionOrIntersectionType,
+        &self,
+        ty: &ts::TsUnionOrIntersectionType,
         span: Span,
     ) -> Result<Type> {
-        match union_or_intersection {
-            TsUnionOrIntersectionType::TsUnionType(_union) => {
-                // TODO: Map union types to KAIN enum
-                // For now, use type inference
+        match ty {
+            ts::TsUnionOrIntersectionType::TsUnionType(union) => {
+                let mut mapped = Vec::new();
+                let mut non_nullish = Vec::new();
+
+                for member in &union.types {
+                    mapped.push(self.map_type(member, span)?);
+                    if !is_nullish_type(member) {
+                        non_nullish.push(member);
+                    }
+                }
+
+                if non_nullish.len() == 1 && union.types.len() > 1 {
+                    return Ok(Type::Option(
+                        Box::new(self.map_type(non_nullish[0], span)?),
+                        span,
+                    ));
+                }
+
+                if mapped.iter().all(|ty| ty == &mapped[0]) {
+                    return Ok(mapped[0].clone());
+                }
+
                 Ok(Type::Infer(span))
             }
-            TsUnionOrIntersectionType::TsIntersectionType(_intersection) => {
-                // TODO: Map intersection types to KAIN struct
-                // For now, use type inference
-                Ok(Type::Infer(span))
+            ts::TsUnionOrIntersectionType::TsIntersectionType(intersection) => {
+                if intersection.types.len() == 1 {
+                    self.map_type(&intersection.types[0], span)
+                } else {
+                    Ok(Type::Infer(span))
+                }
             }
         }
+    }
+
+    fn map_function_type(&self, function: &ts::TsFnOrConstructorType, span: Span) -> Result<Type> {
+        match function {
+            ts::TsFnOrConstructorType::TsFnType(fn_type) => Ok(Type::Function {
+                params: fn_type
+                    .params
+                    .iter()
+                    .map(|param| self.map_ts_fn_param(param, span))
+                    .collect::<Result<Vec<_>>>()?,
+                return_type: Box::new(self.map_type(&fn_type.type_ann.type_ann, span)?),
+                effects: Vec::new(),
+                span,
+            }),
+            ts::TsFnOrConstructorType::TsConstructorType(ctor) => Ok(Type::Function {
+                params: ctor
+                    .params
+                    .iter()
+                    .map(|param| self.map_ts_fn_param(param, span))
+                    .collect::<Result<Vec<_>>>()?,
+                return_type: Box::new(self.map_type(&ctor.type_ann.type_ann, span)?),
+                effects: vec![Effect::Unsafe],
+                span,
+            }),
+        }
+    }
+
+    fn map_ts_fn_param(&self, param: &ts::TsFnParam, span: Span) -> Result<Type> {
+        let ty = match param {
+            ts::TsFnParam::Ident(ident) => ident
+                .type_ann
+                .as_ref()
+                .map(|ann| self.map_type(&ann.type_ann, span))
+                .transpose()?
+                .unwrap_or(Type::Infer(span)),
+            ts::TsFnParam::Array(array) => array
+                .type_ann
+                .as_ref()
+                .map(|ann| self.map_type(&ann.type_ann, span))
+                .transpose()?
+                .unwrap_or(Type::Infer(span)),
+            ts::TsFnParam::Object(object) => object
+                .type_ann
+                .as_ref()
+                .map(|ann| self.map_type(&ann.type_ann, span))
+                .transpose()?
+                .unwrap_or(Type::Infer(span)),
+            ts::TsFnParam::Rest(rest) => rest
+                .type_ann
+                .as_ref()
+                .map(|ann| self.map_type(&ann.type_ann, span))
+                .transpose()?
+                .unwrap_or(Type::Infer(span)),
+        };
+
+        Ok(ty)
+    }
+}
+
+fn entity_name_to_string(entity: &ts::TsEntityName) -> String {
+    match entity {
+        ts::TsEntityName::Ident(ident) => ident.sym.to_string(),
+        ts::TsEntityName::TsQualifiedName(name) => {
+            format!("{}.{}", entity_name_to_string(&name.left), name.right.sym)
+        }
+    }
+}
+
+fn is_nullish_type(ty: &ts::TsType) -> bool {
+    match ty {
+        ts::TsType::TsKeywordType(keyword) => NULLISH_KINDS.contains(&keyword.kind),
+        _ => false,
     }
 }
 
@@ -158,5 +256,27 @@ impl TypeMapper {
 mod tests {
     use super::*;
 
-    // TODO: Add unit tests for type mapping
+    #[test]
+    fn maps_optional_union_to_option() {
+        let mapper = TypeMapper::new();
+        let span = Span::default();
+        let ty = ts::TsType::TsUnionOrIntersectionType(ts::TsUnionOrIntersectionType::TsUnionType(
+            ts::TsUnionType {
+                span: swc_common::DUMMY_SP,
+                types: vec![
+                    Box::new(ts::TsType::TsKeywordType(ts::TsKeywordType {
+                        span: swc_common::DUMMY_SP,
+                        kind: ts::TsKeywordTypeKind::TsStringKeyword,
+                    })),
+                    Box::new(ts::TsType::TsKeywordType(ts::TsKeywordType {
+                        span: swc_common::DUMMY_SP,
+                        kind: ts::TsKeywordTypeKind::TsNullKeyword,
+                    })),
+                ],
+            },
+        ));
+
+        let mapped = mapper.map_type(&ty, span).unwrap();
+        assert!(matches!(mapped, Type::Option(_, _)));
+    }
 }

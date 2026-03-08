@@ -17,9 +17,8 @@ use cli::lsp;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_rust;
+use cli::import_typescript;
 use cli::rust_build;
-#[cfg(all(feature = "gpu", feature = "sys"))]
-use cli::gpu_artifacts;
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -233,6 +232,40 @@ enum Commands {
     /// Import Rust source code into KAIN (Project Ouroboros)
     ImportRust {
         /// Input Rust source file or directory
+        input: PathBuf,
+
+        /// Output .kn file (optional - if omitted, only compiles if --target specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Compilation target (optional - compile directly without writing .kn)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Flatten all imported symbols into one global scope (disables per-file modules)
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write import failure/report JSON (defaults automatically for directory imports with failures)
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+    },
+
+    /// Import TypeScript source code into KAIN
+    ImportTs {
+        /// Input TypeScript source file or directory
         input: PathBuf,
 
         /// Output .kn file (optional - if omitted, only compiles if --target specified)
@@ -788,26 +821,26 @@ fn main() {
                 run_compile(&input, CompileTarget::Interpret, None, args.emit_ast, args.emit_typed, args.verbose, args.analyze, args.plugin.as_deref());
             }
             Some(Commands::GpuArtifacts { input, output }) => {
-                #[cfg(all(feature = "gpu", feature = "sys"))]
-                {
-                    match gpu_artifacts::run_gpu_artifact_pipeline(&input, output.as_ref()) {
-                        Ok(paths) => {
-                            println!(" Generated {} GPU artifact files:", paths.len());
-                            for path in paths {
-                                println!("   - {}", path.display());
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!(" GPU artifact generation failed: {}", e);
-                            std::process::exit(1);
+                let config = packager::RustBuildConfig {
+                    output: None,
+                    artifacts: vec![
+                        packager::RustBuildArtifact::ShaderHost,
+                        packager::RustBuildArtifact::ShaderReflection,
+                        packager::RustBuildArtifact::Spirv,
+                    ],
+                };
+
+                match rust_build::run_rust_build_pipeline(&input, output.as_ref(), Some(&config)) {
+                    Ok(paths) => {
+                        println!(" Generated {} Rust shader artifact files:", paths.len());
+                        for path in paths {
+                            println!("   - {}", path.display());
                         }
                     }
-                }
-
-                #[cfg(not(all(feature = "gpu", feature = "sys")))]
-                {
-                    eprintln!(" GPU artifact generation requires both gpu and sys features");
-                    std::process::exit(1);
+                    Err(e) => {
+                        eprintln!(" Rust shader artifact generation failed: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             Some(Commands::Inject { inputs, plugin_dir, plugin, force, dry_run, ue5 }) => {
@@ -917,6 +950,38 @@ fn main() {
                     }
                     Err(e) => {
                         eprintln!("❌ import-rust failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Some(Commands::ImportTs {
+                input,
+                output,
+                target,
+                flat,
+                include_filters,
+                exclude_filters,
+                fail_fast,
+                report_json,
+            }) => {
+                let batch = import_typescript::ImportTypeScriptBatchOptions {
+                    recursive: true,
+                    flat,
+                    include_filters,
+                    exclude_filters,
+                    fail_fast,
+                    report_json,
+                };
+
+                match import_typescript::import_typescript_with_batch(
+                    &input,
+                    output.as_deref(),
+                    target.as_deref(),
+                    &batch,
+                ) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("❌ import-ts failed: {}", e);
                         std::process::exit(1);
                     }
                 }

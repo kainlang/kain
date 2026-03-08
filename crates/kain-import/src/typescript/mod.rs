@@ -55,6 +55,11 @@ pub fn import_typescript_file(path: &Path) -> Result<Program> {
     import_typescript_source(&source, path)
 }
 
+/// Compatibility alias matching the requirements document naming.
+pub fn import_ts_file(path: &Path) -> Result<Program> {
+    import_typescript_file(path)
+}
+
 /// Import TypeScript source from a string (useful for testing and REPL use).
 pub fn import_typescript_source(source: &str, path: &Path) -> Result<Program> {
     let module = parser::parse_typescript(source, path)?;
@@ -78,6 +83,11 @@ pub fn import_typescript_project(paths: &[&Path]) -> Result<Program> {
     }
 
     Ok(Program { items: all_items, span })
+}
+
+/// Compatibility alias matching the requirements document naming.
+pub fn import_ts_project(paths: &[&Path]) -> Result<Program> {
+    import_typescript_project(paths)
 }
 
 /// Recursively collect and import all `.ts` files under a directory.

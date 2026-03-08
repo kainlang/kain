@@ -12,6 +12,7 @@ pub mod packager;
 pub mod import_asm;
 pub mod import_c;
 pub mod import_rust;
+pub mod import_typescript;
 pub mod rust_build;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub mod gpu_artifacts;
@@ -235,7 +236,7 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
         CompileTarget::Ue5 => {
             let mono_for_codegen = frontend_to_monomorphized_program(source, target)?;
             let output = ue5::generate(&mono_for_codegen, None, None)?;
-            Ok(output.header + "\n" + &output.source)
+            Ok(format!("{}\n{}", output.header, output.source))
         }
         _ => {
             let typed_for_codegen = frontend_to_typed_program(source, target)?;
@@ -292,7 +293,7 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
                 #[cfg(feature = "ue5")]
                 CompileTarget::Ue5Editor => {
                     let output = ue5_editor::generate(&typed_for_codegen, "EditorTools", None)?;
-                    Ok(output.header + "\n" + &output.source)
+                    Ok(format!("{}\n{}", output.header, output.source))
                 }
 
                 #[cfg(not(feature = "ue5"))]

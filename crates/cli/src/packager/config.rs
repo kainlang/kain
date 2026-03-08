@@ -294,7 +294,6 @@ impl PackageManifest {
         }
     }
 }
-}
 
 pub(crate) fn registry_url() -> &'static str {
     REGISTRY_URL

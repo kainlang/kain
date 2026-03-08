@@ -21,7 +21,7 @@ proc-macro2 = { version = "1.0", optional = true }
 # Using latest versions which should be compatible with modern serde
 swc_ecma_parser = { version = "0.150", optional = true }
 swc_ecma_ast    = { version = "0.119", optional = true }
-swc_common      = { version = "0.40", optional = true }
+swc_common      = { version = "0.38", optional = true }
 
 # Utilities
 thiserror = "1.0"
