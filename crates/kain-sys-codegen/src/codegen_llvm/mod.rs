@@ -13,6 +13,61 @@ use kain_core::error::{KainError, KainResult};
 use kain_core::{lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget};
 use std::collections::HashMap;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum LlvmTargetId {
+    WindowsX64Msvc,
+    LinuxX64Gnu,
+    MacOsArm64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LlvmTargetDescriptor {
+    id: LlvmTargetId,
+    triple: &'static str,
+    datalayout: &'static str,
+}
+
+const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
+    id: LlvmTargetId::WindowsX64Msvc,
+    triple: "x86_64-pc-windows-msvc",
+    datalayout: "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+};
+
+const LLVM_TARGET_LINUX_X64_GNU: LlvmTargetDescriptor = LlvmTargetDescriptor {
+    id: LlvmTargetId::LinuxX64Gnu,
+    triple: "x86_64-unknown-linux-gnu",
+    datalayout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+};
+
+const LLVM_TARGET_MACOS_ARM64: LlvmTargetDescriptor = LlvmTargetDescriptor {
+    id: LlvmTargetId::MacOsArm64,
+    triple: "arm64-apple-darwin",
+    datalayout: "e-m:o-i64:64-i128:128-n32:64-S128",
+};
+
+const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
+    LLVM_TARGET_WINDOWS_X64_MSVC,
+    LLVM_TARGET_LINUX_X64_GNU,
+    LLVM_TARGET_MACOS_ARM64,
+];
+
+fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
+    let target_id = if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        LlvmTargetId::WindowsX64Msvc
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        LlvmTargetId::LinuxX64Gnu
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        LlvmTargetId::MacOsArm64
+    } else {
+        LlvmTargetId::WindowsX64Msvc
+    };
+
+    LLVM_TARGET_DESCRIPTOR_REGISTRY
+        .iter()
+        .find(|descriptor| descriptor.id == target_id)
+        .unwrap_or(&LLVM_TARGET_WINDOWS_X64_MSVC)
+}
+
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Llvm)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Llvm)?;
@@ -42,6 +97,7 @@ struct LlvmGenerator {
     /// Current basic block label (for Phi nodes)
     current_block: String,
     current_return_type: Option<String>,
+    target: &'static LlvmTargetDescriptor,
 }
 
 impl LlvmGenerator {
@@ -60,6 +116,7 @@ impl LlvmGenerator {
             component_defs: HashMap::new(),
             current_block: "entry".to_string(),
             current_return_type: None,
+            target: resolve_host_llvm_target_descriptor(),
         }
     }
 
@@ -83,26 +140,6 @@ impl LlvmGenerator {
         let l = format!("L{}", self.label_count);
         self.label_count += 1;
         l
-    }
-
-    fn target_datalayout(&self) -> &'static str {
-        if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-        } else {
-            "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-        }
-    }
-
-    fn target_triple(&self) -> &'static str {
-        if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-            "x86_64-pc-windows-msvc"
-        } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            "x86_64-unknown-linux-gnu"
-        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-            "arm64-apple-darwin"
-        } else {
-            "x86_64-pc-windows-msvc"
-        }
     }
 
     fn sanitize_type_fragment(fragment: &str) -> String {
@@ -1253,8 +1290,8 @@ impl LlvmGenerator {
         // 1. Emit Header
         self.emit("; ModuleID = 'KAIN'");
         self.emit("source_filename = \"KAIN\"");
-        self.emit(&format!("target datalayout = \"{}\"", self.target_datalayout()));
-        self.emit(&format!("target triple = \"{}\"", self.target_triple()));
+        self.emit(&format!("target datalayout = \"{}\"", self.target.datalayout));
+        self.emit(&format!("target triple = \"{}\"", self.target.triple));
         self.emit("");
 
         self.collect_program_tuple_types(program);
@@ -1564,9 +1601,6 @@ impl LlvmGenerator {
         self.emit("declare void @KAIN_set_destructor(i8*, void(i8*)*)");
         self.emit("declare void @KAIN_sleep(double)");
         self.emit("declare i1 @deep_eq(i8*, i8*)");
-
-        // KOS Bridge
-        self.emit("declare void @spawn_cube(double, double)");
 
         // StdLib
         self.emit_stdlib_externs();
@@ -2879,7 +2913,12 @@ impl LlvmGenerator {
                             .map(|(val, ty)| format!("{} {}", ty, val))
                             .collect::<Vec<_>>()
                             .join(", ");
-                            
+
+                        if ret_ty == "void" {
+                            self.emit(&format!("  call void @{}({})", func_name, arg_str));
+                            return Ok(("0".into(), "i64".into()));
+                        }
+
                         self.emit(&format!("  {} = call {} @{}({})", res, ret_ty, func_name, arg_str));
                         return Ok((res, ret_ty));
                     }
@@ -2982,10 +3021,14 @@ impl LlvmGenerator {
                     .map(|(val, ty)| format!("{} {}", ty, val))
                     .collect::<Vec<_>>()
                     .join(", ");
-                    
-                self.emit(&format!("  {} = call {} @{}({})", res, ret_ty, func_name, arg_str));
-                
-                Ok((res, ret_ty))
+
+                if ret_ty == "void" {
+                    self.emit(&format!("  call void @{}({})", func_name, arg_str));
+                    Ok(("0".into(), "i64".into()))
+                } else {
+                    self.emit(&format!("  {} = call {} @{}({})", res, ret_ty, func_name, arg_str));
+                    Ok((res, ret_ty))
+                }
             }
             Expr::EnumVariant { enum_name, variant, fields, .. } => {
                 let struct_ty = format!("%{}", enum_name);

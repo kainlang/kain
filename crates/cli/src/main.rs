@@ -644,6 +644,8 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
 
                     if cfg!(windows) {
                         cmd.arg("-llegacy_stdio_definitions");
+                        cmd.arg("-luser32");
+                        cmd.arg("-lgdi32");
                     }
 
                     let status = cmd.status();
