@@ -3,6 +3,7 @@
 pub mod preprocessor;
 pub mod c_registry;
 pub mod identifier_registry;
+pub mod language_schema;
 pub mod type_mapper;
 
 use std::collections::HashMap;

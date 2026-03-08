@@ -40,9 +40,11 @@
 //! - Traits → noted as comments (KAIN uses structural typing / impl blocks)
 
 mod parser;
+mod selfhost;
 mod transformer;
 mod types;
 
+pub use selfhost::{import_rust_selfhost_dir, RustCrateGraph, RustModuleNode, RustSelfHostOptions};
 pub use transformer::RustTransformer;
 
 use kain_core::ast::Program;

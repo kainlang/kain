@@ -26,6 +26,11 @@ use super::types::RustTypeMapper;
 
 // ── Transformer state ─────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RustTransformOptions {
+    pub strict_selfhost: bool,
+}
+
 pub struct RustTransformer {
     /// Maps Rust types to KAIN types.
     type_mapper: RustTypeMapper,
@@ -44,10 +49,21 @@ pub struct RustTransformer {
 
     /// Accumulated warnings / unsupported construct notes.
     pub diagnostics: Vec<String>,
+
+    /// Strict self-host mode rejects lossy lowering.
+    options: RustTransformOptions,
 }
 
 impl RustTransformer {
     pub fn new() -> Self {
+        Self::with_options(RustTransformOptions::default())
+    }
+
+    pub fn new_selfhost() -> Self {
+        Self::with_options(RustTransformOptions { strict_selfhost: true })
+    }
+
+    pub fn with_options(options: RustTransformOptions) -> Self {
         Self {
             type_mapper:       RustTypeMapper::new(),
             identifier_renamer: StableIdentifierRenamer::default(),
@@ -55,6 +71,7 @@ impl RustTransformer {
             current_function:   None,
             local_types:        vec![HashMap::new()],
             diagnostics:        Vec::new(),
+            options,
         }
     }
 
@@ -78,8 +95,18 @@ impl RustTransformer {
         self.identifier_renamer.resolve(IdentifierDomain::Variant, raw)
     }
 
+    #[allow(dead_code)]
     fn note(&mut self, msg: impl Into<String>) {
         self.diagnostics.push(msg.into());
+    }
+
+    fn note_lossy(&mut self, msg: impl Into<String>) {
+        let msg = msg.into();
+        if self.options.strict_selfhost {
+            self.diagnostics.push(format!("SELFHOST_STRICT: {msg}"));
+        } else {
+            self.diagnostics.push(msg);
+        }
     }
 
     // ── Scope helpers ─────────────────────────────────────────────────────
@@ -120,21 +147,27 @@ impl RustTransformer {
             syn::Item::Mod(m)         => self.transform_mod(m),
             // Traits → stub comment, not yet modeled in KAIN item set
             syn::Item::Trait(t) => {
-                self.note(format!("trait {} skipped (KAIN uses structural typing)", t.ident));
+                self.note_lossy(format!("trait {} skipped (KAIN uses structural typing)", t.ident));
                 Ok(vec![])
             }
             syn::Item::TraitAlias(t) => {
-                self.note(format!("trait alias {} skipped", t.ident));
+                self.note_lossy(format!("trait alias {} skipped", t.ident));
                 Ok(vec![])
             }
             // Macro rules / foreign items → skip
             syn::Item::Macro(_)
             | syn::Item::ExternCrate(_)
-            | syn::Item::ForeignMod(_) => Ok(vec![]),
+            | syn::Item::ForeignMod(_) => {
+                self.note_lossy("macro/extern/foreign item skipped".to_string());
+                Ok(vec![])
+            }
             // Use declarations → skip (KAIN resolves structurally)
-            syn::Item::Use(_) => Ok(vec![]),
+            syn::Item::Use(_) => {
+                self.note_lossy("use declaration skipped".to_string());
+                Ok(vec![])
+            }
             _ => {
-                self.note("unknown item kind skipped".to_string());
+                self.note_lossy("unknown item kind skipped".to_string());
                 Ok(vec![])
             }
         }
@@ -159,7 +192,7 @@ impl RustTransformer {
             }
             None => {
                 // `mod foo;` with external file — just note it, CLI handles multi-file
-                self.note(format!("mod {}; (external file — import separately)", m.ident));
+                self.note_lossy(format!("mod {}; (external file — import separately)", m.ident));
                 Ok(vec![])
             }
         }
@@ -351,7 +384,7 @@ impl RustTransformer {
             path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default()
         });
         if let Some(ref t) = trait_name {
-            self.note(format!("impl {} (trait impl — methods emitted inline)", t));
+            self.note_lossy(format!("impl {} (trait impl — methods emitted inline)", t));
         }
 
         let mut methods = Vec::new();
@@ -596,6 +629,7 @@ impl RustTransformer {
             syn::Expr::Repeat(r) => {
                 // [expr; N] → fill array
                 let elem = self.transform_expr(&r.expr)?;
+                self.note_lossy("array repeat simplified to single-element array".to_string());
                 Ok(Expr::Array(vec![elem], S)) // simplified — just emit one element
             }
 
@@ -754,7 +788,7 @@ impl RustTransformer {
 
             // ── Verbatim / unknown ─────────────────────────────────────────
             _ => {
-                self.note("unsupported expression kind".to_string());
+                self.note_lossy("unsupported expression kind".to_string());
                 Ok(Expr::None(S))
             }
         }
@@ -781,7 +815,10 @@ impl RustTransformer {
                 let items = bs.value().iter().map(|&b| Expr::Int(b as i64, S)).collect();
                 Ok(Expr::Array(items, S))
             }
-            _ => Ok(Expr::None(S)),
+            _ => {
+                self.note_lossy("unsupported literal lowered to none".to_string());
+                Ok(Expr::None(S))
+            }
         }
     }
 
@@ -794,7 +831,7 @@ impl RustTransformer {
             syn::Expr::Let(let_expr) => {
                 // `if let Some(x) = y` → just transform the scrutinee as the condition
                 // (loses the binding — future improvement: desugar into match)
-                self.note("if-let condition simplified (binding erased)".to_string());
+                self.note_lossy("if-let condition simplified (binding erased)".to_string());
                 self.transform_expr(&let_expr.expr)
             }
             other => self.transform_expr(other),
@@ -896,7 +933,10 @@ impl RustTransformer {
                 let pats = ps.elems.iter().map(|p| self.transform_pattern(p)).collect();
                 Pattern::Slice { patterns: pats, rest: None, span: S }
             }
-            _ => Pattern::Wildcard(S),
+            _ => {
+                self.note_lossy("unsupported pattern lowered to wildcard".to_string());
+                Pattern::Wildcard(S)
+            }
         }
     }
 

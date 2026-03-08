@@ -133,6 +133,14 @@ pub fn import_rust_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
     rust::import_rust_dir(dir, flat)
 }
 
+#[cfg(feature = "rust")]
+pub fn import_rust_selfhost_dir(
+    dir: &std::path::Path,
+    options: &rust::RustSelfHostOptions,
+) -> Result<Program> {
+    rust::import_rust_selfhost_dir(dir, options)
+}
+
 // TypeScript importer
 #[cfg(feature = "typescript")]
 pub fn import_typescript(path: &std::path::Path) -> Result<Program> {
