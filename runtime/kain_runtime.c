@@ -605,6 +605,8 @@ typedef struct {
 
 static CubeAppState g_cube_state = {800, 600, 0.0, 0.0, 0.0};
 
+static void kain_cube_render(HWND hwnd);
+
 static LRESULT CALLBACK kain_cube_window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
     switch (msg) {
         case WM_DESTROY:
