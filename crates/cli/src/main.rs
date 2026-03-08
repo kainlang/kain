@@ -14,6 +14,7 @@ use cli::{
 };
 use cli::packager;
 use cli::lsp;
+use cli::omni;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_rust;
@@ -99,6 +100,12 @@ enum Commands {
 
     /// Show binary/build diagnostics and resolved compiler capabilities
     Doctor,
+
+    /// Build mixed-language omni manifests through the dedicated orchestration layer
+    Omni {
+        #[command(subcommand)]
+        command: omni::OmniCommand,
+    },
 
     /// Build project or file. Without input, reads KAIN.toml for multi-target build.
     Build {
@@ -574,17 +581,26 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
 
                     println!(" Linking executable...");
                     
-                    // Try to find clang
-                    let clang_cmd = if std::process::Command::new("clang").arg("--version").output().is_ok() {
-                        "clang".to_string()
-                    } else {
-                        let default_path = r"C:\Program Files\LLVM\bin\clang.exe";
-                        if std::path::Path::new(default_path).exists() {
-                            default_path.to_string()
-                        } else {
-                            "clang".to_string()
-                        }
-                    };
+                    // Find clang: bundled toolchain > PATH > system install
+                    let clang_cmd = find_bundled_clang()
+                        .or_else(|| {
+                            // Try PATH
+                            if std::process::Command::new("clang").arg("--version").output().is_ok() {
+                                Some("clang".to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .or_else(|| {
+                            // Try standard Windows install
+                            let default_path = r"C:\Program Files\LLVM\bin\clang.exe";
+                            if std::path::Path::new(default_path).exists() {
+                                Some(default_path.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_else(|| "clang".to_string());
 
                     let mut cmd = std::process::Command::new(&clang_cmd);
 
@@ -738,6 +754,12 @@ fn main() {
             }
             Some(Commands::Doctor) => {
                 print_doctor();
+            }
+            Some(Commands::Omni { command }) => {
+                if let Err(e) = omni::run(command) {
+                    eprintln!(" Omni command failed: {}", e);
+                    std::process::exit(1);
+                }
             }
             Some(Commands::Build {
                 input,
@@ -1163,6 +1185,51 @@ fn find_runtime_c() -> Option<PathBuf> {
                 if !dir.pop() {
                     break;
                 }
+            }
+        }
+    }
+
+    None
+}
+
+fn find_bundled_clang() -> Option<String> {
+    if let Ok(env_path) = std::env::var("KAIN_CLANG_PATH") {
+        let path = PathBuf::from(env_path);
+        if path.exists() {
+            return Some(path.to_string_lossy().into_owned());
+        }
+    }
+
+    let candidate_suffixes = [
+        PathBuf::from("toolchain/llvm/bin/clang.exe"),
+        PathBuf::from("toolchain/llvm/bin/clang"),
+        PathBuf::from("third_party/llvm/bin/clang.exe"),
+        PathBuf::from("third_party/llvm/bin/clang"),
+        PathBuf::from("llvm/bin/clang.exe"),
+        PathBuf::from("llvm/bin/clang"),
+    ];
+
+    let mut search_roots = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        search_roots.push(cwd);
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(dir) = exe_path.parent() {
+            let mut cursor = dir.to_path_buf();
+            loop {
+                search_roots.push(cursor.clone());
+                if !cursor.pop() {
+                    break;
+                }
+            }
+        }
+    }
+
+    for root in search_roots {
+        for suffix in &candidate_suffixes {
+            let candidate = root.join(suffix);
+            if candidate.exists() {
+                return Some(candidate.to_string_lossy().into_owned());
             }
         }
     }

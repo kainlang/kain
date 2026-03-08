@@ -9,6 +9,7 @@ pub use kain_core::*;
 pub mod error;
 pub mod lsp;
 pub mod packager;
+ pub mod omni;
 pub mod import_asm;
 pub mod import_c;
 pub mod import_rust;

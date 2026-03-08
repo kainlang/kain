@@ -890,6 +890,14 @@ impl<'a> Parser<'a> {
                 if let Item::Function(f) = self.parse_function(Visibility::Private)? {
                     methods.push(f);
                 }
+            } else if self.check(TokenKind::State) {
+                self.advance();
+                let name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let ty = self.parse_type()?;
+                self.expect(TokenKind::Eq)?;
+                let initial = self.parse_expr()?;
+                state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
             } else if let TokenKind::Ident(ref s) = self.peek_kind() {
                 if s == "state" {
                     self.advance();
@@ -901,7 +909,7 @@ impl<'a> Parser<'a> {
                     state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
                 } else if s == "weak" {
                      self.advance();
-                     if self.check(TokenKind::Ident("state".to_string())) { // Check specifically for state
+                     if self.check(TokenKind::State) || self.check(TokenKind::Ident("state".to_string())) { // Check specifically for state
                          // "weak state name: Type = ..."
                          self.advance();
                          let name = self.parse_ident()?;
@@ -1027,6 +1035,14 @@ impl<'a> Parser<'a> {
                 } else {
                     return Err(self.parser_error(format!("Unexpected identifier in component: {}", s), self.current_span()));
                 }
+            } else if self.check(TokenKind::State) {
+                self.advance();
+                let name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let ty = self.parse_type()?;
+                self.expect(TokenKind::Eq)?;
+                let initial = self.parse_expr()?;
+                state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
             } else if self.check(TokenKind::Lt) {
                 body = Some(self.parse_jsx_element()?);
             } else {
@@ -3599,10 +3615,10 @@ impl<'a> Parser<'a> {
     fn parse_jsx_element(&mut self) -> KainResult<JSXNode> {
         let start = self.current_span();
         self.expect(TokenKind::Lt)?;
-        let tag = self.parse_ident()?;
+        let tag = self.parse_jsx_tag_name()?;
         let mut attrs = Vec::new();
         while !self.check(TokenKind::Gt) && !self.check(TokenKind::Slash) {
-            let name = self.parse_ident()?;
+            let name = self.parse_jsx_attribute_name()?;
             self.expect(TokenKind::Eq)?;
             let value = if self.check(TokenKind::LBrace) {
                 self.advance();
@@ -3621,7 +3637,7 @@ impl<'a> Parser<'a> {
         if self.check(TokenKind::Slash) {
             self.advance();
             self.expect(TokenKind::Gt)?;
-            return Ok(JSXNode::Element { tag, attributes: attrs, children: vec![], span: start.merge(self.current_span()) });
+            return Ok(self.finish_jsx_node(tag, attrs, vec![], start.merge(self.current_span())));
         }
         
         self.expect(TokenKind::Gt)?;
@@ -3654,10 +3670,7 @@ impl<'a> Parser<'a> {
                     text_buffer.clear();
                 }
 
-                self.advance();
-                let expr = self.parse_expr()?;
-                self.expect(TokenKind::RBrace)?;
-                children.push(JSXNode::Expression(Box::new(expr)));
+                children.push(self.parse_jsx_braced_child()?);
                 
                 last_end = self.tokens.get(self.pos - 1).map(|t| t.span.end).unwrap_or(0);
                 text_start = self.current_span(); // Reset text start for next text run
@@ -3777,13 +3790,156 @@ impl<'a> Parser<'a> {
         }
         
         self.expect(TokenKind::LtSlash)?;
-        let closing_tag = self.parse_ident()?;
+        let closing_tag = self.parse_jsx_tag_name()?;
         if closing_tag != tag {
             return Err(self.parser_error(format!("Expected closing tag </{}>, found </{}>", tag, closing_tag), self.current_span()));
         }
         self.expect(TokenKind::Gt)?;
         
-        Ok(JSXNode::Element { tag, attributes: attrs, children, span: start.merge(self.current_span()) })
+        Ok(self.finish_jsx_node(tag, attrs, children, start.merge(self.current_span())))
+    }
+
+    fn parse_jsx_tag_name(&mut self) -> KainResult<String> {
+        let span = self.current_span();
+        match self.peek_kind() {
+            TokenKind::Ident(s) => {
+                self.advance();
+                Ok(s)
+            }
+            TokenKind::Fragment => {
+                self.advance();
+                Ok("Fragment".to_string())
+            }
+            TokenKind::Component => {
+                self.advance();
+                Ok("component".to_string())
+            }
+            other => Err(self.parser_error(
+                format!(
+                    "Expected JSX tag name, found {}",
+                    crate::error::token_kind_to_user_string(&other)
+                ),
+                span,
+            )),
+        }
+    }
+
+    fn parse_jsx_attribute_name(&mut self) -> KainResult<String> {
+        let span = self.current_span();
+        match self.peek_kind() {
+            TokenKind::Ident(s) => {
+                self.advance();
+                Ok(s)
+            }
+            other => {
+                let source = self.span_mapper.source();
+                let text = if span.end <= source.len() && span.start <= span.end {
+                    &source[span.start..span.end]
+                } else {
+                    ""
+                };
+
+                if !text.is_empty()
+                    && text
+                        .chars()
+                        .enumerate()
+                        .all(|(i, c)| if i == 0 { c.is_ascii_alphabetic() || c == '_' } else { c.is_ascii_alphanumeric() || c == '_' })
+                {
+                    self.advance();
+                    Ok(text.to_string())
+                } else {
+                    Err(self.parser_error(
+                        format!(
+                            "Expected JSX attribute name, found {}",
+                            crate::error::token_kind_to_user_string(&other)
+                        ),
+                        span,
+                    ))
+                }
+            }
+        }
+    }
+
+    fn finish_jsx_node(
+        &self,
+        tag: String,
+        attributes: Vec<JSXAttribute>,
+        children: Vec<JSXNode>,
+        span: Span,
+    ) -> JSXNode {
+        if tag == "Fragment" {
+            return JSXNode::Fragment(children, span);
+        }
+
+        if tag.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+            JSXNode::ComponentCall {
+                name: tag,
+                props: attributes,
+                children,
+                span,
+            }
+        } else {
+            JSXNode::Element {
+                tag,
+                attributes,
+                children,
+                span,
+            }
+        }
+    }
+
+    fn parse_jsx_braced_child(&mut self) -> KainResult<JSXNode> {
+        let start = self.current_span();
+        self.expect(TokenKind::LBrace)?;
+
+        let node = if self.check(TokenKind::If) {
+            self.advance();
+            let condition = self.parse_expr()?;
+            self.expect(TokenKind::Colon)?;
+            let then_branch = self.parse_jsx_inline_node()?;
+            let else_branch = if self.check(TokenKind::Else) {
+                self.advance();
+                self.expect(TokenKind::Colon)?;
+                Some(Box::new(self.parse_jsx_inline_node()?))
+            } else {
+                None
+            };
+
+            JSXNode::If {
+                condition: Box::new(condition),
+                then_branch: Box::new(then_branch),
+                else_branch,
+                span: start.merge(self.current_span()),
+            }
+        } else if self.check(TokenKind::For) {
+            self.advance();
+            let binding = self.parse_ident()?;
+            self.expect(TokenKind::In)?;
+            let iter = self.parse_expr()?;
+            self.expect(TokenKind::Colon)?;
+            let body = self.parse_jsx_inline_node()?;
+            JSXNode::For {
+                binding,
+                iter: Box::new(iter),
+                body: Box::new(body),
+                span: start.merge(self.current_span()),
+            }
+        } else {
+            JSXNode::Expression(Box::new(self.parse_expr()?))
+        };
+
+        self.expect(TokenKind::RBrace)?;
+        Ok(node)
+    }
+
+    fn parse_jsx_inline_node(&mut self) -> KainResult<JSXNode> {
+        if self.check(TokenKind::Lt) {
+            self.parse_jsx_element()
+        } else if self.check(TokenKind::LBrace) {
+            self.parse_jsx_braced_child()
+        } else {
+            Ok(JSXNode::Expression(Box::new(self.parse_expr()?)))
+        }
     }
 
     fn parse_call_args(&mut self) -> KainResult<Vec<CallArg>> {
@@ -6735,5 +6891,101 @@ impl<'a> Parser<'a> {
             custom_methods,
             span: start.merge(self.current_span()),
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::diagnostics::SpanMapper;
+    use crate::lexer::Lexer;
+
+    fn parse_program(source: &str) -> KainResult<Program> {
+        let tokens = Lexer::new(source).tokenize()?;
+        let span_mapper = SpanMapper::new(source);
+        Parser::new(&tokens, &span_mapper, "<test>").parse()
+    }
+
+    #[test]
+    fn parses_component_call_and_fragment_in_component_render() {
+        let program = parse_program(
+            "component App():\n    render <Fragment><Panel title={title} /></Fragment>\n",
+        )
+        .expect("program should parse");
+
+        let Item::Component(component) = &program.items[0] else {
+            panic!("expected component");
+        };
+
+        match &component.body {
+            JSXNode::Fragment(children, _) => {
+                assert_eq!(children.len(), 1);
+                match &children[0] {
+                    JSXNode::ComponentCall { name, props, .. } => {
+                        assert_eq!(name, "Panel");
+                        assert_eq!(props.len(), 1);
+                    }
+                    other => panic!("expected component call, got {other:?}"),
+                }
+            }
+            other => panic!("expected fragment body, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_jsx_if_and_for_children() {
+        let program = parse_program(
+            "component App(items: List<Int>, ready: Bool):\n    render <div>{if ready: <Spinner /> else: <Empty />}{for item in items: <Row value={item} />}</div>\n",
+        )
+        .expect("program should parse");
+
+        let Item::Component(component) = &program.items[0] else {
+            panic!("expected component");
+        };
+
+        let JSXNode::Element { children, .. } = &component.body else {
+            panic!("expected element body");
+        };
+
+        assert_eq!(children.len(), 2);
+        match &children[0] {
+            JSXNode::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                assert!(matches!(then_branch.as_ref(), JSXNode::ComponentCall { name, .. } if name == "Spinner"));
+                assert!(matches!(else_branch.as_deref(), Some(JSXNode::ComponentCall { name, .. }) if name == "Empty"));
+            }
+            other => panic!("expected if child, got {other:?}"),
+        }
+
+        match &children[1] {
+            JSXNode::For { binding, body, .. } => {
+                assert_eq!(binding, "item");
+                assert!(matches!(body.as_ref(), JSXNode::ComponentCall { name, .. } if name == "Row"));
+            }
+            other => panic!("expected for child, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_jsx_attributes_named_like_keywords() {
+        let program = parse_program(
+            "component App():\n    render <button type=\"button\" className={none}>\"ok\"</button>\n",
+        )
+        .expect("program should parse");
+
+        let Item::Component(component) = &program.items[0] else {
+            panic!("expected component");
+        };
+
+        let JSXNode::Element { attributes, .. } = &component.body else {
+            panic!("expected element body");
+        };
+
+        assert_eq!(attributes.len(), 2);
+        assert_eq!(attributes[0].name, "type");
+        assert_eq!(attributes[1].name, "className");
     }
 }

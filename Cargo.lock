@@ -409,6 +409,7 @@ dependencies = [
  "kain-asm",
  "kain-core",
  "kain-import",
+ "kain-omni",
  "kain-sys-codegen",
  "minijinja",
  "notify",
@@ -1431,6 +1432,26 @@ dependencies = [
  "swc_ecma_parser",
  "syn 2.0.111",
  "thiserror",
+]
+
+[[package]]
+name = "kain-omni"
+version = "0.1.0"
+dependencies = [
+ "gpu",
+ "kain-asm",
+ "kain-core",
+ "kain-import",
+ "kain-sys-codegen",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "ue5",
+ "ue5-editor",
+ "ue5-shaders",
+ "web",
 ]
 
 [[package]]

@@ -2,6 +2,7 @@
 members = [
     # ── KAIN pipeline ────────────────────────────────────────────────────────
     "crates/kain-core",
+    "crates/kain-omni",
     "crates/ue5",
     "crates/ue5-shaders",
     "crates/ue5-materials",
@@ -79,7 +80,7 @@ minijinja = "2.15.1"
 chrono    = "0.4.43"
 
 # ── Backend specific ─────────────────────────────────────────────────────────
-inkwell = { version = "0.4", features = ["llvm17-0", "target-x86"] }
+inkwell = { version = "0.7.1", features = ["llvm21-1", "target-x86"] }
 walrus  = "0.21"
 rspirv  = "0.12"
 pyo3    = { version = "0.20", features = ["auto-initialize"] }

@@ -14,6 +14,23 @@ pub struct ImportTypeScriptBatchOptions {
     pub report_json: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone)]
+struct ImportDiscoveryPolicy {
+    ignored_dir_names: &'static [&'static str],
+    ignored_file_name_fragments: &'static [&'static str],
+    allowed_extensions: &'static [&'static str],
+}
+
+impl Default for ImportDiscoveryPolicy {
+    fn default() -> Self {
+        Self {
+            ignored_dir_names: &["_out", "_single_out", "_batch_out", "dist", "build", "node_modules"],
+            ignored_file_name_fragments: &[".generated."],
+            allowed_extensions: &["ts", "tsx", "mts", "cts"],
+        }
+    }
+}
+
 impl Default for ImportTypeScriptBatchOptions {
     fn default() -> Self {
         Self {
@@ -24,6 +41,38 @@ impl Default for ImportTypeScriptBatchOptions {
             fail_fast: false,
             report_json: None,
         }
+    }
+}
+
+impl ImportDiscoveryPolicy {
+    fn should_descend(&self, path: &Path) -> bool {
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            return true;
+        };
+        !self
+            .ignored_dir_names
+            .iter()
+            .any(|ignored| name.eq_ignore_ascii_case(ignored))
+    }
+
+    fn should_include_file(&self, path: &Path) -> bool {
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            return false;
+        };
+        if self
+            .ignored_file_name_fragments
+            .iter()
+            .any(|fragment| file_name.to_ascii_lowercase().contains(fragment))
+        {
+            return false;
+        }
+
+        let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+            return false;
+        };
+        self.allowed_extensions
+            .iter()
+            .any(|allowed| ext.eq_ignore_ascii_case(allowed))
     }
 }
 
@@ -196,7 +245,8 @@ fn import_path_to_program(
     }
 
     let mut candidates = Vec::new();
-    collect_typescript_files(input, batch.recursive, &mut candidates)?;
+    let discovery_policy = ImportDiscoveryPolicy::default();
+    collect_typescript_files(input, batch.recursive, &discovery_policy, &mut candidates)?;
     candidates.sort();
 
     let mut summary = ImportTypeScriptSummary {
@@ -382,7 +432,12 @@ fn compact_error_message(raw: &str) -> String {
     compact
 }
 
-fn collect_typescript_files(root: &Path, recursive: bool, out: &mut Vec<PathBuf>) -> KainResult<()> {
+fn collect_typescript_files(
+    root: &Path,
+    recursive: bool,
+    discovery_policy: &ImportDiscoveryPolicy,
+    out: &mut Vec<PathBuf>,
+) -> KainResult<()> {
     let entries = fs::read_dir(root)
         .map_err(|e| KainError::runtime(format!("Failed to read directory {}: {}", root.display(), e)))?;
 
@@ -391,17 +446,13 @@ fn collect_typescript_files(root: &Path, recursive: bool, out: &mut Vec<PathBuf>
         let path = entry.path();
 
         if path.is_dir() {
-            if recursive {
-                collect_typescript_files(&path, recursive, out)?;
+            if recursive && discovery_policy.should_descend(&path) {
+                collect_typescript_files(&path, recursive, discovery_policy, out)?;
             }
             continue;
         }
 
-        let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
-            continue;
-        };
-        let ext = ext.to_ascii_lowercase();
-        if matches!(ext.as_str(), "ts" | "tsx" | "mts" | "cts") {
+        if discovery_policy.should_include_file(&path) {
             out.push(path);
         }
     }
@@ -497,6 +548,7 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
 
     match item {
         kain_core::ast::Item::Function(func) => write_function(output, func, indent),
+        kain_core::ast::Item::Component(component) => write_component(output, component, indent),
         kain_core::ast::Item::Struct(st) => write_struct(output, st, indent),
         kain_core::ast::Item::Enum(en) => write_enum(output, en, indent),
         kain_core::ast::Item::TypeAlias(alias) => {
@@ -513,15 +565,11 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
         }
         kain_core::ast::Item::Impl(imp) => write_impl(output, imp, indent),
         kain_core::ast::Item::Mod(module) => {
-        kain_core::ast::Item::Mod(module) => {
             write_line(output, indent, &format!("mod {}:", module.name))?;
             if let Some(children) = &module.inline {
                 for child in children {
                     write_item(output, child, indent + 1)?;
                 }
-            }
-            writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
-        }
             }
             writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
         }
@@ -549,6 +597,57 @@ fn write_function(output: &mut String, func: &kain_core::ast::Function, indent: 
     write_line(output, indent, &signature)?;
     write_block(output, &func.body, indent + 1)?;
     writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write function: {}", e)))?;
+    Ok(())
+}
+
+fn write_component(
+    output: &mut String,
+    component: &kain_core::ast::Component,
+    indent: usize,
+) -> KainResult<()> {
+    use std::fmt::Write;
+
+    let mut signature = format!("component {}(", component.name);
+    for (index, prop) in component.props.iter().enumerate() {
+        if index > 0 {
+            signature.push_str(", ");
+        }
+        signature.push_str(&format!("{}: {}", prop.name, type_to_string(&prop.ty)));
+    }
+    signature.push(')');
+    if !component.effects.is_empty() {
+        signature.push_str(&format!(" with {}", effects_to_string(&component.effects)));
+    }
+    signature.push(':');
+
+    write_line(output, indent, &signature)?;
+
+    for state in &component.state {
+        let weak_prefix = if state.weak { "weak " } else { "" };
+        write_line(
+            output,
+            indent + 1,
+            &format!(
+                "{}state {}: {} = {}",
+                weak_prefix,
+                state.name,
+                type_to_string(&state.ty),
+                expr_to_string(&state.initial)
+            ),
+        )?;
+    }
+
+    for method in &component.methods {
+        write_function(output, method, indent + 1)?;
+    }
+
+    write_line(
+        output,
+        indent + 1,
+        &format!("render {}", jsx_to_string(&component.body)),
+    )?;
+
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write component: {}", e)))?;
     Ok(())
 }
 
@@ -734,9 +833,109 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::Await(value, _) => format!("(await {})", expr_to_string(value)),
         kain_core::ast::Expr::Try(value, _) => format!("({}?)", expr_to_string(value)),
         kain_core::ast::Expr::Paren(value, _) => format!("({})", expr_to_string(value)),
-        kain_core::ast::Expr::Block(_, _) => "# <block-expr>".to_string(),
-        _ => "# <expr>".to_string(),
+        kain_core::ast::Expr::JSX(node, _) => jsx_to_string(node),
+        kain_core::ast::Expr::Block(_, _) => "none".to_string(),
+        _ => "none".to_string(),
     }
+}
+
+fn jsx_to_string(node: &kain_core::ast::JSXNode) -> String {
+    match node {
+        kain_core::ast::JSXNode::Element {
+            tag,
+            attributes,
+            children,
+            ..
+        } => {
+            let attrs = jsx_attrs_to_string(attributes);
+            if children.is_empty() {
+                format!("<{}{} />", tag, attrs)
+            } else {
+                let children = children.iter().map(jsx_to_string).collect::<Vec<_>>().join("");
+                format!("<{}{}>{}</{}>", tag, attrs, children, tag)
+            }
+        }
+        kain_core::ast::JSXNode::Text(text, _) => text.clone(),
+        kain_core::ast::JSXNode::Expression(expr) => format!("{{{}}}", expr_to_string(expr)),
+        kain_core::ast::JSXNode::ComponentCall {
+            name,
+            props,
+            children,
+            ..
+        } => {
+            let attrs = jsx_attrs_to_string(props);
+            if children.is_empty() {
+                format!("<{}{} />", name, attrs)
+            } else {
+                let children = children.iter().map(jsx_to_string).collect::<Vec<_>>().join("");
+                format!("<{}{}>{}</{}>", name, attrs, children, name)
+            }
+        }
+        kain_core::ast::JSXNode::For {
+            binding, iter, body, ..
+        } => format!("{{for {} in {}: {}}}", binding, expr_to_string(iter), jsx_to_string(body)),
+        kain_core::ast::JSXNode::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            let else_suffix = else_branch
+                .as_ref()
+                .map(|node| format!(" else: {}", jsx_to_string(node)))
+                .unwrap_or_default();
+            format!(
+                "{{if {}: {}{}}}",
+                expr_to_string(condition),
+                jsx_to_string(then_branch),
+                else_suffix
+            )
+        }
+        kain_core::ast::JSXNode::Fragment(children, _) => {
+            let children = children.iter().map(jsx_to_string).collect::<Vec<_>>().join("");
+            format!("<Fragment>{}</Fragment>", children)
+        }
+    }
+}
+
+fn jsx_attrs_to_string(attrs: &[kain_core::ast::JSXAttribute]) -> String {
+    if attrs.is_empty() {
+        return String::new();
+    }
+
+    let rendered = attrs
+        .iter()
+        .map(|attr| match &attr.value {
+            kain_core::ast::JSXAttrValue::String(value) => {
+                format!(r#"{}={:?}"#, attr.name, value)
+            }
+            kain_core::ast::JSXAttrValue::Expr(expr) => {
+                format!("{}={{{}}}", attr.name, expr_to_string(expr))
+            }
+            kain_core::ast::JSXAttrValue::Bool(value) => {
+                format!("{}={{{}}}", attr.name, value)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(" {}", rendered)
+}
+
+fn effects_to_string(effects: &[kain_core::effects::Effect]) -> String {
+    effects
+        .iter()
+        .map(|effect| match effect {
+            kain_core::effects::Effect::Pure => "Pure",
+            kain_core::effects::Effect::IO => "IO",
+            kain_core::effects::Effect::Async => "Async",
+            kain_core::effects::Effect::GPU => "GPU",
+            kain_core::effects::Effect::Reactive => "Reactive",
+            kain_core::effects::Effect::Unsafe => "Unsafe",
+            kain_core::effects::Effect::Alloc => "Alloc",
+            kain_core::effects::Effect::Panic => "Panic",
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn call_arg_to_string(arg: &kain_core::ast::CallArg) -> String {
@@ -783,6 +982,11 @@ fn unary_op_to_string(op: kain_core::ast::UnaryOp) -> &'static str {
         kain_core::ast::UnaryOp::Not => "!",
         kain_core::ast::UnaryOp::BitNot => "~",
         kain_core::ast::UnaryOp::Ref => "&",
+        kain_core::ast::UnaryOp::RefMut => "&mut ",
+        kain_core::ast::UnaryOp::Deref => "*",
+    }
+}
+
 fn type_to_string(ty: &kain_core::ast::Type) -> String {
     match ty {
         kain_core::ast::Type::Named { name, generics, .. } => {
@@ -814,11 +1018,11 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
                 format!("ptr<{}>", type_to_string(inner))
             }
         }
-        kain_core::ast::Type::Function { params, return_type, .. } => {
-            let params = params.iter().map(type_to_string).collect::<Vec<_>>().join(", " );
-            format!("fn({}) -> {}", params, type_to_string(return_type))
-        }
-        kain_core::ast::Type::Option(inner, _) => format!("{}?", type_to_string(inner)),
+        // The current KAIN parser does not reliably accept emitted function types in
+        // struct field positions from imported TS signatures. Prefer a parse-stable
+        // fallback here so generated .kn files remain buildable.
+        kain_core::ast::Type::Function { .. } => "Any".to_string(),
+        kain_core::ast::Type::Option(inner, _) => format!("Option<{}>", type_to_string(inner)),
         kain_core::ast::Type::Result(ok, err, _) => format!("{}!{}", type_to_string(ok), type_to_string(err)),
         kain_core::ast::Type::Infer(_) => "Any".to_string(),
         kain_core::ast::Type::Never(_) => "!".to_string(),
@@ -845,20 +1049,6 @@ fn sanitize_type_name(name: &str) -> String {
         "Any".to_string()
     } else {
         sanitized
-    }
-}
-        kain_core::ast::Type::Result(ok, err, _) => format!("{}!{}", type_to_string(ok), type_to_string(err)),
-        kain_core::ast::Type::Infer(_) => "_".to_string(),
-        kain_core::ast::Type::Never(_) => "!".to_string(),
-        kain_core::ast::Type::Unit(_) => "()".to_string(),
-        kain_core::ast::Type::Impl { trait_name, generics, .. } => {
-            if generics.is_empty() {
-                format!("impl {}", trait_name)
-            } else {
-                let args = generics.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
-                format!("impl {}<{}>", trait_name, args)
-            }
-        }
     }
 }
 

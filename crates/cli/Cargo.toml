@@ -11,6 +11,7 @@ path = "src/main.rs"
 kain-core = { path = "../kain-core" }
 kain-asm = { path = "../kain-asm" }
 kain-import = { path = "../kain-import" }
+ kain-omni = { path = "../kain-omni" }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }

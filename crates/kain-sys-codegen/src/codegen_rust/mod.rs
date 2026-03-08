@@ -14,10 +14,9 @@ use kain_core::error::KainResult;
 use kain_core::effects::Effect;
 use kain_core::ast::{
     Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
-    Field, Variant, VariantFields, Impl, Param, MatchArm, CallArg, ElseBranch,
+    VariantFields, Impl, Param, ElseBranch,
     VariantPatternFields, EnumVariantFields, Component, JSXNode, JSXAttrValue,
 };
-use kain_core::span::Span;
 
 pub use artifact_bundle::{
     generate_rust_artifact_bundle,
@@ -59,9 +58,7 @@ impl StringBuilder {
         Self { lines: Vec::new() }
     }
 
-    fn push(&mut self, text: &str) {
-        self.lines.push(text.to_string());
-    }
+
 
     fn push_line(&mut self, text: &str) {
         self.lines.push(format!("{}\n", text));
@@ -1107,8 +1104,9 @@ pub fn gen_cargo_toml(name: &str, deps: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_core::ast::Visibility;
+    use kain_core::ast::{Field, Visibility};
     use kain_core::effects::EffectSet;
+    use kain_core::span::Span;
     use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram, TypedStruct};
     use std::collections::HashMap;
 

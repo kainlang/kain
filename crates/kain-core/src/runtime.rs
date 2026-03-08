@@ -5,6 +5,7 @@ use crate::error::{KainError, KainResult};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::types::TypedProgram;
+use crate::ui::{eval_jsx, VNode};
 use crate::language_features::runtime_supports_binary_op;
 use flume::Sender;
 use pyo3::prelude::*;
@@ -35,17 +36,6 @@ fn py_to_value(obj: &PyAny) -> PyResult<Value> {
     }
     // Fallback string representation
     Ok(Value::String(format!("{}", obj)))
-}
-
-/// Runtime VDOM Node
-#[derive(Clone, Debug)]
-pub enum VNode {
-    Element {
-        tag: String,
-        attrs: HashMap<String, Value>,
-        children: Vec<VNode>,
-    },
-    Text(String),
 }
 
 /// Runtime value
@@ -122,33 +112,6 @@ impl fmt::Debug for Value {
             Value::Future(name, _) => write!(f, "Future<{}>", name),
             Value::Break(v) => write!(f, "Break({:?})", v),
             Value::Continue => write!(f, "Continue"),
-        }
-    }
-}
-
-impl fmt::Display for VNode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            VNode::Element {
-                tag,
-                attrs,
-                children,
-            } => {
-                write!(f, "<{}", tag)?;
-                for (k, v) in attrs {
-                    write!(f, " {}=\"{}\"", k, v)?;
-                }
-                if children.is_empty() {
-                    write!(f, " />")
-                } else {
-                    write!(f, ">")?;
-                    for child in children {
-                        write!(f, "{}", child)?;
-                    }
-                    write!(f, "</{}>", tag)
-                }
-            }
-            VNode::Text(s) => write!(f, "{}", s),
         }
     }
 }
@@ -1730,7 +1693,7 @@ impl Env {
         self.scopes[0].insert(name.to_string(), Value::NativeFn(name.to_string(), func));
     }
 
-    fn define(&mut self, name: String, value: Value) {
+    pub(crate) fn define(&mut self, name: String, value: Value) {
         self.scopes.last_mut().unwrap().insert(name, value);
     }
 
@@ -1753,11 +1716,11 @@ impl Env {
         None
     }
 
-    fn push_scope(&mut self) {
+    pub(crate) fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
 
-    fn pop_scope(&mut self) {
+    pub(crate) fn pop_scope(&mut self) {
         self.scopes.pop();
     }
 }
@@ -3346,54 +3309,6 @@ fn bind_pattern(env: &mut Env, pattern: &Pattern, value: &Value) {
             }
         }
         _ => {}
-    }
-}
-
-fn eval_jsx(env: &mut Env, node: &JSXNode) -> KainResult<Value> {
-    match node {
-        JSXNode::Element {
-            tag,
-            attributes,
-            children,
-            ..
-        } => {
-            let mut attr_vals = HashMap::new();
-            for attr in attributes {
-                let v = match &attr.value {
-                    JSXAttrValue::String(s) => Value::String(s.clone()),
-                    JSXAttrValue::Bool(b) => Value::Bool(*b),
-                    JSXAttrValue::Expr(e) => eval_expr(env, e)?,
-                };
-                if let Value::Return(_) = v {
-                    return Ok(v);
-                }
-                attr_vals.insert(attr.name.clone(), v);
-            }
-
-            let mut child_vals = Vec::new();
-            for child in children {
-                let v = eval_jsx(env, child)?;
-                if let Value::Return(_) = v {
-                    return Ok(v);
-                }
-                match v {
-                    Value::JSX(node) => child_vals.push(node),
-                    Value::String(s) => child_vals.push(VNode::Text(s)),
-                    Value::Int(n) => child_vals.push(VNode::Text(n.to_string())),
-                    Value::Float(n) => child_vals.push(VNode::Text(n.to_string())),
-                    _ => {}
-                }
-            }
-
-            Ok(Value::JSX(VNode::Element {
-                tag: tag.clone(),
-                attrs: attr_vals,
-                children: child_vals,
-            }))
-        }
-        JSXNode::Text(s, _) => Ok(Value::String(s.clone())),
-        JSXNode::Expression(expr) => eval_expr(env, expr),
-        _ => Ok(Value::Unit),
     }
 }
 
