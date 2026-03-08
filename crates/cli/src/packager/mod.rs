@@ -15,7 +15,7 @@ pub mod cpp_validator;
 
 // Re-export public API to maintain backward compatibility
 pub use config::*;
-pub use build::build_project;
+pub use build::{build_project, build_rust_project};
 pub use ue5_pipeline::{build_ue5_plugin, build_ue5_plugin_with_options};
 pub use registry::{add_dependency, install_all};
 pub use inject::inject_into_plugin;

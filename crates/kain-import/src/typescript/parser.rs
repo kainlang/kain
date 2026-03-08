@@ -8,7 +8,7 @@ use swc_common::{
     FileName, FilePathMapping, SourceMap,
 };
 use swc_ecma_ast::Module;
-use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsConfig};
+use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsConfig, EsConfig};
 use std::path::Path;
 use crate::{ImportError, Result};
 
@@ -21,11 +21,10 @@ use crate::{ImportError, Result};
 pub fn parse_typescript(source: &str, path: &Path) -> Result<Module> {
     // Create source map for error reporting
     let cm: Lrc<SourceMap> = Default::default();
-    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
-
+    
     // Create source file
     let fm = cm.new_source_file(
-        FileName::Real(path.to_path_buf()),
+        Lrc::new(FileName::Real(path.to_path_buf())),
         source.to_string(),
     );
 
@@ -41,7 +40,7 @@ pub fn parse_typescript(source: &str, path: &Path) -> Result<Module> {
     // Create lexer
     let lexer = Lexer::new(
         syntax,
-        Default::default(), // ES2022
+        EsConfig::default(), // ES2022
         StringInput::from(&*fm),
         None,
     );

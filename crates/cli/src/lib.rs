@@ -12,6 +12,7 @@ pub mod packager;
 pub mod import_asm;
 pub mod import_c;
 pub mod import_rust;
+pub mod rust_build;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub mod gpu_artifacts;
 

@@ -17,6 +17,7 @@ use cli::lsp;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_rust;
+use cli::rust_build;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 use cli::gpu_artifacts;
 
@@ -120,7 +121,10 @@ enum Commands {
         /// Build UE5 plugin from KAIN.toml [ue5] config
         #[arg(long)]
         ue5: bool,
-        
+
+        #[arg(long)]
+        r#rust: bool,
+
         /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
         #[arg(long)]
         embed: bool,
@@ -708,6 +712,7 @@ fn main() {
                 target,
                 targets,
                 ue5,
+                r#rust,
                 embed,
             }) => {
                 if ue5 {
@@ -716,6 +721,28 @@ fn main() {
                         // Error already contains formatted details with file:line:col
                         eprintln!("{}", e);
                         std::process::exit(1);
+                    }
+                } else if r#rust {
+                    match input {
+                        Some(file) => {
+                            match rust_build::run_rust_build_pipeline(&file, output.as_ref(), None) {
+                                Ok(paths) => {
+                                    for path in paths {
+                                        println!("   ✓ {}", path.display());
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!(" Rust build failed: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        None => {
+                            if let Err(e) = packager::build_rust_project() {
+                                eprintln!(" Build failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
                     }
                 } else {
                     match input {

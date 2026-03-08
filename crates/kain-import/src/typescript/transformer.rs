@@ -4,7 +4,7 @@
 
 use kain_core::ast::*;
 use kain_core::span::Span;
-use swc_ecma_ast::{Module, ModuleItem, ModuleDecl, Decl, Stmt, Expr};
+use swc_ecma_ast::{Module, ModuleItem, ModuleDecl, Decl, Stmt};
 use crate::{ImportError, Result};
 use super::types::TypeMapper;
 
@@ -77,11 +77,14 @@ impl TypeScriptTransformer {
                 let params = self.transform_params(&func.function.params)?;
                 let return_type = func.function.return_type
                     .as_ref()
-                    .map(|rt| TypeMapper::map_type(&rt.type_ann))
+                    .map(|rt| TypeMapper::map_type(&rt.type_ann, span))
                     .transpose()?;
                 
-                // TODO: Transform function body
-                let body = None;
+                // Create empty body for now (TODO: transform function body)
+                let body = Block {
+                    stmts: vec![],
+                    span,
+                };
 
                 Ok(Some(Item::Function(Function {
                     name,
@@ -89,8 +92,9 @@ impl TypeScriptTransformer {
                     return_type,
                     body,
                     visibility: Visibility::Public,
-                    generic_params: vec![],
+                    generics: vec![],
                     effects: vec![],
+                    attributes: vec![],
                     span,
                 })))
             }
@@ -106,18 +110,17 @@ impl TypeScriptTransformer {
                             let field_name = ident.sym.to_string();
                             let field_type = prop.type_ann
                                 .as_ref()
-                                .map(|ta| TypeMapper::map_type(&ta.type_ann))
+                                .map(|ta| TypeMapper::map_type(&ta.type_ann, span))
                                 .transpose()?
-                                .unwrap_or(Type {
-                                    kind: TypeKind::Infer,
-                                    span,
-                                });
+                                .unwrap_or(Type::Infer(span));
 
-                            fields.push(StructField {
+                            fields.push(Field {
                                 name: field_name,
                                 ty: field_type,
                                 visibility: Visibility::Public,
-                                mutable: true,
+                                attributes: vec![],
+                                default: None,
+                                weak: false,
                                 span,
                             });
                         }
@@ -128,7 +131,9 @@ impl TypeScriptTransformer {
                     name,
                     fields,
                     visibility: Visibility::Public,
-                    generic_params: vec![],
+                    generics: vec![],
+                    methods: vec![],
+                    attributes: vec![],
                     span,
                 })))
             }
@@ -141,9 +146,9 @@ impl TypeScriptTransformer {
                 for member in &ts_enum.members {
                     if let swc_ecma_ast::TsEnumMemberId::Ident(ident) = &member.id {
                         let variant_name = ident.sym.to_string();
-                        variants.push(EnumVariant {
+                        variants.push(Variant {
                             name: variant_name,
-                            fields: vec![], // Unit variant
+                            fields: VariantFields::Unit,
                             span,
                         });
                     }
@@ -153,7 +158,7 @@ impl TypeScriptTransformer {
                     name,
                     variants,
                     visibility: Visibility::Public,
-                    generic_params: vec![],
+                    generics: vec![],
                     span,
                 })))
             }
@@ -161,13 +166,13 @@ impl TypeScriptTransformer {
             // TypeScript type alias declarations
             Decl::TsTypeAlias(type_alias) => {
                 let name = type_alias.id.sym.to_string();
-                let aliased_type = TypeMapper::map_type(&type_alias.type_ann)?;
+                let aliased_type = TypeMapper::map_type(&type_alias.type_ann, span)?;
 
                 Ok(Some(Item::TypeAlias(TypeAlias {
                     name,
-                    ty: aliased_type,
+                    target: aliased_type,
                     visibility: Visibility::Public,
-                    generic_params: vec![],
+                    generics: vec![],
                     span,
                 })))
             }
@@ -180,22 +185,21 @@ impl TypeScriptTransformer {
                 // Extract class properties
                 for member in &class.class.body {
                     if let swc_ecma_ast::ClassMember::ClassProp(prop) = member {
-                        if let swc_ecma_ast::PropName::Ident(ident) = &prop.key {
-                            let field_name = ident.sym.to_string();
+                        if let swc_ecma_ast::PropName::Ident(ident_name) = &prop.key {
+                            let field_name = ident_name.sym.to_string();
                             let field_type = prop.type_ann
                                 .as_ref()
-                                .map(|ta| TypeMapper::map_type(&ta.type_ann))
+                                .map(|ta| TypeMapper::map_type(&ta.type_ann, span))
                                 .transpose()?
-                                .unwrap_or(Type {
-                                    kind: TypeKind::Infer,
-                                    span,
-                                });
+                                .unwrap_or(Type::Infer(span));
 
-                            fields.push(StructField {
+                            fields.push(Field {
                                 name: field_name,
                                 ty: field_type,
                                 visibility: Visibility::Public,
-                                mutable: true,
+                                attributes: vec![],
+                                default: None,
+                                weak: false,
                                 span,
                             });
                         }
@@ -208,7 +212,9 @@ impl TypeScriptTransformer {
                     name,
                     fields,
                     visibility: Visibility::Public,
-                    generic_params: vec![],
+                    generics: vec![],
+                    methods: vec![],
+                    attributes: vec![],
                     span,
                 })))
             }
@@ -223,7 +229,7 @@ impl TypeScriptTransformer {
         }
     }
 
-    fn transform_params(&mut self, params: &[swc_ecma_ast::Param]) -> Result<Vec<FunctionParam>> {
+    fn transform_params(&mut self, params: &[swc_ecma_ast::Param]) -> Result<Vec<Param>> {
         let span = Span::default();
         let mut kain_params = Vec::new();
 
@@ -232,17 +238,15 @@ impl TypeScriptTransformer {
                 let name = ident.id.sym.to_string();
                 let ty = ident.type_ann
                     .as_ref()
-                    .map(|ta| TypeMapper::map_type(&ta.type_ann))
+                    .map(|ta| TypeMapper::map_type(&ta.type_ann, span))
                     .transpose()?
-                    .unwrap_or(Type {
-                        kind: TypeKind::Infer,
-                        span,
-                    });
+                    .unwrap_or(Type::Infer(span));
 
-                kain_params.push(FunctionParam {
+                kain_params.push(Param {
                     name,
                     ty,
                     mutable: false,
+                    default: None,
                     span,
                 });
             }

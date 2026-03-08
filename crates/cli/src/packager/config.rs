@@ -13,6 +13,42 @@ pub struct PackageManifest {
     pub dependencies: HashMap<String, String>,
     #[serde(default)]
     pub ue5: Option<Ue5Config>,
+    #[serde(default)]
+    pub r#rust: Option<RustBuildConfig>,
+}
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RustBuildArtifact {
+    Source,
+    ShaderHost,
+    ShaderReflection,
+    Spirv,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RustBuildConfig {
+    #[serde(default)]
+    pub output: Option<PathBuf>,
+    #[serde(default = "default_rust_build_artifacts")]
+    pub artifacts: Vec<RustBuildArtifact>,
+}
+
+fn default_rust_build_artifacts() -> Vec<RustBuildArtifact> {
+    vec![
+        RustBuildArtifact::Source,
+        RustBuildArtifact::ShaderHost,
+        RustBuildArtifact::ShaderReflection,
+        RustBuildArtifact::Spirv,
+    ]
+}
+
+impl Default for RustBuildConfig {
+    fn default() -> Self {
+        Self {
+            output: None,
+            artifacts: default_rust_build_artifacts(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -254,8 +290,10 @@ impl PackageManifest {
             build: BuildConfig::default(),
             dependencies: HashMap::new(),
             ue5: None,
+            r#rust: None,
         }
     }
+}
 }
 
 pub(crate) fn registry_url() -> &'static str {

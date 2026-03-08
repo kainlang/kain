@@ -7,7 +7,9 @@ use kain_core::{CompileTarget, TypedProgram};
 use kain_sys_codegen::{
     collect_gpu_artifacts,
     collect_gpu_artifacts_json,
+    generate_rust_artifact_bundle,
     generate_rust_gpu_host_wrappers,
+    RustArtifactKind,
     RustGpuBindingKind,
     RustGpuShaderStage,
 };
@@ -92,4 +94,23 @@ fn generates_rust_gpu_host_wrappers_with_layout_and_dispatch_helpers() {
     assert!(rust_host.contains("SpecializationConstantParam"));
     assert!(rust_host.contains("pub fn descriptor_layout() -> Vec<BindingLayoutEntry>"));
     assert!(rust_host.contains("pub fn dispatch<'a>(params: &'a Params, x: u32, y: u32, z: u32) -> DispatchCall<'a, Params>"));
+}
+
+#[test]
+fn generates_rust_artifact_bundle_with_primary_and_shader_sidecars() {
+    let typed = typed_shader_program(sample_shader_source());
+    let bundle = generate_rust_artifact_bundle(&typed).expect("rust artifact bundle generation should succeed");
+
+    assert_eq!(bundle.primary.kind, RustArtifactKind::PrimarySource);
+    assert!(bundle.primary.contents.contains("#![allow(unused_variables)]"));
+    assert_eq!(bundle.supplemental.len(), 2);
+    assert!(bundle
+        .supplemental
+        .iter()
+        .any(|artifact| artifact.kind == RustArtifactKind::ShaderHost));
+    assert!(bundle
+        .supplemental
+        .iter()
+        .any(|artifact| artifact.kind == RustArtifactKind::ShaderReflection));
+    assert!(bundle.shader_metadata.is_some());
 }

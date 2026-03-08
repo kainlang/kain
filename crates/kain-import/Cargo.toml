@@ -18,13 +18,15 @@ syn         = { version = "2.0", features = ["full", "extra-traits", "parsing", 
 proc-macro2 = { version = "1.0", optional = true }
 
 # TypeScript/JavaScript parsing (SWC — used by Deno, Next.js, Vercel, Parcel)
-swc_ecma_parser = { version = "0.147", optional = true }
-swc_ecma_ast    = { version = "0.116", optional = true }
-swc_common      = { version = "0.36", optional = true }
+# Using latest versions which should be compatible with modern serde
+swc_ecma_parser = { version = "0.150", optional = true }
+swc_ecma_ast    = { version = "0.119", optional = true }
+swc_common      = { version = "0.40", optional = true }
 
 # Utilities
 thiserror = "1.0"
-serde = { version = "1.0", features = ["derive"] }
+# Pin serde to version compatible with SWC (serde 1.0.210 removed __private API)
+serde = { version = "=1.0.209", features = ["derive"] }
 serde_json = "1.0"
 
 [dev-dependencies]

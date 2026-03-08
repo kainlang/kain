@@ -4,6 +4,7 @@
 //! The generated Rust can be compiled with `rustc` directly or integrated
 //! into a Cargo project.
 
+pub mod artifact_bundle;
 pub mod gpu_artifacts;
 pub mod gpu_host;
 
@@ -17,6 +18,12 @@ use kain_core::ast::{
 };
 use kain_core::span::Span;
 
+pub use artifact_bundle::{
+    generate_rust_artifact_bundle,
+    RustArtifactBundle,
+    RustArtifactKind,
+    RustTextArtifact,
+};
 pub use gpu_artifacts::{
     collect_gpu_artifacts,
     collect_gpu_artifacts_json,
