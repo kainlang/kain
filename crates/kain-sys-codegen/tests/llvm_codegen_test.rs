@@ -1080,3 +1080,150 @@ fn llvm_lowers_tuple_aggregate_init_without_dummy_fallback() {
     assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
     assert!(!llvm.contains("ret i64 0"));
 }
+
+#[test]
+fn llvm_rejects_unsupported_expressions_instead_of_silent_dummy_values() {
+    let bad_fn = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "bad_fn".to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(
+                    Some(Expr::Lambda {
+                        params: vec![],
+                        return_type: Some(int_type()),
+                        body: Box::new(Expr::Int(1, span())),
+                        span: span(),
+                    }),
+                    span(),
+                )],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let err = generate_llvm(&TypedProgram {
+        items: vec![bad_fn],
+    })
+    .expect_err("llvm generation should fail for unsupported expressions");
+
+    let message = err.to_string();
+    assert!(message.contains("Unsupported LLVM expression"));
+    assert!(message.contains("Lambda"));
+}
+
+#[test]
+fn llvm_lowers_typed_none_to_null_for_struct_pointer_flows() {
+    let node = TypedItem::Struct(TypedStruct {
+        ast: Struct {
+            name: "Node".to_string(),
+            generics: vec![],
+            fields: vec![Field {
+                name: "value".to_string(),
+                ty: int_type(),
+                attributes: vec![],
+                visibility: Visibility::Public,
+                default: None,
+                weak: false,
+                span: span(),
+            }],
+            methods: vec![],
+            attributes: vec![],
+            visibility: Visibility::Public,
+            span: span(),
+        },
+        field_types: HashMap::from([(
+            "value".to_string(),
+            ResolvedType::Int(IntSize::I64),
+        )]),
+    });
+
+    let bind_none = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "bind_none".to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![
+                    Stmt::Let {
+                        pattern: Pattern::Binding {
+                            name: "node".to_string(),
+                            mutable: true,
+                            span: span(),
+                        },
+                        ty: Some(Type::Named {
+                            name: "Node".to_string(),
+                            generics: vec![],
+                            span: span(),
+                        }),
+                        value: Some(Expr::None(span())),
+                        span: span(),
+                    },
+                    Stmt::Return(Some(Expr::Int(0, span())), span()),
+                ],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let return_none = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "return_none".to_string(),
+            generics: vec![],
+            params: vec![],
+            return_type: Some(Type::Named {
+                name: "Node".to_string(),
+                generics: vec![],
+                span: span(),
+            }),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(Some(Expr::None(span())), span())],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![],
+            ret: Box::new(ResolvedType::Struct("Node".to_string(), HashMap::new())),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
+        items: vec![node, bind_none, return_none],
+    }).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%Node = type { i64 }"));
+    assert!(llvm.contains("%node.addr_0 = alloca %Node*"));
+    assert!(llvm.contains("store %Node* null, %Node** %node.addr_0"));
+    assert!(llvm.contains("define %Node* @return_none()"));
+    assert!(llvm.contains("ret %Node* null"));
+}

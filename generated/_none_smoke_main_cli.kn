@@ -1,0 +1,10 @@
+struct Node:
+    value: Int
+
+fn maybe_none() -> Node:
+    return none
+
+fn main() -> Int:
+    let mut node: Node = none
+    node = maybe_none()
+    return 0

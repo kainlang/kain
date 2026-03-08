@@ -41,6 +41,7 @@ struct LlvmGenerator {
     component_defs: HashMap<String, Vec<(String, String)>>,
     /// Current basic block label (for Phi nodes)
     current_block: String,
+    current_return_type: Option<String>,
 }
 
 impl LlvmGenerator {
@@ -58,6 +59,7 @@ impl LlvmGenerator {
             struct_defs: HashMap::new(),
             component_defs: HashMap::new(),
             current_block: "entry".to_string(),
+            current_return_type: None,
         }
     }
 
@@ -388,6 +390,14 @@ impl LlvmGenerator {
             "void" => "0".into(),
             _ if ty.ends_with('*') => "null".into(),
             _ => "0".into(),
+        }
+    }
+
+    fn compile_expr_for_target_type(&mut self, expr: &Expr, target_ty: &str) -> KainResult<(String, String)> {
+        if matches!(expr, Expr::None(_)) {
+            Ok((self.zero_value_for_ty(target_ty), target_ty.to_string()))
+        } else {
+            self.compile_expr(expr)
         }
     }
 
@@ -1519,6 +1529,7 @@ impl LlvmGenerator {
 
         self.emit("}");
         self.emit("");
+        self.current_return_type = None;
         Ok(())
     }
 
@@ -1668,6 +1679,7 @@ impl LlvmGenerator {
         self.emit(&format!("  ret i8* {}", result));
         self.emit("}");
         self.emit("");
+        self.current_return_type = None;
         Ok(())
     }
 
@@ -1699,6 +1711,7 @@ impl LlvmGenerator {
         if ret_type == "void" {
             ret_type = "i64".to_string();
         }
+        self.current_return_type = Some(ret_type.clone());
 
         let mut params = Vec::new();
         params.push(format!("{} %arg0", self_ty));
@@ -1739,6 +1752,7 @@ impl LlvmGenerator {
 
         self.emit("}");
         self.emit("");
+        self.current_return_type = None;
         Ok(())
     }
 
@@ -1762,6 +1776,7 @@ impl LlvmGenerator {
         if ret_type == "void" && func.ast.name != "main" {
             ret_type = "i64".into();
         }
+        self.current_return_type = Some(ret_type.clone());
         
         // Special case for main
         let (llvm_name, is_main) = if name == "main" {
@@ -1928,13 +1943,18 @@ impl LlvmGenerator {
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> KainResult<()> {
         match stmt {
-            Stmt::Let { pattern, value, ty: _, .. } => {
+            Stmt::Let { pattern, value, ty, .. } => {
                 if let Some(val_expr) = value {
-                    // Compile value
-                    let (val_reg, val_ty) = self.compile_expr(val_expr)?;
-                    
                     // Allocate and Store
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
+                        let target_ty = ty
+                            .as_ref()
+                            .map(|declared| self.map_type_from_ast(declared));
+                        let (val_reg, val_ty) = if let Some(target_ty) = target_ty.as_deref() {
+                            self.compile_expr_for_target_type(val_expr, target_ty)?
+                        } else {
+                            self.compile_expr(val_expr)?
+                        };
                         let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                         self.reg_count += 1;
                         
@@ -1953,6 +1973,7 @@ impl LlvmGenerator {
                             scope.push(name.clone());
                         }
                     } else {
+                        let (val_reg, val_ty) = self.compile_expr(val_expr)?;
                         self.bind_local_pattern_value(pattern, val_reg, val_ty)?;
                     }
                 }
@@ -1966,7 +1987,11 @@ impl LlvmGenerator {
             }
             Stmt::Return(expr, _) => {
                 if let Some(e) = expr {
-                    let (val, ty) = self.compile_expr(e)?;
+                    let (val, ty) = if let Some(target_ty) = self.current_return_type.clone() {
+                        self.compile_expr_for_target_type(e, &target_ty)?
+                    } else {
+                        self.compile_expr(e)?
+                    };
                     
                     if ty == "i8*" {
                         self.emit(&format!("  call void @rc_retain(i8* {})", val));
@@ -2306,10 +2331,10 @@ impl LlvmGenerator {
                 }
             }
             Expr::Assign { target, value, span } => {
-                let (rhs, rhs_ty) = self.compile_expr(value)?;
                 match target.as_ref() {
                     Expr::Ident(name, _) => {
                         if let Some((addr, ty)) = self.locals.get(name).cloned() {
+                            let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
                             self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
                             Ok((rhs, rhs_ty))
                         } else {
@@ -2320,9 +2345,15 @@ impl LlvmGenerator {
                         let (obj_val, obj_ty) = self.compile_expr(object)?;
                         if let Some(struct_name) = self.ptr_struct_name(&obj_ty).map(|name| name.to_string()) {
                             if let Some(index) = self.field_index(&struct_name, field) {
+                                let field_ty = self.struct_defs
+                                    .get(&struct_name)
+                                    .and_then(|fields| fields.get(index))
+                                    .map(|(_, ty)| ty.clone())
+                                    .unwrap_or_else(|| "i64".to_string());
+                                let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
                                 let field_ptr = self.next_reg();
                                 self.emit(&format!("  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}", field_ptr, struct_name, obj_ty, obj_val, index));
-                                self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, rhs_ty, field_ptr));
+                                self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, field_ty, field_ptr));
                                 Ok((rhs, rhs_ty))
                             } else {
                                 Err(KainError::codegen(format!("Unknown field '{}' on {}", field, struct_name), *span))
@@ -2335,11 +2366,13 @@ impl LlvmGenerator {
                         let (obj_val, obj_ty) = self.compile_expr(object)?;
                         let (idx_val, _) = self.compile_expr(index)?;
                         if obj_ty == "i8*" {
+                            let (rhs, rhs_ty) = self.compile_expr(value)?;
                             let stored = self.coerce_to_i64_storage(&rhs, &rhs_ty);
                             self.emit(&format!("  call void @array_set(i8* {}, i64 {}, i64 {})", obj_val, idx_val, stored));
                             Ok((rhs, rhs_ty))
                         } else {
                             let (field_ptr, field_ty) = self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, *span)?;
+                            let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
                             self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, field_ty, field_ptr));
                             Ok((rhs, rhs_ty))
                         }
