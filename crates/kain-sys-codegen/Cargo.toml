@@ -7,8 +7,8 @@ edition = "2021"
 kain-core = { path = "../kain-core" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-# inkwell = { workspace = true, optional = true } 
+inkwell = { workspace = true, optional = true }
 
 [features]
 default = []
-llvm = [] # ["dep:inkwell"] Temporarily disabled to unblock build
+llvm = ["dep:inkwell"]

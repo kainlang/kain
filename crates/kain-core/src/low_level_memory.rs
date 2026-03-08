@@ -342,6 +342,7 @@ pub fn lower_typed_program_memory_for_target(
         CompileTarget::Ts
             | CompileTarget::Js
             | CompileTarget::Wasm
+            | CompileTarget::Llvm
             | CompileTarget::Cpp
             | CompileTarget::Rust
             | CompileTarget::Ue5
