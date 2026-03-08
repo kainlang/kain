@@ -267,6 +267,78 @@ impl LlvmGenerator {
         }
     }
 
+    fn cast_numeric_value(&mut self, val: String, src_ty: &str, dst_ty: &str) -> KainResult<String> {
+        if src_ty == dst_ty {
+            return Ok(val);
+        }
+
+        let reg = self.next_reg();
+        match (src_ty, dst_ty) {
+            ("i64", "double") => {
+                self.emit(&format!("  {} = sitofp i64 {} to double", reg, val));
+                Ok(reg)
+            }
+            ("i1", "double") => {
+                self.emit(&format!("  {} = uitofp i1 {} to double", reg, val));
+                Ok(reg)
+            }
+            ("i8", "double") => {
+                self.emit(&format!("  {} = sitofp i8 {} to double", reg, val));
+                Ok(reg)
+            }
+            ("i1", "i64") => {
+                self.emit(&format!("  {} = zext i1 {} to i64", reg, val));
+                Ok(reg)
+            }
+            ("i8", "i64") => {
+                self.emit(&format!("  {} = sext i8 {} to i64", reg, val));
+                Ok(reg)
+            }
+            ("double", "i64") => {
+                self.emit(&format!("  {} = fptosi double {} to i64", reg, val));
+                Ok(reg)
+            }
+            _ => Err(KainError::codegen(
+                format!("Unsupported numeric cast from {} to {}", src_ty, dst_ty),
+                kain_core::Span::default(),
+            )),
+        }
+    }
+
+    fn coerce_binary_operands(
+        &mut self,
+        lhs: String,
+        lhs_ty: String,
+        rhs: String,
+        rhs_ty: String,
+    ) -> KainResult<(String, String, String, String)> {
+        if lhs_ty == rhs_ty {
+            return Ok((lhs, lhs_ty, rhs, rhs_ty));
+        }
+
+        if lhs_ty == "double" {
+            let rhs_cast = self.cast_numeric_value(rhs, &rhs_ty, "double")?;
+            return Ok((lhs, lhs_ty, rhs_cast, "double".to_string()));
+        }
+
+        if rhs_ty == "double" {
+            let lhs_cast = self.cast_numeric_value(lhs, &lhs_ty, "double")?;
+            return Ok((lhs_cast, "double".to_string(), rhs, rhs_ty));
+        }
+
+        if lhs_ty == "i64" {
+            let rhs_cast = self.cast_numeric_value(rhs, &rhs_ty, "i64")?;
+            return Ok((lhs, lhs_ty, rhs_cast, "i64".to_string()));
+        }
+
+        if rhs_ty == "i64" {
+            let lhs_cast = self.cast_numeric_value(lhs, &lhs_ty, "i64")?;
+            return Ok((lhs_cast, "i64".to_string(), rhs, rhs_ty));
+        }
+
+        Ok((lhs, lhs_ty, rhs, rhs_ty))
+    }
+
     fn ptr_struct_name<'a>(&self, ty: &'a str) -> Option<&'a str> {
         if ty.starts_with('%') && ty.ends_with('*') {
             Some(&ty[1..ty.len() - 1])
@@ -914,6 +986,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @array_get(i8*, i64)");
         self.emit("declare void @array_set(i8*, i64, i64)");
         self.emit("declare i64 @array_len(i8*)");
+        self.emit("declare double @pow(double, double)");
         
         // Message Queue & Concurrency
         self.emit("declare i8* @mq_new()");
@@ -1957,8 +2030,9 @@ impl LlvmGenerator {
                 }
             }
             Expr::Binary { left, op, right, .. } => {
-                let (lhs, ty) = self.compile_expr(left)?;
+                let (lhs, lhs_ty) = self.compile_expr(left)?;
                 let (rhs, rhs_ty) = self.compile_expr(right)?;
+                let (lhs, ty, rhs, rhs_ty) = self.coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?;
                 
                 if *op == BinaryOp::Add && (ty == "i8*" || rhs_ty == "i8*") {
                     let res = self.next_reg();
@@ -1978,30 +2052,141 @@ impl LlvmGenerator {
                      return Ok((res, "i1".into()));
                 }
 
+                let is_float = ty == "double" && rhs_ty == "double";
                 let res = self.next_reg();
-                let op_str = match op {
-                    BinaryOp::Add => "add",
-                    BinaryOp::Sub => "sub",
-                    BinaryOp::Mul => "mul",
-                    BinaryOp::Div => "sdiv",
-                    BinaryOp::Eq => "icmp eq",
-                    BinaryOp::Ne => "icmp ne",
-                    BinaryOp::Lt => "icmp slt",
-                    BinaryOp::Gt => "icmp sgt",
-                    BinaryOp::Le => "icmp sle",
-                    BinaryOp::Ge => "icmp sge",
-                    BinaryOp::And => "and",
-                    BinaryOp::Or => "or",
-                    _ => "add",
-                };
-                
-                // If comparison, it returns i1, but we might want to cast back or keep as i1.
-                self.emit(&format!("  {} = {} {} {}, {}", res, op_str, ty, lhs, rhs));
-                
-                if op_str.starts_with("icmp") {
-                    Ok((res, "i1".to_string()))
-                } else {
-                    Ok((res, ty))
+
+                match op {
+                    BinaryOp::Add => {
+                        if is_float {
+                            self.emit(&format!("  {} = fadd double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = add {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Sub => {
+                        if is_float {
+                            self.emit(&format!("  {} = fsub double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = sub {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Mul => {
+                        if is_float {
+                            self.emit(&format!("  {} = fmul double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = mul {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Div => {
+                        if is_float {
+                            self.emit(&format!("  {} = fdiv double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = sdiv {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Mod => {
+                        if is_float {
+                            self.emit(&format!("  {} = frem double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = srem {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Pow => {
+                        if is_float {
+                            self.emit(&format!("  {} = call double @pow(double {}, double {})", res, lhs, rhs));
+                            Ok((res, "double".to_string()))
+                        } else {
+                            let lhs_cast = self.cast_numeric_value(lhs, &ty, "double")?;
+                            let rhs_cast = self.cast_numeric_value(rhs, &rhs_ty, "double")?;
+                            let pow_res = self.next_reg();
+                            self.emit(&format!("  {} = call double @pow(double {}, double {})", pow_res, lhs_cast, rhs_cast));
+                            let int_res = self.next_reg();
+                            self.emit(&format!("  {} = fptosi double {} to i64", int_res, pow_res));
+                            Ok((int_res, "i64".to_string()))
+                        }
+                    }
+                    BinaryOp::Eq => {
+                        if is_float {
+                            self.emit(&format!("  {} = fcmp oeq double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = icmp eq {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, "i1".to_string()))
+                    }
+                    BinaryOp::Ne => {
+                        if is_float {
+                            self.emit(&format!("  {} = fcmp one double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = icmp ne {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, "i1".to_string()))
+                    }
+                    BinaryOp::Lt => {
+                        if is_float {
+                            self.emit(&format!("  {} = fcmp olt double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = icmp slt {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, "i1".to_string()))
+                    }
+                    BinaryOp::Gt => {
+                        if is_float {
+                            self.emit(&format!("  {} = fcmp ogt double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = icmp sgt {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, "i1".to_string()))
+                    }
+                    BinaryOp::Le => {
+                        if is_float {
+                            self.emit(&format!("  {} = fcmp ole double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = icmp sle {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, "i1".to_string()))
+                    }
+                    BinaryOp::Ge => {
+                        if is_float {
+                            self.emit(&format!("  {} = fcmp oge double {}, {}", res, lhs, rhs));
+                        } else {
+                            self.emit(&format!("  {} = icmp sge {} {}, {}", res, ty, lhs, rhs));
+                        }
+                        Ok((res, "i1".to_string()))
+                    }
+                    BinaryOp::And => {
+                        self.emit(&format!("  {} = and {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Or => {
+                        self.emit(&format!("  {} = or {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    BinaryOp::BitAnd => {
+                        self.emit(&format!("  {} = and {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    BinaryOp::BitOr => {
+                        self.emit(&format!("  {} = or {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    BinaryOp::BitXor => {
+                        self.emit(&format!("  {} = xor {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Shl => {
+                        self.emit(&format!("  {} = shl {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    BinaryOp::Shr => {
+                        self.emit(&format!("  {} = ashr {} {}, {}", res, ty, lhs, rhs));
+                        Ok((res, ty))
+                    }
+                    _ => Ok(("0".into(), "i64".into())),
                 }
             }
             Expr::MethodCall { receiver, method, args, span } => {

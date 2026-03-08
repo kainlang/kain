@@ -741,24 +741,80 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
                 line.push_str(&format!(": {}", type_to_string(ty)));
             }
             if let Some(value) = value {
-                line.push_str(&format!(" = {}", expr_to_string(value)));
+                line.push_str(" = ");
+                line.push_str(&expr_to_string_with_indent(value, indent));
             }
             write_line(output, indent, &line)
         }
-        kain_core::ast::Stmt::Expr(expr) => write_line(output, indent, &expr_to_string(expr)),
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Block(block, _)) => {
+            write_block(output, block, indent)
+        }
+        kain_core::ast::Stmt::Expr(expr) => write_line(output, indent, &expr_to_string_with_indent(expr, indent)),
         kain_core::ast::Stmt::Return(Some(expr), _) => {
-            write_line(output, indent, &format!("return {}", expr_to_string(expr)))
+            write_line(
+                output,
+                indent,
+                &format!("return {}", expr_to_string_with_indent(expr, indent)),
+            )
         }
         kain_core::ast::Stmt::Return(None, _) => write_line(output, indent, "return"),
-        _ => write_line(output, indent, "# <stmt>"),
+        kain_core::ast::Stmt::Break(Some(expr), _) => {
+            write_line(
+                output,
+                indent,
+                &format!("break {}", expr_to_string_with_indent(expr, indent)),
+            )
+        }
+        kain_core::ast::Stmt::Break(None, _) => write_line(output, indent, "break"),
+        kain_core::ast::Stmt::Continue(_) => write_line(output, indent, "continue"),
+        kain_core::ast::Stmt::While { condition, body, .. } => {
+            write_line(
+                output,
+                indent,
+                &format!("while {}:", expr_to_string_with_indent(condition, indent)),
+            )?;
+            write_block(output, body, indent + 1)
+        }
+        kain_core::ast::Stmt::For {
+            binding, iter, body, ..
+        } => {
+            write_line(
+                output,
+                indent,
+                &format!(
+                    "for {} in {}:",
+                    pattern_to_string(binding),
+                    expr_to_string_with_indent(iter, indent)
+                ),
+            )?;
+            write_block(output, body, indent + 1)
+        }
+        kain_core::ast::Stmt::Loop { body, .. } => {
+            write_line(output, indent, "loop:")?;
+            write_block(output, body, indent + 1)
+        }
+        kain_core::ast::Stmt::Item(item) => write_item(output, item, indent),
     }
 }
 
 fn write_line(output: &mut String, indent: usize, line: &str) -> KainResult<()> {
     use std::fmt::Write;
 
-    writeln!(output, "{}{}", "    ".repeat(indent), line)
-        .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))
+    let mut lines = line.lines();
+    if let Some(first) = lines.next() {
+        writeln!(output, "{}{}", "    ".repeat(indent), first)
+            .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
+    } else {
+        writeln!(output).map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
+        return Ok(());
+    }
+
+    for rest in lines {
+        writeln!(output, "{rest}")
+            .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
+    }
+
+    Ok(())
 }
 
 fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
@@ -781,60 +837,137 @@ fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
 }
 
 fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
+    expr_to_string_with_indent(expr, 0)
+}
+
+fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> String {
     match expr {
         kain_core::ast::Expr::Int(value, _) => value.to_string(),
         kain_core::ast::Expr::Float(value, _) => value.to_string(),
         kain_core::ast::Expr::String(value, _) => format!("{:?}", value),
+        kain_core::ast::Expr::FString(parts, _) => parts
+            .iter()
+            .map(|part| expr_to_string_with_indent(part, indent))
+            .collect::<Vec<_>>()
+            .join(" + "),
         kain_core::ast::Expr::Bool(value, _) => value.to_string(),
         kain_core::ast::Expr::None(_) => "none".to_string(),
         kain_core::ast::Expr::Ident(name, _) => name.clone(),
         kain_core::ast::Expr::Binary { left, op, right, .. } => {
-            format!("({} {} {})", expr_to_string(left), binary_op_to_string(*op), expr_to_string(right))
+            format!(
+                "({} {} {})",
+                expr_to_string_with_indent(left, indent),
+                binary_op_to_string(*op),
+                expr_to_string_with_indent(right, indent)
+            )
         }
         kain_core::ast::Expr::Unary { op, operand, .. } => {
-            format!("({}{})", unary_op_to_string(*op), expr_to_string(operand))
+            format!("({}{})", unary_op_to_string(*op), expr_to_string_with_indent(operand, indent))
         }
         kain_core::ast::Expr::Call { callee, args, .. } => {
-            let args = args.iter().map(call_arg_to_string).collect::<Vec<_>>().join(", ");
-            format!("{}({args})", expr_to_string(callee))
+            let callee = expr_to_string_with_indent(callee, indent);
+            let args = args
+                .iter()
+                .map(|arg| call_arg_to_string_with_indent(arg, indent + 1))
+                .collect::<Vec<_>>();
+            render_call_like(&callee, &args, indent)
         }
         kain_core::ast::Expr::MethodCall { receiver, method, args, .. } => {
-            let args = args.iter().map(call_arg_to_string).collect::<Vec<_>>().join(", ");
-            format!("{}.{}({args})", expr_to_string(receiver), method)
+            let callee = format!("{}.{}", expr_to_string_with_indent(receiver, indent), method);
+            let args = args
+                .iter()
+                .map(|arg| call_arg_to_string_with_indent(arg, indent + 1))
+                .collect::<Vec<_>>();
+            render_call_like(&callee, &args, indent)
         }
         kain_core::ast::Expr::Field { object, field, .. } => {
-            format!("{}.{}", expr_to_string(object), field)
+            format!("{}.{}", expr_to_string_with_indent(object, indent), field)
         }
         kain_core::ast::Expr::Index { object, index, .. } => {
-            format!("{}[{}]", expr_to_string(object), expr_to_string(index))
+            format!(
+                "{}[{}]",
+                expr_to_string_with_indent(object, indent),
+                expr_to_string_with_indent(index, indent)
+            )
         }
         kain_core::ast::Expr::Assign { target, value, .. } => {
-            format!("({} = {})", expr_to_string(target), expr_to_string(value))
+            format!(
+                "({} = {})",
+                expr_to_string_with_indent(target, indent),
+                expr_to_string_with_indent(value, indent)
+            )
         }
         kain_core::ast::Expr::Array(items, _) => {
-            let items = items.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+            let items = items
+                .iter()
+                .map(|item| expr_to_string_with_indent(item, indent))
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("[{}]", items)
         }
         kain_core::ast::Expr::Tuple(items, _) => {
-            let items = items.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+            let items = items
+                .iter()
+                .map(|item| expr_to_string_with_indent(item, indent))
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("({})", items)
         }
         kain_core::ast::Expr::Struct { name, fields, .. } => {
             let fields = fields
                 .iter()
-                .map(|(name, value)| format!("{name}: {}", expr_to_string(value)))
+                .map(|(name, value)| format!("{name}: {}", expr_to_string_with_indent(value, indent)))
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{name} {{ {fields} }}")
         }
-        kain_core::ast::Expr::Cast { value, target, .. } => {
-            format!("({} as {})", expr_to_string(value), type_to_string(target))
+        kain_core::ast::Expr::AggregateInit { ty, fields, .. } => {
+            let ty_name = match ty {
+                kain_core::ast::Type::Infer(_) => "Any".to_string(),
+                other => type_to_string(other),
+            };
+            let fields = fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", expr_to_string_with_indent(value, indent)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{ty_name} {{ {fields} }}")
         }
-        kain_core::ast::Expr::Await(value, _) => format!("(await {})", expr_to_string(value)),
-        kain_core::ast::Expr::Try(value, _) => format!("({}?)", expr_to_string(value)),
-        kain_core::ast::Expr::Paren(value, _) => format!("({})", expr_to_string(value)),
+        kain_core::ast::Expr::Cast { value, target, .. } => {
+            format!(
+                "({} as {})",
+                expr_to_string_with_indent(value, indent),
+                type_to_string(target)
+            )
+        }
+        kain_core::ast::Expr::Await(value, _) => {
+            format!("(await {})", expr_to_string_with_indent(value, indent))
+        }
+        kain_core::ast::Expr::Try(value, _) => format!("({}?)", expr_to_string_with_indent(value, indent)),
+        kain_core::ast::Expr::Paren(value, _) => format!("({})", expr_to_string_with_indent(value, indent)),
         kain_core::ast::Expr::JSX(node, _) => jsx_to_string(node),
-        kain_core::ast::Expr::Block(_, _) => "none".to_string(),
+        kain_core::ast::Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => if_expr_to_string(condition, then_branch, else_branch.as_deref(), indent),
+        kain_core::ast::Expr::Lambda {
+            params,
+            return_type,
+            body,
+            ..
+        } => lambda_to_string(params, return_type.as_ref(), body, indent),
+        kain_core::ast::Expr::Block(block, _) => block_expr_to_string(block, indent),
+        kain_core::ast::Expr::Return(Some(value), _) => {
+            format!("return {}", expr_to_string_with_indent(value, indent))
+        }
+        kain_core::ast::Expr::Return(None, _) => "return".to_string(),
+        kain_core::ast::Expr::Break(Some(value), _) => {
+            format!("break {}", expr_to_string_with_indent(value, indent))
+        }
+        kain_core::ast::Expr::Break(None, _) => "break".to_string(),
+        kain_core::ast::Expr::Continue(_) => "continue".to_string(),
         _ => "none".to_string(),
     }
 }
@@ -939,9 +1072,173 @@ fn effects_to_string(effects: &[kain_core::effects::Effect]) -> String {
 }
 
 fn call_arg_to_string(arg: &kain_core::ast::CallArg) -> String {
+    call_arg_to_string_with_indent(arg, 0)
+}
+
+fn call_arg_to_string_with_indent(arg: &kain_core::ast::CallArg, indent: usize) -> String {
     match &arg.name {
-        Some(name) => format!("{name} = {}", expr_to_string(&arg.value)),
-        None => expr_to_string(&arg.value),
+        Some(name) => format!("{name} = {}", expr_to_string_with_indent(&arg.value, indent)),
+        None => expr_to_string_with_indent(&arg.value, indent),
+    }
+}
+
+fn render_call_like(callee: &str, args: &[String], indent: usize) -> String {
+    if args.is_empty() {
+        return format!("{callee}()");
+    }
+
+    if args.iter().all(|arg| !arg.contains('\n')) {
+        return format!("{callee}({})", args.join(", "));
+    }
+
+    let body_indent = "    ".repeat(indent + 1);
+    let closing_indent = "    ".repeat(indent);
+    let rendered_args = args
+        .iter()
+        .map(|arg| indent_multiline(arg, &body_indent))
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!("{callee}(\n{rendered_args}\n{closing_indent})")
+}
+
+fn indent_multiline(text: &str, prefix: &str) -> String {
+    text.lines()
+        .map(|line| format!("{prefix}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn block_to_string(block: &kain_core::ast::Block, indent: usize) -> String {
+    if block.stmts.is_empty() {
+        return format!("{}pass", "    ".repeat(indent));
+    }
+
+    block
+        .stmts
+        .iter()
+        .map(|stmt| stmt_to_string(stmt, indent))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn stmt_to_string(stmt: &kain_core::ast::Stmt, indent: usize) -> String {
+    let prefix = "    ".repeat(indent);
+    match stmt {
+        kain_core::ast::Stmt::Let { pattern, ty, value, .. } => {
+            let mut line = format!("{prefix}let {}", pattern_to_string(pattern));
+            if let Some(ty) = ty {
+                line.push_str(&format!(": {}", type_to_string(ty)));
+            }
+            if let Some(value) = value {
+                line.push_str(" = ");
+                line.push_str(&expr_to_string_with_indent(value, indent));
+            }
+            line
+        }
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Block(block, _)) => block_to_string(block, indent),
+        kain_core::ast::Stmt::Expr(expr) => format!("{prefix}{}", expr_to_string_with_indent(expr, indent)),
+        kain_core::ast::Stmt::Return(Some(expr), _) => {
+            format!("{prefix}return {}", expr_to_string_with_indent(expr, indent))
+        }
+        kain_core::ast::Stmt::Return(None, _) => format!("{prefix}return"),
+        kain_core::ast::Stmt::Break(Some(expr), _) => {
+            format!("{prefix}break {}", expr_to_string_with_indent(expr, indent))
+        }
+        kain_core::ast::Stmt::Break(None, _) => format!("{prefix}break"),
+        kain_core::ast::Stmt::Continue(_) => format!("{prefix}continue"),
+        kain_core::ast::Stmt::While { condition, body, .. } => format!(
+            "{prefix}while {}:\n{}",
+            expr_to_string_with_indent(condition, indent),
+            block_to_string(body, indent + 1)
+        ),
+        kain_core::ast::Stmt::For { binding, iter, body, .. } => format!(
+            "{prefix}for {} in {}:\n{}",
+            pattern_to_string(binding),
+            expr_to_string_with_indent(iter, indent),
+            block_to_string(body, indent + 1)
+        ),
+        kain_core::ast::Stmt::Loop { body, .. } => {
+            format!("{prefix}loop:\n{}", block_to_string(body, indent + 1))
+        }
+        kain_core::ast::Stmt::Item(item) => item_to_string(item, indent),
+    }
+}
+
+fn item_to_string(item: &kain_core::ast::Item, indent: usize) -> String {
+    let mut output = String::new();
+    let _ = write_item(&mut output, item, indent);
+    output.trim_end().to_string()
+}
+
+fn block_expr_to_string(block: &kain_core::ast::Block, indent: usize) -> String {
+    let _ = (block, indent);
+    "none".to_string()
+}
+
+fn lambda_to_string(
+    params: &[kain_core::ast::Param],
+    return_type: Option<&kain_core::ast::Type>,
+    body: &kain_core::ast::Expr,
+    indent: usize,
+) -> String {
+    let params = params
+        .iter()
+        .map(|param| format!("{}: {}", param.name, type_to_string(&param.ty)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ret = return_type
+        .map(|ty| format!(" -> {}", type_to_string(ty)))
+        .unwrap_or_default();
+
+    match body {
+        kain_core::ast::Expr::Block(block, _) => format!(
+            "fn({params}){ret}:\n{}",
+            block_to_string(block, indent + 1)
+        ),
+        _ => format!("fn({params}){ret}: {}", expr_to_string_with_indent(body, indent)),
+    }
+}
+
+fn if_expr_to_string(
+    condition: &kain_core::ast::Expr,
+    then_branch: &kain_core::ast::Block,
+    else_branch: Option<&kain_core::ast::ElseBranch>,
+    indent: usize,
+) -> String {
+    let prefix = "    ".repeat(indent);
+    let mut out = format!(
+        "if {}:\n{}",
+        expr_to_string_with_indent(condition, indent),
+        block_to_string(then_branch, indent + 1)
+    );
+    if let Some(else_branch) = else_branch {
+        out.push('\n');
+        out.push_str(&else_branch_to_string(else_branch, indent, &prefix));
+    }
+    out
+}
+
+fn else_branch_to_string(
+    else_branch: &kain_core::ast::ElseBranch,
+    indent: usize,
+    prefix: &str,
+) -> String {
+    match else_branch {
+        kain_core::ast::ElseBranch::Else(block) => {
+            format!("{prefix}else:\n{}", block_to_string(block, indent + 1))
+        }
+        kain_core::ast::ElseBranch::ElseIf(condition, block, nested) => {
+            let mut out = format!(
+                "{prefix}else if {}:\n{}",
+                expr_to_string_with_indent(condition, indent),
+                block_to_string(block, indent + 1)
+            );
+            if let Some(nested) = nested.as_deref() {
+                out.push('\n');
+                out.push_str(&else_branch_to_string(nested, indent, prefix));
+            }
+            out
+        }
     }
 }
 

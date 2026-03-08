@@ -36,6 +36,14 @@ fn int_type() -> Type {
     }
 }
 
+fn float_type() -> Type {
+    Type::Named {
+        name: "Float".to_string(),
+        generics: vec![],
+        span: span(),
+    }
+}
+
 fn typed_program_from_source(source: &str) -> TypedProgram {
     let tokens = Lexer::new(source).tokenize().expect("lexer should succeed");
     let mapper = SpanMapper::new(source);
@@ -509,4 +517,108 @@ fn llvm_generates_actor_spawn_and_send_message_paths() {
     assert!(llvm.contains("call void @KAIN_spawn(i8* bitcast (void (i8*)* @default_actor_run to i8*), i8*"));
     assert!(llvm.contains("call void @mq_push(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));
+}
+
+#[test]
+fn llvm_generates_float_arithmetic_and_comparisons() {
+    let blend = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "blend".to_string(),
+            generics: vec![],
+            params: vec![
+                Param {
+                    name: "a".to_string(),
+                    ty: float_type(),
+                    mutable: false,
+                    default: None,
+                    span: span(),
+                },
+                Param {
+                    name: "b".to_string(),
+                    ty: float_type(),
+                    mutable: false,
+                    default: None,
+                    span: span(),
+                },
+            ],
+            return_type: Some(float_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(
+                    Some(Expr::If {
+                        condition: Box::new(Expr::Binary {
+                            left: Box::new(Expr::Binary {
+                                left: Box::new(Expr::Ident("a".to_string(), span())),
+                                op: BinaryOp::Div,
+                                right: Box::new(Expr::Ident("b".to_string(), span())),
+                                span: span(),
+                            }),
+                            op: BinaryOp::Gt,
+                            right: Box::new(Expr::Float(1.5, span())),
+                            span: span(),
+                        }),
+                        then_branch: Block {
+                            stmts: vec![Stmt::Expr(Expr::Binary {
+                                left: Box::new(Expr::Ident("a".to_string(), span())),
+                                op: BinaryOp::Pow,
+                                right: Box::new(Expr::Float(2.0, span())),
+                                span: span(),
+                            })],
+                            span: span(),
+                        },
+                        else_branch: Some(Box::new(kain_core::ast::ElseBranch::Else(Block {
+                            stmts: vec![Stmt::Expr(Expr::Binary {
+                                left: Box::new(Expr::Ident("a".to_string(), span())),
+                                op: BinaryOp::Mod,
+                                right: Box::new(Expr::Ident("b".to_string(), span())),
+                                span: span(),
+                            })],
+                            span: span(),
+                        }))),
+                        span: span(),
+                    }),
+                    span(),
+                )],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![ResolvedType::Float(kain_core::types::FloatSize::F64), ResolvedType::Float(kain_core::types::FloatSize::F64)],
+            ret: Box::new(ResolvedType::Float(kain_core::types::FloatSize::F64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let program = TypedProgram { items: vec![blend] };
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define double @blend(double %arg0, double %arg1)"));
+    assert!(llvm.contains("fdiv double"));
+    assert!(llvm.contains("fcmp ogt double"));
+    assert!(llvm.contains("call double @pow(double"));
+    assert!(llvm.contains("frem double"));
+}
+
+#[test]
+fn llvm_generates_integer_mod_and_bitwise_ops() {
+    let source = r#"
+fn bit_ops(a: Int, b: Int) -> Int:
+    let c = (a & b) | (a ^ b)
+    return (c % 7) << 1
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains(" and i64 "));
+    assert!(llvm.contains(" xor i64 "));
+    assert!(llvm.contains(" or i64 "));
+    assert!(llvm.contains(" srem i64 "));
+    assert!(llvm.contains(" shl i64 "));
 }

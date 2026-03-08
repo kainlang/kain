@@ -677,9 +677,27 @@ impl TypeScriptTransformer {
                 self.define(&name, Type::Infer(Span::default()));
                 Ok(true)
             }
+            ts::Stmt::Expr(expr) => self.try_hoist_component_expr_stmt(&expr.expr),
             ts::Stmt::Empty(_) => Ok(true),
             _ => Ok(false),
         }
+    }
+
+    fn try_hoist_component_expr_stmt(&mut self, expr: &ts::Expr) -> Result<bool> {
+        let ts::Expr::Call(call) = expr else {
+            return Ok(false);
+        };
+        let Some(name) = self.call_callee_name(call) else {
+            return Ok(false);
+        };
+        if self.is_component_hook_name(&name) {
+            self.note(format!(
+                "component hook call '{}' preserved only as diagnostic during import",
+                name
+            ));
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     fn hoist_component_var_decl(
@@ -721,6 +739,15 @@ impl TypeScriptTransformer {
                                 self.define(&name, Type::Infer(span));
                                 continue;
                             }
+                            ts::Expr::Call(call) => {
+                                if let Some(function) =
+                                    self.try_transform_wrapped_callable(&name, call)?
+                                {
+                                    methods.push(function);
+                                    self.define(&name, Type::Infer(span));
+                                    continue;
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -753,6 +780,39 @@ impl TypeScriptTransformer {
         }
 
         Ok(true)
+    }
+
+    fn try_transform_wrapped_callable(
+        &mut self,
+        name: &str,
+        call: &ts::CallExpr,
+    ) -> Result<Option<Function>> {
+        let Some(callee_name) = self.call_callee_name(call) else {
+            return Ok(None);
+        };
+        if !matches!(callee_name.as_str(), "useCallback" | "useMemo") {
+            return Ok(None);
+        }
+
+        let Some(first_arg) = call.args.first() else {
+            return Ok(None);
+        };
+
+        match &*first_arg.expr {
+            ts::Expr::Arrow(arrow) => Ok(Some(self.transform_named_arrow_method(name, arrow)?)),
+            ts::Expr::Fn(func) => Ok(Some(self.transform_function_like(
+                name.to_string(),
+                &func.function,
+                Visibility::Private,
+                false,
+                func.function
+                    .type_params
+                    .as_deref()
+                    .map(Self::map_generics)
+                    .unwrap_or_default(),
+            )?)),
+            _ => Ok(None),
+        }
     }
 
     fn try_hoist_use_state(
@@ -1072,6 +1132,7 @@ impl TypeScriptTransformer {
                 span,
             }]),
             ts::Stmt::For(for_stmt) => self.transform_for_stmt(for_stmt),
+            ts::Stmt::Switch(switch_stmt) => self.transform_switch_stmt(switch_stmt),
             ts::Stmt::Break(_) => Ok(vec![Stmt::Break(None, span)]),
             ts::Stmt::Continue(_) => Ok(vec![Stmt::Continue(span)]),
             ts::Stmt::Block(block) => Ok(vec![Stmt::Expr(Expr::Block(
@@ -1149,6 +1210,59 @@ impl TypeScriptTransformer {
         });
 
         Ok(init_stmts)
+    }
+
+    fn transform_switch_stmt(&mut self, stmt: &ts::SwitchStmt) -> Result<Vec<Stmt>> {
+        let span = Span::default();
+        let discriminant = self.transform_expr(&stmt.discriminant)?;
+        let mut branch = None;
+
+        for case in stmt.cases.iter().rev() {
+            let body = self.transform_switch_case_body(&case.cons)?;
+            if let Some(test) = &case.test {
+                branch = Some(ElseBranch::ElseIf(
+                    Box::new(Expr::Binary {
+                        left: Box::new(discriminant.clone()),
+                        op: BinaryOp::Eq,
+                        right: Box::new(self.transform_expr(test)?),
+                        span,
+                    }),
+                    body,
+                    branch.map(Box::new),
+                ));
+            } else {
+                branch = Some(ElseBranch::Else(body));
+            }
+        }
+
+        let Some(branch) = branch else {
+            return Ok(Vec::new());
+        };
+
+        let expr = match branch {
+            ElseBranch::Else(block) => Expr::Block(block, span),
+            ElseBranch::ElseIf(condition, then_branch, else_branch) => Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                span,
+            },
+        };
+        Ok(vec![Stmt::Expr(expr)])
+    }
+
+    fn transform_switch_case_body(&mut self, stmts: &[ts::Stmt]) -> Result<Block> {
+        let mut lowered = Vec::new();
+        for stmt in stmts {
+            lowered.extend(self.transform_stmt(stmt)?);
+        }
+        while matches!(lowered.last(), Some(Stmt::Break(_, _))) {
+            lowered.pop();
+        }
+        Ok(Block {
+            stmts: lowered,
+            span: Span::default(),
+        })
     }
 
     fn transform_if_stmt(&mut self, stmt: &ts::IfStmt) -> Result<Expr> {
@@ -2066,6 +2180,17 @@ impl TypeScriptTransformer {
             },
             _ => None,
         }
+    }
+
+    fn is_component_hook_name(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "useEffect"
+                | "useLayoutEffect"
+                | "useInsertionEffect"
+                | "useImperativeHandle"
+                | "useDebugValue"
+        )
     }
 
     fn push_scope(&mut self) {
