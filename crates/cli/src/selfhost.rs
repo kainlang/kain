@@ -6,7 +6,7 @@ use crate::selfhost_report::{
 use chrono::Utc;
 use clap::Subcommand;
 use kain_core::ast::{Block, CallArg, ElseBranch, EnumVariantFields, Expr, Item, MatchArm, Pattern, Program, Stmt, Type, VariantPatternFields};
-use kain_import::rust::{RustCrateGraph, RustSelfHostOptions};
+use kain_import::rust::RustSelfHostOptions;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -21,7 +21,7 @@ pub enum SelfHostCommand {
         #[arg(long)]
         output_dir: Option<PathBuf>,
 
-        #[arg(long)]
+        #[arg(long, default_value_t = true)]
         emit_bundles: bool,
     },
 }
@@ -72,25 +72,12 @@ fn run_phase1(
             )));
         }
 
-        let graph = RustCrateGraph::discover(&crate_root, &options).map_err(|err| {
-            KainError::runtime(format!(
-                "Failed to discover self-host modules for {}: {}",
-                crate_name, err
-            ))
-        })?;
-        let discovered_modules = graph
-            .modules
-            .iter()
-            .map(|module| module.file_path.strip_prefix(&repo_root).unwrap_or(&module.file_path).display().to_string())
-            .collect::<Vec<_>>();
-        modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
-
         let rejected_macros_found = macro_findings_for(
             crate_name,
             &inventories.macro_inventory,
             &inventories.allowlist.macro_policy.reject,
         );
-        let import_result = kain_import::import_rust_selfhost_dir(&crate_root, &options);
+        let import_result = kain_import::import_rust_selfhost_dir_detailed(&crate_root, &options);
 
         let mut diagnostics = Vec::new();
         let mut import_success = true;
@@ -98,16 +85,53 @@ fn run_phase1(
         let mut output_kn_path = None;
         let mut item_count = 0usize;
         let mut required_direct_lowering_still_preserved = Vec::new();
+        let mut discovered_modules = Vec::new();
 
         match import_result {
-            Ok(program) => {
+            Ok(result) => {
+                discovered_modules = result
+                    .graph
+                    .modules
+                    .iter()
+                    .map(|module| {
+                        module
+                            .file_path
+                            .strip_prefix(&repo_root)
+                            .unwrap_or(&module.file_path)
+                            .display()
+                            .to_string()
+                    })
+                    .collect::<Vec<_>>();
+                modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
+
+                let program = result.program;
+                diagnostics.extend(result.diagnostics);
                 item_count = program.items.len();
                 required_direct_lowering_still_preserved = preserved_required_macro_findings(
                     crate_name,
                     &program,
                     &inventories.allowlist.phase1_required_direct_lowering,
                 );
-                if emit_bundles || true {
+                if !required_direct_lowering_still_preserved.is_empty() {
+                    diagnostics.push(format!(
+                        "required direct-lower macros preserved: {}",
+                        required_direct_lowering_still_preserved
+                            .iter()
+                            .map(|finding| format!("{}({})", finding.macro_name, finding.occurrence_count))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                if !diagnostics.is_empty() {
+                    import_success = false;
+                }
+                if result.rejected {
+                    import_error = Some(format!(
+                        "self-host import rejected {} diagnostic(s)",
+                        diagnostics.len()
+                    ));
+                }
+                if emit_bundles {
                     let bundle_path = output_dir.join(format!("{}.kn", crate_name));
                     let rendered = render_program(&program)?;
                     fs::write(&bundle_path, rendered).map_err(|err| {
@@ -119,23 +143,18 @@ fn run_phase1(
                     })?;
                     output_kn_path = Some(bundle_path.display().to_string());
                 }
-                if !required_direct_lowering_still_preserved.is_empty() {
-                    diagnostics.push(format!(
-                        "required direct-lower macros preserved: {}",
-                        required_direct_lowering_still_preserved
-                            .iter()
-                            .map(|finding| format!("{}({})", finding.macro_name, finding.occurrence_count))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
-                }
             }
             Err(err) => {
                 import_success = false;
                 let message = format!("{err}");
-                diagnostics.push(message.clone());
+                diagnostics.extend(expand_import_diagnostics(&message));
                 import_error = Some(message);
+                modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
             }
+        }
+
+        if !modules_discovered.contains_key(crate_name) {
+            modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
         }
 
         all_rejected.extend(rejected_macros_found.clone());
@@ -1109,6 +1128,29 @@ fn classify_diagnostic(diagnostic: &str) -> String {
         return "unsupported_feature".to_string();
     }
     "other".to_string()
+}
+
+fn expand_import_diagnostics(message: &str) -> Vec<String> {
+    let mut diagnostics = Vec::new();
+    for line in message.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with("SELFHOST_STRICT:") {
+            diagnostics.push(trimmed.to_string());
+            continue;
+        }
+        if trimmed.starts_with("Unsupported language feature:")
+            || trimmed.starts_with("self-host import rejected")
+        {
+            diagnostics.push(trimmed.to_string());
+        }
+    }
+    if diagnostics.is_empty() {
+        diagnostics.push(message.to_string());
+    }
+    diagnostics
 }
 
 fn find_repo_root(start: &Path) -> KainResult<PathBuf> {

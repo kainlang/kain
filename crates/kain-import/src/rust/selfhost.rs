@@ -90,7 +90,18 @@ impl RustCrateGraph {
     }
 }
 
-pub fn import_rust_selfhost_dir(crate_root: &Path, options: &RustSelfHostOptions) -> Result<Program> {
+#[derive(Debug, Clone)]
+pub struct RustSelfHostImportResult {
+    pub program: Program,
+    pub diagnostics: Vec<String>,
+    pub rejected: bool,
+    pub graph: RustCrateGraph,
+}
+
+pub fn import_rust_selfhost_dir_detailed(
+    crate_root: &Path,
+    options: &RustSelfHostOptions,
+) -> Result<RustSelfHostImportResult> {
     let graph = RustCrateGraph::discover(crate_root, options)?;
     let mut all_items = Vec::new();
     let mut diagnostics = Vec::new();
@@ -108,18 +119,27 @@ pub fn import_rust_selfhost_dir(crate_root: &Path, options: &RustSelfHostOptions
         all_items.extend(program.items);
     }
 
-    if !diagnostics.is_empty() {
+    Ok(RustSelfHostImportResult {
+        program: Program {
+            items: all_items,
+            span: kain_core::span::Span::default(),
+        },
+        rejected: !diagnostics.is_empty(),
+        diagnostics,
+        graph,
+    })
+}
+
+pub fn import_rust_selfhost_dir(crate_root: &Path, options: &RustSelfHostOptions) -> Result<Program> {
+    let result = import_rust_selfhost_dir_detailed(crate_root, options)?;
+    if result.rejected {
         return Err(ImportError::UnsupportedFeature(format!(
             "self-host import rejected {} diagnostic(s):\n{}",
-            diagnostics.len(),
-            diagnostics.join("\n")
+            result.diagnostics.len(),
+            result.diagnostics.join("\n")
         )));
     }
-
-    Ok(Program {
-        items: all_items,
-        span: kain_core::span::Span::default(),
-    })
+    Ok(result.program)
 }
 
 fn collect_modules(

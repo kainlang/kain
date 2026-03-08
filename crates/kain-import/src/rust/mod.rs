@@ -44,7 +44,14 @@ mod selfhost;
 mod transformer;
 mod types;
 
-pub use selfhost::{import_rust_selfhost_dir, RustCrateGraph, RustModuleNode, RustSelfHostOptions};
+pub use selfhost::{
+    import_rust_selfhost_dir,
+    import_rust_selfhost_dir_detailed,
+    RustCrateGraph,
+    RustModuleNode,
+    RustSelfHostImportResult,
+    RustSelfHostOptions,
+};
 pub use transformer::RustTransformer;
 
 use kain_core::ast::Program;
