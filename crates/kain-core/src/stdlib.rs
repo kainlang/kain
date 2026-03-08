@@ -110,6 +110,7 @@ impl StdLib {
 
         // UI
         lib.add_fn("mount", &[("component", "Any"), ("selector", "String")], "Unit", "Mount component to DOM");
+        lib.add_fn("spawn_cube", &[("x", "Float"), ("y", "Float")], "Unit", "Open a native 3D cube window");
 
         lib
     }

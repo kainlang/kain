@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -9,6 +10,7 @@
 #include <windows.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "gdi32.lib")
 #else
 #include <pthread.h>
 #include <unistd.h>
@@ -586,6 +588,183 @@ int deep_eq(void* a, void* b) {
     return 0;
 }
 
+#ifdef _WIN32
+typedef struct {
+    double x;
+    double y;
+    double z;
+} CubeVec3;
+
+typedef struct {
+    int width;
+    int height;
+    double angle;
+    double offset_x;
+    double offset_y;
+} CubeAppState;
+
+static CubeAppState g_cube_state = {800, 600, 0.0, 0.0, 0.0};
+
+static LRESULT CALLBACK kain_cube_window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
+    switch (msg) {
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+        case WM_PAINT:
+            kain_cube_render(hwnd);
+            return 0;
+        case WM_SIZE:
+            g_cube_state.width = LOWORD(l_param) > 0 ? LOWORD(l_param) : 800;
+            g_cube_state.height = HIWORD(l_param) > 0 ? HIWORD(l_param) : 600;
+            return 0;
+    }
+    return DefWindowProcA(hwnd, msg, w_param, l_param);
+}
+
+static void kain_cube_rotate_point(CubeVec3 in, CubeVec3* out, double angle) {
+    double sy = sin(angle);
+    double cy = cos(angle);
+    double sx = sin(angle * 0.7);
+    double cx = cos(angle * 0.7);
+    double x1 = (in.x * cy) - (in.z * sy);
+    double z1 = (in.x * sy) + (in.z * cy);
+    double y2 = (in.y * cx) - (z1 * sx);
+    double z2 = (in.y * sx) + (z1 * cx);
+    out->x = x1;
+    out->y = y2;
+    out->z = z2;
+}
+
+static POINT kain_cube_project_point(CubeVec3 p) {
+    POINT result;
+    double distance = 4.0;
+    double scale = 220.0 / (p.z + distance);
+    result.x = (LONG)((g_cube_state.width * 0.5) + g_cube_state.offset_x + (p.x * scale));
+    result.y = (LONG)((g_cube_state.height * 0.5) + g_cube_state.offset_y - (p.y * scale));
+    return result;
+}
+
+static void kain_cube_render(HWND hwnd) {
+    static const CubeVec3 cube_vertices[8] = {
+        {-1.0, -1.0, -1.0},
+        { 1.0, -1.0, -1.0},
+        { 1.0,  1.0, -1.0},
+        {-1.0,  1.0, -1.0},
+        {-1.0, -1.0,  1.0},
+        { 1.0, -1.0,  1.0},
+        { 1.0,  1.0,  1.0},
+        {-1.0,  1.0,  1.0}
+    };
+    static const int cube_edges[12][2] = {
+        {0, 1}, {1, 2}, {2, 3}, {3, 0},
+        {4, 5}, {5, 6}, {6, 7}, {7, 4},
+        {0, 4}, {1, 5}, {2, 6}, {3, 7}
+    };
+
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(hwnd, &ps);
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+
+    HBRUSH background = CreateSolidBrush(RGB(10, 12, 18));
+    FillRect(hdc, &rect, background);
+    DeleteObject(background);
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(200, 220, 255));
+    TextOutA(hdc, 16, 16, "KAIN 3D Cube", 12);
+
+    HPEN pen = CreatePen(PS_SOLID, 2, RGB(80, 200, 255));
+    HGDIOBJ old_pen = SelectObject(hdc, pen);
+
+    CubeVec3 rotated[8];
+    POINT projected[8];
+    int i;
+    for (i = 0; i < 8; ++i) {
+        kain_cube_rotate_point(cube_vertices[i], &rotated[i], g_cube_state.angle);
+        projected[i] = kain_cube_project_point(rotated[i]);
+    }
+
+    for (i = 0; i < 12; ++i) {
+        MoveToEx(hdc, projected[cube_edges[i][0]].x, projected[cube_edges[i][0]].y, NULL);
+        LineTo(hdc, projected[cube_edges[i][1]].x, projected[cube_edges[i][1]].y);
+    }
+
+    SelectObject(hdc, old_pen);
+    DeleteObject(pen);
+    EndPaint(hwnd, &ps);
+}
+#endif
+
 void spawn_cube(double x, double y) {
-    printf(" [KOS Bridge] Spawning Cube at { x: %.2f, y: %.2f }\n", x, y);
+#ifdef _WIN32
+    const char* class_name = "KainCubeWindowClass";
+    WNDCLASSA wc;
+    MSG msg;
+    HWND hwnd;
+    LARGE_INTEGER freq;
+    LARGE_INTEGER prev_counter;
+    LARGE_INTEGER current_counter;
+    double delta_seconds;
+
+    ZeroMemory(&wc, sizeof(wc));
+    wc.lpfnWndProc = kain_cube_window_proc;
+    wc.hInstance = GetModuleHandleA(NULL);
+    wc.lpszClassName = class_name;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    RegisterClassA(&wc);
+
+    g_cube_state.width = 800;
+    g_cube_state.height = 600;
+    g_cube_state.angle = 0.0;
+    g_cube_state.offset_x = x;
+    g_cube_state.offset_y = y;
+
+    hwnd = CreateWindowExA(
+        0,
+        class_name,
+        "KAIN Cube",
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        g_cube_state.width,
+        g_cube_state.height,
+        NULL,
+        NULL,
+        wc.hInstance,
+        NULL
+    );
+
+    if (!hwnd) {
+        return;
+    }
+
+    ShowWindow(hwnd, SW_SHOW);
+    UpdateWindow(hwnd);
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&prev_counter);
+
+    while (1) {
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                DestroyWindow(hwnd);
+                UnregisterClassA(class_name, wc.hInstance);
+                return;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
+
+        QueryPerformanceCounter(&current_counter);
+        delta_seconds = (double)(current_counter.QuadPart - prev_counter.QuadPart) / (double)freq.QuadPart;
+        prev_counter = current_counter;
+        g_cube_state.angle += delta_seconds;
+        InvalidateRect(hwnd, NULL, TRUE);
+        UpdateWindow(hwnd);
+        Sleep(16);
+    }
+#else
+    printf("[KAIN] spawn_cube is currently only implemented on Windows. Requested at { x: %.2f, y: %.2f }\n", x, y);
+#endif
 }
