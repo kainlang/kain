@@ -339,6 +339,281 @@ impl LlvmGenerator {
         Ok((lhs, lhs_ty, rhs, rhs_ty))
     }
 
+    fn compile_value_eq(&mut self, lhs: &str, lhs_ty: &str, rhs: &str, rhs_ty: &str, span: kain_core::Span) -> KainResult<String> {
+        let (lhs, lhs_ty, rhs, rhs_ty) = self.coerce_binary_operands(
+            lhs.to_string(),
+            lhs_ty.to_string(),
+            rhs.to_string(),
+            rhs_ty.to_string(),
+        )?;
+
+        let res = self.next_reg();
+        if lhs_ty == "i8*" || rhs_ty == "i8*" {
+            self.emit(&format!("  {} = call i1 @deep_eq(i8* {}, i8* {})", res, lhs, rhs));
+            return Ok(res);
+        }
+
+        match lhs_ty.as_str() {
+            "double" => self.emit(&format!("  {} = fcmp oeq double {}, {}", res, lhs, rhs)),
+            "i1" | "i8" | "i64" => self.emit(&format!("  {} = icmp eq {} {}, {}", res, lhs_ty, lhs, rhs)),
+            _ if lhs_ty.ends_with('*') => self.emit(&format!("  {} = icmp eq {} {}, {}", res, lhs_ty, lhs, rhs)),
+            _ => {
+                return Err(KainError::codegen(
+                    format!("Unsupported equality comparison between {} and {}", lhs_ty, rhs_ty),
+                    span,
+                ));
+            }
+        }
+
+        Ok(res)
+    }
+
+    fn compile_range_check(
+        &mut self,
+        val: &str,
+        val_ty: &str,
+        start: &Option<Box<Expr>>,
+        end: &Option<Box<Expr>>,
+        inclusive: bool,
+        span: kain_core::Span,
+    ) -> KainResult<String> {
+        let mut checks = Vec::new();
+
+        if let Some(lo) = start {
+            let (lo_val, lo_ty) = self.compile_expr(lo)?;
+            let (lhs, lhs_ty, rhs, _) = self.coerce_binary_operands(
+                val.to_string(),
+                val_ty.to_string(),
+                lo_val,
+                lo_ty,
+            )?;
+            let cmp = self.next_reg();
+            match lhs_ty.as_str() {
+                "double" => self.emit(&format!("  {} = fcmp oge double {}, {}", cmp, lhs, rhs)),
+                "i1" | "i8" | "i64" => self.emit(&format!("  {} = icmp sge {} {}, {}", cmp, lhs_ty, lhs, rhs)),
+                _ => return Err(KainError::codegen(format!("Unsupported range lower bound type {}", lhs_ty), span)),
+            }
+            checks.push(cmp);
+        }
+
+        if let Some(hi) = end {
+            let (hi_val, hi_ty) = self.compile_expr(hi)?;
+            let (lhs, lhs_ty, rhs, _) = self.coerce_binary_operands(
+                val.to_string(),
+                val_ty.to_string(),
+                hi_val,
+                hi_ty,
+            )?;
+            let cmp = self.next_reg();
+            match lhs_ty.as_str() {
+                "double" => {
+                    let op = if inclusive { "fcmp ole" } else { "fcmp olt" };
+                    self.emit(&format!("  {} = {} double {}, {}", cmp, op, lhs, rhs));
+                }
+                "i1" | "i8" | "i64" => {
+                    let op = if inclusive { "icmp sle" } else { "icmp slt" };
+                    self.emit(&format!("  {} = {} {} {}, {}", cmp, op, lhs_ty, lhs, rhs));
+                }
+                _ => return Err(KainError::codegen(format!("Unsupported range upper bound type {}", lhs_ty), span)),
+            }
+            checks.push(cmp);
+        }
+
+        if checks.is_empty() {
+            return Ok("1".to_string());
+        }
+
+        let mut current = checks[0].clone();
+        for check in checks.iter().skip(1) {
+            let combined = self.next_reg();
+            self.emit(&format!("  {} = and i1 {}, {}", combined, current, check));
+            current = combined;
+        }
+
+        Ok(current)
+    }
+
+    fn compile_pattern_condition(
+        &mut self,
+        pattern: &Pattern,
+        scrutinee_val: &str,
+        scrutinee_ty: &str,
+        enum_name: Option<&str>,
+        span: kain_core::Span,
+    ) -> KainResult<String> {
+        match pattern {
+            Pattern::Wildcard(_) | Pattern::Binding { .. } => Ok("1".to_string()),
+            Pattern::Literal(expr) => {
+                let (rhs, rhs_ty) = self.compile_expr(expr)?;
+                self.compile_value_eq(scrutinee_val, scrutinee_ty, &rhs, &rhs_ty, span)
+            }
+            Pattern::Range { start, end, inclusive, .. } => {
+                self.compile_range_check(scrutinee_val, scrutinee_ty, start, end, *inclusive, span)
+            }
+            Pattern::Or(items, _) => {
+                let mut regs = Vec::new();
+                for item in items {
+                    regs.push(self.compile_pattern_condition(item, scrutinee_val, scrutinee_ty, enum_name, span)?);
+                }
+                if regs.is_empty() {
+                    return Ok("0".to_string());
+                }
+                let mut current = regs[0].clone();
+                for reg in regs.iter().skip(1) {
+                    let merged = self.next_reg();
+                    self.emit(&format!("  {} = or i1 {}, {}", merged, current, reg));
+                    current = merged;
+                }
+                Ok(current)
+            }
+            Pattern::Variant { variant, .. } => {
+                let enum_name = enum_name.ok_or_else(|| {
+                    KainError::codegen("Variant pattern requires an enum scrutinee", span)
+                })?;
+                let tag_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 0",
+                    tag_ptr, enum_name, scrutinee_ty, scrutinee_val
+                ));
+                let tag = self.next_reg();
+                self.emit(&format!("  {} = load i64, i64* {}", tag, tag_ptr));
+                let cmp = self.next_reg();
+                self.emit(&format!(
+                    "  {} = icmp eq i64 {}, {}",
+                    cmp,
+                    tag,
+                    self.hash_message_tag(enum_name, variant)
+                ));
+                Ok(cmp)
+            }
+            other => Err(KainError::codegen(
+                format!("Unsupported LLVM pattern condition: {:?}", other),
+                span,
+            )),
+        }
+    }
+
+    fn bind_local_pattern_value(&mut self, pattern: &Pattern, val: String, ty: String) -> KainResult<()> {
+        match pattern {
+            Pattern::Wildcard(_) => Ok(()),
+            Pattern::Binding { name, .. } => {
+                let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
+                self.reg_count += 1;
+                self.emit(&format!("  {} = alloca {}", addr_reg, ty));
+                self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, addr_reg));
+
+                self.locals.insert(name.clone(), (addr_reg, ty));
+                if let Some(scope) = self.scopes.last_mut() {
+                    scope.push(name.clone());
+                }
+                Ok(())
+            }
+            _ => Err(KainError::codegen(
+                "Local pattern binding currently supports only wildcard and binding patterns",
+                kain_core::Span::default(),
+            )),
+        }
+    }
+
+    fn bind_variant_pattern_fields(
+        &mut self,
+        enum_name: &str,
+        variant: &str,
+        fields: &VariantPatternFields,
+        scrutinee_val: &str,
+        scrutinee_ty: &str,
+        span: kain_core::Span,
+    ) -> KainResult<()> {
+        let payload_struct_name = format!("{}_{}", enum_name, variant);
+        if !self.struct_defs.contains_key(&payload_struct_name) {
+            return Ok(());
+        }
+
+        let payload_ty = format!("%{}", payload_struct_name);
+        let payload_ptr_ty = format!("{}*", payload_ty);
+        let payload_ptr_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 1",
+            payload_ptr_ptr, enum_name, scrutinee_ty, scrutinee_val
+        ));
+        let payload_void = self.next_reg();
+        self.emit(&format!("  {} = load i8*, i8** {}", payload_void, payload_ptr_ptr));
+        let payload_ptr = self.next_reg();
+        self.emit(&format!("  {} = bitcast i8* {} to {}", payload_ptr, payload_void, payload_ptr_ty));
+
+        match fields {
+            VariantPatternFields::Unit => Ok(()),
+            VariantPatternFields::Tuple(patterns) => {
+                let field_defs = self.struct_defs.get(&payload_struct_name).cloned().unwrap_or_default();
+                for (index, pattern) in patterns.iter().enumerate() {
+                    let field_ty = field_defs
+                        .get(index)
+                        .map(|(_, ty)| ty.clone())
+                        .unwrap_or_else(|| "i64".to_string());
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                        field_ptr, payload_ty, payload_ptr_ty, payload_ptr, index
+                    ));
+                    let field_val = self.next_reg();
+                    self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
+                    self.bind_local_pattern_value(pattern, field_val, field_ty)?;
+                }
+                Ok(())
+            }
+            VariantPatternFields::Struct(named_patterns) => {
+                let field_defs = self.struct_defs.get(&payload_struct_name).cloned().unwrap_or_default();
+                for (field_name, pattern) in named_patterns {
+                    let (index, field_ty) = field_defs
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (name, _))| name == field_name)
+                        .map(|(index, (_, ty))| (index, ty.clone()))
+                        .ok_or_else(|| {
+                            KainError::codegen(
+                                format!("Unknown payload field '{}' for {}::{}", field_name, enum_name, variant),
+                                span,
+                            )
+                        })?;
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                        field_ptr, payload_ty, payload_ptr_ty, payload_ptr, index
+                    ));
+                    let field_val = self.next_reg();
+                    self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
+                    self.bind_local_pattern_value(pattern, field_val, field_ty)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn bind_match_pattern(
+        &mut self,
+        pattern: &Pattern,
+        scrutinee_val: &str,
+        scrutinee_ty: &str,
+        enum_name: Option<&str>,
+        span: kain_core::Span,
+    ) -> KainResult<()> {
+        match pattern {
+            Pattern::Wildcard(_) => Ok(()),
+            Pattern::Binding { .. } => self.bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string()),
+            Pattern::Variant { variant, fields, .. } => {
+                let enum_name = enum_name.ok_or_else(|| {
+                    KainError::codegen("Variant pattern requires an enum scrutinee", span)
+                })?;
+                self.bind_variant_pattern_fields(enum_name, variant, fields, scrutinee_val, scrutinee_ty, span)
+            }
+            Pattern::Or(_, _) | Pattern::Literal(_) | Pattern::Range { .. } => Ok(()),
+            other => Err(KainError::codegen(
+                format!("Unsupported LLVM match binding pattern: {:?}", other),
+                span,
+            )),
+        }
+    }
+
     fn ptr_struct_name<'a>(&self, ty: &'a str) -> Option<&'a str> {
         if ty.starts_with('%') && ty.ends_with('*') {
             Some(&ty[1..ty.len() - 1])
@@ -986,7 +1261,6 @@ impl LlvmGenerator {
         self.emit("declare i64 @array_get(i8*, i64)");
         self.emit("declare void @array_set(i8*, i64, i64)");
         self.emit("declare i64 @array_len(i8*)");
-        self.emit("declare double @pow(double, double)");
         
         // Message Queue & Concurrency
         self.emit("declare i8* @mq_new()");
@@ -2409,126 +2683,89 @@ impl LlvmGenerator {
             }
             Expr::Match { scrutinee, arms, span } => {
                 let (val, val_ty) = self.compile_expr(scrutinee)?;
-                
-                let (tag, is_enum) = if val_ty == "i64" {
-                    (val.clone(), false)
-                } else if val_ty.starts_with("%") && val_ty.ends_with("*") {
-                    let struct_ty = &val_ty[0..val_ty.len()-1]; // Remove *
-                    // Load Tag
-                    let tag_ptr = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 0", tag_ptr, struct_ty, val_ty, val));
-                    let tag = self.next_reg();
-                    self.emit(&format!("  {} = load i64, i64* {}", tag, tag_ptr));
-                    (tag, true)
+                let enum_name = if val_ty.starts_with('%') && val_ty.ends_with('*') {
+                    Some(val_ty.trim_start_matches('%').trim_end_matches('*').to_string())
                 } else {
-                     return Err(KainError::codegen(format!("Match scrutinee must be an enum pointer or int, got {}", val_ty), *span));
+                    None
                 };
-                
-                // Labels
+
                 let label_end = self.next_label();
                 let mut arm_labels = Vec::new();
-                let mut switch_cases = String::new();
-                
-                for _ in arms {
+                let mut next_labels = Vec::new();
+                for i in 0..arms.len() {
                     arm_labels.push(self.next_label());
+                    next_labels.push(if i + 1 < arms.len() {
+                        self.next_label()
+                    } else {
+                        label_end.clone()
+                    });
                 }
-                
-                let mut enum_name = "";
-                if is_enum {
-                    let struct_ty = &val_ty[0..val_ty.len()-1];
-                    enum_name = &struct_ty[1..];
+
+                if arms.is_empty() {
+                    self.emit(&format!("  br label %{}", label_end));
+                } else {
+                    self.emit(&format!("  br label %{}", next_labels[0]));
                 }
-                
-                for (i, arm) in arms.iter().enumerate() {
-                    let arm_tag = match &arm.pattern {
-                        kain_core::ast::Pattern::Variant { variant, .. } => self.hash_message_tag(enum_name, &variant),
-                        kain_core::ast::Pattern::Literal(Expr::Int(n, _)) => *n, 
-                        _ => 0, 
-                    };
-                    
-                    if let kain_core::ast::Pattern::Variant { .. } = &arm.pattern {
-                        switch_cases.push_str(&format!("i64 {}, label %{} ", arm_tag, arm_labels[i]));
-                    } else if let kain_core::ast::Pattern::Literal(Expr::Int(..)) = &arm.pattern {
-                        switch_cases.push_str(&format!("i64 {}, label %{} ", arm_tag, arm_labels[i]));
-                    }
-                }
-                
-                // Find default label
-                let default_label = arms.iter().enumerate()
-                    .find(|(_, arm)| matches!(arm.pattern, kain_core::ast::Pattern::Wildcard(_) | kain_core::ast::Pattern::Binding { .. }))
-                    .map(|(i, _)| &arm_labels[i])
-                    .unwrap_or(&label_end);
-                    
-                self.emit(&format!("  switch i64 {}, label %{} [ {} ]", tag, default_label, switch_cases));
-                
-                // Compile Arms
+
                 let mut incoming = Vec::new();
-                
+
                 for (i, arm) in arms.iter().enumerate() {
+                    self.emit_label(&next_labels[i]);
+                    let cond = self.compile_pattern_condition(
+                        &arm.pattern,
+                        &val,
+                        &val_ty,
+                        enum_name.as_deref(),
+                        arm.span,
+                    )?;
+
+                    let branch_true = arm_labels[i].clone();
+                    let branch_false = if i + 1 < arms.len() {
+                        next_labels[i + 1].clone()
+                    } else {
+                        label_end.clone()
+                    };
+                    self.emit(&format!("  br i1 {}, label %{}, label %{}", cond, branch_true, branch_false));
+
                     self.emit_label(&arm_labels[i]);
                     self.scopes.push(Vec::new());
-                    
-                    // Bindings
-                    if is_enum {
-                        if let kain_core::ast::Pattern::Variant { variant, fields, .. } = &arm.pattern {
-                            let struct_ty = &val_ty[0..val_ty.len()-1];
-                            // Load Payload Ptr
-                            let payload_ptr_ptr = self.next_reg();
-                            self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 1", payload_ptr_ptr, struct_ty, val_ty, val));
-                            let payload_void = self.next_reg();
-                            self.emit(&format!("  {} = load i8*, i8** {}", payload_void, payload_ptr_ptr));
-                            
-                            let payload_struct_name = format!("{}_{}", enum_name, variant);
-                            let payload_ty = format!("%{}", payload_struct_name);
-                            let payload_ptr_ty = format!("{}*", payload_ty);
-                            
-                            // Cast
-                            let payload_ptr = self.next_reg();
-                            self.emit(&format!("  {} = bitcast i8* {} to {}", payload_ptr, payload_void, payload_ptr_ty));
-                            
-                            // Bind Fields
-                            match fields {
-                                kain_core::ast::VariantPatternFields::Tuple(pats) => {
-                                    for (j, pat) in pats.iter().enumerate() {
-                                        if let kain_core::ast::Pattern::Binding { name, .. } = pat {
-                                            let field_ptr = self.next_reg();
-                                            self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}", field_ptr, payload_ty, payload_ptr_ty, payload_ptr, j));
-                                            
-                                            // Need type of field
-                                            let field_ty = if let Some(defs) = self.struct_defs.get(&payload_struct_name) {
-                                                defs.get(j).map(|(_, t)| t.clone()).unwrap_or("i64".into())
-                                            } else { "i64".into() };
-                                            
-                                            let field_val = self.next_reg();
-                                            self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
-                                            
-                                            let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
-                                            self.reg_count += 1;
-                                            self.emit(&format!("  {} = alloca {}", addr_reg, field_ty));
-                                            self.emit(&format!("  store {} {}, {}* {}", field_ty, field_val, field_ty, addr_reg));
-                                            
-                                            self.locals.insert(name.clone(), (addr_reg, field_ty));
-                                            if let Some(scope) = self.scopes.last_mut() {
-                                                scope.push(name.clone());
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {} 
-                            }
+
+                    self.bind_match_pattern(
+                        &arm.pattern,
+                        &val,
+                        &val_ty,
+                        enum_name.as_deref(),
+                        arm.span,
+                    )?;
+
+                    if let Some(guard) = &arm.guard {
+                        let (guard_val, guard_ty) = self.compile_expr(guard)?;
+                        if guard_ty != "i1" {
+                            return Err(KainError::codegen(
+                                format!("Match guard must compile to bool/i1, got {}", guard_ty),
+                                arm.span,
+                            ));
                         }
+                        let guard_pass = self.next_label();
+                        let guard_fail = if i + 1 < arms.len() {
+                            next_labels[i + 1].clone()
+                        } else {
+                            label_end.clone()
+                        };
+                        self.emit(&format!("  br i1 {}, label %{}, label %{}", guard_val, guard_pass, guard_fail));
+                        self.emit_label(&guard_pass);
                     }
-                    
+
                     let (res_val, res_ty) = self.compile_expr(&arm.body)?;
                     let arm_end_block = self.current_block.clone();
-                    
+
                     self.emit_scope_exit();
                     self.emit(&format!("  br label %{}", label_end));
                     incoming.push((res_val, res_ty, arm_end_block));
                 }
-                
+
                 self.emit_label(&label_end);
-                
+
                 // Phi
                 if incoming.is_empty() {
                     Ok(("0".into(), "i64".into()))

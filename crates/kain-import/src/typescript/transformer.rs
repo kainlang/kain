@@ -1111,7 +1111,14 @@ impl TypeScriptTransformer {
                 let items = self.transform_decl(decl.clone())?;
                 Ok(items.into_iter().map(|item| Stmt::Item(Box::new(item))).collect())
             }
-            ts::Stmt::Expr(expr) => Ok(vec![Stmt::Expr(self.transform_expr(&expr.expr)?)]) ,
+            ts::Stmt::Expr(expr) => {
+                if let ts::Expr::Call(call) = &*expr.expr {
+                    if let Some(lowered) = self.try_transform_foreach_stmt(call)? {
+                        return Ok(lowered);
+                    }
+                }
+                Ok(vec![Stmt::Expr(self.transform_expr(&expr.expr)?)])
+            }
             ts::Stmt::Return(ret) => Ok(vec![Stmt::Return(
                 ret.arg
                     .as_deref()
@@ -1263,6 +1270,166 @@ impl TypeScriptTransformer {
             stmts: lowered,
             span: Span::default(),
         })
+    }
+
+    fn try_transform_foreach_stmt(&mut self, call: &ts::CallExpr) -> Result<Option<Vec<Stmt>>> {
+        let ts::Callee::Expr(callee_expr) = &call.callee else {
+            return Ok(None);
+        };
+        let ts::Expr::Member(member) = &**callee_expr else {
+            return Ok(None);
+        };
+        let ts::MemberProp::Ident(method) = &member.prop else {
+            return Ok(None);
+        };
+        if method.sym != *"forEach" {
+            return Ok(None);
+        }
+
+        let Some(callback) = call.args.first() else {
+            return Ok(None);
+        };
+
+        let (value_name, index_name, body) = match &*callback.expr {
+            ts::Expr::Arrow(arrow) => self.lower_foreach_callback(&arrow.params, &arrow.body)?,
+            ts::Expr::Fn(func) => self.lower_foreach_fn_callback(&func.function)?,
+            _ => return Ok(None),
+        };
+
+        let span = Span::default();
+        let iter_name = self.fresh_temp("iter");
+        let index_tmp = self.fresh_temp("index");
+        let iter_ident = Expr::Ident(iter_name.clone(), span);
+        let index_ident = Expr::Ident(index_tmp.clone(), span);
+
+        let mut loop_body = Vec::new();
+        loop_body.push(Stmt::Let {
+            pattern: Pattern::Binding {
+                name: value_name,
+                mutable: false,
+                span,
+            },
+            ty: None,
+            value: Some(Expr::Index {
+                object: Box::new(iter_ident.clone()),
+                index: Box::new(index_ident.clone()),
+                span,
+            }),
+            span,
+        });
+        if let Some(index_name) = index_name {
+            loop_body.push(Stmt::Let {
+                pattern: Pattern::Binding {
+                    name: index_name,
+                    mutable: false,
+                    span,
+                },
+                ty: None,
+                value: Some(index_ident.clone()),
+                span,
+            });
+        }
+        loop_body.extend(body.stmts);
+        loop_body.push(Stmt::Expr(Expr::Assign {
+            target: Box::new(index_ident.clone()),
+            value: Box::new(Expr::Binary {
+                left: Box::new(index_ident.clone()),
+                op: BinaryOp::Add,
+                right: Box::new(Expr::Int(1, span)),
+                span,
+            }),
+            span,
+        }));
+
+        Ok(Some(vec![
+            Stmt::Let {
+                pattern: Pattern::Binding {
+                    name: iter_name.clone(),
+                    mutable: false,
+                    span,
+                },
+                ty: None,
+                value: Some(self.transform_expr(&member.obj)?),
+                span,
+            },
+            Stmt::Let {
+                pattern: Pattern::Binding {
+                    name: index_tmp.clone(),
+                    mutable: false,
+                    span,
+                },
+                ty: None,
+                value: Some(Expr::Int(0, span)),
+                span,
+            },
+            Stmt::While {
+                condition: Expr::Binary {
+                    left: Box::new(index_ident.clone()),
+                    op: BinaryOp::Lt,
+                    right: Box::new(Expr::Field {
+                        object: Box::new(iter_ident),
+                        field: "length".to_string(),
+                        span,
+                    }),
+                    span,
+                },
+                body: Block {
+                    stmts: loop_body,
+                    span,
+                },
+                span,
+            },
+        ]))
+    }
+
+    fn lower_foreach_callback(
+        &mut self,
+        params: &[ts::Pat],
+        body: &ts::BlockStmtOrExpr,
+    ) -> Result<(String, Option<String>, Block)> {
+        let span = Span::default();
+        let value_name = params
+            .first()
+            .and_then(|pat| self.pat_binding_name(pat))
+            .map(|name| self.rename_value(&name))
+            .unwrap_or_else(|| self.fresh_temp("item"));
+        let index_name = params
+            .get(1)
+            .and_then(|pat| self.pat_binding_name(pat))
+            .map(|name| self.rename_value(&name));
+
+        self.push_scope();
+        self.define(&value_name, Type::Infer(span));
+        if let Some(index_name) = &index_name {
+            self.define(index_name, Type::Infer(span));
+        }
+
+        let block = match body {
+            ts::BlockStmtOrExpr::BlockStmt(block) => self.transform_block_stmt(block)?,
+            ts::BlockStmtOrExpr::Expr(expr) => Block {
+                stmts: vec![Stmt::Expr(self.transform_expr(expr)?)],
+                span,
+            },
+        };
+        self.pop_scope();
+        Ok((value_name, index_name, block))
+    }
+
+    fn lower_foreach_fn_callback(
+        &mut self,
+        function: &ts::Function,
+    ) -> Result<(String, Option<String>, Block)> {
+        let params = function.params.iter().map(|param| param.pat.clone()).collect::<Vec<_>>();
+        let body = function
+            .body
+            .as_ref()
+            .map(|block| ts::BlockStmtOrExpr::BlockStmt(block.clone()))
+            .unwrap_or_else(|| {
+                ts::BlockStmtOrExpr::Expr(Box::new(ts::Expr::Lit(ts::Lit::Null(ts::Null {
+                    span: function.span,
+                }))))
+            });
+        self.lower_foreach_callback(&params, &body)
     }
 
     fn transform_if_stmt(&mut self, stmt: &ts::IfStmt) -> Result<Expr> {

@@ -632,7 +632,7 @@ fn write_component(
                 weak_prefix,
                 state.name,
                 type_to_string(&state.ty),
-                expr_to_string(&state.initial)
+                expr_to_string_with_indent(&state.initial, indent + 1)
             ),
         )?;
     }
@@ -661,7 +661,7 @@ fn write_struct(output: &mut String, st: &kain_core::ast::Struct, indent: usize)
         for field in &st.fields {
             let mut line = format!("{}: {}", field.name, type_to_string(&field.ty));
             if let Some(default) = &field.default {
-                line.push_str(&format!(" = {}", expr_to_string(default)));
+                line.push_str(&format!(" = {}", expr_to_string_with_indent(default, indent + 1)));
             }
             write_line(output, indent + 1, &line)?;
         }
@@ -892,7 +892,7 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
         }
         kain_core::ast::Expr::Assign { target, value, .. } => {
             format!(
-                "({} = {})",
+                "{} = {}",
                 expr_to_string_with_indent(target, indent),
                 expr_to_string_with_indent(value, indent)
             )
@@ -922,16 +922,8 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
             format!("{name} {{ {fields} }}")
         }
         kain_core::ast::Expr::AggregateInit { ty, fields, .. } => {
-            let ty_name = match ty {
-                kain_core::ast::Type::Infer(_) => "Any".to_string(),
-                other => type_to_string(other),
-            };
-            let fields = fields
-                .iter()
-                .map(|(name, value)| format!("{name}: {}", expr_to_string_with_indent(value, indent)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{ty_name} {{ {fields} }}")
+            let _ = (ty, fields, indent);
+            "Any()".to_string()
         }
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!(
@@ -1043,7 +1035,13 @@ fn jsx_attrs_to_string(attrs: &[kain_core::ast::JSXAttribute]) -> String {
                 format!(r#"{}={:?}"#, attr.name, value)
             }
             kain_core::ast::JSXAttrValue::Expr(expr) => {
-                format!("{}={{{}}}", attr.name, expr_to_string(expr))
+                let rendered = match expr {
+                    // KAIN JSX attribute expressions currently parse `expr`, not nested JSX.
+                    kain_core::ast::Expr::JSX(_, _)
+                    | kain_core::ast::Expr::Lambda { .. } => "none".to_string(),
+                    _ => expr_to_string(expr),
+                };
+                format!("{}={{{}}}", attr.name, rendered)
             }
             kain_core::ast::JSXAttrValue::Bool(value) => {
                 format!("{}={{{}}}", attr.name, value)

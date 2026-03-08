@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use kain_core::ast::{
     BinaryOp, Block, Component, Expr, Field, Function, Impl, JSXAttrValue, JSXAttribute, JSXNode,
-    Param, Pattern, Stmt, Struct, Type, Visibility,
+    MatchArm, Param, Pattern, Stmt, Struct, Type, Visibility,
 };
 use kain_core::diagnostics::SpanMapper;
 use kain_core::effects::EffectSet;
@@ -621,4 +621,186 @@ fn bit_ops(a: Int, b: Int) -> Int:
     assert!(llvm.contains(" or i64 "));
     assert!(llvm.contains(" srem i64 "));
     assert!(llvm.contains(" shl i64 "));
+}
+
+#[test]
+fn llvm_generates_match_patterns_for_ranges_or_and_literals() {
+    let classify_int = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "classify_int".to_string(),
+            generics: vec![],
+            params: vec![Param {
+                name: "value".to_string(),
+                ty: int_type(),
+                mutable: false,
+                default: None,
+                span: span(),
+            }],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(
+                    Some(Expr::Match {
+                        scrutinee: Box::new(Expr::Ident("value".to_string(), span())),
+                        arms: vec![
+                            MatchArm {
+                                pattern: Pattern::Range {
+                                    start: Some(Box::new(Expr::Int(1, span()))),
+                                    end: Some(Box::new(Expr::Int(3, span()))),
+                                    inclusive: true,
+                                    span: span(),
+                                },
+                                guard: None,
+                                body: Expr::Int(10, span()),
+                                span: span(),
+                            },
+                            MatchArm {
+                                pattern: Pattern::Or(
+                                    vec![
+                                        Pattern::Literal(Expr::Int(4, span())),
+                                        Pattern::Literal(Expr::Int(5, span())),
+                                    ],
+                                    span(),
+                                ),
+                                guard: None,
+                                body: Expr::Int(20, span()),
+                                span: span(),
+                            },
+                            MatchArm {
+                                pattern: Pattern::Wildcard(span()),
+                                guard: None,
+                                body: Expr::Int(30, span()),
+                                span: span(),
+                            },
+                        ],
+                        span: span(),
+                    }),
+                    span(),
+                )],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![ResolvedType::Int(IntSize::I64)],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let classify_flag = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "classify_flag".to_string(),
+            generics: vec![],
+            params: vec![Param {
+                name: "flag".to_string(),
+                ty: Type::Named {
+                    name: "Bool".to_string(),
+                    generics: vec![],
+                    span: span(),
+                },
+                mutable: false,
+                default: None,
+                span: span(),
+            }],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(
+                    Some(Expr::Match {
+                        scrutinee: Box::new(Expr::Ident("flag".to_string(), span())),
+                        arms: vec![
+                            MatchArm {
+                                pattern: Pattern::Literal(Expr::Bool(true, span())),
+                                guard: None,
+                                body: Expr::Int(1, span()),
+                                span: span(),
+                            },
+                            MatchArm {
+                                pattern: Pattern::Literal(Expr::Bool(false, span())),
+                                guard: None,
+                                body: Expr::Int(0, span()),
+                                span: span(),
+                            },
+                        ],
+                        span: span(),
+                    }),
+                    span(),
+                )],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![ResolvedType::Bool],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let classify_name = TypedItem::Function(TypedFunction {
+        ast: Function {
+            name: "classify_name".to_string(),
+            generics: vec![],
+            params: vec![Param {
+                name: "name".to_string(),
+                ty: string_type(),
+                mutable: false,
+                default: None,
+                span: span(),
+            }],
+            return_type: Some(int_type()),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Return(
+                    Some(Expr::Match {
+                        scrutinee: Box::new(Expr::Ident("name".to_string(), span())),
+                        arms: vec![
+                            MatchArm {
+                                pattern: Pattern::Literal(Expr::String("hero".to_string(), span())),
+                                guard: None,
+                                body: Expr::Int(7, span()),
+                                span: span(),
+                            },
+                            MatchArm {
+                                pattern: Pattern::Wildcard(span()),
+                                guard: None,
+                                body: Expr::Int(9, span()),
+                                span: span(),
+                            },
+                        ],
+                        span: span(),
+                    }),
+                    span(),
+                )],
+                span: span(),
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span: span(),
+        },
+        resolved_type: ResolvedType::Function {
+            params: vec![ResolvedType::String],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::default(),
+        },
+        effects: EffectSet::default(),
+    });
+
+    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
+        items: vec![classify_int, classify_flag, classify_name],
+    }).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("icmp sge i64"));
+    assert!(llvm.contains("icmp sle i64"));
+    assert!(llvm.contains(" or i1 "));
+    assert!(llvm.contains("icmp eq i1"));
+    assert!(llvm.contains("call i1 @deep_eq(i8*"));
 }
