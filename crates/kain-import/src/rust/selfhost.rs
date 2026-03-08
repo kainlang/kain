@@ -223,6 +223,19 @@ fn collect_modules_from_spec(
         }
     }
 
+    for extra in &spec.extra_files {
+        let file_path = crate_root.join(relative_path_within_crate(extra));
+        if file_path.exists() {
+            modules.push(RustModuleNode {
+                module_name: module_name_for(crate_root, &file_path),
+                file_path: file_path.clone(),
+            });
+            if matches!(file_path.file_name().and_then(|n| n.to_str()), Some("lib.rs" | "main.rs" | "mod.rs")) {
+                entry_points.insert(module_name_for(crate_root, &file_path), file_path);
+            }
+        }
+    }
+
     if modules.is_empty() {
         collect_modules(crate_root, crate_root, options, modules, entry_points)?;
     }
@@ -297,6 +310,7 @@ pub struct SelfHostMacroPolicy {
 pub struct SelfHostModuleMap {
     pub crates: BTreeMap<String, SelfHostCrateSpec>,
     pub initial_slice: Vec<String>,
+    pub phase2_slice: Vec<String>,
 }
 
 impl SelfHostModuleMap {
@@ -311,6 +325,8 @@ pub struct SelfHostCrateSpec {
     pub root: String,
     pub root_modules: Vec<String>,
     pub nested_modules: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub extra_files: Vec<String>,
     pub initial_selfhost_candidate: bool,
 }
 

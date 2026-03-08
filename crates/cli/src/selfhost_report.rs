@@ -53,18 +53,31 @@ pub struct SelfHostPhase1Report {
     pub required_direct_lowering_still_preserved: Vec<MacroFinding>,
     pub trait_dyn_summary: Vec<TraitDynSummary>,
     pub crate_results: Vec<CratePhase1Result>,
+    pub stage2_workspace_path: Option<String>,
+    pub stage2_build_artifact: Option<String>,
+    pub stage2_build_success: Option<bool>,
     pub final_phase_status: SelfHostPhaseStatus,
 }
 
-pub fn render_phase1_markdown(report: &SelfHostPhase1Report) -> String {
+pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> String {
     let mut out = String::new();
-    out.push_str("# Self-Host Phase 1 Report\n\n");
+    out.push_str(&format!("# {} Report\n\n", title));
     out.push_str(&format!("- Generated at: `{}`\n", report.generated_at_utc));
     out.push_str(&format!("- Repo root: `{}`\n", report.repo_root));
     out.push_str(&format!("- Inventory dir: `{}`\n", report.inventory_dir));
     out.push_str(&format!("- Output dir: `{}`\n", report.output_dir));
     out.push_str(&format!("- Final status: `{}`\n", status_label(&report.final_phase_status)));
     out.push_str(&format!("- Crates processed: `{}`\n\n", report.crates_processed.join(", ")));
+    if let Some(path) = &report.stage2_workspace_path {
+        out.push_str(&format!("- Stage2 workspace: `{}`\n", path));
+    }
+    if let Some(path) = &report.stage2_build_artifact {
+        out.push_str(&format!("- Stage2 artifact: `{}`\n", path));
+    }
+    if let Some(success) = report.stage2_build_success {
+        out.push_str(&format!("- Stage2 build success: `{}`\n", success));
+    }
+    out.push('\n');
 
     out.push_str("## Diagnostics by category\n\n");
     if report.diagnostics_by_category.is_empty() {
@@ -178,6 +191,10 @@ pub fn render_phase1_markdown(report: &SelfHostPhase1Report) -> String {
     }
 
     out
+}
+
+pub fn render_phase1_markdown(report: &SelfHostPhase1Report) -> String {
+    render_phase_markdown("Self-Host Phase 1", report)
 }
 
 fn status_label(status: &SelfHostPhaseStatus) -> &'static str {

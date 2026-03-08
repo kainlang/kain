@@ -271,7 +271,14 @@ impl RustGen {
             .as_ref()
             .is_some_and(|ty| !matches!(ty, Type::Unit(_)));
 
-        self.write_line(&format!("{}{}fn {}({}){} {{", vis, modifiers, func.name, params, ret));
+        self.write_line(&format!(
+            "{}{}fn {}({}){} {{",
+            vis,
+            modifiers,
+            self.rust_function_name(&func.name),
+            params,
+            ret
+        ));
         self.push_indent();
         self.gen_block_with_implicit_return(&func.body, has_implicit_return);
         self.pop_indent();
@@ -389,7 +396,13 @@ impl RustGen {
         prop_bindings.push("children".to_string());
 
         self.gen_component_props_struct(comp);
-        self.write_line(&format!("{}{}fn {}(props: {}) -> String {{", vis, modifiers, comp.name, props_name));
+        self.write_line(&format!(
+            "{}{}fn {}(props: {}) -> String {{",
+            vis,
+            modifiers,
+            self.rust_function_name(&comp.name),
+            props_name
+        ));
         self.push_indent();
         self.write_line(&format!("let {} {{ {} }} = props;", props_name, prop_bindings.join(", ")));
 
@@ -858,7 +871,7 @@ impl RustGen {
     fn gen_pattern(&self, pattern: &Pattern) -> String {
         match pattern {
             Pattern::Wildcard(_) => "_".to_string(),
-            Pattern::Literal(expr) => self.gen_expr(expr),
+            Pattern::Literal(expr) => self.gen_pattern_literal(expr),
             Pattern::Binding { name, mutable, .. } => {
                 if *mutable {
                     format!("mut {}", name)
@@ -924,6 +937,22 @@ impl RustGen {
                 }
             }
         }
+    }
+
+    fn gen_pattern_literal(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Int(value, _) => value.to_string(),
+            Expr::Float(value, _) => value.to_string(),
+            Expr::Bool(value, _) => value.to_string(),
+            Expr::String(value, _) => format!("{:?}", self.escape_string(value)),
+            Expr::None(_) => "None".to_string(),
+            Expr::Paren(value, _) => format!("({})", self.gen_pattern_literal(value)),
+            _ => self.gen_expr(expr),
+        }
+    }
+
+    fn rust_function_name(&self, name: &str) -> String {
+        name.replace("::", "__")
     }
 
     fn map_type(&self, ty: &Type) -> String {

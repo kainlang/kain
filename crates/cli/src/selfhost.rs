@@ -1,6 +1,6 @@
 use crate::error::{KainError, KainResult};
 use crate::selfhost_report::{
-    render_phase1_markdown, CratePhase1Result, MacroFinding, SelfHostPhase1Report,
+    render_phase_markdown, CratePhase1Result, MacroFinding, SelfHostPhase1Report,
     SelfHostPhaseStatus, TraitDynSummary,
 };
 use chrono::Utc;
@@ -12,8 +12,11 @@ use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use toml::Value;
 
-const SELFHOST_CONTEXTUAL_KEYWORDS: &[&str] = &["state", "weak", "compute"];
+const SELFHOST_CONTEXTUAL_KEYWORDS: &[&str] = &["state", "weak", "compute", "shader"];
+const SELFHOST_STAGE2_VERSION_SUFFIX: &str = "-selfhost.0";
 
 #[derive(Subcommand, Debug)]
 pub enum SelfHostCommand {
@@ -27,6 +30,25 @@ pub enum SelfHostCommand {
         #[arg(long, default_value_t = true)]
         emit_bundles: bool,
     },
+    Phase2 {
+        #[arg(long)]
+        inventory_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        output_dir: Option<PathBuf>,
+
+        #[arg(long, default_value_t = true)]
+        emit_bundles: bool,
+
+        #[arg(long, default_value_t = true)]
+        emit_roundtrip_rust: bool,
+
+        #[arg(long, default_value_t = true)]
+        assemble_stage2: bool,
+
+        #[arg(long, default_value_t = true)]
+        build_stage2: bool,
+    },
 }
 
 pub fn run(command: SelfHostCommand) -> KainResult<()> {
@@ -36,6 +58,21 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             output_dir,
             emit_bundles,
         } => run_phase1(inventory_dir, output_dir, emit_bundles),
+        SelfHostCommand::Phase2 {
+            inventory_dir,
+            output_dir,
+            emit_bundles,
+            emit_roundtrip_rust,
+            assemble_stage2,
+            build_stage2,
+        } => run_phase2(
+            inventory_dir,
+            output_dir,
+            emit_bundles,
+            emit_roundtrip_rust,
+            assemble_stage2,
+            build_stage2,
+        ),
     }
 }
 
@@ -44,9 +81,48 @@ fn run_phase1(
     output_dir: Option<PathBuf>,
     emit_bundles: bool,
 ) -> KainResult<()> {
+    run_phase(
+        "phase1",
+        inventory_dir,
+        output_dir,
+        emit_bundles,
+        false,
+        false,
+        false,
+    )
+}
+
+fn run_phase2(
+    inventory_dir: Option<PathBuf>,
+    output_dir: Option<PathBuf>,
+    emit_bundles: bool,
+    emit_roundtrip_rust: bool,
+    assemble_stage2: bool,
+    build_stage2: bool,
+) -> KainResult<()> {
+    run_phase(
+        "phase2",
+        inventory_dir,
+        output_dir,
+        emit_bundles,
+        emit_roundtrip_rust,
+        assemble_stage2,
+        build_stage2,
+    )
+}
+
+fn run_phase(
+    phase_name: &str,
+    inventory_dir: Option<PathBuf>,
+    output_dir: Option<PathBuf>,
+    emit_bundles: bool,
+    emit_roundtrip_rust: bool,
+    assemble_stage2: bool,
+    build_stage2: bool,
+) -> KainResult<()> {
     let repo_root = find_repo_root(&std::env::current_dir().map_err(KainError::Io)?)?;
     let inventory_dir = inventory_dir.unwrap_or_else(|| default_inventory_dir(&repo_root));
-    let output_dir = output_dir.unwrap_or_else(|| default_output_dir(&repo_root));
+    let output_dir = output_dir.unwrap_or_else(|| default_output_dir_for_phase(&repo_root, phase_name));
     let inventories = load_inventories(&inventory_dir)?;
     let mut options = RustSelfHostOptions::from_inventory_dir(&inventory_dir)
         .map_err(|err| KainError::runtime(format!("Failed to load strict self-host options: {err}")))?;
@@ -60,11 +136,15 @@ fn run_phase1(
         ))
     })?;
 
-    let crates_processed = inventories.module_map.initial_slice.clone();
+    let crates_processed = match phase_name {
+        "phase2" if !inventories.module_map.phase2_slice.is_empty() => inventories.module_map.phase2_slice.clone(),
+        _ => inventories.module_map.initial_slice.clone(),
+    };
     let mut modules_discovered: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut crate_results = Vec::new();
     let mut all_rejected = Vec::new();
     let mut all_required_preserved = Vec::new();
+    let mut roundtrip_rust_outputs = BTreeMap::<String, PathBuf>::new();
 
     for crate_name in &crates_processed {
         let crate_root = repo_root.join("crates").join(crate_name);
@@ -137,7 +217,7 @@ fn run_phase1(
                 if emit_bundles {
                     let bundle_path = output_dir.join(format!("{}.kn", crate_name));
                     let rendered = render_program(&program)?;
-                    fs::write(&bundle_path, rendered).map_err(|err| {
+                    fs::write(&bundle_path, &rendered).map_err(|err| {
                         KainError::runtime(format!(
                             "Failed to write self-host bundle {}: {}",
                             bundle_path.display(),
@@ -145,6 +225,18 @@ fn run_phase1(
                         ))
                     })?;
                     output_kn_path = Some(bundle_path.display().to_string());
+                    if emit_roundtrip_rust {
+                        let roundtrip_path = output_dir.join(format!("{}.roundtrip.rs", crate_name));
+                        let rust_source = compile_kn_source_to_rust(&rendered)?;
+                        fs::write(&roundtrip_path, rust_source).map_err(|err| {
+                            KainError::runtime(format!(
+                                "Failed to write self-host roundtrip Rust {}: {}",
+                                roundtrip_path.display(),
+                                err
+                            ))
+                        })?;
+                        roundtrip_rust_outputs.insert(crate_name.clone(), roundtrip_path);
+                    }
                 }
             }
             Err(err) => {
@@ -179,7 +271,25 @@ fn run_phase1(
 
     let diagnostics_by_category = build_diagnostic_category_summary(&crate_results);
     let trait_dyn_summary = build_trait_dyn_summary(&inventories.trait_inventory, &crates_processed);
-    let final_phase_status = determine_phase_status(&crate_results, &all_required_preserved);
+    let mut final_phase_status = determine_phase_status(&crate_results, &all_required_preserved);
+    let mut stage2_workspace_path = None;
+    let mut stage2_build_artifact = None;
+    let mut stage2_build_success = None;
+
+    if assemble_stage2 {
+        let stage2_workspace = output_dir.join("stage2_workspace");
+        assemble_stage2_workspace(&repo_root, &stage2_workspace, &crates_processed, &roundtrip_rust_outputs)?;
+        stage2_workspace_path = Some(stage2_workspace.display().to_string());
+
+        if build_stage2 {
+            let build_result = build_stage2_workspace(&stage2_workspace)?;
+            stage2_build_success = Some(build_result.success);
+            stage2_build_artifact = build_result.artifact_path.map(|path| path.display().to_string());
+            if !build_result.success {
+                final_phase_status = SelfHostPhaseStatus::HardFail;
+            }
+        }
+    }
 
     let report = SelfHostPhase1Report {
         generated_at_utc: Utc::now().to_rfc3339(),
@@ -193,16 +303,19 @@ fn run_phase1(
         required_direct_lowering_still_preserved: all_required_preserved,
         trait_dyn_summary,
         crate_results,
+        stage2_workspace_path,
+        stage2_build_artifact,
+        stage2_build_success,
         final_phase_status: final_phase_status.clone(),
     };
 
-    write_report_files(&output_dir, &report)?;
-    print_summary(&report);
+    write_report_files(phase_name, &output_dir, &report)?;
+    print_summary(phase_name, &report);
 
     match final_phase_status {
         SelfHostPhaseStatus::Pass => Ok(()),
-        SelfHostPhaseStatus::SoftFail => Err(KainError::runtime("Self-host phase1 completed with soft failures")),
-        SelfHostPhaseStatus::HardFail => Err(KainError::runtime("Self-host phase1 failed")),
+        SelfHostPhaseStatus::SoftFail => Err(KainError::runtime(format!("Self-host {phase_name} completed with soft failures"))),
+        SelfHostPhaseStatus::HardFail => Err(KainError::runtime(format!("Self-host {phase_name} failed"))),
     }
 }
 
@@ -228,6 +341,8 @@ struct MacroInventoryCrate {
 #[derive(Debug, Deserialize)]
 struct ModuleMapInventory {
     initial_slice: Vec<String>,
+    #[serde(default)]
+    phase2_slice: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -750,22 +865,27 @@ fn determine_phase_status(
     SelfHostPhaseStatus::Pass
 }
 
-fn write_report_files(output_dir: &Path, report: &SelfHostPhase1Report) -> KainResult<()> {
-    let json_path = output_dir.join("phase1_report.json");
-    let markdown_path = output_dir.join("phase1_report.md");
+struct Stage2BuildResult {
+    success: bool,
+    artifact_path: Option<PathBuf>,
+}
+
+fn write_report_files(phase_name: &str, output_dir: &Path, report: &SelfHostPhase1Report) -> KainResult<()> {
+    let json_path = output_dir.join(format!("{phase_name}_report.json"));
+    let markdown_path = output_dir.join(format!("{phase_name}_report.md"));
     let json = serde_json::to_string_pretty(report)
-        .map_err(|err| KainError::runtime(format!("Failed to serialize phase1 report: {}", err)))?;
+        .map_err(|err| KainError::runtime(format!("Failed to serialize {phase_name} report: {}", err)))?;
     fs::write(&json_path, json).map_err(|err| {
-        KainError::runtime(format!("Failed to write phase1 report JSON {}: {}", json_path.display(), err))
+        KainError::runtime(format!("Failed to write {phase_name} report JSON {}: {}", json_path.display(), err))
     })?;
-    fs::write(&markdown_path, render_phase1_markdown(report)).map_err(|err| {
-        KainError::runtime(format!("Failed to write phase1 report Markdown {}: {}", markdown_path.display(), err))
+    fs::write(&markdown_path, render_phase_markdown(&format!("Self-Host {}", phase_name.to_uppercase()), report)).map_err(|err| {
+        KainError::runtime(format!("Failed to write {phase_name} report Markdown {}: {}", markdown_path.display(), err))
     })?;
     Ok(())
 }
 
-fn print_summary(report: &SelfHostPhase1Report) {
-    println!("🧬 Self-host phase1");
+fn print_summary(phase_name: &str, report: &SelfHostPhase1Report) {
+    println!("🧬 Self-host {}", phase_name);
     println!("   Crates: {}", report.crates_processed.join(", "));
     println!(
         "   Status: {}",
@@ -775,8 +895,277 @@ fn print_summary(report: &SelfHostPhase1Report) {
             SelfHostPhaseStatus::HardFail => "hard_fail",
         }
     );
-    println!("   Report JSON: {}", Path::new(&report.output_dir).join("phase1_report.json").display());
-    println!("   Report MD: {}", Path::new(&report.output_dir).join("phase1_report.md").display());
+    if let Some(path) = &report.stage2_workspace_path {
+        println!("   Stage2 workspace: {}", path);
+    }
+    if let Some(path) = &report.stage2_build_artifact {
+        println!("   Stage2 artifact: {}", path);
+    }
+    if let Some(success) = report.stage2_build_success {
+        println!("   Stage2 build: {}", if success { "pass" } else { "fail" });
+    }
+    println!("   Report JSON: {}", Path::new(&report.output_dir).join(format!("{phase_name}_report.json")).display());
+    println!("   Report MD: {}", Path::new(&report.output_dir).join(format!("{phase_name}_report.md")).display());
+}
+
+fn compile_kn_source_to_rust(source: &str) -> KainResult<String> {
+    let typed_program = crate::frontend_to_typed_program(source, crate::CompileTarget::Rust)?;
+    #[cfg(feature = "sys")]
+    {
+        kain_sys_codegen::generate_rust(&typed_program)
+            .map_err(|err| KainError::runtime(format!("Failed to generate Rust self-host roundtrip: {}", err)))
+    }
+    #[cfg(not(feature = "sys"))]
+    {
+        let _ = typed_program;
+        Err(KainError::runtime("Rust self-host roundtrip requires cli sys feature"))
+    }
+}
+
+fn assemble_stage2_workspace(
+    repo_root: &Path,
+    workspace_dir: &Path,
+    crates_processed: &[String],
+    roundtrip_rust_outputs: &BTreeMap<String, PathBuf>,
+) -> KainResult<()> {
+    if workspace_dir.exists() {
+        fs::remove_dir_all(workspace_dir).map_err(|err| {
+            KainError::runtime(format!("Failed to clear stage2 workspace {}: {}", workspace_dir.display(), err))
+        })?;
+    }
+    fs::create_dir_all(workspace_dir.join("crates")).map_err(|err| {
+        KainError::runtime(format!("Failed to create stage2 workspace {}: {}", workspace_dir.display(), err))
+    })?;
+
+    let root_manifest: Value = toml::from_str(
+        &fs::read_to_string(repo_root.join("Cargo.toml")).map_err(|err| {
+            KainError::runtime(format!("Failed to read workspace Cargo.toml: {}", err))
+        })?,
+    )
+    .map_err(|err| KainError::runtime(format!("Failed to parse workspace Cargo.toml: {}", err)))?;
+
+    let stage2_set = crates_processed.iter().cloned().collect::<BTreeSet<_>>();
+    let root_toml = render_root_workspace_toml(
+        crates_processed,
+        &root_manifest,
+        &repo_root,
+        &stage2_set,
+    )?;
+    fs::write(workspace_dir.join("Cargo.toml"), root_toml).map_err(|err| {
+        KainError::runtime(format!("Failed to write stage2 workspace Cargo.toml: {}", err))
+    })?;
+
+    for crate_name in crates_processed {
+        let roundtrip_path = roundtrip_rust_outputs.get(crate_name).ok_or_else(|| {
+            KainError::runtime(format!("Missing roundtrip Rust output for stage2 crate {crate_name}"))
+        })?;
+        let crate_dir = workspace_dir.join("crates").join(crate_name);
+        let src_dir = crate_dir.join("src");
+        fs::create_dir_all(&src_dir).map_err(|err| {
+            KainError::runtime(format!("Failed to create stage2 crate dir {}: {}", src_dir.display(), err))
+        })?;
+
+        let original_manifest_path = repo_root.join("crates").join(crate_name).join("Cargo.toml");
+        let original_manifest = fs::read_to_string(&original_manifest_path).map_err(|err| {
+            KainError::runtime(format!("Failed to read {}: {}", original_manifest_path.display(), err))
+        })?;
+        let rewritten_manifest = rewrite_crate_manifest(
+            &original_manifest,
+            &repo_root.join("crates").join(crate_name),
+            crate_name,
+            &stage2_set,
+        )?;
+        fs::write(crate_dir.join("Cargo.toml"), rewritten_manifest).map_err(|err| {
+            KainError::runtime(format!("Failed to write stage2 crate manifest for {}: {}", crate_name, err))
+        })?;
+
+        let rust_source = fs::read_to_string(roundtrip_path).map_err(|err| {
+            KainError::runtime(format!("Failed to read roundtrip Rust {}: {}", roundtrip_path.display(), err))
+        })?;
+        fs::write(src_dir.join("lib.rs"), &rust_source).map_err(|err| {
+            KainError::runtime(format!("Failed to write stage2 lib.rs for {}: {}", crate_name, err))
+        })?;
+        if crate_name == "cli" {
+            fs::write(src_dir.join("main.rs"), "include!(\"lib.rs\");\n").map_err(|err| {
+                KainError::runtime(format!("Failed to write stage2 main.rs for cli: {}", err))
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+fn render_root_workspace_toml(
+    crates_processed: &[String],
+    root_manifest: &Value,
+    repo_root: &Path,
+    stage2_crates: &BTreeSet<String>,
+) -> KainResult<String> {
+    let mut root = String::new();
+    root.push_str("[workspace]\n");
+    root.push_str("members = [\n");
+    for crate_name in crates_processed {
+        root.push_str(&format!("    \"crates/{}\",\n", crate_name));
+    }
+    let resolver = root_manifest
+        .get("workspace")
+        .and_then(|v| v.get("resolver"))
+        .and_then(Value::as_str)
+        .unwrap_or("2");
+    root.push_str("]\n");
+    root.push_str(&format!("resolver = \"{}\"\n\n", resolver));
+
+    if let Some(package) = root_manifest.get("workspace").and_then(|v| v.get("package")) {
+        root.push_str("[workspace.package]\n");
+        let package_table = package.as_table().ok_or_else(|| {
+            KainError::runtime("workspace.package must be a TOML table".to_string())
+        })?;
+        for (key, value) in package_table {
+            root.push_str(&format!(
+                "{} = {}\n",
+                key,
+                render_toml_inline_value(value)?
+            ));
+        }
+        root.push('\n');
+    }
+
+    if let Some(dependencies) = root_manifest.get("workspace").and_then(|v| v.get("dependencies")) {
+        root.push_str("[workspace.dependencies]\n");
+        if let Value::Table(table) = dependencies {
+            let mut rewritten = table.clone();
+            rewrite_dependency_table(&mut rewritten, repo_root, stage2_crates)?;
+            for (key, value) in &rewritten {
+                root.push_str(&format!(
+                    "{} = {}\n",
+                    key,
+                    render_toml_inline_value(value).map_err(|err| {
+                        KainError::runtime(format!(
+                            "Failed to serialize workspace dependency {}: {}",
+                            key, err
+                        ))
+                    })?
+                ));
+            }
+        }
+    }
+
+    Ok(root)
+}
+
+fn rewrite_crate_manifest(
+    original_manifest: &str,
+    original_crate_dir: &Path,
+    crate_name: &str,
+    stage2_crates: &BTreeSet<String>,
+) -> KainResult<String> {
+    let mut manifest: Value = toml::from_str(original_manifest)
+        .map_err(|err| KainError::runtime(format!("Failed to parse crate manifest for {}: {}", crate_name, err)))?;
+
+    rewrite_stage2_package_version(&mut manifest)?;
+
+    for key in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        if let Some(table) = manifest.get_mut(key).and_then(Value::as_table_mut) {
+            rewrite_dependency_table(table, original_crate_dir, stage2_crates)?;
+        }
+    }
+
+    toml::to_string_pretty(&manifest)
+        .map_err(|err| KainError::runtime(format!("Failed to serialize crate manifest for {}: {}", crate_name, err)))
+}
+
+fn rewrite_stage2_package_version(manifest: &mut Value) -> KainResult<()> {
+    let Some(package) = manifest.get_mut("package").and_then(Value::as_table_mut) else {
+        return Ok(());
+    };
+    let Some(version) = package.get_mut("version") else {
+        return Ok(());
+    };
+    let Some(version_str) = version.as_str() else {
+        return Err(KainError::runtime(
+            "package.version must be a string for stage2 manifest rewriting".to_string(),
+        ));
+    };
+    if version_str.contains("-selfhost.") {
+        return Ok(());
+    }
+    *version = Value::String(format!("{version_str}{SELFHOST_STAGE2_VERSION_SUFFIX}"));
+    Ok(())
+}
+
+fn rewrite_dependency_table(
+    table: &mut toml::map::Map<String, Value>,
+    original_crate_dir: &Path,
+    stage2_crates: &BTreeSet<String>,
+) -> KainResult<()> {
+    for (dep_name, value) in table.iter_mut() {
+        let Some(dep_table) = value.as_table_mut() else {
+            continue;
+        };
+        let Some(path_value) = dep_table.get_mut("path") else {
+            continue;
+        };
+        let Some(path_str) = path_value.as_str() else {
+            continue;
+        };
+        let resolved = original_crate_dir.join(path_str);
+        let new_path = if stage2_crates.contains(dep_name) {
+            format!("../{}", dep_name)
+        } else {
+            resolved.canonicalize().unwrap_or(resolved).display().to_string()
+        };
+        *path_value = Value::String(new_path);
+    }
+    Ok(())
+}
+
+fn render_toml_inline_value(value: &Value) -> KainResult<String> {
+    match value {
+        Value::String(text) => Ok(format!("{text:?}")),
+        Value::Integer(number) => Ok(number.to_string()),
+        Value::Float(number) => Ok(number.to_string()),
+        Value::Boolean(flag) => Ok(flag.to_string()),
+        Value::Datetime(datetime) => Ok(datetime.to_string()),
+        Value::Array(values) => {
+            let rendered = values
+                .iter()
+                .map(render_toml_inline_value)
+                .collect::<KainResult<Vec<_>>>()?;
+            Ok(format!("[{}]", rendered.join(", ")))
+        }
+        Value::Table(table) => {
+            let rendered = table
+                .iter()
+                .map(|(key, value)| {
+                    render_toml_inline_value(value)
+                        .map(|rendered| format!("{key} = {rendered}"))
+                })
+                .collect::<KainResult<Vec<_>>>()?;
+            Ok(format!("{{ {} }}", rendered.join(", ")))
+        }
+    }
+}
+
+fn build_stage2_workspace(workspace_dir: &Path) -> KainResult<Stage2BuildResult> {
+    let build_log = workspace_dir.join("stage2_build.log");
+    let output = Command::new("cargo")
+        .args(["build", "-p", "cli", "--bin", "kain"])
+        .current_dir(workspace_dir)
+        .output()
+        .map_err(|err| KainError::runtime(format!("Failed to run cargo build in stage2 workspace: {}", err)))?;
+
+    let mut log = String::new();
+    log.push_str(&String::from_utf8_lossy(&output.stdout));
+    log.push_str(&String::from_utf8_lossy(&output.stderr));
+    fs::write(&build_log, log).map_err(|err| {
+        KainError::runtime(format!("Failed to write stage2 build log {}: {}", build_log.display(), err))
+    })?;
+
+    let artifact = workspace_dir.join("target").join("debug").join(if cfg!(windows) { "kain.exe" } else { "kain" });
+    Ok(Stage2BuildResult {
+        success: output.status.success(),
+        artifact_path: artifact.exists().then_some(artifact),
+    })
 }
 
 fn render_program(program: &Program) -> KainResult<String> {
@@ -1130,15 +1519,21 @@ fn write_else_branch(output: &mut String, else_branch: &ElseBranch, indent: usiz
 }
 
 fn write_match_arm(output: &mut String, arm: &MatchArm, indent: usize) -> KainResult<()> {
-    write_line(output, indent, &format!("{} =>", pattern_to_string(&arm.pattern)))?;
+    let pattern = pattern_to_string(&arm.pattern);
     if let Some(guard) = &arm.guard {
+        write_line(output, indent, &format!("{pattern} =>"))?;
         write_line(output, indent + 1, &format!("if {}:", inline_expr_to_string(guard)))?;
         write_expr_prefixed(output, "", &arm.body, indent + 2)?;
         write_line(output, indent + 1, "else:")?;
         write_line(output, indent + 2, "none")?;
         return Ok(());
     }
-    write_expr_prefixed(output, "", &arm.body, indent + 1)
+    if let Some(inline_body) = inline_match_arm_body(&arm.body) {
+        write_line(output, indent, &format!("{pattern} => {inline_body}"))
+    } else {
+        write_line(output, indent, &format!("{pattern} =>"))?;
+        write_expr_prefixed(output, "", &arm.body, indent + 1)
+    }
 }
 
 fn inline_expr_to_string(expr: &Expr) -> String {
@@ -1374,6 +1769,20 @@ fn control_head_expr_to_string(expr: &Expr) -> String {
     }
 }
 
+fn inline_match_arm_body(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::If { .. } | Expr::Match { .. } | Expr::Block(_, _) => {
+            let rendered = inline_expr_to_string(expr);
+            if rendered != "none" {
+                Some(rendered)
+            } else {
+                None
+            }
+        }
+        _ => Some(inline_expr_to_string(expr)),
+    }
+}
+
 fn block_inline_expr(block: &Block) -> Option<&Expr> {
     if block.stmts.len() != 1 {
         return None;
@@ -1589,4 +1998,13 @@ fn default_output_dir(repo_root: &Path) -> PathBuf {
         .parent()
         .map(|parent| parent.join("OuroborosV2").join("out").join("selfhost"))
         .unwrap_or_else(|| PathBuf::from("OuroborosV2").join("out").join("selfhost"))
+}
+
+fn default_output_dir_for_phase(repo_root: &Path, phase_name: &str) -> PathBuf {
+    let base = default_output_dir(repo_root);
+    if phase_name == "phase1" {
+        base
+    } else {
+        base.join(phase_name)
+    }
 }
