@@ -513,6 +513,8 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
         kain_core::ast::Item::Function(func) => write_function(output, func, indent),
         kain_core::ast::Item::Struct(s) => write_struct(output, s, indent),
         kain_core::ast::Item::Enum(e) => write_enum(output, e, indent),
+        kain_core::ast::Item::Trait(value) => write_trait(output, value, indent),
+        kain_core::ast::Item::Impl(value) => write_impl(output, value, indent),
         kain_core::ast::Item::Mod(m) => {
             write_line(output, indent, &format!("mod {}:", m.name))?;
             if let Some(children) = &m.inline {
@@ -614,6 +616,64 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
     Ok(())
 }
 
+fn write_trait(output: &mut String, value: &kain_core::ast::Trait, indent: usize) -> KainResult<()> {
+    use std::fmt::Write;
+
+    write_line(output, indent, &format!("trait {}:", value.name))?;
+    if value.methods.is_empty() {
+        write_line(output, indent + 1, "pass")?;
+    } else {
+        for method in &value.methods {
+            let mut signature = format!("fn {}(", method.name);
+            for (index, param) in method.params.iter().enumerate() {
+                if index > 0 {
+                    signature.push_str(", ");
+                }
+                signature.push_str(&format!("{}: {}", param.name, type_to_string(&param.ty)));
+            }
+            signature.push(')');
+            if let Some(return_type) = &method.return_type {
+                signature.push_str(&format!(" -> {}", type_to_string(return_type)));
+            }
+            signature.push(':');
+            write_line(output, indent + 1, &signature)?;
+            if let Some(default_impl) = &method.default_impl {
+                write_block(output, default_impl, indent + 2)?;
+            } else {
+                write_line(output, indent + 2, "pass")?;
+            }
+        }
+    }
+
+    writeln!(output)
+        .map_err(|e| KainError::runtime(format!("Failed to write trait: {}", e)))?;
+
+    Ok(())
+}
+
+fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) -> KainResult<()> {
+    use std::fmt::Write;
+
+    let header = match &value.trait_name {
+        Some(trait_name) => format!("impl {} for {}:", trait_name, type_to_string(&value.target_type)),
+        None => format!("impl {}:", type_to_string(&value.target_type)),
+    };
+    write_line(output, indent, &header)?;
+
+    if value.methods.is_empty() {
+        write_line(output, indent + 1, "pass")?;
+    } else {
+        for method in &value.methods {
+            write_function(output, method, indent + 1)?;
+        }
+    }
+
+    writeln!(output)
+        .map_err(|e| KainError::runtime(format!("Failed to write impl: {}", e)))?;
+
+    Ok(())
+}
+
 fn write_block(output: &mut String, block: &kain_core::ast::Block, indent: usize) -> KainResult<()> {
     if block.stmts.is_empty() {
         write_line(output, indent, "pass")?;
@@ -687,7 +747,17 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
 
 fn type_to_string(ty: &kain_core::ast::Type) -> String {
     match ty {
-        kain_core::ast::Type::Named { name, .. } => name.clone(),
+        kain_core::ast::Type::Named { name, generics, .. } => {
+            if generics.is_empty() {
+                name.clone()
+            } else {
+                format!(
+                    "{}<{}>",
+                    name,
+                    generics.iter().map(type_to_string).collect::<Vec<_>>().join(", ")
+                )
+            }
+        }
         kain_core::ast::Type::Tuple(types, _) => {
             let types_str = types.iter()
                 .map(type_to_string)
@@ -698,10 +768,50 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
         kain_core::ast::Type::Array(inner, _, _) => {
             format!("Array<{}>", type_to_string(inner))
         }
+        kain_core::ast::Type::Slice(inner, _) => {
+            format!("Slice<{}>", type_to_string(inner))
+        }
+        kain_core::ast::Type::Ref { mutable, inner, .. } => {
+            if *mutable {
+                format!("&mut {}", type_to_string(inner))
+            } else {
+                format!("&{}", type_to_string(inner))
+            }
+        }
+        kain_core::ast::Type::Ptr { mutable, inner, .. } => {
+            if *mutable {
+                format!("PtrMut<{}>", type_to_string(inner))
+            } else {
+                format!("Ptr<{}>", type_to_string(inner))
+            }
+        }
+        kain_core::ast::Type::Function { params, return_type, .. } => {
+            format!(
+                "fn({}) -> {}",
+                params.iter().map(type_to_string).collect::<Vec<_>>().join(", "),
+                type_to_string(return_type)
+            )
+        }
         kain_core::ast::Type::Option(inner, _) => {
             format!("Option<{}>", type_to_string(inner))
         }
-        _ => "Any".to_string(),
+        kain_core::ast::Type::Result(ok, err, _) => {
+            format!("Result<{}, {}>", type_to_string(ok), type_to_string(err))
+        }
+        kain_core::ast::Type::Infer(_) => "_".to_string(),
+        kain_core::ast::Type::Never(_) => "!".to_string(),
+        kain_core::ast::Type::Unit(_) => "()".to_string(),
+        kain_core::ast::Type::Impl { trait_name, generics, .. } => {
+            if generics.is_empty() {
+                format!("impl {}", trait_name)
+            } else {
+                format!(
+                    "impl {}<{}>",
+                    trait_name,
+                    generics.iter().map(type_to_string).collect::<Vec<_>>().join(", ")
+                )
+            }
+        }
     }
 }
 

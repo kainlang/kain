@@ -8,10 +8,9 @@
 //! ## Unsupported / Lowered
 //!
 //! - Lifetimes → erased (KAIN manages memory via effects + low-level layer)
-//! - Trait definitions → emitted as a comment stub (KAIN uses structural typing)
+//! - Trait aliases → skipped for the first self-host slice
 //! - `macro_rules!` / proc-macro invocations → comment stub
 //! - where clauses → dropped (KAIN has simpler generics for now)
-//! - `use` declarations → skipped (KAIN resolves symbols structurally)
 //! - `extern crate` → skipped
 //! - Associated types in traits → skipped for first slice
 
@@ -43,12 +42,17 @@ impl RustMacroPolicy {
     pub fn phase1_default() -> Self {
         Self {
             lower_directly: [
+                "assert",
+                "assert_eq",
+                "debug_assert",
                 "eprint",
                 "eprintln",
                 "format",
                 "matches",
+                "panic",
                 "print",
                 "println",
+                "unreachable",
                 "vec",
                 "write",
                 "writeln",
@@ -68,10 +72,7 @@ impl RustMacroPolicy {
             .into_iter()
             .map(str::to_string)
             .collect(),
-            reject: ["assert", "assert_eq", "debug_assert", "panic", "unreachable"]
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
+            reject: HashSet::new(),
         }
     }
 }
@@ -167,6 +168,16 @@ impl RustTransformer {
         }
     }
 
+    fn map_type_checked(&mut self, ty: &syn::Type) -> Type {
+        if let Some(trait_name) = dyn_trait_name(ty) {
+            self.note_lossy(format!(
+                "dyn trait type lowered to impl {} (dynamic dispatch semantics narrowed)",
+                trait_name
+            ));
+        }
+        self.type_mapper.map_type(ty)
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // ── Entry point ───────────────────────────────────────────────────────
     // ─────────────────────────────────────────────────────────────────────
@@ -194,11 +205,7 @@ impl RustTransformer {
             syn::Item::Type(t)        => Ok(vec![Item::TypeAlias(self.transform_type_alias(t)?)]),
             syn::Item::Mod(m)         => self.transform_mod(m),
             syn::Item::Use(u)         => self.transform_use(u),
-            // Traits → stub comment, not yet modeled in KAIN item set
-            syn::Item::Trait(t) => {
-                self.note_lossy(format!("trait {} skipped (KAIN uses structural typing)", t.ident));
-                Ok(vec![])
-            }
+            syn::Item::Trait(t)       => Ok(vec![Item::Trait(self.transform_trait(t)?)]),
             syn::Item::TraitAlias(t) => {
                 self.note_lossy(format!("trait alias {} skipped", t.ident));
                 Ok(vec![])
@@ -260,7 +267,7 @@ impl RustTransformer {
         // Return type
         let return_type = match &f.sig.output {
             syn::ReturnType::Default       => None,
-            syn::ReturnType::Type(_, ty)   => Some(self.type_mapper.map_type(ty)),
+            syn::ReturnType::Type(_, ty)   => Some(self.map_type_checked(ty)),
         };
 
         // Effects
@@ -319,12 +326,109 @@ impl RustTransformer {
                 }
                 syn::FnArg::Typed(pt) => {
                     let name = self.pattern_to_name(&pt.pat);
-                    let ty   = self.type_mapper.map_type(&pt.ty);
+                    let ty   = self.map_type_checked(&pt.ty);
                     params.push(Param { name, ty, mutable: false, default: None, span: S });
                 }
             }
         }
         Ok(params)
+    }
+
+    fn transform_trait(&mut self, t: &syn::ItemTrait) -> Result<Trait> {
+        let name = self.rename_type(&t.ident.to_string());
+        let generics = self.type_mapper.map_generic_params(&t.generics.params);
+
+        if t.unsafety.is_some() {
+            self.note_lossy(format!("unsafe trait {} lowered without unsafe marker", name));
+        }
+        if t.auto_token.is_some() {
+            self.note_lossy(format!("auto trait {} lowered as normal trait", name));
+        }
+        if !t.supertraits.is_empty() {
+            self.note_lossy(format!("trait {} supertraits skipped", name));
+        }
+        if t.generics.where_clause.is_some() {
+            self.note_lossy(format!("trait {} where-clause skipped", name));
+        }
+
+        let mut methods = Vec::new();
+        for item in &t.items {
+            match item {
+                syn::TraitItem::Fn(method) => {
+                    let method_name = self.rename_value(&method.sig.ident.to_string());
+                    let params = self.transform_sig_inputs(&method.sig.inputs)?;
+                    let return_type = match &method.sig.output {
+                        syn::ReturnType::Default => None,
+                        syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
+                    };
+
+                    if !method.sig.generics.params.is_empty() {
+                        self.note_lossy(format!(
+                            "trait method {}::{} generics skipped",
+                            name, method_name
+                        ));
+                    }
+                    if method.sig.generics.where_clause.is_some() {
+                        self.note_lossy(format!(
+                            "trait method {}::{} where-clause skipped",
+                            name, method_name
+                        ));
+                    }
+
+                    let mut effects = Vec::new();
+                    if method.sig.unsafety.is_some() {
+                        effects.push(Effect::Unsafe);
+                    }
+                    if method.sig.asyncness.is_some() {
+                        effects.push(Effect::Async);
+                    }
+
+                    let default_impl = if let Some(block) = &method.default {
+                        Some(self.transform_block(block)?)
+                    } else {
+                        None
+                    };
+
+                    methods.push(TraitMethod {
+                        name: method_name,
+                        params,
+                        return_type,
+                        effects,
+                        default_impl,
+                        span: S,
+                    });
+                }
+                syn::TraitItem::Const(item_const) => {
+                    self.note_lossy(format!(
+                        "trait {} associated const {} skipped",
+                        name, item_const.ident
+                    ));
+                }
+                syn::TraitItem::Type(item_type) => {
+                    self.note_lossy(format!(
+                        "trait {} associated type {} skipped",
+                        name, item_type.ident
+                    ));
+                }
+                syn::TraitItem::Macro(_) => {
+                    self.note_lossy(format!("trait {} macro item skipped", name));
+                }
+                syn::TraitItem::Verbatim(_) => {
+                    self.note_lossy(format!("trait {} verbatim item skipped", name));
+                }
+                _ => {
+                    self.note_lossy(format!("trait {} unsupported item skipped", name));
+                }
+            }
+        }
+
+        Ok(Trait {
+            name,
+            generics,
+            methods,
+            visibility: visibility(&t.vis),
+            span: S,
+        })
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -338,7 +442,7 @@ impl RustTransformer {
         let fields = match &s.fields {
             syn::Fields::Named(named) => named.named.iter().map(|f| {
                 let field_name = self.rename_field(&f.ident.as_ref().map(|i| i.to_string()).unwrap_or_default());
-                let ty = self.type_mapper.map_type(&f.ty);
+                let ty = self.map_type_checked(&f.ty);
                 Field {
                     name:       field_name,
                     ty,
@@ -350,7 +454,7 @@ impl RustTransformer {
                 }
             }).collect(),
             syn::Fields::Unnamed(unnamed) => unnamed.unnamed.iter().enumerate().map(|(i, f)| {
-                let ty = self.type_mapper.map_type(&f.ty);
+                let ty = self.map_type_checked(&f.ty);
                 Field {
                     name:       format!("field_{}", i),
                     ty,
@@ -388,12 +492,12 @@ impl RustTransformer {
             let fields = match &v.fields {
                 syn::Fields::Unit          => VariantFields::Unit,
                 syn::Fields::Unnamed(un)   => VariantFields::Tuple(
-                    un.unnamed.iter().map(|f| self.type_mapper.map_type(&f.ty)).collect()
+                    un.unnamed.iter().map(|f| self.map_type_checked(&f.ty)).collect()
                 ),
                 syn::Fields::Named(named)  => VariantFields::Struct(
                     named.named.iter().map(|f| {
                         let field_name = f.ident.as_ref().map(|i| self.rename_field(&i.to_string())).unwrap_or_default();
-                        let ty = self.type_mapper.map_type(&f.ty);
+                        let ty = self.map_type_checked(&f.ty);
                         Field {
                             name: field_name, ty,
                             attributes: Vec::new(),
@@ -420,54 +524,74 @@ impl RustTransformer {
     // ─────────────────────────────────────────────────────────────────────
 
     fn transform_impl(&mut self, i: &syn::ItemImpl) -> Result<Impl> {
-        let target_type = self.type_mapper.map_type(&i.self_ty);
+        let target_type = self.map_type_checked(&i.self_ty);
         let generics    = self.type_mapper.map_generic_params(&i.generics.params);
+        if i.generics.where_clause.is_some() {
+            self.note_lossy("impl where-clause skipped".to_string());
+        }
 
         // `impl Trait for Type` → note the trait, still emit the methods
         let trait_name = i.trait_.as_ref().map(|(_, path, _)| {
             path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default()
         });
-        if let Some(ref t) = trait_name {
-            self.note_lossy(format!("impl {} (trait impl — methods emitted inline)", t));
-        }
 
         let mut methods = Vec::new();
         for item in &i.items {
-            if let syn::ImplItem::Fn(method) = item {
-                let name = self.rename_value(&method.sig.ident.to_string());
-                self.current_function = Some(name.clone());
+            match item {
+                syn::ImplItem::Fn(method) => {
+                    let name = self.rename_value(&method.sig.ident.to_string());
+                    self.current_function = Some(name.clone());
 
-                let method_generics = self.type_mapper.map_generic_params(&method.sig.generics.params);
-                self.generics_in_scope = method_generics.iter().map(|g| g.name.clone()).collect();
+                    let method_generics = self.type_mapper.map_generic_params(&method.sig.generics.params);
+                    self.generics_in_scope = method_generics.iter().map(|g| g.name.clone()).collect();
+                    if method.sig.generics.where_clause.is_some() {
+                        self.note_lossy(format!("impl method {} where-clause skipped", name));
+                    }
 
-                let params = self.transform_sig_inputs(&method.sig.inputs)?;
-                let return_type = match &method.sig.output {
-                    syn::ReturnType::Default     => None,
-                    syn::ReturnType::Type(_, ty) => Some(self.type_mapper.map_type(ty)),
-                };
-                let mut effects = Vec::new();
-                if method.sig.unsafety.is_some() { effects.push(Effect::Unsafe); }
-                if method.sig.asyncness.is_some() { effects.push(Effect::Async); }
+                    let params = self.transform_sig_inputs(&method.sig.inputs)?;
+                    let return_type = match &method.sig.output {
+                        syn::ReturnType::Default     => None,
+                        syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
+                    };
+                    let mut effects = Vec::new();
+                    if method.sig.unsafety.is_some() { effects.push(Effect::Unsafe); }
+                    if method.sig.asyncness.is_some() { effects.push(Effect::Async); }
 
-                self.push_scope();
-                for p in &params { self.define(&p.name, p.ty.clone()); }
-                let body = self.transform_block(&method.block)?;
-                self.pop_scope();
+                    self.push_scope();
+                    for p in &params { self.define(&p.name, p.ty.clone()); }
+                    let body = self.transform_block(&method.block)?;
+                    self.pop_scope();
 
-                self.generics_in_scope.clear();
-                self.current_function = None;
+                    self.generics_in_scope.clear();
+                    self.current_function = None;
 
-                methods.push(Function {
-                    name,
-                    generics: method_generics,
-                    params,
-                    return_type,
-                    body,
-                    effects,
-                    attributes: Vec::new(),
-                    visibility: visibility(&method.vis),
-                    span: S,
-                });
+                    methods.push(Function {
+                        name,
+                        generics: method_generics,
+                        params,
+                        return_type,
+                        body,
+                        effects,
+                        attributes: Vec::new(),
+                        visibility: visibility(&method.vis),
+                        span: S,
+                    });
+                }
+                syn::ImplItem::Const(item_const) => {
+                    self.note_lossy(format!("impl associated const {} skipped", item_const.ident));
+                }
+                syn::ImplItem::Type(item_type) => {
+                    self.note_lossy(format!("impl associated type {} skipped", item_type.ident));
+                }
+                syn::ImplItem::Macro(_) => {
+                    self.note_lossy("impl macro item skipped".to_string());
+                }
+                syn::ImplItem::Verbatim(_) => {
+                    self.note_lossy("impl verbatim item skipped".to_string());
+                }
+                _ => {
+                    self.note_lossy("impl unsupported item skipped".to_string());
+                }
             }
         }
 
@@ -486,14 +610,14 @@ impl RustTransformer {
 
     fn transform_const(&mut self, c: &syn::ItemConst) -> Result<Const> {
         let name  = self.rename_value(&c.ident.to_string());
-        let ty    = self.type_mapper.map_type(&c.ty);
+        let ty    = self.map_type_checked(&c.ty);
         let value = self.transform_expr(&c.expr)?;
         Ok(Const { name, ty, value, visibility: visibility(&c.vis), span: S })
     }
 
     fn transform_static(&mut self, s: &syn::ItemStatic) -> Result<Const> {
         let name  = self.rename_value(&s.ident.to_string());
-        let ty    = self.type_mapper.map_type(&s.ty);
+        let ty    = self.map_type_checked(&s.ty);
         let value = self.transform_expr(&s.expr)?;
         Ok(Const { name, ty, value, visibility: visibility(&s.vis), span: S })
     }
@@ -503,7 +627,10 @@ impl RustTransformer {
     fn transform_type_alias(&mut self, t: &syn::ItemType) -> Result<TypeAlias> {
         let name     = self.rename_type(&t.ident.to_string());
         let generics = self.type_mapper.map_generic_params(&t.generics.params);
-        let target   = self.type_mapper.map_type(&t.ty);
+        if t.generics.where_clause.is_some() {
+            self.note_lossy(format!("type alias {} where-clause skipped", name));
+        }
+        let target   = self.map_type_checked(&t.ty);
         Ok(TypeAlias { name, generics, target, visibility: visibility(&t.vis), span: S })
     }
 
@@ -770,23 +897,14 @@ impl RustTransformer {
                 }).collect();
                 let return_type = match &cl.output {
                     syn::ReturnType::Default     => None,
-                    syn::ReturnType::Type(_, ty) => Some(self.type_mapper.map_type(ty)),
+                    syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
                 };
                 let body = self.transform_expr(&cl.body)?;
                 Ok(Expr::Lambda { params, return_type, body: Box::new(body), span: S })
             }
 
             // ── If / if let ───────────────────────────────────────────────
-            syn::Expr::If(i) => {
-                let condition   = self.transform_if_condition(&i.cond)?;
-                let then_branch = self.transform_block(&i.then_branch)?;
-                let else_branch = if let Some((_, else_expr)) = &i.else_branch {
-                    Some(Box::new(self.transform_else(else_expr)?))
-                } else {
-                    None
-                };
-                Ok(Expr::If { condition: Box::new(condition), then_branch, else_branch, span: S })
-            }
+            syn::Expr::If(i) => self.transform_if_expr(i),
 
             // ── Match ─────────────────────────────────────────────────────
             syn::Expr::Match(m) => {
@@ -806,14 +924,7 @@ impl RustTransformer {
                 }, S))
             }
 
-            syn::Expr::While(w) => {
-                let condition = self.transform_if_condition(&w.cond)?;
-                let body      = self.transform_block(&w.body)?;
-                Ok(Expr::Block(Block {
-                    stmts: vec![Stmt::While { condition, body, span: S }],
-                    span:  S,
-                }, S))
-            }
+            syn::Expr::While(w) => self.transform_while_expr(w),
 
             syn::Expr::ForLoop(f) => {
                 let binding = self.transform_pattern(&f.pat);
@@ -853,7 +964,7 @@ impl RustTransformer {
             // ── Cast: `expr as T` ─────────────────────────────────────────
             syn::Expr::Cast(c) => {
                 let value  = self.transform_expr(&c.expr)?;
-                let target = self.type_mapper.map_type(&c.ty);
+                let target = self.map_type_checked(&c.ty);
                 Ok(Expr::Cast { value: Box::new(value), target, span: S })
             }
 
@@ -940,13 +1051,123 @@ impl RustTransformer {
 
     // ── If conditions (handles `if let`) ─────────────────────────────────
 
+    fn transform_if_expr(&mut self, expr: &syn::ExprIf) -> Result<Expr> {
+        if let syn::Expr::Let(let_expr) = expr.cond.as_ref() {
+            return self.desugar_if_let(let_expr, &expr.then_branch, expr.else_branch.as_ref().map(|(_, else_expr)| else_expr.as_ref()));
+        }
+
+        let condition = self.transform_if_condition(&expr.cond)?;
+        let then_branch = self.transform_block(&expr.then_branch)?;
+        let else_branch = if let Some((_, else_expr)) = &expr.else_branch {
+            Some(Box::new(self.transform_else(else_expr)?))
+        } else {
+            None
+        };
+        Ok(Expr::If {
+            condition: Box::new(condition),
+            then_branch,
+            else_branch,
+            span: S,
+        })
+    }
+
+    fn desugar_if_let(
+        &mut self,
+        let_expr: &syn::ExprLet,
+        then_branch: &syn::Block,
+        else_expr: Option<&syn::Expr>,
+    ) -> Result<Expr> {
+        let scrutinee = self.transform_expr(&let_expr.expr)?;
+        let pattern = self.transform_pattern(&let_expr.pat);
+        let then_branch = self.transform_block(then_branch)?;
+        let else_body = match else_expr {
+            Some(expr) => self.transform_expr(expr)?,
+            None => Expr::None(S),
+        };
+
+        Ok(Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms: vec![
+                MatchArm {
+                    pattern,
+                    guard: None,
+                    body: Expr::Block(then_branch, S),
+                    span: S,
+                },
+                MatchArm {
+                    pattern: Pattern::Wildcard(S),
+                    guard: None,
+                    body: else_body,
+                    span: S,
+                },
+            ],
+            span: S,
+        })
+    }
+
+    fn transform_while_expr(&mut self, expr: &syn::ExprWhile) -> Result<Expr> {
+        if let syn::Expr::Let(let_expr) = expr.cond.as_ref() {
+            return self.desugar_while_let(let_expr, &expr.body);
+        }
+
+        let condition = self.transform_if_condition(&expr.cond)?;
+        let body = self.transform_block(&expr.body)?;
+        Ok(Expr::Block(
+            Block {
+                stmts: vec![Stmt::While {
+                    condition,
+                    body,
+                    span: S,
+                }],
+                span: S,
+            },
+            S,
+        ))
+    }
+
+    fn desugar_while_let(&mut self, let_expr: &syn::ExprLet, body: &syn::Block) -> Result<Expr> {
+        let scrutinee = self.transform_expr(&let_expr.expr)?;
+        let pattern = self.transform_pattern(&let_expr.pat);
+        let then_body = self.transform_block(body)?;
+        let match_expr = Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms: vec![
+                MatchArm {
+                    pattern,
+                    guard: None,
+                    body: Expr::Block(then_body, S),
+                    span: S,
+                },
+                MatchArm {
+                    pattern: Pattern::Wildcard(S),
+                    guard: None,
+                    body: Expr::Break(None, S),
+                    span: S,
+                },
+            ],
+            span: S,
+        };
+
+        Ok(Expr::Block(
+            Block {
+                stmts: vec![Stmt::Loop {
+                    body: Block {
+                        stmts: vec![Stmt::Expr(match_expr)],
+                        span: S,
+                    },
+                    span: S,
+                }],
+                span: S,
+            },
+            S,
+        ))
+    }
+
     fn transform_if_condition(&mut self, cond: &syn::Expr) -> Result<Expr> {
-        // `if let Pattern(x) = expr` → emitted as a simple truthy expression for now
-        // Full `if let` desugaring is a future improvement
         match cond {
             syn::Expr::Let(let_expr) => {
-                // `if let Some(x) = y` → just transform the scrutinee as the condition
-                // (loses the binding — future improvement: desugar into match)
+                // Let-chains are handled at the containing `if` / `while` expression level.
+                // Any remaining bare `let` condition would still be lossy.
                 self.note_lossy("if-let condition simplified (binding erased)".to_string());
                 self.transform_expr(&let_expr.expr)
             }
@@ -961,14 +1182,15 @@ impl RustTransformer {
                 Ok(ElseBranch::Else(block))
             }
             syn::Expr::If(i) => {
-                let condition   = self.transform_if_condition(&i.cond)?;
-                let then_branch = self.transform_block(&i.then_branch)?;
-                let next = if let Some((_, next_else)) = &i.else_branch {
-                    Some(Box::new(self.transform_else(next_else)?))
-                } else {
-                    None
-                };
-                Ok(ElseBranch::ElseIf(Box::new(condition), then_branch, next))
+                match self.transform_if_expr(i)? {
+                    Expr::If { condition, then_branch, else_branch, .. } => {
+                        Ok(ElseBranch::ElseIf(condition, then_branch, else_branch))
+                    }
+                    expr => {
+                        let block = Block { stmts: vec![Stmt::Expr(expr)], span: S };
+                        Ok(ElseBranch::Else(block))
+                    }
+                }
             }
             other => {
                 let expr  = self.transform_expr(other)?;
@@ -1041,14 +1263,17 @@ impl RustTransformer {
                 let cases = po.cases.iter().map(|p| self.transform_pattern(p)).collect();
                 Pattern::Or(cases, S)
             }
+            syn::Pat::Paren(pp) => self.transform_pattern(&pp.pat),
             syn::Pat::Reference(pr) => {
                 // `&x` / `&mut x` pattern — unwrap to inner
                 self.transform_pattern(&pr.pat)
             }
+            syn::Pat::Rest(_) => Pattern::Wildcard(S),
             syn::Pat::Slice(ps) => {
                 let pats = ps.elems.iter().map(|p| self.transform_pattern(p)).collect();
                 Pattern::Slice { patterns: pats, rest: None, span: S }
             }
+            syn::Pat::Type(pt) => self.transform_pattern(&pt.pat),
             _ => {
                 self.note_lossy("unsupported pattern lowered to wildcard".to_string());
                 Pattern::Wildcard(S)
@@ -1081,9 +1306,9 @@ impl RustTransformer {
         }
     }
 
-    fn type_from_local_pat(&self, pat: &syn::Pat) -> Option<Type> {
+    fn type_from_local_pat(&mut self, pat: &syn::Pat) -> Option<Type> {
         if let syn::Pat::Type(pt) = pat {
-            Some(self.type_mapper.map_type(&pt.ty))
+            Some(self.map_type_checked(&pt.ty))
         } else {
             None
         }
@@ -1124,12 +1349,20 @@ impl RustTransformer {
     }
 
     fn transform_macro_expr(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Expr {
-        if self.options.macro_policy.reject.contains(macro_name) {
-            self.note_lossy(format!("macro {macro_name}! is rejected by self-host policy"));
-        }
-
         if self.options.macro_policy.lower_directly.contains(macro_name) {
             match macro_name {
+                "assert" | "debug_assert" => {
+                    if let Some(expr) = self.lower_assert_macro(macro_name, tokens) {
+                        return expr;
+                    }
+                    self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                }
+                "assert_eq" => {
+                    if let Some(expr) = self.lower_assert_eq_macro(tokens) {
+                        return expr;
+                    }
+                    self.note_lossy("assert_eq! could not be lowered directly".to_string());
+                }
                 "vec" => {
                     let args = self.parse_macro_args(tokens);
                     return Expr::Array(args, S);
@@ -1146,11 +1379,23 @@ impl RustTransformer {
                     }
                     self.note_lossy("matches! could not be lowered directly".to_string());
                 }
+                "panic" => {
+                    if let Some(expr) = self.lower_panic_macro(tokens) {
+                        return expr;
+                    }
+                    self.note_lossy("panic! could not be lowered directly".to_string());
+                }
                 "print" | "println" | "eprint" | "eprintln" => {
                     if let Some(expr) = self.lower_print_macro(macro_name, tokens) {
                         return expr;
                     }
                     self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                }
+                "unreachable" => {
+                    if let Some(expr) = self.lower_unreachable_macro(tokens) {
+                        return expr;
+                    }
+                    self.note_lossy("unreachable! could not be lowered directly".to_string());
                 }
                 "write" | "writeln" => {
                     if let Some(expr) = self.lower_write_macro(macro_name, tokens) {
@@ -1162,6 +1407,10 @@ impl RustTransformer {
             }
         }
 
+        if self.options.macro_policy.reject.contains(macro_name) {
+            self.note_lossy(format!("macro {macro_name}! is rejected by self-host policy"));
+        }
+
         let args = self.parse_macro_args(tokens);
         Expr::MacroCall {
             name: macro_name.to_string(),
@@ -1170,14 +1419,217 @@ impl RustTransformer {
         }
     }
 
+    fn panic_call(&self, message: Expr) -> Expr {
+        Expr::Call {
+            callee: Box::new(Expr::Ident("panic".to_string(), S)),
+            args: vec![CallArg {
+                name: None,
+                value: message,
+                span: S,
+            }],
+            span: S,
+        }
+    }
+
+    fn lower_assert_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        struct AssertMacroInput {
+            condition: syn::Expr,
+            tail: Option<(syn::token::Comma, proc_macro2::TokenStream)>,
+        }
+
+        impl syn::parse::Parse for AssertMacroInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                let condition = input.parse()?;
+                let tail = if input.is_empty() {
+                    None
+                } else {
+                    Some((input.parse()?, input.parse()?))
+                };
+                Ok(Self { condition, tail })
+            }
+        }
+
+        let parsed = syn::parse2::<AssertMacroInput>(tokens.clone()).ok()?;
+        let condition = self.transform_expr(&parsed.condition).ok()?;
+        let message = parsed
+            .tail
+            .as_ref()
+            .and_then(|(_, rest)| self.lower_format_macro(rest))
+            .or_else(|| {
+                parsed
+                    .tail
+                    .as_ref()
+                    .map(|(_, rest)| {
+                        let args = self.parse_macro_args(rest);
+                        match args.as_slice() {
+                            [] => Expr::String(format!("{macro_name}! failed"), S),
+                            [single] => single.clone(),
+                            _ => Expr::MacroCall {
+                                name: "format".to_string(),
+                                args,
+                                span: S,
+                            },
+                        }
+                    })
+            })
+            .unwrap_or_else(|| Expr::String(format!("{macro_name}! failed"), S));
+
+        Some(Expr::If {
+            condition: Box::new(Expr::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(condition),
+                span: S,
+            }),
+            then_branch: Block {
+                stmts: vec![Stmt::Expr(self.panic_call(message))],
+                span: S,
+            },
+            else_branch: None,
+            span: S,
+        })
+    }
+
+    fn lower_assert_eq_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        struct AssertEqMacroInput {
+            left: syn::Expr,
+            _comma: syn::token::Comma,
+            right: syn::Expr,
+            tail: Option<(syn::token::Comma, proc_macro2::TokenStream)>,
+        }
+
+        impl syn::parse::Parse for AssertEqMacroInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                let left = input.parse()?;
+                let _comma = input.parse()?;
+                let right = input.parse()?;
+                let tail = if input.is_empty() {
+                    None
+                } else {
+                    Some((input.parse()?, input.parse()?))
+                };
+                Ok(Self {
+                    left,
+                    _comma,
+                    right,
+                    tail,
+                })
+            }
+        }
+
+        let parsed = syn::parse2::<AssertEqMacroInput>(tokens.clone()).ok()?;
+        let left = self.transform_expr(&parsed.left).ok()?;
+        let right = self.transform_expr(&parsed.right).ok()?;
+        let message = parsed
+            .tail
+            .as_ref()
+            .and_then(|(_, rest)| self.lower_format_macro(rest))
+            .unwrap_or_else(|| Expr::String("assert_eq! failed".to_string(), S));
+
+        Some(Expr::If {
+            condition: Box::new(Expr::Binary {
+                left: Box::new(left),
+                op: BinaryOp::Ne,
+                right: Box::new(right),
+                span: S,
+            }),
+            then_branch: Block {
+                stmts: vec![Stmt::Expr(self.panic_call(message))],
+                span: S,
+            },
+            else_branch: None,
+            span: S,
+        })
+    }
+
+    fn lower_panic_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        let message = self
+            .lower_format_macro(tokens)
+            .or_else(|| {
+                let args = self.parse_macro_args(tokens);
+                match args.as_slice() {
+                    [] => Some(Expr::String("panic!".to_string(), S)),
+                    [single] => Some(single.clone()),
+                    _ => Some(Expr::MacroCall {
+                        name: "format".to_string(),
+                        args,
+                        span: S,
+                    }),
+                }
+            })?;
+        Some(self.panic_call(message))
+    }
+
+    fn lower_unreachable_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+        let message = self
+            .lower_format_macro(tokens)
+            .or_else(|| {
+                let args = self.parse_macro_args(tokens);
+                match args.as_slice() {
+                    [] => Some(Expr::String("unreachable!".to_string(), S)),
+                    [single] => Some(single.clone()),
+                    _ => Some(Expr::MacroCall {
+                        name: "format".to_string(),
+                        args,
+                        span: S,
+                    }),
+                }
+            })?;
+        Some(self.panic_call(message))
+    }
+
     fn lower_format_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
-        let args = self.parse_macro_args(tokens);
-        let fmt = match args.first()? {
-            Expr::String(fmt, _) => fmt.clone(),
+        struct FormatMacroInput {
+            format: syn::Expr,
+            args: syn::punctuated::Punctuated<FormatMacroArg, syn::token::Comma>,
+        }
+
+        enum FormatMacroArg {
+            Positional(syn::Expr),
+            Named(String, syn::Expr),
+        }
+
+        impl syn::parse::Parse for FormatMacroArg {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                if input.peek(syn::Ident) && input.peek2(syn::Token![=]) {
+                    let name: syn::Ident = input.parse()?;
+                    let _eq: syn::Token![=] = input.parse()?;
+                    let value: syn::Expr = input.parse()?;
+                    Ok(Self::Named(name.to_string(), value))
+                } else {
+                    Ok(Self::Positional(input.parse()?))
+                }
+            }
+        }
+
+        impl syn::parse::Parse for FormatMacroInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                let format = input.parse()?;
+                let args = if input.is_empty() {
+                    syn::punctuated::Punctuated::new()
+                } else {
+                    let _comma: syn::token::Comma = input.parse()?;
+                    syn::punctuated::Punctuated::parse_terminated(input)?
+                };
+                Ok(Self { format, args })
+            }
+        }
+
+        let parsed = syn::parse2::<FormatMacroInput>(tokens.clone()).ok()?;
+        let fmt = match self.transform_expr(&parsed.format).ok()? {
+            Expr::String(fmt, _) => fmt,
             _ => return None,
         };
-        let values = args.into_iter().skip(1).collect::<Vec<_>>();
-        let parts = self.interpolate_format_string(&fmt, values)?;
+        let mut positional = Vec::new();
+        let mut named = HashMap::new();
+        for arg in parsed.args {
+            match arg {
+                FormatMacroArg::Positional(value) => positional.push(self.transform_expr(&value).ok()?),
+                FormatMacroArg::Named(name, value) => {
+                    named.insert(name, self.transform_expr(&value).ok()?);
+                }
+            }
+        }
+        let parts = self.interpolate_format_string(&fmt, positional, &named)?;
         Some(match parts.as_slice() {
             [] => Expr::String(String::new(), S),
             [single] => single.clone(),
@@ -1291,11 +1743,16 @@ impl RustTransformer {
         })
     }
 
-    fn interpolate_format_string(&mut self, fmt: &str, values: Vec<Expr>) -> Option<Vec<Expr>> {
+    fn interpolate_format_string(
+        &mut self,
+        fmt: &str,
+        positional: Vec<Expr>,
+        named: &HashMap<String, Expr>,
+    ) -> Option<Vec<Expr>> {
         let mut parts = Vec::new();
         let mut literal = String::new();
         let mut chars = fmt.chars().peekable();
-        let mut values = values.into_iter();
+        let mut next_positional = 0usize;
 
         while let Some(ch) = chars.next() {
             if ch == '{' {
@@ -1309,18 +1766,40 @@ impl RustTransformer {
                     parts.push(Expr::String(std::mem::take(&mut literal), S));
                 }
 
+                let mut placeholder = String::new();
                 let mut closed = false;
                 for next in chars.by_ref() {
                     if next == '}' {
                         closed = true;
                         break;
                     }
+                    placeholder.push(next);
                 }
                 if !closed {
                     return None;
                 }
 
-                parts.push(values.next()?);
+                let selector = placeholder
+                    .split_once(':')
+                    .map(|(head, _)| head)
+                    .unwrap_or(placeholder.as_str())
+                    .trim();
+
+                let value = if selector.is_empty() {
+                    let value = positional.get(next_positional)?.clone();
+                    next_positional += 1;
+                    value
+                } else if selector.chars().all(|ch| ch.is_ascii_digit()) {
+                    positional.get(selector.parse::<usize>().ok()?)?.clone()
+                } else if let Some(value) = named.get(selector) {
+                    value.clone()
+                } else if let Ok(expr) = syn::parse_str::<syn::Expr>(selector) {
+                    self.transform_expr(&expr).ok()?
+                } else {
+                    return None;
+                };
+
+                parts.push(value);
             } else if ch == '}' {
                 if chars.peek() == Some(&'}') {
                     chars.next();
@@ -1335,10 +1814,6 @@ impl RustTransformer {
 
         if !literal.is_empty() {
             parts.push(Expr::String(literal, S));
-        }
-
-        if values.next().is_some() {
-            return None;
         }
 
         Some(parts)
@@ -1398,6 +1873,63 @@ fn member_name(member: &syn::Member) -> String {
     }
 }
 
+fn dyn_trait_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::TraitObject(obj) => obj.bounds.iter().find_map(|bound| {
+            if let syn::TypeParamBound::Trait(trait_bound) = bound {
+                trait_bound
+                    .path
+                    .segments
+                    .last()
+                    .map(|segment| segment.ident.to_string())
+            } else {
+                None
+            }
+        }),
+        syn::Type::Reference(reference) => dyn_trait_name(&reference.elem),
+        syn::Type::Ptr(pointer) => dyn_trait_name(&pointer.elem),
+        syn::Type::Array(array) => dyn_trait_name(&array.elem),
+        syn::Type::Slice(slice) => dyn_trait_name(&slice.elem),
+        syn::Type::Group(group) => dyn_trait_name(&group.elem),
+        syn::Type::Paren(paren) => dyn_trait_name(&paren.elem),
+        syn::Type::Tuple(tuple) => tuple.elems.iter().find_map(dyn_trait_name),
+        syn::Type::BareFn(function) => {
+            for input in &function.inputs {
+                if let Some(name) = dyn_trait_name(&input.ty) {
+                    return Some(name);
+                }
+            }
+            match &function.output {
+                syn::ReturnType::Default => None,
+                syn::ReturnType::Type(_, output) => dyn_trait_name(output),
+            }
+        }
+        syn::Type::Path(path) => {
+            for segment in &path.path.segments {
+                if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                    for arg in &arguments.args {
+                        match arg {
+                            syn::GenericArgument::Type(inner) => {
+                                if let Some(name) = dyn_trait_name(inner) {
+                                    return Some(name);
+                                }
+                            }
+                            syn::GenericArgument::AssocType(binding) => {
+                                if let Some(name) = dyn_trait_name(&binding.ty) {
+                                    return Some(name);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn binop(op: &syn::BinOp) -> BinaryOp {
     match op {
         syn::BinOp::Add(_)  => BinaryOp::Add,
@@ -1431,6 +1963,15 @@ mod tests {
         RustTransformer::new_selfhost()
             .transform(file)
             .expect("transform should succeed")
+    }
+
+    fn transform_with_diagnostics(source: &str) -> (Program, Vec<String>) {
+        let file = syn::parse_file(source).expect("rust should parse");
+        let mut transformer = RustTransformer::new_selfhost();
+        let program = transformer
+            .transform(file)
+            .expect("transform should succeed");
+        (program, transformer.diagnostics)
     }
 
     #[test]
@@ -1484,6 +2025,96 @@ mod tests {
     }
 
     #[test]
+    fn lowers_named_capture_format_macro() {
+        let program = transform_source(
+            r#"
+            fn demo(name: String) {
+                let msg = format!("Hello {name}");
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let { value: Some(Expr::FString(parts, _)), .. } = &func.body.stmts[0] else {
+            panic!("expected lowered fstring");
+        };
+
+        assert_eq!(parts.len(), 2);
+        assert!(matches!(&parts[0], Expr::String(s, _) if s == "Hello "));
+        assert!(matches!(&parts[1], Expr::Ident(name, _) if name == "name"));
+    }
+
+    #[test]
+    fn lowers_if_let_to_match_without_strict_diagnostic() {
+        let (program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo(value: Option<i32>) {
+                if let Some(found) = value {
+                    println!("{}", found);
+                } else {
+                    println!("missing");
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Match { arms, .. }) = &func.body.stmts[0] else {
+            panic!("expected if-let to lower to match");
+        };
+
+        assert_eq!(arms.len(), 2);
+        assert!(matches!(
+            &arms[0].pattern,
+            Pattern::Variant { variant, .. } if variant == "Some"
+        ));
+        assert!(matches!(&arms[1].pattern, Pattern::Wildcard(_)));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.contains("if-let condition simplified")));
+    }
+
+    #[test]
+    fn lowers_while_let_to_loop_and_match_without_strict_diagnostic() {
+        let (program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo(values: Option<i32>) {
+                while let Some(found) = values {
+                    println!("{}", found);
+                    break;
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Block(block, _)) = &func.body.stmts[0] else {
+            panic!("expected while-let to lower to loop block");
+        };
+        let Stmt::Loop { body, .. } = &block.stmts[0] else {
+            panic!("expected loop");
+        };
+        let Stmt::Expr(Expr::Match { arms, .. }) = &body.stmts[0] else {
+            panic!("expected loop body to contain match");
+        };
+
+        assert_eq!(arms.len(), 2);
+        assert!(matches!(&arms[1].body, Expr::Break(None, _)));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.contains("if-let condition simplified")));
+    }
+
+    #[test]
     fn preserves_use_alias_and_resolves_expression_path() {
         let program = transform_source(
             r#"
@@ -1512,6 +2143,59 @@ mod tests {
             callee.as_ref(),
             Expr::Ident(path, _) if path == "crate::diagnostics::SpanMapper::new"
         ));
+    }
+
+    #[test]
+    fn preserves_trait_definitions_as_items() {
+        let program = transform_source(
+            r#"
+            pub trait Renderer {
+                fn draw(&self, label: String) -> bool;
+                fn reset(&mut self) {
+                    println!("reset");
+                }
+            }
+            "#,
+        );
+
+        let Item::Trait(value) = &program.items[0] else {
+            panic!("expected trait item");
+        };
+
+        assert_eq!(value.name, "Renderer");
+        assert_eq!(value.methods.len(), 2);
+        assert_eq!(value.methods[0].name, "draw");
+        assert!(matches!(
+            value.methods[0].params.first(),
+            Some(Param { name, .. }) if name == "_self"
+        ));
+        assert!(matches!(
+            value.methods[0].return_type,
+            Some(Type::Named { ref name, .. }) if name == "Bool"
+        ));
+        assert!(value.methods[0].default_impl.is_none());
+        assert!(value.methods[1].default_impl.is_some());
+    }
+
+    #[test]
+    fn records_dyn_trait_lowering_diagnostics() {
+        let (program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn install(writer: Box<dyn std::fmt::Write>) {}
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        assert!(matches!(
+            function.params[0].ty,
+            Type::Impl { ref trait_name, .. } if trait_name == "Write"
+        ));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("dyn trait type lowered to impl Write")));
     }
 }
 

@@ -6,11 +6,14 @@ use crate::selfhost_report::{
 use chrono::Utc;
 use clap::Subcommand;
 use kain_core::ast::{Block, CallArg, ElseBranch, EnumVariantFields, Expr, Item, MatchArm, Pattern, Program, Stmt, Type, VariantPatternFields};
+use kain_core::parser::RESERVED_KEYWORDS;
 use kain_import::rust::RustSelfHostOptions;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+const SELFHOST_CONTEXTUAL_KEYWORDS: &[&str] = &["state", "weak", "compute"];
 
 #[derive(Subcommand, Debug)]
 pub enum SelfHostCommand {
@@ -792,23 +795,23 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()>
         Item::Struct(value) => write_struct(output, value, indent),
         Item::Enum(value) => write_enum(output, value, indent),
         Item::Mod(value) => {
-            write_line(output, indent, &format!("mod {}:", value.name))?;
+            write_line(output, indent, &format!("mod {}:", sanitize_identifier(&value.name)))?;
             if let Some(children) = &value.inline {
-                if children.is_empty() {
-                    write_line(output, indent + 1, "pass")?;
-                } else {
+                if !children.is_empty() {
                     for child in children {
                         write_item(output, child, indent + 1)?;
                     }
                 }
-            } else {
-                write_line(output, indent + 1, "pass")?;
             }
             writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render module: {}", err)))?;
             Ok(())
         }
         Item::TypeAlias(value) => {
-            write_line(output, indent, &format!("type {} = {}", value.name, type_to_string(&value.target)))?;
+            write_line(
+                output,
+                indent,
+                &format!("type {} = {}", sanitize_type_name(&value.name), type_to_string(&value.target)),
+            )?;
             writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render type alias: {}", err)))?;
             Ok(())
         }
@@ -816,24 +819,30 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()>
             write_line(
                 output,
                 indent,
-                &format!("const {}: {} = {}", value.name, type_to_string(&value.ty), expr_to_string(&value.value)),
+                &format!(
+                    "const {}: {} = {}",
+                    sanitize_identifier(&value.name),
+                    type_to_string(&value.ty),
+                    inline_expr_to_string(&value.value)
+                ),
             )?;
             writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render const: {}", err)))?;
             Ok(())
         }
         Item::Impl(value) => write_impl(output, value, indent),
         Item::Trait(value) => {
-            write_line(output, indent, &format!("trait {}:", value.name))?;
+            write_line(output, indent, &format!("trait {}:", sanitize_type_name(&value.name)))?;
             if value.methods.is_empty() {
-                write_line(output, indent + 1, "pass")?;
+                write_line(output, indent + 1, "fn __selfhost_empty_trait__():")?;
+                write_line(output, indent + 2, "let __selfhost_empty = none")?;
             } else {
                 for method in &value.methods {
-                    let mut signature = format!("fn {}(", method.name);
+                    let mut signature = format!("fn {}(", sanitize_identifier(&method.name));
                     for (index, param) in method.params.iter().enumerate() {
                         if index > 0 {
                             signature.push_str(", ");
                         }
-                        signature.push_str(&format!("{}: {}", param.name, type_to_string(&param.ty)));
+                        signature.push_str(&format!("{}: {}", sanitize_identifier(&param.name), type_to_string(&param.ty)));
                     }
                     signature.push(')');
                     if let Some(return_type) = &method.return_type {
@@ -844,7 +853,7 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()>
                     if let Some(default_impl) = &method.default_impl {
                         write_block(output, default_impl, indent + 2)?;
                     } else {
-                        write_line(output, indent + 2, "pass")?;
+                        write_line(output, indent + 2, "let __selfhost_empty = none")?;
                     }
                 }
             }
@@ -858,12 +867,12 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()>
 fn write_function(output: &mut String, function: &kain_core::ast::Function, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
 
-    let mut signature = format!("fn {}(", function.name);
+    let mut signature = format!("fn {}(", sanitize_identifier(&function.name));
     for (index, param) in function.params.iter().enumerate() {
         if index > 0 {
             signature.push_str(", ");
         }
-        signature.push_str(&format!("{}: {}", param.name, type_to_string(&param.ty)));
+        signature.push_str(&format!("{}: {}", sanitize_identifier(&param.name), type_to_string(&param.ty)));
     }
     signature.push(')');
     if let Some(return_type) = &function.return_type {
@@ -879,14 +888,14 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
 fn write_struct(output: &mut String, value: &kain_core::ast::Struct, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
 
-    write_line(output, indent, &format!("struct {}:", value.name))?;
+    write_line(output, indent, &format!("struct {}:", sanitize_type_name(&value.name)))?;
     if value.fields.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "__selfhost_placeholder: Bool = false")?;
     } else {
         for field in &value.fields {
-            let mut line = format!("{}: {}", field.name, type_to_string(&field.ty));
+            let mut line = format!("{}: {}", sanitize_identifier(&field.name), type_to_string(&field.ty));
             if let Some(default) = &field.default {
-                line.push_str(&format!(" = {}", expr_to_string(default)));
+                line.push_str(&format!(" = {}", inline_expr_to_string(default)));
             }
             write_line(output, indent + 1, &line)?;
         }
@@ -898,24 +907,24 @@ fn write_struct(output: &mut String, value: &kain_core::ast::Struct, indent: usi
 fn write_enum(output: &mut String, value: &kain_core::ast::Enum, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
 
-    write_line(output, indent, &format!("enum {}:", value.name))?;
+    write_line(output, indent, &format!("enum {}:", sanitize_type_name(&value.name)))?;
     if value.variants.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "__SelfHostEmpty")?;
     } else {
         for variant in &value.variants {
             let line = match &variant.fields {
-                kain_core::ast::VariantFields::Unit => variant.name.clone(),
+                kain_core::ast::VariantFields::Unit => sanitize_identifier(&variant.name),
                 kain_core::ast::VariantFields::Tuple(types) => {
                     let values = types.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
-                    format!("{}({values})", variant.name)
+                    format!("{}({values})", sanitize_identifier(&variant.name))
                 }
                 kain_core::ast::VariantFields::Struct(fields) => {
                     let values = fields
                         .iter()
-                        .map(|field| format!("{}: {}", field.name, type_to_string(&field.ty)))
+                        .map(|field| format!("{}: {}", sanitize_identifier(&field.name), type_to_string(&field.ty)))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    format!("{} {{ {values} }}", variant.name)
+                    format!("{} {{ {values} }}", sanitize_identifier(&variant.name))
                 }
             };
             write_line(output, indent + 1, &line)?;
@@ -929,12 +938,13 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
     use std::fmt::Write;
 
     let header = match &value.trait_name {
-        Some(trait_name) => format!("impl {} for {}:", trait_name, type_to_string(&value.target_type)),
+        Some(trait_name) => format!("impl {} for {}:", sanitize_path_to_ident(trait_name), type_to_string(&value.target_type)),
         None => format!("impl {}:", type_to_string(&value.target_type)),
     };
     write_line(output, indent, &header)?;
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "fn __selfhost_empty_impl__():")?;
+        write_line(output, indent + 2, "let __selfhost_empty = none")?;
     } else {
         for method in &value.methods {
             write_function(output, method, indent + 1)?;
@@ -946,7 +956,7 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
 
 fn write_block(output: &mut String, block: &Block, indent: usize) -> KainResult<()> {
     if block.stmts.is_empty() {
-        write_line(output, indent, "pass")?;
+        write_line(output, indent, "let __selfhost_empty = none")?;
         return Ok(());
     }
     for stmt in &block.stmts {
@@ -963,27 +973,41 @@ fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> KainResult<()>
                 line.push_str(&format!(": {}", type_to_string(ty)));
             }
             if let Some(value) = value {
-                line.push_str(&format!(" = {}", expr_to_string(value)));
+                line.push_str(" = ");
+                write_expr_prefixed(output, &line, value, indent)
+            } else {
+                write_line(output, indent, &line)
             }
-            write_line(output, indent, &line)
         }
-        Stmt::Expr(expr) => write_line(output, indent, &expr_to_string(expr)),
+        Stmt::Expr(expr) => write_expr_prefixed(output, "", expr, indent),
         Stmt::Return(value, _) => {
             if let Some(value) = value {
-                write_line(output, indent, &format!("return {}", expr_to_string(value)))
+                write_expr_prefixed(output, "return ", value, indent)
             } else {
                 write_line(output, indent, "return")
             }
         }
         Stmt::Break(value, _) => {
             if let Some(value) = value {
-                write_line(output, indent, &format!("break {}", expr_to_string(value)))
+                write_expr_prefixed(output, "break ", value, indent)
             } else {
                 write_line(output, indent, "break")
             }
         }
-        Stmt::Item(item) => write_item(output, item, indent),
-        _ => write_line(output, indent, "pass"),
+        Stmt::Continue(_) => write_line(output, indent, "continue"),
+        Stmt::For { binding, iter, body, .. } => {
+            write_line(output, indent, &format!("for {} in {}:", for_binding_name(binding), control_head_expr_to_string(iter)))?;
+            write_block(output, body, indent + 1)
+        }
+        Stmt::While { condition, body, .. } => {
+            write_line(output, indent, &format!("while {}:", inline_expr_to_string(condition)))?;
+            write_block(output, body, indent + 1)
+        }
+        Stmt::Loop { body, .. } => {
+            write_line(output, indent, "loop:")?;
+            write_block(output, body, indent + 1)
+        }
+        Stmt::Item(item) => write_nested_item_stub(output, item, indent),
     }
 }
 
@@ -999,72 +1023,256 @@ fn pattern_to_string(pattern: &Pattern) -> String {
         Pattern::Wildcard(_) => "_".to_string(),
         Pattern::Binding { name, mutable, .. } => {
             if *mutable {
-                format!("mut {name}")
+                format!("mut {}", sanitize_identifier(name))
             } else {
-                name.clone()
+                sanitize_identifier(name)
             }
         }
-        Pattern::Literal(expr) => expr_to_string(expr),
-        _ => "_".to_string(),
+        Pattern::Literal(expr) => inline_expr_to_string(expr),
+        Pattern::Tuple(values, _) => format!("({})", values.iter().map(pattern_to_string).collect::<Vec<_>>().join(", ")),
+        Pattern::Variant { enum_name, variant, fields, .. } => {
+            if enum_name.is_none() && matches!(fields, VariantPatternFields::Struct(_)) {
+                return "_".to_string();
+            }
+            let head = match enum_name {
+                Some(name) => format!("{}::{}", sanitize_path_to_ident(name), sanitize_identifier(variant)),
+                None => sanitize_identifier(variant),
+            };
+            match fields {
+                VariantPatternFields::Unit => head,
+                VariantPatternFields::Tuple(values) => {
+                    format!("{}({})", head, values.iter().map(pattern_to_string).collect::<Vec<_>>().join(", "))
+                }
+                VariantPatternFields::Struct(fields) => {
+                    format!(
+                        "{} {{ {} }}",
+                        head,
+                        fields
+                            .iter()
+                            .map(|(name, value)| format!("{}: {}", sanitize_identifier(name), pattern_to_string(value)))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            }
+        }
+        Pattern::Slice { patterns, rest, .. } => {
+            let mut values = patterns.iter().map(pattern_to_string).collect::<Vec<_>>();
+            if let Some(rest) = rest {
+                values.push(format!("{} @ ..", sanitize_identifier(rest)));
+            }
+            format!("[{}]", values.join(", "))
+        }
+        Pattern::Or(values, _) => values.first().map(pattern_to_string).unwrap_or_else(|| "_".to_string()),
+        Pattern::Range { .. } => "_".to_string(),
+        Pattern::Struct { .. } => "_".to_string(),
     }
 }
 
-fn expr_to_string(expr: &Expr) -> String {
+fn write_nested_item_stub(output: &mut String, item: &Item, indent: usize) -> KainResult<()> {
+    let kind = match item {
+        Item::Function(_) => "function",
+        Item::Struct(_) => "struct",
+        Item::Enum(_) => "enum",
+        Item::Mod(_) => "mod",
+        Item::TypeAlias(_) => "type",
+        Item::Const(_) => "const",
+        Item::Impl(_) => "impl",
+        Item::Trait(_) => "trait",
+        Item::Use(_) => "use",
+        Item::Test(_) => "test",
+        _ => "item",
+    };
+    write_line(
+        output,
+        indent,
+        &format!("let __selfhost_nested_{} = none", sanitize_identifier(kind)),
+    )
+}
+
+fn write_expr_prefixed(output: &mut String, prefix: &str, expr: &Expr, indent: usize) -> KainResult<()> {
+    match expr {
+        Expr::If { condition, then_branch, else_branch, .. } => {
+            write_line(output, indent, &format!("{}if {}:", prefix, control_head_expr_to_string(condition)))?;
+            write_block(output, then_branch, indent + 1)?;
+            if let Some(else_branch) = else_branch {
+                write_else_branch(output, else_branch, indent)?;
+            }
+            Ok(())
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            write_line(output, indent, &format!("{}match {}:", prefix, control_head_expr_to_string(scrutinee)))?;
+            for arm in arms {
+                write_match_arm(output, arm, indent + 1)?;
+            }
+            Ok(())
+        }
+        Expr::Block(block, _) if prefix.is_empty() => write_block(output, block, indent),
+        _ => write_line(output, indent, &format!("{}{}", prefix, inline_expr_to_string(expr))),
+    }
+}
+
+fn write_else_branch(output: &mut String, else_branch: &ElseBranch, indent: usize) -> KainResult<()> {
+    match else_branch {
+        ElseBranch::Else(block) => {
+            write_line(output, indent, "else:")?;
+            write_block(output, block, indent + 1)
+        }
+        ElseBranch::ElseIf(condition, then_branch, next) => {
+            write_line(output, indent, &format!("elif {}:", control_head_expr_to_string(condition)))?;
+            write_block(output, then_branch, indent + 1)?;
+            if let Some(next) = next {
+                write_else_branch(output, next, indent)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+fn write_match_arm(output: &mut String, arm: &MatchArm, indent: usize) -> KainResult<()> {
+    write_line(output, indent, &format!("{} =>", pattern_to_string(&arm.pattern)))?;
+    if let Some(guard) = &arm.guard {
+        write_line(output, indent + 1, &format!("if {}:", inline_expr_to_string(guard)))?;
+        write_expr_prefixed(output, "", &arm.body, indent + 2)?;
+        write_line(output, indent + 1, "else:")?;
+        write_line(output, indent + 2, "none")?;
+        return Ok(());
+    }
+    write_expr_prefixed(output, "", &arm.body, indent + 1)
+}
+
+fn inline_expr_to_string(expr: &Expr) -> String {
     match expr {
         Expr::Int(value, _) => value.to_string(),
         Expr::Float(value, _) => value.to_string(),
         Expr::String(value, _) => format!("{:?}", value),
+        Expr::FString(parts, _) => format_fstring(parts),
         Expr::Bool(value, _) => value.to_string(),
         Expr::None(_) => "none".to_string(),
-        Expr::Ident(value, _) => value.clone(),
-        Expr::Array(values, _) => format!("[{}]", values.iter().map(expr_to_string).collect::<Vec<_>>().join(", ")),
-        Expr::Tuple(values, _) => format!("({})", values.iter().map(expr_to_string).collect::<Vec<_>>().join(", ")),
-        Expr::MacroCall { name, args, .. } => format!("{}!({})", name, args.iter().map(expr_to_string).collect::<Vec<_>>().join(", ")),
+        Expr::Ident(value, _) => sanitize_expr_path(value),
+        Expr::MacroCall { name, args, .. } => format!(
+            "{}!({})",
+            sanitize_expr_path(name),
+            args.iter().map(inline_expr_to_string).collect::<Vec<_>>().join(", ")
+        ),
+        Expr::Binary { left, op, right, .. } => format!(
+            "({} {} {})",
+            inline_expr_to_string(left),
+            binary_op_to_string(*op),
+            inline_expr_to_string(right)
+        ),
+        Expr::Unary { op, operand, .. } => format!("({}{})", unary_op_to_string(*op), inline_expr_to_string(operand)),
         Expr::Call { callee, args, .. } => format!(
             "{}({})",
-            expr_to_string(callee),
+            inline_expr_to_string(callee),
             args.iter().map(call_arg_to_string).collect::<Vec<_>>().join(", ")
         ),
         Expr::MethodCall { receiver, method, args, .. } => format!(
             "{}.{}({})",
-            expr_to_string(receiver),
-            method,
+            inline_expr_to_string(receiver),
+            sanitize_identifier(method),
             args.iter().map(call_arg_to_string).collect::<Vec<_>>().join(", ")
         ),
-        Expr::Field { object, field, .. } => format!("{}.{}", expr_to_string(object), field),
-        Expr::Binary { left, right, .. } => format!("{} #op {}", expr_to_string(left), expr_to_string(right)),
-        Expr::Unary { operand, .. } => format!("#unary {}", expr_to_string(operand)),
-        Expr::Struct { name, fields, .. } => format!(
-            "{} {{ {} }}",
-            name,
-            fields
-                .iter()
-                .map(|(field, value)| format!("{}: {}", field, expr_to_string(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        Expr::Match { .. } => "#match".to_string(),
-        Expr::If { .. } => "#if".to_string(),
-        Expr::Range { .. } => "#range".to_string(),
-        Expr::Cast { value, target, .. } => format!("{} as {}", expr_to_string(value), type_to_string(target)),
-        Expr::Block(_, _) => "#block".to_string(),
+        Expr::Field { object, field, .. } => format!("{}.{}", inline_expr_to_string(object), sanitize_identifier(field)),
+        Expr::Index { object, index, .. } => {
+            if let Expr::Range { start, end, .. } = index.as_ref() {
+                let start = start.as_ref().map(|value| inline_expr_to_string(value)).unwrap_or_else(|| "none".to_string());
+                let end = end.as_ref().map(|value| inline_expr_to_string(value)).unwrap_or_else(|| "none".to_string());
+                format!("slice({}, {}, {})", inline_expr_to_string(object), start, end)
+            } else {
+                format!("{}[{}]", inline_expr_to_string(object), inline_expr_to_string(index))
+            }
+        }
+        Expr::Assign { target, value, .. } => format!("{} = {}", inline_expr_to_string(target), inline_expr_to_string(value)),
+        Expr::Struct { name, fields, .. } => render_aggregate_init(sanitize_type_name(name), true, fields),
+        Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => render_aggregate_init(type_to_string(ty), *zero_fill_rest, fields),
+        Expr::EnumVariant { enum_name, variant, fields, .. } => {
+            let head = format!("{}::{}", sanitize_path_to_ident(enum_name), sanitize_identifier(variant));
+            match fields {
+                EnumVariantFields::Unit => head,
+                EnumVariantFields::Tuple(values) => format!("{}({})", head, values.iter().map(inline_expr_to_string).collect::<Vec<_>>().join(", ")),
+                EnumVariantFields::Struct(fields) => format!(
+                    "{} {{ {} }}",
+                    head,
+                    fields
+                        .iter()
+                        .map(|(name, value)| format!("{}: {}", sanitize_identifier(name), inline_expr_to_string(value)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            }
+        }
+        Expr::Array(values, _) => format!("[{}]", values.iter().map(inline_expr_to_string).collect::<Vec<_>>().join(", ")),
+        Expr::Tuple(values, _) => format!("({})", values.iter().map(inline_expr_to_string).collect::<Vec<_>>().join(", ")),
+        Expr::Range { start, end, inclusive, .. } => render_range_expr(start.as_deref(), end.as_deref(), *inclusive),
+        Expr::If { condition, then_branch, else_branch, .. } => {
+            if let (Some(then_expr), Some(else_branch)) = (block_inline_expr(then_branch), else_branch.as_deref()) {
+                if let Some(else_expr) = else_branch_inline_expr(else_branch) {
+                    return format!(
+                        "if {}: {} else: {}",
+                        inline_expr_to_string(condition),
+                        inline_expr_to_string(then_expr),
+                        inline_expr_to_string(else_expr)
+                    );
+                }
+            }
+            "none".to_string()
+        }
+        Expr::Lambda { .. } => "none".to_string(),
+        Expr::Ref { mutable, value, .. } => {
+            if *mutable { format!("&mut {}", inline_expr_to_string(value)) } else { format!("&{}", inline_expr_to_string(value)) }
+        }
+        Expr::AddrOf { value, .. } => format!("addr_of({})", inline_expr_to_string(value)),
+        Expr::Deref(value, _) => format!("*{}", inline_expr_to_string(value)),
+        Expr::PtrOffset { pointer, offset, .. } => format!("ptr_offset({}, {})", inline_expr_to_string(pointer), inline_expr_to_string(offset)),
+        Expr::MemLoad { pointer, .. } => format!("mem_load({})", inline_expr_to_string(pointer)),
+        Expr::MemStore { pointer, value, .. } => format!("mem_store({}, {})", inline_expr_to_string(pointer), inline_expr_to_string(value)),
+        Expr::SizeOfType { target, .. } => format!("sizeof_type({:?})", type_to_string(target)),
+        Expr::AlignOfType { target, .. } => format!("alignof_type({:?})", type_to_string(target)),
+        Expr::Alloca { ty, .. } => format!("alloca({:?})", type_to_string(ty)),
+        Expr::Uninit { ty, .. } => format!("uninit({:?})", type_to_string(ty)),
+        Expr::Alloc { size, ty, zeroed, .. } => match ty {
+            Some(ty) => format!("alloc_mem({}, {:?}, {})", inline_expr_to_string(size), type_to_string(ty), zeroed),
+            None => format!("alloc_mem({}, none, {})", inline_expr_to_string(size), zeroed),
+        },
+        Expr::Realloc { pointer, size, ty, zeroed_new, .. } => match ty {
+            Some(ty) => format!(
+                "realloc_mem({}, {}, {:?}, {})",
+                inline_expr_to_string(pointer),
+                inline_expr_to_string(size),
+                type_to_string(ty),
+                zeroed_new
+            ),
+            None => format!(
+                "realloc_mem({}, {}, none, {})",
+                inline_expr_to_string(pointer),
+                inline_expr_to_string(size),
+                zeroed_new
+            ),
+        },
+        Expr::Cast { value, target, .. } => format!("{} as {}", inline_expr_to_string(value), type_to_string(target)),
+        Expr::Try(value, _) => format!("{}?", inline_expr_to_string(value)),
+        Expr::Await(value, _) => format!("await {}", inline_expr_to_string(value)),
+        Expr::Comptime(value, _) => format!("comptime {}", inline_expr_to_string(value)),
+        Expr::Block(block, _) => block_inline_expr(block).map(inline_expr_to_string).unwrap_or_else(|| "none".to_string()),
+        Expr::Paren(value, _) => format!("({})", inline_expr_to_string(value)),
         Expr::Return(value, _) => match value {
-            Some(value) => format!("return {}", expr_to_string(value)),
+            Some(value) => format!("return {}", inline_expr_to_string(value)),
             None => "return".to_string(),
         },
         Expr::Break(value, _) => match value {
-            Some(value) => format!("break {}", expr_to_string(value)),
+            Some(value) => format!("break {}", inline_expr_to_string(value)),
             None => "break".to_string(),
         },
         Expr::Continue(_) => "continue".to_string(),
-        _ => "#expr".to_string(),
+        _ => "none".to_string(),
     }
 }
 
 fn call_arg_to_string(arg: &CallArg) -> String {
     match &arg.name {
-        Some(name) => format!("{}: {}", name, expr_to_string(&arg.value)),
-        None => expr_to_string(&arg.value),
+        Some(name) => format!("{} = {}", sanitize_identifier(name), inline_expr_to_string(&arg.value)),
+        None => inline_expr_to_string(&arg.value),
     }
 }
 
@@ -1072,14 +1280,14 @@ fn type_to_string(ty: &Type) -> String {
     match ty {
         Type::Named { name, generics, .. } => {
             if generics.is_empty() {
-                name.clone()
+                sanitize_type_path(name)
             } else {
-                format!("{}<{}>", name, generics.iter().map(type_to_string).collect::<Vec<_>>().join(", "))
+                format!("{}<{}>", sanitize_type_path(name), generics.iter().map(type_to_string).collect::<Vec<_>>().join(", "))
             }
         }
         Type::Tuple(values, _) => format!("({})", values.iter().map(type_to_string).collect::<Vec<_>>().join(", ")),
-        Type::Array(inner, _, _) => format!("Array<{}>", type_to_string(inner)),
-        Type::Slice(inner, _) => format!("Slice<{}>", type_to_string(inner)),
+        Type::Array(inner, len, _) => format!("[{}; {}]", type_to_string(inner), len),
+        Type::Slice(inner, _) => format!("[{}]", type_to_string(inner)),
         Type::Ref { mutable, inner, .. } => {
             if *mutable {
                 format!("&mut {}", type_to_string(inner))
@@ -1089,9 +1297,9 @@ fn type_to_string(ty: &Type) -> String {
         }
         Type::Ptr { mutable, inner, .. } => {
             if *mutable {
-                format!("PtrMut<{}>", type_to_string(inner))
+                format!("ptr_mut<{}>", type_to_string(inner))
             } else {
-                format!("Ptr<{}>", type_to_string(inner))
+                format!("ptr<{}>", type_to_string(inner))
             }
         }
         Type::Function { params, return_type, .. } => format!(
@@ -1106,11 +1314,218 @@ fn type_to_string(ty: &Type) -> String {
         Type::Unit(_) => "()".to_string(),
         Type::Impl { trait_name, generics, .. } => {
             if generics.is_empty() {
-                format!("impl {}", trait_name)
+                format!("impl {}", sanitize_path_to_ident(trait_name))
             } else {
-                format!("impl {}<{}>", trait_name, generics.iter().map(type_to_string).collect::<Vec<_>>().join(", "))
+                format!("impl {}<{}>", sanitize_path_to_ident(trait_name), generics.iter().map(type_to_string).collect::<Vec<_>>().join(", "))
             }
         }
+    }
+}
+
+fn sanitize_identifier(name: &str) -> String {
+    let mut sanitized = name
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
+        .collect::<String>();
+    if sanitized.is_empty() {
+        sanitized.push('_');
+    }
+    if sanitized.chars().next().is_some_and(|ch| ch.is_ascii_digit()) {
+        sanitized.insert(0, '_');
+    }
+    if RESERVED_KEYWORDS.contains(&sanitized.as_str()) || SELFHOST_CONTEXTUAL_KEYWORDS.contains(&sanitized.as_str()) {
+        sanitized.push('_');
+    }
+    sanitized
+}
+
+fn sanitize_type_name(name: &str) -> String {
+    sanitize_identifier(name)
+}
+
+fn sanitize_type_path(path: &str) -> String {
+    path.split("::")
+        .map(sanitize_identifier)
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn sanitize_path_to_ident(path: &str) -> String {
+    path.split("::")
+        .map(sanitize_identifier)
+        .collect::<Vec<_>>()
+        .join("__")
+}
+
+fn sanitize_expr_path(path: &str) -> String {
+    if path.contains("::") {
+        sanitize_path_to_ident(path)
+    } else {
+        sanitize_identifier(path)
+    }
+}
+
+fn control_head_expr_to_string(expr: &Expr) -> String {
+    let rendered = inline_expr_to_string(expr);
+    if matches!(expr, Expr::Try(_, _) | Expr::If { .. } | Expr::Match { .. }) {
+        format!("({rendered})")
+    } else {
+        rendered
+    }
+}
+
+fn block_inline_expr(block: &Block) -> Option<&Expr> {
+    if block.stmts.len() != 1 {
+        return None;
+    }
+    match &block.stmts[0] {
+        Stmt::Expr(expr) => Some(expr),
+        Stmt::Return(Some(expr), _) => Some(expr),
+        _ => None,
+    }
+}
+
+fn else_branch_inline_expr(branch: &ElseBranch) -> Option<&Expr> {
+    match branch {
+        ElseBranch::Else(block) => block_inline_expr(block),
+        ElseBranch::ElseIf(_, _, _) => None,
+    }
+}
+
+fn render_aggregate_init(type_name: String, zero_fill_rest: bool, fields: &[(String, Expr)]) -> String {
+    let mut args = vec![format!("{:?}", type_name)];
+    args.extend(
+        fields
+            .iter()
+            .map(|(field, value)| format!("{} = {}", sanitize_identifier(field), inline_expr_to_string(value))),
+    );
+    if !zero_fill_rest {
+        args.push("false".to_string());
+    }
+    format!("aggregate_init({})", args.join(", "))
+}
+
+fn render_range_expr(start: Option<&Expr>, end: Option<&Expr>, inclusive: bool) -> String {
+    let start = start.map(inline_expr_to_string).unwrap_or_else(|| "0".to_string());
+    let end = end.map(inline_expr_to_string).unwrap_or_else(|| "0".to_string());
+    if inclusive {
+        format!("range({}, ({} + 1))", start, end)
+    } else {
+        format!("range({}, {})", start, end)
+    }
+}
+
+fn for_binding_name(pattern: &Pattern) -> String {
+    match pattern {
+        Pattern::Binding { name, .. } => sanitize_identifier(name),
+        _ => "_item".to_string(),
+    }
+}
+
+fn format_fstring(parts: &[Expr]) -> String {
+    if !parts.iter().all(is_safe_fstring_part) {
+        return render_lossy_interpolated_string(parts);
+    }
+
+    let mut rendered = String::from("f\"");
+    for part in parts {
+        match part {
+            Expr::String(value, _) => push_string_literal_fragment(&mut rendered, value),
+            expr => {
+                rendered.push('{');
+                rendered.push_str(&inline_expr_to_string(expr));
+                rendered.push('}');
+            }
+        }
+    }
+    rendered.push('"');
+    rendered
+}
+
+fn is_safe_fstring_part(part: &Expr) -> bool {
+    match part {
+        Expr::String(value, _) => !value.contains('{') && !value.contains('}'),
+        expr => {
+            let rendered = inline_expr_to_string(expr);
+            !rendered.contains('"')
+                && !rendered.contains('\\')
+                && !rendered.contains('{')
+                && !rendered.contains('}')
+                && !rendered.contains('\n')
+                && !rendered.contains('\r')
+        }
+    }
+}
+
+fn render_lossy_interpolated_string(parts: &[Expr]) -> String {
+    let mut rendered = String::new();
+    for part in parts {
+        match part {
+            Expr::String(value, _) => rendered.push_str(value),
+            expr => {
+                rendered.push('{');
+                rendered.push_str(&inline_expr_to_string(expr));
+                rendered.push('}');
+            }
+        }
+    }
+    format!("{rendered:?}")
+}
+
+fn push_string_literal_fragment(output: &mut String, value: &str) {
+    for ch in value.chars() {
+        match ch {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            other => output.push(other),
+        }
+    }
+}
+
+fn binary_op_to_string(op: kain_core::ast::BinaryOp) -> &'static str {
+    use kain_core::ast::BinaryOp::*;
+    match op {
+        Add => "+",
+        Sub => "-",
+        Mul => "*",
+        Div => "/",
+        Mod => "%",
+        Pow => "**",
+        Eq => "==",
+        Ne => "!=",
+        Lt => "<",
+        Gt => ">",
+        Le => "<=",
+        Ge => ">=",
+        And => "&&",
+        Or => "||",
+        BitAnd => "&",
+        BitOr => "|",
+        BitXor => "^",
+        Shl => "<<",
+        Shr => ">>",
+        Assign => "=",
+        AddAssign => "+=",
+        SubAssign => "-=",
+        MulAssign => "*=",
+        DivAssign => "/=",
+        Range => "..",
+        RangeInclusive => "..=",
+    }
+}
+
+fn unary_op_to_string(op: kain_core::ast::UnaryOp) -> &'static str {
+    use kain_core::ast::UnaryOp::*;
+    match op {
+        Neg => "-",
+        Not => "!",
+        BitNot => "~",
+        Ref => "&",
+        RefMut => "&mut ",
+        Deref => "*",
     }
 }
 
