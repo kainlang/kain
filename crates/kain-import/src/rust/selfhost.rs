@@ -7,7 +7,8 @@ use super::{parser, RustTransformer};
 use crate::common::language_schema::KainLanguageSchema;
 use crate::{ImportError, Result};
 use kain_core::ast::Program;
-use std::collections::BTreeMap;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,8 @@ pub struct RustSelfHostOptions {
     pub include_tests: bool,
     pub allow_external_mod_decls: bool,
     pub schema: KainLanguageSchema,
+    pub allowlist: SelfHostAllowlist,
+    pub module_map: Option<SelfHostModuleMap>,
 }
 
 impl Default for RustSelfHostOptions {
@@ -23,7 +26,32 @@ impl Default for RustSelfHostOptions {
             include_tests: false,
             allow_external_mod_decls: true,
             schema: KainLanguageSchema::bootstrap_core_schema(),
+            allowlist: SelfHostAllowlist::default(),
+            module_map: None,
         }
+    }
+}
+
+impl RustSelfHostOptions {
+    pub fn from_inventory_dir(inventory_dir: &Path) -> Result<Self> {
+        let allowlist_path = inventory_dir.join("selfhost_allowlist.json");
+        let module_map_path = inventory_dir.join("module_map.json");
+        let allowlist: SelfHostAllowlist = serde_json::from_str(
+            &std::fs::read_to_string(&allowlist_path).map_err(ImportError::IoError)?,
+        )
+        .map_err(|e| ImportError::TransformError(format!("failed to parse {}: {e}", allowlist_path.display())))?;
+        let module_map: SelfHostModuleMap = serde_json::from_str(
+            &std::fs::read_to_string(&module_map_path).map_err(ImportError::IoError)?,
+        )
+        .map_err(|e| ImportError::TransformError(format!("failed to parse {}: {e}", module_map_path.display())))?;
+
+        Ok(Self {
+            allow_external_mod_decls: true,
+            schema: KainLanguageSchema::bootstrap_core_schema(),
+            allowlist,
+            module_map: Some(module_map),
+            ..Self::default()
+        })
     }
 }
 
@@ -44,7 +72,15 @@ impl RustCrateGraph {
     pub fn discover(crate_root: &Path, options: &RustSelfHostOptions) -> Result<Self> {
         let mut modules = Vec::new();
         let mut entry_points = BTreeMap::new();
-        collect_modules(crate_root, crate_root, options, &mut modules, &mut entry_points)?;
+        if let Some(module_map) = &options.module_map {
+            if let Some(crate_spec) = module_map.find_crate(crate_root) {
+                collect_modules_from_spec(crate_root, crate_spec, options, &mut modules, &mut entry_points)?;
+            } else {
+                collect_modules(crate_root, crate_root, options, &mut modules, &mut entry_points)?;
+            }
+        } else {
+            collect_modules(crate_root, crate_root, options, &mut modules, &mut entry_points)?;
+        }
         modules.sort_by(|a, b| a.file_path.cmp(&b.file_path));
         Ok(Self {
             crate_root: crate_root.to_path_buf(),
@@ -62,7 +98,7 @@ pub fn import_rust_selfhost_dir(crate_root: &Path, options: &RustSelfHostOptions
     for module in &graph.modules {
         let source = std::fs::read_to_string(&module.file_path).map_err(ImportError::IoError)?;
         let file = parser::parse_rust(&source, &module.file_path)?;
-        let mut tx = RustTransformer::new_selfhost();
+        let mut tx = RustTransformer::with_options(options.transform_options());
         let program = tx.transform(file)?;
         diagnostics.extend(
             tx.diagnostics
@@ -122,6 +158,57 @@ fn collect_modules(
     Ok(())
 }
 
+fn collect_modules_from_spec(
+    crate_root: &Path,
+    spec: &SelfHostCrateSpec,
+    options: &RustSelfHostOptions,
+    modules: &mut Vec<RustModuleNode>,
+    entry_points: &mut BTreeMap<String, PathBuf>,
+) -> Result<()> {
+    let src_dir = crate_root.join("src");
+    let root_path = crate_root.join(normalize_rel_path(&spec.root));
+    if root_path.exists() {
+        entry_points.insert("crate".to_string(), root_path.clone());
+        modules.push(RustModuleNode {
+            module_name: "crate".to_string(),
+            file_path: root_path,
+        });
+    }
+
+    for module in &spec.root_modules {
+        let direct = src_dir.join(format!("{module}.rs"));
+        let nested = src_dir.join(module).join("mod.rs");
+        let file_path = if direct.exists() { direct } else { nested };
+        if file_path.exists() {
+            modules.push(RustModuleNode {
+                module_name: module.clone(),
+                file_path,
+            });
+        }
+    }
+
+    for (owner, children) in &spec.nested_modules {
+        let owner_dir = owner.trim_end_matches("mod.rs").trim_end_matches('/').trim_end_matches('\\');
+        let owner_path = src_dir.join(normalize_rel_path(owner_dir));
+        for child in children {
+            let direct = owner_path.join(format!("{child}.rs"));
+            let nested = owner_path.join(child).join("mod.rs");
+            let file_path = if direct.exists() { direct } else { nested };
+            if file_path.exists() {
+                modules.push(RustModuleNode {
+                    module_name: format!("{owner_dir}::{child}"),
+                    file_path,
+                });
+            }
+        }
+    }
+
+    if modules.is_empty() {
+        collect_modules(crate_root, crate_root, options, modules, entry_points)?;
+    }
+    Ok(())
+}
+
 fn module_name_for(root: &Path, file: &Path) -> String {
     let relative = file.strip_prefix(root).unwrap_or(file);
     let mut parts = relative
@@ -152,4 +239,59 @@ fn is_allowed_diagnostic(diag: &str, options: &RustSelfHostOptions) -> bool {
         return true;
     }
     false
+}
+
+fn normalize_rel_path(path: &str) -> PathBuf {
+    let trimmed = path.strip_prefix("crates/").unwrap_or(path);
+    PathBuf::from(trimmed.replace('/', "\\"))
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SelfHostAllowlist {
+    pub initial_slice: Vec<String>,
+    pub phase1_acceptable_diagnostics: Vec<String>,
+    pub hard_fail_conditions: Vec<String>,
+    pub macro_policy: SelfHostMacroPolicy,
+    pub trait_object_usage_count: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SelfHostMacroPolicy {
+    pub lower_directly: Vec<String>,
+    pub preserve: Vec<String>,
+    pub reject: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SelfHostModuleMap {
+    pub crates: BTreeMap<String, SelfHostCrateSpec>,
+    pub initial_slice: Vec<String>,
+}
+
+impl SelfHostModuleMap {
+    fn find_crate(&self, crate_root: &Path) -> Option<&SelfHostCrateSpec> {
+        let crate_name = crate_root.file_name().and_then(|n| n.to_str())?;
+        self.crates.get(crate_name)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SelfHostCrateSpec {
+    pub root: String,
+    pub root_modules: Vec<String>,
+    pub nested_modules: BTreeMap<String, Vec<String>>,
+    pub initial_selfhost_candidate: bool,
+}
+
+impl RustSelfHostOptions {
+    fn transform_options(&self) -> super::transformer::RustTransformOptions {
+        super::transformer::RustTransformOptions {
+            strict_selfhost: true,
+            macro_policy: super::transformer::RustMacroPolicy {
+                lower_directly: self.allowlist.macro_policy.lower_directly.iter().cloned().collect::<HashSet<_>>(),
+                preserve: self.allowlist.macro_policy.preserve.iter().cloned().collect::<HashSet<_>>(),
+                reject: self.allowlist.macro_policy.reject.iter().cloned().collect::<HashSet<_>>(),
+            },
+        }
+    }
 }

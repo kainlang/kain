@@ -17,12 +17,37 @@
 
 use kain_core::ast::{PointerProvenance, Type};
 use kain_core::span::Span;
+use std::collections::HashMap;
 
-pub struct RustTypeMapper;
+pub struct RustTypeMapper {
+    visible_paths: HashMap<String, Vec<String>>,
+}
 
 impl RustTypeMapper {
     pub fn new() -> Self {
-        Self
+        Self {
+            visible_paths: HashMap::new(),
+        }
+    }
+
+    pub fn register_visible_path(&mut self, visible_name: impl Into<String>, full_path: Vec<String>) {
+        self.visible_paths.insert(visible_name.into(), full_path);
+    }
+
+    pub fn resolve_path_segments(&self, path: &syn::Path) -> Vec<String> {
+        let mut segments = path
+            .segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect::<Vec<_>>();
+        if let Some(first) = segments.first().cloned() {
+            if let Some(expanded) = self.visible_paths.get(&first) {
+                let mut resolved = expanded.clone();
+                resolved.extend(segments.drain(1..));
+                return resolved;
+            }
+        }
+        segments
     }
 
     pub fn map_type(&self, ty: &syn::Type) -> Type {
@@ -47,12 +72,16 @@ impl RustTypeMapper {
     // ── Path types (most common) ──────────────────────────────────────────
 
     fn map_path(&self, tp: &syn::TypePath) -> Type {
+        let resolved_segments = self.resolve_path_segments(&tp.path);
         let seg = match tp.path.segments.last() {
             Some(s) => s,
             None    => return Type::Unit(S),
         };
 
-        let name = seg.ident.to_string();
+        let name = resolved_segments
+            .last()
+            .cloned()
+            .unwrap_or_else(|| seg.ident.to_string());
         let generics = self.generic_args(&seg.arguments);
 
         // Primitives — map to KAIN canonical names
@@ -123,8 +152,12 @@ impl RustTypeMapper {
             _ => {}
         }
 
-        // Path with multiple segments → use last segment name (drop module path)
-        Type::Named { name, generics, span: S }
+        let qualified_name = if resolved_segments.len() > 1 {
+            resolved_segments.join("::")
+        } else {
+            name
+        };
+        Type::Named { name: qualified_name, generics, span: S }
     }
 
     // ── References ────────────────────────────────────────────────────────

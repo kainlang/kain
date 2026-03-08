@@ -21,14 +21,22 @@ use kain_core::effects::Effect;
 use kain_core::span::Span;
 use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenamer};
 use crate::Result;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use super::types::RustTypeMapper;
 
 // ── Transformer state ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct RustTransformOptions {
     pub strict_selfhost: bool,
+    pub macro_policy: RustMacroPolicy,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RustMacroPolicy {
+    pub lower_directly: HashSet<String>,
+    pub preserve: HashSet<String>,
+    pub reject: HashSet<String>,
 }
 
 pub struct RustTransformer {
@@ -60,7 +68,10 @@ impl RustTransformer {
     }
 
     pub fn new_selfhost() -> Self {
-        Self::with_options(RustTransformOptions { strict_selfhost: true })
+        Self::with_options(RustTransformOptions {
+            strict_selfhost: true,
+            macro_policy: RustMacroPolicy::default(),
+        })
     }
 
     pub fn with_options(options: RustTransformOptions) -> Self {
@@ -145,6 +156,7 @@ impl RustTransformer {
             syn::Item::Static(s)      => Ok(vec![Item::Const(self.transform_static(s)?)]),
             syn::Item::Type(t)        => Ok(vec![Item::TypeAlias(self.transform_type_alias(t)?)]),
             syn::Item::Mod(m)         => self.transform_mod(m),
+            syn::Item::Use(u)         => self.transform_use(u),
             // Traits → stub comment, not yet modeled in KAIN item set
             syn::Item::Trait(t) => {
                 self.note_lossy(format!("trait {} skipped (KAIN uses structural typing)", t.ident));
@@ -159,11 +171,6 @@ impl RustTransformer {
             | syn::Item::ExternCrate(_)
             | syn::Item::ForeignMod(_) => {
                 self.note_lossy("macro/extern/foreign item skipped".to_string());
-                Ok(vec![])
-            }
-            // Use declarations → skip (KAIN resolves structurally)
-            syn::Item::Use(_) => {
-                self.note_lossy("use declaration skipped".to_string());
                 Ok(vec![])
             }
             _ => {
@@ -521,8 +528,82 @@ impl RustTransformer {
             }
             syn::Stmt::Macro(stmt_macro) => {
                 let macro_name = path_to_ident(&stmt_macro.mac.path);
-                let args = self.parse_macro_args(&stmt_macro.mac.tokens);
-                Ok(vec![Stmt::Expr(Expr::MacroCall { name: macro_name, args, span: S })])
+                let expr = self.transform_macro_expr(&macro_name, &stmt_macro.mac.tokens);
+                Ok(vec![Stmt::Expr(expr)])
+            }
+        }
+    }
+
+    fn transform_use(&mut self, u: &syn::ItemUse) -> Result<Vec<Item>> {
+        let mut items = Vec::new();
+        self.collect_use_tree(Vec::new(), &u.tree, &mut items)?;
+        Ok(items)
+    }
+
+    fn collect_use_tree(
+        &mut self,
+        prefix: Vec<String>,
+        tree: &syn::UseTree,
+        items: &mut Vec<Item>,
+    ) -> Result<()> {
+        match tree {
+            syn::UseTree::Path(path) => {
+                let mut next_prefix = prefix;
+                next_prefix.push(path.ident.to_string());
+                self.collect_use_tree(next_prefix, &path.tree, items)
+            }
+            syn::UseTree::Name(name) => {
+                if name.ident == "self" {
+                    if let Some(visible) = prefix.last().cloned() {
+                        self.type_mapper.register_visible_path(visible, prefix.clone());
+                    }
+                    items.push(Item::Use(Use {
+                        path: prefix,
+                        alias: None,
+                        glob: false,
+                        span: S,
+                    }));
+                } else {
+                    let mut full_path = prefix;
+                    full_path.push(name.ident.to_string());
+                    self.type_mapper
+                        .register_visible_path(name.ident.to_string(), full_path.clone());
+                    items.push(Item::Use(Use {
+                        path: full_path,
+                        alias: None,
+                        glob: false,
+                        span: S,
+                    }));
+                }
+                Ok(())
+            }
+            syn::UseTree::Rename(rename) => {
+                let mut full_path = prefix;
+                full_path.push(rename.ident.to_string());
+                self.type_mapper
+                    .register_visible_path(rename.rename.to_string(), full_path.clone());
+                items.push(Item::Use(Use {
+                    path: full_path,
+                    alias: Some(rename.rename.to_string()),
+                    glob: false,
+                    span: S,
+                }));
+                Ok(())
+            }
+            syn::UseTree::Glob(_) => {
+                items.push(Item::Use(Use {
+                    path: prefix,
+                    alias: None,
+                    glob: true,
+                    span: S,
+                }));
+                Ok(())
+            }
+            syn::UseTree::Group(group) => {
+                for item in &group.items {
+                    self.collect_use_tree(prefix.clone(), item, items)?;
+                }
+                Ok(())
             }
         }
     }
@@ -538,8 +619,8 @@ impl RustTransformer {
 
             // ── Identifiers ───────────────────────────────────────────────
             syn::Expr::Path(p) => {
-                let name = path_to_ident(&p.path);
-                Ok(Expr::Ident(self.rename_value(&name), S))
+                let name = self.resolve_value_path(&p.path);
+                Ok(Expr::Ident(name, S))
             }
 
             // ── Blocks ────────────────────────────────────────────────────
@@ -609,7 +690,7 @@ impl RustTransformer {
 
             // ── Struct construction ───────────────────────────────────────
             syn::Expr::Struct(s) => {
-                let name   = path_to_ident(&s.path);
+                let name   = self.resolve_type_path(&s.path);
                 let fields = s.fields.iter().map(|fv| {
                     let field_name = self.rename_field(&member_name(&fv.member));
                     let val        = self.transform_expr(&fv.expr)?;
@@ -768,9 +849,7 @@ impl RustTransformer {
             // ── Macro calls (println!, vec!, format!, etc.) ───────────────
             syn::Expr::Macro(m) => {
                 let macro_name = path_to_ident(&m.mac.path);
-                // Attempt to parse args as comma-separated expressions
-                let args = self.parse_macro_args(&m.mac.tokens);
-                Ok(Expr::MacroCall { name: macro_name, args, span: S })
+                Ok(self.transform_macro_expr(&macro_name, &m.mac.tokens))
             }
 
             // ── Unsafe block ─────────────────────────────────────────────
@@ -1004,6 +1083,42 @@ impl RustTransformer {
         } else {
             // Raw string fallback for format strings etc.
             vec![]
+        }
+    }
+
+    fn transform_macro_expr(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Expr {
+        if self.options.macro_policy.reject.contains(macro_name) {
+            self.note_lossy(format!("macro {macro_name}! is rejected by self-host policy"));
+        }
+
+        if macro_name == "vec" {
+            let args = self.parse_macro_args(tokens);
+            return Expr::Array(args, S);
+        }
+
+        let args = self.parse_macro_args(tokens);
+        Expr::MacroCall {
+            name: macro_name.to_string(),
+            args,
+            span: S,
+        }
+    }
+
+    fn resolve_value_path(&mut self, path: &syn::Path) -> String {
+        let resolved = self.type_mapper.resolve_path_segments(path);
+        if resolved.len() == 1 {
+            self.rename_value(&resolved[0])
+        } else {
+            resolved.join("::")
+        }
+    }
+
+    fn resolve_type_path(&mut self, path: &syn::Path) -> String {
+        let resolved = self.type_mapper.resolve_path_segments(path);
+        if resolved.len() == 1 {
+            self.rename_type(&resolved[0])
+        } else {
+            resolved.join("::")
         }
     }
 }
