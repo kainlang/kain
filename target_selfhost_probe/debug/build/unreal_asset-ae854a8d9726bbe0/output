@@ -1,0 +1,3 @@
+cargo:rerun-if-changed=build.rs
+cargo:rerun-if-changed=vendor
+cargo:rustc-link-search=M:\Code\Kain\crates\unreal\unreal_asset\vendor

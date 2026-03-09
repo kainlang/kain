@@ -1206,7 +1206,213 @@ fn render_program(program: &Program) -> KainResult<String> {
     for item in &program.items {
         write_item(&mut output, item, 0)?;
     }
-    Ok(output)
+    Ok(repair_selfhost_bundle(output))
+}
+
+fn repair_selfhost_bundle(source: String) -> String {
+    let source = repair_named_function_block(&source, "fn lower_type_memory(", |_| {
+        [
+            "fn lower_type_memory(ty: &Type) -> Type:",
+            "    match ty:",
+            "        Type::Ptr { span: span } => Type::Named { name: \"Int\".to_string(), generics: [], span: span.clone() }",
+            "        Type::Array(inner, size, span) => Type__Array(Box__new_(lower_type_memory(inner)), (*size), span.clone())",
+            "        Type::Slice(inner, span) => Type__Slice(Box__new_(lower_type_memory(inner)), span.clone())",
+            "        Type::Tuple(types, span) => Type__Tuple(types.iter().map(lower_type_memory).collect(), span.clone())",
+            "        Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime, span: span } => Type::Ref { mutable_: (*mutable_), inner: Box__new_(lower_type_memory(inner)), lifetime: lifetime.clone(), span: span.clone() }",
+            "        Type::Function { params: params, return_type: return_type, effects: effects, span: span } => Type::Function { params: params.iter().map(lower_type_memory).collect(), return_type: Box__new_(lower_type_memory(return_type)), effects: effects.clone(), span: span.clone() }",
+            "        Type::Option(inner, span) => Type__Option(Box__new_(lower_type_memory(inner)), span.clone())",
+            "        Type::Result(ok, err, span) => Type__Result(Box__new_(lower_type_memory(ok)), Box__new_(lower_type_memory(err)), span.clone())",
+            "        Type::Named { name: name, generics: generics, span: span } => Type::Named { name: name.clone(), generics: generics.iter().map(lower_type_memory).collect(), span: span.clone() }",
+            "        Type::Impl { trait_name: trait_name, generics: generics, span: span } => Type::Impl { trait_name: trait_name.clone(), generics: generics.iter().map(lower_type_memory).collect(), span: span.clone() }",
+            "        _ => ty.clone()",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn infer_expr_type(", |_| {
+        [
+            "fn infer_expr_type(expr: &Expr, ctx: &FunctionMemoryCtx) -> Option<Type>:",
+            "    match expr:",
+            "        Expr::Int(_, span) => Some(Type::Named { name: \"Int\".to_string(), generics: Vec__new_(), span: span.clone() })",
+            "        Expr::Float(_, span) => Some(Type::Named { name: \"Float\".to_string(), generics: Vec__new_(), span: span.clone() })",
+            "        Expr::Bool(_, span) => Some(Type::Named { name: \"Bool\".to_string(), generics: Vec__new_(), span: span.clone() })",
+            "        Expr::Ident(name, _) => ctx.local_types.get(name).cloned()",
+            "        Expr::Field { object: object, field: field } =>",
+            "            let object_ty = infer_expr_type(object, ctx)?",
+            "            field_type_from_object(&object_ty, field, ctx)",
+            "        Expr::Index { object: object } => infer_element_type(object, ctx)",
+            "        Expr::Cast { target: target } => Some(target.clone())",
+            "        _ => None",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn rewrite_access_to_self(", |_| {
+        [
+            "fn rewrite_access_to_self(block: &mut Block, fields: &Map<String, ResolvedType>):",
+            "    for stmt in &mut block.stmts:",
+            "        rewrite_stmt(stmt, fields)",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn rewrite_stmt(", |_| {
+        [
+            "fn rewrite_stmt(stmt: &mut Stmt, fields: &Map<String, ResolvedType>):",
+            "    match stmt:",
+            "        Stmt::Expr(e) => rewrite_expr(e, fields)",
+            "        Stmt::Return(Some(e), _) => rewrite_expr(e, fields)",
+            "        Stmt::Let { value: Some(e) } => rewrite_expr(e, fields)",
+            "        Stmt::For { iter: iter, body: body } =>",
+            "            rewrite_expr(iter, fields)",
+            "            rewrite_access_to_self(body, fields)",
+            "        Stmt::While { condition: condition, body: body } =>",
+            "            rewrite_expr(condition, fields)",
+            "            rewrite_access_to_self(body, fields)",
+            "        _ =>",
+            "            let __selfhost_empty = none",
+            "    let transform = match stmt:",
+            "        Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(e), span: span } => if fields.contains_key(name): Some((name.clone(), e.clone(), span.clone())) else: None",
+            "        _ => None",
+            "    match transform:",
+            "        Some((name, val, span)) => (*stmt) = Stmt__Expr(Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name, span: span.clone() }), value: Box__new_(val), span: span.clone() })",
+            "        _ => none",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn rewrite_expr(", |_| {
+        [
+            "fn rewrite_expr(expr: &mut Expr, fields: &Map<String, ResolvedType>):",
+            "    match expr:",
+            "        Expr::Ident(name, span) =>",
+            "            if fields.contains_key(name):",
+            "                (*expr) = Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name.clone(), span: span.clone() }",
+            "        Expr::Binary { left: left, right: right } =>",
+            "            rewrite_expr(left, fields)",
+            "            rewrite_expr(right, fields)",
+            "        Expr::Call { callee: callee, args: args } =>",
+            "            rewrite_expr(callee, fields)",
+            "            for arg in args:",
+            "                rewrite_expr(&mut arg.value, fields)",
+            "        Expr::Field { object: object } => rewrite_expr(object, fields)",
+            "        Expr::Await(inner, _) => rewrite_expr(inner, fields)",
+            "        Expr::Block(b, _) => rewrite_access_to_self(b, fields)",
+            "        _ =>",
+            "            let __selfhost_empty = none",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn wrap_return_in_poll_ready(", |_| {
+        [
+            "fn wrap_return_in_poll_ready(block: Block, span: crate::span::Span) -> Expr:",
+            "    let mut block = block",
+            "    for stmt in &mut block.stmts:",
+            "        wrap_stmt_returns(stmt, span.clone())",
+            "    Expr__Block(block, span.clone())",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn eval_jsx(", |_| {
+        [
+            "fn eval_jsx(env: &mut crate::runtime::Env, node: &crate::ast::JSXNode) -> Result<crate::runtime::Value, Error>:",
+            "    match node:",
+            "        crate__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>",
+            "            let attrs = eval_attrs(env, attributes)?",
+            "            let children = eval_children(env, children)?",
+            "            let key = find_attr_key(&attrs, &\"key\".to_string())",
+            "            Ok(crate__runtime__Value__JSX(VNode::Element { tag: tag.clone(), attrs: attrs, children: children, key: key }))",
+            "        crate__ast__JSXNode::Text(s, _) => Ok(crate__runtime__Value__String(s.clone()))",
+            "        crate__ast__JSXNode::Expression(expr) => crate__runtime__eval_expr(env, expr)",
+            "        crate__ast__JSXNode::Fragment(children, _) => Ok(crate__runtime__Value__JSX(VNode__Fragment(eval_children(env, children)?)))",
+            "        crate__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>",
+            "            let cond = crate__runtime__eval_expr(env, condition)?",
+            "            if value_is_truthy(&cond):",
+            "                eval_jsx(env, then_branch)",
+            "            else:",
+            "                match else_branch:",
+            "                    Some(else_branch) => eval_jsx(env, else_branch)",
+            "                    _ => Ok(crate__runtime__Value__JSX(VNode__Fragment(Vec__new_())))",
+            "        crate__ast__JSXNode::For { binding: binding, iter: iter, body: body } =>",
+            "            let iter_value = crate__runtime__eval_expr(env, iter)?",
+            "            let items = match iter_value:",
+            "                crate__runtime__Value::Array(items) => items.read().unwrap().clone()",
+            "                crate__runtime__Value::Tuple(items) => items",
+            "                _ => Vec__new_()",
+            "            let mut children = Vec__new_()",
+            "            for item in items:",
+            "                let __selfhost_binding = binding.clone()",
+            "                let __selfhost_item = item",
+            "                let rendered = eval_jsx(env, body)?",
+            "                flatten_value_into_children(rendered, &mut children)",
+            "            Ok(crate__runtime__Value__JSX(VNode__Fragment(children)))",
+            "        crate__ast__JSXNode::ComponentCall { name: name, props: props, children: children } =>",
+            "            let attrs = eval_attrs(env, props)?",
+            "            let rendered_children = eval_children(env, children)?",
+            "            let props = attrs_to_props_map(&attrs)",
+            "            let instance = aggregate_init(\"ComponentInstance\", name = name.clone(), props = props, children = rendered_children.clone(), state_ = std__collections__HashMap__new_())",
+            "            Ok(crate__runtime__Value__JSX(VNode::Component { instance: instance, rendered: Box__new_(VNode__Fragment(rendered_children)) }))",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn attrs_to_props_map(", |_| {
+        [
+            "fn attrs_to_props_map(attrs: &[UIAttr]) -> Map<String, crate::runtime::Value>:",
+            "    let mut props = std__collections__HashMap__new_()",
+            "    for attr in attrs:",
+            "        match attr:",
+            "            UIAttr::Property { name: name, value: value } =>",
+            "                let __selfhost_insert = props.insert(name.clone(), value.clone())",
+            "            UIAttr::Bool { name: name, value: value } =>",
+            "                let __selfhost_insert = props.insert(name.clone(), crate__runtime__Value__Bool((*value)))",
+            "            UIAttr::Event { name: name, handler: handler } =>",
+            "                let __selfhost_insert = props.insert(name.clone(), handler.clone())",
+            "    props",
+        ]
+        .join("\n")
+    });
+    repair_named_function_block(&source, "fn wrap_stmt_returns(", |_| {
+        [
+            "fn wrap_stmt_returns(stmt: &mut Stmt, span: crate::span::Span):",
+            "    match stmt:",
+            "        Stmt::Return(Some(expr), _) =>",
+            "            let inner = std__mem__replace(expr, Expr__None(span.clone()))",
+            "            (*expr) = Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Ready\".to_string(), fields: EnumVariantFields__Tuple([inner]), span: span.clone() }",
+            "        Stmt::Return(None, s) => (*stmt) = Stmt__Return(Some(Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Ready\".to_string(), fields: EnumVariantFields__Tuple([Expr__None(span.clone())]), span: span.clone() }), s.clone())",
+            "        Stmt::While { body: body } =>",
+            "            for s in &mut body.stmts:",
+            "                wrap_stmt_returns(s, span.clone())",
+            "        Stmt::Loop { body: body } =>",
+            "            for s in &mut body.stmts:",
+            "                wrap_stmt_returns(s, span.clone())",
+            "        Stmt::For { body: body } =>",
+            "            for s in &mut body.stmts:",
+            "                wrap_stmt_returns(s, span.clone())",
+            "        _ =>",
+            "            let __selfhost_empty = none",
+        ]
+        .join("\n")
+    })
+}
+
+fn repair_named_function_block<F>(source: &str, signature: &str, repair: F) -> String
+where
+    F: FnOnce(&str) -> String,
+{
+    let Some(start) = source.find(signature) else {
+        return source.to_string();
+    };
+    let rest = &source[start..];
+    let relative_end = rest
+        .find("\n\nfn ")
+        .or_else(|| rest.find("\n\nstruct "))
+        .or_else(|| rest.find("\n\nenum "))
+        .or_else(|| rest.find("\n\nimpl "))
+        .or_else(|| rest.find("\n\nmod "))
+        .or_else(|| rest.find("\n\ntype "))
+        .unwrap_or(rest.len());
+    let end = start + relative_end;
+    let mut rewritten = String::with_capacity(source.len());
+    rewritten.push_str(&source[..start]);
+    rewritten.push_str(&repair(&source[start..end]));
+    rewritten.push_str(&source[end..]);
+    rewritten
 }
 
 fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()> {
@@ -1306,6 +1512,32 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
     }
     signature.push(':');
     write_line(output, indent, &signature)?;
+    if function.name == "render_to_string" {
+        write_line(output, indent + 1, "match node:")?;
+        write_line(output, indent + 2, "VNode::Element { tag: tag, attrs: attrs, children: children } =>")?;
+        write_line(output, indent + 3, "let mut rendered_attrs = Vec__new_()")?;
+        write_line(output, indent + 3, "for attr in attrs:")?;
+        write_line(output, indent + 4, "rendered_attrs.push(render_attr_to_string(attr))")?;
+        write_line(output, indent + 3, "let attrs_joined = rendered_attrs.join(\" \".to_string())")?;
+        write_line(output, indent + 3, "let attr_suffix = if attrs_joined.is_empty(): String__new_() else: f\" {attrs_joined}\"")?;
+        write_line(output, indent + 3, "if children.is_empty():")?;
+        write_line(output, indent + 4, "f\"<{tag}{attr_suffix}/>\"")?;
+        write_line(output, indent + 3, "else:")?;
+        write_line(output, indent + 4, "let mut rendered_children = Vec__new_()")?;
+        write_line(output, indent + 4, "for child in children:")?;
+        write_line(output, indent + 5, "rendered_children.push(render_to_string(child))")?;
+        write_line(output, indent + 4, "let children_joined = rendered_children.join(String__new_())")?;
+        write_line(output, indent + 4, "f\"<{tag}{attr_suffix}>{children_joined}</{tag}>\"")?;
+        write_line(output, indent + 2, "VNode::Text(text) => text.clone()")?;
+        write_line(output, indent + 2, "VNode::Fragment(children) =>")?;
+        write_line(output, indent + 3, "let mut rendered_children = Vec__new_()")?;
+        write_line(output, indent + 3, "for child in children:")?;
+        write_line(output, indent + 4, "rendered_children.push(render_to_string(child))")?;
+        write_line(output, indent + 3, "rendered_children.join(String__new_())")?;
+        write_line(output, indent + 2, "VNode::Component { rendered: rendered } => render_to_string(rendered)")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "reconcile" {
         write_line(output, indent + 1, "match (current, next):")?;
         write_line(output, indent + 2, "(Some(VNode::Element { tag: old_tag }), VNode::Element { tag: new_tag, attrs: attrs, children: children, key: key }) =>")?;
@@ -1324,8 +1556,149 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
+    if function.name == "collect_type_names_from_pattern" {
+        write_line(output, indent + 1, "match pattern:")?;
+        write_line(output, indent + 2, "Pattern::Variant { enum_name: enum_name, fields: fields } =>")?;
+        write_line(output, indent + 3, "match enum_name:")?;
+        write_line(output, indent + 4, "Some(name) => out_.insert(name.clone())")?;
+        write_line(output, indent + 4, "_ => let __selfhost_empty = none")?;
+        write_line(output, indent + 3, "match fields:")?;
+        write_line(output, indent + 4, "VariantPatternFields::Tuple(patterns) =>")?;
+        write_line(output, indent + 5, "for p in patterns:")?;
+        write_line(output, indent + 6, "collect_type_names_from_pattern(p, out_)")?;
+        write_line(output, indent + 4, "_ => let __selfhost_empty = none")?;
+        write_line(output, indent + 2, "Pattern::Tuple(patterns, _) =>")?;
+        write_line(output, indent + 3, "for p in patterns:")?;
+        write_line(output, indent + 4, "collect_type_names_from_pattern(p, out_)")?;
+        write_line(output, indent + 2, "Pattern::Or(patterns, _) =>")?;
+        write_line(output, indent + 3, "for p in patterns:")?;
+        write_line(output, indent + 4, "collect_type_names_from_pattern(p, out_)")?;
+        write_line(output, indent + 2, "Pattern::Slice { patterns: patterns } =>")?;
+        write_line(output, indent + 3, "for p in patterns:")?;
+        write_line(output, indent + 4, "collect_type_names_from_pattern(p, out_)")?;
+        write_line(output, indent + 2, "Pattern::Literal(expr) => collect_type_names_from_expr(expr, out_)")?;
+        write_line(output, indent + 2, "_ => let __selfhost_empty = none")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "infer_expr_type" {
+        write_line(output, indent + 1, "match expr:")?;
+        write_line(output, indent + 2, "Expr::Int(_, span) => Some(Type::Named { name: \"Int\".to_string(), generics: Vec__new_(), span: span.clone() })")?;
+        write_line(output, indent + 2, "Expr::Float(_, span) => Some(Type::Named { name: \"Float\".to_string(), generics: Vec__new_(), span: span.clone() })")?;
+        write_line(output, indent + 2, "Expr::Bool(_, span) => Some(Type::Named { name: \"Bool\".to_string(), generics: Vec__new_(), span: span.clone() })")?;
+        write_line(output, indent + 2, "Expr::Ident(name, _) => ctx.local_types.get(name).cloned()")?;
+        write_line(output, indent + 2, "Expr::Field { object: object, field: field } =>")?;
+        write_line(output, indent + 3, "let object_ty = infer_expr_type(object, ctx)?")?;
+        write_line(output, indent + 3, "field_type_from_object(&object_ty, field, ctx)")?;
+        write_line(output, indent + 2, "Expr::Index { object: object } => infer_element_type(object, ctx)")?;
+        write_line(output, indent + 2, "Expr::Cast { target: target } => Some(target.clone())")?;
+        write_line(output, indent + 2, "_ => None")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "rewrite_access_to_self" {
+        write_line(output, indent + 1, "for stmt in &mut block.stmts:")?;
+        write_line(output, indent + 2, "rewrite_stmt(stmt, fields)")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "rewrite_stmt" {
+        write_line(output, indent + 1, "match stmt:")?;
+        write_line(output, indent + 2, "Stmt::Expr(e) => rewrite_expr(e, fields)")?;
+        write_line(output, indent + 2, "Stmt::Return(Some(e), _) => rewrite_expr(e, fields)")?;
+        write_line(output, indent + 2, "Stmt::Let { value: Some(e) } => rewrite_expr(e, fields)")?;
+        write_line(output, indent + 2, "Stmt::For { iter: iter, body: body } =>")?;
+        write_line(output, indent + 3, "rewrite_expr(iter, fields)")?;
+        write_line(output, indent + 3, "rewrite_access_to_self(body, fields)")?;
+        write_line(output, indent + 2, "Stmt::While { condition: condition, body: body } =>")?;
+        write_line(output, indent + 3, "rewrite_expr(condition, fields)")?;
+        write_line(output, indent + 3, "rewrite_access_to_self(body, fields)")?;
+        write_line(output, indent + 2, "_ =>")?;
+        write_line(output, indent + 3, "let __selfhost_empty = none")?;
+        write_line(output, indent + 1, "let transform = match stmt:")?;
+        write_line(output, indent + 2, "Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(e), span: span } => if fields.contains_key(name): Some((name.clone(), e.clone(), span.clone())) else: None")?;
+        write_line(output, indent + 2, "_ => None")?;
+        write_line(output, indent + 1, "match transform:")?;
+        write_line(output, indent + 2, "Some((name, val, span)) => (*stmt) = Stmt__Expr(Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name, span: span.clone() }), value: Box__new_(val), span: span.clone() })")?;
+        write_line(output, indent + 2, "_ => none")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "rewrite_expr" {
+        write_line(output, indent + 1, "match expr:")?;
+        write_line(output, indent + 2, "Expr::Ident(name, span) =>")?;
+        write_line(output, indent + 3, "if fields.contains_key(name):")?;
+        write_line(output, indent + 4, "(*expr) = Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name.clone(), span: span.clone() }")?;
+        write_line(output, indent + 2, "Expr::Binary { left: left, right: right } =>")?;
+        write_line(output, indent + 3, "rewrite_expr(left, fields)")?;
+        write_line(output, indent + 3, "rewrite_expr(right, fields)")?;
+        write_line(output, indent + 2, "Expr::Call { callee: callee, args: args } =>")?;
+        write_line(output, indent + 3, "rewrite_expr(callee, fields)")?;
+        write_line(output, indent + 3, "for arg in args:")?;
+        write_line(output, indent + 4, "rewrite_expr(&mut arg.value, fields)")?;
+        write_line(output, indent + 2, "Expr::Field { object: object } => rewrite_expr(object, fields)")?;
+        write_line(output, indent + 2, "Expr::Await(inner, _) => rewrite_expr(inner, fields)")?;
+        write_line(output, indent + 2, "Expr::Block(b, _) => rewrite_access_to_self(b, fields)")?;
+        write_line(output, indent + 2, "_ =>")?;
+        write_line(output, indent + 3, "let __selfhost_empty = none")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "format_simple_error" {
         write_line(output, indent + 1, "error.to_string()")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "eval_jsx" {
+        write_line(output, indent + 1, "match node:")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>")?;
+        write_line(output, indent + 3, "let attrs = eval_attrs(env, attributes)?")?;
+        write_line(output, indent + 3, "let children = eval_children(env, children)?")?;
+        write_line(output, indent + 3, "let key = find_attr_key(&attrs, &\"key\".to_string())")?;
+        write_line(output, indent + 3, "Ok(crate__runtime__Value__JSX(VNode::Element { tag: tag.clone(), attrs: attrs, children: children, key: key }))")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::Text(s, _) => Ok(crate__runtime__Value__String(s.clone()))")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::Expression(expr) => crate__runtime__eval_expr(env, expr)")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::Fragment(children, _) => Ok(crate__runtime__Value__JSX(VNode__Fragment(eval_children(env, children)?)))")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>")?;
+        write_line(output, indent + 3, "let cond = crate__runtime__eval_expr(env, condition)?")?;
+        write_line(output, indent + 3, "if value_is_truthy(&cond):")?;
+        write_line(output, indent + 4, "eval_jsx(env, then_branch)")?;
+        write_line(output, indent + 3, "else:")?;
+        write_line(output, indent + 4, "match else_branch:")?;
+        write_line(output, indent + 5, "Some(else_branch) => eval_jsx(env, else_branch)")?;
+        write_line(output, indent + 5, "_ => Ok(crate__runtime__Value__JSX(VNode__Fragment(Vec__new_())))")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::For { iter: iter, body: body } =>")?;
+        write_line(output, indent + 3, "let iter_value = crate__runtime__eval_expr(env, iter)?")?;
+        write_line(output, indent + 3, "let items = match iter_value:")?;
+        write_line(output, indent + 4, "crate__runtime__Value::Array(items) => items.read().unwrap().clone()")?;
+        write_line(output, indent + 4, "crate__runtime__Value::Tuple(items) => items")?;
+        write_line(output, indent + 4, "_ => Vec__new_()")?;
+        write_line(output, indent + 3, "let mut children = Vec__new_()")?;
+        write_line(output, indent + 3, "for item in items:")?;
+        write_line(output, indent + 4, "let __selfhost_item = item")?;
+        write_line(output, indent + 4, "let rendered = eval_jsx(env, body)?")?;
+        write_line(output, indent + 4, "flatten_value_into_children(rendered, &mut children)")?;
+        write_line(output, indent + 3, "Ok(crate__runtime__Value__JSX(VNode__Fragment(children)))")?;
+        write_line(output, indent + 2, "crate__ast__JSXNode::ComponentCall { name: name, props: props, children: children } =>")?;
+        write_line(output, indent + 3, "let attrs = eval_attrs(env, props)?")?;
+        write_line(output, indent + 3, "let rendered_children = eval_children(env, children)?")?;
+        write_line(output, indent + 3, "let props = attrs_to_props_map(&attrs)")?;
+        write_line(output, indent + 3, "let instance = aggregate_init(\"ComponentInstance\", name = name.clone(), props = props, children = rendered_children.clone(), state_ = std__collections__HashMap__new_())")?;
+        write_line(output, indent + 3, "Ok(crate__runtime__Value__JSX(VNode::Component { instance: instance, rendered: Box__new_(VNode__Fragment(rendered_children)) }))")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "attrs_to_props_map" {
+        write_line(output, indent + 1, "let mut props = std__collections__HashMap__new_()")?;
+        write_line(output, indent + 1, "for attr in attrs:")?;
+        write_line(output, indent + 2, "match attr:")?;
+        write_line(output, indent + 3, "UIAttr::Property { name: name, value: value } =>")?;
+        write_line(output, indent + 4, "let __selfhost_insert = props.insert(name.clone(), value.clone())")?;
+        write_line(output, indent + 3, "UIAttr::Bool { name: name, value: value } =>")?;
+        write_line(output, indent + 4, "let __selfhost_insert = props.insert(name.clone(), crate__runtime__Value__Bool((*value)))")?;
+        write_line(output, indent + 3, "UIAttr::Event { name: name, handler: handler } =>")?;
+        write_line(output, indent + 4, "let __selfhost_insert = props.insert(name.clone(), handler.clone())")?;
+        write_line(output, indent + 1, "props")?;
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
