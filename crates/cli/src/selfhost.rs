@@ -1282,6 +1282,14 @@ fn repair_selfhost_bundle(source: String) -> String {
         "    fn attrs_to_props_map(attrs: &[UIAttr]) -> Map<String, crate::runtime::Value>:\n    let mut props = std__collections__HashMap__new_()",
         "    fn attrs_to_props_map(attrs: &[UIAttr]) -> Map<String, crate::runtime::Value>:\n        let mut props = std__collections__HashMap__new_()",
     );
+    let source = source.replace(
+        "        Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => collect_type_names_from_expr(inner, out_)",
+        "        Expr::Return(Some(inner), _) => collect_type_names_from_expr(inner, out_)\n        Expr::Break(Some(inner), _) => collect_type_names_from_expr(inner, out_)",
+    );
+    let source = source.replace(
+        "        Expr::Array(exprs, _) | Expr::Tuple(exprs, _) =>\n            for e in exprs:\n                check_expr_for_syntax_errors(env, e)?",
+        "        Expr::Array(exprs, _) =>\n            for e in exprs:\n                check_expr_for_syntax_errors(env, e)?\n        Expr::Tuple(exprs, _) =>\n            for e in exprs:\n                check_expr_for_syntax_errors(env, e)?",
+    );
     let source = repair_named_function_block(&source, "fn wrap_return_in_poll_ready(", |_| {
         [
             "fn wrap_return_in_poll_ready(block: Block, span: crate::span::Span) -> Expr:",
@@ -1438,6 +1446,44 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
     signature.push(':');
     write_line(output, indent, &signature)?;
     let current_impl = CURRENT_SELFHOST_IMPL.with(|slot| slot.borrow().clone());
+    if function.name == "new" && current_impl.as_deref() == Some("SourceLocation") {
+        write_line(output, indent + 1, "SourceLocation { file: file, line: line_, col: col }")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "new" && current_impl.as_deref() == Some("Diagnostics") {
+        write_line(output, indent + 1, "Diagnostics { source: source, filename: filename }")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "new" && current_impl.as_deref() == Some("EffectSet") {
+        write_line(output, indent + 1, "EffectSet { effects: std__collections__HashSet__new_() }")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "new" && current_impl.as_deref() == Some("DiagnosticBuilder") {
+        write_line(output, indent + 1, "DiagnosticBuilder { kind: kind, code: code, file: None, location: None, context: String__new_(), message: message.into(), suggestion: None }")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "format_with_context" && current_impl.as_deref() == Some("Diagnostics") {
+        write_line(output, indent + 1, "let (line_num, col, line_content) = self.get_line_info(span)")?;
+        write_line(output, indent + 1, "let mut output = String__new_()")?;
+        write_line(output, indent + 1, "output.push_str(&format!(\"\\nerror[{}]: {}\\n\", error_type, message))")?;
+        write_line(output, indent + 1, "output.push_str(&format!(\"  --> {}:{}:{}\\n\", self.filename, line_num, col))")?;
+        write_line(output, indent + 1, "output.push_str(\"   |\\n\")")?;
+        write_line(output, indent + 1, "output.push_str(&format!(\"{:>3} | {}\\n\", line_num, line_content))")?;
+        write_line(output, indent + 1, "let pointer_offset = col.saturating_sub(1)")?;
+        write_line(output, indent + 1, "let content_len = line_content.len()")?;
+        write_line(output, indent + 1, "let remaining_len = content_len.saturating_sub(pointer_offset)")?;
+        write_line(output, indent + 1, "let span_len = span.end.saturating_sub(span.start)")?;
+        write_line(output, indent + 1, "let pointer_len = min(span_len, remaining_len).max(1)")?;
+        write_line(output, indent + 1, "output.push_str(&format!(\"   | {}{}\\n\", \" \".repeat(pointer_offset), \"^\".repeat(pointer_len)))")?;
+        write_line(output, indent + 1, "output.push_str(\"   |\\n\")")?;
+        write_line(output, indent + 1, "output")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "span" && current_impl.as_deref() == Some("Type") {
         write_line(output, indent + 1, "match _self:")?;
         write_line(output, indent + 2, "Type::Named { span: span } => span.clone()")?;
@@ -1620,11 +1666,13 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 3, "collect_type_names_from_type(target, out_)")?;
         write_line(output, indent + 2, "Expr::Struct { name: name, fields: fields } =>")?;
         write_line(output, indent + 3, "out_.insert(name.clone())")?;
-        write_line(output, indent + 3, "for (_, field_expr) in fields:")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, field_expr) = field")?;
         write_line(output, indent + 4, "collect_type_names_from_expr(field_expr, out_)")?;
         write_line(output, indent + 2, "Expr::AggregateInit { ty: ty, fields: fields } =>")?;
         write_line(output, indent + 3, "collect_type_names_from_type(ty, out_)")?;
-        write_line(output, indent + 3, "for (_, field_expr) in fields:")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, field_expr) = field")?;
         write_line(output, indent + 4, "collect_type_names_from_expr(field_expr, out_)")?;
         write_line(output, indent + 2, "Expr::EnumVariant { enum_name: enum_name, fields: fields } =>")?;
         write_line(output, indent + 3, "out_.insert(enum_name.clone())")?;
@@ -1635,11 +1683,13 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 5, "for e in exprs:")?;
         write_line(output, indent + 6, "collect_type_names_from_expr(e, out_)")?;
         write_line(output, indent + 4, "EnumVariantFields::Struct(field_pairs) =>")?;
-        write_line(output, indent + 5, "for (_, field_expr) in field_pairs:")?;
+        write_line(output, indent + 5, "for field_pair in field_pairs:")?;
+        write_line(output, indent + 6, "let (_, field_expr) = field_pair")?;
         write_line(output, indent + 6, "collect_type_names_from_expr(field_expr, out_)")?;
         write_line(output, indent + 2, "Expr::Spawn { actor_: actor_, init: init } =>")?;
         write_line(output, indent + 3, "out_.insert(actor_.clone())")?;
-        write_line(output, indent + 3, "for (_, init_expr) in init:")?;
+        write_line(output, indent + 3, "for init_entry in init:")?;
+        write_line(output, indent + 4, "let (_, init_expr) = init_entry")?;
         write_line(output, indent + 4, "collect_type_names_from_expr(init_expr, out_)")?;
         write_line(output, indent + 2, "Expr::Call { callee: callee, args: args } =>")?;
         write_line(output, indent + 3, "collect_type_names_from_expr(callee, out_)")?;
@@ -1684,7 +1734,13 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;
         write_line(output, indent + 3, "collect_type_names_from_expr(body, out_)")?;
-        write_line(output, indent + 2, "Expr::Array(exprs, _) | Expr::Tuple(exprs, _) | Expr::FString(exprs, _) =>")?;
+        write_line(output, indent + 2, "Expr::Array(exprs, _) =>")?;
+        write_line(output, indent + 3, "for e in exprs:")?;
+        write_line(output, indent + 4, "collect_type_names_from_expr(e, out_)")?;
+        write_line(output, indent + 2, "Expr::Tuple(exprs, _) =>")?;
+        write_line(output, indent + 3, "for e in exprs:")?;
+        write_line(output, indent + 4, "collect_type_names_from_expr(e, out_)")?;
+        write_line(output, indent + 2, "Expr::FString(exprs, _) =>")?;
         write_line(output, indent + 3, "for e in exprs:")?;
         write_line(output, indent + 4, "collect_type_names_from_expr(e, out_)")?;
         write_line(output, indent + 2, "Expr::MacroCall { args: args } =>")?;
@@ -1692,7 +1748,8 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 4, "collect_type_names_from_expr(arg, out_)")?;
         write_line(output, indent + 2, "Expr::SendMsg { target: target, data: data } =>")?;
         write_line(output, indent + 3, "collect_type_names_from_expr(target, out_)")?;
-        write_line(output, indent + 3, "for (_, data_expr) in data:")?;
+        write_line(output, indent + 3, "for data_entry in data:")?;
+        write_line(output, indent + 4, "let (_, data_expr) = data_entry")?;
         write_line(output, indent + 4, "collect_type_names_from_expr(data_expr, out_)")?;
         write_line(output, indent + 2, "Expr::Block(block, _) => collect_type_names_from_block(block, out_)")?;
         write_line(output, indent + 2, "Expr::Range { start: start, end: end } =>")?;
@@ -1704,8 +1761,13 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 4, "Some(e) => collect_type_names_from_expr(e, out_)")?;
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;
-        write_line(output, indent + 2, "Expr::Ref { value: value } | Expr::AddrOf { value: value } => collect_type_names_from_expr(value, out_)")?;
-        write_line(output, indent + 2, "Expr::Deref(inner, _) | Expr::Try(inner, _) | Expr::Await(inner, _) | Expr::Comptime(inner, _) | Expr::Paren(inner, _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Ref { value: value } => collect_type_names_from_expr(value, out_)")?;
+        write_line(output, indent + 2, "Expr::AddrOf { value: value } => collect_type_names_from_expr(value, out_)")?;
+        write_line(output, indent + 2, "Expr::Deref(inner, _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Try(inner, _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Await(inner, _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Comptime(inner, _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Paren(inner, _) => collect_type_names_from_expr(inner, out_)")?;
         write_line(output, indent + 2, "Expr::PtrOffset { pointer: pointer, offset: offset, element_ty: element_ty } =>")?;
         write_line(output, indent + 3, "collect_type_names_from_expr(pointer, out_)")?;
         write_line(output, indent + 3, "collect_type_names_from_expr(offset, out_)")?;
@@ -1726,7 +1788,10 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 4, "Some(ty) => collect_type_names_from_type(ty, out_)")?;
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;
-        write_line(output, indent + 2, "Expr::SizeOfType { target: target } | Expr::AlignOfType { target: target } | Expr::Alloca { ty: target } | Expr::Uninit { ty: target } => collect_type_names_from_type(target, out_)")?;
+        write_line(output, indent + 2, "Expr::SizeOfType { target: target } => collect_type_names_from_type(target, out_)")?;
+        write_line(output, indent + 2, "Expr::AlignOfType { target: target } => collect_type_names_from_type(target, out_)")?;
+        write_line(output, indent + 2, "Expr::Alloca { ty: target } => collect_type_names_from_type(target, out_)")?;
+        write_line(output, indent + 2, "Expr::Uninit { ty: target } => collect_type_names_from_type(target, out_)")?;
         write_line(output, indent + 2, "Expr::Alloc { size: size, ty: ty } =>")?;
         write_line(output, indent + 3, "collect_type_names_from_expr(size, out_)")?;
         write_line(output, indent + 3, "match ty:")?;
@@ -1740,7 +1805,8 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 4, "Some(ty) => collect_type_names_from_type(ty, out_)")?;
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;
-        write_line(output, indent + 2, "Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Return(Some(inner), _) => collect_type_names_from_expr(inner, out_)")?;
+        write_line(output, indent + 2, "Expr::Break(Some(inner), _) => collect_type_names_from_expr(inner, out_)")?;
         write_line(output, indent + 2, "Expr::JSX(node, _) => collect_type_names_from_jsx(node, out_)")?;
         write_line(output, indent + 2, "_ =>")?;
         write_line(output, indent + 3, "let __selfhost_empty = none")?;
@@ -1775,8 +1841,15 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 3, "eval_expr_in_place(env, receiver)?")?;
         write_line(output, indent + 3, "for arg in args:")?;
         write_line(output, indent + 4, "eval_expr_in_place(env, &mut arg.value)?")?;
-        write_line(output, indent + 2, "Expr::Assign { value: value } | Expr::AddrOf { value: value } | Expr::Ref { value: value } => eval_expr_in_place(env, value)?")?;
-        write_line(output, indent + 2, "Expr::Field { object: object } | Expr::Deref(object, _) | Expr::Try(object, _) | Expr::Await(object, _) | Expr::Comptime(object, _) | Expr::Paren(object, _) => eval_expr_in_place(env, object)?")?;
+        write_line(output, indent + 2, "Expr::Assign { value: value } => eval_expr_in_place(env, value)?")?;
+        write_line(output, indent + 2, "Expr::AddrOf { value: value } => eval_expr_in_place(env, value)?")?;
+        write_line(output, indent + 2, "Expr::Ref { value: value } => eval_expr_in_place(env, value)?")?;
+        write_line(output, indent + 2, "Expr::Field { object: object } => eval_expr_in_place(env, object)?")?;
+        write_line(output, indent + 2, "Expr::Deref(object, _) => eval_expr_in_place(env, object)?")?;
+        write_line(output, indent + 2, "Expr::Try(object, _) => eval_expr_in_place(env, object)?")?;
+        write_line(output, indent + 2, "Expr::Await(object, _) => eval_expr_in_place(env, object)?")?;
+        write_line(output, indent + 2, "Expr::Comptime(object, _) => eval_expr_in_place(env, object)?")?;
+        write_line(output, indent + 2, "Expr::Paren(object, _) => eval_expr_in_place(env, object)?")?;
         write_line(output, indent + 2, "Expr::Index { object: object, index: index } =>")?;
         write_line(output, indent + 3, "eval_expr_in_place(env, object)?")?;
         write_line(output, indent + 3, "eval_expr_in_place(env, index)?")?;
@@ -1784,8 +1857,13 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 2, "Expr::MemStore { pointer: pointer, value: value } =>")?;
         write_line(output, indent + 3, "eval_expr_in_place(env, pointer)?")?;
         write_line(output, indent + 3, "eval_expr_in_place(env, value)?")?;
-        write_line(output, indent + 2, "Expr::AggregateInit { fields: fields } | Expr::Struct { fields: fields } =>")?;
-        write_line(output, indent + 3, "for (_, value) in fields:")?;
+        write_line(output, indent + 2, "Expr::AggregateInit { fields: fields } =>")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, value) = field")?;
+        write_line(output, indent + 4, "eval_expr_in_place(env, value)?")?;
+        write_line(output, indent + 2, "Expr::Struct { fields: fields } =>")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, value) = field")?;
         write_line(output, indent + 4, "eval_expr_in_place(env, value)?")?;
         write_line(output, indent + 2, "Expr::EnumVariant { fields: fields } =>")?;
         write_line(output, indent + 3, "match fields:")?;
@@ -1793,12 +1871,16 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 5, "for value in values:")?;
         write_line(output, indent + 6, "eval_expr_in_place(env, value)?")?;
         write_line(output, indent + 4, "EnumVariantFields::Struct(values) =>")?;
-        write_line(output, indent + 5, "for (_, value) in values:")?;
+        write_line(output, indent + 5, "for named_value in values:")?;
+        write_line(output, indent + 6, "let (_, value) = named_value")?;
         write_line(output, indent + 6, "eval_expr_in_place(env, value)?")?;
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;
         write_line(output, indent + 2, "Expr::Alloc { size: size } => eval_expr_in_place(env, size)?")?;
-        write_line(output, indent + 2, "Expr::Realloc { pointer: pointer, size: size } | Expr::PtrOffset { pointer: pointer, offset: size } =>")?;
+        write_line(output, indent + 2, "Expr::Realloc { pointer: pointer, size: size } =>")?;
+        write_line(output, indent + 3, "eval_expr_in_place(env, pointer)?")?;
+        write_line(output, indent + 3, "eval_expr_in_place(env, size)?")?;
+        write_line(output, indent + 2, "Expr::PtrOffset { pointer: pointer, offset: size } =>")?;
         write_line(output, indent + 3, "eval_expr_in_place(env, pointer)?")?;
         write_line(output, indent + 3, "eval_expr_in_place(env, size)?")?;
         write_line(output, indent + 2, "Expr::Block(b, _) => eval_block(env, b)?")?;
@@ -1925,10 +2007,18 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 2, "Expr::Index { object: object, index: index } =>")?;
         write_line(output, indent + 3, "substitute_expr(object, mapping)")?;
         write_line(output, indent + 3, "substitute_expr(index, mapping)")?;
-        write_line(output, indent + 2, "Expr::Struct { fields: fields } | Expr::AggregateInit { fields: fields } =>")?;
-        write_line(output, indent + 3, "for (_, value) in fields:")?;
+        write_line(output, indent + 2, "Expr::Struct { fields: fields } =>")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, value) = field")?;
         write_line(output, indent + 4, "substitute_expr(value, mapping)")?;
-        write_line(output, indent + 2, "Expr::Array(items, _) | Expr::Tuple(items, _) =>")?;
+        write_line(output, indent + 2, "Expr::AggregateInit { fields: fields } =>")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, value) = field")?;
+        write_line(output, indent + 4, "substitute_expr(value, mapping)")?;
+        write_line(output, indent + 2, "Expr::Array(items, _) =>")?;
+        write_line(output, indent + 3, "for item in items:")?;
+        write_line(output, indent + 4, "substitute_expr(item, mapping)")?;
+        write_line(output, indent + 2, "Expr::Tuple(items, _) =>")?;
         write_line(output, indent + 3, "for item in items:")?;
         write_line(output, indent + 4, "substitute_expr(item, mapping)")?;
         write_line(output, indent + 2, "Expr::Block(b, _) => substitute_block(b, mapping)")?;
@@ -1996,7 +2086,7 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 3, "if (state_idx == await_points.len()):")?;
         write_line(output, indent + 4, "body_stmts.push(Stmt__Return(Some(Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Ready\".to_string(), fields: EnumVariantFields__Tuple([Expr__None(span.clone())]), span: span.clone() }), span.clone()))")?;
         write_line(output, indent + 3, "else:")?;
-        write_line(output, indent + 4, "let __selfhost_empty = none")?;
+        write_line(output, indent + 4, "let _state_done = true")?;
         write_line(output, indent + 1, "aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Int(state_idx as i64, span.clone())), guard = None, body = Expr__Block(aggregate_init(\"Block\", stmts = body_stmts, span = span.clone()), span.clone()), span = span.clone())")?;
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
@@ -2102,7 +2192,10 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 2, "Expr::Assign { target: target, value: value } =>")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, target)?")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, value)?")?;
-        write_line(output, indent + 2, "Expr::Array(exprs, _) | Expr::Tuple(exprs, _) =>")?;
+        write_line(output, indent + 2, "Expr::Array(exprs, _) =>")?;
+        write_line(output, indent + 3, "for e in exprs:")?;
+        write_line(output, indent + 4, "check_expr_for_syntax_errors(env, e)?")?;
+        write_line(output, indent + 2, "Expr::Tuple(exprs, _) =>")?;
         write_line(output, indent + 3, "for e in exprs:")?;
         write_line(output, indent + 4, "check_expr_for_syntax_errors(env, e)?")?;
         write_line(output, indent + 2, "Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>")?;
@@ -2141,11 +2234,17 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 4, "Some(e) => check_expr_for_syntax_errors(env, e)?")?;
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;
-        write_line(output, indent + 2, "Expr::Struct { fields: fields } | Expr::AggregateInit { fields: fields } =>")?;
-        write_line(output, indent + 3, "for (_, field_expr) in fields:")?;
+        write_line(output, indent + 2, "Expr::Struct { fields: fields } =>")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, field_expr) = field")?;
+        write_line(output, indent + 4, "check_expr_for_syntax_errors(env, field_expr)?")?;
+        write_line(output, indent + 2, "Expr::AggregateInit { fields: fields } =>")?;
+        write_line(output, indent + 3, "for field in fields:")?;
+        write_line(output, indent + 4, "let (_, field_expr) = field")?;
         write_line(output, indent + 4, "check_expr_for_syntax_errors(env, field_expr)?")?;
         write_line(output, indent + 2, "Expr::Lambda { body: body } => check_expr_for_syntax_errors(env, body)?")?;
-        write_line(output, indent + 2, "Expr::Ref { value: value } | Expr::AddrOf { value: value } => check_expr_for_syntax_errors(env, value)?")?;
+        write_line(output, indent + 2, "Expr::Ref { value: value } => check_expr_for_syntax_errors(env, value)?")?;
+        write_line(output, indent + 2, "Expr::AddrOf { value: value } => check_expr_for_syntax_errors(env, value)?")?;
         write_line(output, indent + 2, "Expr::PtrOffset { pointer: pointer, offset: offset } =>")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, pointer)?")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, offset)?")?;
@@ -2157,18 +2256,25 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 2, "Expr::Realloc { pointer: pointer, size: size } =>")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, pointer)?")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, size)?")?;
-        write_line(output, indent + 2, "Expr::Deref(inner, _) | Expr::Try(inner, _) | Expr::Await(inner, _) | Expr::Comptime(inner, _) | Expr::Paren(inner, _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Deref(inner, _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Try(inner, _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Await(inner, _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Comptime(inner, _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Paren(inner, _) => check_expr_for_syntax_errors(env, inner)?")?;
         write_line(output, indent + 2, "Expr::Spawn { init: init } =>")?;
-        write_line(output, indent + 3, "for (_, init_expr) in init:")?;
+        write_line(output, indent + 3, "for init_entry in init:")?;
+        write_line(output, indent + 4, "let (_, init_expr) = init_entry")?;
         write_line(output, indent + 4, "check_expr_for_syntax_errors(env, init_expr)?")?;
         write_line(output, indent + 2, "Expr::SendMsg { target: target, data: data } =>")?;
         write_line(output, indent + 3, "check_expr_for_syntax_errors(env, target)?")?;
-        write_line(output, indent + 3, "for (_, data_expr) in data:")?;
+        write_line(output, indent + 3, "for data_entry in data:")?;
+        write_line(output, indent + 4, "let (_, data_expr) = data_entry")?;
         write_line(output, indent + 4, "check_expr_for_syntax_errors(env, data_expr)?")?;
         write_line(output, indent + 2, "Expr::MacroCall { args: args } =>")?;
         write_line(output, indent + 3, "for arg in args:")?;
         write_line(output, indent + 4, "check_expr_for_syntax_errors(env, arg)?")?;
-        write_line(output, indent + 2, "Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Return(Some(inner), _) => check_expr_for_syntax_errors(env, inner)?")?;
+        write_line(output, indent + 2, "Expr::Break(Some(inner), _) => check_expr_for_syntax_errors(env, inner)?")?;
         write_line(output, indent + 2, "_ =>")?;
         write_line(output, indent + 3, "let __selfhost_empty = none")?;
         write_line(output, indent + 1, "Ok(none)")?;
@@ -2318,7 +2424,15 @@ fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> KainResult<()>
         }
         Stmt::Continue(_) => write_line(output, indent, "continue"),
         Stmt::For { binding, iter, body, .. } => {
-            write_line(output, indent, &format!("for {} in {}:", for_binding_name(binding), control_head_expr_to_string(iter)))?;
+            let loop_binding = for_binding_name(binding);
+            write_line(output, indent, &format!("for {} in {}:", loop_binding, control_head_expr_to_string(iter)))?;
+            if !matches!(binding, Pattern::Binding { .. } | Pattern::Wildcard(_)) {
+                write_line(
+                    output,
+                    indent + 1,
+                    &format!("let {} = {}", pattern_to_string(binding), loop_binding),
+                )?;
+            }
             write_block(output, body, indent + 1)
         }
         Stmt::While { condition, body, .. } => {
@@ -2935,8 +3049,9 @@ fn expand_named_pattern_lists(fields: &[(String, Pattern)]) -> Vec<Vec<(String, 
 
 fn for_binding_name(pattern: &Pattern) -> String {
     match pattern {
+        Pattern::Binding { name, .. } => sanitize_identifier(name),
         Pattern::Wildcard(_) => "_".to_string(),
-        _ => pattern_to_string(pattern),
+        _ => "selfhost_for_item".to_string(),
     }
 }
 
