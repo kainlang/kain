@@ -220,7 +220,7 @@ impl RustGen {
             self.push_indent();
             self.write_line("fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {");
             self.push_indent();
-            self.write_line(&format!("{target}_fmt(self, f).map_err(|_| std::fmt::Error)"));
+            self.write_line("self.fmt_impl(f).map_err(|_| std::fmt::Error)");
             self.pop_indent();
             self.write_line("}");
             self.pop_indent();
@@ -394,7 +394,7 @@ impl RustGen {
     }
 
     fn synthetic_impl_target(&self, func: &Function) -> Option<String> {
-        if self.current_impl_target().is_some() || func.name.ends_with("_fmt") {
+        if self.current_impl_target().is_some() {
             return None;
         }
 
@@ -1509,6 +1509,9 @@ impl RustGen {
                     break;
                 }
             }
+            if emitted.ends_with("_fmt") {
+                return "fmt_impl".to_string();
+            }
         }
         if let Some(trait_name) = self.current_impl_trait() {
             match trait_name {
@@ -1534,6 +1537,90 @@ impl RustGen {
     }
 
     fn normalize_runtime_path(&self, path: &str) -> String {
+        const STRIP_COLON_PREFIXES: &[&str] = &[
+            "crate::runtime::",
+            "crate::ui::",
+            "crate::ast::",
+            "crate::error::",
+            "crate::effects::",
+            "crate::types::",
+            "crate::lexer::",
+            "crate::diagnostic_registry::",
+            "crate::diagnostics::",
+            "crate::parser::",
+            "crate::span::",
+            "crate::language_features::",
+            "crate::low_level_abi::",
+            "crate::low_level_memory::",
+            "crate::low_level_memory_metadata::",
+            "crate::monomorphize::",
+            "crate::stdlib::",
+            "crate::comptime::",
+            "crate::asm_ir::",
+            "crate::tokio::runtime::",
+            "runtime::",
+            "ui::",
+            "ast::",
+            "error::",
+            "effects::",
+            "types::",
+            "lexer::",
+            "diagnostic_registry::",
+            "diagnostics::",
+            "parser::",
+            "span::",
+            "language_features::",
+            "low_level_abi::",
+            "low_level_memory::",
+            "low_level_memory_metadata::",
+            "monomorphize::",
+            "stdlib::",
+            "comptime::",
+            "asm_ir::",
+            "tokio::runtime::",
+        ];
+        const STRIP_DUNDER_PREFIXES: &[&str] = &[
+            "crate__runtime__",
+            "crate__ui__",
+            "crate__ast__",
+            "crate__error__",
+            "crate__effects__",
+            "crate__types__",
+            "crate__lexer__",
+            "crate__diagnostic_registry__",
+            "crate__diagnostics__",
+            "crate__parser__",
+            "crate__span__",
+            "crate__language_features__",
+            "crate__low_level_abi__",
+            "crate__low_level_memory__",
+            "crate__low_level_memory_metadata__",
+            "crate__monomorphize__",
+            "crate__stdlib__",
+            "crate__comptime__",
+            "crate__asm_ir__",
+            "crate__tokio__runtime__",
+            "runtime__",
+            "ui__",
+            "ast__",
+            "error__",
+            "effects__",
+            "types__",
+            "lexer__",
+            "diagnostic_registry__",
+            "diagnostics__",
+            "parser__",
+            "span__",
+            "language_features__",
+            "low_level_abi__",
+            "low_level_memory__",
+            "low_level_memory_metadata__",
+            "monomorphize__",
+            "stdlib__",
+            "comptime__",
+            "asm_ir__",
+            "tokio__runtime__",
+        ];
         if path == "_self" || path == "self" {
             return "self".to_string();
         }
@@ -1556,55 +1643,19 @@ impl RustGen {
             }
         }
         let mut normalized = path;
-        for prefix in [
-            "crate::runtime::",
-            "crate::ui::",
-            "crate::ast::",
-            "crate::error::",
-            "crate::effects::",
-            "crate::types::",
-            "crate::lexer::",
-            "crate::diagnostic_registry::",
-            "crate::diagnostics::",
-            "crate::parser::",
-            "crate::span::",
-            "crate::language_features::",
-            "crate::low_level_abi::",
-            "crate::low_level_memory::",
-            "crate::low_level_memory_metadata::",
-            "crate::monomorphize::",
-            "crate::stdlib::",
-            "crate::comptime::",
-            "crate::asm_ir::",
-            "crate::tokio::runtime::",
-        ] {
+        if normalized.contains("__") && normalized.contains("::") {
+            let canonical = normalized.replace("__", "::");
+            if canonical != normalized {
+                return self.normalize_runtime_path(&canonical);
+            }
+        }
+        for prefix in STRIP_COLON_PREFIXES {
             if let Some(rest) = normalized.strip_prefix(prefix) {
                 normalized = rest;
                 break;
             }
         }
-        for prefix in [
-            "crate__runtime__",
-            "crate__ui__",
-            "crate__ast__",
-            "crate__error__",
-            "crate__effects__",
-            "crate__types__",
-            "crate__lexer__",
-            "crate__diagnostic_registry__",
-            "crate__diagnostics__",
-            "crate__parser__",
-            "crate__span__",
-            "crate__language_features__",
-            "crate__low_level_abi__",
-            "crate__low_level_memory__",
-            "crate__low_level_memory_metadata__",
-            "crate__monomorphize__",
-            "crate__stdlib__",
-            "crate__comptime__",
-            "crate__asm_ir__",
-            "crate__tokio__runtime__",
-        ] {
+        for prefix in STRIP_DUNDER_PREFIXES {
             if let Some(rest) = normalized.strip_prefix(prefix) {
                 normalized = rest;
                 break;
@@ -1795,16 +1846,77 @@ impl RustGen {
     }
 
     fn map_storage_type(&self, ty: &Type, current_self: Option<&str>) -> String {
-        match ty {
-            Type::Ref { inner, .. } => self.map_type_in_context(inner, current_self, false),
-            _ => self.map_type_in_context(ty, current_self, true),
-        }
+        self.map_owned_type_in_context(ty, current_self, true)
     }
 
     fn map_return_type(&self, ty: &Type, current_self: Option<&str>) -> String {
+        self.map_owned_type_in_context(ty, current_self, false)
+    }
+
+    fn map_owned_type_in_context(
+        &self,
+        ty: &Type,
+        current_self: Option<&str>,
+        recursive_slot: bool,
+    ) -> String {
         match ty {
-            Type::Ref { inner, .. } => self.map_type_in_context(inner, current_self, false),
-            _ => self.map_type_in_context(ty, current_self, false),
+            Type::Named { name, generics, .. } => {
+                let rust_name = self.normalize_type_name(name, current_self);
+
+                if recursive_slot && current_self.is_some_and(|self_name| rust_name == self_name) {
+                    return format!("Box<{}>", rust_name);
+                }
+
+                if generics.is_empty() {
+                    rust_name
+                } else {
+                    let gen_strs: Vec<String> = generics
+                        .iter()
+                        .map(|g| self.map_owned_type_in_context(g, current_self, false))
+                        .collect();
+                    format!("{}<{}>", rust_name, gen_strs.join(", "))
+                }
+            }
+            Type::Ref { inner, .. } => self.map_owned_type_in_context(inner, current_self, false),
+            Type::Tuple(types, _) => {
+                let type_strs: Vec<String> = types
+                    .iter()
+                    .map(|t| self.map_owned_type_in_context(t, current_self, true))
+                    .collect();
+                if type_strs.len() == 1 {
+                    format!("({},)", type_strs[0])
+                } else {
+                    format!("({})", type_strs.join(", "))
+                }
+            }
+            Type::Array(inner, size, _) => {
+                format!("[{}; {}]", self.map_owned_type_in_context(inner, current_self, true), size)
+            }
+            Type::Slice(inner, _) => {
+                format!("[{}]", self.map_owned_type_in_context(inner, current_self, true))
+            }
+            Type::Function { params, return_type, .. } => {
+                let param_strs: Vec<String> = params
+                    .iter()
+                    .map(|p| self.map_owned_type_in_context(p, current_self, false))
+                    .collect();
+                format!(
+                    "fn({}) -> {}",
+                    param_strs.join(", "),
+                    self.map_owned_type_in_context(return_type, current_self, false)
+                )
+            }
+            Type::Option(inner, _) => {
+                format!("Option<{}>", self.map_owned_type_in_context(inner, current_self, true))
+            }
+            Type::Result(ok, err, _) => {
+                format!(
+                    "Result<{}, {}>",
+                    self.map_owned_type_in_context(ok, current_self, true),
+                    self.map_owned_type_in_context(err, current_self, true)
+                )
+            }
+            _ => self.map_type_in_context(ty, current_self, recursive_slot),
         }
     }
 
@@ -1941,8 +2053,8 @@ impl RustGen {
             "Char" => "char".to_string(),
             "Unit" => "()".to_string(),
             "Array" => "Vec".to_string(),
-            "Map" => "HashMap".to_string(),
-            "Set" => "HashSet".to_string(),
+            "Map" => "std::collections::HashMap".to_string(),
+            "Set" => "std::collections::HashSet".to_string(),
             "Error" => "KainError".to_string(),
             "PathBuf" => "std::path::PathBuf".to_string(),
             "Formatter" => "std::fmt::Formatter".to_string(),
@@ -1951,7 +2063,12 @@ impl RustGen {
     }
 
     fn normalize_type_name(&self, name: &str, current_self: Option<&str>) -> String {
-        let leaf = name.rsplit("::").next().unwrap_or(name);
+        let mut leaf = name.rsplit("::").next().unwrap_or(name).trim();
+        if let Some(stripped) = leaf.strip_prefix("&mut ") {
+            leaf = stripped.trim();
+        } else if let Some(stripped) = leaf.strip_prefix('&') {
+            leaf = stripped.trim();
+        }
         let normalized = if leaf == "Self_" {
             current_self.unwrap_or("Self")
         } else {

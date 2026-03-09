@@ -1,5 +1,6 @@
 # Build artifacts
 /target/
+/target_selfhost_probe*/
 *.exe
 *.pdb
 *.obj
@@ -41,6 +42,8 @@ backup/
 install-local.ps1
 target-install/
 unreal/UE_API/
+/target_selfhost_probe*/
+target_selfhost_probe*/
 target_selfhost_probe/**
 /target_selfhost_probe
 target_selfhost_probe/*
