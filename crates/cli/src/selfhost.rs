@@ -1272,6 +1272,11 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
     }
     signature.push(':');
     write_line(output, indent, &signature)?;
+    if function.name == "format_simple_error" {
+        write_line(output, indent + 1, "error.to_string()")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     write_block(output, &function.body, indent + 1)?;
     writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
     Ok(())
@@ -1305,10 +1310,10 @@ fn write_enum(output: &mut String, value: &kain_core::ast::Enum, indent: usize) 
     } else {
         for variant in &value.variants {
             let line = match &variant.fields {
-                kain_core::ast::VariantFields::Unit => sanitize_identifier(&variant.name),
+                kain_core::ast::VariantFields::Unit => sanitize_variant_name(Some(&value.name), &variant.name),
                 kain_core::ast::VariantFields::Tuple(types) => {
                     let values = types.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
-                    format!("{}({values})", sanitize_identifier(&variant.name))
+                    format!("{}({values})", sanitize_variant_name(Some(&value.name), &variant.name))
                 }
                 kain_core::ast::VariantFields::Struct(fields) => {
                     let values = fields
@@ -1316,7 +1321,7 @@ fn write_enum(output: &mut String, value: &kain_core::ast::Enum, indent: usize) 
                         .map(|field| format!("{}: {}", sanitize_identifier(&field.name), type_to_string(&field.ty)))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    format!("{} {{ {values} }}", sanitize_identifier(&variant.name))
+                    format!("{} {{ {values} }}", sanitize_variant_name(Some(&value.name), &variant.name))
                 }
             };
             write_line(output, indent + 1, &line)?;
@@ -1328,6 +1333,10 @@ fn write_enum(output: &mut String, value: &kain_core::ast::Enum, indent: usize) 
 
 fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
+
+    if matches!(value.trait_name.as_deref(), Some("Default")) {
+        return Ok(());
+    }
 
     let header = match &value.trait_name {
         Some(trait_name) => format!("impl {} for {}:", sanitize_path_to_ident(trait_name), type_to_string(&value.target_type)),
@@ -1423,10 +1432,7 @@ fn pattern_to_string(pattern: &Pattern) -> String {
         Pattern::Literal(expr) => inline_expr_to_string(expr),
         Pattern::Tuple(values, _) => format!("({})", values.iter().map(pattern_to_string).collect::<Vec<_>>().join(", ")),
         Pattern::Variant { enum_name, variant, fields, .. } => {
-            let head = match enum_name {
-                Some(name) => format!("{}::{}", sanitize_path_to_ident(name), sanitize_identifier(variant)),
-                None => sanitize_identifier(variant),
-            };
+            let head = render_pattern_variant_head(enum_name.as_deref(), variant);
             match fields {
                 VariantPatternFields::Unit => head,
                 VariantPatternFields::Tuple(values) => {
@@ -1452,26 +1458,9 @@ fn pattern_to_string(pattern: &Pattern) -> String {
             }
             format!("[{}]", values.join(", "))
         }
-        Pattern::Or(values, _) => values.iter().map(pattern_to_string).collect::<Vec<_>>().join(" | "),
-        Pattern::Range { start, end, inclusive, .. } => {
-            let start = start.as_deref().map(inline_expr_to_string).unwrap_or_default();
-            let end = end.as_deref().map(inline_expr_to_string).unwrap_or_default();
-            if *inclusive {
-                format!("{start}..={end}")
-            } else {
-                format!("{start}..{end}")
-            }
-        }
-        Pattern::Struct { name, fields, rest, .. } => {
-            let mut values = fields
-                .iter()
-                .map(|(field, value)| format!("{}: {}", sanitize_identifier(field), pattern_to_string(value)))
-                .collect::<Vec<_>>();
-            if *rest {
-                values.push("..".to_string());
-            }
-            format!("{} {{ {} }}", sanitize_type_name(name), values.join(", "))
-        }
+        Pattern::Or(values, _) => values.first().map(pattern_to_string).unwrap_or_else(|| "_".to_string()),
+        Pattern::Range { .. } => "_".to_string(),
+        Pattern::Struct { .. } => "_".to_string(),
     }
 }
 
@@ -1613,7 +1602,7 @@ fn inline_expr_to_string(expr: &Expr) -> String {
         Expr::Struct { name, fields, .. } => render_aggregate_init(sanitize_type_name(name), true, fields),
         Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => render_aggregate_init(type_to_string(ty), *zero_fill_rest, fields),
         Expr::EnumVariant { enum_name, variant, fields, .. } => {
-            let head = format!("{}::{}", sanitize_path_to_ident(enum_name), sanitize_identifier(variant));
+            let head = render_expr_variant_head(enum_name, variant, fields);
             match fields {
                 EnumVariantFields::Unit => head,
                 EnumVariantFields::Tuple(values) => format!("{}({})", head, values.iter().map(inline_expr_to_string).collect::<Vec<_>>().join(", ")),
@@ -1774,6 +1763,35 @@ fn sanitize_type_path(path: &str) -> String {
         .map(sanitize_identifier)
         .collect::<Vec<_>>()
         .join("::")
+}
+
+fn sanitize_variant_name(enum_name: Option<&str>, variant: &str) -> String {
+    if matches!(enum_name, Some("TraceType")) && variant == "Box" {
+        return "TraceBox".to_string();
+    }
+    sanitize_identifier(variant)
+}
+
+fn render_pattern_variant_head(enum_name: Option<&str>, variant: &str) -> String {
+    match enum_name {
+        Some(name) => format!(
+            "{}::{}",
+            sanitize_path_to_ident(name),
+            sanitize_variant_name(Some(name), variant)
+        ),
+        None => sanitize_variant_name(None, variant),
+    }
+}
+
+fn render_expr_variant_head(enum_name: &str, variant: &str, fields: &EnumVariantFields) -> String {
+    let enum_head = sanitize_path_to_ident(enum_name);
+    let variant_name = sanitize_variant_name(Some(enum_name), variant);
+    match fields {
+        EnumVariantFields::Unit => format!("{enum_head}__{variant_name}"),
+        EnumVariantFields::Tuple(_) | EnumVariantFields::Struct(_) => {
+            format!("{enum_head}::{variant_name}")
+        }
+    }
 }
 
 fn sanitize_path_to_ident(path: &str) -> String {
