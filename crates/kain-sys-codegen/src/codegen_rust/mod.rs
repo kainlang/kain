@@ -2545,7 +2545,7 @@ impl RustGen {
         } else if let Some(stripped) = leaf.strip_prefix('&') {
             leaf = stripped.trim();
         }
-        let normalized = if leaf == "Self_" {
+        let normalized = if leaf == "Self_" || leaf == "Self" {
             current_self.unwrap_or("Self")
         } else {
             leaf
