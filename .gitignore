@@ -13,6 +13,7 @@
 /mcp
 /testing
 /projects
+/target_selfhost_probe
 /kain/Final5_7
 # LLVM/Compiler output
 *.ll
@@ -40,3 +41,10 @@ backup/
 install-local.ps1
 target-install/
 unreal/UE_API/
+target_selfhost_probe/**
+/target_selfhost_probe
+target_selfhost_probe/*
+*target_selfhost_probe\*
+target_selfhost_probe\
+target_selfhost_probe\**
+

@@ -21,6 +21,7 @@ const SELFHOST_STAGE2_VERSION_SUFFIX: &str = "-selfhost.0";
 
 thread_local! {
     static CURRENT_SELFHOST_FUNCTION: RefCell<Option<String>> = const { RefCell::new(None) };
+    static CURRENT_SELFHOST_IMPL: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 #[derive(Subcommand, Debug)]
@@ -1210,6 +1211,27 @@ fn render_program(program: &Program) -> KainResult<String> {
 }
 
 fn repair_selfhost_bundle(source: String) -> String {
+    let source = repair_named_function_block(&source, "fn item_span(", |_| {
+        [
+            "fn item_span(item: &Item) -> crate::span::Span:",
+            "    match item:",
+            "        Item::Function(f) => f.span.clone()",
+            "        Item::Struct(s) => s.span.clone()",
+            "        Item::Enum(e) => e.span.clone()",
+            "        Item::Component(c) => c.span.clone()",
+            "        Item::Shader(s) => s.span.clone()",
+            "        Item::Actor(a) => a.span.clone()",
+            "        Item::Comptime(b) => b.span.clone()",
+            "        Item::Const(c) => c.span.clone()",
+            "        Item::Macro(m) => m.span.clone()",
+            "        Item::Use(u) => u.span.clone()",
+            "        Item::Mod(m) => m.span.clone()",
+            "        Item::Impl(i) => i.span.clone()",
+            "        Item::Test(t) => t.span.clone()",
+            "        _ => Span__new_(0, 0)",
+        ]
+        .join("\n")
+    });
     let source = repair_named_function_block(&source, "fn lower_type_memory(", |_| {
         [
             "fn lower_type_memory(ty: &Type) -> Type:",
@@ -1228,77 +1250,38 @@ fn repair_selfhost_bundle(source: String) -> String {
         ]
         .join("\n")
     });
-    let source = repair_named_function_block(&source, "fn infer_expr_type(", |_| {
-        [
-            "fn infer_expr_type(expr: &Expr, ctx: &FunctionMemoryCtx) -> Option<Type>:",
-            "    match expr:",
-            "        Expr::Int(_, span) => Some(Type::Named { name: \"Int\".to_string(), generics: Vec__new_(), span: span.clone() })",
-            "        Expr::Float(_, span) => Some(Type::Named { name: \"Float\".to_string(), generics: Vec__new_(), span: span.clone() })",
-            "        Expr::Bool(_, span) => Some(Type::Named { name: \"Bool\".to_string(), generics: Vec__new_(), span: span.clone() })",
-            "        Expr::Ident(name, _) => ctx.local_types.get(name).cloned()",
-            "        Expr::Field { object: object, field: field } =>",
-            "            let object_ty = infer_expr_type(object, ctx)?",
-            "            field_type_from_object(&object_ty, field, ctx)",
-            "        Expr::Index { object: object } => infer_element_type(object, ctx)",
-            "        Expr::Cast { target: target } => Some(target.clone())",
-            "        _ => None",
-        ]
-        .join("\n")
-    });
-    let source = repair_named_function_block(&source, "fn rewrite_access_to_self(", |_| {
-        [
-            "fn rewrite_access_to_self(block: &mut Block, fields: &Map<String, ResolvedType>):",
-            "    for stmt in &mut block.stmts:",
-            "        rewrite_stmt(stmt, fields)",
-        ]
-        .join("\n")
-    });
-    let source = repair_named_function_block(&source, "fn rewrite_stmt(", |_| {
-        [
-            "fn rewrite_stmt(stmt: &mut Stmt, fields: &Map<String, ResolvedType>):",
-            "    match stmt:",
-            "        Stmt::Expr(e) => rewrite_expr(e, fields)",
-            "        Stmt::Return(Some(e), _) => rewrite_expr(e, fields)",
-            "        Stmt::Let { value: Some(e) } => rewrite_expr(e, fields)",
-            "        Stmt::For { iter: iter, body: body } =>",
-            "            rewrite_expr(iter, fields)",
-            "            rewrite_access_to_self(body, fields)",
-            "        Stmt::While { condition: condition, body: body } =>",
-            "            rewrite_expr(condition, fields)",
-            "            rewrite_access_to_self(body, fields)",
-            "        _ =>",
-            "            let __selfhost_empty = none",
-            "    let transform = match stmt:",
-            "        Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(e), span: span } => if fields.contains_key(name): Some((name.clone(), e.clone(), span.clone())) else: None",
-            "        _ => None",
-            "    match transform:",
-            "        Some((name, val, span)) => (*stmt) = Stmt__Expr(Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name, span: span.clone() }), value: Box__new_(val), span: span.clone() })",
-            "        _ => none",
-        ]
-        .join("\n")
-    });
-    let source = repair_named_function_block(&source, "fn rewrite_expr(", |_| {
-        [
-            "fn rewrite_expr(expr: &mut Expr, fields: &Map<String, ResolvedType>):",
-            "    match expr:",
-            "        Expr::Ident(name, span) =>",
-            "            if fields.contains_key(name):",
-            "                (*expr) = Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name.clone(), span: span.clone() }",
-            "        Expr::Binary { left: left, right: right } =>",
-            "            rewrite_expr(left, fields)",
-            "            rewrite_expr(right, fields)",
-            "        Expr::Call { callee: callee, args: args } =>",
-            "            rewrite_expr(callee, fields)",
-            "            for arg in args:",
-            "                rewrite_expr(&mut arg.value, fields)",
-            "        Expr::Field { object: object } => rewrite_expr(object, fields)",
-            "        Expr::Await(inner, _) => rewrite_expr(inner, fields)",
-            "        Expr::Block(b, _) => rewrite_access_to_self(b, fields)",
-            "        _ =>",
-            "            let __selfhost_empty = none",
-        ]
-        .join("\n")
-    });
+    let source = source.replace(
+        "                _ => let __selfhost_empty = none",
+        "                _ =>\n                    let __selfhost_empty = none",
+    );
+    let source = source.replace(
+        "        _ => let __selfhost_empty = none",
+        "        _ =>\n            let __selfhost_empty = none",
+    );
+    let source = source.replace(
+        "    fn infer_expr_type(expr: &Expr, ctx: &FunctionMemoryCtx) -> Option<Type>:\n    match expr:",
+        "    fn infer_expr_type(expr: &Expr, ctx: &FunctionMemoryCtx) -> Option<Type>:\n        match expr:",
+    );
+    let source = source.replace(
+        "    fn rewrite_access_to_self(block: &mut Block, fields: &Map<String, ResolvedType>):\n    for stmt in &mut block.stmts:",
+        "    fn rewrite_access_to_self(block: &mut Block, fields: &Map<String, ResolvedType>):\n        for stmt in &mut block.stmts:",
+    );
+    let source = source.replace(
+        "    fn rewrite_stmt(stmt: &mut Stmt, fields: &Map<String, ResolvedType>):\n    match stmt:",
+        "    fn rewrite_stmt(stmt: &mut Stmt, fields: &Map<String, ResolvedType>):\n        match stmt:",
+    );
+    let source = source.replace(
+        "    fn rewrite_expr(expr: &mut Expr, fields: &Map<String, ResolvedType>):\n    match expr:",
+        "    fn rewrite_expr(expr: &mut Expr, fields: &Map<String, ResolvedType>):\n        match expr:",
+    );
+    let source = source.replace(
+        "    fn eval_jsx(env: &mut crate::runtime::Env, node: &crate::ast::JSXNode) -> Result<crate::runtime::Value, Error>:\n    match node:",
+        "    fn eval_jsx(env: &mut crate::runtime::Env, node: &crate::ast::JSXNode) -> Result<crate::runtime::Value, Error>:\n        match node:",
+    );
+    let source = source.replace(
+        "    fn attrs_to_props_map(attrs: &[UIAttr]) -> Map<String, crate::runtime::Value>:\n    let mut props = std__collections__HashMap__new_()",
+        "    fn attrs_to_props_map(attrs: &[UIAttr]) -> Map<String, crate::runtime::Value>:\n        let mut props = std__collections__HashMap__new_()",
+    );
     let source = repair_named_function_block(&source, "fn wrap_return_in_poll_ready(", |_| {
         [
             "fn wrap_return_in_poll_ready(block: Block, span: crate::span::Span) -> Expr:",
@@ -1306,64 +1289,6 @@ fn repair_selfhost_bundle(source: String) -> String {
             "    for stmt in &mut block.stmts:",
             "        wrap_stmt_returns(stmt, span.clone())",
             "    Expr__Block(block, span.clone())",
-        ]
-        .join("\n")
-    });
-    let source = repair_named_function_block(&source, "fn eval_jsx(", |_| {
-        [
-            "fn eval_jsx(env: &mut crate::runtime::Env, node: &crate::ast::JSXNode) -> Result<crate::runtime::Value, Error>:",
-            "    match node:",
-            "        crate__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>",
-            "            let attrs = eval_attrs(env, attributes)?",
-            "            let children = eval_children(env, children)?",
-            "            let key = find_attr_key(&attrs, &\"key\".to_string())",
-            "            Ok(crate__runtime__Value__JSX(VNode::Element { tag: tag.clone(), attrs: attrs, children: children, key: key }))",
-            "        crate__ast__JSXNode::Text(s, _) => Ok(crate__runtime__Value__String(s.clone()))",
-            "        crate__ast__JSXNode::Expression(expr) => crate__runtime__eval_expr(env, expr)",
-            "        crate__ast__JSXNode::Fragment(children, _) => Ok(crate__runtime__Value__JSX(VNode__Fragment(eval_children(env, children)?)))",
-            "        crate__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>",
-            "            let cond = crate__runtime__eval_expr(env, condition)?",
-            "            if value_is_truthy(&cond):",
-            "                eval_jsx(env, then_branch)",
-            "            else:",
-            "                match else_branch:",
-            "                    Some(else_branch) => eval_jsx(env, else_branch)",
-            "                    _ => Ok(crate__runtime__Value__JSX(VNode__Fragment(Vec__new_())))",
-            "        crate__ast__JSXNode::For { binding: binding, iter: iter, body: body } =>",
-            "            let iter_value = crate__runtime__eval_expr(env, iter)?",
-            "            let items = match iter_value:",
-            "                crate__runtime__Value::Array(items) => items.read().unwrap().clone()",
-            "                crate__runtime__Value::Tuple(items) => items",
-            "                _ => Vec__new_()",
-            "            let mut children = Vec__new_()",
-            "            for item in items:",
-            "                let __selfhost_binding = binding.clone()",
-            "                let __selfhost_item = item",
-            "                let rendered = eval_jsx(env, body)?",
-            "                flatten_value_into_children(rendered, &mut children)",
-            "            Ok(crate__runtime__Value__JSX(VNode__Fragment(children)))",
-            "        crate__ast__JSXNode::ComponentCall { name: name, props: props, children: children } =>",
-            "            let attrs = eval_attrs(env, props)?",
-            "            let rendered_children = eval_children(env, children)?",
-            "            let props = attrs_to_props_map(&attrs)",
-            "            let instance = aggregate_init(\"ComponentInstance\", name = name.clone(), props = props, children = rendered_children.clone(), state_ = std__collections__HashMap__new_())",
-            "            Ok(crate__runtime__Value__JSX(VNode::Component { instance: instance, rendered: Box__new_(VNode__Fragment(rendered_children)) }))",
-        ]
-        .join("\n")
-    });
-    let source = repair_named_function_block(&source, "fn attrs_to_props_map(", |_| {
-        [
-            "fn attrs_to_props_map(attrs: &[UIAttr]) -> Map<String, crate::runtime::Value>:",
-            "    let mut props = std__collections__HashMap__new_()",
-            "    for attr in attrs:",
-            "        match attr:",
-            "            UIAttr::Property { name: name, value: value } =>",
-            "                let __selfhost_insert = props.insert(name.clone(), value.clone())",
-            "            UIAttr::Bool { name: name, value: value } =>",
-            "                let __selfhost_insert = props.insert(name.clone(), crate__runtime__Value__Bool((*value)))",
-            "            UIAttr::Event { name: name, handler: handler } =>",
-            "                let __selfhost_insert = props.insert(name.clone(), handler.clone())",
-            "    props",
         ]
         .join("\n")
     });
@@ -1512,6 +1437,91 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
     }
     signature.push(':');
     write_line(output, indent, &signature)?;
+    let current_impl = CURRENT_SELFHOST_IMPL.with(|slot| slot.borrow().clone());
+    if function.name == "span" && current_impl.as_deref() == Some("Type") {
+        write_line(output, indent + 1, "match _self:")?;
+        write_line(output, indent + 2, "Type::Named { span: span } => span.clone()")?;
+        write_line(output, indent + 2, "Type::Tuple(_, span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Array(_, _, span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Slice(_, span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Ref { span: span } => span.clone()")?;
+        write_line(output, indent + 2, "Type::Ptr { span: span } => span.clone()")?;
+        write_line(output, indent + 2, "Type::Function { span: span } => span.clone()")?;
+        write_line(output, indent + 2, "Type::Option(_, span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Result(_, _, span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Infer(span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Never(span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Unit(span) => span.clone()")?;
+        write_line(output, indent + 2, "Type::Impl { span: span } => span.clone()")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "span" && current_impl.as_deref() == Some("Expr") {
+        write_line(output, indent + 1, "match _self:")?;
+        write_line(output, indent + 2, "Expr::Int(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Float(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::String(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::FString(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Bool(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::None(s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Ident(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Binary { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Unary { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Call { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::MethodCall { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Field { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Index { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Struct { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::AggregateInit { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::EnumVariant { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Array(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Tuple(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Range { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::If { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Match { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Lambda { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Ref { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::AddrOf { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Deref(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::PtrOffset { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::MemLoad { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::MemStore { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::SizeOfType { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::AlignOfType { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Alloca { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Uninit { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Alloc { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Realloc { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Cast { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Try(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Await(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Spawn { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::SendMsg { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Comptime(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::MacroCall { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Block(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::JSX(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Assign { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Paren(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Return(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Break(_, s) => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Continue(s) => s.clone()")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if (function.name == "current_span" || emitted_name == "current_span")
+        && current_impl.as_deref() == Some("Parser")
+    {
+        write_line(output, indent + 1, "if (!_self.injected_tokens.is_empty()):")?;
+        write_line(output, indent + 2, "return _self.injected_tokens[0].span.clone()")?;
+        write_line(
+            output,
+            indent + 1,
+            "_self.tokens.get(_self.pos).map(|tok| tok.span.clone()).unwrap_or(crate__span__Span__new_(0, 0))",
+        )?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "render_to_string" {
         write_line(output, indent + 1, "match node:")?;
         write_line(output, indent + 2, "VNode::Element { tag: tag, attrs: attrs, children: children } =>")?;
@@ -1538,6 +1548,25 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
+    if function.name == "item_span" {
+        write_line(output, indent + 1, "match item:")?;
+        write_line(output, indent + 2, "Item::Function(f) => f.span.clone()")?;
+        write_line(output, indent + 2, "Item::Struct(s) => s.span.clone()")?;
+        write_line(output, indent + 2, "Item::Enum(e) => e.span.clone()")?;
+        write_line(output, indent + 2, "Item::Component(c) => c.span.clone()")?;
+        write_line(output, indent + 2, "Item::Shader(s) => s.span.clone()")?;
+        write_line(output, indent + 2, "Item::Actor(a) => a.span.clone()")?;
+        write_line(output, indent + 2, "Item::Comptime(b) => b.span.clone()")?;
+        write_line(output, indent + 2, "Item::Const(c) => c.span.clone()")?;
+        write_line(output, indent + 2, "Item::Macro(m) => m.span.clone()")?;
+        write_line(output, indent + 2, "Item::Use(u) => u.span.clone()")?;
+        write_line(output, indent + 2, "Item::Mod(m) => m.span.clone()")?;
+        write_line(output, indent + 2, "Item::Impl(i) => i.span.clone()")?;
+        write_line(output, indent + 2, "Item::Test(t) => t.span.clone()")?;
+        write_line(output, indent + 2, "_ => Span__new_(0, 0)")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "reconcile" {
         write_line(output, indent + 1, "match (current, next):")?;
         write_line(output, indent + 2, "(Some(VNode::Element { tag: old_tag }), VNode::Element { tag: new_tag, attrs: attrs, children: children, key: key }) =>")?;
@@ -1561,12 +1590,14 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 2, "Pattern::Variant { enum_name: enum_name, fields: fields } =>")?;
         write_line(output, indent + 3, "match enum_name:")?;
         write_line(output, indent + 4, "Some(name) => out_.insert(name.clone())")?;
-        write_line(output, indent + 4, "_ => let __selfhost_empty = none")?;
+        write_line(output, indent + 4, "_ =>")?;
+        write_line(output, indent + 5, "let __selfhost_empty = none")?;
         write_line(output, indent + 3, "match fields:")?;
         write_line(output, indent + 4, "VariantPatternFields::Tuple(patterns) =>")?;
         write_line(output, indent + 5, "for p in patterns:")?;
         write_line(output, indent + 6, "collect_type_names_from_pattern(p, out_)")?;
-        write_line(output, indent + 4, "_ => let __selfhost_empty = none")?;
+        write_line(output, indent + 4, "_ =>")?;
+        write_line(output, indent + 5, "let __selfhost_empty = none")?;
         write_line(output, indent + 2, "Pattern::Tuple(patterns, _) =>")?;
         write_line(output, indent + 3, "for p in patterns:")?;
         write_line(output, indent + 4, "collect_type_names_from_pattern(p, out_)")?;
@@ -1577,7 +1608,8 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 3, "for p in patterns:")?;
         write_line(output, indent + 4, "collect_type_names_from_pattern(p, out_)")?;
         write_line(output, indent + 2, "Pattern::Literal(expr) => collect_type_names_from_expr(expr, out_)")?;
-        write_line(output, indent + 2, "_ => let __selfhost_empty = none")?;
+        write_line(output, indent + 2, "_ =>")?;
+        write_line(output, indent + 3, "let __selfhost_empty = none")?;
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
@@ -1593,6 +1625,54 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
         write_line(output, indent + 2, "Expr::Index { object: object } => infer_element_type(object, ctx)")?;
         write_line(output, indent + 2, "Expr::Cast { target: target } => Some(target.clone())")?;
         write_line(output, indent + 2, "_ => None")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "re_span_type" && current_impl.as_deref() == Some("Parser") {
+        write_line(output, indent + 1, "match ty:")?;
+        write_line(output, indent + 2, "Type::Named { name: name, generics: generics } => Type::Named { name: name, generics: generics.into_iter().collect(), span: span.clone() }")?;
+        write_line(output, indent + 2, "Type::Array(inner, size, _) => Type__Array(Box__new_(Self___re_span_type((*inner), span.clone())), size, span.clone())")?;
+        write_line(output, indent + 2, "Type::Slice(inner, _) => Type__Slice(Box__new_(Self___re_span_type((*inner), span.clone())), span.clone())")?;
+        write_line(output, indent + 2, "Type::Tuple(types, _) => Type__Tuple(types.into_iter().collect(), span.clone())")?;
+        write_line(output, indent + 2, "Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime } => Type::Ref { mutable_: mutable_, inner: Box__new_(Self___re_span_type((*inner), span.clone())), lifetime: lifetime, span: span.clone() }")?;
+        write_line(output, indent + 2, "Type::Ptr { mutable_: mutable_, inner: inner, provenance: provenance } => Type::Ptr { mutable_: mutable_, inner: Box__new_(Self___re_span_type((*inner), span.clone())), provenance: provenance, span: span.clone() }")?;
+        write_line(output, indent + 2, "Type::Function { params: params, return_type: return_type, effects: effects } => Type::Function { params: params.into_iter().collect(), return_type: Box__new_(Self___re_span_type((*return_type), span.clone())), effects: effects, span: span.clone() }")?;
+        write_line(output, indent + 2, "Type::Option(inner, _) => Type__Option(Box__new_(Self___re_span_type((*inner), span.clone())), span.clone())")?;
+        write_line(output, indent + 2, "Type::Result(ok, err, _) => Type__Result(Box__new_(Self___re_span_type((*ok), span.clone())), Box__new_(Self___re_span_type((*err), span.clone())), span.clone())")?;
+        write_line(output, indent + 2, "Type::Infer(_) => Type__Infer(span.clone())")?;
+        write_line(output, indent + 2, "Type::Never(_) => Type__Never(span.clone())")?;
+        write_line(output, indent + 2, "Type::Unit(_) => Type__Unit(span.clone())")?;
+        write_line(output, indent + 2, "Type::Impl { trait_name: trait_name, generics: generics } => Type::Impl { trait_name: trait_name, generics: generics.into_iter().collect(), span: span.clone() }")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "parse_assignment" && current_impl.as_deref() == Some("Parser") {
+        write_line(output, indent + 1, "let target = _self.parse_conditional()?")?;
+        write_line(output, indent + 1, "match _self.get_assignment_binop():")?;
+        write_line(output, indent + 2, "Some(assign_binop) =>")?;
+        write_line(output, indent + 3, "_self.advance()")?;
+        write_line(output, indent + 3, "let rhs = _self.parse_assignment()?")?;
+        write_line(output, indent + 3, "let span = target.span().merge(rhs.span())")?;
+        write_line(output, indent + 3, "let value = match assign_binop:")?;
+        write_line(output, indent + 4, "Some(op) => Expr::Binary { left: Box__new_(target.clone()), op: op, right: Box__new_(rhs), span: span.clone() }")?;
+        write_line(output, indent + 4, "_ => rhs")?;
+        write_line(output, indent + 3, "Ok(Expr::Assign { target: Box__new_(target), value: Box__new_(value), span: span.clone() })")?;
+        write_line(output, indent + 2, "_ => Ok(target)")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "parse_conditional" && current_impl.as_deref() == Some("Parser") {
+        write_line(output, indent + 1, "let condition = _self.parse_coalesce()?")?;
+        write_line(output, indent + 1, "if (!_self.check(crate__lexer__TokenKind__Question)):\n")?;
+        write_line(output, indent + 2, "return Ok(condition)")?;
+        write_line(output, indent + 1, "_self.advance()")?;
+        write_line(output, indent + 1, "let then_expr = _self.parse_assignment()?")?;
+        write_line(output, indent + 1, "_self.expect(crate__lexer__TokenKind__Colon)?")?;
+        write_line(output, indent + 1, "let else_expr = _self.parse_assignment()?")?;
+        write_line(output, indent + 1, "let then_span = then_expr.span()")?;
+        write_line(output, indent + 1, "let else_span = else_expr.span()")?;
+        write_line(output, indent + 1, "let span = condition.span().merge(else_span.clone())")?;
+        write_line(output, indent + 1, "Ok(Expr::Match { scrutinee: Box__new_(condition), arms: [aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Bool(true, then_span.clone())), guard = None, body = then_expr, span = then_span.clone()), aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Bool(false, else_span.clone())), guard = None, body = else_expr, span = else_span.clone())], span: span.clone() })")?;
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
@@ -1802,9 +1882,17 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
         write_line(output, indent + 1, "fn __selfhost_empty_impl__():")?;
         write_line(output, indent + 2, "let __selfhost_empty = none")?;
     } else {
-        for method in &value.methods {
-            write_function(output, method, indent + 1)?;
-        }
+        CURRENT_SELFHOST_IMPL.with(|slot| {
+            let previous = slot.replace(Some(type_to_string(&value.target_type)));
+            let result = (|| -> KainResult<()> {
+                for method in &value.methods {
+                    write_function(output, method, indent + 1)?;
+                }
+                Ok(())
+            })();
+            slot.replace(previous);
+            result
+        })?;
     }
     writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render impl: {}", err)))?;
     Ok(())
