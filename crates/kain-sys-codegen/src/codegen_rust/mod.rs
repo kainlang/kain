@@ -129,9 +129,35 @@ fn postprocess_flattened_selfhost_output(source: &str) -> String {
 
     let mut output = source.to_string();
     for prefix in LOCAL_MODULE_PREFIXES {
-        output = output.replace(prefix, "");
+        output = replace_prefix_at_token_boundaries(&output, prefix, "");
     }
     output
+}
+
+fn replace_prefix_at_token_boundaries(source: &str, prefix: &str, replacement: &str) -> String {
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    while cursor < source.len() {
+        if source[cursor..].starts_with(prefix) && is_token_boundary_before(source, cursor) {
+            output.push_str(replacement);
+            cursor += prefix.len();
+            continue;
+        }
+        let ch = source[cursor..].chars().next().unwrap();
+        output.push(ch);
+        cursor += ch.len_utf8();
+    }
+    output
+}
+
+fn is_token_boundary_before(source: &str, index: usize) -> bool {
+    if index == 0 {
+        return true;
+    }
+    !matches!(
+        source[..index].chars().next_back(),
+        Some(ch) if ch.is_ascii_alphanumeric() || ch == '_'
+    )
 }
 
 impl RustGen {
