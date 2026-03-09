@@ -41,7 +41,7 @@ pub use gpu_host::generate_gpu_host;
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Rust)?;
     let mut gen = RustGen::new();
-    Ok(gen.gen_program(&lowered))
+    Ok(postprocess_flattened_selfhost_output(&gen.gen_program(&lowered)))
 }
 
 pub fn generate_gpu_host_wrappers(program: &TypedProgram) -> KainResult<String> {
@@ -82,6 +82,56 @@ struct RustGen {
     impl_target_stack: Vec<String>,
     impl_trait_stack: Vec<Option<String>>,
     display_helpers: BTreeSet<String>,
+    free_self_alias_stack: Vec<Option<String>>,
+}
+
+fn postprocess_flattened_selfhost_output(source: &str) -> String {
+    const LOCAL_MODULE_PREFIXES: &[&str] = &[
+        "crate::runtime::",
+        "crate::ui::",
+        "crate::ast::",
+        "crate::error::",
+        "crate::effects::",
+        "crate::types::",
+        "crate::lexer::",
+        "crate::diagnostic_registry::",
+        "crate::diagnostics::",
+        "crate::parser::",
+        "crate::span::",
+        "crate::language_features::",
+        "crate::low_level_abi::",
+        "crate::low_level_memory::",
+        "crate::low_level_memory_metadata::",
+        "crate::monomorphize::",
+        "crate::stdlib::",
+        "crate::comptime::",
+        "crate::asm_ir::",
+        "runtime::",
+        "ui::",
+        "ast::",
+        "error::",
+        "effects::",
+        "types::",
+        "lexer::",
+        "diagnostic_registry::",
+        "diagnostics::",
+        "parser::",
+        "span::",
+        "language_features::",
+        "low_level_abi::",
+        "low_level_memory::",
+        "low_level_memory_metadata::",
+        "monomorphize::",
+        "stdlib::",
+        "comptime::",
+        "asm_ir::",
+    ];
+
+    let mut output = source.to_string();
+    for prefix in LOCAL_MODULE_PREFIXES {
+        output = output.replace(prefix, "");
+    }
+    output
 }
 
 impl RustGen {
@@ -97,6 +147,7 @@ impl RustGen {
             impl_target_stack: Vec::new(),
             impl_trait_stack: Vec::new(),
             display_helpers: BTreeSet::new(),
+            free_self_alias_stack: Vec::new(),
         }
     }
 
@@ -138,7 +189,7 @@ impl RustGen {
         self.write_blank();
 
         // Standard imports
-        self.write_line("use std::collections::HashMap;");
+        self.write_line("use std::collections::{HashMap, HashSet};");
         self.write_line("use std::rc::Rc;");
         self.write_line("use std::cell::{Cell, RefCell};");
         self.write_line("use std::sync::{Arc, Mutex, RwLock};");
@@ -346,12 +397,33 @@ impl RustGen {
             .current_impl_target()
             .or_else(|| self.inferred_self_type(&func.name).map(|value| value.to_string()));
         let self_ctx_ref = self_ctx.as_deref();
+        let free_self_alias = if self_ctx_ref.is_none()
+            && func
+                .params
+                .first()
+                .is_some_and(|param| matches!(param.name.as_str(), "self" | "_self"))
+        {
+            Some("value".to_string())
+        } else {
+            None
+        };
         let mutated_params = self.collect_mutated_bindings_in_block(&func.body);
         let binding_types = self.collect_binding_types(func);
         self.current_function_stack.push(func.name.clone());
         let vis = self.visibility_prefix(func.visibility);
         let modifiers = self.function_modifiers(&func.effects);
-        let params = self.gen_params_with_context(&func.params, self_ctx_ref, Some(&mutated_params));
+        let params = self.gen_params_with_context(
+            &func.params,
+            self_ctx_ref,
+            Some(&mutated_params),
+            free_self_alias.as_deref(),
+        );
+        let generic_params = self.collect_function_generic_params(func);
+        let generic_suffix = if generic_params.is_empty() {
+            String::new()
+        } else {
+            format!("<{}>", generic_params.join(", "))
+        };
         let ret = if let Some(trait_name) = self.current_impl_trait() {
             if trait_name == "Display" && self.rust_method_name(&func.name) == "fmt" {
                 " -> std::fmt::Result".to_string()
@@ -371,10 +443,11 @@ impl RustGen {
             .is_some_and(|ty| !matches!(ty, Type::Unit(_)));
 
         self.write_line(&format!(
-            "{}{}fn {}({}){} {{",
+            "{}{}fn {}{}({}){} {{",
             vis,
             modifiers,
             self.rust_method_name(&func.name),
+            generic_suffix,
             params,
             ret
         ));
@@ -382,9 +455,11 @@ impl RustGen {
         if let Some(self_ctx) = &self_ctx {
             self.self_type_stack.push(self_ctx.to_string());
         }
+        self.free_self_alias_stack.push(free_self_alias);
         self.binding_type_stack.push(binding_types);
         self.gen_block_with_implicit_return(&func.body, has_implicit_return);
         self.binding_type_stack.pop();
+        self.free_self_alias_stack.pop();
         if self_ctx.is_some() {
             self.self_type_stack.pop();
         }
@@ -419,7 +494,7 @@ impl RustGen {
     }
 
     fn gen_params(&self, params: &[Param]) -> String {
-        self.gen_params_with_context(params, None, None)
+        self.gen_params_with_context(params, None, None, None)
     }
 
     fn gen_params_with_context(
@@ -427,6 +502,7 @@ impl RustGen {
         params: &[Param],
         self_ctx: Option<&str>,
         mutated_params: Option<&HashSet<String>>,
+        free_self_alias: Option<&str>,
     ) -> String {
         let parts: Vec<String> = params
             .iter()
@@ -463,6 +539,11 @@ impl RustGen {
                     }
                 }
                 let ty_str = self.map_type_in_context(&p.ty, self_ctx, false);
+                if index == 0 && matches!(p.name.as_str(), "self" | "_self") {
+                    if let Some(alias) = free_self_alias {
+                        return format!("{alias}: {ty_str}");
+                    }
+                }
                 if p.mutable || needs_mut {
                     format!("mut {}: {}", p.name, ty_str)
                 } else {
@@ -471,6 +552,62 @@ impl RustGen {
             })
             .collect();
         parts.join(", ")
+    }
+
+    fn collect_function_generic_params(&self, func: &Function) -> Vec<String> {
+        let mut names = BTreeSet::new();
+        for param in &func.params {
+            self.collect_type_generic_params(&param.ty, &mut names);
+        }
+        if let Some(return_type) = &func.return_type {
+            self.collect_type_generic_params(return_type, &mut names);
+        }
+        names.into_iter().collect()
+    }
+
+    fn collect_type_generic_params(&self, ty: &Type, out: &mut BTreeSet<String>) {
+        match ty {
+            Type::Named { name, generics, .. } => {
+                let leaf = name.rsplit("::").next().unwrap_or(name).trim();
+                for generic in generics {
+                    self.collect_type_generic_params(generic, out);
+                }
+                if generics.is_empty()
+                    && leaf.chars().all(|ch| ch.is_ascii_uppercase())
+                    && !self.known_type_names.contains(leaf)
+                {
+                    out.insert(leaf.to_string());
+                }
+            }
+            Type::Tuple(types, _) => {
+                for item in types {
+                    self.collect_type_generic_params(item, out);
+                }
+            }
+            Type::Array(inner, _, _)
+            | Type::Slice(inner, _)
+            | Type::Ref { inner, .. }
+            | Type::Ptr { inner, .. }
+            | Type::Option(inner, _) => {
+                self.collect_type_generic_params(inner, out);
+            }
+            Type::Result(ok, err, _) => {
+                self.collect_type_generic_params(ok, out);
+                self.collect_type_generic_params(err, out);
+            }
+            Type::Function { params, return_type, .. } => {
+                for param in params {
+                    self.collect_type_generic_params(param, out);
+                }
+                self.collect_type_generic_params(return_type, out);
+            }
+            Type::Impl { generics, .. } => {
+                for generic in generics {
+                    self.collect_type_generic_params(generic, out);
+                }
+            }
+            Type::Infer(_) | Type::Never(_) | Type::Unit(_) => {}
+        }
     }
 
     fn gen_struct(&mut self, struct_def: &Struct) {
@@ -1622,6 +1759,11 @@ impl RustGen {
             "tokio__runtime__",
         ];
         if path == "_self" || path == "self" {
+            if self.current_self_type().is_none() {
+                if let Some(Some(alias)) = self.free_self_alias_stack.last() {
+                    return alias.clone();
+                }
+            }
             return "self".to_string();
         }
         if let Some(self_ty) = self.current_self_type() {
