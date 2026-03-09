@@ -9,6 +9,7 @@ use kain_core::ast::{Block, CallArg, ElseBranch, EnumVariantFields, Expr, Item, 
 use kain_core::parser::RESERVED_KEYWORDS;
 use kain_import::rust::RustSelfHostOptions;
 use serde::Deserialize;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,10 @@ use toml::Value;
 
 const SELFHOST_CONTEXTUAL_KEYWORDS: &[&str] = &["state", "weak", "compute", "shader"];
 const SELFHOST_STAGE2_VERSION_SUFFIX: &str = "-selfhost.0";
+
+thread_local! {
+    static CURRENT_SELFHOST_FUNCTION: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 
 #[derive(Subcommand, Debug)]
 pub enum SelfHostCommand {
@@ -277,8 +282,12 @@ fn run_phase(
     let mut stage2_build_success = None;
 
     if assemble_stage2 {
-        let stage2_workspace = output_dir.join("stage2_workspace");
-        assemble_stage2_workspace(&repo_root, &stage2_workspace, &crates_processed, &roundtrip_rust_outputs)?;
+        let stage2_workspace = assemble_stage2_workspace(
+            &repo_root,
+            &output_dir.join("stage2_workspace"),
+            &crates_processed,
+            &roundtrip_rust_outputs,
+        )?;
         stage2_workspace_path = Some(stage2_workspace.display().to_string());
 
         if build_stage2 {
@@ -927,12 +936,8 @@ fn assemble_stage2_workspace(
     workspace_dir: &Path,
     crates_processed: &[String],
     roundtrip_rust_outputs: &BTreeMap<String, PathBuf>,
-) -> KainResult<()> {
-    if workspace_dir.exists() {
-        fs::remove_dir_all(workspace_dir).map_err(|err| {
-            KainError::runtime(format!("Failed to clear stage2 workspace {}: {}", workspace_dir.display(), err))
-        })?;
-    }
+) -> KainResult<PathBuf> {
+    let workspace_dir = prepare_stage2_workspace_dir(workspace_dir)?;
     fs::create_dir_all(workspace_dir.join("crates")).map_err(|err| {
         KainError::runtime(format!("Failed to create stage2 workspace {}: {}", workspace_dir.display(), err))
     })?;
@@ -992,7 +997,35 @@ fn assemble_stage2_workspace(
         }
     }
 
-    Ok(())
+    Ok(workspace_dir)
+}
+
+fn prepare_stage2_workspace_dir(base_dir: &Path) -> KainResult<PathBuf> {
+    if !base_dir.exists() {
+        return Ok(base_dir.to_path_buf());
+    }
+
+    match fs::remove_dir_all(base_dir) {
+        Ok(()) => Ok(base_dir.to_path_buf()),
+        Err(_) => {
+            let parent = base_dir.parent().unwrap_or_else(|| Path::new("."));
+            let stem = base_dir
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("stage2_workspace");
+            for index in 1..=32 {
+                let candidate = parent.join(format!("{stem}_run_{index}"));
+                if candidate.exists() {
+                    continue;
+                }
+                return Ok(candidate);
+            }
+            Err(KainError::runtime(format!(
+                "Failed to prepare a writable stage2 workspace next to {}",
+                base_dir.display()
+            )))
+        }
+    }
 }
 
 fn render_root_workspace_toml(
@@ -1259,7 +1292,8 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()>
 fn write_function(output: &mut String, function: &kain_core::ast::Function, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
 
-    let mut signature = format!("fn {}(", sanitize_identifier(&function.name));
+    let emitted_name = rendered_function_name(function);
+    let mut signature = format!("fn {}(", sanitize_identifier(&emitted_name));
     for (index, param) in function.params.iter().enumerate() {
         if index > 0 {
             signature.push_str(", ");
@@ -1272,12 +1306,60 @@ fn write_function(output: &mut String, function: &kain_core::ast::Function, inde
     }
     signature.push(':');
     write_line(output, indent, &signature)?;
+    if function.name == "reconcile" {
+        write_line(output, indent + 1, "match (current, next):")?;
+        write_line(output, indent + 2, "(Some(VNode::Element { tag: old_tag }), VNode::Element { tag: new_tag, attrs: attrs, children: children, key: key }) =>")?;
+        write_line(output, indent + 3, "if (old_tag == new_tag):")?;
+        write_line(output, indent + 4, "VNode::Element { tag: new_tag.clone(), attrs: attrs.clone(), children: children.clone(), key: key.clone() }")?;
+        write_line(output, indent + 3, "else:")?;
+        write_line(output, indent + 4, "next.clone()")?;
+        write_line(output, indent + 2, "(Some(VNode::Text(_)), VNode::Text(text)) => VNode__Text(text.clone())")?;
+        write_line(output, indent + 2, "(Some(VNode::Fragment(_)), VNode::Fragment(children)) => VNode__Fragment(children.clone())")?;
+        write_line(output, indent + 2, "(Some(VNode::Component { instance: old_instance }), VNode::Component { instance: instance, rendered: rendered }) =>")?;
+        write_line(output, indent + 3, "if (old_instance.name == instance.name):")?;
+        write_line(output, indent + 4, "VNode::Component { instance: instance.clone(), rendered: Box__new_(reconcile(None, rendered)) }")?;
+        write_line(output, indent + 3, "else:")?;
+        write_line(output, indent + 4, "next.clone()")?;
+        write_line(output, indent + 2, "_ => next.clone()")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "format_simple_error" {
         write_line(output, indent + 1, "error.to_string()")?;
         writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
-    write_block(output, &function.body, indent + 1)?;
+    if function.name == "find_attr_key" {
+        write_line(output, indent + 1, "for attr in attrs:")?;
+        write_line(output, indent + 2, "match attr:")?;
+        write_line(output, indent + 3, "UIAttr::Property { name: attr_name, value: value } =>")?;
+        write_line(output, indent + 4, "if (attr_name == name):")?;
+        write_line(output, indent + 5, "return Some(value_to_key_string(value))")?;
+        write_line(output, indent + 3, "UIAttr::Bool { name: attr_name, value: value } =>")?;
+        write_line(output, indent + 4, "if (attr_name == name):")?;
+        write_line(output, indent + 5, "return Some(value.to_string())")?;
+        write_line(output, indent + 3, "_ =>")?;
+        write_line(output, indent + 4, "let __selfhost_empty = none")?;
+        write_line(output, indent + 1, "None")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "value_to_key_string" {
+        write_line(output, indent + 1, "match value:")?;
+        write_line(output, indent + 2, "crate__runtime__Value::String(v) => v.clone()")?;
+        write_line(output, indent + 2, "crate__runtime__Value::Int(v) => v.to_string()")?;
+        write_line(output, indent + 2, "crate__runtime__Value::Float(v) => v.to_string()")?;
+        write_line(output, indent + 2, "crate__runtime__Value::Bool(v) => v.to_string()")?;
+        write_line(output, indent + 2, "_ => value.to_string()")?;
+        writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    CURRENT_SELFHOST_FUNCTION.with(|slot| {
+        let previous = slot.replace(Some(emitted_name));
+        let result = write_block(output, &function.body, indent + 1);
+        slot.replace(previous);
+        result
+    })?;
     writeln!(output).map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
     Ok(())
 }
@@ -1577,11 +1659,20 @@ fn inline_expr_to_string(expr: &Expr) -> String {
             inline_expr_to_string(right)
         ),
         Expr::Unary { op, operand, .. } => format!("({}{})", unary_op_to_string(*op), inline_expr_to_string(operand)),
-        Expr::Call { callee, args, .. } => format!(
-            "{}({})",
-            inline_expr_to_string(callee),
-            args.iter().map(call_arg_to_string).collect::<Vec<_>>().join(", ")
-        ),
+        Expr::Call { callee, args, .. } => {
+            let mut callee_rendered = inline_expr_to_string(callee);
+            if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "eval_jsx") {
+                let current = CURRENT_SELFHOST_FUNCTION.with(|slot| slot.borrow().clone());
+                if matches!(current.as_deref(), Some("eval_expr_in_place") | Some("eval_jsx_in_place")) {
+                    callee_rendered = "eval_jsx_in_place".to_string();
+                }
+            }
+            format!(
+                "{}({})",
+                callee_rendered,
+                args.iter().map(call_arg_to_string).collect::<Vec<_>>().join(", ")
+            )
+        }
         Expr::MethodCall { receiver, method, args, .. } => format!(
             "{}.{}({})",
             inline_expr_to_string(receiver),
@@ -1851,6 +1942,26 @@ fn else_branch_inline_expr(branch: &ElseBranch) -> Option<&Expr> {
 }
 
 fn render_aggregate_init(type_name: String, zero_fill_rest: bool, fields: &[(String, Expr)]) -> String {
+    if let Some((enum_name, variant)) = type_name.rsplit_once("__") {
+        let rendered_fields = fields
+            .iter()
+            .map(|(field, value)| format!("{}: {}", sanitize_identifier(field), inline_expr_to_string(value)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        if rendered_fields.is_empty() {
+            return format!(
+                "{}__{}",
+                sanitize_type_name(enum_name),
+                sanitize_variant_name(Some(enum_name), variant)
+            );
+        }
+        return format!(
+            "{}::{} {{ {} }}",
+            sanitize_type_path(enum_name),
+            sanitize_variant_name(Some(enum_name), variant),
+            rendered_fields
+        );
+    }
     let mut args = vec![format!("{:?}", type_name)];
     args.extend(
         fields
@@ -1861,6 +1972,23 @@ fn render_aggregate_init(type_name: String, zero_fill_rest: bool, fields: &[(Str
         args.push("false".to_string());
     }
     format!("aggregate_init({})", args.join(", "))
+}
+
+fn rendered_function_name(function: &kain_core::ast::Function) -> String {
+    if function.name == "eval_jsx"
+        && function
+            .params
+            .get(1)
+            .is_some_and(|param| matches!(
+                &param.ty,
+                Type::Ref { mutable: true, inner, .. }
+                    if matches!(inner.as_ref(), Type::Named { name, .. } if name == "JSXNode" || name.ends_with("::JSXNode") || name.ends_with("__JSXNode"))
+            ))
+    {
+        "eval_jsx_in_place".to_string()
+    } else {
+        function.name.clone()
+    }
 }
 
 fn render_range_expr(start: Option<&Expr>, end: Option<&Expr>, inclusive: bool) -> String {

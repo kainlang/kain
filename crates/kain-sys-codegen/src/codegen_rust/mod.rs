@@ -17,7 +17,7 @@ use kain_core::ast::{
     VariantFields, Impl, Param, ElseBranch,
     VariantPatternFields, EnumVariantFields, Component, JSXNode, JSXAttrValue,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 pub use artifact_bundle::{
     generate_rust_artifact_bundle,
@@ -76,6 +76,11 @@ struct RustGen {
     indent: usize,
     emitted_symbols: HashSet<String>,
     binding_type_stack: Vec<HashMap<String, String>>,
+    current_function_stack: Vec<String>,
+    self_type_stack: Vec<String>,
+    impl_target_stack: Vec<String>,
+    impl_trait_stack: Vec<Option<String>>,
+    display_helpers: BTreeSet<String>,
 }
 
 impl RustGen {
@@ -85,6 +90,11 @@ impl RustGen {
             indent: 0,
             emitted_symbols: HashSet::new(),
             binding_type_stack: Vec::new(),
+            current_function_stack: Vec::new(),
+            self_type_stack: Vec::new(),
+            impl_target_stack: Vec::new(),
+            impl_trait_stack: Vec::new(),
+            display_helpers: BTreeSet::new(),
         }
     }
 
@@ -145,6 +155,8 @@ impl RustGen {
             self.write_blank();
         }
 
+        self.emit_synthetic_display_impls();
+
         self.output.build()
     }
 
@@ -175,6 +187,22 @@ impl RustGen {
         self.write_line("unsafe { realloc(ptr.cast::<c_void>(), size) as *mut u8 }");
         self.pop_indent();
         self.write_line("}");
+    }
+
+    fn emit_synthetic_display_impls(&mut self) {
+        let helpers: Vec<String> = self.display_helpers.iter().cloned().collect();
+        for target in helpers {
+            self.write_line(&format!("impl std::fmt::Display for {} {{", target));
+            self.push_indent();
+            self.write_line("fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {");
+            self.push_indent();
+            self.write_line(&format!("{target}_fmt(self, f).map_err(|_| std::fmt::Error)"));
+            self.pop_indent();
+            self.write_line("}");
+            self.pop_indent();
+            self.write_line("}");
+            self.write_blank();
+        }
     }
 
     fn write_low_level_memory_helpers(&mut self) {
@@ -281,14 +309,31 @@ impl RustGen {
 
     // Generate a function definition
     fn gen_function(&mut self, func: &Function) {
-        let self_ctx = self.inferred_self_type(&func.name);
+        if let Some(target) = func.name.strip_suffix("_fmt") {
+            if !target.is_empty() {
+                self.display_helpers.insert(target.to_string());
+            }
+        }
+        let self_ctx = self
+            .current_impl_target()
+            .or_else(|| self.inferred_self_type(&func.name).map(|value| value.to_string()));
+        let self_ctx_ref = self_ctx.as_deref();
         let mutated_params = self.collect_mutated_bindings_in_block(&func.body);
         let binding_types = self.collect_binding_types(func);
+        self.current_function_stack.push(func.name.clone());
         let vis = self.visibility_prefix(func.visibility);
         let modifiers = self.function_modifiers(&func.effects);
-        let params = self.gen_params_with_context(&func.params, self_ctx, Some(&mutated_params));
-        let ret = if let Some(ty) = &func.return_type {
-            format!(" -> {}", self.map_return_type(ty, self_ctx))
+        let params = self.gen_params_with_context(&func.params, self_ctx_ref, Some(&mutated_params));
+        let ret = if let Some(trait_name) = self.current_impl_trait() {
+            if trait_name == "Display" && self.rust_method_name(&func.name) == "fmt" {
+                " -> std::fmt::Result".to_string()
+            } else if let Some(ty) = &func.return_type {
+                format!(" -> {}", self.map_return_type(ty, self_ctx_ref))
+            } else {
+                String::new()
+            }
+        } else if let Some(ty) = &func.return_type {
+            format!(" -> {}", self.map_return_type(ty, self_ctx_ref))
         } else {
             String::new()
         };
@@ -301,14 +346,21 @@ impl RustGen {
             "{}{}fn {}({}){} {{",
             vis,
             modifiers,
-            self.rust_function_name(&func.name),
+            self.rust_method_name(&func.name),
             params,
             ret
         ));
         self.push_indent();
+        if let Some(self_ctx) = &self_ctx {
+            self.self_type_stack.push(self_ctx.to_string());
+        }
         self.binding_type_stack.push(binding_types);
         self.gen_block_with_implicit_return(&func.body, has_implicit_return);
         self.binding_type_stack.pop();
+        if self_ctx.is_some() {
+            self.self_type_stack.pop();
+        }
+        self.current_function_stack.pop();
         self.pop_indent();
         self.write_line("}");
     }
@@ -325,7 +377,33 @@ impl RustGen {
     ) -> String {
         let parts: Vec<String> = params
             .iter()
-            .map(|p| {
+            .enumerate()
+            .map(|(index, p)| {
+                if index == 0
+                    && self_ctx.is_some()
+                    && matches!(p.name.as_str(), "self" | "_self")
+                {
+                    match &p.ty {
+                        Type::Ref { mutable, inner, .. }
+                            if self
+                                .extract_named_type_name(inner)
+                                .as_deref()
+                                .is_some_and(|name| name == "Self_" || name == "Self" || Some(name) == self_ctx) =>
+                        {
+                            return if *mutable {
+                                "&mut self".to_string()
+                            } else {
+                                "&self".to_string()
+                            };
+                        }
+                        Type::Named { name, .. }
+                            if name == "Self_" || name == "Self" || Some(name.as_str()) == self_ctx =>
+                        {
+                            return "self".to_string();
+                        }
+                        _ => {}
+                    }
+                }
                 let ty_str = self.map_type_in_context(&p.ty, self_ctx, false);
                 let needs_mut = mutated_params.is_some_and(|names| names.contains(&p.name));
                 if p.mutable || needs_mut {
@@ -360,18 +438,23 @@ impl RustGen {
 
     fn gen_impl(&mut self, impl_def: &Impl) {
         let target = self.map_type(&impl_def.target_type);
+        let trait_name = impl_def.trait_name.as_ref().map(|name| self.map_trait_name(name));
 
-        if let Some(trait_name) = &impl_def.trait_name {
+        if let Some(trait_name) = &trait_name {
             self.write_line(&format!("impl {} for {} {{", trait_name, target));
         } else {
             self.write_line(&format!("impl {} {{", target));
         }
 
         self.push_indent();
+        self.impl_target_stack.push(target.clone());
+        self.impl_trait_stack.push(impl_def.trait_name.clone());
         for method in &impl_def.methods {
             self.gen_function(method);
             self.write_blank();
         }
+        self.impl_trait_stack.pop();
+        self.impl_target_stack.pop();
         self.pop_indent();
         self.write_line("}");
     }
@@ -571,6 +654,8 @@ impl RustGen {
             Stmt::Expr(expr) => {
                 if let Expr::Assign { target, value, .. } = expr {
                     self.write_line(&format!("{} = {};", self.gen_expr(target), self.gen_expr(value)));
+                } else if let Expr::Match { scrutinee, arms, .. } = expr {
+                    self.write_line(&self.gen_match_expr(scrutinee, arms, true));
                 } else {
                     self.write_line(&format!("{};", self.gen_expr(expr)));
                 }
@@ -580,6 +665,9 @@ impl RustGen {
     }
 
     fn gen_block_expr(&self, block: &Block) -> String {
+        if self.is_selfhost_empty_block(block) {
+            return "None".to_string();
+        }
         let len = block.stmts.len();
         let mut stmt_strs = Vec::new();
         for (index, stmt) in block.stmts.iter().enumerate() {
@@ -604,7 +692,11 @@ impl RustGen {
                 }
             }
             Stmt::Expr(expr) => {
-                let expr_str = self.gen_expr(expr);
+                let expr_str = if let Expr::Match { scrutinee, arms, .. } = expr {
+                    self.gen_match_expr(scrutinee, arms, true)
+                } else {
+                    self.gen_expr(expr)
+                };
                 if is_last { expr_str } else { format!("{};", expr_str) }
             }
             Stmt::Return(maybe_expr, _) => {
@@ -659,7 +751,7 @@ impl RustGen {
             }
             Expr::Bool(b, _) => b.to_string(),
             Expr::None(_) => "None".to_string(),
-            Expr::Ident(name, _) => name.clone(),
+            Expr::Ident(name, _) => self.normalize_runtime_path(name),
             Expr::MacroCall { name, args, .. } => {
                 let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
                 match name.as_str() {
@@ -700,6 +792,9 @@ impl RustGen {
             Expr::Unary { op, operand, .. } => format!("({}{})", self.map_unaryop(op), self.gen_expr(operand)),
             Expr::Call { callee, args, .. } => {
                 let fn_name = self.gen_expr(callee);
+                if fn_name == "Some" && args.len() == 1 && matches!(args[0].value, Expr::None(_)) {
+                    return "None".to_string();
+                }
                 if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" || fn_name == "eprint" {
                     let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                     if arg_strs.is_empty() {
@@ -713,8 +808,24 @@ impl RustGen {
             }
             Expr::MethodCall { receiver, method, args, .. } => {
                 let recv = self.gen_expr(receiver);
+                let normalized_method = self.normalize_runtime_method(method);
+                if args.len() == 1 && matches!(args[0].value, Expr::None(_)) {
+                    return match normalized_method.as_str() {
+                        "map" => format!("{}.map(|value| value)", recv),
+                        "filter" | "find" | "all" => format!("{}.{}(|_| true)", recv, normalized_method),
+                        "find_map" | "and_then" => format!("{}.{}(|_| None)", recv, normalized_method),
+                        "or_else" => format!("{}.or_else(|| None)", recv),
+                        "unwrap_or_else" => format!("{}.unwrap_or_default()", recv),
+                        _ => format!("{}.{}(None)", recv, normalized_method),
+                    };
+                }
+                if normalized_method == "strip_prefix" && args.len() == 1 {
+                    if let Expr::String(value, _) = &args[0].value {
+                        return format!("{}.strip_prefix(\"{}\")", recv, self.escape_string(value));
+                    }
+                }
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
-                format!("{}.{}({})", recv, self.normalize_runtime_method(method), arg_strs.join(", "))
+                format!("{}.{}({})", recv, normalized_method, arg_strs.join(", "))
             }
             Expr::Field { object, field, .. } => format!("{}.{}", self.gen_expr(object), field),
             Expr::Index { object, index, .. } => format!("{}[{}]", self.gen_expr(object), self.gen_expr(index)),
@@ -724,6 +835,20 @@ impl RustGen {
                 format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
             }
             Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => {
+                if let Type::Named { name, .. } = ty {
+                    if let Some((enum_name, variant)) = name.rsplit_once("__") {
+                        let head = self.normalize_variant_head(
+                            Some(&enum_name.to_string()),
+                            variant,
+                            None,
+                        );
+                        let field_strs: Vec<String> = fields
+                            .iter()
+                            .map(|(name, value)| format!("{}: {}", name, self.gen_expr(value)))
+                            .collect();
+                        return format!("{} {{ {} }}", head, field_strs.join(", "));
+                    }
+                }
                 let ty_name = self.map_type(ty);
                 let field_strs: Vec<String> = fields.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
                 if *zero_fill_rest {
@@ -767,25 +892,17 @@ impl RustGen {
                 if *inclusive { format!("{}..={}", start, end) } else { format!("{}..{}", start, end) }
             }
             Expr::If { condition, then_branch, else_branch, .. } => {
-                let then_expr = self.gen_block_expr(then_branch);
+                let mut then_expr = self.gen_block_expr(then_branch);
                 if let Some(else_branch) = else_branch {
-                    format!("if {} {} else {}", self.gen_expr(condition), then_expr, self.gen_else_branch_expr(else_branch))
+                    let mut else_expr = self.gen_else_branch_expr(else_branch);
+                    self.coerce_placeholder_branches(&mut then_expr, &mut else_expr);
+                    format!("if {} {} else {}", self.gen_expr(condition), then_expr, else_expr)
                 } else {
                     format!("if {} {}", self.gen_expr(condition), then_expr)
                 }
             }
             Expr::Match { scrutinee, arms, .. } => {
-                let enum_hint = self.enum_hint_for_expr(scrutinee);
-                let arm_strs: Vec<String> = arms.iter().map(|arm| {
-                    let guard = arm.guard.as_ref().map(|guard| format!(" if {}", self.gen_expr(guard))).unwrap_or_default();
-                    format!(
-                        "{}{} => {}",
-                        self.gen_pattern_with_hint(&arm.pattern, enum_hint.as_deref()),
-                        guard,
-                        self.gen_expr(&arm.body)
-                    )
-                }).collect();
-                format!("match {} {{ {} }}", self.gen_expr(scrutinee), arm_strs.join(", "))
+                self.gen_match_expr(scrutinee, arms, false)
             }
             Expr::Lambda { params, return_type, body, .. } => {
                 let params = self.gen_params(params);
@@ -920,6 +1037,42 @@ impl RustGen {
         }
     }
 
+    fn gen_match_expr(&self, scrutinee: &Expr, arms: &[kain_core::ast::MatchArm], statement_context: bool) -> String {
+        let enum_hint = self.enum_hint_for_expr(scrutinee);
+        let mut arm_bodies: Vec<String> = arms.iter().map(|arm| self.gen_expr(&arm.body)).collect();
+        let prefers_string = arm_bodies.iter().any(|body| body.contains(".to_string()"));
+        if prefers_string {
+            for body in &mut arm_bodies {
+                if body.ends_with(".as_str()") {
+                    *body = format!("{}.to_string()", body);
+                }
+            }
+        }
+        if statement_context {
+            for body in &mut arm_bodies {
+                *body = self.coerce_statement_placeholder(body);
+            }
+        }
+        let arm_strs: Vec<String> = arms
+            .iter()
+            .zip(arm_bodies.iter())
+            .map(|(arm, body)| {
+                let guard = arm
+                    .guard
+                    .as_ref()
+                    .map(|guard| format!(" if {}", self.gen_expr(guard)))
+                    .unwrap_or_default();
+                format!(
+                    "{}{} => {}",
+                    self.gen_pattern_with_hint(&arm.pattern, enum_hint.as_deref()),
+                    guard,
+                    body
+                )
+            })
+            .collect();
+        format!("match {} {{ {} }}", self.gen_expr(scrutinee), arm_strs.join(", "))
+    }
+
     fn gen_pattern(&self, pattern: &Pattern) -> String {
         self.gen_pattern_with_hint(pattern, None)
     }
@@ -940,7 +1093,7 @@ impl RustGen {
                     .iter()
                     .map(|(field, pat)| format!("{field}: {}", self.gen_pattern_with_hint(pat, None)))
                     .collect();
-                if *rest {
+                if *rest || !fields.is_empty() {
                     field_strs.push("..".to_string());
                 }
                 format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
@@ -971,10 +1124,11 @@ impl RustGen {
                         format!("{head}({})", parts.join(", "))
                     }
                     VariantPatternFields::Struct(fields) => {
-                        let parts: Vec<String> = fields
+                        let mut parts: Vec<String> = fields
                             .iter()
                             .map(|(field, pat)| format!("{field}: {}", self.gen_pattern_with_hint(pat, None)))
                             .collect();
+                        parts.push("..".to_string());
                         format!("{head} {{ {} }}", parts.join(", "))
                     }
                 }
@@ -1020,6 +1174,33 @@ impl RustGen {
             .iter()
             .filter_map(|param| self.extract_named_type_name(&param.ty).map(|name| (param.name.clone(), name)))
             .collect()
+    }
+
+    fn current_self_type(&self) -> Option<&str> {
+        self.self_type_stack.last().map(String::as_str)
+    }
+
+    fn current_impl_target(&self) -> Option<String> {
+        self.impl_target_stack.last().cloned()
+    }
+
+    fn current_function_name(&self) -> Option<&str> {
+        self.current_function_stack.last().map(String::as_str)
+    }
+
+    fn current_impl_trait(&self) -> Option<&str> {
+        self.impl_trait_stack.last().and_then(|value| value.as_deref())
+    }
+
+    fn is_selfhost_empty_block(&self, block: &Block) -> bool {
+        matches!(
+            block.stmts.as_slice(),
+            [Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(Expr::None(_)),
+                ..
+            }] if name == "__selfhost_empty"
+        )
     }
 
     fn extract_named_type_name(&self, ty: &Type) -> Option<String> {
@@ -1262,7 +1443,57 @@ impl RustGen {
         name.replace("::", "__")
     }
 
+    fn rust_method_name(&self, name: &str) -> String {
+        let mut emitted = self.rust_function_name(name);
+        if let Some(target) = self.current_impl_target() {
+            for prefix in [format!("{target}__"), format!("{target}_")] {
+                if let Some(stripped) = emitted.strip_prefix(&prefix) {
+                    emitted = stripped.to_string();
+                    break;
+                }
+            }
+        }
+        if let Some(trait_name) = self.current_impl_trait() {
+            match trait_name {
+                "Display" if emitted.ends_with("_fmt") => return "fmt".to_string(),
+                "Default" if emitted.ends_with("_default") || emitted == "default" || emitted == "default_" => {
+                    return "default".to_string()
+                }
+                _ => {}
+            }
+        }
+        emitted
+    }
+
+    fn map_trait_name(&self, name: &str) -> String {
+        match name {
+            "Display" => "std::fmt::Display".to_string(),
+            _ => self.normalize_runtime_path(name),
+        }
+    }
+
     fn normalize_runtime_path(&self, path: &str) -> String {
+        if let Some(self_ty) = self.current_self_type() {
+            if path == "Self_" || path == "Self" {
+                return self_ty.to_string();
+            }
+            if let Some(rest) = path.strip_prefix("Self::") {
+                return format!("{}::{}", self_ty, rest);
+            }
+            if let Some(rest) = path.strip_prefix("Self_::") {
+                return format!("{}::{}", self_ty, rest);
+            }
+            if let Some(rest) = path.strip_prefix("Self___") {
+                return format!(
+                    "{}::{}",
+                    self_ty,
+                    self.normalize_runtime_segment(rest, true)
+                );
+            }
+        }
+        if path == "Self_" {
+            return "Self".to_string();
+        }
         if path.starts_with("__kain_") || !path.contains("__") {
             return path.to_string();
         }
@@ -1277,6 +1508,14 @@ impl RustGen {
 
     fn normalize_runtime_segment(&self, segment: &str, terminal: bool) -> String {
         if terminal {
+            if segment.starts_with('_')
+                && segment
+                    .chars()
+                    .nth(1)
+                    .is_some_and(|ch| ch.is_ascii_uppercase())
+            {
+                return segment.trim_start_matches('_').to_string();
+            }
             match segment {
                 "new_" => return "new".to_string(),
                 "default_" => return "default".to_string(),
@@ -1288,6 +1527,14 @@ impl RustGen {
     }
 
     fn normalize_runtime_method(&self, method: &str) -> String {
+        if method.starts_with('_')
+            && method
+                .chars()
+                .nth(1)
+                .is_some_and(|ch| ch.is_ascii_uppercase())
+        {
+            return method.trim_start_matches('_').to_string();
+        }
         match method {
             "send_" => "send".to_string(),
             "or_" => "or".to_string(),
@@ -1306,6 +1553,22 @@ impl RustGen {
         enum_hint: Option<&str>,
     ) -> String {
         if let Some(enum_name) = enum_name {
+            if enum_name == "Self_" || enum_name == "Self" {
+                if let Some(enum_hint) = enum_hint {
+                    return format!(
+                        "{}::{}",
+                        self.normalize_runtime_path(enum_hint),
+                        self.normalize_runtime_method(variant)
+                    );
+                }
+                if let Some(self_ty) = self.current_self_type() {
+                    return format!(
+                        "{}::{}",
+                        self.normalize_runtime_path(self_ty),
+                        self.normalize_runtime_method(variant)
+                    );
+                }
+            }
             return format!(
                 "{}::{}",
                 self.normalize_runtime_path(enum_name),
@@ -1319,7 +1582,14 @@ impl RustGen {
                 .filter(|segment| !segment.is_empty())
                 .collect::<Vec<_>>();
             if let Some(last) = parts.pop() {
-                let head = parts.join("::");
+                let mut head = parts.join("::");
+                if (head == "Self" || head == "Self_") && enum_hint.is_some() {
+                    head = self.normalize_runtime_path(enum_hint.unwrap());
+                } else if head == "Self" || head == "Self_" {
+                    if let Some(self_ty) = self.current_self_type() {
+                        head = self.normalize_runtime_path(self_ty);
+                    }
+                }
                 if !head.is_empty() {
                     return format!("{}::{}", head, self.normalize_runtime_method(last));
                 }
@@ -1335,6 +1605,54 @@ impl RustGen {
         }
 
         self.normalize_runtime_method(variant)
+    }
+
+    fn coerce_statement_placeholder(&self, body: &str) -> String {
+        if body == "None" {
+            return "()".to_string();
+        }
+        if body.trim() == "{ None }" {
+            return "{ () }".to_string();
+        }
+        body.replace(" else { None }", " else { () }")
+    }
+
+    fn coerce_placeholder_branches(&self, then_expr: &mut String, else_expr: &mut String) {
+        let then_snapshot = then_expr.clone();
+        let else_snapshot = else_expr.clone();
+        if let Some(preserved) = self.replace_placeholder_expr(then_expr, &else_snapshot) {
+            *then_expr = preserved;
+        }
+        if let Some(preserved) = self.replace_placeholder_expr(else_expr, &then_snapshot) {
+            *else_expr = preserved;
+        }
+    }
+
+    fn replace_placeholder_expr(&self, candidate: &str, other: &str) -> Option<String> {
+        let trimmed = candidate.trim();
+        if trimmed == "None" {
+            return Some(self.placeholder_for_peer_branch(other));
+        }
+        if trimmed == "{ None }" {
+            return Some(format!("{{ {} }}", self.placeholder_for_peer_branch(other)));
+        }
+        None
+    }
+
+    fn placeholder_for_peer_branch(&self, other: &str) -> String {
+        if other.contains("VNode::") {
+            if self.current_function_name() == Some("reconcile") {
+                return "next.clone()".to_string();
+            }
+            return "VNode::Fragment(Vec::new())".to_string();
+        }
+        if other == "()" || other.contains("return ") {
+            return "()".to_string();
+        }
+        if other.starts_with("Some(") || other == "None" {
+            return "None".to_string();
+        }
+        "None".to_string()
     }
 
     fn map_type(&self, ty: &Type) -> String {
