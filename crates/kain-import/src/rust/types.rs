@@ -21,12 +21,21 @@ use std::collections::HashMap;
 
 pub struct RustTypeMapper {
     visible_paths: HashMap<String, Vec<String>>,
+    preserve_wrapper_types: bool,
 }
 
 impl RustTypeMapper {
     pub fn new() -> Self {
         Self {
             visible_paths: HashMap::new(),
+            preserve_wrapper_types: false,
+        }
+    }
+
+    pub fn new_selfhost() -> Self {
+        Self {
+            visible_paths: HashMap::new(),
+            preserve_wrapper_types: true,
         }
     }
 
@@ -106,16 +115,14 @@ impl RustTypeMapper {
             _               => {}
         }
 
-        // Ownership wrappers — unwrap to inner T (KAIN doesn't need these)
-        match name.as_str() {
-            "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock"
-            | "ManuallyDrop" | "MaybeUninit" | "Pin" | "Cow" => {
-                if let Some(inner) = generics.first().cloned() {
-                    return inner;
-                }
-                return named("Unknown");
+        // Ownership wrappers — unwrap to inner T for ergonomic import, but preserve
+        // them in strict self-host mode so recursive compiler/runtime types keep
+        // their original indirection shape.
+        if Self::is_wrapper_type(name.as_str()) && !self.preserve_wrapper_types {
+            if let Some(inner) = generics.first().cloned() {
+                return inner;
             }
-            _ => {}
+            return named("Unknown");
         }
 
         // Well-known standard-library generics
@@ -288,6 +295,25 @@ impl RustTypeMapper {
                 syn::GenericParam::Lifetime(_) => None, // lifetimes erased
             })
             .collect()
+    }
+}
+
+impl RustTypeMapper {
+    fn is_wrapper_type(name: &str) -> bool {
+        matches!(
+            name,
+            "Box"
+                | "Arc"
+                | "Rc"
+                | "Cell"
+                | "RefCell"
+                | "Mutex"
+                | "RwLock"
+                | "ManuallyDrop"
+                | "MaybeUninit"
+                | "Pin"
+                | "Cow"
+        )
     }
 }
 

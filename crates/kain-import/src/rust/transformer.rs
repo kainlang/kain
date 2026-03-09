@@ -113,8 +113,13 @@ impl RustTransformer {
     }
 
     pub fn with_options(options: RustTransformOptions) -> Self {
+        let type_mapper = if options.strict_selfhost {
+            RustTypeMapper::new_selfhost()
+        } else {
+            RustTypeMapper::new()
+        };
         Self {
-            type_mapper:       RustTypeMapper::new(),
+            type_mapper,
             identifier_renamer: StableIdentifierRenamer::default(),
             generics_in_scope:  Vec::new(),
             current_function:   None,
@@ -176,6 +181,21 @@ impl RustTransformer {
             ));
         }
         self.type_mapper.map_type(ty)
+    }
+
+    fn pattern_variant_head(&self, path: &syn::Path) -> (Option<String>, String) {
+        let resolved = self.type_mapper.resolve_path_segments(path);
+        let variant = resolved
+            .last()
+            .cloned()
+            .or_else(|| path.segments.last().map(|segment| segment.ident.to_string()))
+            .unwrap_or_default();
+        let enum_name = if resolved.len() > 1 {
+            Some(resolved[..resolved.len() - 1].join("::"))
+        } else {
+            None
+        };
+        (enum_name, variant)
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -809,8 +829,23 @@ impl RustTransformer {
             syn::Expr::Binary(b) => {
                 let left  = self.transform_expr(&b.left)?;
                 let right = self.transform_expr(&b.right)?;
-                let op    = binop(&b.op);
-                Ok(Expr::Binary { left: Box::new(left), op, right: Box::new(right), span: S })
+                if let Some(assign_op) = compound_assign_rhs_op(&b.op) {
+                    let target = left.clone();
+                    let value = Expr::Binary {
+                        left: Box::new(left),
+                        op: assign_op,
+                        right: Box::new(right),
+                        span: S,
+                    };
+                    Ok(Expr::Assign {
+                        target: Box::new(target),
+                        value: Box::new(value),
+                        span: S,
+                    })
+                } else {
+                    let op = binop(&b.op);
+                    Ok(Expr::Binary { left: Box::new(left), op, right: Box::new(right), span: S })
+                }
             }
 
             // ── Assignment ────────────────────────────────────────────────
@@ -1233,22 +1268,22 @@ impl RustTransformer {
                 Pattern::Tuple(pats, S)
             }
             syn::Pat::TupleStruct(pts) => {
-                let name  = variant_name(&pts.path);
+                let (enum_name, name) = self.pattern_variant_head(&pts.path);
                 let inner = pts.elems.iter().map(|p| self.transform_pattern(p)).collect();
-                Pattern::Variant { enum_name: None, variant: name, fields: VariantPatternFields::Tuple(inner), span: S }
+                Pattern::Variant { enum_name, variant: name, fields: VariantPatternFields::Tuple(inner), span: S }
             }
             syn::Pat::Struct(ps) => {
-                let name   = variant_name(&ps.path);
+                let (enum_name, name) = self.pattern_variant_head(&ps.path);
                 let fields = ps.fields.iter().map(|fv| {
                     let field = member_name(&fv.member);
                     let pat   = self.transform_pattern(&fv.pat);
                     (field, pat)
                 }).collect();
-                Pattern::Variant { enum_name: None, variant: name, fields: VariantPatternFields::Struct(fields), span: S }
+                Pattern::Variant { enum_name, variant: name, fields: VariantPatternFields::Struct(fields), span: S }
             }
             syn::Pat::Path(pp) => {
-                let name = variant_name(&pp.path);
-                Pattern::Variant { enum_name: None, variant: name, fields: VariantPatternFields::Unit, span: S }
+                let (enum_name, name) = self.pattern_variant_head(&pp.path);
+                Pattern::Variant { enum_name, variant: name, fields: VariantPatternFields::Unit, span: S }
             }
             syn::Pat::Range(pr) => {
                 let start = pr.start.as_ref().and_then(|e| self.transform_expr(e).ok()).map(Box::new);
@@ -1657,29 +1692,34 @@ impl RustTransformer {
     fn lower_write_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
         struct WriteMacroInput {
             dest: syn::Expr,
-            _comma: syn::token::Comma,
-            rest: proc_macro2::TokenStream,
+            rest: Option<(syn::token::Comma, proc_macro2::TokenStream)>,
         }
 
         impl syn::parse::Parse for WriteMacroInput {
             fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
                 Ok(Self {
                     dest: input.parse()?,
-                    _comma: input.parse()?,
-                    rest: input.parse()?,
+                    rest: if input.is_empty() {
+                        None
+                    } else {
+                        Some((input.parse()?, input.parse()?))
+                    },
                 })
             }
         }
 
         let parsed = syn::parse2::<WriteMacroInput>(tokens.clone()).ok()?;
         let dest = self.transform_expr(&parsed.dest).ok()?;
-        let message = self
-            .lower_format_macro(&parsed.rest)
-            .unwrap_or_else(|| Expr::MacroCall {
-                name: "format".to_string(),
-                args: self.parse_macro_args(&parsed.rest),
-                span: S,
-            });
+        let message = match &parsed.rest {
+            Some((_, rest)) => self
+                .lower_format_macro(rest)
+                .unwrap_or_else(|| Expr::MacroCall {
+                    name: "format".to_string(),
+                    args: self.parse_macro_args(rest),
+                    span: S,
+                }),
+            None => Expr::String(String::new(), S),
+        };
         let helper_name = if macro_name == "writeln" {
             "__kain_writeln_fmt"
         } else {
@@ -1954,6 +1994,22 @@ fn binop(op: &syn::BinOp) -> BinaryOp {
     }
 }
 
+fn compound_assign_rhs_op(op: &syn::BinOp) -> Option<BinaryOp> {
+    match op {
+        syn::BinOp::AddAssign(_) => Some(BinaryOp::Add),
+        syn::BinOp::SubAssign(_) => Some(BinaryOp::Sub),
+        syn::BinOp::MulAssign(_) => Some(BinaryOp::Mul),
+        syn::BinOp::DivAssign(_) => Some(BinaryOp::Div),
+        syn::BinOp::RemAssign(_) => Some(BinaryOp::Mod),
+        syn::BinOp::BitAndAssign(_) => Some(BinaryOp::BitAnd),
+        syn::BinOp::BitOrAssign(_) => Some(BinaryOp::BitOr),
+        syn::BinOp::BitXorAssign(_) => Some(BinaryOp::BitXor),
+        syn::BinOp::ShlAssign(_) => Some(BinaryOp::Shl),
+        syn::BinOp::ShrAssign(_) => Some(BinaryOp::Shr),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2115,6 +2171,56 @@ mod tests {
     }
 
     #[test]
+    fn lowers_writeln_without_arguments_to_helper_macro() {
+        let program = transform_source(
+            r#"
+            fn demo(output: String) {
+                writeln!(output);
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::MacroCall { name, args, .. }) = &func.body.stmts[0] else {
+            panic!("expected lowered helper macro");
+        };
+
+        assert_eq!(name, "__kain_writeln_fmt");
+        assert_eq!(args.len(), 2);
+        assert!(matches!(&args[1], Expr::String(text, _) if text.is_empty()));
+    }
+
+    #[test]
+    fn lowers_compound_assign_to_assignment_expression() {
+        let program = transform_source(
+            r#"
+            fn demo(mut count: i32, delta: i32) {
+                count += delta;
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Assign { target, value, .. }) = &func.body.stmts[0] else {
+            panic!("expected lowered assignment");
+        };
+
+        assert!(matches!(target.as_ref(), Expr::Ident(name, _) if name == "count"));
+        assert!(matches!(
+            value.as_ref(),
+            Expr::Binary { left, op: BinaryOp::Add, right, .. }
+                if matches!(left.as_ref(), Expr::Ident(name, _) if name == "count")
+                && matches!(right.as_ref(), Expr::Ident(name, _) if name == "delta")
+        ));
+    }
+
+    #[test]
     fn preserves_use_alias_and_resolves_expression_path() {
         let program = transform_source(
             r#"
@@ -2191,7 +2297,12 @@ mod tests {
 
         assert!(matches!(
             function.params[0].ty,
-            Type::Impl { ref trait_name, .. } if trait_name == "Write"
+            Type::Named { ref name, ref generics, .. }
+                if name == "Box"
+                && matches!(
+                    generics.first(),
+                    Some(Type::Impl { trait_name, .. }) if trait_name == "Write"
+                )
         ));
         assert!(diagnostics
             .iter()

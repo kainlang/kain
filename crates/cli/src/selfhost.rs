@@ -1184,6 +1184,9 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> KainResult<()>
         Item::Struct(value) => write_struct(output, value, indent),
         Item::Enum(value) => write_enum(output, value, indent),
         Item::Mod(value) => {
+            if value.name == "tests" {
+                return Ok(());
+            }
             write_line(output, indent, &format!("mod {}:", sanitize_identifier(&value.name)))?;
             if let Some(children) = &value.inline {
                 if !children.is_empty() {
@@ -1420,9 +1423,6 @@ fn pattern_to_string(pattern: &Pattern) -> String {
         Pattern::Literal(expr) => inline_expr_to_string(expr),
         Pattern::Tuple(values, _) => format!("({})", values.iter().map(pattern_to_string).collect::<Vec<_>>().join(", ")),
         Pattern::Variant { enum_name, variant, fields, .. } => {
-            if enum_name.is_none() && matches!(fields, VariantPatternFields::Struct(_)) {
-                return "_".to_string();
-            }
             let head = match enum_name {
                 Some(name) => format!("{}::{}", sanitize_path_to_ident(name), sanitize_identifier(variant)),
                 None => sanitize_identifier(variant),
@@ -1452,9 +1452,26 @@ fn pattern_to_string(pattern: &Pattern) -> String {
             }
             format!("[{}]", values.join(", "))
         }
-        Pattern::Or(values, _) => values.first().map(pattern_to_string).unwrap_or_else(|| "_".to_string()),
-        Pattern::Range { .. } => "_".to_string(),
-        Pattern::Struct { .. } => "_".to_string(),
+        Pattern::Or(values, _) => values.iter().map(pattern_to_string).collect::<Vec<_>>().join(" | "),
+        Pattern::Range { start, end, inclusive, .. } => {
+            let start = start.as_deref().map(inline_expr_to_string).unwrap_or_default();
+            let end = end.as_deref().map(inline_expr_to_string).unwrap_or_default();
+            if *inclusive {
+                format!("{start}..={end}")
+            } else {
+                format!("{start}..{end}")
+            }
+        }
+        Pattern::Struct { name, fields, rest, .. } => {
+            let mut values = fields
+                .iter()
+                .map(|(field, value)| format!("{}: {}", sanitize_identifier(field), pattern_to_string(value)))
+                .collect::<Vec<_>>();
+            if *rest {
+                values.push("..".to_string());
+            }
+            format!("{} {{ {} }}", sanitize_type_name(name), values.join(", "))
+        }
     }
 }
 
@@ -1519,6 +1536,20 @@ fn write_else_branch(output: &mut String, else_branch: &ElseBranch, indent: usiz
 }
 
 fn write_match_arm(output: &mut String, arm: &MatchArm, indent: usize) -> KainResult<()> {
+    let expanded_patterns = expand_or_patterns(&arm.pattern);
+    if expanded_patterns.len() > 1 {
+        for pattern in expanded_patterns {
+            let expanded = MatchArm {
+                pattern,
+                guard: arm.guard.clone(),
+                body: arm.body.clone(),
+                span: arm.span,
+            };
+            write_match_arm(output, &expanded, indent)?;
+        }
+        return Ok(());
+    }
+
     let pattern = pattern_to_string(&arm.pattern);
     if let Some(guard) = &arm.guard {
         write_line(output, indent, &format!("{pattern} =>"))?;
@@ -1822,6 +1853,99 @@ fn render_range_expr(start: Option<&Expr>, end: Option<&Expr>, inclusive: bool) 
     } else {
         format!("range({}, {})", start, end)
     }
+}
+
+fn expand_or_patterns(pattern: &Pattern) -> Vec<Pattern> {
+    match pattern {
+        Pattern::Or(values, _) => values
+            .iter()
+            .flat_map(expand_or_patterns)
+            .collect(),
+        Pattern::Tuple(values, span) => expand_pattern_lists(values)
+            .into_iter()
+            .map(|values| Pattern::Tuple(values, *span))
+            .collect(),
+        Pattern::Variant {
+            enum_name,
+            variant,
+            fields: VariantPatternFields::Tuple(values),
+            span,
+        } => expand_pattern_lists(values)
+            .into_iter()
+            .map(|values| Pattern::Variant {
+                enum_name: enum_name.clone(),
+                variant: variant.clone(),
+                fields: VariantPatternFields::Tuple(values),
+                span: *span,
+            })
+            .collect(),
+        Pattern::Variant {
+            enum_name,
+            variant,
+            fields: VariantPatternFields::Struct(fields),
+            span,
+        } => expand_named_pattern_lists(fields)
+            .into_iter()
+            .map(|fields| Pattern::Variant {
+                enum_name: enum_name.clone(),
+                variant: variant.clone(),
+                fields: VariantPatternFields::Struct(fields),
+                span: *span,
+            })
+            .collect(),
+        Pattern::Struct { name, fields, rest, span } => expand_named_pattern_lists(fields)
+            .into_iter()
+            .map(|fields| Pattern::Struct {
+                name: name.clone(),
+                fields,
+                rest: *rest,
+                span: *span,
+            })
+            .collect(),
+        Pattern::Slice { patterns, rest, span } => expand_pattern_lists(patterns)
+            .into_iter()
+            .map(|patterns| Pattern::Slice {
+                patterns,
+                rest: rest.clone(),
+                span: *span,
+            })
+            .collect(),
+        _ => vec![pattern.clone()],
+    }
+}
+
+fn expand_pattern_lists(patterns: &[Pattern]) -> Vec<Vec<Pattern>> {
+    let mut combinations = vec![Vec::new()];
+    for pattern in patterns {
+        let expanded = expand_or_patterns(pattern);
+        let mut next = Vec::new();
+        for prefix in &combinations {
+            for pattern in &expanded {
+                let mut combined = prefix.clone();
+                combined.push(pattern.clone());
+                next.push(combined);
+            }
+        }
+        combinations = next;
+    }
+    combinations
+}
+
+fn expand_named_pattern_lists(fields: &[(String, Pattern)]) -> Vec<Vec<(String, Pattern)>> {
+    let mut combinations = vec![Vec::new()];
+    for (name, pattern) in fields {
+        let expanded = expand_or_patterns(pattern);
+        let mut next = Vec::new();
+        for prefix in &combinations {
+            for pattern in &expanded {
+                let mut combined = prefix.clone();
+                combined.push((name.clone(), pattern.clone()));
+                next.push(combined);
+            }
+        }
+        combinations = next;
+    }
+    combinations
 }
 
 fn for_binding_name(pattern: &Pattern) -> String {

@@ -17,6 +17,7 @@ use kain_core::ast::{
     VariantFields, Impl, Param, ElseBranch,
     VariantPatternFields, EnumVariantFields, Component, JSXNode, JSXAttrValue,
 };
+use std::collections::{HashMap, HashSet};
 
 pub use artifact_bundle::{
     generate_rust_artifact_bundle,
@@ -73,6 +74,8 @@ impl StringBuilder {
 struct RustGen {
     output: StringBuilder,
     indent: usize,
+    emitted_symbols: HashSet<String>,
+    binding_type_stack: Vec<HashMap<String, String>>,
 }
 
 impl RustGen {
@@ -80,6 +83,8 @@ impl RustGen {
         Self {
             output: StringBuilder::new(),
             indent: 0,
+            emitted_symbols: HashSet::new(),
+            binding_type_stack: Vec::new(),
         }
     }
 
@@ -121,10 +126,13 @@ impl RustGen {
         // Standard imports
         self.write_line("use std::collections::HashMap;");
         self.write_line("use std::rc::Rc;");
-        self.write_line("use std::cell::RefCell;");
+        self.write_line("use std::cell::{Cell, RefCell};");
+        self.write_line("use std::sync::{Arc, Mutex, RwLock};");
+        self.write_line("use std::borrow::Cow;");
+        self.write_line("use std::mem::{size_of, ManuallyDrop, MaybeUninit};");
+        self.write_line("use std::pin::Pin;");
         self.write_line("use std::cmp::min;");
         self.write_line("use std::ffi::c_void;");
-        self.write_line("use std::mem::size_of;");
         self.write_blank();
         self.emit_runtime_helpers();
         self.write_blank();
@@ -247,10 +255,25 @@ impl RustGen {
 
     fn gen_item(&mut self, item: &TypedItem) {
         match item {
-            TypedItem::Function(fn_typed) => self.gen_function(&fn_typed.ast),
+            TypedItem::Function(fn_typed) => {
+                let emitted_name = self.rust_function_name(&fn_typed.ast.name);
+                if self.should_emit_function(&fn_typed.ast)
+                    && self.register_symbol("fn", &emitted_name)
+                {
+                    self.gen_function(&fn_typed.ast);
+                }
+            }
             TypedItem::Component(component) => self.gen_component(&component.ast),
-            TypedItem::Struct(st) => self.gen_struct(&st.ast),
-            TypedItem::Enum(en) => self.gen_enum(&en.ast),
+            TypedItem::Struct(st) => {
+                if self.register_symbol("type", &st.ast.name) {
+                    self.gen_struct(&st.ast);
+                }
+            }
+            TypedItem::Enum(en) => {
+                if self.register_symbol("type", &en.ast.name) {
+                    self.gen_enum(&en.ast);
+                }
+            }
             TypedItem::Impl(im) => self.gen_impl(&im.ast),
             _ => {}
         }
@@ -258,11 +281,14 @@ impl RustGen {
 
     // Generate a function definition
     fn gen_function(&mut self, func: &Function) {
+        let self_ctx = self.inferred_self_type(&func.name);
+        let mutated_params = self.collect_mutated_bindings_in_block(&func.body);
+        let binding_types = self.collect_binding_types(func);
         let vis = self.visibility_prefix(func.visibility);
         let modifiers = self.function_modifiers(&func.effects);
-        let params = self.gen_params(&func.params);
+        let params = self.gen_params_with_context(&func.params, self_ctx, Some(&mutated_params));
         let ret = if let Some(ty) = &func.return_type {
-            format!(" -> {}", self.map_type(ty))
+            format!(" -> {}", self.map_return_type(ty, self_ctx))
         } else {
             String::new()
         };
@@ -280,17 +306,29 @@ impl RustGen {
             ret
         ));
         self.push_indent();
+        self.binding_type_stack.push(binding_types);
         self.gen_block_with_implicit_return(&func.body, has_implicit_return);
+        self.binding_type_stack.pop();
         self.pop_indent();
         self.write_line("}");
     }
 
     fn gen_params(&self, params: &[Param]) -> String {
+        self.gen_params_with_context(params, None, None)
+    }
+
+    fn gen_params_with_context(
+        &self,
+        params: &[Param],
+        self_ctx: Option<&str>,
+        mutated_params: Option<&HashSet<String>>,
+    ) -> String {
         let parts: Vec<String> = params
             .iter()
             .map(|p| {
-                let ty_str = self.map_type(&p.ty);
-                if p.mutable {
+                let ty_str = self.map_type_in_context(&p.ty, self_ctx, false);
+                let needs_mut = mutated_params.is_some_and(|names| names.contains(&p.name));
+                if p.mutable || needs_mut {
                     format!("mut {}: {}", p.name, ty_str)
                 } else {
                     format!("{}: {}", p.name, ty_str)
@@ -312,7 +350,7 @@ impl RustGen {
                 "{}{}: {},",
                 self.visibility_prefix(field.visibility),
                 field.name,
-                self.map_type(&field.ty)
+                self.map_storage_type(&field.ty, Some(&struct_def.name))
             ));
         }
 
@@ -349,14 +387,21 @@ impl RustGen {
                     self.write_line(&format!("{},", variant.name));
                 }
                 VariantFields::Tuple(types) => {
-                    let fields: Vec<String> = types.iter().map(|t| self.map_type(t)).collect();
+                    let fields: Vec<String> = types
+                        .iter()
+                        .map(|t| self.map_storage_type(t, Some(&enum_def.name)))
+                        .collect();
                     self.write_line(&format!("{}({}),", variant.name, fields.join(", ")));
                 }
                 VariantFields::Struct(fields) => {
                     self.write_line(&format!("{} {{", variant.name));
                     self.push_indent();
                     for f in fields {
-                        self.write_line(&format!("{}: {},", f.name, self.map_type(&f.ty)));
+                        self.write_line(&format!(
+                            "{}: {},",
+                            f.name,
+                            self.map_storage_type(&f.ty, Some(&enum_def.name))
+                        ));
                     }
                     self.pop_indent();
                     self.write_line("},");
@@ -437,7 +482,7 @@ impl RustGen {
     fn gen_component_method_binding(&mut self, method: &Function) {
         let params = self.gen_params(&method.params);
         let ret = if let Some(ty) = &method.return_type {
-            format!(" -> {}", self.map_type(ty))
+            format!(" -> {}", self.map_return_type(ty, None))
         } else {
             String::new()
         };
@@ -669,14 +714,14 @@ impl RustGen {
             Expr::MethodCall { receiver, method, args, .. } => {
                 let recv = self.gen_expr(receiver);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
-                format!("{}.{}({})", recv, method, arg_strs.join(", "))
+                format!("{}.{}({})", recv, self.normalize_runtime_method(method), arg_strs.join(", "))
             }
             Expr::Field { object, field, .. } => format!("{}.{}", self.gen_expr(object), field),
             Expr::Index { object, index, .. } => format!("{}[{}]", self.gen_expr(object), self.gen_expr(index)),
             Expr::Assign { target, value, .. } => format!("({} = {})", self.gen_expr(target), self.gen_expr(value)),
             Expr::Struct { name, fields, .. } => {
                 let field_strs: Vec<String> = fields.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
-                format!("{} {{ {} }}", name, field_strs.join(", "))
+                format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
             }
             Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => {
                 let ty_name = self.map_type(ty);
@@ -693,14 +738,14 @@ impl RustGen {
             }
             Expr::EnumVariant { enum_name, variant, fields, .. } => {
                 match fields {
-                    EnumVariantFields::Unit => format!("{}::{}", enum_name, variant),
+                    EnumVariantFields::Unit => self.normalize_variant_head(Some(enum_name), variant, None),
                     EnumVariantFields::Tuple(values) => {
                         let parts: Vec<String> = values.iter().map(|value| self.gen_expr(value)).collect();
-                        format!("{}::{}({})", enum_name, variant, parts.join(", "))
+                        format!("{}({})", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
                     }
                     EnumVariantFields::Struct(values) => {
                         let parts: Vec<String> = values.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
-                        format!("{}::{} {{ {} }}", enum_name, variant, parts.join(", "))
+                        format!("{} {{ {} }}", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
                     }
                 }
             }
@@ -730,9 +775,15 @@ impl RustGen {
                 }
             }
             Expr::Match { scrutinee, arms, .. } => {
+                let enum_hint = self.enum_hint_for_expr(scrutinee);
                 let arm_strs: Vec<String> = arms.iter().map(|arm| {
                     let guard = arm.guard.as_ref().map(|guard| format!(" if {}", self.gen_expr(guard))).unwrap_or_default();
-                    format!("{}{} => {}", self.gen_pattern(&arm.pattern), guard, self.gen_expr(&arm.body))
+                    format!(
+                        "{}{} => {}",
+                        self.gen_pattern_with_hint(&arm.pattern, enum_hint.as_deref()),
+                        guard,
+                        self.gen_expr(&arm.body)
+                    )
                 }).collect();
                 format!("match {} {{ {} }}", self.gen_expr(scrutinee), arm_strs.join(", "))
             }
@@ -868,7 +919,12 @@ impl RustGen {
             }
         }
     }
+
     fn gen_pattern(&self, pattern: &Pattern) -> String {
+        self.gen_pattern_with_hint(pattern, None)
+    }
+
+    fn gen_pattern_with_hint(&self, pattern: &Pattern, enum_hint: Option<&str>) -> String {
         match pattern {
             Pattern::Wildcard(_) => "_".to_string(),
             Pattern::Literal(expr) => self.gen_pattern_literal(expr),
@@ -880,73 +936,324 @@ impl RustGen {
                 }
             }
             Pattern::Struct { name, fields, rest, .. } => {
-                let field_pats: Vec<String> = fields
+                let mut field_strs: Vec<String> = fields
                     .iter()
-                    .map(|(n, p)| format!("{}: {}", n, self.gen_pattern(p)))
+                    .map(|(field, pat)| format!("{field}: {}", self.gen_pattern_with_hint(pat, None)))
                     .collect();
                 if *rest {
-                    format!("{} {{ {}, .. }}", name, field_pats.join(", "))
+                    field_strs.push("..".to_string());
+                }
+                format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
+            }
+            Pattern::Tuple(patterns, _) => {
+                let parts: Vec<String> = patterns
+                    .iter()
+                    .map(|pat| self.gen_pattern_with_hint(pat, None))
+                    .collect();
+                if parts.len() == 1 {
+                    format!("({},)", parts[0])
                 } else {
-                    format!("{} {{ {} }}", name, field_pats.join(", "))
+                    format!("({})", parts.join(", "))
                 }
             }
-            Pattern::Tuple(pats, _) => {
-                let pat_strs: Vec<String> = pats.iter().map(|p| self.gen_pattern(p)).collect();
-                format!("({})", pat_strs.join(", "))
-            }
-            Pattern::Variant { enum_name, variant, fields, .. } => {
-                let full_name = if let Some(en) = enum_name {
-                    format!("{}::{}", en, variant)
-                } else {
-                    variant.clone()
-                };
-
+            Pattern::Variant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => {
+                let head = self.normalize_variant_head(enum_name.as_ref(), variant, enum_hint);
                 match fields {
-                    VariantPatternFields::Unit => full_name,
-                    VariantPatternFields::Tuple(pats) => {
-                        let pat_strs: Vec<String> = pats.iter().map(|p| self.gen_pattern(p)).collect();
-                        format!("{}({})", full_name, pat_strs.join(", "))
+                    VariantPatternFields::Unit => head,
+                    VariantPatternFields::Tuple(patterns) => {
+                        let parts: Vec<String> =
+                            patterns.iter().map(|pat| self.gen_pattern_with_hint(pat, None)).collect();
+                        format!("{head}({})", parts.join(", "))
                     }
-                    VariantPatternFields::Struct(field_pats) => {
-                        let field_strs: Vec<String> = field_pats
+                    VariantPatternFields::Struct(fields) => {
+                        let parts: Vec<String> = fields
                             .iter()
-                            .map(|(n, p)| format!("{}: {}", n, self.gen_pattern(p)))
+                            .map(|(field, pat)| format!("{field}: {}", self.gen_pattern_with_hint(pat, None)))
                             .collect();
-                        format!("{} {{ {} }}", full_name, field_strs.join(", "))
+                        format!("{head} {{ {} }}", parts.join(", "))
                     }
                 }
             }
             Pattern::Slice { patterns, rest, .. } => {
-                let mut pat_strs: Vec<String> = patterns.iter().map(|p| self.gen_pattern(p)).collect();
+                let mut parts: Vec<String> =
+                    patterns.iter().map(|pat| self.gen_pattern_with_hint(pat, None)).collect();
                 if let Some(rest_name) = rest {
-                    pat_strs.push(format!("{} @ ..", rest_name));
+                    parts.push(format!("{rest_name} @ .."));
                 }
-                format!("[{}]", pat_strs.join(", "))
+                format!("[{}]", parts.join(", "))
             }
-            Pattern::Or(pats, _) => {
-                let pat_strs: Vec<String> = pats.iter().map(|p| self.gen_pattern(p)).collect();
-                pat_strs.join(" | ")
-            }
-            Pattern::Range { start, end, inclusive, .. } => {
-                let s = start.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
-                let e = end.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
+            Pattern::Or(patterns, _) => patterns
+                .iter()
+                .map(|pat| self.gen_pattern_with_hint(pat, enum_hint))
+                .collect::<Vec<_>>()
+                .join(" | "),
+            Pattern::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
+                let start = start
+                    .as_ref()
+                    .map(|value| self.gen_pattern_literal(value))
+                    .unwrap_or_default();
+                let end = end
+                    .as_ref()
+                    .map(|value| self.gen_pattern_literal(value))
+                    .unwrap_or_default();
                 if *inclusive {
-                    format!("{}..={}", s, e)
+                    format!("{start}..={end}")
                 } else {
-                    format!("{}..{}", s, e)
+                    format!("{start}..{end}")
                 }
             }
         }
     }
 
+    fn collect_binding_types(&self, func: &Function) -> HashMap<String, String> {
+        func.params
+            .iter()
+            .filter_map(|param| self.extract_named_type_name(&param.ty).map(|name| (param.name.clone(), name)))
+            .collect()
+    }
+
+    fn extract_named_type_name(&self, ty: &Type) -> Option<String> {
+        match ty {
+            Type::Named { name, .. } => Some(name.clone()),
+            Type::Ref { inner, .. } => self.extract_named_type_name(inner),
+            _ => None,
+        }
+    }
+
+    fn enum_hint_for_expr(&self, expr: &Expr) -> Option<String> {
+        let Expr::Ident(name, _) = expr else {
+            return None;
+        };
+
+        self.binding_type_stack
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name).cloned())
+    }
+
+    fn collect_mutated_bindings_in_block(&self, block: &Block) -> HashSet<String> {
+        let mut names = HashSet::new();
+        self.collect_mutated_bindings_in_stmts(&block.stmts, &mut names);
+        names
+    }
+
+    fn collect_mutated_bindings_in_stmts(&self, stmts: &[Stmt], names: &mut HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Let { value, .. } => {
+                    if let Some(value) = value {
+                        self.collect_mutated_bindings_in_expr(value, names);
+                    }
+                }
+                Stmt::Expr(expr) => self.collect_mutated_bindings_in_expr(expr, names),
+                Stmt::Return(value, _) | Stmt::Break(value, _) => {
+                    if let Some(value) = value {
+                        self.collect_mutated_bindings_in_expr(value, names);
+                    }
+                }
+                Stmt::For { iter, body, .. } => {
+                    self.collect_mutated_bindings_in_expr(iter, names);
+                    self.collect_mutated_bindings_in_stmts(&body.stmts, names);
+                }
+                Stmt::While { condition, body, .. } => {
+                    self.collect_mutated_bindings_in_expr(condition, names);
+                    self.collect_mutated_bindings_in_stmts(&body.stmts, names);
+                }
+                Stmt::Loop { body, .. } => self.collect_mutated_bindings_in_stmts(&body.stmts, names),
+                Stmt::Continue(_) | Stmt::Item(_) => {}
+            }
+        }
+    }
+
+    fn collect_mutated_bindings_in_expr(&self, expr: &Expr, names: &mut HashSet<String>) {
+        match expr {
+            Expr::Assign { target, value, .. } => {
+                self.record_assignment_target(target, names);
+                self.collect_mutated_bindings_in_expr(value, names);
+            }
+            Expr::Binary { left, right, .. } => {
+                self.collect_mutated_bindings_in_expr(left, names);
+                self.collect_mutated_bindings_in_expr(right, names);
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Ref { value: operand, .. }
+            | Expr::AddrOf { value: operand, .. }
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Paren(operand, _)
+            | Expr::Return(Some(operand), _)
+            | Expr::Break(Some(operand), _) => self.collect_mutated_bindings_in_expr(operand, names),
+            Expr::Call { callee, args, .. } => {
+                self.collect_mutated_bindings_in_expr(callee, names);
+                for arg in args {
+                    self.collect_mutated_bindings_in_expr(&arg.value, names);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.collect_mutated_bindings_in_expr(receiver, names);
+                for arg in args {
+                    self.collect_mutated_bindings_in_expr(&arg.value, names);
+                }
+            }
+            Expr::Field { object, .. } => self.collect_mutated_bindings_in_expr(object, names),
+            Expr::Index { object, index, .. } => {
+                self.collect_mutated_bindings_in_expr(object, names);
+                self.collect_mutated_bindings_in_expr(index, names);
+            }
+            Expr::Struct { fields, .. }
+            | Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.collect_mutated_bindings_in_expr(value, names);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                EnumVariantFields::Unit => {}
+                EnumVariantFields::Tuple(values) => {
+                    for value in values {
+                        self.collect_mutated_bindings_in_expr(value, names);
+                    }
+                }
+                EnumVariantFields::Struct(values) => {
+                    for (_, value) in values {
+                        self.collect_mutated_bindings_in_expr(value, names);
+                    }
+                }
+            },
+            Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+                for value in values {
+                    self.collect_mutated_bindings_in_expr(value, names);
+                }
+            }
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start {
+                    self.collect_mutated_bindings_in_expr(start, names);
+                }
+                if let Some(end) = end {
+                    self.collect_mutated_bindings_in_expr(end, names);
+                }
+            }
+            Expr::If { condition, then_branch, else_branch, .. } => {
+                self.collect_mutated_bindings_in_expr(condition, names);
+                self.collect_mutated_bindings_in_stmts(&then_branch.stmts, names);
+                if let Some(else_branch) = else_branch {
+                    self.collect_mutated_bindings_in_else_branch(else_branch, names);
+                }
+            }
+            Expr::Match { scrutinee, arms, .. } => {
+                self.collect_mutated_bindings_in_expr(scrutinee, names);
+                for arm in arms {
+                    if let Some(guard) = &arm.guard {
+                        self.collect_mutated_bindings_in_expr(guard, names);
+                    }
+                    self.collect_mutated_bindings_in_expr(&arm.body, names);
+                }
+            }
+            Expr::Lambda { body, .. } => self.collect_mutated_bindings_in_expr(body, names),
+            Expr::PtrOffset { pointer, offset, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names);
+                self.collect_mutated_bindings_in_expr(offset, names);
+            }
+            Expr::MemLoad { pointer, .. } => self.collect_mutated_bindings_in_expr(pointer, names),
+            Expr::MemStore { pointer, value, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names);
+                self.collect_mutated_bindings_in_expr(value, names);
+            }
+            Expr::Alloc { size, .. } => self.collect_mutated_bindings_in_expr(size, names),
+            Expr::Realloc { pointer, size, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names);
+                self.collect_mutated_bindings_in_expr(size, names);
+            }
+            Expr::Cast { value, .. } => self.collect_mutated_bindings_in_expr(value, names),
+            Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+                for (_, value) in init {
+                    self.collect_mutated_bindings_in_expr(value, names);
+                }
+            }
+            Expr::Block(block, _) => self.collect_mutated_bindings_in_stmts(&block.stmts, names),
+            Expr::JSX(..)
+            | Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::Ident(_, _)
+            | Expr::MacroCall { .. }
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. }
+            | Expr::Continue(_)
+            | Expr::Return(None, _)
+            | Expr::Break(None, _) => {}
+        }
+    }
+
+    fn collect_mutated_bindings_in_else_branch(&self, branch: &ElseBranch, names: &mut HashSet<String>) {
+        match branch {
+            ElseBranch::Else(block) => self.collect_mutated_bindings_in_stmts(&block.stmts, names),
+            ElseBranch::ElseIf(condition, block, next) => {
+                self.collect_mutated_bindings_in_expr(condition, names);
+                self.collect_mutated_bindings_in_stmts(&block.stmts, names);
+                if let Some(next) = next {
+                    self.collect_mutated_bindings_in_else_branch(next, names);
+                }
+            }
+        }
+    }
+
+    fn record_assignment_target(&self, expr: &Expr, names: &mut HashSet<String>) {
+        match expr {
+            Expr::Ident(name, _) => {
+                names.insert(name.clone());
+            }
+            Expr::Field { object, .. } => self.record_assignment_target(object, names),
+            Expr::Index { object, .. } => self.record_assignment_target(object, names),
+            Expr::Paren(inner, _) | Expr::Deref(inner, _) => self.record_assignment_target(inner, names),
+            _ => {}
+        }
+    }
+
     fn gen_pattern_literal(&self, expr: &Expr) -> String {
         match expr {
+            Expr::String(value, _) => format!("\"{}\"", self.escape_string(value)),
             Expr::Int(value, _) => value.to_string(),
-            Expr::Float(value, _) => value.to_string(),
+            Expr::Float(value, _) => format!("{value:?}"),
             Expr::Bool(value, _) => value.to_string(),
-            Expr::String(value, _) => format!("{:?}", self.escape_string(value)),
             Expr::None(_) => "None".to_string(),
-            Expr::Paren(value, _) => format!("({})", self.gen_pattern_literal(value)),
+            Expr::Ident(name, _) => self.normalize_runtime_path(name),
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => match fields {
+                EnumVariantFields::Unit => self.normalize_variant_head(Some(enum_name), variant, None),
+                EnumVariantFields::Tuple(values) => {
+                    let parts: Vec<String> =
+                        values.iter().map(|value| self.gen_pattern_literal(value)).collect();
+                    format!("{}({})", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
+                }
+                EnumVariantFields::Struct(values) => {
+                    let parts: Vec<String> = values
+                        .iter()
+                        .map(|(name, value)| format!("{name}: {}", self.gen_pattern_literal(value)))
+                        .collect();
+                    format!("{} {{ {} }}", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
+                }
+            },
+            Expr::Paren(inner, _) => format!("({})", self.gen_pattern_literal(inner)),
             _ => self.gen_expr(expr),
         }
     }
@@ -955,20 +1262,123 @@ impl RustGen {
         name.replace("::", "__")
     }
 
+    fn normalize_runtime_path(&self, path: &str) -> String {
+        if path.starts_with("__kain_") || !path.contains("__") {
+            return path.to_string();
+        }
+
+        path.split("__")
+            .filter(|segment| !segment.is_empty())
+            .enumerate()
+            .map(|(index, segment)| self.normalize_runtime_segment(segment, index > 0))
+            .collect::<Vec<_>>()
+            .join("::")
+    }
+
+    fn normalize_runtime_segment(&self, segment: &str, terminal: bool) -> String {
+        if terminal {
+            match segment {
+                "new_" => return "new".to_string(),
+                "default_" => return "default".to_string(),
+                "var_" => return "var".to_string(),
+                _ => {}
+            }
+        }
+        segment.to_string()
+    }
+
+    fn normalize_runtime_method(&self, method: &str) -> String {
+        match method {
+            "send_" => "send".to_string(),
+            "or_" => "or".to_string(),
+            "with_" => "with".to_string(),
+            "new_" => "new".to_string(),
+            "default_" => "default".to_string(),
+            "var_" => "var".to_string(),
+            _ => method.to_string(),
+        }
+    }
+
+    fn normalize_variant_head(
+        &self,
+        enum_name: Option<&String>,
+        variant: &str,
+        enum_hint: Option<&str>,
+    ) -> String {
+        if let Some(enum_name) = enum_name {
+            return format!(
+                "{}::{}",
+                self.normalize_runtime_path(enum_name),
+                self.normalize_runtime_method(variant)
+            );
+        }
+
+        if variant.contains("__") {
+            let mut parts = variant
+                .split("__")
+                .filter(|segment| !segment.is_empty())
+                .collect::<Vec<_>>();
+            if let Some(last) = parts.pop() {
+                let head = parts.join("::");
+                if !head.is_empty() {
+                    return format!("{}::{}", head, self.normalize_runtime_method(last));
+                }
+            }
+        }
+
+        if let Some(enum_hint) = enum_hint {
+            return format!(
+                "{}::{}",
+                self.normalize_runtime_path(enum_hint),
+                self.normalize_runtime_method(variant)
+            );
+        }
+
+        self.normalize_runtime_method(variant)
+    }
+
     fn map_type(&self, ty: &Type) -> String {
+        self.map_type_in_context(ty, None, false)
+    }
+
+    fn map_storage_type(&self, ty: &Type, current_self: Option<&str>) -> String {
+        match ty {
+            Type::Ref { inner, .. } => self.map_type_in_context(inner, current_self, false),
+            _ => self.map_type_in_context(ty, current_self, true),
+        }
+    }
+
+    fn map_return_type(&self, ty: &Type, current_self: Option<&str>) -> String {
+        match ty {
+            Type::Ref { inner, .. } => self.map_type_in_context(inner, current_self, false),
+            _ => self.map_type_in_context(ty, current_self, false),
+        }
+    }
+
+    fn map_type_in_context(&self, ty: &Type, current_self: Option<&str>, recursive_slot: bool) -> String {
         match ty {
             Type::Named { name, generics, .. } => {
-                let rust_name = self.map_named_type(name);
+                let rust_name = self.normalize_type_name(name, current_self);
+
+                if recursive_slot && current_self.is_some_and(|self_name| rust_name == self_name) {
+                    return format!("Box<{}>", rust_name);
+                }
 
                 if generics.is_empty() {
-                    rust_name.to_string()
+                    rust_name
                 } else {
-                    let gen_strs: Vec<String> = generics.iter().map(|g| self.map_type(g)).collect();
+                    let gen_strs: Vec<String> = generics
+                        .iter()
+                        .map(|g| self.map_type_in_context(g, current_self, false))
+                        .collect();
                     format!("{}<{}>", rust_name, gen_strs.join(", "))
                 }
             }
             Type::Tuple(types, _) => {
-                let type_strs: Vec<String> = types.iter().map(|t| self.map_type(t)).collect();
+                let type_strs: Vec<String> = types
+                    .iter()
+                    .map(|t| self.map_type_in_context(t, current_self, true))
+                    .collect();
                 if type_strs.len() == 1 {
                     format!("({},)", type_strs[0])
                 } else {
@@ -976,34 +1386,45 @@ impl RustGen {
                 }
             }
             Type::Array(inner, size, _) => {
-                format!("[{}; {}]", self.map_type(inner), size)
+                format!("[{}; {}]", self.map_type_in_context(inner, current_self, true), size)
             }
             Type::Slice(inner, _) => {
-                format!("[{}]", self.map_type(inner))
+                format!("[{}]", self.map_type_in_context(inner, current_self, true))
             }
             Type::Ref { mutable, inner, .. } => {
                 if *mutable {
-                    format!("&mut {}", self.map_type(inner))
+                    format!("&mut {}", self.map_type_in_context(inner, current_self, false))
                 } else {
-                    format!("&{}", self.map_type(inner))
+                    format!("&{}", self.map_type_in_context(inner, current_self, false))
                 }
             }
             Type::Ptr { mutable, inner, .. } => {
                 if *mutable {
-                    format!("*mut {}", self.map_type(inner))
+                    format!("*mut {}", self.map_type_in_context(inner, current_self, false))
                 } else {
-                    format!("*const {}", self.map_type(inner))
+                    format!("*const {}", self.map_type_in_context(inner, current_self, false))
                 }
             }
             Type::Function { params, return_type, .. } => {
-                let param_strs: Vec<String> = params.iter().map(|p| self.map_type(p)).collect();
-                format!("fn({}) -> {}", param_strs.join(", "), self.map_type(return_type))
+                let param_strs: Vec<String> = params
+                    .iter()
+                    .map(|p| self.map_type_in_context(p, current_self, false))
+                    .collect();
+                format!(
+                    "fn({}) -> {}",
+                    param_strs.join(", "),
+                    self.map_type_in_context(return_type, current_self, false)
+                )
             }
             Type::Option(inner, _) => {
-                format!("Option<{}>", self.map_type(inner))
+                format!("Option<{}>", self.map_type_in_context(inner, current_self, true))
             }
             Type::Result(ok, err, _) => {
-                format!("Result<{}, {}>", self.map_type(ok), self.map_type(err))
+                format!(
+                    "Result<{}, {}>",
+                    self.map_type_in_context(ok, current_self, true),
+                    self.map_type_in_context(err, current_self, true)
+                )
             }
             Type::Infer(_) => "_".to_string(),
             Type::Never(_) => "!".to_string(),
@@ -1012,7 +1433,10 @@ impl RustGen {
                 if generics.is_empty() {
                     format!("impl {}", trait_name)
                 } else {
-                    let gen_strs: Vec<String> = generics.iter().map(|g| self.map_type(g)).collect();
+                    let gen_strs: Vec<String> = generics
+                        .iter()
+                        .map(|g| self.map_type_in_context(g, current_self, false))
+                        .collect();
                     format!("impl {}<{}>", trait_name, gen_strs.join(", "))
                 }
             }
@@ -1033,6 +1457,7 @@ impl RustGen {
         if effects.contains(&Effect::Async) {
             parts.push("async");
         }
+
         if effects.contains(&Effect::Unsafe) {
             parts.push("unsafe");
         }
@@ -1043,28 +1468,69 @@ impl RustGen {
         }
     }
 
-    fn map_named_type<'a>(&self, name: &'a str) -> &'a str {
+    fn map_named_type(&self, name: &str) -> String {
         match name {
-            "Int" => "i64",
-            "UInt" => "u64",
-            "Int8" => "i8",
-            "Int16" => "i16",
-            "Int32" => "i32",
-            "Int64" => "i64",
-            "UInt8" => "u8",
-            "UInt16" => "u16",
-            "UInt32" => "u32",
-            "UInt64" => "u64",
-            "Float" => "f64",
-            "Float32" => "f32",
-            "Float64" => "f64",
-            "Bool" => "bool",
-            "String" => "String",
-            "Char" => "char",
-            "Unit" => "()",
-            "Array" => "Vec",
-            _ => name,
+            "Int" => "i64".to_string(),
+            "UInt" => "u64".to_string(),
+            "Int8" => "i8".to_string(),
+            "Int16" => "i16".to_string(),
+            "Int32" => "i32".to_string(),
+            "Int64" => "i64".to_string(),
+            "UInt8" => "u8".to_string(),
+            "UInt16" => "u16".to_string(),
+            "UInt32" => "u32".to_string(),
+            "UInt64" => "u64".to_string(),
+            "Float" => "f64".to_string(),
+            "Float32" => "f32".to_string(),
+            "Float64" => "f64".to_string(),
+            "Bool" => "bool".to_string(),
+            "String" => "String".to_string(),
+            "Char" => "char".to_string(),
+            "Unit" => "()".to_string(),
+            "Array" => "Vec".to_string(),
+            "Map" => "HashMap".to_string(),
+            "Error" => "KainError".to_string(),
+            _ => name.to_string(),
         }
+    }
+
+    fn normalize_type_name(&self, name: &str, current_self: Option<&str>) -> String {
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        let normalized = if leaf == "Self_" {
+            current_self.unwrap_or("Self")
+        } else {
+            leaf
+        };
+        self.map_named_type(normalized)
+    }
+
+    fn inferred_self_type<'a>(&self, fn_name: &'a str) -> Option<&'a str> {
+        let (prefix, _) = fn_name.split_once('_')?;
+        if prefix.chars().next().is_some_and(|ch| ch.is_ascii_uppercase()) {
+            Some(prefix)
+        } else {
+            None
+        }
+    }
+
+    fn register_symbol(&mut self, kind: &str, name: &str) -> bool {
+        self.emitted_symbols.insert(format!("{}:{}", kind, name))
+    }
+
+    fn should_emit_function(&self, func: &Function) -> bool {
+        let lower = func.name.to_ascii_lowercase();
+        if lower.starts_with("test_")
+            || lower.ends_with("_test")
+            || lower.contains("_test_")
+            || lower.starts_with("create_test_")
+        {
+            return false;
+        }
+
+        !func.attributes.iter().any(|attr| {
+            let attr_name = attr.name.to_ascii_lowercase();
+            attr_name == "test" || attr_name == "cfg"
+        })
     }
 
     fn map_binop(&self, op: &BinaryOp) -> &'static str {
