@@ -36,6 +36,8 @@ pub mod rust;
 #[cfg(feature = "typescript")]
 pub mod typescript;
 
+pub mod usf;
+
 // pub mod cpp;   // Future: tree-sitter-cpp
 // pub mod python; // Future: rustpython-parser
 
