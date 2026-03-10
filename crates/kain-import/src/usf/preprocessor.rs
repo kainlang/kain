@@ -350,30 +350,36 @@ fn expand_macro(source: &str, macro_name: &str, expansion: &str) -> String {
 /// Expand function-like macros (e.g., TEXTURE_SAMPLE(Tex, UV))
 fn expand_function_macro(source: &str, macro_name: &str, template: &str) -> String {
     let mut output = String::new();
-    let mut chars = source.chars().peekable();
+    let mut i = 0;
+    let bytes = source.as_bytes();
     
-    while let Some(ch) = chars.next() {
-        // Look for macro invocation
-        if source[output.len()..].starts_with(macro_name) {
+    while i < source.len() {
+        // Check if we're at the start of the macro name
+        if source[i..].starts_with(macro_name) {
+            let after_macro = i + macro_name.len();
+            
             // Check if followed by '('
-            let mut lookahead = source[output.len() + macro_name.len()..].chars();
-            if let Some('(') = lookahead.next() {
+            if after_macro < source.len() && bytes[after_macro] == b'(' {
                 // Extract arguments
-                if let Some((args, consumed)) = extract_macro_args(&source[output.len() + macro_name.len()..]) {
+                if let Some((args, consumed)) = extract_macro_args(&source[after_macro..]) {
                     // Expand template with arguments
                     let expanded = expand_template(template, &args);
                     output.push_str(&expanded);
                     
                     // Skip past the macro invocation
-                    for _ in 0..(macro_name.len() + consumed) {
-                        chars.next();
-                    }
+                    i = after_macro + consumed;
                     continue;
                 }
             }
         }
         
-        output.push(ch);
+        // Not a macro invocation, just copy the character
+        if let Some(ch) = source[i..].chars().next() {
+            output.push(ch);
+            i += ch.len_utf8();
+        } else {
+            break;
+        }
     }
     
     output

@@ -2,6 +2,7 @@
 members = [
     # ── KAIN pipeline ────────────────────────────────────────────────────────
     "crates/kain-core",
+    "crates/kain-selfhost",
     "crates/kain-omni",
     "crates/ue5",
     "crates/ue5-shaders",

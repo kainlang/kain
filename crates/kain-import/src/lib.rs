@@ -36,6 +36,7 @@ pub mod rust;
 #[cfg(feature = "typescript")]
 pub mod typescript;
 
+#[cfg(feature = "usf")]
 pub mod usf;
 
 // pub mod cpp;   // Future: tree-sitter-cpp
@@ -160,4 +161,29 @@ pub fn import_typescript(path: &std::path::Path) -> Result<Program> {
 #[cfg(feature = "typescript")]
 pub fn import_typescript_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
     typescript::import_typescript_dir(dir, flat)
+}
+
+// USF importer
+#[cfg(feature = "usf")]
+pub fn import_usf(path: &std::path::Path) -> Result<Program> {
+    usf::import_usf_file(path, usf::UsfImportConfig::default())
+        .map_err(|e| ImportError::TransformError(e.to_string()))
+}
+
+#[cfg(feature = "usf")]
+pub fn import_usf_with_config(
+    path: &std::path::Path,
+    config: usf::UsfImportConfig,
+) -> Result<Program> {
+    usf::import_usf_file(path, config)
+        .map_err(|e| ImportError::TransformError(e.to_string()))
+}
+
+#[cfg(feature = "usf")]
+pub fn import_usf_for_research(
+    path: &std::path::Path,
+    engine_shaders_path: &std::path::Path,
+) -> Result<Program> {
+    usf::import_for_research(path, engine_shaders_path)
+        .map_err(|e| ImportError::TransformError(e.to_string()))
 }
