@@ -163,6 +163,16 @@ impl RustTransformer {
         }
     }
 
+    fn note_lossy_class(&mut self, class: &str, msg: impl Into<String>) {
+        let msg = msg.into();
+        if self.options.strict_selfhost {
+            self.diagnostics
+                .push(format!("SELFHOST_STRICT [class:{class}]: {msg}"));
+        } else {
+            self.diagnostics.push(msg);
+        }
+    }
+
     // ── Scope helpers ─────────────────────────────────────────────────────
 
     fn push_scope(&mut self) { self.local_types.push(HashMap::new()); }
@@ -175,10 +185,13 @@ impl RustTransformer {
 
     fn map_type_checked(&mut self, ty: &syn::Type) -> Type {
         if let Some(trait_name) = dyn_trait_name(ty) {
-            self.note_lossy(format!(
+            self.note_lossy_class(
+                "dyn_trait_lowering",
+                format!(
                 "dyn trait type lowered to impl {} (dynamic dispatch semantics narrowed)",
                 trait_name
-            ));
+                ),
+            );
         }
         self.type_mapper.map_type(ty)
     }
@@ -263,7 +276,10 @@ impl RustTransformer {
             }
             None => {
                 // `mod foo;` with external file — just note it, CLI handles multi-file
-                self.note_lossy(format!("mod {}; (external file — import separately)", m.ident));
+                self.note_lossy_class(
+                    "external_mod_decl",
+                    format!("mod {}; (external file — import separately)", m.ident),
+                );
                 Ok(vec![])
             }
         }
@@ -359,16 +375,28 @@ impl RustTransformer {
         let generics = self.type_mapper.map_generic_params(&t.generics.params);
 
         if t.unsafety.is_some() {
-            self.note_lossy(format!("unsafe trait {} lowered without unsafe marker", name));
+            self.note_lossy_class(
+                "trait_surface_lowering",
+                format!("unsafe trait {} lowered without unsafe marker", name),
+            );
         }
         if t.auto_token.is_some() {
-            self.note_lossy(format!("auto trait {} lowered as normal trait", name));
+            self.note_lossy_class(
+                "trait_surface_lowering",
+                format!("auto trait {} lowered as normal trait", name),
+            );
         }
         if !t.supertraits.is_empty() {
-            self.note_lossy(format!("trait {} supertraits skipped", name));
+            self.note_lossy_class(
+                "trait_surface_lowering",
+                format!("trait {} supertraits skipped", name),
+            );
         }
         if t.generics.where_clause.is_some() {
-            self.note_lossy(format!("trait {} where-clause skipped", name));
+            self.note_lossy_class(
+                "trait_surface_lowering",
+                format!("trait {} where-clause skipped", name),
+            );
         }
 
         let mut methods = Vec::new();
@@ -383,16 +411,22 @@ impl RustTransformer {
                     };
 
                     if !method.sig.generics.params.is_empty() {
-                        self.note_lossy(format!(
+                        self.note_lossy_class(
+                            "trait_surface_lowering",
+                            format!(
                             "trait method {}::{} generics skipped",
                             name, method_name
-                        ));
+                            ),
+                        );
                     }
                     if method.sig.generics.where_clause.is_some() {
-                        self.note_lossy(format!(
+                        self.note_lossy_class(
+                            "trait_surface_lowering",
+                            format!(
                             "trait method {}::{} where-clause skipped",
                             name, method_name
-                        ));
+                            ),
+                        );
                     }
 
                     let mut effects = Vec::new();
@@ -419,25 +453,40 @@ impl RustTransformer {
                     });
                 }
                 syn::TraitItem::Const(item_const) => {
-                    self.note_lossy(format!(
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!(
                         "trait {} associated const {} skipped",
                         name, item_const.ident
-                    ));
+                        ),
+                    );
                 }
                 syn::TraitItem::Type(item_type) => {
-                    self.note_lossy(format!(
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!(
                         "trait {} associated type {} skipped",
                         name, item_type.ident
-                    ));
+                        ),
+                    );
                 }
                 syn::TraitItem::Macro(_) => {
-                    self.note_lossy(format!("trait {} macro item skipped", name));
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!("trait {} macro item skipped", name),
+                    );
                 }
                 syn::TraitItem::Verbatim(_) => {
-                    self.note_lossy(format!("trait {} verbatim item skipped", name));
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!("trait {} verbatim item skipped", name),
+                    );
                 }
                 _ => {
-                    self.note_lossy(format!("trait {} unsupported item skipped", name));
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!("trait {} unsupported item skipped", name),
+                    );
                 }
             }
         }
@@ -547,7 +596,7 @@ impl RustTransformer {
         let target_type = self.map_type_checked(&i.self_ty);
         let generics    = self.type_mapper.map_generic_params(&i.generics.params);
         if i.generics.where_clause.is_some() {
-            self.note_lossy("impl where-clause skipped".to_string());
+            self.note_lossy_class("trait_surface_lowering", "impl where-clause skipped".to_string());
         }
 
         // `impl Trait for Type` → note the trait, still emit the methods
@@ -565,7 +614,10 @@ impl RustTransformer {
                     let method_generics = self.type_mapper.map_generic_params(&method.sig.generics.params);
                     self.generics_in_scope = method_generics.iter().map(|g| g.name.clone()).collect();
                     if method.sig.generics.where_clause.is_some() {
-                        self.note_lossy(format!("impl method {} where-clause skipped", name));
+                        self.note_lossy_class(
+                            "trait_surface_lowering",
+                            format!("impl method {} where-clause skipped", name),
+                        );
                     }
 
                     let params = self.transform_sig_inputs(&method.sig.inputs)?;
@@ -598,19 +650,25 @@ impl RustTransformer {
                     });
                 }
                 syn::ImplItem::Const(item_const) => {
-                    self.note_lossy(format!("impl associated const {} skipped", item_const.ident));
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!("impl associated const {} skipped", item_const.ident),
+                    );
                 }
                 syn::ImplItem::Type(item_type) => {
-                    self.note_lossy(format!("impl associated type {} skipped", item_type.ident));
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!("impl associated type {} skipped", item_type.ident),
+                    );
                 }
                 syn::ImplItem::Macro(_) => {
-                    self.note_lossy("impl macro item skipped".to_string());
+                    self.note_lossy_class("trait_surface_lowering", "impl macro item skipped".to_string());
                 }
                 syn::ImplItem::Verbatim(_) => {
-                    self.note_lossy("impl verbatim item skipped".to_string());
+                    self.note_lossy_class("trait_surface_lowering", "impl verbatim item skipped".to_string());
                 }
                 _ => {
-                    self.note_lossy("impl unsupported item skipped".to_string());
+                    self.note_lossy_class("trait_surface_lowering", "impl unsupported item skipped".to_string());
                 }
             }
         }
@@ -1050,7 +1108,10 @@ impl RustTransformer {
 
             // ── Verbatim / unknown ─────────────────────────────────────────
             _ => {
-                self.note_lossy("unsupported expression kind".to_string());
+                self.note_lossy_class(
+                    "unsupported_expr_lowering",
+                    "unsupported expression kind".to_string(),
+                );
                 Ok(Expr::None(S))
             }
         }
@@ -1078,7 +1139,10 @@ impl RustTransformer {
                 Ok(Expr::Array(items, S))
             }
             _ => {
-                self.note_lossy("unsupported literal lowered to none".to_string());
+                self.note_lossy_class(
+                    "unsupported_literal_lowering",
+                    "unsupported literal lowered to none".to_string(),
+                );
                 Ok(Expr::None(S))
             }
         }
@@ -1310,7 +1374,10 @@ impl RustTransformer {
             }
             syn::Pat::Type(pt) => self.transform_pattern(&pt.pat),
             _ => {
-                self.note_lossy("unsupported pattern lowered to wildcard".to_string());
+                self.note_lossy_class(
+                    "unsupported_pattern_lowering",
+                    "unsupported pattern lowered to wildcard".to_string(),
+                );
                 Pattern::Wildcard(S)
             }
         }
@@ -1390,13 +1457,19 @@ impl RustTransformer {
                     if let Some(expr) = self.lower_assert_macro(macro_name, tokens) {
                         return expr;
                     }
-                    self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        format!("{macro_name}! could not be lowered directly"),
+                    );
                 }
                 "assert_eq" => {
                     if let Some(expr) = self.lower_assert_eq_macro(tokens) {
                         return expr;
                     }
-                    self.note_lossy("assert_eq! could not be lowered directly".to_string());
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        "assert_eq! could not be lowered directly".to_string(),
+                    );
                 }
                 "vec" => {
                     let args = self.parse_macro_args(tokens);
@@ -1406,44 +1479,65 @@ impl RustTransformer {
                     if let Some(expr) = self.lower_format_macro(tokens) {
                         return expr;
                     }
-                    self.note_lossy("format! could not be lowered directly".to_string());
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        "format! could not be lowered directly".to_string(),
+                    );
                 }
                 "matches" => {
                     if let Some(expr) = self.lower_matches_macro(tokens) {
                         return expr;
                     }
-                    self.note_lossy("matches! could not be lowered directly".to_string());
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        "matches! could not be lowered directly".to_string(),
+                    );
                 }
                 "panic" => {
                     if let Some(expr) = self.lower_panic_macro(tokens) {
                         return expr;
                     }
-                    self.note_lossy("panic! could not be lowered directly".to_string());
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        "panic! could not be lowered directly".to_string(),
+                    );
                 }
                 "print" | "println" | "eprint" | "eprintln" => {
                     if let Some(expr) = self.lower_print_macro(macro_name, tokens) {
                         return expr;
                     }
-                    self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        format!("{macro_name}! could not be lowered directly"),
+                    );
                 }
                 "unreachable" => {
                     if let Some(expr) = self.lower_unreachable_macro(tokens) {
                         return expr;
                     }
-                    self.note_lossy("unreachable! could not be lowered directly".to_string());
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        "unreachable! could not be lowered directly".to_string(),
+                    );
                 }
                 "write" | "writeln" => {
                     if let Some(expr) = self.lower_write_macro(macro_name, tokens) {
                         return expr;
                     }
-                    self.note_lossy(format!("{macro_name}! could not be lowered directly"));
+                    self.note_lossy_class(
+                        "macro_direct_lowering_miss",
+                        format!("{macro_name}! could not be lowered directly"),
+                    );
                 }
                 _ => {}
             }
         }
 
         if self.options.macro_policy.reject.contains(macro_name) {
-            self.note_lossy(format!("macro {macro_name}! is rejected by self-host policy"));
+            self.note_lossy_class(
+                "macro_policy_rejected",
+                format!("macro {macro_name}! is rejected by self-host policy"),
+            );
         }
 
         let args = self.parse_macro_args(tokens);
@@ -2307,6 +2401,52 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("dyn trait type lowered to impl Write")));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:dyn_trait_lowering")));
+    }
+
+    #[test]
+    fn records_external_mod_decl_class_marker() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            mod diagnostics;
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:external_mod_decl")));
+    }
+
+    #[test]
+    fn records_trait_surface_lowering_class_marker() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            trait ParserBridge {
+                type Output;
+            }
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:trait_surface_lowering")));
+    }
+
+    #[test]
+    fn records_unsupported_expr_lowering_class_marker() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo() {
+                let _value = async { 41 };
+            }
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:unsupported_expr_lowering")));
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::error::{KainError, KainResult};
 use crate::selfhost_report::{
-    render_phase_markdown, CratePhase1Result, MacroFinding, SelfHostPhase1Report,
+    render_phase_markdown, CratePhase1Result, InventoryInputEvidence, MacroFinding, SelfHostPhase1Report,
     SelfHostPhaseStatus, TraitDynSummary,
 };
 use chrono::Utc;
@@ -18,6 +18,12 @@ use toml::Value;
 
 const SELFHOST_CONTEXTUAL_KEYWORDS: &[&str] = &["state", "weak", "compute", "shader"];
 const SELFHOST_STAGE2_VERSION_SUFFIX: &str = "-selfhost.0";
+const INVENTORY_FILE_SPECS: &[(&str, &str)] = &[
+    ("macro_inventory", "macro_inventory.json"),
+    ("module_map", "module_map.json"),
+    ("selfhost_allowlist", "selfhost_allowlist.json"),
+    ("trait_inventory", "trait_inventory.json"),
+];
 
 thread_local! {
     static CURRENT_SELFHOST_FUNCTION: RefCell<Option<String>> = const { RefCell::new(None) };
@@ -129,6 +135,7 @@ fn run_phase(
     let repo_root = find_repo_root(&std::env::current_dir().map_err(KainError::Io)?)?;
     let inventory_dir = inventory_dir.unwrap_or_else(|| default_inventory_dir(&repo_root));
     let output_dir = output_dir.unwrap_or_else(|| default_output_dir_for_phase(&repo_root, phase_name));
+    let inventory_inputs = collect_inventory_input_evidence(&inventory_dir)?;
     let inventories = load_inventories(&inventory_dir)?;
     let mut options = RustSelfHostOptions::from_inventory_dir(&inventory_dir)
         .map_err(|err| KainError::runtime(format!("Failed to load strict self-host options: {err}")))?;
@@ -280,7 +287,9 @@ fn run_phase(
     let mut final_phase_status = determine_phase_status(&crate_results, &all_required_preserved);
     let mut stage2_workspace_path = None;
     let mut stage2_build_artifact = None;
+    let mut stage2_build_log_path = None;
     let mut stage2_build_success = None;
+    let mut stage2_build_exit_code = None;
 
     if assemble_stage2 {
         let stage2_workspace = assemble_stage2_workspace(
@@ -295,6 +304,8 @@ fn run_phase(
             let build_result = build_stage2_workspace(&stage2_workspace)?;
             stage2_build_success = Some(build_result.success);
             stage2_build_artifact = build_result.artifact_path.map(|path| path.display().to_string());
+            stage2_build_log_path = Some(build_result.log_path.display().to_string());
+            stage2_build_exit_code = build_result.exit_code;
             if !build_result.success {
                 final_phase_status = SelfHostPhaseStatus::HardFail;
             }
@@ -305,6 +316,7 @@ fn run_phase(
         generated_at_utc: Utc::now().to_rfc3339(),
         repo_root: repo_root.display().to_string(),
         inventory_dir: inventory_dir.display().to_string(),
+        inventory_inputs,
         output_dir: output_dir.display().to_string(),
         crates_processed,
         modules_discovered,
@@ -315,7 +327,9 @@ fn run_phase(
         crate_results,
         stage2_workspace_path,
         stage2_build_artifact,
+        stage2_build_log_path,
         stage2_build_success,
+        stage2_build_exit_code,
         final_phase_status: final_phase_status.clone(),
     };
 
@@ -385,11 +399,46 @@ struct TraitInventoryEntry {
 
 fn load_inventories(inventory_dir: &Path) -> KainResult<InventoryBundle> {
     Ok(InventoryBundle {
-        macro_inventory: read_inventory_json(inventory_dir.join("macro_inventory.json"))?,
-        module_map: read_inventory_json(inventory_dir.join("module_map.json"))?,
-        allowlist: read_inventory_json(inventory_dir.join("selfhost_allowlist.json"))?,
-        trait_inventory: read_inventory_json(inventory_dir.join("trait_inventory.json"))?,
+        macro_inventory: read_inventory_json(inventory_path_for_key(inventory_dir, "macro_inventory")?)?,
+        module_map: read_inventory_json(inventory_path_for_key(inventory_dir, "module_map")?)?,
+        allowlist: read_inventory_json(inventory_path_for_key(inventory_dir, "selfhost_allowlist")?)?,
+        trait_inventory: read_inventory_json(inventory_path_for_key(inventory_dir, "trait_inventory")?)?,
     })
+}
+
+fn collect_inventory_input_evidence(inventory_dir: &Path) -> KainResult<Vec<InventoryInputEvidence>> {
+    let mut inputs = Vec::with_capacity(INVENTORY_FILE_SPECS.len());
+    for (key, _) in INVENTORY_FILE_SPECS {
+        let path = inventory_path_for_key(inventory_dir, key)?;
+        let metadata = fs::metadata(&path).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to read inventory metadata {}: {}",
+                path.display(),
+                err
+            ))
+        })?;
+        inputs.push(InventoryInputEvidence {
+            inventory_key: (*key).to_string(),
+            path: path.display().to_string(),
+            byte_size: metadata.len(),
+        });
+    }
+    Ok(inputs)
+}
+
+fn inventory_path_for_key(inventory_dir: &Path, key: &str) -> KainResult<PathBuf> {
+    let Some((_, file_name)) = INVENTORY_FILE_SPECS.iter().find(|(candidate, _)| *candidate == key) else {
+        return Err(KainError::runtime(format!(
+            "Unknown inventory key '{}'; expected one of: {}",
+            key,
+            INVENTORY_FILE_SPECS
+                .iter()
+                .map(|(known_key, _)| *known_key)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )));
+    };
+    Ok(inventory_dir.join(file_name))
 }
 
 fn read_inventory_json<T: for<'de> Deserialize<'de>>(path: PathBuf) -> KainResult<T> {
@@ -878,6 +927,8 @@ fn determine_phase_status(
 struct Stage2BuildResult {
     success: bool,
     artifact_path: Option<PathBuf>,
+    log_path: PathBuf,
+    exit_code: Option<i32>,
 }
 
 fn write_report_files(phase_name: &str, output_dir: &Path, report: &SelfHostPhase1Report) -> KainResult<()> {
@@ -911,8 +962,14 @@ fn print_summary(phase_name: &str, report: &SelfHostPhase1Report) {
     if let Some(path) = &report.stage2_build_artifact {
         println!("   Stage2 artifact: {}", path);
     }
+    if let Some(path) = &report.stage2_build_log_path {
+        println!("   Stage2 build log: {}", path);
+    }
     if let Some(success) = report.stage2_build_success {
         println!("   Stage2 build: {}", if success { "pass" } else { "fail" });
+    }
+    if let Some(exit_code) = report.stage2_build_exit_code {
+        println!("   Stage2 build exit code: {}", exit_code);
     }
     println!("   Report JSON: {}", Path::new(&report.output_dir).join(format!("{phase_name}_report.json")).display());
     println!("   Report MD: {}", Path::new(&report.output_dir).join(format!("{phase_name}_report.md")).display());
@@ -1199,6 +1256,8 @@ fn build_stage2_workspace(workspace_dir: &Path) -> KainResult<Stage2BuildResult>
     Ok(Stage2BuildResult {
         success: output.status.success(),
         artifact_path: artifact.exists().then_some(artifact),
+        log_path: build_log,
+        exit_code: output.status.code(),
     })
 }
 

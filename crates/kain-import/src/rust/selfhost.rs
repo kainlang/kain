@@ -268,10 +268,168 @@ fn is_test_like_file(path: &Path) -> bool {
 }
 
 fn is_allowed_diagnostic(diag: &str, options: &RustSelfHostOptions) -> bool {
-    if options.allow_external_mod_decls && diag.contains("external file") {
+    let diag_class = classify_diagnostic(diag);
+
+    if options
+        .allowlist
+        .hard_fail_conditions
+        .iter()
+        .any(|marker| marker_matches_diagnostic(marker, diag, diag_class))
+    {
+        return false;
+    }
+
+    if options
+        .allowlist
+        .phase1_acceptable_diagnostics
+        .iter()
+        .any(|marker| marker_matches_diagnostic(marker, diag, diag_class))
+    {
+        return true;
+    }
+
+    if options.allow_external_mod_decls && diag_class == Some("external_mod_decl") {
         return true;
     }
     false
+}
+
+fn marker_matches_diagnostic(marker: &str, diag: &str, diag_class: Option<&'static str>) -> bool {
+    let marker = marker.trim();
+    if marker.is_empty() {
+        return false;
+    }
+
+    if diag.contains(marker) {
+        return true;
+    }
+
+    match marker_class(marker) {
+        Some(marker_class) => diag_class == Some(marker_class),
+        None => false,
+    }
+}
+
+fn marker_class(marker: &str) -> Option<&'static str> {
+    let normalized = marker.trim().to_ascii_lowercase();
+
+    if let Some(value) = normalized.strip_prefix("class:") {
+        return known_diagnostic_class(value.trim());
+    }
+
+    if normalized.contains("external file") {
+        return Some("external_mod_decl");
+    }
+    if normalized.contains("trait object") || normalized.contains("dyn") {
+        return Some("dyn_trait_lowering");
+    }
+    if normalized.contains("direct-lowering macro")
+        || normalized.contains("lowered directly")
+        || normalized.contains("without explicit lowering policy")
+    {
+        return Some("macro_direct_lowering_miss");
+    }
+    if normalized.contains("rejected by self-host policy")
+        || normalized.contains("imported as plain text without metadata")
+    {
+        return Some("macro_policy_rejected");
+    }
+    if normalized.contains("unsafe trait")
+        || normalized.contains("auto trait")
+        || normalized.contains("supertraits skipped")
+        || normalized.contains("trait method")
+        || normalized.contains("impl method")
+        || normalized.contains("associated type")
+        || normalized.contains("associated const")
+        || normalized.contains("where-clause skipped")
+    {
+        return Some("trait_surface_lowering");
+    }
+    if normalized.contains("unsupported expression kind") {
+        return Some("unsupported_expr_lowering");
+    }
+    if normalized.contains("unsupported literal lowered to none") {
+        return Some("unsupported_literal_lowering");
+    }
+    if normalized.contains("unsupported pattern lowered to wildcard") {
+        return Some("unsupported_pattern_lowering");
+    }
+
+    None
+}
+
+fn classify_diagnostic(diag: &str) -> Option<&'static str> {
+    if let Some(class) = extract_inline_class_marker(diag) {
+        return Some(class);
+    }
+
+    let normalized = diag.to_ascii_lowercase();
+
+    if normalized.contains("external file") {
+        return Some("external_mod_decl");
+    }
+    if normalized.contains("dyn trait") {
+        return Some("dyn_trait_lowering");
+    }
+    if normalized.contains("could not be lowered directly")
+        || normalized.contains("survive into imported self-host output")
+    {
+        return Some("macro_direct_lowering_miss");
+    }
+    if normalized.contains("rejected by self-host policy")
+        || normalized.contains("imported as plain text without metadata")
+    {
+        return Some("macro_policy_rejected");
+    }
+    if normalized.contains("unsafe trait")
+        || normalized.contains("auto trait")
+        || normalized.contains("supertraits skipped")
+        || normalized.contains("trait method")
+        || normalized.contains("impl method")
+        || normalized.contains("associated type")
+        || normalized.contains("associated const")
+        || normalized.contains("where-clause skipped")
+    {
+        return Some("trait_surface_lowering");
+    }
+    if normalized.contains("unsupported expression kind") {
+        return Some("unsupported_expr_lowering");
+    }
+    if normalized.contains("unsupported literal lowered to none") {
+        return Some("unsupported_literal_lowering");
+    }
+    if normalized.contains("unsupported pattern lowered to wildcard") {
+        return Some("unsupported_pattern_lowering");
+    }
+
+    None
+}
+
+fn extract_inline_class_marker(diag: &str) -> Option<&'static str> {
+    let marker = "class:";
+    let start = diag.find(marker)?;
+    let value = diag[start + marker.len()..]
+        .chars()
+        .take_while(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || *ch == '_')
+        .collect::<String>();
+    if value.is_empty() {
+        return None;
+    }
+    known_diagnostic_class(&value)
+}
+
+fn known_diagnostic_class(value: &str) -> Option<&'static str> {
+    match value {
+        "external_mod_decl" => Some("external_mod_decl"),
+        "dyn_trait_lowering" => Some("dyn_trait_lowering"),
+        "macro_direct_lowering_miss" => Some("macro_direct_lowering_miss"),
+        "macro_policy_rejected" => Some("macro_policy_rejected"),
+        "trait_surface_lowering" => Some("trait_surface_lowering"),
+        "unsupported_expr_lowering" => Some("unsupported_expr_lowering"),
+        "unsupported_literal_lowering" => Some("unsupported_literal_lowering"),
+        "unsupported_pattern_lowering" => Some("unsupported_pattern_lowering"),
+        _ => None,
+    }
 }
 
 fn normalize_rel_path(path: &str) -> PathBuf {
@@ -340,5 +498,117 @@ impl RustSelfHostOptions {
                 reject: self.allowlist.macro_policy.reject.iter().cloned().collect::<HashSet<_>>(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_allowed_diagnostic, RustSelfHostOptions};
+
+    #[test]
+    fn allows_diagnostic_when_in_phase1_allowlist() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("dyn trait fallback".to_string());
+        let diag = "SELFHOST_STRICT: dyn trait fallback for Box<dyn ParserNode>";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn hard_fail_condition_overrides_allowlist_match() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("external file".to_string());
+        options
+            .allowlist
+            .hard_fail_conditions
+            .push("external file".to_string());
+        let diag = "SELFHOST_STRICT: external file module declaration requires inline source";
+        assert!(!is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn keeps_external_mod_decls_compatibility_flag() {
+        let mut options = RustSelfHostOptions::default();
+        options.allow_external_mod_decls = false;
+        let diag = "SELFHOST_STRICT: external file module declaration requires inline source";
+        assert!(!is_allowed_diagnostic(diag, &options));
+        options.allow_external_mod_decls = true;
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn supports_explicit_class_marker_matching() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:dyn_trait_lowering".to_string());
+        let diag = "SELFHOST_STRICT: dyn trait type lowered to impl Write (dynamic dispatch semantics narrowed)";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn supports_natural_language_policy_marker_matching_by_class() {
+        let mut options = RustSelfHostOptions::default();
+        options.allowlist.phase1_acceptable_diagnostics.push(
+            "Trait object (dyn) usage requires semantics we cannot represent and is silently erased."
+                .to_string(),
+        );
+        let diag = "SELFHOST_STRICT: dyn trait type lowered to impl Write (dynamic dispatch semantics narrowed)";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn hard_fail_class_marker_overrides_allow_class_marker() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:external_mod_decl".to_string());
+        options
+            .allowlist
+            .hard_fail_conditions
+            .push("class:external_mod_decl".to_string());
+        let diag = "SELFHOST_STRICT: mod diagnostics; (external file — import separately)";
+        assert!(!is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn supports_natural_language_marker_matching_with_inline_class_diagnostics() {
+        let mut options = RustSelfHostOptions::default();
+        options.allowlist.phase1_acceptable_diagnostics.push(
+            "Trait object (dyn) usage requires semantics we cannot represent and is silently erased."
+                .to_string(),
+        );
+        let diag =
+            "SELFHOST_STRICT [class:dyn_trait_lowering]: fallback semantics narrowed for dynamic dispatch";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn supports_trait_surface_class_marker_matching() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:trait_surface_lowering".to_string());
+        let diag = "SELFHOST_STRICT [class:trait_surface_lowering]: trait ParserBridge associated type Output skipped";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn supports_unsupported_expr_class_marker_matching() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:unsupported_expr_lowering".to_string());
+        let diag = "SELFHOST_STRICT [class:unsupported_expr_lowering]: unsupported expression kind";
+        assert!(is_allowed_diagnostic(diag, &options));
     }
 }
