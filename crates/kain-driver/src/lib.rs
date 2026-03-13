@@ -13,6 +13,9 @@ use kain_core::{
 };
 
 #[cfg(feature = "sys")]
+mod native_app;
+
+#[cfg(feature = "sys")]
 use kain_core::Span;
 
 #[cfg(feature = "gpu")]
@@ -20,6 +23,13 @@ use gpu;
 
 #[cfg(feature = "sys")]
 use kain_sys_codegen as sys;
+
+#[cfg(feature = "sys")]
+pub use native_app::{
+    compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
+    NativeAppBundle, NativeAppBundleConfig, NativeAppMaterializationConfig,
+    NativeAppMaterializedPaths, NativeAppMetadata, NativeAppRuntimeDependency,
+};
 
 #[cfg(feature = "ue5")]
 use ue5;

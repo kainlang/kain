@@ -2612,6 +2612,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-3d"
+version = "0.1.0"
+
+[[package]]
 name = "kain-asm"
 version = "0.1.0"
 dependencies = [
@@ -2657,6 +2661,8 @@ dependencies = [
  "gpu",
  "kain-core",
  "kain-sys-codegen",
+ "kain-ui",
+ "tempfile",
  "ue5",
  "ue5-editor",
  "ue5-shaders",
@@ -2749,6 +2755,7 @@ name = "kain-ui-native"
 version = "0.1.0"
 dependencies = [
  "eframe",
+ "kain-3d",
  "kain-core",
  "kain-ui",
 ]

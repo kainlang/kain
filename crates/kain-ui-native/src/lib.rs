@@ -1,4 +1,7 @@
+use std::{collections::BTreeMap, time::Instant};
+
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
+use kain_3d::{RenderResolution, SceneCatalog, SoftwareRenderer};
 use kain_core::{build_ui_output_from_source, render_ui_output_debug};
 use kain_ui::{UiBuildOutput, UiLayoutKind, UiNode, UiPatch, UiTree, UiValue, UiWidgetKind};
 
@@ -18,7 +21,7 @@ component App():
         </panel>
         <graph title="Material Graph" />
         <timeline title="Sequencer" />
-        <viewport3d title="Runtime Preview" />
+        <viewport3d title="Runtime Preview" scene="retirement_demo" />
     </panel>
 "#;
 
@@ -83,11 +86,18 @@ pub fn run_demo(config: KainUiNativeDemoConfig) -> Result<(), Box<dyn std::error
     run_app(config)
 }
 
-#[derive(Clone)]
+struct ViewportSurfaceState {
+    texture: Option<egui::TextureHandle>,
+}
+
 struct KainUiNativeApp {
     config: KainUiNativeAppConfig,
     output: UiBuildOutput,
     debug_tree: String,
+    scene_catalog: SceneCatalog,
+    renderer: SoftwareRenderer,
+    viewport_surfaces: BTreeMap<kain_ui::UiNodeId, ViewportSurfaceState>,
+    start_time: Instant,
 }
 
 impl KainUiNativeApp {
@@ -97,6 +107,10 @@ impl KainUiNativeApp {
             config,
             output,
             debug_tree,
+            scene_catalog: SceneCatalog::default(),
+            renderer: SoftwareRenderer::default(),
+            viewport_surfaces: BTreeMap::new(),
+            start_time: Instant::now(),
         }
     }
 }
@@ -104,6 +118,7 @@ impl KainUiNativeApp {
 impl eframe::App for KainUiNativeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         apply_demo_visuals(ctx);
+        ctx.request_repaint();
 
         egui::TopBottomPanel::top("kain_ui_native_topbar")
             .resizable(false)
@@ -155,7 +170,8 @@ impl eframe::App for KainUiNativeApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Some(root_id) = self.output.tree.root {
-                render_node(ui, &self.output.tree, root_id);
+                let tree = self.output.tree.clone();
+                render_node(ui, &tree, root_id);
             }
         });
     }

@@ -1,10 +1,14 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::packager::config::{RustBuildArtifact, RustBuildConfig};
-use crate::rust_native_ui::{default_file_build_native_ui_config, generate_native_ui_app};
 use crate::{frontend_to_typed_program, CompileTarget};
 use kain_core::error::KainError;
+use kain_driver::{
+    compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
+    NativeAppBundle, NativeAppBundleConfig, NativeAppMaterializationConfig,
+    NativeAppRuntimeDependency,
+};
 
 #[cfg(feature = "sys")]
 use kain_sys_codegen::{generate_rust_artifact_bundle, RustArtifactBundle, RustArtifactKind};
@@ -70,7 +74,6 @@ pub fn run_rust_build_pipeline(
     let source = fs::read_to_string(input).map_err(|err| {
         KainError::runtime(format!("Failed to read {}: {}", input.display(), err))
     })?;
-    let compiled = compile_rust_build(&source, &config)?;
     let base_name = input
         .file_stem()
         .and_then(|stem| stem.to_str())
@@ -82,24 +85,72 @@ pub fn run_rust_build_pipeline(
         config.native_ui = Some(default_file_build_native_ui_config(&base_name));
     }
 
+    let native_app_bundle = if let Some(native_ui) = &config.native_ui {
+        let bundle_config = native_app_bundle_config_from_cli(
+            input,
+            &base_name,
+            native_ui,
+            config.artifacts.contains(&RustBuildArtifact::Spirv),
+        );
+        match discover_native_app_root_component(
+            &source,
+            bundle_config.root_component.as_deref(),
+            &bundle_config
+                .source_file_name
+                .clone()
+                .unwrap_or_else(|| "app.kn".to_string()),
+        )? {
+            Some(_) => Some(compile_native_app_bundle(&source, &bundle_config)?),
+            None if native_ui_was_explicit => {
+                return Err(KainError::runtime(format!(
+                    "Rust native UI build was requested for {} but no components were found",
+                    input.display()
+                )));
+            }
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    let compiled = native_app_bundle
+        .as_ref()
+        .map(rust_build_output_from_native_app_bundle)
+        .transpose()?
+        .unwrap_or(compile_rust_build(&source, &config)?);
+
     let mut written = write_rust_build_outputs(&output_root, &base_name, &config, &compiled)?;
 
-    if let Some(native_ui) = &config.native_ui {
-        if let Some(generated) =
-            generate_native_ui_app(&source, input, &output_root, &base_name, native_ui)?
-        {
-            written.push(generated.paths.project_dir);
-            written.push(generated.paths.manifest_path);
-            written.push(generated.paths.main_rs_path);
-            written.push(generated.paths.source_copy_path);
-            if let Some(executable_path) = generated.paths.executable_path {
-                written.push(executable_path);
-            }
-        } else if native_ui_was_explicit {
-            return Err(KainError::runtime(format!(
-                "Rust native UI build was requested for {} but no components were found",
-                input.display()
-            )));
+    if let (Some(native_ui), Some(bundle)) = (&config.native_ui, &native_app_bundle) {
+        let project_dir = resolve_project_dir(
+            &output_root,
+            &bundle.metadata.app_name,
+            native_ui.output.as_ref(),
+        );
+        let workspace_root = resolve_workspace_root()?;
+        let dependency_root = workspace_root.join("crates").join("kain-ui-native");
+        let dependency_path =
+            diff_paths(&dependency_root, &project_dir).unwrap_or_else(|| dependency_root.clone());
+        let generated = materialize_native_app_bundle(
+            &source,
+            bundle,
+            &NativeAppMaterializationConfig {
+                project_dir,
+                runtime_crate_name: "kain-ui-native".to_string(),
+                runtime_dependency: NativeAppRuntimeDependency::Path(dependency_path),
+                artifact_output_dir: PathBuf::from("generated"),
+                build_executable: native_ui.build_executable,
+                release: native_ui.release,
+                executable_output_dir: native_ui.build_executable.then(|| output_root.clone()),
+            },
+        )?;
+        written.push(generated.project_dir);
+        written.push(generated.manifest_path);
+        written.push(generated.main_rs_path);
+        written.push(generated.source_copy_path);
+        written.extend(generated.artifact_paths);
+        if let Some(executable_path) = generated.executable_path {
+            written.push(executable_path);
         }
     }
 
@@ -216,4 +267,115 @@ fn resolve_file_mode_output_root(
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn default_file_build_native_ui_config(
+    base_name: &str,
+) -> crate::packager::config::RustNativeUiAppConfig {
+    crate::packager::config::RustNativeUiAppConfig {
+        root_component: None,
+        window_title: Some(base_name.to_string()),
+        app_name: Some(base_name.to_string()),
+        output: None,
+        initial_window_size: [1440.0, 920.0],
+        build_executable: true,
+        release: false,
+    }
+}
+
+fn native_app_bundle_config_from_cli(
+    input: &Path,
+    base_name: &str,
+    config: &crate::packager::config::RustNativeUiAppConfig,
+    include_spirv: bool,
+) -> NativeAppBundleConfig {
+    NativeAppBundleConfig {
+        app_name: config
+            .app_name
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| Some(base_name.to_string())),
+        window_title: config
+            .window_title
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| Some(base_name.to_string())),
+        root_component: config.root_component.clone(),
+        source_file_name: input
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_string()),
+        initial_window_size: config.initial_window_size,
+        include_spirv,
+    }
+}
+
+fn rust_build_output_from_native_app_bundle(
+    bundle: &NativeAppBundle,
+) -> Result<RustBuildOutput, KainError> {
+    Ok(RustBuildOutput {
+        bundle: bundle.rust.bundle.clone(),
+        spirv: bundle.rust.spirv.clone(),
+    })
+}
+
+fn resolve_project_dir(
+    output_root: &Path,
+    app_name: &str,
+    configured_output: Option<&PathBuf>,
+) -> PathBuf {
+    match configured_output {
+        Some(path) if path.is_absolute() => path.clone(),
+        Some(path) => output_root.join(path),
+        None => output_root.join(format!("{app_name}-native-ui")),
+    }
+}
+
+fn resolve_workspace_root() -> Result<PathBuf, KainError> {
+    let cli_manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let Some(workspace_root) = cli_manifest_dir.parent().and_then(Path::parent) else {
+        return Err(KainError::runtime(
+            "Failed to derive the Kain workspace root from the CLI crate path",
+        ));
+    };
+
+    Ok(workspace_root.to_path_buf())
+}
+
+fn diff_paths(path: &Path, base: &Path) -> Option<PathBuf> {
+    let path_components: Vec<_> = path.components().collect();
+    let base_components: Vec<_> = base.components().collect();
+
+    let shared = shared_path_prefix_len(&path_components, &base_components);
+    if shared == 0 {
+        return None;
+    }
+
+    let mut result = PathBuf::new();
+    for _ in shared..base_components.len() {
+        result.push("..");
+    }
+    for component in &path_components[shared..] {
+        match component {
+            Component::Normal(part) => result.push(part),
+            Component::CurDir => result.push("."),
+            Component::ParentDir => result.push(".."),
+            Component::RootDir => {}
+            Component::Prefix(prefix) => result.push(prefix.as_os_str()),
+        }
+    }
+
+    if result.as_os_str().is_empty() {
+        result.push(".");
+    }
+
+    Some(result)
+}
+
+fn shared_path_prefix_len(path: &[Component<'_>], base: &[Component<'_>]) -> usize {
+    let mut shared = 0;
+    while shared < path.len() && shared < base.len() && path[shared] == base[shared] {
+        shared += 1;
+    }
+    shared
 }

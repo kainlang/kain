@@ -18,7 +18,6 @@ pub mod lsp;
 pub mod omni;
 pub mod packager;
 pub mod rust_build;
-mod rust_native_ui;
 pub mod selfhost;
 pub mod selfhost_report;
 
