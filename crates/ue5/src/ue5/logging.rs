@@ -1,5 +1,5 @@
 //! UE5 Smart Logging
-//! 
+//!
 //! Infrastructure for generating efficient UE_LOG statements with proper format specifiers.
 //! No more double-allocation with FString::Printf!
 
@@ -11,16 +11,33 @@ pub fn get_ue_log_format_spec(expr: &Expr, expr_code: &str) -> (String, String) 
     match expr {
         Expr::Int(_, _) => ("%lld".to_string(), expr_code.to_string()),
         Expr::Float(_, _) => ("%f".to_string(), expr_code.to_string()),
-        Expr::Bool(_, _) => ("%s".to_string(), format!("({} ? TEXT(\"true\") : TEXT(\"false\"))", expr_code)),
+        Expr::Bool(_, _) => (
+            "%s".to_string(),
+            format!("({} ? TEXT(\"true\") : TEXT(\"false\"))", expr_code),
+        ),
         Expr::String(_, _) => ("%s".to_string(), format!("*FString({})", expr_code)),
         Expr::Ident(name, _) => {
             // Infer type from name patterns for better format specifiers
-            if name.contains("count") || name.contains("index") || name.contains("id") || name.ends_with("_i") {
+            if name.contains("count")
+                || name.contains("index")
+                || name.contains("id")
+                || name.ends_with("_i")
+            {
                 ("%lld".to_string(), expr_code.to_string())
-            } else if name.contains("scale") || name.contains("speed") || name.contains("intensity") || name.contains("phase") {
+            } else if name.contains("scale")
+                || name.contains("speed")
+                || name.contains("intensity")
+                || name.contains("phase")
+            {
                 ("%f".to_string(), expr_code.to_string())
-            } else if name.starts_with("is_") || name.starts_with("has_") || name.starts_with("can_") {
-                ("%s".to_string(), format!("({} ? TEXT(\"true\") : TEXT(\"false\"))", expr_code))
+            } else if name.starts_with("is_")
+                || name.starts_with("has_")
+                || name.starts_with("can_")
+            {
+                (
+                    "%s".to_string(),
+                    format!("({} ? TEXT(\"true\") : TEXT(\"false\"))", expr_code),
+                )
             } else {
                 // Default: use LexToString for safety
                 ("%s".to_string(), format!("*LexToString({})", expr_code))

@@ -9,13 +9,13 @@ fn test_reserved_keyword_state_in_parameter() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for reserved keyword 'state' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // Should mention 'state' is reserved (case-insensitive check)
             let lower = error_str.to_lowercase();
             assert!(
@@ -33,13 +33,13 @@ fn test_reserved_keyword_uniform_in_parameter() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for reserved keyword 'uniform' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             assert!(
                 error_str.contains("uniform") && error_str.contains("reserved"),
                 "Error should mention 'uniform' is reserved but got: {}",
@@ -55,7 +55,7 @@ fn test_reserved_keyword_buffer_in_parameter() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => {
             // Buffer might not be reserved - that's okay, skip this test
@@ -64,7 +64,7 @@ fn test_reserved_keyword_buffer_in_parameter() {
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             let lower = error_str.to_lowercase();
             assert!(
                 lower.contains("buffer") && lower.contains("reserved"),
@@ -83,13 +83,16 @@ fn test_texture_is_now_allowed_as_variable() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
-    
+
     match parser.parse() {
         Ok(_) => {
             println!("Success: 'texture' is now allowed as a variable name");
         }
         Err(e) => {
-            panic!("'texture' should be allowed as a variable name but got error: {}", e);
+            panic!(
+                "'texture' should be allowed as a variable name but got error: {}",
+                e
+            );
         }
     }
 }
@@ -101,13 +104,16 @@ fn test_cs_is_now_allowed_as_variable() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
-    
+
     match parser.parse() {
         Ok(_) => {
             println!("Success: 'cs' is now allowed as a variable name");
         }
         Err(e) => {
-            panic!("'cs' should be allowed as a variable name but got error: {}", e);
+            panic!(
+                "'cs' should be allowed as a variable name but got error: {}",
+                e
+            );
         }
     }
 }
@@ -119,13 +125,16 @@ fn test_shader_keyword_only_reserved_at_top_level() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
-    
+
     match parser.parse() {
         Ok(_) => {
             println!("Success: 'shader' is now allowed as a variable name");
         }
         Err(e) => {
-            panic!("'shader' should be allowed as a variable name but got error: {}", e);
+            panic!(
+                "'shader' should be allowed as a variable name but got error: {}",
+                e
+            );
         }
     }
 }
@@ -136,13 +145,13 @@ fn test_reserved_keyword_register_in_parameter() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for reserved keyword 'register' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             assert!(
                 error_str.contains("register") && error_str.contains("reserved"),
                 "Error should mention 'register' is reserved but got: {}",
@@ -158,13 +167,13 @@ fn test_reserved_keyword_static_in_variable() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for reserved keyword 'static' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             let lower = error_str.to_lowercase();
             assert!(
                 lower.contains("static") && lower.contains("reserved"),
@@ -181,7 +190,7 @@ fn test_reserved_keyword_const_in_variable() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => {
             // 'const' might not be reserved in variable context - that's okay
@@ -190,7 +199,7 @@ fn test_reserved_keyword_const_in_variable() {
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // If it errors, it should be a clear error message
             assert!(
                 error_str.len() > 10,
@@ -207,21 +216,22 @@ fn test_struct_literal_brace_style() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for struct literal but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // Should mention struct literals not supported
             let lower = error_str.to_lowercase();
             assert!(
-                lower.contains("struct") && (lower.contains("literal") || lower.contains("initialization")),
+                lower.contains("struct")
+                    && (lower.contains("literal") || lower.contains("initialization")),
                 "Error should mention struct literals but got: {}",
                 error_str
             );
-            
+
             // Should suggest field-by-field assignment
             assert!(
                 lower.contains("field") || lower.contains("assignment"),
@@ -238,13 +248,13 @@ fn test_struct_literal_function_call_style() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for function-call style struct init but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // Parser detects syntax error - check that error message is clear
             let lower = error_str.to_lowercase();
             assert!(
@@ -252,7 +262,7 @@ fn test_struct_literal_function_call_style() {
                 "Error should be clear about syntax issue but got: {}",
                 error_str
             );
-            
+
             // Should include location
             assert!(
                 error_str.contains("example.kn:"),
@@ -269,7 +279,7 @@ fn test_double_colon_on_struct_field_access() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => {
             // Parser currently allows :: on structs - this test documents current behavior
@@ -279,7 +289,7 @@ fn test_double_colon_on_struct_field_access() {
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // If it errors, check for helpful message
             let lower = error_str.to_lowercase();
             assert!(
@@ -297,20 +307,20 @@ fn test_error_messages_include_location() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "my_file.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // Should include file:line:col format
             assert!(
                 error_str.contains("my_file.kn:"),
                 "Error should include filename but got: {}",
                 error_str
             );
-            
+
             assert!(
                 error_str.contains(":2:") || error_str.contains(":1:"),
                 "Error should include line:col but got: {}",
@@ -326,13 +336,13 @@ fn test_multiple_reserved_keywords_detected() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for multiple reserved keywords but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // Should detect at least one reserved keyword
             let lower = error_str.to_lowercase();
             assert!(
@@ -350,14 +360,17 @@ fn test_valid_enum_double_colon_usage() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     // This should parse successfully - :: is valid for enums
     match parser.parse() {
         Ok(_) => {
             println!("Correctly parsed enum with :: syntax");
         }
         Err(e) => {
-            panic!("Valid enum :: syntax should parse successfully but got error: {}", e);
+            panic!(
+                "Valid enum :: syntax should parse successfully but got error: {}",
+                e
+            );
         }
     }
 }
@@ -368,13 +381,13 @@ fn test_reserved_cpp_keyword_class() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for C++ keyword 'class' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             let lower = error_str.to_lowercase();
             assert!(
                 lower.contains("class") && lower.contains("reserved"),
@@ -391,13 +404,13 @@ fn test_reserved_cpp_keyword_namespace() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for C++ keyword 'namespace' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             let lower = error_str.to_lowercase();
             assert!(
                 lower.contains("namespace") && lower.contains("reserved"),
@@ -414,13 +427,13 @@ fn test_reserved_ue5_keyword_uclass() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for UE5 keyword 'UCLASS' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             let lower = error_str.to_lowercase();
             assert!(
                 lower.contains("uclass") && lower.contains("reserved"),
@@ -437,13 +450,13 @@ fn test_reserved_hlsl_keyword_cbuffer() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error for HLSL keyword 'cbuffer' but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             let lower = error_str.to_lowercase();
             assert!(
                 lower.contains("cbuffer") && lower.contains("reserved"),
@@ -460,20 +473,20 @@ fn test_actionable_error_message_quality() {
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
-    
+
     match parser.parse() {
         Ok(_) => panic!("Expected parse error but got success"),
         Err(e) => {
             let error_str = e.to_string();
             println!("Error message: {}", error_str);
-            
+
             // Error should be clear and actionable
             assert!(
                 error_str.len() > 20,
                 "Error message should be descriptive but got: {}",
                 error_str
             );
-            
+
             // Should include location
             assert!(
                 error_str.contains("example.kn:"),

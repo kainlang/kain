@@ -4,9 +4,8 @@ use crate::dialects::furby_6502::{
 use crate::error::{AsmError, AsmResult};
 use indexmap::IndexMap;
 use kain_core::{
-    diagnostics::SpanMapper,
-    span::Span,
-    AsmBlock, AsmDataTable, AsmDirective, AsmInstr, AsmProgram, ParityTraceFrame, TranslitUnit,
+    diagnostics::SpanMapper, span::Span, AsmBlock, AsmDataTable, AsmDirective, AsmInstr,
+    AsmProgram, ParityTraceFrame, TranslitUnit,
 };
 use petgraph::graphmap::DiGraphMap;
 use rayon::prelude::*;
@@ -107,33 +106,64 @@ struct Z80Diagnostics {
     diagnostics: Vec<AsmDiagnostic>,
 }
 
-
-pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_only: bool) -> AsmResult<ImportAsmOutput> {
+pub fn import_asm(
+    input: &Path,
+    format: &str,
+    out_kn: Option<&Path>,
+    validate_only: bool,
+) -> AsmResult<ImportAsmOutput> {
     let _ = tracing_subscriber::fmt::try_init();
     let normalized = format.trim().to_ascii_lowercase();
     if !SUPPORTED_FORMATS.iter().any(|v| *v == normalized) {
-        return Err(AsmError::runtime(format!("Unsupported asm format '{}'. Supported: {}", format, SUPPORTED_FORMATS.join(", "))));
+        return Err(AsmError::runtime(format!(
+            "Unsupported asm format '{}'. Supported: {}",
+            format,
+            SUPPORTED_FORMATS.join(", ")
+        )));
     }
-    info!("kain-asm import start: format={}, input={}", normalized, input.display());
+    info!(
+        "kain-asm import start: format={}, input={}",
+        normalized,
+        input.display()
+    );
     let raw = load_asm_with_includes(input)?;
     let canonical = canonicalize_asm(&raw);
-    let canonical_text = canonical.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
+    let canonical_text = canonical
+        .iter()
+        .map(|l| l.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     let expanded = expand_z80_semantics(&canonical);
-    let expanded_text = expanded.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
+    let expanded_text = expanded
+        .iter()
+        .map(|l| l.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     let (parsed, provenance) = parse_asm_program(&expanded);
     let translit_units = build_translit_units(&parsed);
     let report = build_recovery_report(input, &expanded, &parsed);
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let root = if cwd.join("crates").is_dir() { cwd.clone() } else if cwd.join("Kain").join("crates").is_dir() { cwd.join("Kain") } else { cwd };
+    let root = if cwd.join("crates").is_dir() {
+        cwd.clone()
+    } else if cwd.join("Kain").join("crates").is_dir() {
+        cwd.join("Kain")
+    } else {
+        cwd
+    };
     let research_dir = root.join("Research").join("z80");
     let generated_dir = root.join("generated");
     fs::create_dir_all(&research_dir).map_err(AsmError::Io)?;
     fs::create_dir_all(&generated_dir).map_err(AsmError::Io)?;
 
     let canonical_asm_path = research_dir.join("z80_canonical.asm");
-    let generated_kn_path = out_kn.map(Path::to_path_buf).unwrap_or_else(|| generated_dir.join("z80_firmware.kn"));
-    let map_json_path = generated_kn_path.parent().unwrap_or(&generated_dir).join("z80_map.json");
+    let generated_kn_path = out_kn
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| generated_dir.join("z80_firmware.kn"));
+    let map_json_path = generated_kn_path
+        .parent()
+        .unwrap_or(&generated_dir)
+        .join("z80_map.json");
     let report_json_path = research_dir.join("z80_recovery_report.json");
     let rom_model_path = map_json_path.with_file_name("z80_rom_model.json");
     let parity_harness_path = map_json_path.with_file_name("z80_parity_harness.json");
@@ -150,7 +180,11 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
 
     if !validate_only {
         fs::write(&canonical_asm_path, canonical_text).map_err(AsmError::Io)?;
-        fs::write(&generated_kn_path, render_kain_firmware(&parsed, &translit_units)).map_err(AsmError::Io)?;
+        fs::write(
+            &generated_kn_path,
+            render_kain_firmware(&parsed, &translit_units),
+        )
+        .map_err(AsmError::Io)?;
         let map = Z80Map {
             translit_units: translit_units.clone(),
             parity_trace_schema: default_parity_trace_schema(),
@@ -159,29 +193,50 @@ pub fn import_asm(input: &Path, format: &str, out_kn: Option<&Path>, validate_on
             parity_harness_path: parity_harness_path.display().to_string(),
             diagnostics_path: diagnostics_path.display().to_string(),
         };
-        let map_json = serde_json::to_string_pretty(&map).map_err(|e| AsmError::runtime(format!("Failed to serialize z80 map: {}", e)))?;
+        let map_json = serde_json::to_string_pretty(&map)
+            .map_err(|e| AsmError::runtime(format!("Failed to serialize z80 map: {}", e)))?;
         fs::write(&map_json_path, map_json).map_err(AsmError::Io)?;
-        let rom_json = serde_json::to_string_pretty(&rom_model).map_err(|e| AsmError::runtime(format!("Failed to serialize rom model: {}", e)))?;
+        let rom_json = serde_json::to_string_pretty(&rom_model)
+            .map_err(|e| AsmError::runtime(format!("Failed to serialize rom model: {}", e)))?;
         fs::write(&rom_model_path, rom_json).map_err(AsmError::Io)?;
-        let parity_json = serde_json::to_string_pretty(&parity_harness).map_err(|e| AsmError::runtime(format!("Failed to serialize parity harness: {}", e)))?;
+        let parity_json = serde_json::to_string_pretty(&parity_harness)
+            .map_err(|e| AsmError::runtime(format!("Failed to serialize parity harness: {}", e)))?;
         fs::write(&parity_harness_path, parity_json).map_err(AsmError::Io)?;
-        let diagnostics_json = serde_json::to_string_pretty(&diagnostics).map_err(|e| AsmError::runtime(format!("Failed to serialize diagnostics: {}", e)))?;
+        let diagnostics_json = serde_json::to_string_pretty(&diagnostics)
+            .map_err(|e| AsmError::runtime(format!("Failed to serialize diagnostics: {}", e)))?;
         fs::write(&diagnostics_path, diagnostics_json).map_err(AsmError::Io)?;
     }
-    let report_json = serde_json::to_string_pretty(&report).map_err(|e| AsmError::runtime(format!("Failed to serialize z80 recovery report: {}", e)))?;
+    let report_json = serde_json::to_string_pretty(&report).map_err(|e| {
+        AsmError::runtime(format!("Failed to serialize z80 recovery report: {}", e))
+    })?;
     fs::write(&report_json_path, report_json).map_err(AsmError::Io)?;
 
-    Ok(ImportAsmOutput { canonical_asm_path, generated_kn_path, map_json_path, report_json_path, parsed, translit_units })
+    Ok(ImportAsmOutput {
+        canonical_asm_path,
+        generated_kn_path,
+        map_json_path,
+        report_json_path,
+        parsed,
+        translit_units,
+    })
 }
 
 fn load_asm_with_includes(entry: &Path) -> AsmResult<Vec<SourceLine>> {
     fn walk(path: &Path, stack: &mut HashSet<PathBuf>, out: &mut Vec<SourceLine>) -> AsmResult<()> {
-        let canonical = fs::canonicalize(path).or_else(|_| Ok::<PathBuf, std::io::Error>(path.to_path_buf())).map_err(AsmError::Io)?;
+        let canonical = fs::canonicalize(path)
+            .or_else(|_| Ok::<PathBuf, std::io::Error>(path.to_path_buf()))
+            .map_err(AsmError::Io)?;
         if !stack.insert(canonical.clone()) {
-            return Err(AsmError::runtime(format!("Detected recursive include loop at {}", canonical.display())));
+            return Err(AsmError::runtime(format!(
+                "Detected recursive include loop at {}",
+                canonical.display()
+            )));
         }
         let content = fs::read_to_string(&canonical).map_err(AsmError::Io)?;
-        let dir = canonical.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+        let dir = canonical
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
         let file = canonical.display().to_string();
         for (idx, line) in content.lines().enumerate() {
             let ln = idx + 1;
@@ -192,7 +247,11 @@ fn load_asm_with_includes(entry: &Path) -> AsmResult<Vec<SourceLine>> {
                     continue;
                 }
             }
-            out.push(SourceLine { text: line.to_string(), file: file.clone(), line: ln });
+            out.push(SourceLine {
+                text: line.to_string(),
+                file: file.clone(),
+                line: ln,
+            });
         }
         stack.remove(&canonical);
         Ok(())
@@ -205,7 +264,9 @@ fn load_asm_with_includes(entry: &Path) -> AsmResult<Vec<SourceLine>> {
 
 fn parse_include_path(line: &str) -> Option<String> {
     let code = strip_comment(line).trim();
-    if !code.to_ascii_uppercase().starts_with("INCLUDE ") { return None; }
+    if !code.to_ascii_uppercase().starts_with("INCLUDE ") {
+        return None;
+    }
     let i0 = code.find('"')?;
     let rest = &code[i0 + 1..];
     let i1 = rest.find('"')?;
@@ -216,14 +277,34 @@ fn canonicalize_asm(raw: &[SourceLine]) -> Vec<CanonLine> {
     let mut out = Vec::<CanonLine>::new();
     for line in raw {
         let trimmed = line.text.replace('\u{feff}', "").trim().to_string();
-        if trimmed.is_empty() { continue; }
-        let squashed = trimmed.chars().map(|c| if c.is_ascii() && !c.is_control() { c } else { ' ' }).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ");
-        if squashed.is_empty() { continue; }
-        out.push(CanonLine { text: squashed, file: line.file.clone(), line: line.line, canon: out.len() + 1 });
+        if trimmed.is_empty() {
+            continue;
+        }
+        let squashed = trimmed
+            .chars()
+            .map(|c| {
+                if c.is_ascii() && !c.is_control() {
+                    c
+                } else {
+                    ' '
+                }
+            })
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if squashed.is_empty() {
+            continue;
+        }
+        out.push(CanonLine {
+            text: squashed,
+            file: line.file.clone(),
+            line: line.line,
+            canon: out.len() + 1,
+        });
     }
     out
 }
-
 
 fn expand_z80_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
     let mut out = Vec::<CanonLine>::new();
@@ -236,27 +317,49 @@ fn expand_z80_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
     while i < lines.len() {
         let line = lines[i].clone();
         let text = strip_comment(&line.text).trim().to_string();
-        if text.is_empty() { i += 1; continue; }
+        if text.is_empty() {
+            i += 1;
+            continue;
+        }
         if let Some((name, consumed)) = parse_macro_definition(lines, i) {
-            if active { macros.insert(name.to_ascii_uppercase(), MacroDef { body: lines[(i + 1)..(i + consumed - 1)].to_vec() }); }
+            if active {
+                macros.insert(
+                    name.to_ascii_uppercase(),
+                    MacroDef {
+                        body: lines[(i + 1)..(i + consumed - 1)].to_vec(),
+                    },
+                );
+            }
             i += consumed;
             continue;
         }
-        let token = text.split_whitespace().next().unwrap_or("").to_ascii_uppercase();
+        let token = text
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_ascii_uppercase();
         if token == "IF" {
-            let cond = if active { eval_cond(text[2..].trim(), &symbols) } else { false };
+            let cond = if active {
+                eval_cond(text[2..].trim(), &symbols)
+            } else {
+                false
+            };
             stack.push((active, cond));
             active = active && cond;
             i += 1;
             continue;
         }
         if token == "ELSE" {
-            if let Some((parent, cond)) = stack.last().copied() { active = parent && !cond; }
+            if let Some((parent, cond)) = stack.last().copied() {
+                active = parent && !cond;
+            }
             i += 1;
             continue;
         }
         if token == "ENDIF" {
-            if let Some((parent, _)) = stack.pop() { active = parent; }
+            if let Some((parent, _)) = stack.pop() {
+                active = parent;
+            }
             i += 1;
             continue;
         }
@@ -266,7 +369,12 @@ fn expand_z80_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
                     let body = &lines[(i + 1)..(i + consumed - 1)];
                     for _ in 0..repeat_count {
                         for entry in body {
-                            out.extend(expand_macro_call(entry, &macros, 0, &mut macro_invoke_counter));
+                            out.extend(expand_macro_call(
+                                entry,
+                                &macros,
+                                0,
+                                &mut macro_invoke_counter,
+                            ));
                         }
                     }
                 }
@@ -274,29 +382,48 @@ fn expand_z80_semantics(lines: &[CanonLine]) -> Vec<CanonLine> {
                 continue;
             }
         }
-        if !active { i += 1; continue; }
+        if !active {
+            i += 1;
+            continue;
+        }
         if let Some((name, value)) = parse_symbol_assignment(&text, &symbols) {
             symbols.insert(name.to_ascii_uppercase(), value);
             out.push(line);
             i += 1;
             continue;
         }
-        out.extend(expand_macro_call(&line, &macros, 0, &mut macro_invoke_counter));
+        out.extend(expand_macro_call(
+            &line,
+            &macros,
+            0,
+            &mut macro_invoke_counter,
+        ));
         i += 1;
     }
     out
 }
 
-fn parse_rept_block(lines: &[CanonLine], start: usize, symbols: &IndexMap<String, i64>) -> Option<(usize, usize)> {
+fn parse_rept_block(
+    lines: &[CanonLine],
+    start: usize,
+    symbols: &IndexMap<String, i64>,
+) -> Option<(usize, usize)> {
     let head = strip_comment(&lines[start].text).trim();
     let mut parts = head.split_whitespace();
-    if !parts.next()?.eq_ignore_ascii_case("REPT") { return None; }
+    if !parts.next()?.eq_ignore_ascii_case("REPT") {
+        return None;
+    }
     let count_expr = parts.collect::<Vec<_>>().join(" ");
     let repeat_count = eval_expr_i64(count_expr.trim(), symbols)?.max(0) as usize;
     let mut depth = 0i32;
     let mut idx = start + 1;
     while idx < lines.len() {
-        let token = strip_comment(&lines[idx].text).trim().split_whitespace().next().unwrap_or("").to_ascii_uppercase();
+        let token = strip_comment(&lines[idx].text)
+            .trim()
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_ascii_uppercase();
         if token == "REPT" {
             depth += 1;
         } else if token == "ENDR" {
@@ -313,42 +440,78 @@ fn parse_rept_block(lines: &[CanonLine], start: usize, symbols: &IndexMap<String
 fn parse_macro_definition(lines: &[CanonLine], start: usize) -> Option<(String, usize)> {
     let head = strip_comment(&lines[start].text).trim();
     let name = if let Some((left, right)) = head.split_once(':') {
-        if right.trim().eq_ignore_ascii_case("MACRO") { left.trim().to_string() } else { String::new() }
+        if right.trim().eq_ignore_ascii_case("MACRO") {
+            left.trim().to_string()
+        } else {
+            String::new()
+        }
     } else {
         let mut p = head.split_whitespace();
-        if p.next()?.eq_ignore_ascii_case("MACRO") { p.next().unwrap_or("").to_string() } else { String::new() }
+        if p.next()?.eq_ignore_ascii_case("MACRO") {
+            p.next().unwrap_or("").to_string()
+        } else {
+            String::new()
+        }
     };
-    if name.is_empty() { return None; }
+    if name.is_empty() {
+        return None;
+    }
     let mut idx = start + 1;
     while idx < lines.len() {
-        if strip_comment(&lines[idx].text).trim().eq_ignore_ascii_case("ENDM") { return Some((name, idx - start + 1)); }
+        if strip_comment(&lines[idx].text)
+            .trim()
+            .eq_ignore_ascii_case("ENDM")
+        {
+            return Some((name, idx - start + 1));
+        }
         idx += 1;
     }
     None
 }
 
 fn parse_symbol_assignment(text: &str, symbols: &IndexMap<String, i64>) -> Option<(String, i64)> {
-    if let Some((left, right)) = text.split_once(" EQU ").or_else(|| text.split_once(" equ ")) {
-        return Some((left.trim().to_string(), eval_expr_i64(right.trim(), symbols)?));
+    if let Some((left, right)) = text
+        .split_once(" EQU ")
+        .or_else(|| text.split_once(" equ "))
+    {
+        return Some((
+            left.trim().to_string(),
+            eval_expr_i64(right.trim(), symbols)?,
+        ));
     }
     let mut p = text.split_whitespace();
     let k = p.next()?;
     let op = p.next()?.to_ascii_uppercase();
     if op == "EQU" || op == "DEF" {
-        return Some((k.to_string(), eval_expr_i64(p.collect::<Vec<_>>().join(" ").trim(), symbols)?));
+        return Some((
+            k.to_string(),
+            eval_expr_i64(p.collect::<Vec<_>>().join(" ").trim(), symbols)?,
+        ));
     }
     None
 }
 
-fn eval_cond(expr: &str, symbols: &IndexMap<String, i64>) -> bool { eval_expr_i64(expr, symbols).unwrap_or(0) != 0 }
+fn eval_cond(expr: &str, symbols: &IndexMap<String, i64>) -> bool {
+    eval_expr_i64(expr, symbols).unwrap_or(0) != 0
+}
 
 fn parse_num(v: &str) -> Option<i64> {
     let t = v.trim();
-    if let Some(h) = t.strip_suffix('H').or_else(|| t.strip_suffix('h')) { return i64::from_str_radix(h, 16).ok(); }
-    if let Some(h) = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) { return i64::from_str_radix(h, 16).ok(); }
-    if let Some(h) = t.strip_prefix('$') { return i64::from_str_radix(h, 16).ok(); }
-    if let Some(b) = t.strip_suffix('B').or_else(|| t.strip_suffix('b')) { return i64::from_str_radix(b, 2).ok(); }
-    if let Some(b) = t.strip_prefix('%') { return i64::from_str_radix(b, 2).ok(); }
+    if let Some(h) = t.strip_suffix('H').or_else(|| t.strip_suffix('h')) {
+        return i64::from_str_radix(h, 16).ok();
+    }
+    if let Some(h) = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+        return i64::from_str_radix(h, 16).ok();
+    }
+    if let Some(h) = t.strip_prefix('$') {
+        return i64::from_str_radix(h, 16).ok();
+    }
+    if let Some(b) = t.strip_suffix('B').or_else(|| t.strip_suffix('b')) {
+        return i64::from_str_radix(b, 2).ok();
+    }
+    if let Some(b) = t.strip_prefix('%') {
+        return i64::from_str_radix(b, 2).ok();
+    }
     t.parse::<i64>().ok()
 }
 
@@ -378,9 +541,15 @@ enum ExprTok {
 
 fn eval_expr_i64(expr: &str, symbols: &IndexMap<String, i64>) -> Option<i64> {
     let toks = tokenize_expr(expr)?;
-    let mut p = ExprParser { toks, idx: 0, symbols };
+    let mut p = ExprParser {
+        toks,
+        idx: 0,
+        symbols,
+    };
     let value = p.parse_or()?;
-    if p.peek() != &ExprTok::End { return None; }
+    if p.peek() != &ExprTok::End {
+        return None;
+    }
     Some(value)
 }
 
@@ -390,12 +559,19 @@ fn tokenize_expr(expr: &str) -> Option<Vec<ExprTok>> {
     let mut i = 0usize;
     while i < bytes.len() {
         let c = bytes[i] as char;
-        if c.is_ascii_whitespace() { i += 1; continue; }
+        if c.is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
         if c == '$' {
             let start = i + 1;
             let mut j = start;
-            while j < bytes.len() && (bytes[j] as char).is_ascii_hexdigit() { j += 1; }
-            if j == start { return None; }
+            while j < bytes.len() && (bytes[j] as char).is_ascii_hexdigit() {
+                j += 1;
+            }
+            if j == start {
+                return None;
+            }
             out.push(ExprTok::Num(i64::from_str_radix(&expr[start..j], 16).ok()?));
             i = j;
             continue;
@@ -403,7 +579,9 @@ fn tokenize_expr(expr: &str) -> Option<Vec<ExprTok>> {
         if c == '%' {
             let start = i + 1;
             let mut j = start;
-            while j < bytes.len() && matches!(bytes[j] as char, '0' | '1') { j += 1; }
+            while j < bytes.len() && matches!(bytes[j] as char, '0' | '1') {
+                j += 1;
+            }
             if j > start {
                 out.push(ExprTok::Num(i64::from_str_radix(&expr[start..j], 2).ok()?));
                 i = j;
@@ -416,7 +594,9 @@ fn tokenize_expr(expr: &str) -> Option<Vec<ExprTok>> {
         if c.is_ascii_digit() {
             let start = i;
             let mut j = i;
-            while j < bytes.len() && (bytes[j] as char).is_ascii_alphanumeric() { j += 1; }
+            while j < bytes.len() && (bytes[j] as char).is_ascii_alphanumeric() {
+                j += 1;
+            }
             out.push(ExprTok::Num(parse_num(&expr[start..j])?));
             i = j;
             continue;
@@ -426,22 +606,54 @@ fn tokenize_expr(expr: &str) -> Option<Vec<ExprTok>> {
             let mut j = i;
             while j < bytes.len() {
                 let ch = bytes[j] as char;
-                if ch.is_ascii_alphanumeric() || ch == '_' || ch == '.' { j += 1; } else { break; }
+                if ch.is_ascii_alphanumeric() || ch == '_' || ch == '.' {
+                    j += 1;
+                } else {
+                    break;
+                }
             }
             out.push(ExprTok::Ident(expr[start..j].to_ascii_uppercase()));
             i = j;
             continue;
         }
 
-        let two = if i + 1 < bytes.len() { Some(&expr[i..i + 2]) } else { None };
+        let two = if i + 1 < bytes.len() {
+            Some(&expr[i..i + 2])
+        } else {
+            None
+        };
         if let Some(op) = two {
             match op {
-                "||" => { out.push(ExprTok::OrOr); i += 2; continue; }
-                "&&" => { out.push(ExprTok::AndAnd); i += 2; continue; }
-                "==" => { out.push(ExprTok::EqEq); i += 2; continue; }
-                "!=" => { out.push(ExprTok::NotEq); i += 2; continue; }
-                "<=" => { out.push(ExprTok::Lte); i += 2; continue; }
-                ">=" => { out.push(ExprTok::Gte); i += 2; continue; }
+                "||" => {
+                    out.push(ExprTok::OrOr);
+                    i += 2;
+                    continue;
+                }
+                "&&" => {
+                    out.push(ExprTok::AndAnd);
+                    i += 2;
+                    continue;
+                }
+                "==" => {
+                    out.push(ExprTok::EqEq);
+                    i += 2;
+                    continue;
+                }
+                "!=" => {
+                    out.push(ExprTok::NotEq);
+                    i += 2;
+                    continue;
+                }
+                "<=" => {
+                    out.push(ExprTok::Lte);
+                    i += 2;
+                    continue;
+                }
+                ">=" => {
+                    out.push(ExprTok::Gte);
+                    i += 2;
+                    continue;
+                }
                 _ => {}
             }
         }
@@ -471,9 +683,22 @@ struct ExprParser<'a> {
 }
 
 impl<'a> ExprParser<'a> {
-    fn peek(&self) -> &ExprTok { &self.toks[self.idx] }
-    fn eat(&mut self) -> ExprTok { let t = self.toks[self.idx].clone(); self.idx += 1; t }
-    fn expect(&mut self, tok: ExprTok) -> Option<()> { if self.peek() == &tok { self.eat(); Some(()) } else { None } }
+    fn peek(&self) -> &ExprTok {
+        &self.toks[self.idx]
+    }
+    fn eat(&mut self) -> ExprTok {
+        let t = self.toks[self.idx].clone();
+        self.idx += 1;
+        t
+    }
+    fn expect(&mut self, tok: ExprTok) -> Option<()> {
+        if self.peek() == &tok {
+            self.eat();
+            Some(())
+        } else {
+            None
+        }
+    }
 
     fn parse_or(&mut self) -> Option<i64> {
         let mut lhs = self.parse_and()?;
@@ -497,8 +722,16 @@ impl<'a> ExprParser<'a> {
         let mut lhs = self.parse_rel()?;
         loop {
             match self.peek() {
-                ExprTok::EqEq => { self.eat(); let rhs = self.parse_rel()?; lhs = if lhs == rhs { 1 } else { 0 }; }
-                ExprTok::NotEq => { self.eat(); let rhs = self.parse_rel()?; lhs = if lhs != rhs { 1 } else { 0 }; }
+                ExprTok::EqEq => {
+                    self.eat();
+                    let rhs = self.parse_rel()?;
+                    lhs = if lhs == rhs { 1 } else { 0 };
+                }
+                ExprTok::NotEq => {
+                    self.eat();
+                    let rhs = self.parse_rel()?;
+                    lhs = if lhs != rhs { 1 } else { 0 };
+                }
                 _ => break,
             }
         }
@@ -508,10 +741,26 @@ impl<'a> ExprParser<'a> {
         let mut lhs = self.parse_add()?;
         loop {
             match self.peek() {
-                ExprTok::Lt => { self.eat(); let rhs = self.parse_add()?; lhs = if lhs < rhs { 1 } else { 0 }; }
-                ExprTok::Lte => { self.eat(); let rhs = self.parse_add()?; lhs = if lhs <= rhs { 1 } else { 0 }; }
-                ExprTok::Gt => { self.eat(); let rhs = self.parse_add()?; lhs = if lhs > rhs { 1 } else { 0 }; }
-                ExprTok::Gte => { self.eat(); let rhs = self.parse_add()?; lhs = if lhs >= rhs { 1 } else { 0 }; }
+                ExprTok::Lt => {
+                    self.eat();
+                    let rhs = self.parse_add()?;
+                    lhs = if lhs < rhs { 1 } else { 0 };
+                }
+                ExprTok::Lte => {
+                    self.eat();
+                    let rhs = self.parse_add()?;
+                    lhs = if lhs <= rhs { 1 } else { 0 };
+                }
+                ExprTok::Gt => {
+                    self.eat();
+                    let rhs = self.parse_add()?;
+                    lhs = if lhs > rhs { 1 } else { 0 };
+                }
+                ExprTok::Gte => {
+                    self.eat();
+                    let rhs = self.parse_add()?;
+                    lhs = if lhs >= rhs { 1 } else { 0 };
+                }
                 _ => break,
             }
         }
@@ -521,8 +770,14 @@ impl<'a> ExprParser<'a> {
         let mut lhs = self.parse_mul()?;
         loop {
             match self.peek() {
-                ExprTok::Plus => { self.eat(); lhs += self.parse_mul()?; }
-                ExprTok::Minus => { self.eat(); lhs -= self.parse_mul()?; }
+                ExprTok::Plus => {
+                    self.eat();
+                    lhs += self.parse_mul()?;
+                }
+                ExprTok::Minus => {
+                    self.eat();
+                    lhs -= self.parse_mul()?;
+                }
                 _ => break,
             }
         }
@@ -532,17 +787,24 @@ impl<'a> ExprParser<'a> {
         let mut lhs = self.parse_unary()?;
         loop {
             match self.peek() {
-                ExprTok::Star => { self.eat(); lhs *= self.parse_unary()?; }
+                ExprTok::Star => {
+                    self.eat();
+                    lhs *= self.parse_unary()?;
+                }
                 ExprTok::Slash => {
                     self.eat();
                     let rhs = self.parse_unary()?;
-                    if rhs == 0 { return None; }
+                    if rhs == 0 {
+                        return None;
+                    }
                     lhs /= rhs;
                 }
                 ExprTok::Percent => {
                     self.eat();
                     let rhs = self.parse_unary()?;
-                    if rhs == 0 { return None; }
+                    if rhs == 0 {
+                        return None;
+                    }
                     lhs %= rhs;
                 }
                 _ => break,
@@ -552,9 +814,18 @@ impl<'a> ExprParser<'a> {
     }
     fn parse_unary(&mut self) -> Option<i64> {
         match self.peek() {
-            ExprTok::Bang => { self.eat(); Some(if self.parse_unary()? == 0 { 1 } else { 0 }) }
-            ExprTok::Minus => { self.eat(); Some(-self.parse_unary()?) }
-            ExprTok::Plus => { self.eat(); self.parse_unary() }
+            ExprTok::Bang => {
+                self.eat();
+                Some(if self.parse_unary()? == 0 { 1 } else { 0 })
+            }
+            ExprTok::Minus => {
+                self.eat();
+                Some(-self.parse_unary()?)
+            }
+            ExprTok::Plus => {
+                self.eat();
+                self.parse_unary()
+            }
             _ => self.parse_primary(),
         }
     }
@@ -562,13 +833,24 @@ impl<'a> ExprParser<'a> {
         match self.eat() {
             ExprTok::Num(n) => Some(n),
             ExprTok::Ident(name) => {
-                if name == "TRUE" { return Some(1); }
-                if name == "FALSE" { return Some(0); }
+                if name == "TRUE" {
+                    return Some(1);
+                }
+                if name == "FALSE" {
+                    return Some(0);
+                }
                 if name == "DEF" || name == "DEFINED" {
                     self.expect(ExprTok::LParen)?;
-                    let symbol = match self.eat() { ExprTok::Ident(s) => s, _ => return None };
+                    let symbol = match self.eat() {
+                        ExprTok::Ident(s) => s,
+                        _ => return None,
+                    };
                     self.expect(ExprTok::RParen)?;
-                    return Some(if self.symbols.contains_key(&symbol) { 1 } else { 0 });
+                    return Some(if self.symbols.contains_key(&symbol) {
+                        1
+                    } else {
+                        0
+                    });
                 }
                 Some(self.symbols.get(&name).copied().unwrap_or(0))
             }
@@ -582,24 +864,53 @@ impl<'a> ExprParser<'a> {
     }
 }
 
-fn expand_macro_call(line: &CanonLine, macros: &IndexMap<String, MacroDef>, depth: usize, macro_invoke_counter: &mut u64) -> Vec<CanonLine> {
-    if depth >= MAX_EXPAND_DEPTH { return vec![line.clone()]; }
+fn expand_macro_call(
+    line: &CanonLine,
+    macros: &IndexMap<String, MacroDef>,
+    depth: usize,
+    macro_invoke_counter: &mut u64,
+) -> Vec<CanonLine> {
+    if depth >= MAX_EXPAND_DEPTH {
+        return vec![line.clone()];
+    }
     let text = strip_comment(&line.text).trim().to_string();
     let mut p = text.split_whitespace();
     let name = p.next().unwrap_or("");
-    if name.ends_with(':') { return vec![line.clone()]; }
-    let Some(def) = macros.get(&name.to_ascii_uppercase()) else { return vec![line.clone()]; };
+    if name.ends_with(':') {
+        return vec![line.clone()];
+    }
+    let Some(def) = macros.get(&name.to_ascii_uppercase()) else {
+        return vec![line.clone()];
+    };
     *macro_invoke_counter += 1;
     let macro_id = *macro_invoke_counter;
     let local_prefix = format!("__m{}_{}", macro_id, name.to_ascii_lowercase());
-    let args = text[name.len()..].trim().split(',').map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).collect::<Vec<_>>();
+    let args = text[name.len()..]
+        .trim()
+        .split(',')
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
     let mut out = Vec::<CanonLine>::new();
     for l in &def.body {
         let mut t = l.text.clone();
-        for i in 0..args.len() { t = t.replace(&format!("\\{}", i + 1), &args[i]); }
+        for i in 0..args.len() {
+            t = t.replace(&format!("\\{}", i + 1), &args[i]);
+        }
         t = t.replace("\\@", &macro_id.to_string());
         t = rewrite_local_macro_labels(&t, &local_prefix);
-        let nested = expand_macro_call(&CanonLine { text: t, file: l.file.clone(), line: l.line, canon: l.canon }, macros, depth + 1, macro_invoke_counter);
+        let nested = expand_macro_call(
+            &CanonLine {
+                text: t,
+                file: l.file.clone(),
+                line: l.line,
+                canon: l.canon,
+            },
+            macros,
+            depth + 1,
+            macro_invoke_counter,
+        );
         out.extend(nested);
     }
     out
@@ -615,7 +926,9 @@ fn rewrite_local_macro_labels(text: &str, prefix: &str) -> String {
             let prev = if i == 0 { ' ' } else { chars[i - 1] };
             if !(prev.is_ascii_alphanumeric() || prev == '_' || prev == '.') {
                 let mut j = i + 1;
-                while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') { j += 1; }
+                while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                    j += 1;
+                }
                 if j > i + 1 {
                     out.push_str(prefix);
                     out.push('_');
@@ -631,7 +944,6 @@ fn rewrite_local_macro_labels(text: &str, prefix: &str) -> String {
     out
 }
 
-
 fn parse_asm_program(lines: &[CanonLine]) -> (AsmProgram, Vec<SourceProvenance>) {
     let mut blocks = Vec::<AsmBlock>::new();
     let mut directives = Vec::<AsmDirective>::new();
@@ -644,20 +956,53 @@ fn parse_asm_program(lines: &[CanonLine]) -> (AsmProgram, Vec<SourceProvenance>)
     let mut cur_src_start = 1usize;
     let mut cur_src_end = 1usize;
 
-    let flush = |end_line: usize, blocks: &mut Vec<AsmBlock>, provenance: &mut Vec<SourceProvenance>, cur_label: &mut String, cur_instrs: &mut Vec<AsmInstr>, cur_start: usize, cur_file: &str, cur_src_start: usize, cur_src_end: usize| {
+    let flush = |end_line: usize,
+                 blocks: &mut Vec<AsmBlock>,
+                 provenance: &mut Vec<SourceProvenance>,
+                 cur_label: &mut String,
+                 cur_instrs: &mut Vec<AsmInstr>,
+                 cur_start: usize,
+                 cur_file: &str,
+                 cur_src_start: usize,
+                 cur_src_end: usize| {
         if !cur_label.is_empty() && !cur_instrs.is_empty() {
             let label = cur_label.clone();
-            blocks.push(AsmBlock { label: label.clone(), instructions: std::mem::take(cur_instrs), source_line_start: cur_start, source_line_end: end_line });
-            provenance.push(SourceProvenance { kind: "block".to_string(), symbol: label, source_file: cur_file.to_string(), source_line_start: cur_src_start, source_line_end: cur_src_end, canonical_line_start: cur_start, canonical_line_end: end_line });
+            blocks.push(AsmBlock {
+                label: label.clone(),
+                instructions: std::mem::take(cur_instrs),
+                source_line_start: cur_start,
+                source_line_end: end_line,
+            });
+            provenance.push(SourceProvenance {
+                kind: "block".to_string(),
+                symbol: label,
+                source_file: cur_file.to_string(),
+                source_line_start: cur_src_start,
+                source_line_end: cur_src_end,
+                canonical_line_start: cur_start,
+                canonical_line_end: end_line,
+            });
         }
         cur_label.clear();
     };
 
     for l in lines {
         let text = strip_comment(&l.text).trim();
-        if text.is_empty() { continue; }
+        if text.is_empty() {
+            continue;
+        }
         if is_label_line(text) {
-            flush(l.canon.saturating_sub(1), &mut blocks, &mut provenance, &mut cur_label, &mut cur_instrs, cur_start, &cur_file, cur_src_start, cur_src_end);
+            flush(
+                l.canon.saturating_sub(1),
+                &mut blocks,
+                &mut provenance,
+                &mut cur_label,
+                &mut cur_instrs,
+                cur_start,
+                &cur_file,
+                cur_src_start,
+                cur_src_end,
+            );
             cur_label = normalize_label(text);
             cur_start = l.canon;
             cur_file = l.file.clone();
@@ -667,13 +1012,38 @@ fn parse_asm_program(lines: &[CanonLine]) -> (AsmProgram, Vec<SourceProvenance>)
         }
         if is_directive_line(text) {
             let sym = text.split_whitespace().next().unwrap_or(text).to_string();
-            directives.push(AsmDirective { name: text.to_string(), args: Vec::new(), source_line: l.canon });
-            provenance.push(SourceProvenance { kind: "directive".to_string(), symbol: sym, source_file: l.file.clone(), source_line_start: l.line, source_line_end: l.line, canonical_line_start: l.canon, canonical_line_end: l.canon });
+            directives.push(AsmDirective {
+                name: text.to_string(),
+                args: Vec::new(),
+                source_line: l.canon,
+            });
+            provenance.push(SourceProvenance {
+                kind: "directive".to_string(),
+                symbol: sym,
+                source_file: l.file.clone(),
+                source_line_start: l.line,
+                source_line_end: l.line,
+                canonical_line_start: l.canon,
+                canonical_line_end: l.canon,
+            });
             continue;
         }
         if let Some((label, bytes)) = parse_data_line(text) {
-            data_tables.push(AsmDataTable { label: label.clone(), bytes, source_line_start: l.canon, source_line_end: l.canon });
-            provenance.push(SourceProvenance { kind: "data_table".to_string(), symbol: label, source_file: l.file.clone(), source_line_start: l.line, source_line_end: l.line, canonical_line_start: l.canon, canonical_line_end: l.canon });
+            data_tables.push(AsmDataTable {
+                label: label.clone(),
+                bytes,
+                source_line_start: l.canon,
+                source_line_end: l.canon,
+            });
+            provenance.push(SourceProvenance {
+                kind: "data_table".to_string(),
+                symbol: label,
+                source_file: l.file.clone(),
+                source_line_start: l.line,
+                source_line_end: l.line,
+                canonical_line_start: l.canon,
+                canonical_line_end: l.canon,
+            });
             continue;
         }
         if cur_label.is_empty() {
@@ -688,51 +1058,113 @@ fn parse_asm_program(lines: &[CanonLine]) -> (AsmProgram, Vec<SourceProvenance>)
             cur_instrs.push(instr);
         }
     }
-    flush(lines.len(), &mut blocks, &mut provenance, &mut cur_label, &mut cur_instrs, cur_start, &cur_file, cur_src_start, cur_src_end);
-    (AsmProgram { blocks, directives, data_tables }, provenance)
+    flush(
+        lines.len(),
+        &mut blocks,
+        &mut provenance,
+        &mut cur_label,
+        &mut cur_instrs,
+        cur_start,
+        &cur_file,
+        cur_src_start,
+        cur_src_end,
+    );
+    (
+        AsmProgram {
+            blocks,
+            directives,
+            data_tables,
+        },
+        provenance,
+    )
 }
 
-fn strip_comment(line: &str) -> &str { line.split_once(';').map(|(l, _)| l).unwrap_or(line) }
-fn normalize_label(label: &str) -> String { label.trim().trim_end_matches(':').to_string() }
+fn strip_comment(line: &str) -> &str {
+    line.split_once(';').map(|(l, _)| l).unwrap_or(line)
+}
+fn normalize_label(label: &str) -> String {
+    label.trim().trim_end_matches(':').to_string()
+}
 fn is_label_line(line: &str) -> bool {
     let t = line.trim();
     if t.ends_with(':') {
         let n = t.trim_end_matches(':');
-        return !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.');
+        return !n.is_empty()
+            && n.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.');
     }
     false
 }
 
 fn is_directive_line(line: &str) -> bool {
     let code = strip_comment(line).trim();
-    if code.is_empty() { return false; }
+    if code.is_empty() {
+        return false;
+    }
     let upper = code.to_ascii_uppercase();
-    if upper.contains(" EQU ") { return true; }
+    if upper.contains(" EQU ") {
+        return true;
+    }
     let t = upper.split_whitespace().next().unwrap_or("");
-    matches!(t, "ORG" | "INCLUDE" | "MACRO" | "ENDM" | "REPT" | "ENDR" | "DEF" | "DS" | "DEFS")
+    matches!(
+        t,
+        "ORG" | "INCLUDE" | "MACRO" | "ENDM" | "REPT" | "ENDR" | "DEF" | "DS" | "DEFS"
+    )
 }
 
 fn parse_data_line(line: &str) -> Option<(String, Vec<String>)> {
     let upper = line.to_ascii_uppercase();
-    let marker = if upper.contains(" DB ") || upper.starts_with("DB ") { "DB" } 
-        else if upper.contains(" DW ") || upper.starts_with("DW ") { "DW" }
-        else if upper.contains(" DEFB ") || upper.starts_with("DEFB ") { "DEFB" }
-        else if upper.contains(" DEFW ") || upper.starts_with("DEFW ") { "DEFW" }
-        else { return None; };
-    let pos = upper.find(&format!(" {} ", marker)).map(|p| p + 1).unwrap_or(0);
+    let marker = if upper.contains(" DB ") || upper.starts_with("DB ") {
+        "DB"
+    } else if upper.contains(" DW ") || upper.starts_with("DW ") {
+        "DW"
+    } else if upper.contains(" DEFB ") || upper.starts_with("DEFB ") {
+        "DEFB"
+    } else if upper.contains(" DEFW ") || upper.starts_with("DEFW ") {
+        "DEFW"
+    } else {
+        return None;
+    };
+    let pos = upper
+        .find(&format!(" {} ", marker))
+        .map(|p| p + 1)
+        .unwrap_or(0);
     let left = line[..pos].trim();
     let right = line[pos + marker.len()..].trim();
-    let label = if left.is_empty() { "__anonymous_table".to_string() } else { normalize_label(left) };
-    let values = right.split(|c: char| c == ',' || c.is_ascii_whitespace()).map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).collect::<Vec<_>>();
-    if values.is_empty() { None } else { Some((label, values)) }
+    let label = if left.is_empty() {
+        "__anonymous_table".to_string()
+    } else {
+        normalize_label(left)
+    };
+    let values = right
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if values.is_empty() {
+        None
+    } else {
+        Some((label, values))
+    }
 }
 
 fn parse_instruction(line: &str, source_line: usize) -> Option<AsmInstr> {
     let mut parts = line.split_whitespace();
     let opcode = parts.next()?.to_ascii_uppercase();
-    if !is_opcode_keyword(&opcode) { return None; }
+    if !is_opcode_keyword(&opcode) {
+        return None;
+    }
     let operand = parts.collect::<Vec<_>>().join(" ");
-    Some(AsmInstr { opcode, operand: if operand.is_empty() { None } else { Some(operand) }, source_line })
+    Some(AsmInstr {
+        opcode,
+        operand: if operand.is_empty() {
+            None
+        } else {
+            Some(operand)
+        },
+        source_line,
+    })
 }
 
 fn build_translit_units(program: &AsmProgram) -> Vec<TranslitUnit> {
@@ -751,9 +1183,17 @@ fn build_translit_units(program: &AsmProgram) -> Vec<TranslitUnit> {
 fn normalize_identifier(label: &str) -> String {
     let mut out = String::new();
     for c in label.chars() {
-        if c.is_ascii_alphanumeric() { out.push(c.to_ascii_lowercase()); } else if c == '_' || c == '.' { out.push('_'); }
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+        } else if c == '_' || c == '.' {
+            out.push('_');
+        }
     }
-    if out.is_empty() { "z80_label".to_string() } else { out }
+    if out.is_empty() {
+        "z80_label".to_string()
+    } else {
+        out
+    }
 }
 
 fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String {
@@ -783,14 +1223,19 @@ fn render_kain_firmware(program: &AsmProgram, units: &[TranslitUnit]) -> String 
     out.push_str("fn ue5_apply_sensor_input(state: Ue5ShimState, port_id: Int, value: Int) -> Ue5ShimState:\n    write_port(port_id, value)\n    return state\n\n");
     out.push_str("fn ue5_read_actuator_output(state: Ue5ShimState, port_id: Int) -> Int:\n    let _state = state\n    return read_port(port_id)\n\n");
     out.push_str("const Z80_TABLES: Array<Array<Int>> = [\n");
-    for table in &program.data_tables { out.push_str(&format!("    [{}],\n", table.bytes.join(", "))); }
+    for table in &program.data_tables {
+        out.push_str(&format!("    [{}],\n", table.bytes.join(", ")));
+    }
     out.push_str("]\n\n");
     for unit in units {
         out.push_str(&format!("fn {}(cpu: CpuState, mem: Memory) -> (CpuState, Memory):\n    let next_cpu = cpu\n    let next_mem = mem\n", unit.target_item));
         if let Some(block) = program.blocks.iter().find(|b| b.label == unit.source_label) {
             for instr in &block.instructions {
                 let op = instr.operand.as_deref().unwrap_or("");
-                out.push_str(&format!("    # [{}:{}] {} {}\n", unit.source_label, instr.source_line, instr.opcode, op));
+                out.push_str(&format!(
+                    "    # [{}:{}] {} {}\n",
+                    unit.source_label, instr.source_line, instr.opcode, op
+                ));
             }
         }
         out.push_str("    return (next_cpu, next_mem)\n\n");
@@ -805,22 +1250,33 @@ fn build_rom_model(lines: &[CanonLine], program: &AsmProgram) -> Z80RomModel {
     let current_section = "ROM".to_string();
     let mut section_start = 0u16;
 
-    let flush_section = |name: &str, start: u16, pc_now: u16, bytes: usize, sections: &mut Vec<RomSection>| {
-        if bytes == 0 { return; }
-        sections.push(RomSection {
-            name: name.to_string(),
-            start,
-            end: pc_now.saturating_sub(1),
-            bytes,
-        });
-    };
+    let flush_section =
+        |name: &str, start: u16, pc_now: u16, bytes: usize, sections: &mut Vec<RomSection>| {
+            if bytes == 0 {
+                return;
+            }
+            sections.push(RomSection {
+                name: name.to_string(),
+                start,
+                end: pc_now.saturating_sub(1),
+                bytes,
+            });
+        };
 
     for line in lines {
         let text = strip_comment(&line.text).trim();
-        if text.is_empty() { continue; }
+        if text.is_empty() {
+            continue;
+        }
 
         if text.to_ascii_uppercase().starts_with("ORG ") {
-            flush_section(&current_section, section_start, pc, section_bytes, &mut sections);
+            flush_section(
+                &current_section,
+                section_start,
+                pc,
+                section_bytes,
+                &mut sections,
+            );
             if let Some(addr_str) = text.split_whitespace().nth(1) {
                 if let Some(addr) = parse_num(addr_str) {
                     pc = addr as u16;
@@ -844,10 +1300,19 @@ fn build_rom_model(lines: &[CanonLine], program: &AsmProgram) -> Z80RomModel {
             pc = pc.saturating_add(size);
         }
     }
-    flush_section(&current_section, section_start, pc, section_bytes, &mut sections);
+    flush_section(
+        &current_section,
+        section_start,
+        pc,
+        section_bytes,
+        &mut sections,
+    );
     let total_bytes = sections.iter().map(|s| s.bytes).sum();
     let _ = program;
-    Z80RomModel { sections, total_bytes }
+    Z80RomModel {
+        sections,
+        total_bytes,
+    }
 }
 
 fn build_parity_harness(program: &AsmProgram) -> Z80ParityHarness {
@@ -884,11 +1349,9 @@ fn build_parity_harness(program: &AsmProgram) -> Z80ParityHarness {
             if target.is_empty() {
                 continue;
             }
-            if let Some(to_idx) = program
-                .blocks
-                .iter()
-                .position(|b| b.label.eq_ignore_ascii_case(target) || b.label.ends_with(&format!(".{}", target)))
-            {
+            if let Some(to_idx) = program.blocks.iter().position(|b| {
+                b.label.eq_ignore_ascii_case(target) || b.label.ends_with(&format!(".{}", target))
+            }) {
                 graph.add_edge(idx, to_idx, ());
             }
         }
@@ -903,48 +1366,123 @@ fn build_parity_harness(program: &AsmProgram) -> Z80ParityHarness {
 fn estimate_instruction_size(instr: &AsmInstr) -> u16 {
     let op = instr.opcode.as_str();
     let operand = instr.operand.as_deref().unwrap_or("");
-    
+
     // Single byte instructions
-    if matches!(op, "NOP" | "HALT" | "DI" | "EI" | "RET" | "RETI" | "RETN" | "CPL" | "CCF" | "SCF" | "DAA" | "NEG") { return 1; }
-    
-    // Two byte instructions
-    if matches!(op, "DJNZ" | "JR") { return 2; }
-    
-    // Three byte instructions
-    if matches!(op, "JP" | "CALL") && !operand.starts_with('(') { return 3; }
-    
-    // IX/IY prefix instructions
-    if operand.contains("IX") || operand.contains("IY") { return 3; }
-    
-    // ED prefix instructions
-    if matches!(op, "RETI" | "RETN" | "IM" | "LDI" | "LDIR" | "LDD" | "LDDR" | "CPI" | "CPIR" | "CPD" | "CPDR" | "INI" | "INIR" | "IND" | "INDR" | "OUTI" | "OTIR" | "OUTD" | "OTDR") { return 2; }
-    
-    // CB prefix instructions (bit operations)
-    if matches!(op, "BIT" | "SET" | "RES" | "RL" | "RLC" | "RR" | "RRC" | "SLA" | "SRA" | "SRL") { return 2; }
-    
-    // LD instructions vary
-    if op == "LD" {
-        if operand.contains('(') && (operand.contains('$') || operand.chars().any(|c| c.is_ascii_digit())) { return 3; }
-        if operand.contains('$') || operand.chars().any(|c| c.is_ascii_digit()) { return 2; }
+    if matches!(
+        op,
+        "NOP"
+            | "HALT"
+            | "DI"
+            | "EI"
+            | "RET"
+            | "RETI"
+            | "RETN"
+            | "CPL"
+            | "CCF"
+            | "SCF"
+            | "DAA"
+            | "NEG"
+    ) {
         return 1;
     }
-    
+
+    // Two byte instructions
+    if matches!(op, "DJNZ" | "JR") {
+        return 2;
+    }
+
+    // Three byte instructions
+    if matches!(op, "JP" | "CALL") && !operand.starts_with('(') {
+        return 3;
+    }
+
+    // IX/IY prefix instructions
+    if operand.contains("IX") || operand.contains("IY") {
+        return 3;
+    }
+
+    // ED prefix instructions
+    if matches!(
+        op,
+        "RETI"
+            | "RETN"
+            | "IM"
+            | "LDI"
+            | "LDIR"
+            | "LDD"
+            | "LDDR"
+            | "CPI"
+            | "CPIR"
+            | "CPD"
+            | "CPDR"
+            | "INI"
+            | "INIR"
+            | "IND"
+            | "INDR"
+            | "OUTI"
+            | "OTIR"
+            | "OUTD"
+            | "OTDR"
+    ) {
+        return 2;
+    }
+
+    // CB prefix instructions (bit operations)
+    if matches!(
+        op,
+        "BIT" | "SET" | "RES" | "RL" | "RLC" | "RR" | "RRC" | "SLA" | "SRA" | "SRL"
+    ) {
+        return 2;
+    }
+
+    // LD instructions vary
+    if op == "LD" {
+        if operand.contains('(')
+            && (operand.contains('$') || operand.chars().any(|c| c.is_ascii_digit()))
+        {
+            return 3;
+        }
+        if operand.contains('$') || operand.chars().any(|c| c.is_ascii_digit()) {
+            return 2;
+        }
+        return 1;
+    }
+
     // Default to 1 byte
     1
 }
 
-fn build_recovery_report(input: &Path, canonical: &[CanonLine], parsed: &AsmProgram) -> RecoveryReport {
+fn build_recovery_report(
+    input: &Path,
+    canonical: &[CanonLine],
+    parsed: &AsmProgram,
+) -> RecoveryReport {
     let mut unresolved_tokens = Vec::<RecoveryIssue>::new();
     let mut ambiguous_labels = Vec::<RecoveryIssue>::new();
     let mut seen = HashSet::<String>::new();
     for line in canonical {
         let t = line.text.trim();
-        if t.is_empty() { continue; }
-        let ok = is_label_line(t) || is_directive_line(t) || parse_data_line(t).is_some() || parse_instruction(t, line.canon).is_some();
-        if !ok { unresolved_tokens.push(RecoveryIssue { line: line.canon, message: format!("Unrecognized canonical line: {}", t) }); }
+        if t.is_empty() {
+            continue;
+        }
+        let ok = is_label_line(t)
+            || is_directive_line(t)
+            || parse_data_line(t).is_some()
+            || parse_instruction(t, line.canon).is_some();
+        if !ok {
+            unresolved_tokens.push(RecoveryIssue {
+                line: line.canon,
+                message: format!("Unrecognized canonical line: {}", t),
+            });
+        }
         if is_label_line(t) {
             let label = normalize_label(t);
-            if !seen.insert(label.clone()) { ambiguous_labels.push(RecoveryIssue { line: line.canon, message: format!("Duplicate label '{}'", label) }); }
+            if !seen.insert(label.clone()) {
+                ambiguous_labels.push(RecoveryIssue {
+                    line: line.canon,
+                    message: format!("Duplicate label '{}'", label),
+                });
+            }
         }
     }
     let total = canonical.len().max(1);
@@ -955,22 +1493,45 @@ fn build_recovery_report(input: &Path, canonical: &[CanonLine], parsed: &AsmProg
         canonical_output: "Research/z80/z80_canonical.asm".to_string(),
         unresolved_tokens,
         ambiguous_labels,
-        section_scores: vec![RecoverySectionScore { section: "global".to_string(), recognized: rec, total, confidence: (rec as f64) / (total as f64) }],
+        section_scores: vec![RecoverySectionScore {
+            section: "global".to_string(),
+            recognized: rec,
+            total,
+            confidence: (rec as f64) / (total as f64),
+        }],
     }
 }
 
-fn build_diagnostics(lines: &[CanonLine], expanded_text: &str, report: &RecoveryReport) -> Z80Diagnostics {
+fn build_diagnostics(
+    lines: &[CanonLine],
+    expanded_text: &str,
+    report: &RecoveryReport,
+) -> Z80Diagnostics {
     let mapper = SpanMapper::new(expanded_text);
     let line_starts = compute_line_starts(expanded_text);
     let mut diagnostics = Vec::<AsmDiagnostic>::new();
 
     for issue in &report.unresolved_tokens {
-        if let Some(diag) = issue_to_diag("error", "ASM_UNRESOLVED", issue, lines, &mapper, &line_starts) {
+        if let Some(diag) = issue_to_diag(
+            "error",
+            "ASM_UNRESOLVED",
+            issue,
+            lines,
+            &mapper,
+            &line_starts,
+        ) {
             diagnostics.push(diag);
         }
     }
     for issue in &report.ambiguous_labels {
-        if let Some(diag) = issue_to_diag("warning", "ASM_AMBIGUOUS", issue, lines, &mapper, &line_starts) {
+        if let Some(diag) = issue_to_diag(
+            "warning",
+            "ASM_AMBIGUOUS",
+            issue,
+            lines,
+            &mapper,
+            &line_starts,
+        ) {
             diagnostics.push(diag);
         }
     }
@@ -993,9 +1554,19 @@ fn issue_to_diag(
     let col0 = canon
         .text
         .char_indices()
-        .find_map(|(idx, ch)| if ch.is_ascii_whitespace() { None } else { Some(idx) })
+        .find_map(|(idx, ch)| {
+            if ch.is_ascii_whitespace() {
+                None
+            } else {
+                Some(idx)
+            }
+        })
         .unwrap_or(0);
-    let span_start = line_starts.get(line_idx).copied().unwrap_or(0).saturating_add(col0);
+    let span_start = line_starts
+        .get(line_idx)
+        .copied()
+        .unwrap_or(0)
+        .saturating_add(col0);
     let span = Span::new(span_start, span_start.saturating_add(1));
     let loc = mapper.span_to_location(span, "<expanded>");
 
@@ -1023,16 +1594,96 @@ fn compute_line_starts(text: &str) -> Vec<usize> {
 
 fn default_parity_trace_schema() -> ParityTraceFrame {
     let mut registers = BTreeMap::new();
-    for reg in ["a", "b", "c", "d", "e", "h", "l", "f", "i", "r", "ix", "iy", "sp", "pc"] { registers.insert(reg.to_string(), 0); }
+    for reg in [
+        "a", "b", "c", "d", "e", "h", "l", "f", "i", "r", "ix", "iy", "sp", "pc",
+    ] {
+        registers.insert(reg.to_string(), 0);
+    }
     let mut flags = BTreeMap::new();
-    for fl in ["s", "z", "h", "pv", "n", "c"] { flags.insert(fl.to_string(), false); }
-    ParityTraceFrame { tick: 0, pc: 0, opcode: "NOP".to_string(), registers, flags, notes: vec!["z80-schema".to_string()] }
+    for fl in ["s", "z", "h", "pv", "n", "c"] {
+        flags.insert(fl.to_string(), false);
+    }
+    ParityTraceFrame {
+        tick: 0,
+        pc: 0,
+        opcode: "NOP".to_string(),
+        registers,
+        flags,
+        notes: vec!["z80-schema".to_string()],
+    }
 }
 
 fn is_opcode_keyword(kw: &str) -> bool {
-    matches!(kw, "LD" | "ADD" | "ADC" | "SUB" | "SBC" | "AND" | "OR" | "XOR" | "CP" | "INC" | "DEC" | "JP" | "JR" | "CALL" | "RET" | "PUSH" | "POP" | "NOP" | "HALT" | "DI" | "EI" | "IM" | "IN" | "OUT" | "EX" | "EXX" | "DJNZ" | "BIT" | "SET" | "RES" | "RL" | "RLC" | "RR" | "RRC" | "SLA" | "SRA" | "SRL" | "NEG" | "CPL" | "CCF" | "SCF" | "DAA" | "RETI" | "RETN" | "LDI" | "LDIR" | "LDD" | "LDDR" | "CPI" | "CPIR" | "CPD" | "CPDR" | "INI" | "INIR" | "IND" | "INDR" | "OUTI" | "OTIR" | "OUTD" | "OTDR" | "RST" | "RLA" | "RRA" | "RLCA" | "RRCA" | "RLD" | "RRD")
+    matches!(
+        kw,
+        "LD" | "ADD"
+            | "ADC"
+            | "SUB"
+            | "SBC"
+            | "AND"
+            | "OR"
+            | "XOR"
+            | "CP"
+            | "INC"
+            | "DEC"
+            | "JP"
+            | "JR"
+            | "CALL"
+            | "RET"
+            | "PUSH"
+            | "POP"
+            | "NOP"
+            | "HALT"
+            | "DI"
+            | "EI"
+            | "IM"
+            | "IN"
+            | "OUT"
+            | "EX"
+            | "EXX"
+            | "DJNZ"
+            | "BIT"
+            | "SET"
+            | "RES"
+            | "RL"
+            | "RLC"
+            | "RR"
+            | "RRC"
+            | "SLA"
+            | "SRA"
+            | "SRL"
+            | "NEG"
+            | "CPL"
+            | "CCF"
+            | "SCF"
+            | "DAA"
+            | "RETI"
+            | "RETN"
+            | "LDI"
+            | "LDIR"
+            | "LDD"
+            | "LDDR"
+            | "CPI"
+            | "CPIR"
+            | "CPD"
+            | "CPDR"
+            | "INI"
+            | "INIR"
+            | "IND"
+            | "INDR"
+            | "OUTI"
+            | "OTIR"
+            | "OUTD"
+            | "OTDR"
+            | "RST"
+            | "RLA"
+            | "RRA"
+            | "RLCA"
+            | "RRCA"
+            | "RLD"
+            | "RRD"
+    )
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1042,15 +1693,60 @@ mod tests {
     #[test]
     fn macro_if_expansion() {
         let src = vec![
-            CanonLine { text: "FLAG EQU 1".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
-            CanonLine { text: "LoadA: MACRO".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
-            CanonLine { text: "LD A, \\1".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
-            CanonLine { text: "ENDM".to_string(), file: "a.asm".to_string(), line: 4, canon: 4 },
-            CanonLine { text: "IF FLAG".to_string(), file: "a.asm".to_string(), line: 5, canon: 5 },
-            CanonLine { text: "LoadA $42".to_string(), file: "a.asm".to_string(), line: 6, canon: 6 },
-            CanonLine { text: "ELSE".to_string(), file: "a.asm".to_string(), line: 7, canon: 7 },
-            CanonLine { text: "NOP".to_string(), file: "a.asm".to_string(), line: 8, canon: 8 },
-            CanonLine { text: "ENDIF".to_string(), file: "a.asm".to_string(), line: 9, canon: 9 },
+            CanonLine {
+                text: "FLAG EQU 1".to_string(),
+                file: "a.asm".to_string(),
+                line: 1,
+                canon: 1,
+            },
+            CanonLine {
+                text: "LoadA: MACRO".to_string(),
+                file: "a.asm".to_string(),
+                line: 2,
+                canon: 2,
+            },
+            CanonLine {
+                text: "LD A, \\1".to_string(),
+                file: "a.asm".to_string(),
+                line: 3,
+                canon: 3,
+            },
+            CanonLine {
+                text: "ENDM".to_string(),
+                file: "a.asm".to_string(),
+                line: 4,
+                canon: 4,
+            },
+            CanonLine {
+                text: "IF FLAG".to_string(),
+                file: "a.asm".to_string(),
+                line: 5,
+                canon: 5,
+            },
+            CanonLine {
+                text: "LoadA $42".to_string(),
+                file: "a.asm".to_string(),
+                line: 6,
+                canon: 6,
+            },
+            CanonLine {
+                text: "ELSE".to_string(),
+                file: "a.asm".to_string(),
+                line: 7,
+                canon: 7,
+            },
+            CanonLine {
+                text: "NOP".to_string(),
+                file: "a.asm".to_string(),
+                line: 8,
+                canon: 8,
+            },
+            CanonLine {
+                text: "ENDIF".to_string(),
+                file: "a.asm".to_string(),
+                line: 9,
+                canon: 9,
+            },
         ];
         let out = expand_z80_semantics(&src);
         assert!(out.iter().any(|l| l.text == "LD A, $42"));
@@ -1060,18 +1756,78 @@ mod tests {
     #[test]
     fn expression_engine_supports_logic_comparison_and_def() {
         let src = vec![
-            CanonLine { text: "A EQU 2".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
-            CanonLine { text: "B EQU 3".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
-            CanonLine { text: "IF (A + B == 5) && DEFINED(A) || DEFINED(MISSING)".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
-            CanonLine { text: "LD A, $11".to_string(), file: "a.asm".to_string(), line: 4, canon: 4 },
-            CanonLine { text: "ELSE".to_string(), file: "a.asm".to_string(), line: 5, canon: 5 },
-            CanonLine { text: "LD A, $22".to_string(), file: "a.asm".to_string(), line: 6, canon: 6 },
-            CanonLine { text: "ENDIF".to_string(), file: "a.asm".to_string(), line: 7, canon: 7 },
-            CanonLine { text: "IF DEFINED(MISSING) || (A * B != 6)".to_string(), file: "a.asm".to_string(), line: 8, canon: 8 },
-            CanonLine { text: "LD B, $33".to_string(), file: "a.asm".to_string(), line: 9, canon: 9 },
-            CanonLine { text: "ELSE".to_string(), file: "a.asm".to_string(), line: 10, canon: 10 },
-            CanonLine { text: "LD B, $44".to_string(), file: "a.asm".to_string(), line: 11, canon: 11 },
-            CanonLine { text: "ENDIF".to_string(), file: "a.asm".to_string(), line: 12, canon: 12 },
+            CanonLine {
+                text: "A EQU 2".to_string(),
+                file: "a.asm".to_string(),
+                line: 1,
+                canon: 1,
+            },
+            CanonLine {
+                text: "B EQU 3".to_string(),
+                file: "a.asm".to_string(),
+                line: 2,
+                canon: 2,
+            },
+            CanonLine {
+                text: "IF (A + B == 5) && DEFINED(A) || DEFINED(MISSING)".to_string(),
+                file: "a.asm".to_string(),
+                line: 3,
+                canon: 3,
+            },
+            CanonLine {
+                text: "LD A, $11".to_string(),
+                file: "a.asm".to_string(),
+                line: 4,
+                canon: 4,
+            },
+            CanonLine {
+                text: "ELSE".to_string(),
+                file: "a.asm".to_string(),
+                line: 5,
+                canon: 5,
+            },
+            CanonLine {
+                text: "LD A, $22".to_string(),
+                file: "a.asm".to_string(),
+                line: 6,
+                canon: 6,
+            },
+            CanonLine {
+                text: "ENDIF".to_string(),
+                file: "a.asm".to_string(),
+                line: 7,
+                canon: 7,
+            },
+            CanonLine {
+                text: "IF DEFINED(MISSING) || (A * B != 6)".to_string(),
+                file: "a.asm".to_string(),
+                line: 8,
+                canon: 8,
+            },
+            CanonLine {
+                text: "LD B, $33".to_string(),
+                file: "a.asm".to_string(),
+                line: 9,
+                canon: 9,
+            },
+            CanonLine {
+                text: "ELSE".to_string(),
+                file: "a.asm".to_string(),
+                line: 10,
+                canon: 10,
+            },
+            CanonLine {
+                text: "LD B, $44".to_string(),
+                file: "a.asm".to_string(),
+                line: 11,
+                canon: 11,
+            },
+            CanonLine {
+                text: "ENDIF".to_string(),
+                file: "a.asm".to_string(),
+                line: 12,
+                canon: 12,
+            },
         ];
         let out = expand_z80_semantics(&src);
         assert!(out.iter().any(|l| l.text == "LD A, $11"));
@@ -1083,9 +1839,24 @@ mod tests {
     #[test]
     fn rept_expands_body_count() {
         let src = vec![
-            CanonLine { text: "REPT 3".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
-            CanonLine { text: "LD A, $01".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
-            CanonLine { text: "ENDR".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
+            CanonLine {
+                text: "REPT 3".to_string(),
+                file: "a.asm".to_string(),
+                line: 1,
+                canon: 1,
+            },
+            CanonLine {
+                text: "LD A, $01".to_string(),
+                file: "a.asm".to_string(),
+                line: 2,
+                canon: 2,
+            },
+            CanonLine {
+                text: "ENDR".to_string(),
+                file: "a.asm".to_string(),
+                line: 3,
+                canon: 3,
+            },
         ];
         let out = expand_z80_semantics(&src);
         assert_eq!(out.iter().filter(|l| l.text == "LD A, $01").count(), 3);
@@ -1094,11 +1865,36 @@ mod tests {
     #[test]
     fn macro_local_labels_are_rewritten() {
         let src = vec![
-            CanonLine { text: "LoopMacro: MACRO".to_string(), file: "a.asm".to_string(), line: 1, canon: 1 },
-            CanonLine { text: ".loop:".to_string(), file: "a.asm".to_string(), line: 2, canon: 2 },
-            CanonLine { text: "JR .loop".to_string(), file: "a.asm".to_string(), line: 3, canon: 3 },
-            CanonLine { text: "ENDM".to_string(), file: "a.asm".to_string(), line: 4, canon: 4 },
-            CanonLine { text: "LoopMacro".to_string(), file: "a.asm".to_string(), line: 5, canon: 5 },
+            CanonLine {
+                text: "LoopMacro: MACRO".to_string(),
+                file: "a.asm".to_string(),
+                line: 1,
+                canon: 1,
+            },
+            CanonLine {
+                text: ".loop:".to_string(),
+                file: "a.asm".to_string(),
+                line: 2,
+                canon: 2,
+            },
+            CanonLine {
+                text: "JR .loop".to_string(),
+                file: "a.asm".to_string(),
+                line: 3,
+                canon: 3,
+            },
+            CanonLine {
+                text: "ENDM".to_string(),
+                file: "a.asm".to_string(),
+                line: 4,
+                canon: 4,
+            },
+            CanonLine {
+                text: "LoopMacro".to_string(),
+                file: "a.asm".to_string(),
+                line: 5,
+                canon: 5,
+            },
         ];
         let out = expand_z80_semantics(&src);
         assert!(out.iter().any(|l| l.text.contains("__m")));
@@ -1108,7 +1904,10 @@ mod tests {
 
     #[test]
     fn z80_opcodes_recognized() {
-        let opcodes = vec!["LD", "ADD", "SUB", "JP", "CALL", "RET", "PUSH", "POP", "IN", "OUT", "EX", "DJNZ", "BIT", "SET", "RES", "RETI", "RETN", "LDI", "LDIR"];
+        let opcodes = vec![
+            "LD", "ADD", "SUB", "JP", "CALL", "RET", "PUSH", "POP", "IN", "OUT", "EX", "DJNZ",
+            "BIT", "SET", "RES", "RETI", "RETN", "LDI", "LDIR",
+        ];
         for op in opcodes {
             assert!(is_opcode_keyword(op), "Opcode {} should be recognized", op);
         }
@@ -1116,7 +1915,14 @@ mod tests {
 
     #[test]
     fn z80_registers_in_cpu_state() {
-        let firmware = render_kain_firmware(&AsmProgram { blocks: vec![], directives: vec![], data_tables: vec![] }, &[]);
+        let firmware = render_kain_firmware(
+            &AsmProgram {
+                blocks: vec![],
+                directives: vec![],
+                data_tables: vec![],
+            },
+            &[],
+        );
         assert!(firmware.contains("a: Int"));
         assert!(firmware.contains("b: Int"));
         assert!(firmware.contains("ix: Int"));
@@ -1142,7 +1948,13 @@ mod tests {
 
     #[test]
     fn import_writes_outputs() {
-        let base = std::env::temp_dir().join(format!("kain_import_z80_test_{}", SystemTime::now().duration_since(UNIX_EPOCH).expect("clock").as_nanos()));
+        let base = std::env::temp_dir().join(format!(
+            "kain_import_z80_test_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
         fs::create_dir_all(&base).expect("mkdir");
         let input = base.join("z80_source.asm");
         fs::write(&input, "ORG $0000\nStart:\nLD A, $01\nDB $10, $20\n").expect("write input");
@@ -1154,16 +1966,48 @@ mod tests {
         assert!(result.generated_kn_path.exists());
         assert!(result.map_json_path.exists());
         assert!(result.report_json_path.exists());
-        let diag_path = result.map_json_path.parent().expect("map parent").join("z80_diagnostics.json");
+        let diag_path = result
+            .map_json_path
+            .parent()
+            .expect("map parent")
+            .join("z80_diagnostics.json");
         assert!(diag_path.exists());
     }
 
     #[test]
     fn instruction_size_estimation() {
-        assert_eq!(estimate_instruction_size(&AsmInstr { opcode: "NOP".to_string(), operand: None, source_line: 1 }), 1);
-        assert_eq!(estimate_instruction_size(&AsmInstr { opcode: "JR".to_string(), operand: Some("$10".to_string()), source_line: 1 }), 2);
-        assert_eq!(estimate_instruction_size(&AsmInstr { opcode: "JP".to_string(), operand: Some("$1234".to_string()), source_line: 1 }), 3);
-        assert_eq!(estimate_instruction_size(&AsmInstr { opcode: "LD".to_string(), operand: Some("A, (IX+5)".to_string()), source_line: 1 }), 3);
+        assert_eq!(
+            estimate_instruction_size(&AsmInstr {
+                opcode: "NOP".to_string(),
+                operand: None,
+                source_line: 1
+            }),
+            1
+        );
+        assert_eq!(
+            estimate_instruction_size(&AsmInstr {
+                opcode: "JR".to_string(),
+                operand: Some("$10".to_string()),
+                source_line: 1
+            }),
+            2
+        );
+        assert_eq!(
+            estimate_instruction_size(&AsmInstr {
+                opcode: "JP".to_string(),
+                operand: Some("$1234".to_string()),
+                source_line: 1
+            }),
+            3
+        );
+        assert_eq!(
+            estimate_instruction_size(&AsmInstr {
+                opcode: "LD".to_string(),
+                operand: Some("A, (IX+5)".to_string()),
+                source_line: 1
+            }),
+            3
+        );
     }
 
     #[test]
@@ -1172,17 +2016,21 @@ mod tests {
             blocks: vec![
                 AsmBlock {
                     label: "Main".to_string(),
-                    instructions: vec![
-                        AsmInstr { opcode: "CALL".to_string(), operand: Some("Sub1".to_string()), source_line: 1 },
-                    ],
+                    instructions: vec![AsmInstr {
+                        opcode: "CALL".to_string(),
+                        operand: Some("Sub1".to_string()),
+                        source_line: 1,
+                    }],
                     source_line_start: 1,
                     source_line_end: 1,
                 },
                 AsmBlock {
                     label: "Sub1".to_string(),
-                    instructions: vec![
-                        AsmInstr { opcode: "RET".to_string(), operand: None, source_line: 2 },
-                    ],
+                    instructions: vec![AsmInstr {
+                        opcode: "RET".to_string(),
+                        operand: None,
+                        source_line: 2,
+                    }],
                     source_line_start: 2,
                     source_line_end: 2,
                 },

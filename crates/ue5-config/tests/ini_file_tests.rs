@@ -217,9 +217,13 @@ fn test_ini_default_values() {
     let mut config = make_test_config();
 
     // Field with no default value - should use type-appropriate default
-    config.fields.push(make_test_field("test_float", "Float", None));
+    config
+        .fields
+        .push(make_test_field("test_float", "Float", None));
     config.fields.push(make_test_field("test_int", "Int", None));
-    config.fields.push(make_test_field("test_bool", "Bool", None));
+    config
+        .fields
+        .push(make_test_field("test_bool", "Bool", None));
 
     let section = generate_ini_section(&config, "MyPlugin").unwrap();
     assert!(section.contains("TestFloat=0.0"));

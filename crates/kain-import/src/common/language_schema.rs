@@ -67,40 +67,24 @@ impl KainLanguageSchema {
             .map(str::to_string)
             .collect(),
             type_kinds: vec![
-                "Named",
-                "Ref",
-                "Ptr",
-                "Array",
-                "Slice",
-                "Tuple",
-                "Function",
-                "Option",
-                "Result",
-                "Impl",
-                "Infer",
-                "Never",
-                "Unit",
+                "Named", "Ref", "Ptr", "Array", "Slice", "Tuple", "Function", "Option", "Result",
+                "Impl", "Infer", "Never", "Unit",
             ]
             .into_iter()
             .map(str::to_string)
             .collect(),
             pattern_kinds: vec![
-                "Binding",
-                "Wildcard",
-                "Literal",
-                "Tuple",
-                "Variant",
-                "Range",
-                "Or",
-                "Slice",
+                "Binding", "Wildcard", "Literal", "Tuple", "Variant", "Range", "Or", "Slice",
             ]
             .into_iter()
             .map(str::to_string)
             .collect(),
-            effect_kinds: vec!["Pure", "IO", "Async", "GPU", "Reactive", "Unsafe", "Alloc", "Panic"]
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
+            effect_kinds: vec![
+                "Pure", "IO", "Async", "GPU", "Reactive", "Unsafe", "Alloc", "Panic",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
             reserved_identifiers: vec![
                 "self",
                 "Self",

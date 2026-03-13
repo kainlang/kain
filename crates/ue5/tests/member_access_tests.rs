@@ -10,19 +10,19 @@ fn compile_ue5(source: &str) -> Result<Ue5Output, error::KainError> {
     let tokens = lexer::Lexer::new(source).tokenize()?;
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
     let mut ast = parser::Parser::new(&tokens, &span_mapper, "<test>").parse()?;
-    
+
     // Compile-time evaluation
     comptime::eval_program(&mut ast)?;
-    
+
     // Type checking
     let typed = types::check(&ast, &span_mapper, "<test>")?;
-    
+
     // Monomorphization
     let mono = monomorphize::monomorphize(&typed)?;
-    
+
     // UE5 codegen
     let output = generate(&mono, None, None)?;
-    
+
     Ok(output)
 }
 
@@ -40,15 +40,21 @@ struct Transform:
 fn get_x(t: Transform) -> Float:
     return t.position.x
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Vec3 (FVector) is a value type, should use . not ->
-    assert!(cpp.contains("t.position.X"), "Should use dot notation for FVector field access");
-    assert!(!cpp.contains("t.position->X"), "Should NOT use pointer notation for FVector");
+    assert!(
+        cpp.contains("t.position.X"),
+        "Should use dot notation for FVector field access"
+    );
+    assert!(
+        !cpp.contains("t.position->X"),
+        "Should NOT use pointer notation for FVector"
+    );
 }
 
 #[test]
@@ -61,15 +67,21 @@ struct Stats:
 fn get_health(s: Stats) -> Float:
     return s.health
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Primitive fields in structs should use dot notation
-    assert!(cpp.contains("s.health"), "Should use dot notation for primitive field");
-    assert!(!cpp.contains("s->health"), "Should NOT use pointer notation for struct field");
+    assert!(
+        cpp.contains("s.health"),
+        "Should use dot notation for primitive field"
+    );
+    assert!(
+        !cpp.contains("s->health"),
+        "Should NOT use pointer notation for struct field"
+    );
 }
 
 #[test]
@@ -84,15 +96,21 @@ struct Outer:
 fn get_value(o: Outer) -> Float:
     return o.inner.value
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Both levels should use dot notation (value types)
-    assert!(cpp.contains("o.inner.value"), "Should use dot notation for nested value types");
-    assert!(!cpp.contains("->"), "Should NOT use pointer notation anywhere");
+    assert!(
+        cpp.contains("o.inner.value"),
+        "Should use dot notation for nested value types"
+    );
+    assert!(
+        !cpp.contains("->"),
+        "Should NOT use pointer notation anywhere"
+    );
 }
 
 // ============================================================================
@@ -113,15 +131,17 @@ actor Player:
     fn get_health() -> Float:
         return self.health.current
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // HealthComponent is UObject-derived, should use ->
-    assert!(cpp.contains("health->current") || cpp.contains("this->health->current"), 
-        "Should use arrow notation for component field access");
+    assert!(
+        cpp.contains("health->current") || cpp.contains("this->health->current"),
+        "Should use arrow notation for component field access"
+    );
 }
 
 #[test]
@@ -136,15 +156,17 @@ actor Player:
     fn get_target_health() -> Float:
         return self.target.health
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Enemy is an actor (AActor-derived), should use ->
-    assert!(cpp.contains("target->health") || cpp.contains("this->target->health"), 
-        "Should use arrow notation for actor field access");
+    assert!(
+        cpp.contains("target->health") || cpp.contains("this->target->health"),
+        "Should use arrow notation for actor field access"
+    );
 }
 
 #[test]
@@ -157,14 +179,17 @@ struct GameManager:
 fn get_score(manager: GameManager) -> Int:
     return manager.score
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Subsystems are UObject-derived, should use ->
-    assert!(cpp.contains("manager->score"), "Should use arrow notation for subsystem field access");
+    assert!(
+        cpp.contains("manager->score"),
+        "Should use arrow notation for subsystem field access"
+    );
 }
 
 // ============================================================================
@@ -185,16 +210,18 @@ actor Player:
     fn get_x() -> Float:
         return self.transform.position.x
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // transform is a component (pointer), position is Vec3 (value)
     // Should be: transform->position.X
-    assert!(cpp.contains("transform->position.X") || cpp.contains("this->transform->position.X"), 
-        "Should use arrow for component, dot for Vec3");
+    assert!(
+        cpp.contains("transform->position.X") || cpp.contains("this->transform->position.X"),
+        "Should use arrow for component, dot for Vec3"
+    );
 }
 
 #[test]
@@ -211,16 +238,18 @@ struct PlayerData:
 fn get_health(data: PlayerData) -> Float:
     return data.health.current
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // data is a struct (value), health is a component (pointer)
     // Should be: data.health->current
-    assert!(cpp.contains("data.health->current"), 
-        "Should use dot for struct, arrow for component");
+    assert!(
+        cpp.contains("data.health->current"),
+        "Should use dot for struct, arrow for component"
+    );
 }
 
 #[test]
@@ -239,16 +268,19 @@ actor Player:
     fn get_x() -> Float:
         return self.transform.position.vec.x
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // transform (component, pointer) -> position (struct, value) . vec (Vec3, value) . x
     // Should be: transform->position.vec.X
-    assert!(cpp.contains("transform->position.vec.X") || cpp.contains("this->transform->position.vec.X"), 
-        "Should correctly alternate between arrow and dot based on type");
+    assert!(
+        cpp.contains("transform->position.vec.X")
+            || cpp.contains("this->transform->position.vec.X"),
+        "Should correctly alternate between arrow and dot based on type"
+    );
 }
 
 // ============================================================================
@@ -265,15 +297,17 @@ actor Player:
     fn setup():
         self.mesh.SetVisibility(true)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // UStaticMeshComponent and UTexture2D are UObject-derived, should use ->
-    assert!(cpp.contains("mesh->SetVisibility") || cpp.contains("this->mesh->SetVisibility"), 
-        "Should use arrow notation for engine UObject types");
+    assert!(
+        cpp.contains("mesh->SetVisibility") || cpp.contains("this->mesh->SetVisibility"),
+        "Should use arrow notation for engine UObject types"
+    );
 }
 
 #[test]
@@ -286,15 +320,21 @@ struct Transform:
 fn get_x(t: Transform) -> Float:
     return t.location.x
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Vec3 (FVector) is a value type, should use .
-    assert!(cpp.contains("t.location.X"), "Should use dot notation for FVector");
-    assert!(!cpp.contains("t.location->X"), "Should NOT use arrow for FVector");
+    assert!(
+        cpp.contains("t.location.X"),
+        "Should use dot notation for FVector"
+    );
+    assert!(
+        !cpp.contains("t.location->X"),
+        "Should NOT use arrow for FVector"
+    );
 }
 
 // ============================================================================
@@ -314,18 +354,22 @@ actor Player:
     fn get_x() -> Float:
         return self.position.x
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // self.health and self.position are value types, should use ->
     // (because self is a pointer in UE5 actors)
-    assert!(cpp.contains("this->health") || cpp.contains("health"), 
-        "Should access actor state fields");
-    assert!(cpp.contains("this->position") || cpp.contains("position.X"), 
-        "Should access Vec3 state field");
+    assert!(
+        cpp.contains("this->health") || cpp.contains("health"),
+        "Should access actor state fields"
+    );
+    assert!(
+        cpp.contains("this->position") || cpp.contains("position.X"),
+        "Should access Vec3 state field"
+    );
 }
 
 #[test]
@@ -341,15 +385,17 @@ actor Player:
     fn get_health() -> Float:
         return self.health.current
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // self.health is a component (pointer), should use ->
-    assert!(cpp.contains("health->current") || cpp.contains("this->health->current"), 
-        "Should use arrow for component field");
+    assert!(
+        cpp.contains("health->current") || cpp.contains("this->health->current"),
+        "Should use arrow for component field"
+    );
 }
 
 // ============================================================================
@@ -362,14 +408,17 @@ fn test_array_length_access() {
 fn get_length(arr: Array<Int>) -> Int:
     return arr.length
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Array length should be mapped to .Num()
-    assert!(cpp.contains("arr.Num()"), "Should map array.length to .Num()");
+    assert!(
+        cpp.contains("arr.Num()"),
+        "Should map array.length to .Num()"
+    );
 }
 
 #[test]
@@ -385,13 +434,15 @@ actor Player:
     fn count() -> Int:
         return self.components.length
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Array is a value type, should use .Num()
-    assert!(cpp.contains("components.Num()") || cpp.contains("this->components.Num()"), 
-        "Should use dot notation for array method");
+    assert!(
+        cpp.contains("components.Num()") || cpp.contains("this->components.Num()"),
+        "Should use dot notation for array method"
+    );
 }

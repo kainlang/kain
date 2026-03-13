@@ -5,13 +5,8 @@ use kain_core::stdlib;
 use kain_core::types;
 use kain_core::{CompileTarget, TypedProgram};
 use kain_sys_codegen::{
-    collect_gpu_artifacts,
-    collect_gpu_artifacts_json,
-    generate_rust_artifact_bundle,
-    generate_rust_gpu_host_wrappers,
-    RustArtifactKind,
-    RustGpuBindingKind,
-    RustGpuShaderStage,
+    collect_gpu_artifacts, collect_gpu_artifacts_json, generate_rust_artifact_bundle,
+    generate_rust_gpu_host_wrappers, RustArtifactKind, RustGpuBindingKind, RustGpuShaderStage,
 };
 
 fn typed_shader_program(source: &str) -> TypedProgram {
@@ -66,13 +61,17 @@ fn collects_gpu_shader_artifacts() {
     assert_eq!(shader.bindings[1].kind, RustGpuBindingKind::Uniform);
     assert_eq!(shader.bindings[2].kind, RustGpuBindingKind::Sampler2D);
     assert_eq!(shader.bindings[3].kind, RustGpuBindingKind::LocalSize);
-    assert_eq!(shader.bindings[4].kind, RustGpuBindingKind::SpecializationConstant);
+    assert_eq!(
+        shader.bindings[4].kind,
+        RustGpuBindingKind::SpecializationConstant
+    );
 }
 
 #[test]
 fn serializes_gpu_artifacts_to_reflection_json() {
     let typed = typed_shader_program(sample_shader_source());
-    let reflection_json = collect_gpu_artifacts_json(&typed).expect("json serialization should succeed");
+    let reflection_json =
+        collect_gpu_artifacts_json(&typed).expect("json serialization should succeed");
 
     assert!(reflection_json.contains("sample_gpu_kernel"));
     assert!(reflection_json.contains("storage_buffer"));
@@ -83,7 +82,8 @@ fn serializes_gpu_artifacts_to_reflection_json() {
 #[test]
 fn generates_rust_gpu_host_wrappers_with_layout_and_dispatch_helpers() {
     let typed = typed_shader_program(sample_shader_source());
-    let rust_host = generate_rust_gpu_host_wrappers(&typed).expect("gpu host generation should succeed");
+    let rust_host =
+        generate_rust_gpu_host_wrappers(&typed).expect("gpu host generation should succeed");
 
     assert!(rust_host.contains("pub mod kain_gpu_generated"));
     assert!(rust_host.contains("pub mod sample_gpu_kernel"));
@@ -99,10 +99,14 @@ fn generates_rust_gpu_host_wrappers_with_layout_and_dispatch_helpers() {
 #[test]
 fn generates_rust_artifact_bundle_with_primary_and_shader_sidecars() {
     let typed = typed_shader_program(sample_shader_source());
-    let bundle = generate_rust_artifact_bundle(&typed).expect("rust artifact bundle generation should succeed");
+    let bundle = generate_rust_artifact_bundle(&typed)
+        .expect("rust artifact bundle generation should succeed");
 
     assert_eq!(bundle.primary.kind, RustArtifactKind::PrimarySource);
-    assert!(bundle.primary.contents.contains("#![allow(unused_variables)]"));
+    assert!(bundle
+        .primary
+        .contents
+        .contains("#![allow(unused_variables)]"));
     assert_eq!(bundle.supplemental.len(), 2);
     assert!(bundle
         .supplemental

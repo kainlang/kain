@@ -2,7 +2,7 @@
 // Target Actor IR — Intermediate Representation for GAS Target Actors
 // ============================================================================
 
-use kain_core::ast::{TargetActorDef, TraceType, TargetFilter};
+use kain_core::ast::{TargetActorDef, TargetFilter, TraceType};
 use kain_core::error::{KainError, KainResult};
 
 #[derive(Debug, Clone)]
@@ -49,7 +49,7 @@ impl TargetActorIR {
                 target.span,
             ));
         }
-        
+
         // Convert trace type
         let trace_type = match target.trace_type {
             TraceType::Line => TraceTypeIR::Line,
@@ -58,26 +58,29 @@ impl TargetActorIR {
             TraceType::Box => TraceTypeIR::Box,
             TraceType::Cylinder => TraceTypeIR::Cylinder,
         };
-        
+
         // Convert filter
         let filter = target.filter.as_ref().map(|f| TargetFilterIR {
             self_filter: f.self_filter.clone(),
             required_actor_class: f.required_actor_class.clone(),
             require_tags: f.require_tags.clone(),
             ignore_tags: f.ignore_tags.clone(),
-            custom_filter_body: f.custom_filter_method.as_ref().map(|_| {
-                "// TODO: Implement custom filter codegen".to_string()
-            }),
+            custom_filter_body: f
+                .custom_filter_method
+                .as_ref()
+                .map(|_| "// TODO: Implement custom filter codegen".to_string()),
         });
-        
+
         // Convert custom methods
-        let custom_methods = target.custom_methods.iter()
+        let custom_methods = target
+            .custom_methods
+            .iter()
             .map(|m| MethodIR {
                 name: m.name.clone(),
                 body: "// TODO: Implement method codegen".to_string(),
             })
             .collect();
-        
+
         Ok(TargetActorIR {
             name: target.name.clone(),
             trace_type,

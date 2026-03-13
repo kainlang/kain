@@ -2,10 +2,10 @@
 
 use byteorder::WriteBytesExt;
 
+use crate::reader::ArchiveWriter;
 use crate::types::PackageIndex;
 use crate::unversioned::usmap_writer::UsmapWriter;
 use crate::Error;
-use crate::{reader::ArchiveWriter};
 
 use super::{EPropertyType, UsmapPropertyDataTrait};
 

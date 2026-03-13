@@ -1,7 +1,7 @@
 use crate::error::{KainError, KainResult};
 use serde::Serialize;
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -124,7 +124,11 @@ pub fn import_c_with_batch(
             .map_err(|e| KainError::runtime(format!("Failed to write output: {}", e)))?;
 
         generated_kain_path = Some(out_path.to_path_buf());
-        println!(" Generated KAIN source: {} ({} bytes)", out_path.display(), kain_source.len());
+        println!(
+            " Generated KAIN source: {} ({} bytes)",
+            out_path.display(),
+            kain_source.len()
+        );
     }
 
     // If target specified, compile directly
@@ -149,7 +153,11 @@ pub fn import_c_with_batch(
             .map_err(|e| KainError::runtime(format!("Failed to write compiled output: {}", e)))?;
 
         compiled_output_path = Some(compiled_output.clone());
-        println!(" Compiled output: {} ({} bytes)", compiled_output.display(), compiled.len());
+        println!(
+            " Compiled output: {} ({} bytes)",
+            compiled_output.display(),
+            compiled.len()
+        );
     }
 
     // Print summary
@@ -261,9 +269,7 @@ fn import_path_to_program(
             }
             Err(err) => {
                 let compact = compact_error_message(&format!("{}", err));
-                summary
-                    .failed_files
-                    .push((file.clone(), compact));
+                summary.failed_files.push((file.clone(), compact));
                 if batch.fail_fast {
                     return Err(KainError::runtime(format!(
                         "C import failed: {}: {}",
@@ -405,11 +411,17 @@ fn compact_error_message(raw: &str) -> String {
 }
 
 fn collect_c_files(root: &Path, recursive: bool, out: &mut Vec<PathBuf>) -> KainResult<()> {
-    let entries = fs::read_dir(root)
-        .map_err(|e| KainError::runtime(format!("Failed to read directory {}: {}", root.display(), e)))?;
+    let entries = fs::read_dir(root).map_err(|e| {
+        KainError::runtime(format!(
+            "Failed to read directory {}: {}",
+            root.display(),
+            e
+        ))
+    })?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| KainError::runtime(format!("Failed to read directory entry: {}", e)))?;
+        let entry = entry
+            .map_err(|e| KainError::runtime(format!("Failed to read directory entry: {}", e)))?;
         let path = entry.path();
         if path.is_dir() {
             if recursive {
@@ -439,7 +451,10 @@ fn normalize_filters(filters: &[String]) -> Vec<String> {
 }
 
 fn path_matches_filters(path: &Path, includes: &[String], excludes: &[String]) -> bool {
-    let normalized = path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    let normalized = path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_ascii_lowercase();
 
     if !includes.is_empty() && !includes.iter().any(|inc| normalized.contains(inc)) {
         return false;
@@ -474,7 +489,13 @@ fn sanitize_module_name(path: &Path) -> String {
 
         let sanitized = part
             .chars()
-            .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '_' })
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() {
+                    ch.to_ascii_lowercase()
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>();
 
         if !sanitized.is_empty() {
@@ -500,20 +521,20 @@ fn sanitize_module_name(path: &Path) -> String {
 /// Generate KAIN source code from AST
 fn generate_kain_source(program: &kain_core::ast::Program) -> KainResult<String> {
     use std::fmt::Write;
-    
+
     let mut output = String::new();
-    
+
     // Header comment
     writeln!(output, "# Generated from C source by kain import-c")
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
     writeln!(output)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
-    
+
     // Generate code for each item
     for item in &program.items {
         write_item(&mut output, item, 0)?;
     }
-    
+
     Ok(output)
 }
 
@@ -533,18 +554,23 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
                     }
                 }
             }
-            writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
+            writeln!(output)
+                .map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
         }
         _ => Ok(()),
     }
 }
 
-fn write_function(output: &mut String, func: &kain_core::ast::Function, indent: usize) -> KainResult<()> {
+fn write_function(
+    output: &mut String,
+    func: &kain_core::ast::Function,
+    indent: usize,
+) -> KainResult<()> {
     use std::fmt::Write;
-    
+
     // Function signature
     let mut signature = format!("fn {}(", func.name);
-    
+
     // Parameters
     for (i, param) in func.params.iter().enumerate() {
         if i > 0 {
@@ -552,25 +578,28 @@ fn write_function(output: &mut String, func: &kain_core::ast::Function, indent: 
         }
         signature.push_str(&format!("{}: {}", param.name, type_to_string(&param.ty)));
     }
-    
+
     signature.push(')');
-    
+
     // Return type
     if let Some(ret_ty) = &func.return_type {
         signature.push_str(&format!(" -> {}", type_to_string(ret_ty)));
     }
-    
+
     signature.push(':');
     write_line(output, indent, &signature)?;
-    
+
     write_block(output, &func.body, indent + 1)?;
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write function: {}", e)))?;
-    
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write function: {}", e)))?;
+
     Ok(())
 }
 
-fn write_block(output: &mut String, block: &kain_core::ast::Block, indent: usize) -> KainResult<()> {
+fn write_block(
+    output: &mut String,
+    block: &kain_core::ast::Block,
+    indent: usize,
+) -> KainResult<()> {
     if block.stmts.is_empty() {
         write_line(output, indent, "none")?;
         return Ok(());
@@ -585,7 +614,9 @@ fn write_block(output: &mut String, block: &kain_core::ast::Block, indent: usize
 
 fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -> KainResult<()> {
     match stmt {
-        kain_core::ast::Stmt::Let { pattern, ty, value, .. } => {
+        kain_core::ast::Stmt::Let {
+            pattern, ty, value, ..
+        } => {
             let mut line = format!("let {}", pattern_to_string(pattern));
             if let Some(ty) = ty {
                 line.push_str(&format!(": {}", type_to_string(ty)));
@@ -611,7 +642,13 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
                 ..
             } = expr
             {
-                return write_if_expr_stmt(output, condition, then_branch, else_branch.as_deref(), indent);
+                return write_if_expr_stmt(
+                    output,
+                    condition,
+                    then_branch,
+                    else_branch.as_deref(),
+                    indent,
+                );
             }
             write_line(output, indent, &expr_to_string(expr))
         }
@@ -639,16 +676,22 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             write_line(
                 output,
                 indent,
-                &format!("for {} in {}:", pattern_to_string(binding), expr_to_string(iter)),
+                &format!(
+                    "for {} in {}:",
+                    pattern_to_string(binding),
+                    expr_to_string(iter)
+                ),
             )?;
             write_block(output, body, indent + 1)
         }
         kain_core::ast::Stmt::While {
-            condition,
-            body,
-            ..
+            condition, body, ..
         } => {
-            write_line(output, indent, &format!("while {}:", expr_to_string(condition)))?;
+            write_line(
+                output,
+                indent,
+                &format!("while {}:", expr_to_string(condition)),
+            )?;
             write_block(output, body, indent + 1)
         }
         kain_core::ast::Stmt::Loop { body, .. } => {
@@ -667,7 +710,11 @@ fn write_if_expr_stmt(
     else_branch: Option<&kain_core::ast::ElseBranch>,
     indent: usize,
 ) -> KainResult<()> {
-    write_line(output, indent, &format!("if {}:", expr_to_string(condition)))?;
+    write_line(
+        output,
+        indent,
+        &format!("if {}:", expr_to_string(condition)),
+    )?;
     write_block(output, then_branch, indent + 1)?;
     write_else_branch(output, else_branch, indent)
 }
@@ -709,10 +756,7 @@ fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
             }
         }
         kain_core::ast::Pattern::Struct {
-            name,
-            fields,
-            rest,
-            ..
+            name, fields, rest, ..
         } => {
             let mut rendered = fields
                 .iter()
@@ -811,14 +855,15 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::None(_) => "none".to_string(),
         kain_core::ast::Expr::Ident(name, _) => name.clone(),
         kain_core::ast::Expr::MacroCall { name, args, .. } => {
-            let args = args.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+            let args = args
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("{name}!({args})")
         }
         kain_core::ast::Expr::Binary {
-            left,
-            op,
-            right,
-            ..
+            left, op, right, ..
         } => format!(
             "({} {} {})",
             expr_to_string(left),
@@ -887,7 +932,11 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
             match fields {
                 kain_core::ast::EnumVariantFields::Unit => head,
                 kain_core::ast::EnumVariantFields::Tuple(items) => {
-                    let args = items.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+                    let args = items
+                        .iter()
+                        .map(expr_to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     format!("{head}({args})")
                 }
                 kain_core::ast::EnumVariantFields::Struct(fields) => {
@@ -901,14 +950,22 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
             }
         }
         kain_core::ast::Expr::Array(items, _) => {
-            let body = items.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+            let body = items
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("[{body}]")
         }
         kain_core::ast::Expr::Tuple(items, _) => {
             if items.is_empty() {
                 "()".to_string()
             } else {
-                let body = items.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+                let body = items
+                    .iter()
+                    .map(expr_to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 if items.len() == 1 {
                     format!("({body},)")
                 } else {
@@ -965,9 +1022,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
             }
         }
         kain_core::ast::Expr::AddrOf {
-            value,
-            pointee_ty,
-            ..
+            value, pointee_ty, ..
         } => match pointee_ty {
             Some(ty) => format!(
                 "addr_of({}, \"{}\")",
@@ -997,32 +1052,34 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 None => base,
             }
         }
-        kain_core::ast::Expr::MemLoad { pointer, load_ty, .. } => {
-            match load_ty {
-                Some(ty) => format!("mem_load({}, \"{}\")", expr_to_string(pointer), type_to_string(ty)),
-                None => format!("mem_load({})", expr_to_string(pointer)),
-            }
-        }
+        kain_core::ast::Expr::MemLoad {
+            pointer, load_ty, ..
+        } => match load_ty {
+            Some(ty) => format!(
+                "mem_load({}, \"{}\")",
+                expr_to_string(pointer),
+                type_to_string(ty)
+            ),
+            None => format!("mem_load({})", expr_to_string(pointer)),
+        },
         kain_core::ast::Expr::MemStore {
             pointer,
             value,
             store_ty,
             ..
-        } => {
-            match store_ty {
-                Some(ty) => format!(
-                    "mem_store({}, {}, \"{}\")",
-                    expr_to_string(pointer),
-                    expr_to_string(value),
-                    type_to_string(ty)
-                ),
-                None => format!(
-                    "mem_store({}, {})",
-                    expr_to_string(pointer),
-                    expr_to_string(value)
-                ),
-            }
-        }
+        } => match store_ty {
+            Some(ty) => format!(
+                "mem_store({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "mem_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
         kain_core::ast::Expr::SizeOfType { target, .. } => {
             format!("sizeof_type(\"{}\")", type_to_string(target))
         }
@@ -1036,10 +1093,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
             format!("uninit(\"{}\")", type_to_string(ty))
         }
         kain_core::ast::Expr::Alloc {
-            size,
-            ty,
-            zeroed,
-            ..
+            size, ty, zeroed, ..
         } => {
             let name = if *zeroed { "alloc_zeroed" } else { "alloc" };
             match ty {
@@ -1053,10 +1107,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
             }
         }
         kain_core::ast::Expr::Realloc {
-            pointer,
-            size,
-            ty,
-            ..
+            pointer, size, ty, ..
         } => match ty {
             Some(ty) => format!(
                 "realloc_mem({}, {}, \"{}\")",
@@ -1196,13 +1247,20 @@ fn desugar_sequence_stmt(expr: &kain_core::ast::Expr) -> Option<kain_core::ast::
         });
     }
 
-    if let kain_core::ast::Expr::MemStore { pointer, value, store_ty, .. } = expr {
+    if let kain_core::ast::Expr::MemStore {
+        pointer,
+        value,
+        store_ty,
+        ..
+    } = expr
+    {
         let kain_core::ast::Expr::PtrOffset {
             pointer: base,
             offset,
             element_ty,
             ..
-        } = &**pointer else {
+        } = &**pointer
+        else {
             return None;
         };
         let sequence = decode_incdec_sequence(offset)?;
@@ -1306,7 +1364,10 @@ fn desugar_sequence_stmt(expr: &kain_core::ast::Expr) -> Option<kain_core::ast::
 }
 
 fn decode_incdec_sequence(expr: &kain_core::ast::Expr) -> Option<IncDecSequence<'_>> {
-    let kain_core::ast::Expr::Match { scrutinee, arms, .. } = expr else {
+    let kain_core::ast::Expr::Match {
+        scrutinee, arms, ..
+    } = expr
+    else {
         return None;
     };
     let [arm] = arms.as_slice() else {
@@ -1333,7 +1394,10 @@ fn decode_incdec_sequence(expr: &kain_core::ast::Expr) -> Option<IncDecSequence<
     if **target != **scrutinee {
         return None;
     }
-    let kain_core::ast::Expr::Binary { left, op, right, .. } = &**value else {
+    let kain_core::ast::Expr::Binary {
+        left, op, right, ..
+    } = &**value
+    else {
         return None;
     };
     let kain_core::ast::Expr::Ident(left_name, _) = &**left else {
@@ -1357,7 +1421,8 @@ fn decode_incdec_sequence(expr: &kain_core::ast::Expr) -> Option<IncDecSequence<
             && result_op == op
             && matches!(&**right, kain_core::ast::Expr::Int(1, _))
     );
-    let postfix = matches!(result_expr, kain_core::ast::Expr::Ident(result_name, _) if result_name == name);
+    let postfix =
+        matches!(result_expr, kain_core::ast::Expr::Ident(result_name, _) if result_name == name);
     if !prefix && !postfix {
         return None;
     }
@@ -1438,11 +1503,14 @@ fn write_struct(output: &mut String, s: &kain_core::ast::Struct, indent: usize) 
     write_line(output, indent, &format!("struct {}:", s.name))?;
 
     for field in &s.fields {
-        write_line(output, indent + 1, &format!("{}: {}", field.name, type_to_string(&field.ty)))?;
+        write_line(
+            output,
+            indent + 1,
+            &format!("{}: {}", field.name, type_to_string(&field.ty)),
+        )?;
     }
 
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write struct: {}", e)))?;
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write struct: {}", e)))?;
 
     Ok(())
 }
@@ -1456,8 +1524,7 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
         write_line(output, indent + 1, &variant.name)?;
     }
 
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write enum: {}", e)))?;
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write enum: {}", e)))?;
 
     Ok(())
 }
@@ -1477,16 +1544,18 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
             }
         }
         kain_core::ast::Type::Tuple(types, _) => {
-            let members = types.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
+            let members = types
+                .iter()
+                .map(type_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("({})", members)
         }
         kain_core::ast::Type::Array(inner, size, _) => {
             format!("[{}; {}]", type_to_string(inner), size)
         }
         kain_core::ast::Type::Slice(inner, _) => format!("[{}]", type_to_string(inner)),
-        kain_core::ast::Type::Ref {
-            mutable, inner, ..
-        } => {
+        kain_core::ast::Type::Ref { mutable, inner, .. } => {
             if *mutable {
                 format!("&mut {}", type_to_string(inner))
             } else {
@@ -1505,7 +1574,11 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
             return_type,
             ..
         } => {
-            let args = params.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
+            let args = params
+                .iter()
+                .map(type_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("fn({}) -> {}", args, type_to_string(return_type))
         }
         kain_core::ast::Type::Option(inner, _) => format!("{}?", type_to_string(inner)),
@@ -1580,7 +1653,7 @@ mod tests {
     use std::fs;
     use std::io::Write;
     use tempfile::{Builder, NamedTempFile, TempDir};
-    
+
     #[test]
     fn test_import_simple_c_file() {
         // Create a temporary C file
@@ -1589,14 +1662,14 @@ mod tests {
         writeln!(temp_file, "    return a + b;").unwrap();
         writeln!(temp_file, "}}").unwrap();
         temp_file.flush().unwrap();
-        
+
         // Import it
         let result = import_c(temp_file.path(), None, None, &[], &[]);
-        
+
         // Should succeed
         assert!(result.is_ok());
     }
-    
+
     #[test]
     fn test_import_with_output() {
         // Create a temporary C file with .c suffix so tooling paths treat it as C.
@@ -1605,24 +1678,24 @@ mod tests {
         writeln!(temp_c, "    return x * y;").unwrap();
         writeln!(temp_c, "}}").unwrap();
         temp_c.flush().unwrap();
-        
+
         // Create output path
         let temp_out = NamedTempFile::new().unwrap();
         let out_path = temp_out.path();
-        
+
         // Import with output
         let result = import_c(temp_c.path(), Some(out_path), None, &[], &[]);
-        
+
         // Should succeed and create output file
         assert!(result.is_ok());
         assert!(out_path.exists());
-        
+
         // Output should contain KAIN code
         let content = fs::read_to_string(out_path).unwrap();
         assert!(content.contains("fn multiply"));
         assert!(content.contains("return (x * y)"));
     }
-    
+
     #[test]
     fn test_import_with_target() {
         // Create a temporary C file
@@ -1631,10 +1704,10 @@ mod tests {
         writeln!(temp_c, "    return n * n;").unwrap();
         writeln!(temp_c, "}}").unwrap();
         temp_c.flush().unwrap();
-        
+
         // Import with wasm target
         let result = import_c(temp_c.path(), None, Some("wasm"), &[], &[]);
-        
+
         // Should succeed
         assert!(result.is_ok());
     }
@@ -1646,7 +1719,11 @@ mod tests {
         fs::create_dir_all(root.join("sub")).unwrap();
 
         fs::write(root.join("alpha.c"), "int alpha(void) { return 1; }\n").unwrap();
-        fs::write(root.join("sub").join("beta.c"), "int beta(void) { return 2; }\n").unwrap();
+        fs::write(
+            root.join("sub").join("beta.c"),
+            "int beta(void) { return 2; }\n",
+        )
+        .unwrap();
 
         let out_path = root.join("all.kn");
         let batch = ImportCBatchOptions::default();
@@ -1682,7 +1759,11 @@ mod tests {
         let root = temp.path();
 
         fs::write(root.join("keep.c"), "int keep(void) { return 1; }\n").unwrap();
-        fs::write(root.join("skip_sound.c"), "int skip_sound(void) { return 0; }\n").unwrap();
+        fs::write(
+            root.join("skip_sound.c"),
+            "int skip_sound(void) { return 0; }\n",
+        )
+        .unwrap();
 
         let out_path = root.join("filtered.kn");
         let mut batch = ImportCBatchOptions::default();
@@ -1729,7 +1810,11 @@ mod tests {
             .join("kainselfhosting")
             .join("runtime")
             .join("kain_runtime_clean.c");
-        assert!(input.exists(), "missing self-hosting runtime sample: {}", input.display());
+        assert!(
+            input.exists(),
+            "missing self-hosting runtime sample: {}",
+            input.display()
+        );
 
         let temp = TempDir::new().unwrap();
         let out_path = temp.path().join("clean.kn");

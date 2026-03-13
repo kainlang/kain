@@ -51,7 +51,8 @@ fn parser_accepts_compound_assignment_operators() {
     x ^= 3
     return x"#;
 
-    let typed = parse_and_typecheck(source).expect("compound assignment operators should parse and typecheck");
+    let typed = parse_and_typecheck(source)
+        .expect("compound assignment operators should parse and typecheck");
     assert!(!typed.items.is_empty());
 }
 
@@ -95,7 +96,8 @@ fn parser_accepts_inc_dec_ternary_and_raw_strings() {
     let path = r"C:\temp\kain\file.txt"
     return (x == 1) ? 7 : 9"#;
 
-    let typed = parse_and_typecheck(source).expect("inc/dec, ternary, and raw strings should parse and typecheck");
+    let typed = parse_and_typecheck(source)
+        .expect("inc/dec, ternary, and raw strings should parse and typecheck");
     assert!(!typed.items.is_empty());
 }
 
@@ -180,7 +182,8 @@ fn parser_accepts_ref_and_deref_prefix_operators() {
     let p = &x
     return (*p + 1)"#;
 
-    let typed = parse_and_typecheck(source).expect("ref/deref operators should parse and typecheck");
+    let typed =
+        parse_and_typecheck(source).expect("ref/deref operators should parse and typecheck");
     assert!(!typed.items.is_empty());
 }
 

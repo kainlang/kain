@@ -1,13 +1,13 @@
 //! C parser using lang-c
 
 use super::CImportOptions;
+use crate::{ImportError, Result};
 use lang_c::ast::TranslationUnit;
-use lang_c::driver::{Config, parse, parse_preprocessed};
+use lang_c::driver::{parse, parse_preprocessed, Config};
 use lang_c::span::Span as CSpan;
 use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
-use crate::{ImportError, Result};
 
 #[derive(Debug, Clone)]
 pub(crate) struct ParsedCTranslationUnit {
@@ -43,11 +43,10 @@ impl CSourceLayoutMetadata {
     }
 
     pub fn has_packed_attr_for_span(&self, span: CSpan) -> bool {
-        normalized_span_snippet(self, span)
-            .is_some_and(|snippet| {
-                (snippet.contains("__attribute__((") && snippet.contains("packed"))
-                    || snippet.contains("__packed")
-            })
+        normalized_span_snippet(self, span).is_some_and(|snippet| {
+            (snippet.contains("__attribute__((") && snippet.contains("packed"))
+                || snippet.contains("__packed")
+        })
     }
 
     pub fn explicit_type_align_bits_for_span(&self, span: CSpan) -> Option<usize> {
@@ -104,9 +103,9 @@ pub(crate) fn parse_c_file_with_metadata(
                 layout,
             }),
             Err(primary_err) => {
-            let stripped = sanitize_for_preprocessed_parse(&source, true, &defined_symbols);
+                let stripped = sanitize_for_preprocessed_parse(&source, true, &defined_symbols);
 
-            match parse_preprocessed(&config, stripped) {
+                match parse_preprocessed(&config, stripped) {
                 Ok(parse_result) => Ok(ParsedCTranslationUnit {
                     unit: parse_result.unit,
                     layout,
@@ -136,7 +135,7 @@ pub(crate) fn parse_c_source_with_metadata(source: &str) -> Result<ParsedCTransl
         &config,
         sanitize_for_preprocessed_parse(source, false, &defined_symbols),
     )
-        .map_err(|e| ImportError::CParseError(format!("{:?}", e)))?;
+    .map_err(|e| ImportError::CParseError(format!("{:?}", e)))?;
 
     Ok(ParsedCTranslationUnit {
         unit: parse_result.unit,
@@ -218,8 +217,13 @@ fn collect_pack_align_by_line(source: &str) -> Vec<Option<usize>> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PackDirective {
-    Push { id: Option<String>, next: Option<usize> },
-    Pop { id: Option<String> },
+    Push {
+        id: Option<String>,
+        next: Option<usize>,
+    },
+    Pop {
+        id: Option<String>,
+    },
     Set(Option<usize>),
 }
 
@@ -233,7 +237,9 @@ fn pop_pack_frame(stack: &mut Vec<PackFrame>, id: Option<String>) -> Option<Opti
     match id {
         None => stack.pop().map(|frame| frame.previous),
         Some(target) => {
-            let idx = stack.iter().rposition(|frame| frame.id.as_deref() == Some(target.as_str()))?;
+            let idx = stack
+                .iter()
+                .rposition(|frame| frame.id.as_deref() == Some(target.as_str()))?;
             let frame = stack.remove(idx);
             stack.truncate(idx);
             Some(frame.previous)
@@ -321,7 +327,9 @@ fn build_driver_config(options: &CImportOptions) -> Config {
             config.cpp_options.push(format!("-D{}", define));
         }
     }
-    config.cpp_options.extend(options.cpp_options.iter().cloned());
+    config
+        .cpp_options
+        .extend(options.cpp_options.iter().cloned());
 
     config
 }
@@ -640,12 +648,7 @@ fn sanitize_for_preprocessed_parse(
 fn strip_fallback_annotations(line: &str) -> String {
     // These are usually macro-based annotations in decomp projects and
     // should not change executable semantics for fallback parsing.
-    const TOKENS: &[&str] = &[
-        "UNUSED",
-        "ALIGNED8",
-        "ALIGNED16",
-        "ALIGNED32",
-    ];
+    const TOKENS: &[&str] = &["UNUSED", "ALIGNED8", "ALIGNED16", "ALIGNED32"];
 
     let mut bytes = line.as_bytes().to_vec();
     let upper = line.to_ascii_uppercase();
@@ -808,7 +811,7 @@ fn strip_c_comments(input: &str) -> String {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
-    
+
     #[test]
     fn test_parse_simple_function() {
         let source = r#"
@@ -816,11 +819,11 @@ mod tests {
                 return a + b;
             }
         "#;
-        
+
         let result = parse_c_source(source);
         assert!(result.is_ok());
     }
-    
+
     #[test]
     fn test_parse_struct() {
         let source = r#"
@@ -829,7 +832,7 @@ mod tests {
                 float y;
             };
         "#;
-        
+
         let result = parse_c_source(source);
         assert!(result.is_ok());
     }
@@ -886,7 +889,8 @@ mod tests {
 
     #[test]
     fn test_layout_metadata_tracks_pragma_pack_state() {
-        let source = "#pragma pack(push, 1)\nstruct Packet { char tag; int value; };\n#pragma pack(pop)\n";
+        let source =
+            "#pragma pack(push, 1)\nstruct Packet { char tag; int value; };\n#pragma pack(pop)\n";
         let metadata = CSourceLayoutMetadata::from_source(source);
         let packet_start = source.find("struct Packet").unwrap();
         let packet_end = source.find("};").unwrap() + 2;
@@ -909,8 +913,14 @@ mod tests {
     fn test_layout_metadata_tracks_named_pragma_pack_stack() {
         let source = "#pragma pack(push, outer, 4)\nstruct A { char tag; int value; };\n#pragma pack(push, inner, 1)\nstruct B { char tag; int value; };\n#pragma pack(pop, inner)\nstruct C { char tag; int value; };\n#pragma pack(pop, outer)\n";
         let metadata = CSourceLayoutMetadata::from_source(source);
-        let a_span = CSpan::span(source.find("struct A").unwrap(), source.find("struct B").unwrap());
-        let b_span = CSpan::span(source.find("struct B").unwrap(), source.find("struct C").unwrap());
+        let a_span = CSpan::span(
+            source.find("struct A").unwrap(),
+            source.find("struct B").unwrap(),
+        );
+        let b_span = CSpan::span(
+            source.find("struct B").unwrap(),
+            source.find("struct C").unwrap(),
+        );
         let c_span = CSpan::span(source.find("struct C").unwrap(), source.len());
 
         assert_eq!(metadata.pack_align_bits_for_span(a_span), Some(32));

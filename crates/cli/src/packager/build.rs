@@ -41,7 +41,13 @@ pub fn build_rust_project() -> KainResult<()> {
     let output_root = config
         .output
         .clone()
-        .map(|path| if path.is_absolute() { path } else { cwd.join(path) })
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                cwd.join(path)
+            }
+        })
         .unwrap_or_else(|| cwd.join(&manifest.build.output).join("rust"));
 
     let written = rust_build::write_rust_build_outputs(

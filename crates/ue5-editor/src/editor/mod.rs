@@ -19,15 +19,18 @@
 //! - `style.rs` - Slate style management
 //! - `reactive.rs` - Layout optimizer (SLATE_ATTRIBUTE vs SLATE_ARGUMENT)
 
-pub mod codegen;
-pub mod slate;
-pub mod viewport;
-pub mod details;
-pub mod assets;
 pub mod asset_editor_ir;
-pub mod editor_module_ir;
+pub mod assets;
+pub mod codegen;
+pub mod details;
 pub mod editor_module_codegen;
-pub mod style;
+pub mod editor_module_ir;
 pub mod reactive;
+pub mod slate;
+pub mod style;
+pub mod viewport;
 
-pub use codegen::{generate, generate_with_context, generate_per_item, Ue5EditorOutput, EditorItem, is_editor_attribute, get_editor_attributes};
+pub use codegen::{
+    generate, generate_per_item, generate_with_context, get_editor_attributes, is_editor_attribute,
+    EditorItem, Ue5EditorOutput,
+};

@@ -31,7 +31,11 @@ pub fn run(command: OmniCommand) -> KainResult<()> {
             if !result.staged_imports.is_empty() {
                 println!("Staged imports:");
                 for staged in &result.staged_imports {
-                    println!("  - {} -> {}", staged.source_path.display(), staged.generated_kn_path.display());
+                    println!(
+                        "  - {} -> {}",
+                        staged.source_path.display(),
+                        staged.generated_kn_path.display()
+                    );
                 }
             }
             println!("Written outputs:");
@@ -69,7 +73,9 @@ mod tests {
         let cli = TestCli::parse_from(["kain", "build"]);
 
         match cli.command {
-            OmniCommand::Build { manifest } => assert_eq!(manifest, PathBuf::from("KAIN.omni.toml")),
+            OmniCommand::Build { manifest } => {
+                assert_eq!(manifest, PathBuf::from("KAIN.omni.toml"))
+            }
             other => panic!("expected build command, got {:?}", other),
         }
     }
@@ -91,11 +97,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
 
-        std::fs::write(
-            root.join("main.kn"),
-            "fn main() -> Int:\n    return 1\n",
-        )
-        .unwrap();
+        std::fs::write(root.join("main.kn"), "fn main() -> Int:\n    return 1\n").unwrap();
 
         let manifest = kain_omni::OmniManifest {
             project: kain_omni::OmniProject {

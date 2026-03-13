@@ -16,16 +16,19 @@ impl TypeMapper {
         let mut mappings = HashMap::new();
 
         for (source, descriptor) in c_type_name_aliases() {
-            mappings.insert((*source).to_string(), materialize_type_descriptor(*descriptor));
+            mappings.insert(
+                (*source).to_string(),
+                materialize_type_descriptor(*descriptor),
+            );
         }
-        
+
         Self { mappings }
     }
-    
+
     /// Create a new type mapper with default Rust type mappings
     pub fn new_rust() -> Self {
         let mut mappings = HashMap::new();
-        
+
         // Integer types
         mappings.insert("i8".into(), named_type("Int"));
         mappings.insert("i16".into(), named_type("Int"));
@@ -39,29 +42,29 @@ impl TypeMapper {
         mappings.insert("u64".into(), named_type("Int"));
         mappings.insert("u128".into(), named_type("Int"));
         mappings.insert("usize".into(), named_type("Int"));
-        
+
         // Floating point types
         mappings.insert("f32".into(), named_type("Float"));
         mappings.insert("f64".into(), named_type("Float"));
-        
+
         // Other types
         mappings.insert("bool".into(), named_type("Bool"));
         mappings.insert("char".into(), named_type("Char"));
         mappings.insert("str".into(), named_type("String"));
-        
+
         Self { mappings }
     }
-    
+
     /// Get the KAIN type for a source language type name
     pub fn get(&self, type_name: &str) -> Option<&Type> {
         self.mappings.get(type_name)
     }
-    
+
     /// Add a custom type mapping
     pub fn add_mapping(&mut self, source_type: String, kain_type: Type) {
         self.mappings.insert(source_type, kain_type);
     }
-    
+
     /// Map a pointer type
     pub fn map_pointer(&self, inner: Type, mutable: bool) -> Type {
         Type::Ref {
@@ -71,7 +74,7 @@ impl TypeMapper {
             span: Span::default(),
         }
     }
-    
+
     /// Map an array type
     pub fn map_array(&self, element: Type, size: Option<usize>) -> Type {
         match size {

@@ -1,12 +1,12 @@
+use super::config::Ue5Config;
+use super::plugin_layout::PluginLayout;
+use crate::error::{KainError, KainResult};
+use chrono::Datelike;
+use kain_core::diagnostics::{enhance_error_with_location, SpanMapper};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use chrono::Datelike;
-use serde::Serialize;
-use crate::error::{KainError, KainResult};
-use kain_core::diagnostics::{SpanMapper, enhance_error_with_location};
-use super::config::Ue5Config;
-use super::plugin_layout::PluginLayout;
 
 extern crate ue5;
 extern crate ue5_editor;
@@ -31,7 +31,8 @@ pub struct SymbolRoutingManifest {
 
 impl SymbolRoutingManifest {
     fn register(&mut self, symbol: &str, module: &str, include_path: &str, output_stem: &str) {
-        self.symbol_owner.insert(symbol.to_string(), module.to_string());
+        self.symbol_owner
+            .insert(symbol.to_string(), module.to_string());
         self.symbol_header
             .insert(symbol.to_string(), include_path.replace('\\', "/"));
         self.symbol_output_stem
@@ -168,12 +169,30 @@ fn build_runtime_output_name_registry(
     let mut registry = OutputNameRegistry::default();
     for item in &program.items {
         let (item_name, requested_output_name, bucket) = match item {
-            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, ue5::naming::to_actor_name(&a.ast.name), "actors"),
-            kain_core::types::TypedItem::Component(c) => (&c.ast.name, ue5::naming::to_component_name(&c.ast.name), "components"),
-            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, ue5::naming::to_struct_name(&s.ast.name), "structs"),
-            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name), "enums"),
-            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, sm.name.clone(), "state_machines"),
-            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, at.name.clone(), "async_tasks"),
+            kain_core::types::TypedItem::Actor(a) => (
+                &a.ast.name,
+                ue5::naming::to_actor_name(&a.ast.name),
+                "actors",
+            ),
+            kain_core::types::TypedItem::Component(c) => (
+                &c.ast.name,
+                ue5::naming::to_component_name(&c.ast.name),
+                "components",
+            ),
+            kain_core::types::TypedItem::Struct(s) => (
+                &s.ast.name,
+                ue5::naming::to_struct_name(&s.ast.name),
+                "structs",
+            ),
+            kain_core::types::TypedItem::Enum(e) => {
+                (&e.ast.name, ue5::naming::to_enum_name(&e.ast.name), "enums")
+            }
+            kain_core::types::TypedItem::StateMachine(sm) => {
+                (&sm.name, sm.name.clone(), "state_machines")
+            }
+            kain_core::types::TypedItem::AsyncTask(at) => {
+                (&at.name, at.name.clone(), "async_tasks")
+            }
             _ => continue,
         };
         registry.resolve(item_name, &requested_output_name, bucket, symbol_source_map);
@@ -232,7 +251,8 @@ fn default_runtime_module_name(config: &Ue5Config) -> Option<String> {
         .modules
         .iter()
         .find(|m| {
-            matches!(m.module_type, super::config::Ue5ModuleType::Runtime) && m.name == config.plugin_name
+            matches!(m.module_type, super::config::Ue5ModuleType::Runtime)
+                && m.name == config.plugin_name
         })
         .or_else(|| {
             config
@@ -376,23 +396,37 @@ pub fn compile_shaders(
             println!("   - {}", name);
         }
         println!();
-        
+
         // Bug-1 fix: generate the shared POD types header once before individual shaders.
         // Individual shader headers now #include "{Plugin}ShaderTypes.h" instead of
         // inlining struct definitions, preventing C2011 redefinition errors.
-        if let Some(types_content) = ue5_shaders::generate_shared_types_header(program, &config.plugin_name) {
-            let types_path = layout.public_dir.join(format!("{}ShaderTypes.h", config.plugin_name));
+        if let Some(types_content) =
+            ue5_shaders::generate_shared_types_header(program, &config.plugin_name)
+        {
+            let types_path = layout
+                .public_dir
+                .join(format!("{}ShaderTypes.h", config.plugin_name));
             fs::write(&types_path, types_content).map_err(|e| KainError::Io(e))?;
-            println!("   ✓ {}ShaderTypes.h (shared POD mirror types)", config.plugin_name);
+            println!(
+                "   ✓ {}ShaderTypes.h (shared POD mirror types)",
+                config.plugin_name
+            );
         }
 
         // Generate shared shader library (.ush) with common HLSL helpers.
         // This analyzes all shaders for common patterns (bounds checks, UV setup,
         // noise functions) and extracts them into a reusable include file.
-        let has_shared_library = if let Some(ush_content) = ue5_shaders::generate_shared_shader_library(program, &config.plugin_name) {
-            let ush_path = layout.shaders_dir.join(format!("{}Common.ush", config.plugin_name));
+        let has_shared_library = if let Some(ush_content) =
+            ue5_shaders::generate_shared_shader_library(program, &config.plugin_name)
+        {
+            let ush_path = layout
+                .shaders_dir
+                .join(format!("{}Common.ush", config.plugin_name));
             fs::write(&ush_path, ush_content).map_err(|e| KainError::Io(e))?;
-            println!("   ✓ {}Common.ush (shared shader helpers)", config.plugin_name);
+            println!(
+                "   ✓ {}Common.ush (shared shader helpers)",
+                config.plugin_name
+            );
             true
         } else {
             false
@@ -408,7 +442,7 @@ pub fn compile_shaders(
         for shader_name in shader_names {
             eprintln!("🔨 [PACKAGER] Compiling shader: {}", shader_name);
             println!("🔨 Compiling shader: {}", shader_name);
-            
+
             // Generate all three shader artifacts in one pass (mirrors computed once).
             match ue5_shaders::compile_shader_artifacts(program, shader_name, &config.plugin_name) {
                 Ok(artifacts) => {
@@ -420,7 +454,7 @@ pub fn compile_shaders(
                             artifacts.usf.replacen(
                                 platform_include,
                                 &format!("{}{}", platform_include, &ush_include),
-                                1
+                                1,
                             )
                         } else {
                             // Fallback: prepend at top
@@ -443,7 +477,10 @@ pub fn compile_shaders(
                     println!("   ✓ {}.cpp", shader_name);
                 }
                 Err(e) => {
-                    eprintln!("   ✗ Failed to compile shader artifacts for {}: {}", shader_name, e);
+                    eprintln!(
+                        "   ✗ Failed to compile shader artifacts for {}: {}",
+                        shader_name, e
+                    );
                     continue;
                 }
             }
@@ -466,14 +503,16 @@ pub fn generate_headers(
     // STEP 1: Generate master header FIRST (forward declarations only)
     println!("   📦 Generating master header with forward declarations...");
     let mut master_header = String::new();
-    master_header.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
+    master_header.push_str(&format!(
+        "// Copyright {} {}. All Rights Reserved.\n",
         chrono::Utc::now().year(),
-        config.copyright.as_deref().unwrap_or("Epic Games, Inc.")));
+        config.copyright.as_deref().unwrap_or("Epic Games, Inc.")
+    ));
     master_header.push_str("// Generated by KAIN-PRO - Godmode v3 (Modular Output)\n");
     master_header.push_str("// Master header - forward declarations and includes\n\n");
     master_header.push_str("#pragma once\n\n");
     master_header.push_str("#include \"CoreMinimal.h\"\n\n");
-    
+
     // Add forward declarations for all types.
     // In split mode (runtime + editor modules), skip editor-only items from the runtime master header.
     // Editor items belong in the editor module and should not pollute the runtime module.
@@ -482,7 +521,11 @@ pub fn generate_headers(
         match item {
             kain_core::types::TypedItem::Struct(s) => {
                 // Skip editor-only structs in split mode — they go in the editor module
-                let is_editor = s.ast.attributes.iter().any(|a| ue5_editor::is_editor_attribute(&a.name));
+                let is_editor = s
+                    .ast
+                    .attributes
+                    .iter()
+                    .any(|a| ue5_editor::is_editor_attribute(&a.name));
                 if is_editor && layout.needs_split {
                     continue;
                 }
@@ -510,44 +553,89 @@ pub fn generate_headers(
             _ => {}
         }
     }
-    
+
     // STEP 1.5: Generate delegate header
     let delegate_count = generate_delegate_header(layout, config, program)?;
-    
+
     // STEP 1.6: Generate EditorTypes header
     generate_editor_types_header(layout, config, program, delegate_count)?;
-    
+
     master_header.push_str("\n// Module includes\n");
-    
+
     // Include delegate header FIRST if we have delegates (solves circular dependency!)
     if delegate_count > 0 {
         master_header.push_str(&format!("#include \"{}Delegates.h\"\n", config.plugin_name));
     }
-    
+
     let master_header_path = layout.public_dir.join(format!("{}.h", config.plugin_name));
     fs::write(&master_header_path, &master_header).map_err(|e| KainError::Io(e))?;
-    println!("      ✓ {}.h (master header with forward decls)", config.plugin_name);
-    
+    println!(
+        "      ✓ {}.h (master header with forward decls)",
+        config.plugin_name
+    );
+
     // Build Global Type Registry
     let mut type_headers = HashMap::new();
     let output_registry = build_runtime_output_name_registry(program, symbol_source_map);
     for item in &program.items {
         let (item_name, output_name) = match item {
-            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, output_registry.resolved_for_symbol.get(&a.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_actor_name(&a.ast.name))),
-            kain_core::types::TypedItem::Component(c) => (&c.ast.name, output_registry.resolved_for_symbol.get(&c.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_component_name(&c.ast.name))),
-            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, output_registry.resolved_for_symbol.get(&s.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_struct_name(&s.ast.name))),
-            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, output_registry.resolved_for_symbol.get(&e.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_enum_name(&e.ast.name))),
-            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, output_registry.resolved_for_symbol.get(&sm.name).cloned().unwrap_or_else(|| sm.name.clone())),
-            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, output_registry.resolved_for_symbol.get(&at.name).cloned().unwrap_or_else(|| at.name.clone())),
+            kain_core::types::TypedItem::Actor(a) => (
+                &a.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&a.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_actor_name(&a.ast.name)),
+            ),
+            kain_core::types::TypedItem::Component(c) => (
+                &c.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&c.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_component_name(&c.ast.name)),
+            ),
+            kain_core::types::TypedItem::Struct(s) => (
+                &s.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&s.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_struct_name(&s.ast.name)),
+            ),
+            kain_core::types::TypedItem::Enum(e) => (
+                &e.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&e.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_enum_name(&e.ast.name)),
+            ),
+            kain_core::types::TypedItem::StateMachine(sm) => (
+                &sm.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&sm.name)
+                    .cloned()
+                    .unwrap_or_else(|| sm.name.clone()),
+            ),
+            kain_core::types::TypedItem::AsyncTask(at) => (
+                &at.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&at.name)
+                    .cloned()
+                    .unwrap_or_else(|| at.name.clone()),
+            ),
             kain_core::types::TypedItem::TypeAlias(a) => {
                 // Delegates go in master header, not separate files
                 (&a.ast.name, format!("{}", config.plugin_name))
-            },
+            }
             _ => continue,
         };
         type_headers.insert(item_name.clone(), format!("{}.h", output_name));
     }
-    
+
     Ok((master_header_path, delegate_count, type_headers))
 }
 
@@ -559,11 +647,12 @@ fn generate_delegate_header(
 ) -> KainResult<usize> {
     let mut delegate_header_content = String::new();
     let mut delegate_count = 0;
-    let mut delegate_type_dependencies: std::collections::HashSet<String> = std::collections::HashSet::new();
-    
+    let mut delegate_type_dependencies: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
+
     // Create TypeMapper with registered types for correct prefix detection
     let mut type_mapper = ue5::ue5::types::TypeMapper::new();
-    
+
     // Register all types in the program so TypeMapper can apply correct prefixes
     for item in &program.items {
         match item {
@@ -591,41 +680,46 @@ fn generate_delegate_header(
             _ => {}
         }
     }
-    
+
     // Collect all delegate declarations and their type dependencies
     for item in &program.items {
         if let kain_core::types::TypedItem::TypeAlias(alias) = item {
             // Check if this is a delegate (function type)
             if let kain_core::ast::Type::Function { params, .. } = &alias.ast.target {
                 let delegate_name = format!("F{}", alias.ast.name);
-                
+
                 // Helper function to map KAIN types to UE5 types using TypeMapper
                 let mut map_type = |ty: &kain_core::ast::Type| -> String {
                     let mapped = type_mapper.map_type_string(ty);
-                    
+
                     // Track header dependencies for user-defined types
                     if let kain_core::ast::Type::Named { name, .. } = ty {
                         // Check if it's a user-defined type that needs a header
                         if type_mapper.needs_forward_decl(ty) {
-                            delegate_type_dependencies.insert(format!("{}.h", mapped.trim_end_matches('*')));
+                            delegate_type_dependencies
+                                .insert(format!("{}.h", mapped.trim_end_matches('*')));
                         }
                     }
-                    
+
                     mapped
                 };
-                
+
                 // Generate delegate declaration based on parameter count
                 let delegate_decl = if params.is_empty() {
                     format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE({});", delegate_name)
                 } else if params.len() == 1 {
                     let param_type = map_type(&params[0]);
-                    format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam({}, {}, Param0);", 
-                        delegate_name, param_type)
+                    format!(
+                        "DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam({}, {}, Param0);",
+                        delegate_name, param_type
+                    )
                 } else if params.len() == 2 {
                     let param1_type = map_type(&params[0]);
                     let param2_type = map_type(&params[1]);
-                    format!("DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams({}, {}, Param0, {}, Param1);", 
-                        delegate_name, param1_type, param2_type)
+                    format!(
+                        "DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams({}, {}, Param0, {}, Param1);",
+                        delegate_name, param1_type, param2_type
+                    )
                 } else if params.len() == 3 {
                     let param1_type = map_type(&params[0]);
                     let param2_type = map_type(&params[1]);
@@ -635,7 +729,9 @@ fn generate_delegate_header(
                 } else if params.len() <= 9 {
                     // UE5 supports up to 9 parameters
                     let param_types: Vec<String> = params.iter().map(|p| map_type(p)).collect();
-                    let param_list: Vec<String> = param_types.iter().enumerate()
+                    let param_list: Vec<String> = param_types
+                        .iter()
+                        .enumerate()
                         .map(|(i, ty)| format!("{}, Param{}", ty, i))
                         .collect();
                     let macro_name = match params.len() {
@@ -647,12 +743,20 @@ fn generate_delegate_header(
                         9 => "DECLARE_DYNAMIC_MULTICAST_DELEGATE_NineParams",
                         _ => unreachable!(),
                     };
-                    format!("{}({}, {});", macro_name, delegate_name, param_list.join(", "))
+                    format!(
+                        "{}({}, {});",
+                        macro_name,
+                        delegate_name,
+                        param_list.join(", ")
+                    )
                 } else {
-                    format!("// ERROR: Delegate {} has {} parameters - UE5 supports up to 9", 
-                        delegate_name, params.len())
+                    format!(
+                        "// ERROR: Delegate {} has {} parameters - UE5 supports up to 9",
+                        delegate_name,
+                        params.len()
+                    )
                 };
-                
+
                 delegate_header_content.push_str(&delegate_decl);
                 delegate_header_content.push('\n');
                 delegate_header_content.push('\n');
@@ -660,18 +764,22 @@ fn generate_delegate_header(
             }
         }
     }
-    
+
     // Generate complete delegate header file if we have any delegates
     if delegate_count > 0 {
         let mut full_delegate_header = String::new();
-        full_delegate_header.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
+        full_delegate_header.push_str(&format!(
+            "// Copyright {} {}. All Rights Reserved.\n",
             chrono::Utc::now().year(),
-            config.copyright.as_deref().unwrap_or("Epic Games, Inc.")));
+            config.copyright.as_deref().unwrap_or("Epic Games, Inc.")
+        ));
         full_delegate_header.push_str("// Generated by KAIN-PRO - Delegate Declarations\n");
-        full_delegate_header.push_str("// This file contains ONLY delegate declarations to avoid circular dependencies\n\n");
+        full_delegate_header.push_str(
+            "// This file contains ONLY delegate declarations to avoid circular dependencies\n\n",
+        );
         full_delegate_header.push_str("#pragma once\n\n");
         full_delegate_header.push_str("#include \"CoreMinimal.h\"\n");
-        
+
         // Include type dependencies (enums, structs that delegates reference)
         let mut sorted_deps: Vec<String> = delegate_type_dependencies.into_iter().collect();
         sorted_deps.sort();
@@ -679,29 +787,40 @@ fn generate_delegate_header(
             full_delegate_header.push_str(&format!("#include \"{}\"\n", dep));
         }
         full_delegate_header.push_str("\n");
-        
+
         // CRITICAL: .generated.h MUST come before GENERATED_BODY() and delegate macros
-        full_delegate_header.push_str(&format!("#include \"{}Delegates.generated.h\"\n", config.plugin_name));
+        full_delegate_header.push_str(&format!(
+            "#include \"{}Delegates.generated.h\"\n",
+            config.plugin_name
+        ));
         full_delegate_header.push_str("\n");
-        
+
         // Generate complete delegate header with ACTUAL declarations
         full_delegate_header.push_str("// Delegate declarations\n");
         full_delegate_header.push_str(&delegate_header_content);
-        
+
         // Dummy USTRUCT to force UHT to process this header and generate .generated.h
         full_delegate_header.push_str("// Internal struct for UHT processing\n");
         full_delegate_header.push_str("USTRUCT()\n");
-        full_delegate_header.push_str(&format!("struct F{}Delegates_Internal\n", config.plugin_name));
+        full_delegate_header.push_str(&format!(
+            "struct F{}Delegates_Internal\n",
+            config.plugin_name
+        ));
         full_delegate_header.push_str("{\n");
         full_delegate_header.push_str("    GENERATED_BODY()\n");
         full_delegate_header.push_str("};\n");
-        
+
         // Write delegate header file
-        let delegate_header_path = layout.public_dir.join(format!("{}Delegates.h", config.plugin_name));
+        let delegate_header_path = layout
+            .public_dir
+            .join(format!("{}Delegates.h", config.plugin_name));
         fs::write(&delegate_header_path, full_delegate_header).map_err(|e| KainError::Io(e))?;
-        println!("      ✓ {}Delegates.h ({} delegate declarations - ARCHITECTURAL IMPROVEMENT!)", config.plugin_name, delegate_count);
+        println!(
+            "      ✓ {}Delegates.h ({} delegate declarations - ARCHITECTURAL IMPROVEMENT!)",
+            config.plugin_name, delegate_count
+        );
     }
-    
+
     Ok(delegate_count)
 }
 
@@ -713,56 +832,72 @@ fn generate_editor_types_header(
     delegate_count: usize,
 ) -> KainResult<()> {
     let mut editor_types_header = String::new();
-    editor_types_header.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
+    editor_types_header.push_str(&format!(
+        "// Copyright {} {}. All Rights Reserved.\n",
         chrono::Utc::now().year(),
-        config.copyright.as_deref().unwrap_or("Epic Games, Inc.")));
+        config.copyright.as_deref().unwrap_or("Epic Games, Inc.")
+    ));
     editor_types_header.push_str("// Generated by KAIN-PRO - Editor Types Header\n");
-    editor_types_header.push_str("// This file provides ALL runtime types + delegates for editor code\n");
-    editor_types_header.push_str("// Slate widgets, Details customizations, and Viewports should include this\n\n");
+    editor_types_header
+        .push_str("// This file provides ALL runtime types + delegates for editor code\n");
+    editor_types_header.push_str(
+        "// Slate widgets, Details customizations, and Viewports should include this\n\n",
+    );
     editor_types_header.push_str("#pragma once\n\n");
     editor_types_header.push_str("#include \"CoreMinimal.h\"\n\n");
-    
+
     // Include all runtime type headers (enums, structs, actors, components)
     editor_types_header.push_str("// Runtime types (enums, structs, actors, components)\n");
     for item in &program.items {
         // Skip editor-only items
         if let kain_core::types::TypedItem::Struct(s) = item {
-            let is_editor_struct = s.ast.attributes.iter().any(|a| 
-                ue5_editor::is_editor_attribute(&a.name)
-            );
+            let is_editor_struct = s
+                .ast
+                .attributes
+                .iter()
+                .any(|a| ue5_editor::is_editor_attribute(&a.name));
             if is_editor_struct {
                 continue;
             }
         }
-        
+
         // Skip all type aliases (delegates are in delegate header, type mappings have no headers)
         if matches!(item, kain_core::types::TypedItem::TypeAlias(_)) {
             continue;
         }
-        
+
         let header_name = match item {
-            kain_core::types::TypedItem::Actor(a) => Some(format!("{}.h", ue5::naming::to_actor_name(&a.ast.name))),
-            kain_core::types::TypedItem::Component(c) => Some(format!("{}.h", ue5::naming::to_component_name(&c.ast.name))),
-            kain_core::types::TypedItem::Struct(s) => Some(format!("{}.h", ue5::naming::to_struct_name(&s.ast.name))),
-            kain_core::types::TypedItem::Enum(e) => Some(format!("{}.h", ue5::naming::to_enum_name(&e.ast.name))),
+            kain_core::types::TypedItem::Actor(a) => {
+                Some(format!("{}.h", ue5::naming::to_actor_name(&a.ast.name)))
+            }
+            kain_core::types::TypedItem::Component(c) => {
+                Some(format!("{}.h", ue5::naming::to_component_name(&c.ast.name)))
+            }
+            kain_core::types::TypedItem::Struct(s) => {
+                Some(format!("{}.h", ue5::naming::to_struct_name(&s.ast.name)))
+            }
+            kain_core::types::TypedItem::Enum(e) => {
+                Some(format!("{}.h", ue5::naming::to_enum_name(&e.ast.name)))
+            }
             _ => None,
         };
-        
+
         if let Some(header) = header_name {
             editor_types_header.push_str(&format!("#include \"{}\"\n", header));
         }
     }
     editor_types_header.push_str("\n");
-    
+
     // Include delegates if we have any
     if delegate_count > 0 {
         editor_types_header.push_str("// Delegates\n");
         editor_types_header.push_str(&format!("#include \"{}Delegates.h\"\n", config.plugin_name));
         editor_types_header.push_str("\n");
     }
-    
+
     // Forward declare all Slate widgets to prevent circular dependencies
-    editor_types_header.push_str("// Forward declarations for Slate widgets (prevents circular dependencies)\n");
+    editor_types_header
+        .push_str("// Forward declarations for Slate widgets (prevents circular dependencies)\n");
     for item in &program.items {
         if let kain_core::types::TypedItem::Struct(s) = item {
             if s.ast.attributes.iter().any(|a| a.name == "slate") {
@@ -772,12 +907,17 @@ fn generate_editor_types_header(
         }
     }
     editor_types_header.push_str("\n");
-    
+
     // Write EditorTypes header file
-    let editor_types_path = layout.public_dir.join(format!("{}EditorTypes.h", config.plugin_name));
+    let editor_types_path = layout
+        .public_dir
+        .join(format!("{}EditorTypes.h", config.plugin_name));
     fs::write(&editor_types_path, editor_types_header).map_err(|e| KainError::Io(e))?;
-    println!("      ✓ {}EditorTypes.h (complete type definitions for editor code - OPTION 3!)", config.plugin_name);
-    
+    println!(
+        "      ✓ {}EditorTypes.h (complete type definitions for editor code - OPTION 3!)",
+        config.plugin_name
+    );
+
     Ok(())
 }
 
@@ -796,19 +936,21 @@ pub fn generate_runtime_items(
     let mut routing_manifest = SymbolRoutingManifest::default();
     let output_registry = build_runtime_output_name_registry(program, symbol_source_map);
     routing_manifest.output_name_collisions = output_registry.collisions.clone();
-    let runtime_consumer_module = default_runtime_module_name(config)
-        .unwrap_or_else(|| config.plugin_name.clone());
+    let runtime_consumer_module =
+        default_runtime_module_name(config).unwrap_or_else(|| config.plugin_name.clone());
     for item in &program.items {
         // Skip editor-only structs (handled by ue5-editor crate)
         if let kain_core::types::TypedItem::Struct(s) = item {
-            let is_editor_struct = s.ast.attributes.iter().any(|a| 
-                ue5_editor::is_editor_attribute(&a.name)
-            );
+            let is_editor_struct = s
+                .ast
+                .attributes
+                .iter()
+                .any(|a| ue5_editor::is_editor_attribute(&a.name));
             if is_editor_struct {
                 continue; // Skip - will be generated by editor codegen
             }
         }
-        
+
         // Skip ALL type aliases — delegates are in the delegate header, and non-delegate
         // type aliases (e.g. `type Vec2 = vec2`) are pure codegen-time type mappings that
         // resolve to built-in UE5 types like FVector2D. They produce no UHT-annotated content
@@ -820,14 +962,56 @@ pub fn generate_runtime_items(
 
         let is_state_machine = matches!(item, kain_core::types::TypedItem::StateMachine(_));
         let is_async_task = matches!(item, kain_core::types::TypedItem::AsyncTask(_));
-        
+
         let (item_name, output_name) = match item {
-            kain_core::types::TypedItem::Actor(a) => (&a.ast.name, output_registry.resolved_for_symbol.get(&a.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_actor_name(&a.ast.name))),
-            kain_core::types::TypedItem::Component(c) => (&c.ast.name, output_registry.resolved_for_symbol.get(&c.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_component_name(&c.ast.name))),
-            kain_core::types::TypedItem::Struct(s) => (&s.ast.name, output_registry.resolved_for_symbol.get(&s.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_struct_name(&s.ast.name))),
-            kain_core::types::TypedItem::Enum(e) => (&e.ast.name, output_registry.resolved_for_symbol.get(&e.ast.name).cloned().unwrap_or_else(|| ue5::naming::to_enum_name(&e.ast.name))),
-            kain_core::types::TypedItem::StateMachine(sm) => (&sm.name, output_registry.resolved_for_symbol.get(&sm.name).cloned().unwrap_or_else(|| sm.name.clone())),
-            kain_core::types::TypedItem::AsyncTask(at) => (&at.name, output_registry.resolved_for_symbol.get(&at.name).cloned().unwrap_or_else(|| at.name.clone())),
+            kain_core::types::TypedItem::Actor(a) => (
+                &a.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&a.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_actor_name(&a.ast.name)),
+            ),
+            kain_core::types::TypedItem::Component(c) => (
+                &c.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&c.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_component_name(&c.ast.name)),
+            ),
+            kain_core::types::TypedItem::Struct(s) => (
+                &s.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&s.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_struct_name(&s.ast.name)),
+            ),
+            kain_core::types::TypedItem::Enum(e) => (
+                &e.ast.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&e.ast.name)
+                    .cloned()
+                    .unwrap_or_else(|| ue5::naming::to_enum_name(&e.ast.name)),
+            ),
+            kain_core::types::TypedItem::StateMachine(sm) => (
+                &sm.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&sm.name)
+                    .cloned()
+                    .unwrap_or_else(|| sm.name.clone()),
+            ),
+            kain_core::types::TypedItem::AsyncTask(at) => (
+                &at.name,
+                output_registry
+                    .resolved_for_symbol
+                    .get(&at.name)
+                    .cloned()
+                    .unwrap_or_else(|| at.name.clone()),
+            ),
             _ => continue,
         };
 
@@ -852,14 +1036,21 @@ pub fn generate_runtime_items(
         println!("   📄 Slicing item: {} → {}.h/cpp", item_name, output_name);
 
         // Generate filtered output for this specific item using the FULL program shared state and type map
-        match ue5::generate_filtered_typed(program, &route.module_name, Some(&output_name), Some(item_name.clone()), config.copyright.as_deref(), type_headers.clone(), Some(shader_names.to_vec()), embed_kain, has_gas_features) {
+        match ue5::generate_filtered_typed(
+            program,
+            &route.module_name,
+            Some(&output_name),
+            Some(item_name.clone()),
+            config.copyright.as_deref(),
+            type_headers.clone(),
+            Some(shader_names.to_vec()),
+            embed_kain,
+            has_gas_features,
+        ) {
             Ok(ue5_output) => {
                 if is_state_machine || is_async_task {
                     let expected_files: Vec<String> = if is_state_machine {
-                        vec![
-                            format!("{}.h", output_name),
-                            format!("{}.cpp", output_name),
-                        ]
+                        vec![format!("{}.h", output_name), format!("{}.cpp", output_name)]
                     } else {
                         vec![
                             format!("{}.h", output_name),
@@ -890,7 +1081,11 @@ pub fn generate_runtime_items(
                             if is_header {
                                 include_lines.push(format!(
                                     "#include \"{}\"\n",
-                                    build_include_path(&route, filename, Some(&runtime_consumer_module))
+                                    build_include_path(
+                                        &route,
+                                        filename,
+                                        Some(&runtime_consumer_module)
+                                    )
                                 ));
                             }
                         }
@@ -902,7 +1097,8 @@ pub fn generate_runtime_items(
                             item_name
                         );
                     } else {
-                        let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
+                        let mut master =
+                            fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
                         for include_line in include_lines {
                             if !master.contains(&include_line) {
                                 master.push_str(&include_line);
@@ -919,28 +1115,37 @@ pub fn generate_runtime_items(
                 let header_path = route.public_dir.join(&header_filename);
                 fs::write(&header_path, &ue5_output.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", output_name);
-                let include_path = build_include_path(&route, &header_filename, Some(&runtime_consumer_module));
-                routing_manifest.register(item_name, &route.module_name, &include_path, &output_name);
-                
+                let include_path =
+                    build_include_path(&route, &header_filename, Some(&runtime_consumer_module));
+                routing_manifest.register(
+                    item_name,
+                    &route.module_name,
+                    &include_path,
+                    &output_name,
+                );
+
                 // Only write .cpp if it has meaningful content (not just includes)
-                let has_implementation = ue5_output.source.lines()
-                    .any(|line| {
-                        let trimmed = line.trim();
-                        !trimmed.is_empty() && 
-                        !trimmed.starts_with("//") && 
-                        !trimmed.starts_with("#include")
-                    });
-                
+                let has_implementation = ue5_output.source.lines().any(|line| {
+                    let trimmed = line.trim();
+                    !trimmed.is_empty()
+                        && !trimmed.starts_with("//")
+                        && !trimmed.starts_with("#include")
+                });
+
                 if has_implementation {
                     let cpp_path = route.private_dir.join(format!("{}.cpp", output_name));
                     fs::write(&cpp_path, &ue5_output.source).map_err(|e| KainError::Io(e))?;
                     println!("      ✓ {}.cpp", output_name);
                 } else {
-                    println!("      ⊘ {}.cpp (skipped - no implementation needed)", output_name);
+                    println!(
+                        "      ⊘ {}.cpp (skipped - no implementation needed)",
+                        output_name
+                    );
                 }
-                
+
                 // Append this item's include to master header
-                let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
+                let mut master =
+                    fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
                 master.push_str(&format!("#include \"{}\"\n", include_path));
                 fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
             }
@@ -962,18 +1167,26 @@ pub fn generate_stdlib_functions(
     has_gas_features: bool,
 ) -> KainResult<()> {
     println!("   📦 Generating stdlib functions header...");
-    match ue5::generate_stdlib_functions(program, &config.plugin_name, config.copyright.as_deref(), type_headers.clone(), has_gas_features) {
+    match ue5::generate_stdlib_functions(
+        program,
+        &config.plugin_name,
+        config.copyright.as_deref(),
+        type_headers.clone(),
+        has_gas_features,
+    ) {
         Ok(stdlib_output) => {
             // Check if there are any functions in the output (look for "static inline" which indicates functions)
             if stdlib_output.header.contains("static inline") {
                 let stdlib_header_path = layout.public_dir.join("KainStdlib.h");
-                fs::write(&stdlib_header_path, &stdlib_output.header).map_err(|e| KainError::Io(e))?;
+                fs::write(&stdlib_header_path, &stdlib_output.header)
+                    .map_err(|e| KainError::Io(e))?;
                 println!("      ✓ KainStdlib.h (stdlib utility functions)");
-                
+
                 // Add include to master header.
                 // Keep this after module includes to avoid circular include-order issues
                 // when stdlib helpers reference generated runtime types.
-                let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
+                let mut master =
+                    fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
                 if !master.contains("#include \"KainStdlib.h\"") {
                     master.push_str("\n// Stdlib functions\n#include \"KainStdlib.h\"\n");
                 }
@@ -999,30 +1212,44 @@ pub fn generate_blueprint_library(
 ) -> KainResult<()> {
     let has_blueprint_funcs = program.items.iter().any(|item| {
         if let kain_core::types::TypedItem::Function(f) = item {
-            f.ast.attributes.iter().any(|a| a.name == "blueprint" || a.name == "ue5")
+            f.ast
+                .attributes
+                .iter()
+                .any(|a| a.name == "blueprint" || a.name == "ue5")
         } else {
             false
         }
     });
-    
+
     if has_blueprint_funcs {
         println!("   📦 Generating blueprint function library...");
-        let runtime_module_name = default_runtime_module_name(config)
-            .unwrap_or_else(|| config.plugin_name.clone());
+        let runtime_module_name =
+            default_runtime_module_name(config).unwrap_or_else(|| config.plugin_name.clone());
         // Generate blueprint functions with special target to skip type definitions
         let bp_lib_name = format!("{}BlueprintLibrary", config.plugin_name);
-        match ue5::generate_filtered_typed(program, &runtime_module_name, Some(&bp_lib_name), Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()), config.copyright.as_deref(), type_headers.clone(), None, false, false) {
+        match ue5::generate_filtered_typed(
+            program,
+            &runtime_module_name,
+            Some(&bp_lib_name),
+            Some("__BLUEPRINT_LIBRARY_ONLY__".to_string()),
+            config.copyright.as_deref(),
+            type_headers.clone(),
+            None,
+            false,
+            false,
+        ) {
             Ok(bp_output) => {
                 let bp_header_path = layout.public_dir.join(format!("{}.h", bp_lib_name));
                 fs::write(&bp_header_path, &bp_output.header).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.h", bp_lib_name);
-                
+
                 let bp_cpp_path = layout.private_dir.join(format!("{}.cpp", bp_lib_name));
                 fs::write(&bp_cpp_path, &bp_output.source).map_err(|e| KainError::Io(e))?;
                 println!("      ✓ {}.cpp", bp_lib_name);
-                
+
                 // Add include to master header
-                let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
+                let mut master =
+                    fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
                 master.push_str(&format!("#include \"{}.h\"\n", bp_lib_name));
                 fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
             }
@@ -1047,16 +1274,18 @@ pub fn generate_editor_items(
         return Ok(SymbolRoutingManifest::default());
     }
     let mut routing_manifest = SymbolRoutingManifest::default();
-    
+
     println!("   🎨 Generating editor tools (Slate UI, Details, Viewport, Toolbar...)...");
-    
+
     // Determine where editor files go based on split mode
     let (ed_pub_dir, ed_priv_dir) = if layout.needs_split {
         // Split mode: editor files go to separate module directory
-        let ed_pub = layout.editor_public_dir.as_ref()
-            .ok_or_else(|| KainError::codegen_error("Editor public directory not set in split mode"))?;
-        let ed_priv = layout.editor_private_dir.as_ref()
-            .ok_or_else(|| KainError::codegen_error("Editor private directory not set in split mode"))?;
+        let ed_pub = layout.editor_public_dir.as_ref().ok_or_else(|| {
+            KainError::codegen_error("Editor public directory not set in split mode")
+        })?;
+        let ed_priv = layout.editor_private_dir.as_ref().ok_or_else(|| {
+            KainError::codegen_error("Editor private directory not set in split mode")
+        })?;
         (ed_pub.clone(), ed_priv.clone()) // No prefix — files are at root of editor module
     } else {
         // Single module: editor files go to Editor/ subdirectory
@@ -1066,18 +1295,21 @@ pub fn generate_editor_items(
         fs::create_dir_all(&ed_priv).map_err(|e| KainError::Io(e))?;
         (ed_pub, ed_priv)
     };
-    
+
     // In split mode, generate a master header for the editor module
     let editor_module_name = default_editor_module_name(config)
         .unwrap_or_else(|| format!("{}Editor", config.plugin_name));
 
     let editor_master_header_path = if layout.needs_split {
-        let ed_pub = layout.editor_public_dir.as_ref()
-            .ok_or_else(|| KainError::codegen_error("Editor public directory not set in split mode"))?;
+        let ed_pub = layout.editor_public_dir.as_ref().ok_or_else(|| {
+            KainError::codegen_error("Editor public directory not set in split mode")
+        })?;
         let mut ed_master = String::new();
-        ed_master.push_str(&format!("// Copyright {} {}. All Rights Reserved.\n", 
+        ed_master.push_str(&format!(
+            "// Copyright {} {}. All Rights Reserved.\n",
             chrono::Utc::now().year(),
-            config.copyright.as_deref().unwrap_or("Epic Games, Inc.")));
+            config.copyright.as_deref().unwrap_or("Epic Games, Inc.")
+        ));
         ed_master.push_str("// Generated by KAIN-PRO - Editor Module Master Header\n");
         ed_master.push_str("#pragma once\n\n");
         ed_master.push_str("#include \"CoreMinimal.h\"\n");
@@ -1086,21 +1318,23 @@ pub fn generate_editor_items(
         ed_master.push_str("// Editor module includes\n");
         let path = ed_pub.join(format!("{}.h", editor_module_name));
         fs::write(&path, &ed_master).map_err(|e| KainError::Io(e))?;
-        println!("      ✓ {}.h (editor module master header)", editor_module_name);
+        println!(
+            "      ✓ {}.h (editor module master header)",
+            editor_module_name
+        );
         Some(path)
     } else {
         None
     };
-    
+
     // Generate per-item editor files (modular output).
     // First, collect what will be generated so we can clean up stale files.
     match ue5_editor::generate_per_item(program, &config.plugin_name, config.copyright.as_deref()) {
         Ok(editor_items) => {
             // Collect the set of expected output file names (without extension)
-            let expected_names: std::collections::HashSet<String> = editor_items.iter()
-                .map(|item| item.name.clone())
-                .collect();
-            
+            let expected_names: std::collections::HashSet<String> =
+                editor_items.iter().map(|item| item.name.clone()).collect();
+
             // Clean up stale .h files in editor public dir
             if let Ok(entries) = fs::read_dir(&ed_pub_dir) {
                 for entry in entries.flatten() {
@@ -1112,7 +1346,10 @@ pub fn generate_editor_items(
                             let is_factory = stem.ends_with("Factory");
                             if !is_master && !is_factory && !expected_names.contains(stem) {
                                 let _ = fs::remove_file(&path);
-                                println!("   🧹 Removed stale {}", path.file_name().unwrap_or_default().to_string_lossy());
+                                println!(
+                                    "   🧹 Removed stale {}",
+                                    path.file_name().unwrap_or_default().to_string_lossy()
+                                );
                             }
                         }
                     }
@@ -1127,7 +1364,10 @@ pub fn generate_editor_items(
                             let is_factory = stem.ends_with("Factory");
                             if !is_factory && !expected_names.contains(stem) {
                                 let _ = fs::remove_file(&path);
-                                println!("   🧹 Removed stale {}", path.file_name().unwrap_or_default().to_string_lossy());
+                                println!(
+                                    "   🧹 Removed stale {}",
+                                    path.file_name().unwrap_or_default().to_string_lossy()
+                                );
                             }
                         }
                     }
@@ -1135,8 +1375,11 @@ pub fn generate_editor_items(
             }
 
             for editor_item in &editor_items {
-                println!("   📄 Editor item: {} [{}] → {}.h/cpp", editor_item.name, editor_item.kind, editor_item.name);
-                
+                println!(
+                    "   📄 Editor item: {} [{}] → {}.h/cpp",
+                    editor_item.name, editor_item.kind, editor_item.name
+                );
+
                 let route = item_route(
                     layout,
                     config,
@@ -1158,48 +1401,55 @@ pub fn generate_editor_items(
                 } else {
                     config.plugin_name.clone()
                 };
-                let include_path = build_include_path(
-                    &route,
-                    &header_filename,
-                    Some(&editor_consumer_module),
+                let include_path =
+                    build_include_path(&route, &header_filename, Some(&editor_consumer_module));
+                routing_manifest.register(
+                    &editor_item.name,
+                    &route.module_name,
+                    &include_path,
+                    &editor_item.name,
                 );
-                routing_manifest.register(&editor_item.name, &route.module_name, &include_path, &editor_item.name);
-                
+
                 // Only write .cpp if it has meaningful content (not just includes)
-                let has_implementation = editor_item.source.lines()
-                    .any(|line| {
-                        let trimmed = line.trim();
-                        !trimmed.is_empty() && 
-                        !trimmed.starts_with("//") && 
-                        !trimmed.starts_with("#include") &&
-                        !trimmed.starts_with("BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION") &&
-                        !trimmed.starts_with("END_SLATE_FUNCTION_BUILD_OPTIMIZATION") &&
-                        trimmed != "{"  &&
-                        trimmed != "}" &&
-                        trimmed != "];" &&
-                        trimmed != "[" &&
-                        !trimmed.starts_with("ChildSlot") &&
-                        !trimmed.starts_with("SNew(S") ||
-                        (trimmed.starts_with("SNew(S") && trimmed.contains("+"))  // Has actual slots
-                    });
-                
+                let has_implementation = editor_item.source.lines().any(|line| {
+                    let trimmed = line.trim();
+                    !trimmed.is_empty()
+                        && !trimmed.starts_with("//")
+                        && !trimmed.starts_with("#include")
+                        && !trimmed.starts_with("BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION")
+                        && !trimmed.starts_with("END_SLATE_FUNCTION_BUILD_OPTIMIZATION")
+                        && trimmed != "{"
+                        && trimmed != "}"
+                        && trimmed != "];"
+                        && trimmed != "["
+                        && !trimmed.starts_with("ChildSlot")
+                        && !trimmed.starts_with("SNew(S")
+                        || (trimmed.starts_with("SNew(S") && trimmed.contains("+"))
+                    // Has actual slots
+                });
+
                 if has_implementation {
                     let cpp_path = route.private_dir.join(format!("{}.cpp", editor_item.name));
                     fs::write(&cpp_path, &editor_item.source).map_err(|e| KainError::Io(e))?;
                     println!("      ✓ {}.cpp", editor_item.name);
                 } else {
-                    println!("      ⊘ {}.cpp (skipped - no implementation needed)", editor_item.name);
+                    println!(
+                        "      ⊘ {}.cpp (skipped - no implementation needed)",
+                        editor_item.name
+                    );
                 }
-                
+
                 // Add include to appropriate master header
                 if let Some(ref ed_master_path) = editor_master_header_path {
                     // Split mode: add to editor module master header (no prefix)
-                    let mut master = fs::read_to_string(ed_master_path).map_err(|e| KainError::Io(e))?;
+                    let mut master =
+                        fs::read_to_string(ed_master_path).map_err(|e| KainError::Io(e))?;
                     master.push_str(&format!("#include \"{}\"\n", include_path));
                     fs::write(ed_master_path, master).map_err(|e| KainError::Io(e))?;
                 } else {
                     // Single module: add to runtime master header with Editor/ prefix
-                    let mut master = fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
+                    let mut master =
+                        fs::read_to_string(master_header_path).map_err(|e| KainError::Io(e))?;
                     master.push_str(&format!("#include \"{}\"\n", include_path));
                     fs::write(master_header_path, master).map_err(|e| KainError::Io(e))?;
                 }
@@ -1210,7 +1460,7 @@ pub fn generate_editor_items(
             eprintln!("      ✗ Failed to generate editor tools: {}", e);
         }
     }
-    
+
     Ok(routing_manifest)
 }
 
@@ -1291,7 +1541,10 @@ pub fn write_cross_module_manifests(
     fs::write(out_dir.join("module_include_manifest.json"), include_json)
         .map_err(|e| KainError::Io(e))?;
 
-    println!("   ✓ cross-module manifests emitted to {}/Intermediate/Kain", config.plugin_name);
+    println!(
+        "   ✓ cross-module manifests emitted to {}/Intermediate/Kain",
+        config.plugin_name
+    );
     Ok(())
 }
 
@@ -1311,16 +1564,16 @@ pub fn generate_module_registration(
             false
         }
     });
-    
+
     if layout.needs_split {
-        let runtime_module_name = default_runtime_module_name(config)
-            .unwrap_or_else(|| config.plugin_name.clone());
+        let runtime_module_name =
+            default_runtime_module_name(config).unwrap_or_else(|| config.plugin_name.clone());
         let editor_module_name = default_editor_module_name(config)
             .unwrap_or_else(|| format!("{}Editor", config.plugin_name));
 
         // SPLIT MODE: Runtime module ALWAYS needs its own IMPLEMENT_MODULE
         eprintln!("📦 [PACKAGER] Split mode — generating runtime module registration");
-        
+
         // Build includes based on features
         let mut includes = vec![
             format!("#include \"{}.h\"", config.plugin_name),
@@ -1331,19 +1584,20 @@ pub fn generate_module_registration(
             includes.push("#include \"Generated/MaterialFactories.h\"".to_string());
             includes.push("#include \"Misc/CoreDelegates.h\"".to_string());
         }
-        
+
         if has_shaders {
             includes.push("#include \"Interfaces/IPluginManager.h\"".to_string());
             includes.push("#include \"ShaderCore.h\"".to_string());
         }
-        
+
         let includes_str = includes.join("\n");
-        
+
         // Build StartupModule body
         let mut startup_body = String::from("        // Runtime module startup\n");
-        
+
         if has_shaders {
-            startup_body.push_str(&format!(r#"
+            startup_body.push_str(&format!(
+                r#"
         // Register shader virtual path mapping
         // Maps /Plugin/{} to physical Shaders/ directory
         if (!AllShaderSourceDirectoryMappings().Contains(TEXT("/Plugin/{}")))
@@ -1354,22 +1608,28 @@ pub fn generate_module_registration(
             );
             AddShaderSourceDirectoryMapping(TEXT("/Plugin/{}"), PluginShaderDir);
         }}
-"#, config.plugin_name, config.plugin_name, config.plugin_name, config.plugin_name));
+"#,
+                config.plugin_name, config.plugin_name, config.plugin_name, config.plugin_name
+            ));
         }
-        
+
         if has_material_factories {
             // Defer material generation until engine init has completed.
             // Running CreatePackage/NewObject directly in StartupModule can be too early
             // on some boots and may crash before UObject systems are fully ready.
-            startup_body.push_str(&format!(r#"
+            startup_body.push_str(&format!(
+                r#"
         #if WITH_EDITOR
         // Generate editor materials once engine startup has completed.
         FCoreDelegates::OnPostEngineInit.AddStatic(&F{}MaterialFactory::GenerateMaterials);
         #endif
-"#, config.plugin_name));
+"#,
+                config.plugin_name
+            ));
         }
-        
-        let module_cpp = format!(r#"// Generated by KAIN-PRO - Runtime Module Registration
+
+        let module_cpp = format!(
+            r#"// Generated by KAIN-PRO - Runtime Module Registration
 {}
 
 class F{}Module : public IModuleInterface
@@ -1386,15 +1646,29 @@ public:
 }};
 
 IMPLEMENT_MODULE(F{}Module, {})
-"#, includes_str, runtime_module_name, startup_body, runtime_module_name, runtime_module_name);
-        
-        let module_cpp_path = layout.private_dir.join(format!("{}.cpp", runtime_module_name));
+"#,
+            includes_str,
+            runtime_module_name,
+            startup_body,
+            runtime_module_name,
+            runtime_module_name
+        );
+
+        let module_cpp_path = layout
+            .private_dir
+            .join(format!("{}.cpp", runtime_module_name));
         fs::write(&module_cpp_path, module_cpp).map_err(|e| KainError::Io(e))?;
-        println!("      ✓ {}.cpp (runtime module registration)", runtime_module_name);
-        
+        println!(
+            "      ✓ {}.cpp (runtime module registration)",
+            runtime_module_name
+        );
+
         // Editor module's IMPLEMENT_MODULE comes from @editor_module codegen
         if has_editor_module {
-            println!("      ✓ @editor_module provides IMPLEMENT_MODULE for {}", editor_module_name);
+            println!(
+                "      ✓ @editor_module provides IMPLEMENT_MODULE for {}",
+                editor_module_name
+            );
         } else {
             // Generate a default editor module registration if no @editor_module exists
             // Build includes based on features
@@ -1402,19 +1676,20 @@ IMPLEMENT_MODULE(F{}Module, {})
                 format!("#include \"{}.h\"", editor_module_name),
                 "#include \"Modules/ModuleManager.h\"".to_string(),
             ];
-            
+
             if has_shaders {
                 includes.push("#include \"Interfaces/IPluginManager.h\"".to_string());
                 includes.push("#include \"ShaderCore.h\"".to_string());
             }
-            
+
             let includes_str = includes.join("\n");
-            
+
             // Build StartupModule body
             let mut startup_body = String::from("        // Editor module startup\n");
-            
+
             if has_shaders {
-                startup_body.push_str(&format!(r#"
+                startup_body.push_str(&format!(
+                    r#"
         // Register shader virtual path mapping
         // Maps /Plugin/{} to physical Shaders/ directory
         if (!AllShaderSourceDirectoryMappings().Contains(TEXT("/Plugin/{}")))
@@ -1425,10 +1700,13 @@ IMPLEMENT_MODULE(F{}Module, {})
             );
             AddShaderSourceDirectoryMapping(TEXT("/Plugin/{}"), PluginShaderDir);
         }}
-"#, config.plugin_name, config.plugin_name, config.plugin_name, config.plugin_name));
+"#,
+                    config.plugin_name, config.plugin_name, config.plugin_name, config.plugin_name
+                ));
             }
-            
-            let ed_module_cpp = format!(r#"// Generated by KAIN-PRO - Editor Module Registration
+
+            let ed_module_cpp = format!(
+                r#"// Generated by KAIN-PRO - Editor Module Registration
 {}
 
 class F{}Module : public IModuleInterface
@@ -1445,22 +1723,35 @@ public:
 }};
 
 IMPLEMENT_MODULE(F{}Module, {})
-"#, includes_str, editor_module_name, startup_body, editor_module_name, editor_module_name);
-            
-            let ed_priv = layout.editor_private_dir.as_ref()
-                .ok_or_else(|| KainError::codegen_error("Editor private directory not set in split mode"))?;
+"#,
+                includes_str,
+                editor_module_name,
+                startup_body,
+                editor_module_name,
+                editor_module_name
+            );
+
+            let ed_priv = layout.editor_private_dir.as_ref().ok_or_else(|| {
+                KainError::codegen_error("Editor private directory not set in split mode")
+            })?;
             let ed_module_cpp_path = ed_priv.join(format!("{}.cpp", editor_module_name));
             fs::write(&ed_module_cpp_path, ed_module_cpp).map_err(|e| KainError::Io(e))?;
-            println!("      ✓ {}.cpp (editor module registration)", editor_module_name);
+            println!(
+                "      ✓ {}.cpp (editor module registration)",
+                editor_module_name
+            );
         }
     } else if has_editor_module {
         // SINGLE MODULE: @editor_module provides IMPLEMENT_MODULE
         eprintln!("📦 [PACKAGER] @editor_module detected — skipping default module registration");
-        println!("   ℹ️  @editor_module provides IMPLEMENT_MODULE — skipping default {}.cpp", config.plugin_name);
+        println!(
+            "   ℹ️  @editor_module provides IMPLEMENT_MODULE — skipping default {}.cpp",
+            config.plugin_name
+        );
     } else {
         // SINGLE MODULE: Generate default IMPLEMENT_MODULE
         eprintln!("📦 [PACKAGER] Generating module registration file...");
-        
+
         // Build includes based on features
         let mut includes = vec![
             format!("#include \"{}.h\"", config.plugin_name),
@@ -1471,19 +1762,20 @@ IMPLEMENT_MODULE(F{}Module, {})
             includes.push("#include \"Generated/MaterialFactories.h\"".to_string());
             includes.push("#include \"Misc/CoreDelegates.h\"".to_string());
         }
-        
+
         if has_shaders {
             includes.push("#include \"Interfaces/IPluginManager.h\"".to_string());
             includes.push("#include \"ShaderCore.h\"".to_string());
         }
-        
+
         let includes_str = includes.join("\n");
-        
+
         // Build StartupModule body
         let mut startup_body = String::from("        // Module startup\n");
-        
+
         if has_shaders {
-            startup_body.push_str(&format!(r#"
+            startup_body.push_str(&format!(
+                r#"
         // Register shader virtual path mapping
         // Maps /Plugin/{} to physical Shaders/ directory
         if (!AllShaderSourceDirectoryMappings().Contains(TEXT("/Plugin/{}")))
@@ -1494,22 +1786,28 @@ IMPLEMENT_MODULE(F{}Module, {})
             );
             AddShaderSourceDirectoryMapping(TEXT("/Plugin/{}"), PluginShaderDir);
         }}
-"#, config.plugin_name, config.plugin_name, config.plugin_name, config.plugin_name));
+"#,
+                config.plugin_name, config.plugin_name, config.plugin_name, config.plugin_name
+            ));
         }
-        
+
         if has_material_factories {
             // Defer material generation until engine init has completed.
             // Running CreatePackage/NewObject directly in StartupModule can be too early
             // on some boots and may crash before UObject systems are fully ready.
-            startup_body.push_str(&format!(r#"
+            startup_body.push_str(&format!(
+                r#"
         #if WITH_EDITOR
         // Generate editor materials once engine startup has completed.
         FCoreDelegates::OnPostEngineInit.AddStatic(&F{}MaterialFactory::GenerateMaterials);
         #endif
-"#, config.plugin_name));
+"#,
+                config.plugin_name
+            ));
         }
-        
-        let module_cpp = format!(r#"// Generated by KAIN-PRO - Module Registration
+
+        let module_cpp = format!(
+            r#"// Generated by KAIN-PRO - Module Registration
 {}
 
 class F{}Module : public IModuleInterface
@@ -1526,13 +1824,17 @@ public:
 }};
 
 IMPLEMENT_MODULE(F{}Module, {})
-"#, includes_str, config.plugin_name, startup_body, config.plugin_name, config.plugin_name);
-        
-        let module_cpp_path = layout.private_dir.join(format!("{}.cpp", config.plugin_name));
+"#,
+            includes_str, config.plugin_name, startup_body, config.plugin_name, config.plugin_name
+        );
+
+        let module_cpp_path = layout
+            .private_dir
+            .join(format!("{}.cpp", config.plugin_name));
         fs::write(&module_cpp_path, module_cpp).map_err(|e| KainError::Io(e))?;
         println!("      ✓ {}.cpp (module registration)", config.plugin_name);
     }
-    
+
     Ok(())
 }
 
@@ -1543,18 +1845,30 @@ pub fn generate_monolithic(
     program: &kain_core::types::TypedProgram,
 ) -> KainResult<()> {
     println!("🎯 Generating main plugin files from merged program...");
-    
-    match ue5::generate_from_typed(program, Some(&config.plugin_name), config.copyright.as_deref()) {
+
+    match ue5::generate_from_typed(
+        program,
+        Some(&config.plugin_name),
+        config.copyright.as_deref(),
+    ) {
         Ok(ue5_output) => {
             // Write header
             let main_header_path = layout.public_dir.join(format!("{}.h", config.plugin_name));
             fs::write(&main_header_path, &ue5_output.header).map_err(|e| KainError::Io(e))?;
-            println!("   ✓ {}.h (actors, structs, enums, components)", config.plugin_name);
-            
+            println!(
+                "   ✓ {}.h (actors, structs, enums, components)",
+                config.plugin_name
+            );
+
             // Write source
-            let main_cpp_path = layout.private_dir.join(format!("{}.cpp", config.plugin_name));
+            let main_cpp_path = layout
+                .private_dir
+                .join(format!("{}.cpp", config.plugin_name));
             fs::write(&main_cpp_path, &ue5_output.source).map_err(|e| KainError::Io(e))?;
-            println!("   ✓ {}.cpp (implementations + module registration)", config.plugin_name);
+            println!(
+                "   ✓ {}.cpp (implementations + module registration)",
+                config.plugin_name
+            );
         }
         Err(e) => {
             eprintln!("   ✗ Failed to generate UE5 code: {}", e);
@@ -1567,14 +1881,28 @@ pub fn generate_monolithic(
 /// These are used to resolve module dependencies via the module graph.
 fn extract_referenced_types(program: &kain_core::types::TypedProgram) -> Vec<String> {
     let mut types: std::collections::HashSet<String> = std::collections::HashSet::new();
-    
+
     // Built-in KAIN types that don't map to UE5 modules — skip these
     let builtins: std::collections::HashSet<&str> = [
-        "Int", "Float", "Bool", "String", "Char",
-        "Vec2", "Vec3", "Vec4", "Array", "Map", "Option", "Result",
-        "Actor", "Component",
-    ].iter().copied().collect();
-    
+        "Int",
+        "Float",
+        "Bool",
+        "String",
+        "Char",
+        "Vec2",
+        "Vec3",
+        "Vec4",
+        "Array",
+        "Map",
+        "Option",
+        "Result",
+        "Actor",
+        "Component",
+    ]
+    .iter()
+    .copied()
+    .collect();
+
     for item in &program.items {
         match item {
             kain_core::types::TypedItem::Struct(s) => {
@@ -1621,7 +1949,7 @@ fn extract_referenced_types(program: &kain_core::types::TypedProgram) -> Vec<Str
             _ => {}
         }
     }
-    
+
     types.into_iter().collect()
 }
 
@@ -1641,7 +1969,9 @@ fn collect_ast_type_names(
             }
         }
         kain_core::ast::Type::Tuple(inner, _) => {
-            for t in inner { collect_ast_type_names(t, builtins, out); }
+            for t in inner {
+                collect_ast_type_names(t, builtins, out);
+            }
         }
         kain_core::ast::Type::Array(inner, _, _) => collect_ast_type_names(inner, builtins, out),
         kain_core::ast::Type::Slice(inner, _) => collect_ast_type_names(inner, builtins, out),
@@ -1717,26 +2047,31 @@ fn compute_editor_deps(
     program: &kain_core::types::TypedProgram,
 ) -> (Vec<String>, Vec<String>) {
     let base_modules = ["Core", "CoreUObject", "Engine"];
-    
+
     if module_graph.is_loaded() {
         // Data-driven: extract all types referenced in the program and resolve via graph
         let referenced = extract_referenced_types(program);
         let type_refs: Vec<&str> = referenced.iter().map(|s| s.as_str()).collect();
-        
+
         let mut apis: Vec<&str> = Vec::new();
         if has_shaders {
             apis.push("AddShaderSourceDirectoryMapping");
             apis.push("AllShaderSourceDirectoryMappings");
         }
-        
+
         // Editor module gets the same type resolution — editor items reference runtime types too
-        let public_extra = module_graph.resolve_deps_for_types(&type_refs, &[], &apis, &base_modules);
+        let public_extra =
+            module_graph.resolve_deps_for_types(&type_refs, &[], &apis, &base_modules);
         (public_extra, Vec::new())
     } else {
         // Fallback: feature-based
         let mut public_extra = Vec::new();
         if has_shaders {
-            public_extra.extend(["RenderCore", "RHI", "Renderer"].iter().map(|s| s.to_string()));
+            public_extra.extend(
+                ["RenderCore", "RHI", "Renderer"]
+                    .iter()
+                    .map(|s| s.to_string()),
+            );
         }
         (public_extra, Vec::new())
     }
@@ -1757,7 +2092,9 @@ pub fn write_plugin_files(
     let has_viewport = super::build_cs_gen::has_viewport_items(program);
     let has_toolbar = super::build_cs_gen::has_toolbar_items(program);
     // Generate .uplugin file (ALWAYS regenerate to ensure it's up-to-date)
-    let uplugin_path = layout.plugin_root.join(format!("{}.uplugin", config.plugin_name));
+    let uplugin_path = layout
+        .plugin_root
+        .join(format!("{}.uplugin", config.plugin_name));
     println!();
     println!("📦 Generating .uplugin file...");
     let uplugin_content = if config.has_module_plan() {
@@ -1783,32 +2120,50 @@ pub fn write_plugin_files(
     if has_shaders {
         println!("   ℹ️  CanContainContent: true (required for shader loading)");
     }
-    
+
     if module_graph.is_loaded() {
         let (mods, types, headers) = module_graph.stats();
-        println!("   📊 Module graph: {} modules, {} types, {} headers", mods, types, headers);
+        println!(
+            "   📊 Module graph: {} modules, {} types, {} headers",
+            mods, types, headers
+        );
     }
-    
+
     // Generate .Build.cs file(s)
     println!();
     println!("🔨 Generating .Build.cs file(s)...");
 
     if config.has_module_plan() {
         for module in &config.modules {
-            let (mut module_public_deps, module_private_deps): (Vec<String>, Vec<String>) = match module.module_type {
-                super::config::Ue5ModuleType::Runtime => {
-                    let mut deps = compute_runtime_deps(has_shaders, has_gas_features, module_graph, program);
-                    if !deps.contains(&"Core".to_string()) { deps.push("Core".to_string()); }
-                    if !deps.contains(&"CoreUObject".to_string()) { deps.push("CoreUObject".to_string()); }
-                    if !deps.contains(&"Engine".to_string()) { deps.push("Engine".to_string()); }
-                    if !deps.contains(&"Projects".to_string()) { deps.push("Projects".to_string()); }
-                    (deps, Vec::new())
-                }
-                _ => {
-                    let (pub_extra, priv_extra) = compute_editor_deps(has_shaders, module_graph, program);
-                    (pub_extra, priv_extra)
-                }
-            };
+            let (mut module_public_deps, module_private_deps): (Vec<String>, Vec<String>) =
+                match module.module_type {
+                    super::config::Ue5ModuleType::Runtime => {
+                        let mut deps = compute_runtime_deps(
+                            has_shaders,
+                            has_gas_features,
+                            module_graph,
+                            program,
+                        );
+                        if !deps.contains(&"Core".to_string()) {
+                            deps.push("Core".to_string());
+                        }
+                        if !deps.contains(&"CoreUObject".to_string()) {
+                            deps.push("CoreUObject".to_string());
+                        }
+                        if !deps.contains(&"Engine".to_string()) {
+                            deps.push("Engine".to_string());
+                        }
+                        if !deps.contains(&"Projects".to_string()) {
+                            deps.push("Projects".to_string());
+                        }
+                        (deps, Vec::new())
+                    }
+                    _ => {
+                        let (pub_extra, priv_extra) =
+                            compute_editor_deps(has_shaders, module_graph, program);
+                        (pub_extra, priv_extra)
+                    }
+                };
 
             // Merge explicit per-module deps from KAIN.toml.
             for dep in &module.public_deps {
@@ -1850,41 +2205,76 @@ pub fn write_plugin_files(
 
         return Ok(());
     }
-    
+
     if layout.needs_split {
         // SPLIT MODE: Two separate .Build.cs files
         let rt_extra = compute_runtime_deps(has_shaders, has_gas_features, module_graph, program);
-        let rt_build_cs_path = layout.source_dir.join(&config.plugin_name).join(format!("{}.Build.cs", config.plugin_name));
-        let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(&config.plugin_name, &rt_extra, has_datatable);
+        let rt_build_cs_path = layout
+            .source_dir
+            .join(&config.plugin_name)
+            .join(format!("{}.Build.cs", config.plugin_name));
+        let rt_build_cs = super::build_cs_gen::generate_build_cs_runtime(
+            &config.plugin_name,
+            &rt_extra,
+            has_datatable,
+        );
         fs::write(&rt_build_cs_path, rt_build_cs).map_err(|e| KainError::Io(e))?;
         if !rt_extra.is_empty() {
-            println!("   ✓ {}.Build.cs (runtime) + auto-resolved: {}", config.plugin_name, rt_extra.join(", "));
+            println!(
+                "   ✓ {}.Build.cs (runtime) + auto-resolved: {}",
+                config.plugin_name,
+                rt_extra.join(", ")
+            );
         } else {
             println!("   ✓ {}.Build.cs (runtime module)", config.plugin_name);
         }
-        
+
         let (ed_pub_extra, ed_priv_extra) = compute_editor_deps(has_shaders, module_graph, program);
         let editor_module_name = format!("{}Editor", config.plugin_name);
-        let ed_build_cs_path = layout.source_dir.join(&editor_module_name).join(format!("{}.Build.cs", editor_module_name));
-        let ed_build_cs = super::build_cs_gen::generate_build_cs_editor(&config.plugin_name, &ed_pub_extra, &ed_priv_extra, has_viewport, has_toolbar);
+        let ed_build_cs_path = layout
+            .source_dir
+            .join(&editor_module_name)
+            .join(format!("{}.Build.cs", editor_module_name));
+        let ed_build_cs = super::build_cs_gen::generate_build_cs_editor(
+            &config.plugin_name,
+            &ed_pub_extra,
+            &ed_priv_extra,
+            has_viewport,
+            has_toolbar,
+        );
         fs::write(&ed_build_cs_path, ed_build_cs).map_err(|e| KainError::Io(e))?;
         if !ed_pub_extra.is_empty() {
-            println!("   ✓ {}.Build.cs (editor) + auto-resolved: {}", editor_module_name, ed_pub_extra.join(", "));
+            println!(
+                "   ✓ {}.Build.cs (editor) + auto-resolved: {}",
+                editor_module_name,
+                ed_pub_extra.join(", ")
+            );
         } else {
             println!("   ✓ {}.Build.cs (editor module)", editor_module_name);
         }
     } else {
         // SINGLE MODULE: One .Build.cs
         let rt_extra = compute_runtime_deps(has_shaders, has_gas_features, module_graph, program);
-        let build_cs_path = layout.source_dir.join(format!("{}.Build.cs", config.plugin_name));
-        let build_cs_content = super::build_cs_gen::generate_build_cs(&config.plugin_name, layout.has_editor_items, &rt_extra, &[]);
+        let build_cs_path = layout
+            .source_dir
+            .join(format!("{}.Build.cs", config.plugin_name));
+        let build_cs_content = super::build_cs_gen::generate_build_cs(
+            &config.plugin_name,
+            layout.has_editor_items,
+            &rt_extra,
+            &[],
+        );
         fs::write(&build_cs_path, build_cs_content).map_err(|e| KainError::Io(e))?;
         if !rt_extra.is_empty() {
-            println!("   ✓ {}.Build.cs + auto-resolved: {}", config.plugin_name, rt_extra.join(", "));
+            println!(
+                "   ✓ {}.Build.cs + auto-resolved: {}",
+                config.plugin_name,
+                rt_extra.join(", ")
+            );
         } else {
             println!("   ✓ {}.Build.cs", config.plugin_name);
         }
     }
-    
+
     Ok(())
 }

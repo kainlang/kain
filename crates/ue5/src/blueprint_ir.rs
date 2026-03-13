@@ -9,9 +9,9 @@
 //! - Async Blueprint nodes (UK2Node_AsyncAction) for latent actions
 //! - Blueprint-callable functions (already implemented via @blueprint attribute)
 
-use kain_core::ast::{Function, Field, Block, Attribute};
 use crate::ue5::context::Ue5Context;
 use crate::ue5::types::TypeMapper;
+use kain_core::ast::{Attribute, Block, Field, Function};
 
 /// Blueprint event intermediate representation
 /// Represents a function that can be overridden in Blueprint with native implementation
@@ -19,16 +19,16 @@ use crate::ue5::types::TypeMapper;
 pub struct BlueprintEventIR {
     /// Name of the event (without prefix)
     pub event_name: String,
-    
+
     /// Parameters for the event
     pub params: Vec<BlueprintParamIR>,
-    
+
     /// Return type (if any)
     pub return_type: Option<String>,
-    
+
     /// Category for Blueprint organization
     pub category: String,
-    
+
     /// Default implementation body (C++ code)
     pub implementation_body: Option<String>,
 }
@@ -38,13 +38,13 @@ pub struct BlueprintEventIR {
 pub struct BlueprintParamIR {
     /// Parameter name (KAIN identifier)
     pub name: String,
-    
+
     /// C++ type string (e.g., "int32", "FVector", "AActor*")
     pub cpp_type: String,
-    
+
     /// Whether this is a reference parameter
     pub is_ref: bool,
-    
+
     /// Whether this is a const parameter
     pub is_const: bool,
 }
@@ -55,19 +55,19 @@ pub struct BlueprintParamIR {
 pub struct K2NodeIR {
     /// Name of the K2Node class (without UK2Node_ prefix)
     pub node_name: String,
-    
+
     /// Input pins for the node
     pub input_pins: Vec<K2PinIR>,
-    
+
     /// Output pins for the node
     pub output_pins: Vec<K2PinIR>,
-    
+
     /// Node title displayed in Blueprint editor
     pub node_title: String,
-    
+
     /// Node category for organization
     pub category: String,
-    
+
     /// Node expansion logic (C++ code for ExpandNode)
     pub expand_logic: Option<String>,
 }
@@ -77,13 +77,13 @@ pub struct K2NodeIR {
 pub struct K2PinIR {
     /// Pin name
     pub name: String,
-    
+
     /// Pin type (Exec, Bool, Int, Float, String, Object, etc.)
     pub pin_type: K2PinType,
-    
+
     /// Whether this is an array pin
     pub is_array: bool,
-    
+
     /// Default value (if any)
     pub default_value: Option<String>,
 }
@@ -102,8 +102,8 @@ pub enum K2PinType {
     Vector,
     Rotator,
     Transform,
-    Object(String),  // Object type with class name
-    Struct(String),  // Struct type with struct name
+    Object(String), // Object type with class name
+    Struct(String), // Struct type with struct name
     Wildcard,
 }
 
@@ -113,16 +113,16 @@ pub enum K2PinType {
 pub struct AsyncBlueprintIR {
     /// Name of the async action (without U prefix)
     pub action_name: String,
-    
+
     /// Input parameters for the action
     pub input_params: Vec<BlueprintParamIR>,
-    
+
     /// Output pins (delegates for completion/failure/etc.)
     pub output_pins: Vec<AsyncOutputPinIR>,
-    
+
     /// Activate method body (C++ code)
     pub activate_body: Option<String>,
-    
+
     /// Category for Blueprint organization
     pub category: String,
 }
@@ -132,7 +132,7 @@ pub struct AsyncBlueprintIR {
 pub struct AsyncOutputPinIR {
     /// Pin name (e.g., "OnCompleted", "OnFailed")
     pub name: String,
-    
+
     /// Parameters passed to the delegate
     pub params: Vec<BlueprintParamIR>,
 }
@@ -189,26 +189,29 @@ pub fn convert_to_blueprint_event_ir(
 ) -> Result<BlueprintEventIR, String> {
     // Create type mapper with context knowledge
     let mut type_mapper = TypeMapper::with_knowledge(ctx.knowledge.clone());
-    
+
     // Register all known types from context
     register_context_types(&mut type_mapper, ctx);
-    
+
     // Convert parameters
-    let params = func.params.iter()
+    let params = func
+        .params
+        .iter()
         .map(|param| convert_param(param, &type_mapper))
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     // Convert return type
-    let return_type = func.return_type.as_ref()
+    let return_type = func
+        .return_type
+        .as_ref()
         .map(|ty| type_mapper.map_type_string(ty));
-    
+
     // Extract category from attributes
-    let category = extract_category(&func.attributes)
-        .unwrap_or_else(|| "Events".to_string());
-    
+    let category = extract_category(&func.attributes).unwrap_or_else(|| "Events".to_string());
+
     // Convert body to C++ code
     let implementation_body = Some(convert_block_to_cpp(&func.body, ctx));
-    
+
     Ok(BlueprintEventIR {
         event_name: func.name.clone(),
         params,
@@ -225,11 +228,11 @@ fn convert_param(
 ) -> Result<BlueprintParamIR, String> {
     // Map KAIN type to C++ type
     let cpp_type = type_mapper.map_type_string(&param.ty);
-    
+
     // Check if this is a reference type
     let is_ref = cpp_type.contains("&");
     let is_const = cpp_type.starts_with("const ");
-    
+
     Ok(BlueprintParamIR {
         name: param.name.clone(),
         cpp_type,
@@ -273,7 +276,7 @@ fn register_context_types(type_mapper: &mut TypeMapper, ctx: &Ue5Context) {
 }
 
 /// Convert a KAIN block to C++ code
-/// 
+///
 /// This is a placeholder implementation that will be replaced with proper
 /// expression codegen when the full codegen pipeline is integrated.
 fn convert_block_to_cpp(block: &Block, _ctx: &Ue5Context) -> String {
@@ -289,13 +292,13 @@ fn convert_block_to_cpp(block: &Block, _ctx: &Ue5Context) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_core::ast::{Function, Param, Block, Type, Visibility, Attribute};
+    use kain_core::ast::{Attribute, Block, Function, Param, Type, Visibility};
     use kain_core::span::Span;
-    
+
     fn dummy_span() -> Span {
         Span::new(0, 0)
     }
-    
+
     fn make_simple_param(name: &str, ty: Type) -> Param {
         Param {
             name: name.to_string(),
@@ -305,24 +308,22 @@ mod tests {
             span: dummy_span(),
         }
     }
-    
+
     #[test]
     fn test_convert_simple_blueprint_event() {
         let ctx = Ue5Context::new("TestPlugin", None);
-        
+
         let func = Function {
             name: "OnCustomEvent".to_string(),
             generics: vec![],
-            params: vec![
-                make_simple_param(
-                    "value",
-                    Type::Named {
-                        name: "Int".to_string(),
-                        generics: vec![],
-                        span: dummy_span(),
-                    }
-                ),
-            ],
+            params: vec![make_simple_param(
+                "value",
+                Type::Named {
+                    name: "Int".to_string(),
+                    generics: vec![],
+                    span: dummy_span(),
+                },
+            )],
             return_type: None,
             effects: vec![],
             body: Block {
@@ -333,9 +334,9 @@ mod tests {
             attributes: vec![],
             span: dummy_span(),
         };
-        
+
         let ir = convert_to_blueprint_event_ir(&func, &ctx).unwrap();
-        
+
         assert_eq!(ir.event_name, "OnCustomEvent");
         assert_eq!(ir.params.len(), 1);
         assert_eq!(ir.params[0].name, "value");
@@ -343,24 +344,22 @@ mod tests {
         assert_eq!(ir.return_type, None);
         assert_eq!(ir.category, "Events");
     }
-    
+
     #[test]
     fn test_convert_blueprint_event_with_return() {
         let ctx = Ue5Context::new("TestPlugin", None);
-        
+
         let func = Function {
             name: "CalculateDamage".to_string(),
             generics: vec![],
-            params: vec![
-                make_simple_param(
-                    "base_damage",
-                    Type::Named {
-                        name: "Float".to_string(),
-                        generics: vec![],
-                        span: dummy_span(),
-                    }
-                ),
-            ],
+            params: vec![make_simple_param(
+                "base_damage",
+                Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: dummy_span(),
+                },
+            )],
             return_type: Some(Type::Named {
                 name: "Float".to_string(),
                 generics: vec![],
@@ -375,44 +374,43 @@ mod tests {
             attributes: vec![],
             span: dummy_span(),
         };
-        
+
         let ir = convert_to_blueprint_event_ir(&func, &ctx).unwrap();
-        
+
         assert_eq!(ir.event_name, "CalculateDamage");
         assert_eq!(ir.return_type, Some("float".to_string()));
     }
-    
+
     #[test]
     fn test_extract_category_from_attributes() {
-        let attributes = vec![
-            Attribute {
-                name: "category".to_string(),
-                args: vec![
-                    kain_core::ast::Expr::String("Combat".to_string(), dummy_span()),
-                ],
-                span: dummy_span(),
-            },
-        ];
-        
+        let attributes = vec![Attribute {
+            name: "category".to_string(),
+            args: vec![kain_core::ast::Expr::String(
+                "Combat".to_string(),
+                dummy_span(),
+            )],
+            span: dummy_span(),
+        }];
+
         let category = extract_category(&attributes);
         assert_eq!(category, Some("Combat".to_string()));
     }
-    
+
     #[test]
     fn test_blueprint_param_ir() {
         let type_mapper = TypeMapper::new();
-        
+
         let param = make_simple_param(
             "target",
             Type::Named {
                 name: "Actor".to_string(),
                 generics: vec![],
                 span: dummy_span(),
-            }
+            },
         );
-        
+
         let param_ir = convert_param(&param, &type_mapper).unwrap();
-        
+
         assert_eq!(param_ir.name, "target");
         assert!(param_ir.cpp_type.contains("AActor"));
     }

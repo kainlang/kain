@@ -14,14 +14,14 @@
 //! - `extern crate` → skipped
 //! - Associated types in traits → skipped for first slice
 
-use syn::{self};
+use super::types::RustTypeMapper;
+use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenamer};
+use crate::Result;
 use kain_core::ast::*;
 use kain_core::effects::Effect;
 use kain_core::span::Span;
-use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenamer};
-use crate::Result;
 use std::collections::{HashMap, HashSet};
-use super::types::RustTypeMapper;
+use syn::{self};
 
 // ── Transformer state ─────────────────────────────────────────────────────────
 
@@ -60,18 +60,10 @@ impl RustMacroPolicy {
             .into_iter()
             .map(str::to_string)
             .collect(),
-            preserve: [
-                "cfg",
-                "derive",
-                "arg",
-                "command",
-                "error",
-                "from",
-                "test",
-            ]
-            .into_iter()
-            .map(str::to_string)
-            .collect(),
+            preserve: ["cfg", "derive", "arg", "command", "error", "from", "test"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
             reject: HashSet::new(),
         }
     }
@@ -121,10 +113,10 @@ impl RustTransformer {
         Self {
             type_mapper,
             identifier_renamer: StableIdentifierRenamer::default(),
-            generics_in_scope:  Vec::new(),
-            current_function:   None,
-            local_types:        vec![HashMap::new()],
-            diagnostics:        Vec::new(),
+            generics_in_scope: Vec::new(),
+            current_function: None,
+            local_types: vec![HashMap::new()],
+            diagnostics: Vec::new(),
             options,
         }
     }
@@ -133,8 +125,11 @@ impl RustTransformer {
 
     fn rename_value(&mut self, raw: &str) -> String {
         // `self` is a KAIN keyword clash — map to `_self`
-        if raw == "self" { return "_self".to_string(); }
-        self.identifier_renamer.resolve(IdentifierDomain::Value, raw)
+        if raw == "self" {
+            return "_self".to_string();
+        }
+        self.identifier_renamer
+            .resolve(IdentifierDomain::Value, raw)
     }
 
     fn rename_type(&mut self, raw: &str) -> String {
@@ -142,11 +137,13 @@ impl RustTransformer {
     }
 
     fn rename_field(&mut self, raw: &str) -> String {
-        self.identifier_renamer.resolve(IdentifierDomain::Field, raw)
+        self.identifier_renamer
+            .resolve(IdentifierDomain::Field, raw)
     }
 
     fn rename_variant(&mut self, raw: &str) -> String {
-        self.identifier_renamer.resolve(IdentifierDomain::Variant, raw)
+        self.identifier_renamer
+            .resolve(IdentifierDomain::Variant, raw)
     }
 
     #[allow(dead_code)]
@@ -175,8 +172,14 @@ impl RustTransformer {
 
     // ── Scope helpers ─────────────────────────────────────────────────────
 
-    fn push_scope(&mut self) { self.local_types.push(HashMap::new()); }
-    fn pop_scope(&mut self)  { if self.local_types.len() > 1 { self.local_types.pop(); } }
+    fn push_scope(&mut self) {
+        self.local_types.push(HashMap::new());
+    }
+    fn pop_scope(&mut self) {
+        if self.local_types.len() > 1 {
+            self.local_types.pop();
+        }
+    }
     fn define(&mut self, name: &str, ty: Type) {
         if let Some(scope) = self.local_types.last_mut() {
             scope.insert(name.to_string(), ty);
@@ -188,8 +191,8 @@ impl RustTransformer {
             self.note_lossy_class(
                 "dyn_trait_lowering",
                 format!(
-                "dyn trait type lowered to impl {} (dynamic dispatch semantics narrowed)",
-                trait_name
+                    "dyn trait type lowered to impl {} (dynamic dispatch semantics narrowed)",
+                    trait_name
                 ),
             );
         }
@@ -201,7 +204,11 @@ impl RustTransformer {
         let variant = resolved
             .last()
             .cloned()
-            .or_else(|| path.segments.last().map(|segment| segment.ident.to_string()))
+            .or_else(|| {
+                path.segments
+                    .last()
+                    .map(|segment| segment.ident.to_string())
+            })
             .unwrap_or_default();
         let enum_name = if resolved.len() > 1 {
             Some(resolved[..resolved.len() - 1].join("::"))
@@ -229,24 +236,26 @@ impl RustTransformer {
 
     fn transform_item(&mut self, item: &syn::Item) -> Result<Vec<Item>> {
         match item {
-            syn::Item::Fn(f)          => Ok(self.transform_fn(f)?.into_iter().map(Item::Function).collect()),
-            syn::Item::Struct(s)      => Ok(vec![Item::Struct(self.transform_struct(s)?)]),
-            syn::Item::Enum(e)        => Ok(vec![Item::Enum(self.transform_enum(e)?)]),
-            syn::Item::Impl(i)        => Ok(vec![Item::Impl(self.transform_impl(i)?)]),
-            syn::Item::Const(c)       => Ok(vec![Item::Const(self.transform_const(c)?)]),
-            syn::Item::Static(s)      => Ok(vec![Item::Const(self.transform_static(s)?)]),
-            syn::Item::Type(t)        => Ok(vec![Item::TypeAlias(self.transform_type_alias(t)?)]),
-            syn::Item::Mod(m)         => self.transform_mod(m),
-            syn::Item::Use(u)         => self.transform_use(u),
-            syn::Item::Trait(t)       => Ok(vec![Item::Trait(self.transform_trait(t)?)]),
+            syn::Item::Fn(f) => Ok(self
+                .transform_fn(f)?
+                .into_iter()
+                .map(Item::Function)
+                .collect()),
+            syn::Item::Struct(s) => Ok(vec![Item::Struct(self.transform_struct(s)?)]),
+            syn::Item::Enum(e) => Ok(vec![Item::Enum(self.transform_enum(e)?)]),
+            syn::Item::Impl(i) => Ok(vec![Item::Impl(self.transform_impl(i)?)]),
+            syn::Item::Const(c) => Ok(vec![Item::Const(self.transform_const(c)?)]),
+            syn::Item::Static(s) => Ok(vec![Item::Const(self.transform_static(s)?)]),
+            syn::Item::Type(t) => Ok(vec![Item::TypeAlias(self.transform_type_alias(t)?)]),
+            syn::Item::Mod(m) => self.transform_mod(m),
+            syn::Item::Use(u) => self.transform_use(u),
+            syn::Item::Trait(t) => Ok(vec![Item::Trait(self.transform_trait(t)?)]),
             syn::Item::TraitAlias(t) => {
                 self.note_lossy(format!("trait alias {} skipped", t.ident));
                 Ok(vec![])
             }
             // Macro rules / foreign items → skip
-            syn::Item::Macro(_)
-            | syn::Item::ExternCrate(_)
-            | syn::Item::ForeignMod(_) => {
+            syn::Item::Macro(_) | syn::Item::ExternCrate(_) | syn::Item::ForeignMod(_) => {
                 self.note_lossy("macro/extern/foreign item skipped".to_string());
                 Ok(vec![])
             }
@@ -302,18 +311,24 @@ impl RustTransformer {
 
         // Return type
         let return_type = match &f.sig.output {
-            syn::ReturnType::Default       => None,
-            syn::ReturnType::Type(_, ty)   => Some(self.map_type_checked(ty)),
+            syn::ReturnType::Default => None,
+            syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
         };
 
         // Effects
         let mut effects: Vec<Effect> = Vec::new();
-        if f.sig.unsafety.is_some() { effects.push(Effect::Unsafe); }
-        if f.sig.asyncness.is_some() { effects.push(Effect::Async); }
+        if f.sig.unsafety.is_some() {
+            effects.push(Effect::Unsafe);
+        }
+        if f.sig.asyncness.is_some() {
+            effects.push(Effect::Async);
+        }
 
         // Body
         self.push_scope();
-        for p in &params { self.define(&p.name, p.ty.clone()); }
+        for p in &params {
+            self.define(&p.name, p.ty.clone());
+        }
         let body = self.transform_block(&f.block)?;
         self.pop_scope();
 
@@ -344,26 +359,40 @@ impl RustTransformer {
                     // `self` / `&self` / `&mut self`
                     let ty = if r.reference.is_some() {
                         Type::Ref {
-                            mutable:  r.mutability.is_some(),
-                            inner:    Box::new(Type::Named { name: "Self".to_string(), generics: vec![], span: S }),
+                            mutable: r.mutability.is_some(),
+                            inner: Box::new(Type::Named {
+                                name: "Self".to_string(),
+                                generics: vec![],
+                                span: S,
+                            }),
                             lifetime: None,
-                            span:     S,
+                            span: S,
                         }
                     } else {
-                        Type::Named { name: "Self".to_string(), generics: vec![], span: S }
+                        Type::Named {
+                            name: "Self".to_string(),
+                            generics: vec![],
+                            span: S,
+                        }
                     };
                     params.push(Param {
-                        name:    "_self".to_string(),
+                        name: "_self".to_string(),
                         ty,
-                        mutable:  r.mutability.is_some(),
-                        default:  None,
-                        span:     S,
+                        mutable: r.mutability.is_some(),
+                        default: None,
+                        span: S,
                     });
                 }
                 syn::FnArg::Typed(pt) => {
                     let name = self.pattern_to_name(&pt.pat);
-                    let ty   = self.map_type_checked(&pt.ty);
-                    params.push(Param { name, ty, mutable: false, default: None, span: S });
+                    let ty = self.map_type_checked(&pt.ty);
+                    params.push(Param {
+                        name,
+                        ty,
+                        mutable: false,
+                        default: None,
+                        span: S,
+                    });
                 }
             }
         }
@@ -413,18 +442,15 @@ impl RustTransformer {
                     if !method.sig.generics.params.is_empty() {
                         self.note_lossy_class(
                             "trait_surface_lowering",
-                            format!(
-                            "trait method {}::{} generics skipped",
-                            name, method_name
-                            ),
+                            format!("trait method {}::{} generics skipped", name, method_name),
                         );
                     }
                     if method.sig.generics.where_clause.is_some() {
                         self.note_lossy_class(
                             "trait_surface_lowering",
                             format!(
-                            "trait method {}::{} where-clause skipped",
-                            name, method_name
+                                "trait method {}::{} where-clause skipped",
+                                name, method_name
                             ),
                         );
                     }
@@ -456,18 +482,15 @@ impl RustTransformer {
                     self.note_lossy_class(
                         "trait_surface_lowering",
                         format!(
-                        "trait {} associated const {} skipped",
-                        name, item_const.ident
+                            "trait {} associated const {} skipped",
+                            name, item_const.ident
                         ),
                     );
                 }
                 syn::TraitItem::Type(item_type) => {
                     self.note_lossy_class(
                         "trait_surface_lowering",
-                        format!(
-                        "trait {} associated type {} skipped",
-                        name, item_type.ident
-                        ),
+                        format!("trait {} associated type {} skipped", name, item_type.ident),
                     );
                 }
                 syn::TraitItem::Macro(_) => {
@@ -505,35 +528,45 @@ impl RustTransformer {
     // ─────────────────────────────────────────────────────────────────────
 
     fn transform_struct(&mut self, s: &syn::ItemStruct) -> Result<Struct> {
-        let name     = self.rename_type(&s.ident.to_string());
+        let name = self.rename_type(&s.ident.to_string());
         let generics = self.type_mapper.map_generic_params(&s.generics.params);
 
         let fields = match &s.fields {
-            syn::Fields::Named(named) => named.named.iter().map(|f| {
-                let field_name = self.rename_field(&f.ident.as_ref().map(|i| i.to_string()).unwrap_or_default());
-                let ty = self.map_type_checked(&f.ty);
-                Field {
-                    name:       field_name,
-                    ty,
-                    attributes: Vec::new(),
-                    visibility: visibility(&f.vis),
-                    default:    None,
-                    weak:       false,
-                    span:       S,
-                }
-            }).collect(),
-            syn::Fields::Unnamed(unnamed) => unnamed.unnamed.iter().enumerate().map(|(i, f)| {
-                let ty = self.map_type_checked(&f.ty);
-                Field {
-                    name:       format!("field_{}", i),
-                    ty,
-                    attributes: Vec::new(),
-                    visibility: visibility(&f.vis),
-                    default:    None,
-                    weak:       false,
-                    span:       S,
-                }
-            }).collect(),
+            syn::Fields::Named(named) => named
+                .named
+                .iter()
+                .map(|f| {
+                    let field_name = self
+                        .rename_field(&f.ident.as_ref().map(|i| i.to_string()).unwrap_or_default());
+                    let ty = self.map_type_checked(&f.ty);
+                    Field {
+                        name: field_name,
+                        ty,
+                        attributes: Vec::new(),
+                        visibility: visibility(&f.vis),
+                        default: None,
+                        weak: false,
+                        span: S,
+                    }
+                })
+                .collect(),
+            syn::Fields::Unnamed(unnamed) => unnamed
+                .unnamed
+                .iter()
+                .enumerate()
+                .map(|(i, f)| {
+                    let ty = self.map_type_checked(&f.ty);
+                    Field {
+                        name: format!("field_{}", i),
+                        ty,
+                        attributes: Vec::new(),
+                        visibility: visibility(&f.vis),
+                        default: None,
+                        weak: false,
+                        span: S,
+                    }
+                })
+                .collect(),
             syn::Fields::Unit => vec![],
         };
 
@@ -541,10 +574,10 @@ impl RustTransformer {
             name,
             generics,
             fields,
-            methods:    Vec::new(),
+            methods: Vec::new(),
             attributes: Vec::new(),
             visibility: visibility(&s.vis),
-            span:       S,
+            span: S,
         })
     }
 
@@ -553,31 +586,53 @@ impl RustTransformer {
     // ─────────────────────────────────────────────────────────────────────
 
     fn transform_enum(&mut self, e: &syn::ItemEnum) -> Result<Enum> {
-        let name     = self.rename_type(&e.ident.to_string());
+        let name = self.rename_type(&e.ident.to_string());
         let generics = self.type_mapper.map_generic_params(&e.generics.params);
 
-        let variants = e.variants.iter().map(|v| {
-            let variant_name = self.rename_variant(&v.ident.to_string());
-            let fields = match &v.fields {
-                syn::Fields::Unit          => VariantFields::Unit,
-                syn::Fields::Unnamed(un)   => VariantFields::Tuple(
-                    un.unnamed.iter().map(|f| self.map_type_checked(&f.ty)).collect()
-                ),
-                syn::Fields::Named(named)  => VariantFields::Struct(
-                    named.named.iter().map(|f| {
-                        let field_name = f.ident.as_ref().map(|i| self.rename_field(&i.to_string())).unwrap_or_default();
-                        let ty = self.map_type_checked(&f.ty);
-                        Field {
-                            name: field_name, ty,
-                            attributes: Vec::new(),
-                            visibility: Visibility::Public,
-                            default: None, weak: false, span: S,
-                        }
-                    }).collect()
-                ),
-            };
-            Variant { name: variant_name, fields, span: S }
-        }).collect();
+        let variants = e
+            .variants
+            .iter()
+            .map(|v| {
+                let variant_name = self.rename_variant(&v.ident.to_string());
+                let fields = match &v.fields {
+                    syn::Fields::Unit => VariantFields::Unit,
+                    syn::Fields::Unnamed(un) => VariantFields::Tuple(
+                        un.unnamed
+                            .iter()
+                            .map(|f| self.map_type_checked(&f.ty))
+                            .collect(),
+                    ),
+                    syn::Fields::Named(named) => VariantFields::Struct(
+                        named
+                            .named
+                            .iter()
+                            .map(|f| {
+                                let field_name = f
+                                    .ident
+                                    .as_ref()
+                                    .map(|i| self.rename_field(&i.to_string()))
+                                    .unwrap_or_default();
+                                let ty = self.map_type_checked(&f.ty);
+                                Field {
+                                    name: field_name,
+                                    ty,
+                                    attributes: Vec::new(),
+                                    visibility: Visibility::Public,
+                                    default: None,
+                                    weak: false,
+                                    span: S,
+                                }
+                            })
+                            .collect(),
+                    ),
+                };
+                Variant {
+                    name: variant_name,
+                    fields,
+                    span: S,
+                }
+            })
+            .collect();
 
         Ok(Enum {
             name,
@@ -594,14 +649,20 @@ impl RustTransformer {
 
     fn transform_impl(&mut self, i: &syn::ItemImpl) -> Result<Impl> {
         let target_type = self.map_type_checked(&i.self_ty);
-        let generics    = self.type_mapper.map_generic_params(&i.generics.params);
+        let generics = self.type_mapper.map_generic_params(&i.generics.params);
         if i.generics.where_clause.is_some() {
-            self.note_lossy_class("trait_surface_lowering", "impl where-clause skipped".to_string());
+            self.note_lossy_class(
+                "trait_surface_lowering",
+                "impl where-clause skipped".to_string(),
+            );
         }
 
         // `impl Trait for Type` → note the trait, still emit the methods
         let trait_name = i.trait_.as_ref().map(|(_, path, _)| {
-            path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default()
+            path.segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default()
         });
 
         let mut methods = Vec::new();
@@ -611,8 +672,11 @@ impl RustTransformer {
                     let name = self.rename_value(&method.sig.ident.to_string());
                     self.current_function = Some(name.clone());
 
-                    let method_generics = self.type_mapper.map_generic_params(&method.sig.generics.params);
-                    self.generics_in_scope = method_generics.iter().map(|g| g.name.clone()).collect();
+                    let method_generics = self
+                        .type_mapper
+                        .map_generic_params(&method.sig.generics.params);
+                    self.generics_in_scope =
+                        method_generics.iter().map(|g| g.name.clone()).collect();
                     if method.sig.generics.where_clause.is_some() {
                         self.note_lossy_class(
                             "trait_surface_lowering",
@@ -622,15 +686,21 @@ impl RustTransformer {
 
                     let params = self.transform_sig_inputs(&method.sig.inputs)?;
                     let return_type = match &method.sig.output {
-                        syn::ReturnType::Default     => None,
+                        syn::ReturnType::Default => None,
                         syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
                     };
                     let mut effects = Vec::new();
-                    if method.sig.unsafety.is_some() { effects.push(Effect::Unsafe); }
-                    if method.sig.asyncness.is_some() { effects.push(Effect::Async); }
+                    if method.sig.unsafety.is_some() {
+                        effects.push(Effect::Unsafe);
+                    }
+                    if method.sig.asyncness.is_some() {
+                        effects.push(Effect::Async);
+                    }
 
                     self.push_scope();
-                    for p in &params { self.define(&p.name, p.ty.clone()); }
+                    for p in &params {
+                        self.define(&p.name, p.ty.clone());
+                    }
                     let body = self.transform_block(&method.block)?;
                     self.pop_scope();
 
@@ -662,13 +732,22 @@ impl RustTransformer {
                     );
                 }
                 syn::ImplItem::Macro(_) => {
-                    self.note_lossy_class("trait_surface_lowering", "impl macro item skipped".to_string());
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        "impl macro item skipped".to_string(),
+                    );
                 }
                 syn::ImplItem::Verbatim(_) => {
-                    self.note_lossy_class("trait_surface_lowering", "impl verbatim item skipped".to_string());
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        "impl verbatim item skipped".to_string(),
+                    );
                 }
                 _ => {
-                    self.note_lossy_class("trait_surface_lowering", "impl unsupported item skipped".to_string());
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        "impl unsupported item skipped".to_string(),
+                    );
                 }
             }
         }
@@ -687,29 +766,47 @@ impl RustTransformer {
     // ─────────────────────────────────────────────────────────────────────
 
     fn transform_const(&mut self, c: &syn::ItemConst) -> Result<Const> {
-        let name  = self.rename_value(&c.ident.to_string());
-        let ty    = self.map_type_checked(&c.ty);
+        let name = self.rename_value(&c.ident.to_string());
+        let ty = self.map_type_checked(&c.ty);
         let value = self.transform_expr(&c.expr)?;
-        Ok(Const { name, ty, value, visibility: visibility(&c.vis), span: S })
+        Ok(Const {
+            name,
+            ty,
+            value,
+            visibility: visibility(&c.vis),
+            span: S,
+        })
     }
 
     fn transform_static(&mut self, s: &syn::ItemStatic) -> Result<Const> {
-        let name  = self.rename_value(&s.ident.to_string());
-        let ty    = self.map_type_checked(&s.ty);
+        let name = self.rename_value(&s.ident.to_string());
+        let ty = self.map_type_checked(&s.ty);
         let value = self.transform_expr(&s.expr)?;
-        Ok(Const { name, ty, value, visibility: visibility(&s.vis), span: S })
+        Ok(Const {
+            name,
+            ty,
+            value,
+            visibility: visibility(&s.vis),
+            span: S,
+        })
     }
 
     // ── Type alias ─────────────────────────────────────────────────────
 
     fn transform_type_alias(&mut self, t: &syn::ItemType) -> Result<TypeAlias> {
-        let name     = self.rename_type(&t.ident.to_string());
+        let name = self.rename_type(&t.ident.to_string());
         let generics = self.type_mapper.map_generic_params(&t.generics.params);
         if t.generics.where_clause.is_some() {
             self.note_lossy(format!("type alias {} where-clause skipped", name));
         }
-        let target   = self.map_type_checked(&t.ty);
-        Ok(TypeAlias { name, generics, target, visibility: visibility(&t.vis), span: S })
+        let target = self.map_type_checked(&t.ty);
+        Ok(TypeAlias {
+            name,
+            generics,
+            target,
+            visibility: visibility(&t.vis),
+            span: S,
+        })
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -744,10 +841,14 @@ impl RustTransformer {
                     self.define(&name, ty_ann.clone());
                 }
                 Ok(vec![Stmt::Let {
-                    pattern: Pattern::Binding { name, mutable, span: S },
-                    ty:      ty_ann,
+                    pattern: Pattern::Binding {
+                        name,
+                        mutable,
+                        span: S,
+                    },
+                    ty: ty_ann,
                     value,
-                    span:    S,
+                    span: S,
                 }])
             }
 
@@ -766,7 +867,10 @@ impl RustTransformer {
             syn::Stmt::Item(item) => {
                 // Nested items in functions are hoisted by Rust; emit them
                 let items = self.transform_item(item)?;
-                Ok(items.into_iter().map(|item| Stmt::Item(Box::new(item))).collect())
+                Ok(items
+                    .into_iter()
+                    .map(|item| Stmt::Item(Box::new(item)))
+                    .collect())
             }
             syn::Stmt::Macro(stmt_macro) => {
                 let macro_name = path_to_ident(&stmt_macro.mac.path);
@@ -797,7 +901,8 @@ impl RustTransformer {
             syn::UseTree::Name(name) => {
                 if name.ident == "self" {
                     if let Some(visible) = prefix.last().cloned() {
-                        self.type_mapper.register_visible_path(visible, prefix.clone());
+                        self.type_mapper
+                            .register_visible_path(visible, prefix.clone());
                     }
                     items.push(Item::Use(Use {
                         path: prefix,
@@ -875,17 +980,21 @@ impl RustTransformer {
             syn::Expr::Unary(u) => {
                 let operand = self.transform_expr(&u.expr)?;
                 let op = match u.op {
-                    syn::UnOp::Neg(_)   => UnaryOp::Neg,
-                    syn::UnOp::Not(_)   => UnaryOp::Not,
+                    syn::UnOp::Neg(_) => UnaryOp::Neg,
+                    syn::UnOp::Not(_) => UnaryOp::Not,
                     syn::UnOp::Deref(_) => UnaryOp::Deref,
-                    _                   => UnaryOp::Not,
+                    _ => UnaryOp::Not,
                 };
-                Ok(Expr::Unary { op, operand: Box::new(operand), span: S })
+                Ok(Expr::Unary {
+                    op,
+                    operand: Box::new(operand),
+                    span: S,
+                })
             }
 
             // ── Binary ────────────────────────────────────────────────────
             syn::Expr::Binary(b) => {
-                let left  = self.transform_expr(&b.left)?;
+                let left = self.transform_expr(&b.left)?;
                 let right = self.transform_expr(&b.right)?;
                 if let Some(assign_op) = compound_assign_rhs_op(&b.op) {
                     let target = left.clone();
@@ -902,63 +1011,99 @@ impl RustTransformer {
                     })
                 } else {
                     let op = binop(&b.op);
-                    Ok(Expr::Binary { left: Box::new(left), op, right: Box::new(right), span: S })
+                    Ok(Expr::Binary {
+                        left: Box::new(left),
+                        op,
+                        right: Box::new(right),
+                        span: S,
+                    })
                 }
             }
 
             // ── Assignment ────────────────────────────────────────────────
             syn::Expr::Assign(a) => {
                 let target = self.transform_expr(&a.left)?;
-                let value  = self.transform_expr(&a.right)?;
-                Ok(Expr::Assign { target: Box::new(target), value: Box::new(value), span: S })
+                let value = self.transform_expr(&a.right)?;
+                Ok(Expr::Assign {
+                    target: Box::new(target),
+                    value: Box::new(value),
+                    span: S,
+                })
             }
 
             // ── Field access ──────────────────────────────────────────────
             syn::Expr::Field(f) => {
                 let object = self.transform_expr(&f.base)?;
-                let field  = match &f.member {
-                    syn::Member::Named(ident)  => self.rename_field(&ident.to_string()),
-                    syn::Member::Unnamed(idx)  => format!("field_{}", idx.index),
+                let field = match &f.member {
+                    syn::Member::Named(ident) => self.rename_field(&ident.to_string()),
+                    syn::Member::Unnamed(idx) => format!("field_{}", idx.index),
                 };
-                Ok(Expr::Field { object: Box::new(object), field, span: S })
+                Ok(Expr::Field {
+                    object: Box::new(object),
+                    field,
+                    span: S,
+                })
             }
 
             // ── Index ─────────────────────────────────────────────────────
             syn::Expr::Index(i) => {
                 let object = self.transform_expr(&i.expr)?;
-                let index  = self.transform_expr(&i.index)?;
-                Ok(Expr::Index { object: Box::new(object), index: Box::new(index), span: S })
+                let index = self.transform_expr(&i.index)?;
+                Ok(Expr::Index {
+                    object: Box::new(object),
+                    index: Box::new(index),
+                    span: S,
+                })
             }
 
             // ── Function call ─────────────────────────────────────────────
             syn::Expr::Call(c) => {
                 let callee = self.transform_expr(&c.func)?;
-                let args   = self.transform_call_args(&c.args)?;
-                Ok(Expr::Call { callee: Box::new(callee), args, span: S })
+                let args = self.transform_call_args(&c.args)?;
+                Ok(Expr::Call {
+                    callee: Box::new(callee),
+                    args,
+                    span: S,
+                })
             }
 
             // ── Method call ───────────────────────────────────────────────
             syn::Expr::MethodCall(m) => {
                 let receiver = self.transform_expr(&m.receiver)?;
-                let method   = self.rename_value(&m.method.to_string());
-                let args     = self.transform_call_args(&m.args)?;
-                Ok(Expr::MethodCall { receiver: Box::new(receiver), method, args, span: S })
+                let method = self.rename_value(&m.method.to_string());
+                let args = self.transform_call_args(&m.args)?;
+                Ok(Expr::MethodCall {
+                    receiver: Box::new(receiver),
+                    method,
+                    args,
+                    span: S,
+                })
             }
 
             // ── Struct construction ───────────────────────────────────────
             syn::Expr::Struct(s) => {
-                let name   = self.resolve_type_path(&s.path);
-                let fields = s.fields.iter().map(|fv| {
-                    let field_name = self.rename_field(&member_name(&fv.member));
-                    let val        = self.transform_expr(&fv.expr)?;
-                    Ok((field_name, val))
-                }).collect::<Result<Vec<_>>>()?;
-                Ok(Expr::Struct { name, fields, span: S })
+                let name = self.resolve_type_path(&s.path);
+                let fields = s
+                    .fields
+                    .iter()
+                    .map(|fv| {
+                        let field_name = self.rename_field(&member_name(&fv.member));
+                        let val = self.transform_expr(&fv.expr)?;
+                        Ok((field_name, val))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Expr::Struct {
+                    name,
+                    fields,
+                    span: S,
+                })
             }
 
             // ── Array ─────────────────────────────────────────────────────
             syn::Expr::Array(a) => {
-                let items = a.elems.iter()
+                let items = a
+                    .elems
+                    .iter()
                     .map(|e| self.transform_expr(e))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Expr::Array(items, S))
@@ -976,7 +1121,9 @@ impl RustTransformer {
                 if t.elems.is_empty() {
                     return Ok(Expr::None(S)); // () → None (unit)
                 }
-                let items = t.elems.iter()
+                let items = t
+                    .elems
+                    .iter()
                     .map(|e| self.transform_expr(e))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Expr::Tuple(items, S))
@@ -984,16 +1131,31 @@ impl RustTransformer {
 
             // ── Closure / lambda ──────────────────────────────────────────
             syn::Expr::Closure(cl) => {
-                let params = cl.inputs.iter().map(|p| {
-                    let name = self.pattern_to_name(p);
-                    Param { name, ty: Type::Infer(S), mutable: false, default: None, span: S }
-                }).collect();
+                let params = cl
+                    .inputs
+                    .iter()
+                    .map(|p| {
+                        let name = self.pattern_to_name(p);
+                        Param {
+                            name,
+                            ty: Type::Infer(S),
+                            mutable: false,
+                            default: None,
+                            span: S,
+                        }
+                    })
+                    .collect();
                 let return_type = match &cl.output {
-                    syn::ReturnType::Default     => None,
+                    syn::ReturnType::Default => None,
                     syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
                 };
                 let body = self.transform_expr(&cl.body)?;
-                Ok(Expr::Lambda { params, return_type, body: Box::new(body), span: S })
+                Ok(Expr::Lambda {
+                    params,
+                    return_type,
+                    body: Box::new(body),
+                    span: S,
+                })
             }
 
             // ── If / if let ───────────────────────────────────────────────
@@ -1002,41 +1164,66 @@ impl RustTransformer {
             // ── Match ─────────────────────────────────────────────────────
             syn::Expr::Match(m) => {
                 let scrutinee = self.transform_expr(&m.expr)?;
-                let arms = m.arms.iter()
+                let arms = m
+                    .arms
+                    .iter()
                     .map(|arm| self.transform_arm(arm))
                     .collect::<Result<Vec<_>>>()?;
-                Ok(Expr::Match { scrutinee: Box::new(scrutinee), arms, span: S })
+                Ok(Expr::Match {
+                    scrutinee: Box::new(scrutinee),
+                    arms,
+                    span: S,
+                })
             }
 
             // ── Loop / while / for ────────────────────────────────────────
             syn::Expr::Loop(l) => {
                 let body = self.transform_block(&l.body)?;
-                Ok(Expr::Block(Block {
-                    stmts: vec![Stmt::Loop { body, span: S }],
-                    span:  S,
-                }, S))
+                Ok(Expr::Block(
+                    Block {
+                        stmts: vec![Stmt::Loop { body, span: S }],
+                        span: S,
+                    },
+                    S,
+                ))
             }
 
             syn::Expr::While(w) => self.transform_while_expr(w),
 
             syn::Expr::ForLoop(f) => {
                 let binding = self.transform_pattern(&f.pat);
-                let iter    = self.transform_expr(&f.expr)?;
-                let body    = self.transform_block(&f.body)?;
-                Ok(Expr::Block(Block {
-                    stmts: vec![Stmt::For { binding, iter, body, span: S }],
-                    span:  S,
-                }, S))
+                let iter = self.transform_expr(&f.expr)?;
+                let body = self.transform_block(&f.body)?;
+                Ok(Expr::Block(
+                    Block {
+                        stmts: vec![Stmt::For {
+                            binding,
+                            iter,
+                            body,
+                            span: S,
+                        }],
+                        span: S,
+                    },
+                    S,
+                ))
             }
 
             // ── Return / break / continue ─────────────────────────────────
             syn::Expr::Return(r) => {
-                let val = r.expr.as_ref().map(|e| self.transform_expr(e)).transpose()?;
+                let val = r
+                    .expr
+                    .as_ref()
+                    .map(|e| self.transform_expr(e))
+                    .transpose()?;
                 Ok(Expr::Return(val.map(Box::new), S))
             }
 
             syn::Expr::Break(b) => {
-                let val = b.expr.as_ref().map(|e| self.transform_expr(e)).transpose()?;
+                let val = b
+                    .expr
+                    .as_ref()
+                    .map(|e| self.transform_expr(e))
+                    .transpose()?;
                 Ok(Expr::Break(val.map(Box::new), S))
             }
 
@@ -1056,15 +1243,23 @@ impl RustTransformer {
 
             // ── Cast: `expr as T` ─────────────────────────────────────────
             syn::Expr::Cast(c) => {
-                let value  = self.transform_expr(&c.expr)?;
+                let value = self.transform_expr(&c.expr)?;
                 let target = self.map_type_checked(&c.ty);
-                Ok(Expr::Cast { value: Box::new(value), target, span: S })
+                Ok(Expr::Cast {
+                    value: Box::new(value),
+                    target,
+                    span: S,
+                })
             }
 
             // ── Reference: `&expr` / `&mut expr` ─────────────────────────
             syn::Expr::Reference(r) => {
                 let value = self.transform_expr(&r.expr)?;
-                Ok(Expr::Ref { mutable: r.mutability.is_some(), value: Box::new(value), span: S })
+                Ok(Expr::Ref {
+                    mutable: r.mutability.is_some(),
+                    value: Box::new(value),
+                    span: S,
+                })
             }
 
             // ── Dereference: `*expr` ──────────────────────────────────────
@@ -1076,14 +1271,18 @@ impl RustTransformer {
 
             // ── Range ─────────────────────────────────────────────────────
             syn::Expr::Range(r) => {
-                let start     = r.start.as_ref().map(|e| self.transform_expr(e)).transpose()?;
-                let end       = r.end.as_ref().map(|e| self.transform_expr(e)).transpose()?;
+                let start = r
+                    .start
+                    .as_ref()
+                    .map(|e| self.transform_expr(e))
+                    .transpose()?;
+                let end = r.end.as_ref().map(|e| self.transform_expr(e)).transpose()?;
                 let inclusive = matches!(r.limits, syn::RangeLimits::Closed(_));
                 Ok(Expr::Range {
-                    start:     start.map(Box::new),
-                    end:       end.map(Box::new),
+                    start: start.map(Box::new),
+                    end: end.map(Box::new),
                     inclusive,
-                    span:      S,
+                    span: S,
                 })
             }
 
@@ -1121,18 +1320,18 @@ impl RustTransformer {
 
     fn transform_lit(&mut self, lit: &syn::ExprLit) -> Result<Expr> {
         match &lit.lit {
-            syn::Lit::Int(i)    => {
+            syn::Lit::Int(i) => {
                 let val = i.base10_parse::<i64>().unwrap_or(0);
                 Ok(Expr::Int(val, S))
             }
-            syn::Lit::Float(f)  => {
+            syn::Lit::Float(f) => {
                 let val = f.base10_parse::<f64>().unwrap_or(0.0);
                 Ok(Expr::Float(val, S))
             }
-            syn::Lit::Bool(b)   => Ok(Expr::Bool(b.value, S)),
-            syn::Lit::Str(s)    => Ok(Expr::String(s.value(), S)),
-            syn::Lit::Char(c)   => Ok(Expr::String(c.value().to_string(), S)),
-            syn::Lit::Byte(b)   => Ok(Expr::Int(b.value() as i64, S)),
+            syn::Lit::Bool(b) => Ok(Expr::Bool(b.value, S)),
+            syn::Lit::Str(s) => Ok(Expr::String(s.value(), S)),
+            syn::Lit::Char(c) => Ok(Expr::String(c.value().to_string(), S)),
+            syn::Lit::Byte(b) => Ok(Expr::Int(b.value() as i64, S)),
             syn::Lit::ByteStr(bs) => {
                 // Byte strings → array of ints
                 let items = bs.value().iter().map(|&b| Expr::Int(b as i64, S)).collect();
@@ -1152,7 +1351,13 @@ impl RustTransformer {
 
     fn transform_if_expr(&mut self, expr: &syn::ExprIf) -> Result<Expr> {
         if let syn::Expr::Let(let_expr) = expr.cond.as_ref() {
-            return self.desugar_if_let(let_expr, &expr.then_branch, expr.else_branch.as_ref().map(|(_, else_expr)| else_expr.as_ref()));
+            return self.desugar_if_let(
+                let_expr,
+                &expr.then_branch,
+                expr.else_branch
+                    .as_ref()
+                    .map(|(_, else_expr)| else_expr.as_ref()),
+            );
         }
 
         let condition = self.transform_if_condition(&expr.cond)?;
@@ -1280,20 +1485,27 @@ impl RustTransformer {
                 let block = self.transform_block(&b.block)?;
                 Ok(ElseBranch::Else(block))
             }
-            syn::Expr::If(i) => {
-                match self.transform_if_expr(i)? {
-                    Expr::If { condition, then_branch, else_branch, .. } => {
-                        Ok(ElseBranch::ElseIf(condition, then_branch, else_branch))
-                    }
-                    expr => {
-                        let block = Block { stmts: vec![Stmt::Expr(expr)], span: S };
-                        Ok(ElseBranch::Else(block))
-                    }
+            syn::Expr::If(i) => match self.transform_if_expr(i)? {
+                Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } => Ok(ElseBranch::ElseIf(condition, then_branch, else_branch)),
+                expr => {
+                    let block = Block {
+                        stmts: vec![Stmt::Expr(expr)],
+                        span: S,
+                    };
+                    Ok(ElseBranch::Else(block))
                 }
-            }
+            },
             other => {
-                let expr  = self.transform_expr(other)?;
-                let block = Block { stmts: vec![Stmt::Expr(expr)], span: S };
+                let expr = self.transform_expr(other)?;
+                let block = Block {
+                    stmts: vec![Stmt::Expr(expr)],
+                    span: S,
+                };
                 Ok(ElseBranch::Else(block))
             }
         }
@@ -1303,11 +1515,18 @@ impl RustTransformer {
 
     fn transform_arm(&mut self, arm: &syn::Arm) -> Result<MatchArm> {
         let pattern = self.transform_pattern(&arm.pat);
-        let guard = arm.guard.as_ref()
+        let guard = arm
+            .guard
+            .as_ref()
             .map(|(_, expr)| self.transform_expr(expr))
             .transpose()?;
         let body = self.transform_expr(&arm.body)?;
-        Ok(MatchArm { pattern, guard, body, span: S })
+        Ok(MatchArm {
+            pattern,
+            guard,
+            body,
+            span: S,
+        })
     }
 
     // ── Patterns ─────────────────────────────────────────────────────────
@@ -1315,9 +1534,13 @@ impl RustTransformer {
     fn transform_pattern(&mut self, pat: &syn::Pat) -> Pattern {
         match pat {
             syn::Pat::Ident(pi) => {
-                let name    = self.rename_value(&pi.ident.to_string());
+                let name = self.rename_value(&pi.ident.to_string());
                 let mutable = pi.mutability.is_some();
-                Pattern::Binding { name, mutable, span: S }
+                Pattern::Binding {
+                    name,
+                    mutable,
+                    span: S,
+                }
             }
             syn::Pat::Wild(_) => Pattern::Wildcard(S),
             syn::Pat::Lit(pl) => {
@@ -1333,27 +1556,63 @@ impl RustTransformer {
             }
             syn::Pat::TupleStruct(pts) => {
                 let (enum_name, name) = self.pattern_variant_head(&pts.path);
-                let inner = pts.elems.iter().map(|p| self.transform_pattern(p)).collect();
-                Pattern::Variant { enum_name, variant: name, fields: VariantPatternFields::Tuple(inner), span: S }
+                let inner = pts
+                    .elems
+                    .iter()
+                    .map(|p| self.transform_pattern(p))
+                    .collect();
+                Pattern::Variant {
+                    enum_name,
+                    variant: name,
+                    fields: VariantPatternFields::Tuple(inner),
+                    span: S,
+                }
             }
             syn::Pat::Struct(ps) => {
                 let (enum_name, name) = self.pattern_variant_head(&ps.path);
-                let fields = ps.fields.iter().map(|fv| {
-                    let field = member_name(&fv.member);
-                    let pat   = self.transform_pattern(&fv.pat);
-                    (field, pat)
-                }).collect();
-                Pattern::Variant { enum_name, variant: name, fields: VariantPatternFields::Struct(fields), span: S }
+                let fields = ps
+                    .fields
+                    .iter()
+                    .map(|fv| {
+                        let field = member_name(&fv.member);
+                        let pat = self.transform_pattern(&fv.pat);
+                        (field, pat)
+                    })
+                    .collect();
+                Pattern::Variant {
+                    enum_name,
+                    variant: name,
+                    fields: VariantPatternFields::Struct(fields),
+                    span: S,
+                }
             }
             syn::Pat::Path(pp) => {
                 let (enum_name, name) = self.pattern_variant_head(&pp.path);
-                Pattern::Variant { enum_name, variant: name, fields: VariantPatternFields::Unit, span: S }
+                Pattern::Variant {
+                    enum_name,
+                    variant: name,
+                    fields: VariantPatternFields::Unit,
+                    span: S,
+                }
             }
             syn::Pat::Range(pr) => {
-                let start = pr.start.as_ref().and_then(|e| self.transform_expr(e).ok()).map(Box::new);
-                let end = pr.end.as_ref().and_then(|e| self.transform_expr(e).ok()).map(Box::new);
+                let start = pr
+                    .start
+                    .as_ref()
+                    .and_then(|e| self.transform_expr(e).ok())
+                    .map(Box::new);
+                let end = pr
+                    .end
+                    .as_ref()
+                    .and_then(|e| self.transform_expr(e).ok())
+                    .map(Box::new);
                 if start.is_some() || end.is_some() {
-                    Pattern::Range { start, end, inclusive: matches!(pr.limits, syn::RangeLimits::Closed(_)), span: S }
+                    Pattern::Range {
+                        start,
+                        end,
+                        inclusive: matches!(pr.limits, syn::RangeLimits::Closed(_)),
+                        span: S,
+                    }
                 } else {
                     Pattern::Wildcard(S)
                 }
@@ -1370,7 +1629,11 @@ impl RustTransformer {
             syn::Pat::Rest(_) => Pattern::Wildcard(S),
             syn::Pat::Slice(ps) => {
                 let pats = ps.elems.iter().map(|p| self.transform_pattern(p)).collect();
-                Pattern::Slice { patterns: pats, rest: None, span: S }
+                Pattern::Slice {
+                    patterns: pats,
+                    rest: None,
+                    span: S,
+                }
             }
             syn::Pat::Type(pt) => self.transform_pattern(&pt.pat),
             _ => {
@@ -1387,7 +1650,11 @@ impl RustTransformer {
         match pat {
             syn::Pat::Ident(pi) => {
                 let raw = pi.ident.to_string();
-                if raw == "self" { "_self".to_string() } else { raw }
+                if raw == "self" {
+                    "_self".to_string()
+                } else {
+                    raw
+                }
             }
             syn::Pat::Wild(_) => "_".to_string(),
             syn::Pat::Reference(r) => self.pattern_to_name(&r.pat),
@@ -1399,7 +1666,11 @@ impl RustTransformer {
         match pat {
             syn::Pat::Ident(pi) => {
                 let raw = pi.ident.to_string();
-                let name = if raw == "self" { "_self".to_string() } else { raw };
+                let name = if raw == "self" {
+                    "_self".to_string()
+                } else {
+                    raw
+                };
                 (name, pi.mutability.is_some())
             }
             syn::Pat::Wild(_) => ("_".to_string(), false),
@@ -1425,7 +1696,11 @@ impl RustTransformer {
         args.iter()
             .map(|e| {
                 let value = self.transform_expr(e)?;
-                Ok(CallArg { name: None, value, span: S })
+                Ok(CallArg {
+                    name: None,
+                    value,
+                    span: S,
+                })
             })
             .collect()
     }
@@ -1437,11 +1712,14 @@ impl RustTransformer {
         struct CommaSep(syn::punctuated::Punctuated<syn::Expr, syn::token::Comma>);
         impl syn::parse::Parse for CommaSep {
             fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-                Ok(CommaSep(syn::punctuated::Punctuated::parse_terminated(input)?))
+                Ok(CommaSep(syn::punctuated::Punctuated::parse_terminated(
+                    input,
+                )?))
             }
         }
         if let Ok(CommaSep(exprs)) = syn::parse2::<CommaSep>(tokens.clone()) {
-            exprs.iter()
+            exprs
+                .iter()
                 .filter_map(|e| self.transform_expr(e).ok())
                 .collect()
         } else {
@@ -1450,8 +1728,17 @@ impl RustTransformer {
         }
     }
 
-    fn transform_macro_expr(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Expr {
-        if self.options.macro_policy.lower_directly.contains(macro_name) {
+    fn transform_macro_expr(
+        &mut self,
+        macro_name: &str,
+        tokens: &proc_macro2::TokenStream,
+    ) -> Expr {
+        if self
+            .options
+            .macro_policy
+            .lower_directly
+            .contains(macro_name)
+        {
             match macro_name {
                 "assert" | "debug_assert" => {
                     if let Some(expr) = self.lower_assert_macro(macro_name, tokens) {
@@ -1560,7 +1847,11 @@ impl RustTransformer {
         }
     }
 
-    fn lower_assert_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+    fn lower_assert_macro(
+        &mut self,
+        macro_name: &str,
+        tokens: &proc_macro2::TokenStream,
+    ) -> Option<Expr> {
         struct AssertMacroInput {
             condition: syn::Expr,
             tail: Option<(syn::token::Comma, proc_macro2::TokenStream)>,
@@ -1585,21 +1876,18 @@ impl RustTransformer {
             .as_ref()
             .and_then(|(_, rest)| self.lower_format_macro(rest))
             .or_else(|| {
-                parsed
-                    .tail
-                    .as_ref()
-                    .map(|(_, rest)| {
-                        let args = self.parse_macro_args(rest);
-                        match args.as_slice() {
-                            [] => Expr::String(format!("{macro_name}! failed"), S),
-                            [single] => single.clone(),
-                            _ => Expr::MacroCall {
-                                name: "format".to_string(),
-                                args,
-                                span: S,
-                            },
-                        }
-                    })
+                parsed.tail.as_ref().map(|(_, rest)| {
+                    let args = self.parse_macro_args(rest);
+                    match args.as_slice() {
+                        [] => Expr::String(format!("{macro_name}! failed"), S),
+                        [single] => single.clone(),
+                        _ => Expr::MacroCall {
+                            name: "format".to_string(),
+                            args,
+                            span: S,
+                        },
+                    }
+                })
             })
             .unwrap_or_else(|| Expr::String(format!("{macro_name}! failed"), S));
 
@@ -1671,38 +1959,34 @@ impl RustTransformer {
     }
 
     fn lower_panic_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
-        let message = self
-            .lower_format_macro(tokens)
-            .or_else(|| {
-                let args = self.parse_macro_args(tokens);
-                match args.as_slice() {
-                    [] => Some(Expr::String("panic!".to_string(), S)),
-                    [single] => Some(single.clone()),
-                    _ => Some(Expr::MacroCall {
-                        name: "format".to_string(),
-                        args,
-                        span: S,
-                    }),
-                }
-            })?;
+        let message = self.lower_format_macro(tokens).or_else(|| {
+            let args = self.parse_macro_args(tokens);
+            match args.as_slice() {
+                [] => Some(Expr::String("panic!".to_string(), S)),
+                [single] => Some(single.clone()),
+                _ => Some(Expr::MacroCall {
+                    name: "format".to_string(),
+                    args,
+                    span: S,
+                }),
+            }
+        })?;
         Some(self.panic_call(message))
     }
 
     fn lower_unreachable_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
-        let message = self
-            .lower_format_macro(tokens)
-            .or_else(|| {
-                let args = self.parse_macro_args(tokens);
-                match args.as_slice() {
-                    [] => Some(Expr::String("unreachable!".to_string(), S)),
-                    [single] => Some(single.clone()),
-                    _ => Some(Expr::MacroCall {
-                        name: "format".to_string(),
-                        args,
-                        span: S,
-                    }),
-                }
-            })?;
+        let message = self.lower_format_macro(tokens).or_else(|| {
+            let args = self.parse_macro_args(tokens);
+            match args.as_slice() {
+                [] => Some(Expr::String("unreachable!".to_string(), S)),
+                [single] => Some(single.clone()),
+                _ => Some(Expr::MacroCall {
+                    name: "format".to_string(),
+                    args,
+                    span: S,
+                }),
+            }
+        })?;
         Some(self.panic_call(message))
     }
 
@@ -1752,7 +2036,9 @@ impl RustTransformer {
         let mut named = HashMap::new();
         for arg in parsed.args {
             match arg {
-                FormatMacroArg::Positional(value) => positional.push(self.transform_expr(&value).ok()?),
+                FormatMacroArg::Positional(value) => {
+                    positional.push(self.transform_expr(&value).ok()?)
+                }
                 FormatMacroArg::Named(name, value) => {
                     named.insert(name, self.transform_expr(&value).ok()?);
                 }
@@ -1766,13 +2052,25 @@ impl RustTransformer {
         })
     }
 
-    fn lower_print_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+    fn lower_print_macro(
+        &mut self,
+        macro_name: &str,
+        tokens: &proc_macro2::TokenStream,
+    ) -> Option<Expr> {
         let args = if let Some(expr) = self.lower_format_macro(tokens) {
-            vec![CallArg { name: None, value: expr, span: S }]
+            vec![CallArg {
+                name: None,
+                value: expr,
+                span: S,
+            }]
         } else {
             self.parse_macro_args(tokens)
                 .into_iter()
-                .map(|value| CallArg { name: None, value, span: S })
+                .map(|value| CallArg {
+                    name: None,
+                    value,
+                    span: S,
+                })
                 .collect::<Vec<_>>()
         };
 
@@ -1783,7 +2081,11 @@ impl RustTransformer {
         })
     }
 
-    fn lower_write_macro(&mut self, macro_name: &str, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
+    fn lower_write_macro(
+        &mut self,
+        macro_name: &str,
+        tokens: &proc_macro2::TokenStream,
+    ) -> Option<Expr> {
         struct WriteMacroInput {
             dest: syn::Expr,
             rest: Option<(syn::token::Comma, proc_macro2::TokenStream)>,
@@ -1981,7 +2283,7 @@ const S: Span = Span { start: 0, end: 0 };
 fn visibility(vis: &syn::Visibility) -> Visibility {
     match vis {
         syn::Visibility::Public(_) => Visibility::Public,
-        _                         => Visibility::Private,
+        _ => Visibility::Private,
     }
 }
 
@@ -2066,24 +2368,24 @@ fn dyn_trait_name(ty: &syn::Type) -> Option<String> {
 
 fn binop(op: &syn::BinOp) -> BinaryOp {
     match op {
-        syn::BinOp::Add(_)  => BinaryOp::Add,
-        syn::BinOp::Sub(_)  => BinaryOp::Sub,
-        syn::BinOp::Mul(_)  => BinaryOp::Mul,
-        syn::BinOp::Div(_)  => BinaryOp::Div,
-        syn::BinOp::Rem(_)  => BinaryOp::Mod,
-        syn::BinOp::And(_)  => BinaryOp::And,
-        syn::BinOp::Or(_)   => BinaryOp::Or,
+        syn::BinOp::Add(_) => BinaryOp::Add,
+        syn::BinOp::Sub(_) => BinaryOp::Sub,
+        syn::BinOp::Mul(_) => BinaryOp::Mul,
+        syn::BinOp::Div(_) => BinaryOp::Div,
+        syn::BinOp::Rem(_) => BinaryOp::Mod,
+        syn::BinOp::And(_) => BinaryOp::And,
+        syn::BinOp::Or(_) => BinaryOp::Or,
         syn::BinOp::BitAnd(_) => BinaryOp::BitAnd,
-        syn::BinOp::BitOr(_)  => BinaryOp::BitOr,
+        syn::BinOp::BitOr(_) => BinaryOp::BitOr,
         syn::BinOp::BitXor(_) => BinaryOp::BitXor,
         syn::BinOp::Shl(_) => BinaryOp::Shl,
         syn::BinOp::Shr(_) => BinaryOp::Shr,
-        syn::BinOp::Eq(_)  => BinaryOp::Eq,
-        syn::BinOp::Ne(_)  => BinaryOp::Ne,
-        syn::BinOp::Lt(_)  => BinaryOp::Lt,
-        syn::BinOp::Le(_)  => BinaryOp::Le,
-        syn::BinOp::Gt(_)  => BinaryOp::Gt,
-        syn::BinOp::Ge(_)  => BinaryOp::Ge,
+        syn::BinOp::Eq(_) => BinaryOp::Eq,
+        syn::BinOp::Ne(_) => BinaryOp::Ne,
+        syn::BinOp::Lt(_) => BinaryOp::Lt,
+        syn::BinOp::Le(_) => BinaryOp::Le,
+        syn::BinOp::Gt(_) => BinaryOp::Gt,
+        syn::BinOp::Ge(_) => BinaryOp::Ge,
         _ => BinaryOp::Add, // fallback
     }
 }
@@ -2138,7 +2440,11 @@ mod tests {
             panic!("expected function");
         };
 
-        let Stmt::Let { value: Some(Expr::FString(parts, _)), .. } = &func.body.stmts[0] else {
+        let Stmt::Let {
+            value: Some(Expr::FString(parts, _)),
+            ..
+        } = &func.body.stmts[0]
+        else {
             panic!("expected lowered fstring");
         };
 
@@ -2163,7 +2469,11 @@ mod tests {
             panic!("expected function");
         };
 
-        let Stmt::Let { value: Some(Expr::Match { arms, .. }), .. } = &func.body.stmts[0] else {
+        let Stmt::Let {
+            value: Some(Expr::Match { arms, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
             panic!("expected lowered match");
         };
 
@@ -2188,7 +2498,11 @@ mod tests {
             panic!("expected function");
         };
 
-        let Stmt::Let { value: Some(Expr::FString(parts, _)), .. } = &func.body.stmts[0] else {
+        let Stmt::Let {
+            value: Some(Expr::FString(parts, _)),
+            ..
+        } = &func.body.stmts[0]
+        else {
             panic!("expected lowered fstring");
         };
 
@@ -2335,7 +2649,11 @@ mod tests {
             panic!("expected function");
         };
 
-        let Stmt::Let { value: Some(Expr::Call { callee, .. }), .. } = &func.body.stmts[0] else {
+        let Stmt::Let {
+            value: Some(Expr::Call { callee, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
             panic!("expected call");
         };
 
@@ -2486,4 +2804,3 @@ mod tests {
             .any(|diag| diag.contains("class:unsupported_pattern_lowering")));
     }
 }
-

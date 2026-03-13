@@ -1,9 +1,9 @@
 //! Tests for parser.rs - Attribute parsing functionality
 
-use ue5_config::config_ir::ConfigCategory;
-use ue5_config::parser::{parse_config_attribute, parse_setting_attribute};
 use kain_core::ast::{Attribute, BinaryOp, Expr, Field, Struct, Type, Visibility};
 use kain_core::span::Span;
+use ue5_config::config_ir::ConfigCategory;
+use ue5_config::parser::{parse_config_attribute, parse_setting_attribute};
 
 // Helper functions
 
@@ -161,7 +161,10 @@ fn test_parse_config_attribute_invalid_category() {
         methods: vec![],
         attributes: vec![Attribute {
             name: "config".to_string(),
-            args: vec![make_named_arg("category", make_string_expr("InvalidCategory"))],
+            args: vec![make_named_arg(
+                "category",
+                make_string_expr("InvalidCategory"),
+            )],
             span: Span::default(),
         }],
         visibility: Visibility::Public,

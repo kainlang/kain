@@ -97,8 +97,12 @@ pub fn render_gpu_host(artifacts: &RustGpuArtifactOutput) -> String {
         out.push_str(&format!("    pub mod {} {{\n", shader_mod));
         out.push_str("        use super::{\n");
         out.push_str("            BindingDesc, BindingKind, BindingLayoutEntry, BuiltinInputParam, DispatchCall,\n");
-        out.push_str("            DispatchSize, LocalSizeParam, Sampler2DParam, ShaderDesc, ShaderStage,\n");
-        out.push_str("            SpecializationConstantParam, StorageBufferParam, UniformParam,\n");
+        out.push_str(
+            "            DispatchSize, LocalSizeParam, Sampler2DParam, ShaderDesc, ShaderStage,\n",
+        );
+        out.push_str(
+            "            SpecializationConstantParam, StorageBufferParam, UniformParam,\n",
+        );
         out.push_str("        };\n\n");
 
         out.push_str("        #[derive(Debug, Clone)]\n");
@@ -147,14 +151,20 @@ pub fn render_gpu_host(artifacts: &RustGpuArtifactOutput) -> String {
             out.push_str(&format!("binding: {}, ", binding.binding));
             out.push_str(&format!("descriptor_set: {}, ", binding.descriptor_set));
             out.push_str(&format!("ty: \"{}\", ", binding.ty));
-            out.push_str(&format!("kind: BindingKind::{}, ", binding_kind_name(binding.kind)));
+            out.push_str(&format!(
+                "kind: BindingKind::{}, ",
+                binding_kind_name(binding.kind)
+            ));
             out.push_str("},\n");
         }
         out.push_str("        ];\n\n");
 
         out.push_str("        pub const SHADER: ShaderDesc = ShaderDesc { ");
         out.push_str(&format!("name: \"{}\", ", shader.name));
-        out.push_str(&format!("stage: ShaderStage::{}, ", stage_name(shader.stage)));
+        out.push_str(&format!(
+            "stage: ShaderStage::{}, ",
+            stage_name(shader.stage)
+        ));
         out.push_str(&format!("entry_point: \"{}\", ", shader.entry_point));
         out.push_str(&format!("output_type: \"{}\", ", shader.output_type));
         out.push_str("bindings: BINDINGS, ");
@@ -178,8 +188,14 @@ pub fn render_gpu_host(artifacts: &RustGpuArtifactOutput) -> String {
 
         out.push_str("        pub fn dispatch<'a>(params: &'a Params, x: u32, y: u32, z: u32) -> DispatchCall<'a, Params> {\n");
         out.push_str("            DispatchCall {\n");
-        out.push_str(&format!("                entry_point: \"{}\",\n", shader.entry_point));
-        out.push_str(&format!("                stage: ShaderStage::{},\n", stage_name(shader.stage)));
+        out.push_str(&format!(
+            "                entry_point: \"{}\",\n",
+            shader.entry_point
+        ));
+        out.push_str(&format!(
+            "                stage: ShaderStage::{},\n",
+            stage_name(shader.stage)
+        ));
         out.push_str("                size: DispatchSize { x, y, z },\n");
         out.push_str("                params,\n");
         out.push_str("            }\n");
@@ -190,7 +206,10 @@ pub fn render_gpu_host(artifacts: &RustGpuArtifactOutput) -> String {
     out.push_str("    pub fn shaders() -> &'static [ShaderDesc] {\n");
     out.push_str("        &[\n");
     for shader in &artifacts.shaders {
-        out.push_str(&format!("            {}::SHADER,\n", sanitize_ident(&shader.name)));
+        out.push_str(&format!(
+            "            {}::SHADER,\n",
+            sanitize_ident(&shader.name)
+        ));
     }
     out.push_str("        ]\n");
     out.push_str("    }\n");
@@ -227,10 +246,15 @@ fn binding_param_type(kind: RustGpuBindingKind) -> &'static str {
     }
 }
 
-fn default_binding_initializer(binding: &crate::codegen_rust::gpu_artifacts::RustGpuBindingArtifact) -> String {
+fn default_binding_initializer(
+    binding: &crate::codegen_rust::gpu_artifacts::RustGpuBindingArtifact,
+) -> String {
     match binding.kind {
         RustGpuBindingKind::StorageBuffer => {
-            format!("StorageBufferParam {{ ty: \"{}\", read_only: false }}", binding.ty)
+            format!(
+                "StorageBufferParam {{ ty: \"{}\", read_only: false }}",
+                binding.ty
+            )
         }
         RustGpuBindingKind::Sampler2D => {
             format!("Sampler2DParam {{ ty: \"{}\" }}", binding.ty)
@@ -239,9 +263,15 @@ fn default_binding_initializer(binding: &crate::codegen_rust::gpu_artifacts::Rus
             format!("UniformParam {{ ty: \"{}\" }}", binding.ty)
         }
         RustGpuBindingKind::LocalSize => {
-            let axis = binding.name.strip_prefix("LOCAL_SIZE_").unwrap_or(&binding.name);
+            let axis = binding
+                .name
+                .strip_prefix("LOCAL_SIZE_")
+                .unwrap_or(&binding.name);
             let default_value = if axis == "Z" { 1 } else { 8 };
-            format!("LocalSizeParam {{ axis: \"{}\", default_value: {} }}", axis, default_value)
+            format!(
+                "LocalSizeParam {{ axis: \"{}\", default_value: {} }}",
+                axis, default_value
+            )
         }
         RustGpuBindingKind::SpecializationConstant => {
             format!("SpecializationConstantParam {{ ty: \"{}\" }}", binding.ty)

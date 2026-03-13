@@ -4,9 +4,9 @@
 // Comprehensive tests for gameplay effect IR conversion and validation
 // ============================================================================
 
-use kain_core::ast::{GameplayEffectDef, GameplayEffectModifier, Attribute};
+use kain_core::ast::{Attribute, GameplayEffectDef, GameplayEffectModifier};
 use kain_core::span::Span;
-use ue5_gas::effect_ir::{GameplayEffectIR, DurationPolicy, ModifierOp, StackingType};
+use ue5_gas::effect_ir::{DurationPolicy, GameplayEffectIR, ModifierOp, StackingType};
 
 /// Helper to create a test effect with minimal fields
 fn create_test_effect(name: &str) -> GameplayEffectDef {
@@ -44,9 +44,9 @@ fn create_test_effect(name: &str) -> GameplayEffectDef {
 fn test_duration_policy_instant() {
     let mut effect = create_test_effect("InstantEffect");
     effect.duration_policy = Some("Instant".to_string());
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.duration_policy, DurationPolicy::Instant);
     assert_eq!(ir.duration_magnitude, None);
 }
@@ -55,9 +55,9 @@ fn test_duration_policy_instant() {
 fn test_duration_policy_infinite() {
     let mut effect = create_test_effect("InfiniteEffect");
     effect.duration_policy = Some("Infinite".to_string());
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.duration_policy, DurationPolicy::Infinite);
     assert_eq!(ir.duration_magnitude, None);
 }
@@ -67,9 +67,9 @@ fn test_duration_policy_has_duration() {
     let mut effect = create_test_effect("DurationEffect");
     effect.duration_policy = Some("HasDuration".to_string());
     effect.duration_magnitude = Some(5.0);
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.duration_policy, DurationPolicy::HasDuration);
     assert_eq!(ir.duration_magnitude, Some(5.0));
 }
@@ -77,9 +77,9 @@ fn test_duration_policy_has_duration() {
 #[test]
 fn test_duration_policy_default() {
     let effect = create_test_effect("DefaultEffect");
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.duration_policy, DurationPolicy::Instant);
 }
 
@@ -88,22 +88,28 @@ fn test_duration_policy_has_duration_without_magnitude() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.duration_policy = Some("HasDuration".to_string());
     // Missing duration_magnitude
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("no duration magnitude"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("no duration magnitude"));
 }
 
 #[test]
 fn test_invalid_duration_policy() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.duration_policy = Some("InvalidPolicy".to_string());
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid duration policy"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid duration policy"));
 }
 
 // ============================================================================
@@ -117,9 +123,9 @@ fn test_period_execution() {
     effect.duration_magnitude = Some(10.0);
     effect.period = Some(1.0);
     effect.execute_on_application = true;
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.period, Some(1.0));
     assert!(ir.execute_on_application);
 }
@@ -131,9 +137,9 @@ fn test_period_without_execute_on_application() {
     effect.duration_magnitude = Some(10.0);
     effect.period = Some(2.0);
     effect.execute_on_application = false;
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.period, Some(2.0));
     assert!(!ir.execute_on_application);
 }
@@ -151,9 +157,9 @@ fn test_modifier_operation_add() {
         magnitude: 50.0,
         span: Span::default(),
     });
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.modifiers.len(), 1);
     assert_eq!(ir.modifiers[0].attribute, "Health");
     assert_eq!(ir.modifiers[0].operation, ModifierOp::Add);
@@ -169,9 +175,9 @@ fn test_modifier_operation_multiply() {
         magnitude: 1.5,
         span: Span::default(),
     });
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.modifiers[0].operation, ModifierOp::Multiply);
     assert_eq!(ir.modifiers[0].magnitude, 1.5);
 }
@@ -185,9 +191,9 @@ fn test_modifier_operation_divide() {
         magnitude: 2.0,
         span: Span::default(),
     });
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.modifiers[0].operation, ModifierOp::Divide);
     assert_eq!(ir.modifiers[0].magnitude, 2.0);
 }
@@ -201,9 +207,9 @@ fn test_modifier_operation_override() {
         magnitude: 0.0,
         span: Span::default(),
     });
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.modifiers[0].operation, ModifierOp::Override);
     assert_eq!(ir.modifiers[0].magnitude, 0.0);
 }
@@ -217,9 +223,9 @@ fn test_modifier_negative_magnitude() {
         magnitude: -10.0,
         span: Span::default(),
     });
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.modifiers[0].magnitude, -10.0);
 }
 
@@ -238,9 +244,9 @@ fn test_multiple_modifiers() {
         magnitude: 0.5,
         span: Span::default(),
     });
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.modifiers.len(), 2);
     assert_eq!(ir.modifiers[0].attribute, "Health");
     assert_eq!(ir.modifiers[1].attribute, "MovementSpeed");
@@ -255,11 +261,14 @@ fn test_invalid_modifier_operation() {
         magnitude: 10.0,
         span: Span::default(),
     });
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid modifier operation"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid modifier operation"));
 }
 
 // ============================================================================
@@ -271,9 +280,9 @@ fn test_stacking_aggregate_by_source() {
     let mut effect = create_test_effect("StackingEffect");
     effect.stacking_type = Some("AggregateBySource".to_string());
     effect.stacking_limit = Some(5);
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert!(ir.stacking.is_some());
     let stacking = ir.stacking.unwrap();
     assert_eq!(stacking.stacking_type, StackingType::AggregateBySource);
@@ -285,9 +294,9 @@ fn test_stacking_aggregate_by_target() {
     let mut effect = create_test_effect("StackingEffect");
     effect.stacking_type = Some("AggregateByTarget".to_string());
     effect.stacking_limit = Some(3);
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert!(ir.stacking.is_some());
     let stacking = ir.stacking.unwrap();
     assert_eq!(stacking.stacking_type, StackingType::AggregateByTarget);
@@ -299,9 +308,9 @@ fn test_stacking_none() {
     let mut effect = create_test_effect("NoStackingEffect");
     effect.stacking_type = Some("None".to_string());
     effect.stacking_limit = Some(1);
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert!(ir.stacking.is_some());
     let stacking = ir.stacking.unwrap();
     assert_eq!(stacking.stacking_type, StackingType::None);
@@ -312,9 +321,9 @@ fn test_stacking_default_limit() {
     let mut effect = create_test_effect("StackingEffect");
     effect.stacking_type = Some("AggregateBySource".to_string());
     // No stacking_limit specified
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert!(ir.stacking.is_some());
     let stacking = ir.stacking.unwrap();
     assert_eq!(stacking.limit, 1);
@@ -325,11 +334,14 @@ fn test_stacking_invalid_limit() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.stacking_type = Some("AggregateBySource".to_string());
     effect.stacking_limit = Some(0);
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Stacking limit must be at least 1"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Stacking limit must be at least 1"));
 }
 
 #[test]
@@ -337,11 +349,14 @@ fn test_invalid_stacking_type() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.stacking_type = Some("InvalidType".to_string());
     effect.stacking_limit = Some(5);
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid stacking type"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid stacking type"));
 }
 
 // ============================================================================
@@ -355,13 +370,19 @@ fn test_tag_requirements() {
     effect.granted_tags = vec!["Status.Burning".to_string()];
     effect.application_required_tags = vec!["Status.Alive".to_string()];
     effect.application_ignored_tags = vec!["Status.Immune.Fire".to_string()];
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.owned_tags, vec!["Effect.Burn"]);
     assert_eq!(ir.granted_tags, vec!["Status.Burning"]);
-    assert_eq!(ir.application_tag_requirements.require, vec!["Status.Alive"]);
-    assert_eq!(ir.application_tag_requirements.ignore, vec!["Status.Immune.Fire"]);
+    assert_eq!(
+        ir.application_tag_requirements.require,
+        vec!["Status.Alive"]
+    );
+    assert_eq!(
+        ir.application_tag_requirements.ignore,
+        vec!["Status.Immune.Fire"]
+    );
 }
 
 #[test]
@@ -369,9 +390,9 @@ fn test_ongoing_tag_requirements() {
     let mut effect = create_test_effect("OngoingEffect");
     effect.ongoing_required_tags = vec!["Status.InCombat".to_string()];
     effect.ongoing_ignored_tags = vec!["Status.Dead".to_string()];
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.ongoing_tag_requirements.require, vec!["Status.InCombat"]);
     assert_eq!(ir.ongoing_tag_requirements.ignore, vec!["Status.Dead"]);
 }
@@ -381,11 +402,14 @@ fn test_removal_tag_requirements() {
     let mut effect = create_test_effect("RemovalEffect");
     effect.removal_required_tags = vec!["Cleanse.Fire".to_string()];
     effect.removal_ignored_tags = vec!["Status.Immune.Cleanse".to_string()];
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.removal_tag_requirements.require, vec!["Cleanse.Fire"]);
-    assert_eq!(ir.removal_tag_requirements.ignore, vec!["Status.Immune.Cleanse"]);
+    assert_eq!(
+        ir.removal_tag_requirements.ignore,
+        vec!["Status.Immune.Cleanse"]
+    );
 }
 
 #[test]
@@ -396,13 +420,10 @@ fn test_multiple_tags() {
         "Effect.DOT".to_string(),
         "Effect.Fire".to_string(),
     ];
-    effect.granted_tags = vec![
-        "Status.Burning".to_string(),
-        "Status.Debuff".to_string(),
-    ];
-    
+    effect.granted_tags = vec!["Status.Burning".to_string(), "Status.Debuff".to_string()];
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.owned_tags.len(), 3);
     assert_eq!(ir.granted_tags.len(), 2);
 }
@@ -419,9 +440,9 @@ fn test_valid_tag_syntax() {
         "Status.CC.Stunned".to_string(),
         "Damage.Physical.Slash".to_string(),
     ];
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_ok());
 }
 
@@ -429,20 +450,23 @@ fn test_valid_tag_syntax() {
 fn test_invalid_tag_empty() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.owned_tags = vec!["".to_string()];
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Tag cannot be empty"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Tag cannot be empty"));
 }
 
 #[test]
 fn test_invalid_tag_empty_component() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.owned_tags = vec!["Effect..Burn".to_string()];
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("empty component"));
 }
@@ -451,22 +475,28 @@ fn test_invalid_tag_empty_component() {
 fn test_invalid_tag_starts_with_number() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.owned_tags = vec!["1Effect.Burn".to_string()];
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("must start with a letter"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("must start with a letter"));
 }
 
 #[test]
 fn test_invalid_tag_special_char() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.owned_tags = vec!["Effect.Burn!".to_string()];
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("invalid character"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("invalid character"));
 }
 
 // ============================================================================
@@ -492,9 +522,9 @@ fn test_complete_effect() {
     effect.granted_tags = vec!["Status.Burning".to_string()];
     effect.application_required_tags = vec!["Status.Alive".to_string()];
     effect.application_ignored_tags = vec!["Status.Immune.Fire".to_string()];
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.name, "BurnEffect");
     assert_eq!(ir.duration_policy, DurationPolicy::HasDuration);
     assert_eq!(ir.duration_magnitude, Some(5.0));
@@ -517,9 +547,9 @@ fn test_instant_damage_effect() {
         span: Span::default(),
     });
     effect.owned_tags = vec!["Effect.Damage.Instant".to_string()];
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.duration_policy, DurationPolicy::Instant);
     assert_eq!(ir.modifiers[0].magnitude, -50.0);
 }
@@ -536,9 +566,9 @@ fn test_infinite_passive_effect() {
         span: Span::default(),
     });
     effect.owned_tags = vec!["Effect.Heal.HOT".to_string()];
-    
+
     let ir = GameplayEffectIR::from_ast(&effect).unwrap();
-    
+
     assert_eq!(ir.duration_policy, DurationPolicy::Infinite);
     assert_eq!(ir.period, Some(1.0));
 }
@@ -547,9 +577,12 @@ fn test_infinite_passive_effect() {
 fn test_missing_gameplay_effect_attribute() {
     let mut effect = create_test_effect("InvalidEffect");
     effect.attributes.clear(); // Remove @gameplay_effect attribute
-    
+
     let result = GameplayEffectIR::from_ast(&effect);
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("must have @gameplay_effect attribute"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("must have @gameplay_effect attribute"));
 }

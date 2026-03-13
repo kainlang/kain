@@ -1,8 +1,7 @@
 /// KAIN Source Markers
-/// 
+///
 /// Embeds original KAIN source as comments in generated C++ to enable round-trip compilation.
 /// This allows extracting KAIN from C++ and validating that KAIN → C++ → KAIN is lossless.
-
 use kain_core::ast::*;
 
 /// Marker style for embedding KAIN source
@@ -28,10 +27,10 @@ pub struct MarkerConfig {
 impl Default for MarkerConfig {
     fn default() -> Self {
         Self {
-            style: MarkerStyle::None,  // Disabled by default, enable with --embed-kain flag
+            style: MarkerStyle::None, // Disabled by default, enable with --embed-kain flag
             include_attributes: true,
             include_types: true,
-            include_expressions: false,  // Too verbose
+            include_expressions: false, // Too verbose
         }
     }
 }
@@ -53,7 +52,7 @@ pub fn actor_marker(actor: &Actor, config: &MarkerConfig) -> String {
     if config.style == MarkerStyle::None {
         return String::new();
     }
-    
+
     // TODO: Implement based on current AST structure
     // For now, just return a simple marker
     format!("// KAIN: actor {}:", actor.name)

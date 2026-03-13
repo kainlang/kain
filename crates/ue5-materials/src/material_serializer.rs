@@ -1,29 +1,29 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
+use ordered_float::OrderedFloat;
+use ue5_asset_utils::ImportBuilder;
+use ue5_asset_utils::KainEngineTarget;
 use unreal_asset::{
     exports::{BaseExport, Export, ExportBaseTrait, NormalExport},
     flags::EObjectFlags,
     types::PackageIndex,
     Asset, Import,
 };
-use ue5_asset_utils::ImportBuilder;
-use ue5_asset_utils::KainEngineTarget;
+use unreal_asset_base::types::vector::Color;
 use unreal_asset_properties::{
-    int_property::{BoolProperty, FloatProperty, IntProperty},
-    object_property::ObjectProperty,
-    str_property::StrProperty,
-    struct_property::StructProperty,
     array_property::ArrayProperty,
     color_property::LinearColorProperty,
     enum_property::EnumProperty,
+    int_property::{BoolProperty, FloatProperty, IntProperty},
     material_input_property::{
         ColorMaterialInputProperty, ExpressionInputProperty, MaterialExpression,
     },
+    object_property::ObjectProperty,
+    str_property::StrProperty,
+    struct_property::StructProperty,
     Property,
 };
-use unreal_asset_base::types::vector::Color;
-use ordered_float::OrderedFloat;
 
 use crate::material_graph::*;
 
@@ -95,9 +95,11 @@ impl MaterialAssetBuilder {
         }
 
         // ── Core imports every material needs (via shared ImportBuilder) ────
-        let core_uobject_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
+        let core_uobject_import =
+            ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
         let engine_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/Engine");
-        let material_class_import = ImportBuilder::get_or_add_class(&mut asset, "Material", engine_import);
+        let material_class_import =
+            ImportBuilder::get_or_add_class(&mut asset, "Material", engine_import);
         let mut builder = MaterialAssetBuilder {
             asset,
             material_name: material_name.to_string(),
@@ -129,11 +131,7 @@ impl MaterialAssetBuilder {
             return idx;
         }
 
-        let idx = ImportBuilder::get_or_add_class(
-            &mut self.asset,
-            class_name,
-            self.engine_import,
-        );
+        let idx = ImportBuilder::get_or_add_class(&mut self.asset, class_name, self.engine_import);
 
         self.class_imports.insert(class_name.to_string(), idx);
         idx
@@ -182,11 +180,7 @@ impl MaterialAssetBuilder {
     // ── Generic expression node creation ───────────────────────────────────
 
     /// Create an expression export and return its node_id (0-based index into node_exports).
-    fn add_expression_export(
-        &mut self,
-        ue_class: &str,
-        properties: Vec<Property>,
-    ) -> usize {
+    fn add_expression_export(&mut self, ue_class: &str, properties: Vec<Property>) -> usize {
         let node_id = self.node_exports.len();
         let class_import = self.get_expression_class_import(ue_class);
 
@@ -346,7 +340,10 @@ impl MaterialAssetBuilder {
             .into()],
         };
 
-        self.add_expression_export("MaterialExpressionConstant3Vector", vec![color_struct.into()])
+        self.add_expression_export(
+            "MaterialExpressionConstant3Vector",
+            vec![color_struct.into()],
+        )
     }
 
     pub fn add_constant4_node(&mut self, r: f32, g: f32, b: f32, a: f32) -> usize {
@@ -376,7 +373,10 @@ impl MaterialAssetBuilder {
             .into()],
         };
 
-        self.add_expression_export("MaterialExpressionConstant4Vector", vec![color_struct.into()])
+        self.add_expression_export(
+            "MaterialExpressionConstant4Vector",
+            vec![color_struct.into()],
+        )
     }
 
     // -- Arithmetic (2-input) --
@@ -788,10 +788,7 @@ impl MaterialAssetBuilder {
 
         // Create an import for the MaterialFunction asset
         // function_path should be like "/Game/Materials/Functions/MF_MyFunction.MF_MyFunction"
-        let func_import = ImportBuilder::resolve_object_import(
-            &mut self.asset,
-            function_path,
-        );
+        let func_import = ImportBuilder::resolve_object_import(&mut self.asset, function_path);
 
         // Set the MaterialFunction property to reference the imported function
         let func_name = self.asset.add_fname("MaterialFunction");
@@ -934,12 +931,12 @@ impl MaterialAssetBuilder {
         if layers.is_empty() {
             panic!("MaterialLayerBlend requires at least one layer");
         }
-        
+
         if layers.len() == 1 {
             // Single layer - just return it
             return layers[0];
         }
-        
+
         if modes.len() != layers.len() - 1 || alphas.len() != layers.len() - 1 {
             panic!(
                 "MaterialLayerBlend: modes and alphas must have length = layers.len() - 1. \
@@ -949,20 +946,15 @@ impl MaterialAssetBuilder {
                 alphas.len()
             );
         }
-        
+
         // Start with the base layer
         let mut result = layers[0];
-        
+
         // Blend each subsequent layer on top
         for i in 1..layers.len() {
-            result = self.add_material_layer_node(
-                result,
-                layers[i],
-                &modes[i - 1],
-                alphas[i - 1],
-            );
+            result = self.add_material_layer_node(result, layers[i], &modes[i - 1], alphas[i - 1]);
         }
-        
+
         result
     }
 
@@ -1047,19 +1039,23 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
     // ── Material output connections ────────────────────────────────────────
 
     pub fn connect_to_base_color(&mut self, node_id: usize) {
-        self.output_connections.insert("BaseColor".to_string(), node_id);
+        self.output_connections
+            .insert("BaseColor".to_string(), node_id);
     }
 
     pub fn connect_to_metallic(&mut self, node_id: usize) {
-        self.output_connections.insert("Metallic".to_string(), node_id);
+        self.output_connections
+            .insert("Metallic".to_string(), node_id);
     }
 
     pub fn connect_to_specular(&mut self, node_id: usize) {
-        self.output_connections.insert("Specular".to_string(), node_id);
+        self.output_connections
+            .insert("Specular".to_string(), node_id);
     }
 
     pub fn connect_to_roughness(&mut self, node_id: usize) {
-        self.output_connections.insert("Roughness".to_string(), node_id);
+        self.output_connections
+            .insert("Roughness".to_string(), node_id);
     }
 
     pub fn connect_to_emissive(&mut self, node_id: usize) {
@@ -1068,11 +1064,13 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
     }
 
     pub fn connect_to_opacity(&mut self, node_id: usize) {
-        self.output_connections.insert("Opacity".to_string(), node_id);
+        self.output_connections
+            .insert("Opacity".to_string(), node_id);
     }
 
     pub fn connect_to_normal(&mut self, node_id: usize) {
-        self.output_connections.insert("Normal".to_string(), node_id);
+        self.output_connections
+            .insert("Normal".to_string(), node_id);
     }
 
     pub fn connect_to_ambient_occlusion(&mut self, node_id: usize) {
@@ -1155,8 +1153,11 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
         // Add material output connections as StructProperty wrapping ColorMaterialInput
         // UE5 serializes material outputs as StructProperty with struct_type = "ColorMaterialInput"
         // The StructProperty custom serialization path then delegates to ColorMaterialInputProperty
-        let connections: Vec<(String, usize)> =
-            self.output_connections.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        let connections: Vec<(String, usize)> = self
+            .output_connections
+            .iter()
+            .map(|(k, v)| (k.clone(), *v))
+            .collect();
 
         for (output_name, node_id) in &connections {
             let expr = self.make_expression_ref(*node_id, 0);
@@ -1292,7 +1293,10 @@ return texX * blendWeights.x + texY * blendWeights.y + texZ * blendWeights.z;"#,
 ///
 /// `engine_target` controls the UE version the asset is built for.
 /// Pass `KainEngineTarget::default()` if you don't need to target a specific version.
-pub fn serialize_material_graph(graph: &MaterialGraph, engine_target: KainEngineTarget) -> Result<Vec<u8>, String> {
+pub fn serialize_material_graph(
+    graph: &MaterialGraph,
+    engine_target: KainEngineTarget,
+) -> Result<Vec<u8>, String> {
     let mut builder = MaterialAssetBuilder::new(&format!("M_{}", graph.name), engine_target);
 
     // Configure material properties
@@ -1361,21 +1365,22 @@ pub fn serialize_material_graph(graph: &MaterialGraph, engine_target: KainEngine
 
 /// Resolve a node ID reference to a builder node ID.
 fn resolve(node_map: &HashMap<String, usize>, id: &str) -> Result<usize, String> {
-    node_map
-        .get(id)
-        .copied()
-        .ok_or_else(|| {
-            let available: Vec<&str> = node_map.keys().map(|s| s.as_str()).collect();
-            format!(
-                "Unknown node reference '{}'. Available nodes: [{}]",
-                id,
-                if available.len() <= 10 {
-                    available.join(", ")
-                } else {
-                    format!("{} ... ({} total)", available[..10].join(", "), available.len())
-                }
-            )
-        })
+    node_map.get(id).copied().ok_or_else(|| {
+        let available: Vec<&str> = node_map.keys().map(|s| s.as_str()).collect();
+        format!(
+            "Unknown node reference '{}'. Available nodes: [{}]",
+            id,
+            if available.len() <= 10 {
+                available.join(", ")
+            } else {
+                format!(
+                    "{} ... ({} total)",
+                    available[..10].join(", "),
+                    available.len()
+                )
+            }
+        )
+    })
 }
 
 /// Convert a single MaterialNodeType into builder calls.
@@ -1430,10 +1435,9 @@ fn convert_node(
         MaterialNodeType::Max { a, b } => {
             Ok(builder.add_max_node(resolve(node_map, a)?, resolve(node_map, b)?))
         }
-        MaterialNodeType::Power { base, exponent } => Ok(builder.add_power_node(
-            resolve(node_map, base)?,
-            resolve(node_map, exponent)?,
-        )),
+        MaterialNodeType::Power { base, exponent } => {
+            Ok(builder.add_power_node(resolve(node_map, base)?, resolve(node_map, exponent)?))
+        }
         MaterialNodeType::Distance { a, b } => {
             Ok(builder.add_distance_node(resolve(node_map, a)?, resolve(node_map, b)?))
         }
@@ -1453,13 +1457,9 @@ fn convert_node(
             Ok(builder.add_saturate_node(resolve(node_map, input)?))
         }
         MaterialNodeType::Frac { input } => Ok(builder.add_frac_node(resolve(node_map, input)?)),
-        MaterialNodeType::Floor { input } => {
-            Ok(builder.add_floor_node(resolve(node_map, input)?))
-        }
+        MaterialNodeType::Floor { input } => Ok(builder.add_floor_node(resolve(node_map, input)?)),
         MaterialNodeType::Ceil { input } => Ok(builder.add_ceil_node(resolve(node_map, input)?)),
-        MaterialNodeType::Round { input } => {
-            Ok(builder.add_round_node(resolve(node_map, input)?))
-        }
+        MaterialNodeType::Round { input } => Ok(builder.add_round_node(resolve(node_map, input)?)),
         MaterialNodeType::Sqrt { input } => Ok(builder.add_sqrt_node(resolve(node_map, input)?)),
         MaterialNodeType::Exp { input } => {
             // UE5 doesn't have a direct Exp node; use Custom HLSL
@@ -1496,11 +1496,11 @@ fn convert_node(
         )),
 
         // Textures
-        MaterialNodeType::TextureSample { texture_input, uv_input } => {
-            let uv = uv_input
-                .as_ref()
-                .and_then(|id| node_map.get(id))
-                .copied();
+        MaterialNodeType::TextureSample {
+            texture_input,
+            uv_input,
+        } => {
+            let uv = uv_input.as_ref().and_then(|id| node_map.get(id)).copied();
             let node_id = builder.add_texture_sample_node(uv);
             // Wire texture_input if provided (otherwise the node has no texture set)
             if let Some(tex_id) = texture_input {
@@ -1518,10 +1518,7 @@ fn convert_node(
             uv_input,
             ..
         } => {
-            let uv = uv_input
-                .as_ref()
-                .and_then(|id| node_map.get(id))
-                .copied();
+            let uv = uv_input.as_ref().and_then(|id| node_map.get(id)).copied();
             Ok(builder.add_texture_sample_parameter(param_name, uv))
         }
         MaterialNodeType::TextureCoordinate { index, .. } => {
@@ -1582,7 +1579,9 @@ fn convert_node(
         } => {
             let uv = resolve(node_map, uv_input)?;
             let angle_node = node_map.get(angle.as_str()).copied();
-            let center_node = center.as_ref().and_then(|(cx, _)| node_map.get(cx.as_str()).copied());
+            let center_node = center
+                .as_ref()
+                .and_then(|(cx, _)| node_map.get(cx.as_str()).copied());
             Ok(builder.add_rotator_node(uv, center_node, angle_node))
         }
 
@@ -1611,12 +1610,13 @@ fn convert_node(
             let resolved: Vec<(String, usize)> = inputs
                 .iter()
                 .map(|ci| {
-                    let node_id = node_map.get(&ci.name).copied()
-                        .ok_or_else(|| format!(
+                    let node_id = node_map.get(&ci.name).copied().ok_or_else(|| {
+                        format!(
                             "CustomHLSL input '{}' references unknown node — \
                              ensure the input name matches a declared node or variable ID",
                             ci.name
-                        ))?;
+                        )
+                    })?;
                     Ok((ci.name.clone(), node_id))
                 })
                 .collect::<Result<Vec<_>, String>>()?;
@@ -1660,19 +1660,11 @@ fn convert_node(
             blend_modes,
             alphas,
         } => {
-            let layer_nodes: Result<Vec<usize>, String> = layers
-                .iter()
-                .map(|id| resolve(node_map, id))
-                .collect();
-            let alpha_nodes: Result<Vec<usize>, String> = alphas
-                .iter()
-                .map(|id| resolve(node_map, id))
-                .collect();
-            Ok(builder.add_material_layer_blend_node(
-                &layer_nodes?,
-                blend_modes,
-                &alpha_nodes?,
-            ))
+            let layer_nodes: Result<Vec<usize>, String> =
+                layers.iter().map(|id| resolve(node_map, id)).collect();
+            let alpha_nodes: Result<Vec<usize>, String> =
+                alphas.iter().map(|id| resolve(node_map, id)).collect();
+            Ok(builder.add_material_layer_blend_node(&layer_nodes?, blend_modes, &alpha_nodes?))
         }
     }
 }
@@ -1798,7 +1790,8 @@ mod tests {
 
         graph.outputs.base_color = Some("add".to_string());
 
-        let bytes = serialize_material_graph(&graph, KainEngineTarget::default()).expect("serialization should succeed");
+        let bytes = serialize_material_graph(&graph, KainEngineTarget::default())
+            .expect("serialization should succeed");
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
     }
@@ -1859,16 +1852,16 @@ mod tests {
     #[test]
     fn test_simple_layer_blend() {
         let mut builder = MaterialAssetBuilder::new("M_LayerBlend", KainEngineTarget::default());
-        
+
         // Create two base colors to blend
         let base = builder.add_constant3_node(1.0, 0.0, 0.0); // Red
         let overlay = builder.add_constant3_node(0.0, 0.0, 1.0); // Blue
         let alpha = builder.add_constant_node(0.5); // 50% blend
-        
+
         // Blend using lerp mode
         let blended = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
         builder.connect_to_base_color(blended);
-        
+
         let bytes = builder.build().expect("build should succeed");
         assert!(!bytes.is_empty());
     }
@@ -1876,24 +1869,24 @@ mod tests {
     #[test]
     fn test_multiple_layer_stack() {
         let mut builder = MaterialAssetBuilder::new("M_MultiLayer", KainEngineTarget::default());
-        
+
         // Create three layers
         let layer1 = builder.add_constant3_node(1.0, 0.0, 0.0); // Red base
         let layer2 = builder.add_constant3_node(0.0, 1.0, 0.0); // Green overlay
         let layer3 = builder.add_constant3_node(0.0, 0.0, 1.0); // Blue top
-        
+
         let alpha1 = builder.add_constant_node(0.5);
         let alpha2 = builder.add_constant_node(0.3);
-        
+
         // Blend all three layers
         let blended = builder.add_material_layer_blend_node(
             &[layer1, layer2, layer3],
             &[LayerBlendMode::Lerp, LayerBlendMode::Add],
             &[alpha1, alpha2],
         );
-        
+
         builder.connect_to_base_color(blended);
-        
+
         let bytes = builder.build().expect("build should succeed");
         assert!(!bytes.is_empty());
     }
@@ -1901,22 +1894,24 @@ mod tests {
     #[test]
     fn test_layer_alpha_control() {
         let mut builder = MaterialAssetBuilder::new("M_DynamicLayer", KainEngineTarget::default());
-        
+
         // Create base and overlay
         let base = builder.add_constant3_node(0.2, 0.2, 0.2); // Dark gray
         let overlay = builder.add_constant3_node(1.0, 1.0, 1.0); // White
-        
+
         // Use a parameter for dynamic alpha control
         let alpha = builder.add_scalar_parameter_node("BlendAmount", 0.5);
-        
+
         // Test different blend modes
-        let lerp_blend = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
+        let lerp_blend =
+            builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
         let add_blend = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Add, alpha);
-        let multiply_blend = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Multiply, alpha);
-        
+        let multiply_blend =
+            builder.add_material_layer_node(base, overlay, &LayerBlendMode::Multiply, alpha);
+
         // Use the lerp blend for output
         builder.connect_to_base_color(lerp_blend);
-        
+
         let bytes = builder.build().expect("build should succeed");
         assert!(!bytes.is_empty());
     }
@@ -1924,20 +1919,22 @@ mod tests {
     #[test]
     fn test_all_blend_modes() {
         let mut builder = MaterialAssetBuilder::new("M_AllBlendModes", KainEngineTarget::default());
-        
+
         let base = builder.add_constant3_node(0.5, 0.5, 0.5);
         let overlay = builder.add_constant3_node(0.8, 0.2, 0.3);
         let alpha = builder.add_constant_node(0.7);
-        
+
         // Test all blend modes compile
         let _lerp = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Lerp, alpha);
         let _add = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Add, alpha);
-        let _multiply = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Multiply, alpha);
-        let _overlay = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Overlay, alpha);
+        let _multiply =
+            builder.add_material_layer_node(base, overlay, &LayerBlendMode::Multiply, alpha);
+        let _overlay =
+            builder.add_material_layer_node(base, overlay, &LayerBlendMode::Overlay, alpha);
         let screen = builder.add_material_layer_node(base, overlay, &LayerBlendMode::Screen, alpha);
-        
+
         builder.connect_to_base_color(screen);
-        
+
         let bytes = builder.build().expect("build should succeed");
         assert!(!bytes.is_empty());
     }

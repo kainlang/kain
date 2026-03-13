@@ -9,8 +9,8 @@
 //! This replaces hardcoded EDITOR_ATTRIBUTES arrays with a queryable registry
 //! that can be extended without recompiling the compiler.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ═══════════════════════════════════════════════════════════════════
 // Schema Types (mirrors editor_attributes.json structure)
@@ -168,54 +168,62 @@ impl EditorAttributesRegistry {
 
     /// Get the class prefix for an attribute (e.g., "S" for slate, "F" for details)
     pub fn get_class_prefix(&self, name: &str) -> Option<&str> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.class_prefix.as_str())
             .filter(|s| !s.is_empty())
     }
 
     /// Get the class suffix for an attribute (e.g., "DetailsCustomization" for details)
     pub fn get_class_suffix(&self, name: &str) -> Option<&str> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.class_suffix.as_str())
             .filter(|s| !s.is_empty())
     }
 
     /// Get required includes for an attribute
     pub fn get_required_includes(&self, name: &str) -> Vec<&str> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.required_includes.iter().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
 
     /// Get required modules for an attribute
     pub fn get_required_modules(&self, name: &str) -> Vec<&str> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.required_modules.iter().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
 
     /// Get the naming convention for an attribute
     pub fn get_naming_convention(&self, name: &str) -> Option<&NamingConvention> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .and_then(|a| a.naming_convention.as_ref())
     }
 
     /// Get boilerplate flags for an attribute
     pub fn get_boilerplate(&self, name: &str) -> Option<&BoilerplateFlags> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .and_then(|a| a.boilerplate.as_ref())
     }
 
     /// Check if an attribute requires a viewport client (viewport-specific)
     pub fn requires_client(&self, name: &str) -> bool {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.requires_client)
             .unwrap_or(false)
     }
 
     /// Get the client base class for viewport attributes
     pub fn get_client_base(&self, name: &str) -> Option<&str> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.client_base.as_str())
             .filter(|s| !s.is_empty())
     }
@@ -232,7 +240,8 @@ impl EditorAttributesRegistry {
 
     /// Get examples for an attribute
     pub fn get_examples(&self, name: &str) -> Vec<&ExampleInfo> {
-        self.attributes.get(name)
+        self.attributes
+            .get(name)
             .map(|a| a.examples.iter().collect())
             .unwrap_or_default()
     }
@@ -340,7 +349,10 @@ mod tests {
 
         assert_eq!(reg.get_class_prefix("slate"), Some("S"));
         assert_eq!(reg.get_class_prefix("details"), Some("F"));
-        assert_eq!(reg.get_class_suffix("details"), Some("DetailsCustomization"));
+        assert_eq!(
+            reg.get_class_suffix("details"),
+            Some("DetailsCustomization")
+        );
         assert_eq!(reg.get_class_suffix("viewport"), Some("Viewport"));
     }
 
@@ -363,7 +375,10 @@ mod tests {
 
         assert!(reg.requires_client("viewport"));
         assert!(!reg.requires_client("slate"));
-        assert_eq!(reg.get_client_base("viewport"), Some("FEditorViewportClient"));
+        assert_eq!(
+            reg.get_client_base("viewport"),
+            Some("FEditorViewportClient")
+        );
     }
 
     #[test]

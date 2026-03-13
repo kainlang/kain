@@ -2,11 +2,11 @@
 //!
 //! This module wraps the `swc_ecma_parser` crate to parse TypeScript source files.
 
+use crate::{ImportError, Result};
+use std::path::Path;
 use swc_common::{sync::Lrc, FileName, SourceMap};
 use swc_ecma_ast::{EsVersion, Module};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax};
-use std::path::Path;
-use crate::{ImportError, Result};
 
 /// Parse a TypeScript source file into a SWC Module AST.
 ///
@@ -17,7 +17,7 @@ use crate::{ImportError, Result};
 pub fn parse_typescript(source: &str, path: &Path) -> Result<Module> {
     // Create source map for error reporting
     let cm: Lrc<SourceMap> = Default::default();
-    
+
     // Create source file
     let fm = cm.new_source_file(
         Lrc::new(FileName::Real(path.to_path_buf())),
@@ -34,23 +34,16 @@ pub fn parse_typescript(source: &str, path: &Path) -> Result<Module> {
     });
 
     // Create lexer
-    let lexer = Lexer::new(
-        syntax,
-        EsVersion::Es2022,
-        StringInput::from(&*fm),
-        None,
-    );
+    let lexer = Lexer::new(syntax, EsVersion::Es2022, StringInput::from(&*fm), None);
 
     // Create parser
     let mut parser = Parser::new_from(lexer);
 
     // Parse module
-    parser
-        .parse_module()
-        .map_err(|e| {
-            let msg = format!("TypeScript parse error: {:?}", e);
-            ImportError::TypeScriptParseError(msg)
-        })
+    parser.parse_module().map_err(|e| {
+        let msg = format!("TypeScript parse error: {:?}", e);
+        ImportError::TypeScriptParseError(msg)
+    })
 }
 
 #[cfg(test)]

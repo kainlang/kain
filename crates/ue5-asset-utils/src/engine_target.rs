@@ -202,24 +202,48 @@ mod tests {
 
     #[test]
     fn test_ue5_0_maps_distinctly() {
-        assert_eq!(KainEngineTarget::Ue5_0.as_serializer_version(), EngineVersion::VER_UE5_0);
-        assert_eq!(KainEngineTarget::Ue5_1.as_serializer_version(), EngineVersion::VER_UE5_1);
-        assert_eq!(KainEngineTarget::Ue5_2.as_serializer_version(), EngineVersion::VER_UE5_2);
+        assert_eq!(
+            KainEngineTarget::Ue5_0.as_serializer_version(),
+            EngineVersion::VER_UE5_0
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_1.as_serializer_version(),
+            EngineVersion::VER_UE5_1
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_2.as_serializer_version(),
+            EngineVersion::VER_UE5_2
+        );
     }
 
     #[test]
     fn test_ue5_3_maps_to_ue5_2_format() {
         // 5.3 shipped no new global ObjectVersionUE5 variants — shares the 5.2 watermark
-        assert_eq!(KainEngineTarget::Ue5_3.as_serializer_version(), EngineVersion::VER_UE5_2);
+        assert_eq!(
+            KainEngineTarget::Ue5_3.as_serializer_version(),
+            EngineVersion::VER_UE5_2
+        );
     }
 
     #[test]
     fn test_ue5_4_through_5_7_have_native_formats() {
         // Now that the vendored library has real watermarks from local engine source:
-        assert_eq!(KainEngineTarget::Ue5_4.as_serializer_version(), EngineVersion::VER_UE5_4);
-        assert_eq!(KainEngineTarget::Ue5_5.as_serializer_version(), EngineVersion::VER_UE5_5);
-        assert_eq!(KainEngineTarget::Ue5_6.as_serializer_version(), EngineVersion::VER_UE5_6);
-        assert_eq!(KainEngineTarget::Ue5_7.as_serializer_version(), EngineVersion::VER_UE5_7);
+        assert_eq!(
+            KainEngineTarget::Ue5_4.as_serializer_version(),
+            EngineVersion::VER_UE5_4
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_5.as_serializer_version(),
+            EngineVersion::VER_UE5_5
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_6.as_serializer_version(),
+            EngineVersion::VER_UE5_6
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_7.as_serializer_version(),
+            EngineVersion::VER_UE5_7
+        );
     }
 
     #[test]
@@ -245,18 +269,39 @@ mod tests {
     fn test_default_is_stable_version() {
         // Default should be a well-tested stable version, not the bleeding edge
         let d = KainEngineTarget::default();
-        assert!(d >= KainEngineTarget::Ue5_3, "default should be at least 5.3");
-        assert!(d <= KainEngineTarget::Ue5_5, "default should not be experimental edge");
+        assert!(
+            d >= KainEngineTarget::Ue5_3,
+            "default should be at least 5.3"
+        );
+        assert!(
+            d <= KainEngineTarget::Ue5_5,
+            "default should not be experimental edge"
+        );
     }
 
     #[test]
     fn test_serializer_ceiling() {
-        assert_eq!(KainEngineTarget::Ue5_0.serializer_ceiling(), KainEngineTarget::Ue5_0);
-        assert_eq!(KainEngineTarget::Ue5_2.serializer_ceiling(), KainEngineTarget::Ue5_2);
+        assert_eq!(
+            KainEngineTarget::Ue5_0.serializer_ceiling(),
+            KainEngineTarget::Ue5_0
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_2.serializer_ceiling(),
+            KainEngineTarget::Ue5_2
+        );
         // 5.3 has no unique format, ceiling stays at 5.2
-        assert_eq!(KainEngineTarget::Ue5_3.serializer_ceiling(), KainEngineTarget::Ue5_2);
+        assert_eq!(
+            KainEngineTarget::Ue5_3.serializer_ceiling(),
+            KainEngineTarget::Ue5_2
+        );
         // 5.4–5.7 are their own ceiling
-        assert_eq!(KainEngineTarget::Ue5_5.serializer_ceiling(), KainEngineTarget::Ue5_5);
-        assert_eq!(KainEngineTarget::Ue5_7.serializer_ceiling(), KainEngineTarget::Ue5_7);
+        assert_eq!(
+            KainEngineTarget::Ue5_5.serializer_ceiling(),
+            KainEngineTarget::Ue5_5
+        );
+        assert_eq!(
+            KainEngineTarget::Ue5_7.serializer_ceiling(),
+            KainEngineTarget::Ue5_7
+        );
     }
 }

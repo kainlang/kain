@@ -1,5 +1,7 @@
 use crate::error::{AsmError, AsmResult};
-use kain_core::{AsmBlock, AsmDataTable, AsmDirective, AsmInstr, AsmProgram, ParityTraceFrame, TranslitUnit};
+use kain_core::{
+    AsmBlock, AsmDataTable, AsmDirective, AsmInstr, AsmProgram, ParityTraceFrame, TranslitUnit,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -85,7 +87,11 @@ pub fn import_asm(
 
     if !validate_only {
         fs::write(&canonical_asm_path, canonical_text).map_err(AsmError::Io)?;
-        fs::write(&generated_kn_path, render_kain_firmware(&parsed, &translit_units)).map_err(AsmError::Io)?;
+        fs::write(
+            &generated_kn_path,
+            render_kain_firmware(&parsed, &translit_units),
+        )
+        .map_err(AsmError::Io)?;
         let furby_map = FurbyMap {
             translit_units: translit_units.clone(),
             parity_trace_schema: default_parity_trace_schema(),
@@ -132,7 +138,12 @@ fn canonicalize_asm(raw: &str) -> String {
         if trimmed.chars().all(|c| c == '-') {
             continue;
         }
-        if trimmed.starts_with('A') && trimmed.chars().skip(1).all(|c| c.is_ascii_digit() || c == '-') {
+        if trimmed.starts_with('A')
+            && trimmed
+                .chars()
+                .skip(1)
+                .all(|c| c.is_ascii_digit() || c == '-')
+        {
             continue;
         }
         let sanitized = trimmed
@@ -172,7 +183,11 @@ fn parse_asm_program(canonical: &str) -> AsmProgram {
             let upper = line.to_ascii_uppercase();
 
             if is_label_line(&line) {
-                flush_data_table(&mut data_tables, &mut current_data, line_no.saturating_sub(1));
+                flush_data_table(
+                    &mut data_tables,
+                    &mut current_data,
+                    line_no.saturating_sub(1),
+                );
                 flush_block(
                     &mut blocks,
                     &mut current_label,
@@ -192,7 +207,11 @@ fn parse_asm_program(canonical: &str) -> AsmProgram {
             {
                 directives.push(AsmDirective {
                     name: line.split_whitespace().next().unwrap_or("").to_string(),
-                    args: line.split_whitespace().skip(1).map(str::to_string).collect(),
+                    args: line
+                        .split_whitespace()
+                        .skip(1)
+                        .map(str::to_string)
+                        .collect(),
                     source_line: line_no,
                 });
                 continue;
@@ -234,7 +253,11 @@ fn parse_asm_program(canonical: &str) -> AsmProgram {
         }
     }
 
-    flush_data_table(&mut data_tables, &mut current_data, canonical.lines().count());
+    flush_data_table(
+        &mut data_tables,
+        &mut current_data,
+        canonical.lines().count(),
+    );
     flush_block(
         &mut blocks,
         &mut current_label,
@@ -256,7 +279,8 @@ fn is_label_line(line: &str) -> bool {
         return false;
     }
     let name = t.trim_end_matches(':');
-    name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
 }
 
 fn is_equ_directive(line: &str) -> bool {
@@ -311,7 +335,11 @@ fn parse_instruction(line: &str, source_line: usize) -> Option<AsmInstr> {
     let operand = parts.collect::<Vec<_>>().join(" ");
     Some(AsmInstr {
         opcode,
-        operand: if operand.is_empty() { None } else { Some(operand) },
+        operand: if operand.is_empty() {
+            None
+        } else {
+            Some(operand)
+        },
         source_line,
     })
 }
@@ -334,7 +362,11 @@ fn flush_block(
     current_label.clear();
 }
 
-fn flush_data_table(tables: &mut Vec<AsmDataTable>, current: &mut Option<AsmDataTable>, end_line: usize) {
+fn flush_data_table(
+    tables: &mut Vec<AsmDataTable>,
+    current: &mut Option<AsmDataTable>,
+    end_line: usize,
+) {
     if let Some(mut table) = current.take() {
         table.source_line_end = end_line.max(table.source_line_start);
         tables.push(table);
@@ -419,16 +451,17 @@ fn render_kain_firmware(parsed: &AsmProgram, translit: &[TranslitUnit]) -> Strin
             .get(block.label.as_str())
             .map(|u| u.target_item.clone())
             .unwrap_or_else(|| format!("fw_{}", normalize_ident(&block.label)));
-        out.push_str(&format!("fn {}(cpu: CpuState, mem: Memory) -> (CpuState, Memory):\n", fn_name));
+        out.push_str(&format!(
+            "fn {}(cpu: CpuState, mem: Memory) -> (CpuState, Memory):\n",
+            fn_name
+        ));
         out.push_str("    let next_cpu = cpu\n");
         out.push_str("    let next_mem = mem\n");
         for instr in &block.instructions {
             let operand = instr.operand.clone().unwrap_or_default();
             out.push_str(&format!(
                 "    # L{} {} {}\n",
-                instr.source_line,
-                instr.opcode,
-                operand
+                instr.source_line, instr.opcode, operand
             ));
         }
         out.push_str("    return (next_cpu, next_mem)\n\n");
@@ -469,7 +502,11 @@ fn build_recovery_report(input: &Path, canonical: &str, parsed: &AsmProgram) -> 
     let mut unresolved_tokens = Vec::new();
     let mut ambiguous_labels = Vec::new();
     let mut sections = BTreeMap::<String, (usize, usize)>::new();
-    let label_set = parsed.blocks.iter().map(|b| b.label.clone()).collect::<HashSet<_>>();
+    let label_set = parsed
+        .blocks
+        .iter()
+        .map(|b| b.label.clone())
+        .collect::<HashSet<_>>();
 
     for (idx, line) in canonical.lines().enumerate() {
         let line_no = idx + 1;
@@ -502,7 +539,10 @@ fn build_recovery_report(input: &Path, canonical: &str, parsed: &AsmProgram) -> 
             if !label_set.contains(&label) {
                 ambiguous_labels.push(RecoveryIssue {
                     line: line_no,
-                    message: format!("Label parsed but not emitted as executable block: {}", label),
+                    message: format!(
+                        "Label parsed but not emitted as executable block: {}",
+                        label
+                    ),
                 });
             }
         }
@@ -631,7 +671,10 @@ fn normalize_keyword(token: &str) -> String {
 }
 
 fn is_directive_keyword(kw: &str) -> bool {
-    matches!(kw, "EQU" | "DB" | "DW" | ".CODE" | ".SYNTAX" | ".LINKLIST" | ".SYMBOLS")
+    matches!(
+        kw,
+        "EQU" | "DB" | "DW" | ".CODE" | ".SYNTAX" | ".LINKLIST" | ".SYMBOLS"
+    )
 }
 
 fn is_opcode_keyword(kw: &str) -> bool {
@@ -731,11 +774,8 @@ mod tests {
         ));
         fs::create_dir_all(&base).expect("failed to create temp base");
         let input = base.join("furby_raw.asm");
-        fs::write(
-            &input,
-            "Start:\nLDA #10\nSTA PortA\nTable1: DB 10,20,30\n",
-        )
-        .expect("failed to write input");
+        fs::write(&input, "Start:\nLDA #10\nSTA PortA\nTable1: DB 10,20,30\n")
+            .expect("failed to write input");
 
         let prev = std::env::current_dir().expect("cwd");
         std::env::set_current_dir(&base).expect("set cwd");
@@ -748,4 +788,3 @@ mod tests {
         assert!(result.report_json_path.exists());
     }
 }
-

@@ -8,7 +8,7 @@ use enum_dispatch::enum_dispatch;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::reader::{ArchiveReader, ArchiveWriter};
-use crate::types::{PackageIndex};
+use crate::types::PackageIndex;
 use crate::unversioned::{usmap_reader::UsmapReader, usmap_writer::UsmapWriter};
 use crate::Error;
 

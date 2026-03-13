@@ -1,7 +1,7 @@
 use kain_core::ast::{Expr, Item};
 use kain_core::diagnostics::SpanMapper;
 use kain_core::low_level_memory_metadata::{
-    attr_usize_arg, has_attr, C_PACK_ALIGN_ATTR, C_PACKED_ATTR, C_TYPE_ALIGN_ATTR,
+    attr_usize_arg, has_attr, C_PACKED_ATTR, C_PACK_ALIGN_ATTR, C_TYPE_ALIGN_ATTR,
 };
 use kain_core::types::{check, TypedItem, TypedProgram};
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
@@ -63,7 +63,9 @@ struct ExpectedUnionGet {
 }
 
 fn corpus_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("abi_corpus")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("abi_corpus")
 }
 
 fn load_manifest() -> AbiCorpusManifest {
@@ -92,7 +94,10 @@ fn import_and_lower(path: &Path, target: CompileTarget) -> (kain_core::ast::Prog
     (program, lowered)
 }
 
-fn lowered_function<'a>(program: &'a TypedProgram, function_name: &str) -> &'a kain_core::types::TypedFunction {
+fn lowered_function<'a>(
+    program: &'a TypedProgram,
+    function_name: &str,
+) -> &'a kain_core::types::TypedFunction {
     program
         .items
         .iter()
@@ -105,7 +110,9 @@ fn lowered_function<'a>(program: &'a TypedProgram, function_name: &str) -> &'a k
 
 fn lowered_return_int(program: &TypedProgram, function_name: &str) -> i64 {
     let function = lowered_function(program, function_name);
-    let Some(kain_core::ast::Stmt::Return(Some(Expr::Int(value, _)), _)) = function.ast.body.stmts.last() else {
+    let Some(kain_core::ast::Stmt::Return(Some(Expr::Int(value, _)), _)) =
+        function.ast.body.stmts.last()
+    else {
         panic!("expected lowered integer return for {function_name}");
     };
     *value
@@ -134,7 +141,11 @@ fn abi_corpus_fixtures_survive_import_and_lowering_targets() {
 
     for case in &manifest.cases {
         let path = root.join(&case.source);
-        assert!(path.exists(), "missing ABI corpus source {}", path.display());
+        assert!(
+            path.exists(),
+            "missing ABI corpus source {}",
+            path.display()
+        );
 
         let mut imported_program = None;
         for target_name in &case.targets {
@@ -160,7 +171,10 @@ fn abi_corpus_fixtures_survive_import_and_lowering_targets() {
                 let kain_core::ast::Stmt::Return(Some(Expr::Binary { left, right, .. }), _) =
                     &function.ast.body.stmts[0]
                 else {
-                    panic!("expected binary return for {} in {}", expected.function, case.name);
+                    panic!(
+                        "expected binary return for {} in {}",
+                        expected.function, case.name
+                    );
                 };
                 let left_args = expect_call(left.as_ref(), "__kain_bitfield_get");
                 let right_args = expect_call(right.as_ref(), "__kain_bitfield_get");
@@ -183,14 +197,21 @@ fn abi_corpus_fixtures_survive_import_and_lowering_targets() {
 
             for expected in &case.union_gets {
                 let function = lowered_function(&lowered, &expected.function);
-                let kain_core::ast::Stmt::Return(Some(expr), _) = &function.ast.body.stmts[0] else {
+                let kain_core::ast::Stmt::Return(Some(expr), _) = &function.ast.body.stmts[0]
+                else {
                     panic!("expected return for {} in {}", expected.function, case.name);
                 };
                 let args = expect_call(expr, "__kain_union_get");
-                assert!(matches!(&args[1].value, Expr::String(value, _) if value == &expected.field));
-                assert!(matches!(&args[2].value, Expr::String(value, _) if value == &expected.type_name));
+                assert!(
+                    matches!(&args[1].value, Expr::String(value, _) if value == &expected.field)
+                );
+                assert!(
+                    matches!(&args[2].value, Expr::String(value, _) if value == &expected.type_name)
+                );
                 assert!(matches!(&args[3].value, Expr::Int(value, _) if *value == expected.stride));
-                assert!(matches!(&args[4].value, Expr::Int(value, _) if *value == expected.layout_size));
+                assert!(
+                    matches!(&args[4].value, Expr::Int(value, _) if *value == expected.layout_size)
+                );
             }
         }
 
@@ -203,7 +224,9 @@ fn abi_corpus_fixtures_survive_import_and_lowering_targets() {
                     Item::Struct(st) if st.name == expected.struct_name => Some(st),
                     _ => None,
                 })
-                .unwrap_or_else(|| panic!("missing struct {} in {}", expected.struct_name, case.name));
+                .unwrap_or_else(|| {
+                    panic!("missing struct {} in {}", expected.struct_name, case.name)
+                });
 
             if let Some(packed) = expected.packed {
                 assert_eq!(

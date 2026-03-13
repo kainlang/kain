@@ -10,13 +10,13 @@ use serde::{Deserialize, Serialize};
 pub struct GraphEditor {
     /// Graph editor name (e.g., "CombatGraph")
     pub name: String,
-    
+
     /// Node type definitions
     pub node_types: Vec<NodeType>,
-    
+
     /// Schema rules for connections
     pub schema: GraphSchema,
-    
+
     /// Graph-level properties
     pub properties: GraphProperties,
 }
@@ -26,28 +26,28 @@ pub struct GraphEditor {
 pub struct NodeType {
     /// Node type name (e.g., "InputNode")
     pub name: String,
-    
+
     /// Category for context menu (e.g., "Combat/Input")
     pub category: String,
-    
+
     /// Input pins
     pub inputs: Vec<PinDefinition>,
-    
+
     /// Output pins
     pub outputs: Vec<PinDefinition>,
-    
+
     /// Node properties
     pub properties: Vec<PropertyDefinition>,
-    
+
     /// Node color (RGBA)
     pub color: Option<[f32; 4]>,
-    
+
     /// Node icon path
     pub icon: Option<String>,
-    
+
     /// Node tooltip
     pub tooltip: Option<String>,
-    
+
     /// Execution logic (optional)
     pub execution_logic: Option<String>,
 }
@@ -57,10 +57,10 @@ pub struct NodeType {
 pub struct PropertyDefinition {
     /// Property name
     pub name: String,
-    
+
     /// Property type
     pub property_type: String,
-    
+
     /// Default value (optional)
     pub default_value: Option<String>,
 }
@@ -70,16 +70,16 @@ pub struct PropertyDefinition {
 pub struct PinDefinition {
     /// Pin name (e.g., "Execute", "Damage")
     pub name: String,
-    
+
     /// Pin type
     pub pin_type: PinType,
-    
+
     /// Is this an array pin?
     pub is_array: bool,
-    
+
     /// Default value (optional)
     pub default_value: Option<String>,
-    
+
     /// Pin tooltip
     pub tooltip: Option<String>,
 }
@@ -89,28 +89,28 @@ pub struct PinDefinition {
 pub enum PinType {
     /// Execution flow pin
     Exec,
-    
+
     /// Boolean value
     Bool,
-    
+
     /// Integer value
     Int,
-    
+
     /// Float value
     Float,
-    
+
     /// String value
     String,
-    
+
     /// UObject reference (class name)
     Object(String),
-    
+
     /// Struct value (struct name)
     Struct(String),
-    
+
     /// Enum value (enum name)
     Enum(String),
-    
+
     /// Wildcard (any type)
     Wildcard,
 }
@@ -120,10 +120,10 @@ pub enum PinType {
 pub struct GraphSchema {
     /// Allowed pin connections
     pub allowed_connections: Vec<ConnectionRule>,
-    
+
     /// Context menu actions
     pub context_actions: Vec<ContextAction>,
-    
+
     /// Custom validation rules
     pub validation_rules: Vec<ValidationRule>,
 }
@@ -133,13 +133,13 @@ pub struct GraphSchema {
 pub struct ConnectionRule {
     /// Source pin type
     pub from: PinType,
-    
+
     /// Target pin type
     pub to: PinType,
-    
+
     /// Is this connection allowed?
     pub allowed: bool,
-    
+
     /// Error message if not allowed
     pub error_message: Option<String>,
 }
@@ -149,13 +149,13 @@ pub struct ConnectionRule {
 pub struct ContextAction {
     /// Action label
     pub label: String,
-    
+
     /// Action category
     pub category: String,
-    
+
     /// Action tooltip
     pub tooltip: Option<String>,
-    
+
     /// Action implementation
     pub implementation: String,
 }
@@ -165,10 +165,10 @@ pub struct ContextAction {
 pub struct ValidationRule {
     /// Rule name
     pub name: String,
-    
+
     /// Rule description
     pub description: String,
-    
+
     /// Rule implementation
     pub implementation: String,
 }
@@ -178,13 +178,13 @@ pub struct ValidationRule {
 pub struct GraphProperties {
     /// Allow multiple connections to input pins?
     pub allow_multiple_input_connections: bool,
-    
+
     /// Allow multiple connections from output pins?
     pub allow_multiple_output_connections: bool,
-    
+
     /// Allow cycles in the graph?
     pub allow_cycles: bool,
-    
+
     /// Grid snap size
     pub grid_snap_size: i32,
 }
@@ -210,12 +210,12 @@ impl GraphEditor {
             properties: GraphProperties::default(),
         }
     }
-    
+
     /// Add a node type
     pub fn add_node_type(&mut self, node_type: NodeType) {
         self.node_types.push(node_type);
     }
-    
+
     /// Find a node type by name
     pub fn find_node_type(&self, name: &str) -> Option<&NodeType> {
         self.node_types.iter().find(|nt| nt.name == name)

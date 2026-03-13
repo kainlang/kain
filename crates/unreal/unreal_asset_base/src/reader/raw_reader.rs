@@ -17,7 +17,6 @@ use crate::types::{FName, PackageIndex, PackageIndexTrait, SerializedNameHeader}
 use crate::unversioned::Usmap;
 use crate::Error;
 
-
 /// A binary reader
 pub struct RawReader<Index: PackageIndexTrait, C: Read + Seek> {
     /// Reader cursor

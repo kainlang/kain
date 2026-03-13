@@ -16,10 +16,7 @@ fn unwrap_cast(expr: &kain_core::ast::Expr) -> &kain_core::ast::Expr {
     }
 }
 
-fn expect_call<'a>(
-    expr: &'a kain_core::ast::Expr,
-    name: &str,
-) -> &'a Vec<kain_core::ast::CallArg> {
+fn expect_call<'a>(expr: &'a kain_core::ast::Expr, name: &str) -> &'a Vec<kain_core::ast::CallArg> {
     let expr = unwrap_cast(expr);
     let kain_core::ast::Expr::Call { callee, args, .. } = expr else {
         panic!("expected call expression, got {expr:?}");
@@ -91,8 +88,12 @@ fn parser_normalizes_ptr_offset_call() {
         other => panic!("expected function, got {other:?}"),
     };
 
-    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::PtrOffset { pointer, offset, .. }), _) =
-        &function.body.stmts[0]
+    let kain_core::ast::Stmt::Return(
+        Some(kain_core::ast::Expr::PtrOffset {
+            pointer, offset, ..
+        }),
+        _,
+    ) = &function.body.stmts[0]
     else {
         panic!("expected ptr_offset expression in return");
     };
@@ -103,7 +104,8 @@ fn parser_normalizes_ptr_offset_call() {
 
 #[test]
 fn parser_normalizes_mem_load_and_store_calls() {
-    let source = "fn poke(p: ptr<Int>, v: Int) -> Int:\n    mem_store(p, v)\n    return mem_load(p)\n";
+    let source =
+        "fn poke(p: ptr<Int>, v: Int) -> Int:\n    mem_store(p, v)\n    return mem_load(p)\n";
     let tokens = Lexer::new(source).tokenize().expect("lex");
     let mapper = SpanMapper::new(source);
     let program = Parser::new(&tokens, &mapper, "mem_ops_test.kn")
@@ -162,25 +164,38 @@ fn parser_preserves_typed_memory_intrinsics() {
         other => panic!("expected function, got {other:?}"),
     };
 
-    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::MemStore { pointer, store_ty, .. }) =
-        &function.body.stmts[0]
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::MemStore {
+        pointer, store_ty, ..
+    }) = &function.body.stmts[0]
     else {
         panic!("expected typed mem_store");
     };
     assert!(matches!(store_ty, Some(Type::Named { name, .. }) if name == "Int"));
-    let kain_core::ast::Expr::PtrOffset { pointer: base, element_ty, .. } = pointer.as_ref() else {
+    let kain_core::ast::Expr::PtrOffset {
+        pointer: base,
+        element_ty,
+        ..
+    } = pointer.as_ref()
+    else {
         panic!("expected ptr_offset in mem_store");
     };
     assert!(matches!(element_ty, Some(Type::Named { name, .. }) if name == "Int"));
     assert!(matches!(base.as_ref(), kain_core::ast::Expr::AddrOf { .. }));
 
-    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::MemLoad { pointer, load_ty, .. }), _) =
-        &function.body.stmts[1]
+    let kain_core::ast::Stmt::Return(
+        Some(kain_core::ast::Expr::MemLoad {
+            pointer, load_ty, ..
+        }),
+        _,
+    ) = &function.body.stmts[1]
     else {
         panic!("expected typed mem_load");
     };
     assert!(matches!(load_ty, Some(Type::Named { name, .. }) if name == "Int"));
-    assert!(matches!(pointer.as_ref(), kain_core::ast::Expr::PtrOffset { .. }));
+    assert!(matches!(
+        pointer.as_ref(),
+        kain_core::ast::Expr::PtrOffset { .. }
+    ));
 }
 
 #[test]
@@ -202,7 +217,9 @@ fn parser_normalizes_sizeof_type_call() {
     else {
         panic!("expected sizeof_type return");
     };
-    assert!(matches!(target, Type::Ptr { inner, .. } if matches!(inner.as_ref(), Type::Named { name, .. } if name == "Int")));
+    assert!(
+        matches!(target, Type::Ptr { inner, .. } if matches!(inner.as_ref(), Type::Named { name, .. } if name == "Int"))
+    );
 }
 
 #[test]
@@ -219,15 +236,19 @@ fn parser_normalizes_alignof_alloca_and_uninit_calls() {
         other => panic!("expected function, got {other:?}"),
     };
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Alloca { ty, .. }), .. } =
-        &function.body.stmts[0]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Alloca { ty, .. }),
+        ..
+    } = &function.body.stmts[0]
     else {
         panic!("expected alloca initializer");
     };
     assert!(matches!(ty, Type::Array(_, 2, _)));
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Uninit { ty, .. }), .. } =
-        &function.body.stmts[1]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Uninit { ty, .. }),
+        ..
+    } = &function.body.stmts[1]
     else {
         panic!("expected uninit initializer");
     };
@@ -255,16 +276,20 @@ fn parser_normalizes_alloc_realloc_and_aggregate_init_calls() {
         other => panic!("expected function, got {other:?}"),
     };
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Alloc { ty, zeroed, .. }), .. } =
-        &function.body.stmts[0]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Alloc { ty, zeroed, .. }),
+        ..
+    } = &function.body.stmts[0]
     else {
         panic!("expected alloc initializer");
     };
     assert!(!zeroed);
     assert!(matches!(ty, Some(Type::Named { name, .. }) if name == "Pair"));
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Realloc { ty, .. }), .. } =
-        &function.body.stmts[1]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Realloc { ty, .. }),
+        ..
+    } = &function.body.stmts[1]
     else {
         panic!("expected realloc initializer");
     };
@@ -302,7 +327,9 @@ fn ts_memory_lowering_rewrites_raw_ops_into_helper_calls() {
     else {
         panic!("expected lowered mem_store helper call");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_store"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_store")
+    );
 
     let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Cast { value, target, .. }), _) =
         &function.ast.body.stmts[1]
@@ -313,7 +340,9 @@ fn ts_memory_lowering_rewrites_raw_ops_into_helper_calls() {
     let kain_core::ast::Expr::Call { callee, .. } = value.as_ref() else {
         panic!("expected helper call inside cast");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load")
+    );
 }
 
 #[test]
@@ -349,8 +378,12 @@ fn ts_memory_lowering_binds_address_taken_locals() {
     let kain_core::ast::Expr::Call { callee, args, .. } = value.as_ref() else {
         panic!("expected helper call");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load"));
-    assert!(matches!(&args[0].value, kain_core::ast::Expr::Ident(name, _) if name == "__kain_ptr_x"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_mem_load")
+    );
+    assert!(
+        matches!(&args[0].value, kain_core::ast::Expr::Ident(name, _) if name == "__kain_ptr_x")
+    );
 }
 
 #[test]
@@ -374,7 +407,9 @@ fn ts_memory_lowering_uses_layout_offsets_for_field_addresses() {
     else {
         panic!("expected lowered field pointer helper");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_field_ptr"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_field_ptr")
+    );
     assert!(matches!(&args[1].value, kain_core::ast::Expr::String(field, _) if field == "right"));
     assert!(matches!(&args[2].value, kain_core::ast::Expr::Int(offset, _) if *offset == 8));
 }
@@ -411,7 +446,8 @@ fn ts_memory_lowering_resolves_alignof_and_storage_nodes() {
     let program = Parser::new(&tokens, &mapper, "storage_lowering.kn")
         .parse()
         .expect("parse");
-    let typed = kain_core::types::check(&program, &mapper, "storage_lowering.kn").expect("typecheck");
+    let typed =
+        kain_core::types::check(&program, &mapper, "storage_lowering.kn").expect("typecheck");
     let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
 
     let function = match &lowered.items[0] {
@@ -419,15 +455,19 @@ fn ts_memory_lowering_resolves_alignof_and_storage_nodes() {
         other => panic!("expected function, got {other:?}"),
     };
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Array(items, _)), .. } =
-        &function.ast.body.stmts[0]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Array(items, _)),
+        ..
+    } = &function.ast.body.stmts[0]
     else {
         panic!("expected lowered alloca array");
     };
     assert_eq!(items.len(), 2);
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::None(_)), .. } =
-        &function.ast.body.stmts[1]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::None(_)),
+        ..
+    } = &function.ast.body.stmts[1]
     else {
         panic!("expected lowered uninit scalar as none");
     };
@@ -456,22 +496,32 @@ fn ts_memory_lowering_rewrites_heap_nodes_and_zero_fills_struct_aggregates() {
         other => panic!("expected function, got {other:?}"),
     };
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Call { callee, .. }), .. } =
-        &function.ast.body.stmts[0]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Call { callee, .. }),
+        ..
+    } = &function.ast.body.stmts[0]
     else {
         panic!("expected lowered alloc helper");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_alloc"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_alloc")
+    );
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Call { callee, .. }), .. } =
-        &function.ast.body.stmts[1]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Call { callee, .. }),
+        ..
+    } = &function.ast.body.stmts[1]
     else {
         panic!("expected lowered realloc helper");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_realloc"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_realloc")
+    );
 
-    let kain_core::ast::Stmt::Let { value: Some(kain_core::ast::Expr::Struct { fields, .. }), .. } =
-        &function.ast.body.stmts[2]
+    let kain_core::ast::Stmt::Let {
+        value: Some(kain_core::ast::Expr::Struct { fields, .. }),
+        ..
+    } = &function.ast.body.stmts[2]
     else {
         panic!("expected lowered aggregate init struct");
     };
@@ -591,12 +641,17 @@ fn ts_memory_lowering_uses_union_layout_metadata() {
     else {
         panic!("expected lowered union aggregate");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_union_wrap"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_union_wrap")
+    );
     let kain_core::ast::Expr::Struct { fields, .. } = &args[0].value else {
         panic!("expected wrapped struct value");
     };
     assert_eq!(fields.len(), 2);
-    assert_eq!(args[1].value, kain_core::ast::Expr::String("as_float".to_string(), span));
+    assert_eq!(
+        args[1].value,
+        kain_core::ast::Expr::String("as_float".to_string(), span)
+    );
     assert_eq!(args.len(), 6);
     assert_eq!(args[5].value, kain_core::ast::Expr::Float(3.0, span));
 
@@ -668,7 +723,10 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
                     stmts: vec![
                         kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
                             target: Box::new(kain_core::ast::Expr::Field {
-                                object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                object: Box::new(kain_core::ast::Expr::Ident(
+                                    "f".to_string(),
+                                    span,
+                                )),
                                 field: "mode".to_string(),
                                 span,
                             }),
@@ -677,7 +735,10 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
                         }),
                         kain_core::ast::Stmt::Return(
                             Some(kain_core::ast::Expr::Field {
-                                object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                object: Box::new(kain_core::ast::Expr::Ident(
+                                    "f".to_string(),
+                                    span,
+                                )),
                                 field: "ready".to_string(),
                                 span,
                             }),
@@ -695,7 +756,8 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
     };
 
     let mapper = SpanMapper::new("");
-    let typed = kain_core::types::check(&program, &mapper, "bitfield_lowering.kn").expect("typecheck");
+    let typed =
+        kain_core::types::check(&program, &mapper, "bitfield_lowering.kn").expect("typecheck");
     let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
 
     let function = match &lowered.items[1] {
@@ -708,7 +770,9 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
     else {
         panic!("expected bitfield set helper");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_set"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_set")
+    );
     let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Call { args: set_args, .. }) =
         &function.ast.body.stmts[0]
     else {
@@ -721,7 +785,9 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
     else {
         panic!("expected bitfield get helper");
     };
-    assert!(matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_get"));
+    assert!(
+        matches!(callee.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "__kain_bitfield_get")
+    );
     let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Call { args: get_args, .. }), _) =
         &function.ast.body.stmts[1]
     else {
@@ -798,7 +864,10 @@ fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
                     stmts: vec![
                         kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign {
                             target: Box::new(kain_core::ast::Expr::Field {
-                                object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                object: Box::new(kain_core::ast::Expr::Ident(
+                                    "f".to_string(),
+                                    span,
+                                )),
                                 field: "wide".to_string(),
                                 span,
                             }),
@@ -808,13 +877,19 @@ fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
                         kain_core::ast::Stmt::Return(
                             Some(kain_core::ast::Expr::Binary {
                                 left: Box::new(kain_core::ast::Expr::Field {
-                                    object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                    object: Box::new(kain_core::ast::Expr::Ident(
+                                        "f".to_string(),
+                                        span,
+                                    )),
                                     field: "small".to_string(),
                                     span,
                                 }),
                                 op: kain_core::ast::BinaryOp::Add,
                                 right: Box::new(kain_core::ast::Expr::Field {
-                                    object: Box::new(kain_core::ast::Expr::Ident("f".to_string(), span)),
+                                    object: Box::new(kain_core::ast::Expr::Ident(
+                                        "f".to_string(),
+                                        span,
+                                    )),
                                     field: "wide".to_string(),
                                     span,
                                 }),
@@ -834,7 +909,8 @@ fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
     };
 
     let mapper = SpanMapper::new("");
-    let typed = kain_core::types::check(&program, &mapper, "bitfield_promotion.kn").expect("typecheck");
+    let typed =
+        kain_core::types::check(&program, &mapper, "bitfield_promotion.kn").expect("typecheck");
     let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
 
     let function = match &lowered.items[1] {
@@ -969,7 +1045,8 @@ fn ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract() {
     };
 
     let mapper = SpanMapper::new("");
-    let typed = kain_core::types::check(&program, &mapper, "union_non_scalar.kn").expect("typecheck");
+    let typed =
+        kain_core::types::check(&program, &mapper, "union_non_scalar.kn").expect("typecheck");
     let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
     let function = match &lowered.items[2] {
         kain_core::types::TypedItem::Function(function) => function,
@@ -980,8 +1057,14 @@ fn ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract() {
         panic!("expected return stmt");
     };
     let args = expect_call(expr, "__kain_union_get");
-    assert_eq!(args[1].value, kain_core::ast::Expr::String("pair".to_string(), span));
-    assert_eq!(args[2].value, kain_core::ast::Expr::String("Pair".to_string(), span));
+    assert_eq!(
+        args[1].value,
+        kain_core::ast::Expr::String("pair".to_string(), span)
+    );
+    assert_eq!(
+        args[2].value,
+        kain_core::ast::Expr::String("Pair".to_string(), span)
+    );
     assert_eq!(args[3].value, kain_core::ast::Expr::Int(16, span));
     assert_eq!(args[4].value, kain_core::ast::Expr::Int(16, span));
     let kain_core::ast::Expr::Struct { fields, .. } = &args[5].value else {

@@ -22,12 +22,12 @@
 //! - Blueprint accessor (GetChunkSize())
 //! - DefaultGame.ini section
 
-pub mod config_ir;
-pub mod parser;
-pub mod developer_settings_codegen;
 pub mod blueprint_accessor_codegen;
+pub mod config_ir;
 pub mod cvar_codegen;
+pub mod developer_settings_codegen;
 pub mod ini_file_generator;
+pub mod parser;
 
 use anyhow::Result;
 use kain_core::ast::Program;
@@ -37,7 +37,7 @@ use kain_core::ast::Program;
 pub struct GeneratedFile {
     /// File path relative to plugin root (e.g., "Source/Public/VoxelSettings.h")
     pub path: String,
-    
+
     /// File content
     pub content: String,
 }
@@ -48,8 +48,8 @@ pub fn generate_config_code(
     plugin_name: &str,
     _module_api: &str,
 ) -> Result<Vec<GeneratedFile>> {
-    use crate::parser::parse_config_attribute;
     use crate::developer_settings_codegen::generate;
+    use crate::parser::parse_config_attribute;
     use kain_core::ast::Item;
 
     let mut generated_files = Vec::new();
@@ -84,8 +84,8 @@ pub fn generate_config_code_typed(
     plugin_name: &str,
     module_api: &str,
 ) -> Result<Vec<GeneratedFile>> {
-    use crate::parser::parse_config_attribute;
     use crate::developer_settings_codegen::generate;
+    use crate::parser::parse_config_attribute;
     use kain_core::types::TypedItem;
 
     let mut generated_files = Vec::new();
@@ -103,16 +103,18 @@ pub fn generate_config_code_typed(
                     path: format!("Source/Private/{}.cpp", struct_name),
                     content: output.source,
                 });
-                                // .ini section — write alongside the .h/.cpp
-                                let ini_file_name = config_struct.get_ini_file();
-                                if let Ok(ini_content) = crate::ini_file_generator::generate_ini_section(&config_struct, plugin_name) {
-                                    if !ini_content.is_empty() {
-                                        generated_files.push(GeneratedFile {
-                                            path: format!("Config/{}", ini_file_name),
-                                            content: ini_content,
-                                        });
-                                    }
-                                }
+                // .ini section — write alongside the .h/.cpp
+                let ini_file_name = config_struct.get_ini_file();
+                if let Ok(ini_content) =
+                    crate::ini_file_generator::generate_ini_section(&config_struct, plugin_name)
+                {
+                    if !ini_content.is_empty() {
+                        generated_files.push(GeneratedFile {
+                            path: format!("Config/{}", ini_file_name),
+                            content: ini_content,
+                        });
+                    }
+                }
             }
         }
     }
@@ -120,7 +122,6 @@ pub fn generate_config_code_typed(
     let _ = module_api; // reserved for future use
     Ok(generated_files)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -190,17 +191,17 @@ mod tests {
 
         let result = generate_config_code(&program, "MyPlugin", "MYPLUGIN_API");
         assert!(result.is_ok());
-        
+
         // Phase 2: Should generate .h and .cpp files
         let files = result.unwrap();
         assert_eq!(files.len(), 2); // Header and source
-        
+
         // Check header file
         let header = files.iter().find(|f| f.path.ends_with(".h")).unwrap();
         assert_eq!(header.path, "Source/Public/VoxelSettings.h");
         assert!(header.content.contains("UVoxelSettings"));
         assert!(header.content.contains("UDeveloperSettings"));
-        
+
         // Check source file
         let source = files.iter().find(|f| f.path.ends_with(".cpp")).unwrap();
         assert_eq!(source.path, "Source/Private/VoxelSettings.cpp");

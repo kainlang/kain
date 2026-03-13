@@ -116,7 +116,10 @@ impl TypeScriptTransformer {
         }
     }
 
-    fn transform_export_default_decl(&mut self, export: ts::ExportDefaultDecl) -> Result<Vec<Item>> {
+    fn transform_export_default_decl(
+        &mut self,
+        export: ts::ExportDefaultDecl,
+    ) -> Result<Vec<Item>> {
         match export.decl {
             ts::DefaultDecl::Fn(func) => {
                 let name = func
@@ -136,7 +139,9 @@ impl TypeScriptTransformer {
                 )
             }
             ts::DefaultDecl::Class(class) => {
-                let ident = class.ident.unwrap_or_else(|| ts::Ident::new_no_ctxt("DefaultExport".into(), class.class.span));
+                let ident = class.ident.unwrap_or_else(|| {
+                    ts::Ident::new_no_ctxt("DefaultExport".into(), class.class.span)
+                });
                 self.transform_class_decl(ts::ClassDecl {
                     ident,
                     declare: false,
@@ -206,11 +211,7 @@ impl TypeScriptTransformer {
         }
 
         Ok(vec![Item::Function(self.transform_function_like(
-            name,
-            function,
-            visibility,
-            false,
-            generics,
+            name, function, visibility, false, generics,
         )?)])
     }
 
@@ -391,7 +392,11 @@ impl TypeScriptTransformer {
                 }
                 ts::ClassMember::Method(method) => {
                     if let Some(name) = self.prop_name_to_string(&method.key) {
-                        methods.push(self.transform_class_method(name, *method.function, method.is_static)?);
+                        methods.push(self.transform_class_method(
+                            name,
+                            *method.function,
+                            method.is_static,
+                        )?);
                     } else {
                         self.note("computed class method skipped".to_string());
                     }
@@ -467,7 +472,10 @@ impl TypeScriptTransformer {
                             span,
                         }));
                     } else {
-                        self.note(format!("const {} skipped because it has no initializer", name));
+                        self.note(format!(
+                            "const {} skipped because it has no initializer",
+                            name
+                        ));
                     }
                 }
                 _ => {
@@ -510,7 +518,11 @@ impl TypeScriptTransformer {
         Ok(func)
     }
 
-    fn transform_constructor(&mut self, class_name: &str, ctor: ts::Constructor) -> Result<Function> {
+    fn transform_constructor(
+        &mut self,
+        class_name: &str,
+        ctor: ts::Constructor,
+    ) -> Result<Function> {
         let span = Span::default();
         let mut params = Vec::new();
 
@@ -536,7 +548,9 @@ impl TypeScriptTransformer {
                             span,
                         });
                     }
-                    _ => self.note("unsupported constructor parameter property skipped".to_string()),
+                    _ => {
+                        self.note("unsupported constructor parameter property skipped".to_string())
+                    }
                 },
             }
         }
@@ -550,7 +564,10 @@ impl TypeScriptTransformer {
             self.pop_scope();
             block
         } else {
-            Block { stmts: Vec::new(), span }
+            Block {
+                stmts: Vec::new(),
+                span,
+            }
         };
 
         Ok(Function {
@@ -659,7 +676,9 @@ impl TypeScriptTransformer {
         methods: &mut Vec<Function>,
     ) -> Result<bool> {
         match stmt {
-            ts::Stmt::Decl(ts::Decl::Var(var)) => self.hoist_component_var_decl(var, state, methods),
+            ts::Stmt::Decl(ts::Decl::Var(var)) => {
+                self.hoist_component_var_decl(var, state, methods)
+            }
             ts::Stmt::Decl(ts::Decl::Fn(func)) => {
                 let name = self.rename_value(&func.ident.sym);
                 let method = self.transform_function_like(
@@ -800,17 +819,19 @@ impl TypeScriptTransformer {
 
         match &*first_arg.expr {
             ts::Expr::Arrow(arrow) => Ok(Some(self.transform_named_arrow_method(name, arrow)?)),
-            ts::Expr::Fn(func) => Ok(Some(self.transform_function_like(
-                name.to_string(),
-                &func.function,
-                Visibility::Private,
-                false,
-                func.function
-                    .type_params
-                    .as_deref()
-                    .map(Self::map_generics)
-                    .unwrap_or_default(),
-            )?)),
+            ts::Expr::Fn(func) => Ok(Some(
+                self.transform_function_like(
+                    name.to_string(),
+                    &func.function,
+                    Visibility::Private,
+                    false,
+                    func.function
+                        .type_params
+                        .as_deref()
+                        .map(Self::map_generics)
+                        .unwrap_or_default(),
+                )?,
+            )),
             _ => Ok(None),
         }
     }
@@ -830,7 +851,10 @@ impl TypeScriptTransformer {
         let ts::Expr::Call(call) = init else {
             return Ok(false);
         };
-        if !self.call_callee_name(call).is_some_and(|name| name.ends_with("useState")) {
+        if !self
+            .call_callee_name(call)
+            .is_some_and(|name| name.ends_with("useState"))
+        {
             return Ok(false);
         }
 
@@ -883,7 +907,11 @@ impl TypeScriptTransformer {
         Ok(true)
     }
 
-    fn transform_named_arrow_method(&mut self, name: &str, arrow: &ts::ArrowExpr) -> Result<Function> {
+    fn transform_named_arrow_method(
+        &mut self,
+        name: &str,
+        arrow: &ts::ArrowExpr,
+    ) -> Result<Function> {
         let span = Span::default();
         let params = arrow
             .params
@@ -962,7 +990,10 @@ impl TypeScriptTransformer {
         let mut params = Vec::new();
 
         if inject_self {
-            let class_name = self.current_class.clone().unwrap_or_else(|| "Self".to_string());
+            let class_name = self
+                .current_class
+                .clone()
+                .unwrap_or_else(|| "Self".to_string());
             params.push(Param {
                 name: "_self".to_string(),
                 ty: Type::Named {
@@ -1029,9 +1060,18 @@ impl TypeScriptTransformer {
         for param in params {
             let param = match param {
                 ts::TsFnParam::Ident(ident) => self.binding_ident_to_param(ident)?,
-                ts::TsFnParam::Array(array) => self.pattern_to_param_name(&ts::Pat::Array(array.clone().into()), array.type_ann.as_deref().map(|ann| &*ann.type_ann))?,
-                ts::TsFnParam::Object(object) => self.pattern_to_param_name(&ts::Pat::Object(object.clone().into()), object.type_ann.as_deref().map(|ann| &*ann.type_ann))?,
-                ts::TsFnParam::Rest(rest) => self.pattern_to_param_name(&ts::Pat::Rest(rest.clone().into()), rest.type_ann.as_deref().map(|ann| &*ann.type_ann))?,
+                ts::TsFnParam::Array(array) => self.pattern_to_param_name(
+                    &ts::Pat::Array(array.clone().into()),
+                    array.type_ann.as_deref().map(|ann| &*ann.type_ann),
+                )?,
+                ts::TsFnParam::Object(object) => self.pattern_to_param_name(
+                    &ts::Pat::Object(object.clone().into()),
+                    object.type_ann.as_deref().map(|ann| &*ann.type_ann),
+                )?,
+                ts::TsFnParam::Rest(rest) => self.pattern_to_param_name(
+                    &ts::Pat::Rest(rest.clone().into()),
+                    rest.type_ann.as_deref().map(|ann| &*ann.type_ann),
+                )?,
             };
             out.push(param);
         }
@@ -1046,9 +1086,14 @@ impl TypeScriptTransformer {
                 param.default = Some(self.transform_expr(&assign.right)?);
                 Ok(param)
             }
-            ts::Pat::Rest(rest) => self.pattern_to_param_name(pat, rest.type_ann.as_deref().map(|ann| &*ann.type_ann)),
-            ts::Pat::Array(array) => self.pattern_to_param_name(pat, array.type_ann.as_deref().map(|ann| &*ann.type_ann)),
-            ts::Pat::Object(object) => self.pattern_to_param_name(pat, object.type_ann.as_deref().map(|ann| &*ann.type_ann)),
+            ts::Pat::Rest(rest) => {
+                self.pattern_to_param_name(pat, rest.type_ann.as_deref().map(|ann| &*ann.type_ann))
+            }
+            ts::Pat::Array(array) => {
+                self.pattern_to_param_name(pat, array.type_ann.as_deref().map(|ann| &*ann.type_ann))
+            }
+            ts::Pat::Object(object) => self
+                .pattern_to_param_name(pat, object.type_ann.as_deref().map(|ann| &*ann.type_ann)),
             ts::Pat::Expr(_) | ts::Pat::Invalid(_) => self.pattern_to_param_name(pat, None),
         }
     }
@@ -1071,15 +1116,24 @@ impl TypeScriptTransformer {
         })
     }
 
-    fn pattern_to_param_name(&mut self, pat: &ts::Pat, ty_ann: Option<&ts::TsType>) -> Result<Param> {
+    fn pattern_to_param_name(
+        &mut self,
+        pat: &ts::Pat,
+        ty_ann: Option<&ts::TsType>,
+    ) -> Result<Param> {
         let span = Span::default();
         let ty = ty_ann
             .map(|ann| self.type_mapper.map_type(ann, span))
             .transpose()?
             .unwrap_or(Type::Infer(span));
-        let name = self.pat_binding_name(pat).unwrap_or_else(|| self.fresh_temp("arg"));
+        let name = self
+            .pat_binding_name(pat)
+            .unwrap_or_else(|| self.fresh_temp("arg"));
         if !matches!(pat, ts::Pat::Ident(_)) {
-            self.note(format!("pattern parameter '{}' simplified to a binding", name));
+            self.note(format!(
+                "pattern parameter '{}' simplified to a binding",
+                name
+            ));
         }
         Ok(Param {
             name: self.rename_value(&name),
@@ -1109,7 +1163,10 @@ impl TypeScriptTransformer {
             ts::Stmt::Decl(ts::Decl::Var(var)) => self.transform_var_stmt(var),
             ts::Stmt::Decl(decl) => {
                 let items = self.transform_decl(decl.clone())?;
-                Ok(items.into_iter().map(|item| Stmt::Item(Box::new(item))).collect())
+                Ok(items
+                    .into_iter()
+                    .map(|item| Stmt::Item(Box::new(item)))
+                    .collect())
             }
             ts::Stmt::Expr(expr) => {
                 if let ts::Expr::Call(call) = &*expr.expr {
@@ -1126,7 +1183,7 @@ impl TypeScriptTransformer {
                     .transpose()?,
                 span,
             )]),
-            ts::Stmt::If(if_stmt) => Ok(vec![Stmt::Expr(self.transform_if_stmt(if_stmt)?)]) ,
+            ts::Stmt::If(if_stmt) => Ok(vec![Stmt::Expr(self.transform_if_stmt(if_stmt)?)]),
             ts::Stmt::While(while_stmt) => Ok(vec![Stmt::While {
                 condition: self.transform_expr(&while_stmt.test)?,
                 body: self.stmt_to_block(&while_stmt.body)?,
@@ -1419,7 +1476,11 @@ impl TypeScriptTransformer {
         &mut self,
         function: &ts::Function,
     ) -> Result<(String, Option<String>, Block)> {
-        let params = function.params.iter().map(|param| param.pat.clone()).collect::<Vec<_>>();
+        let params = function
+            .params
+            .iter()
+            .map(|param| param.pat.clone())
+            .collect::<Vec<_>>();
         let body = function
             .body
             .as_ref()
@@ -1491,7 +1552,10 @@ impl TypeScriptTransformer {
             ts::Expr::Bin(bin) => Ok(Expr::Binary {
                 left: Box::new(self.transform_expr(&bin.left)?),
                 op: map_binary_op(bin.op).ok_or_else(|| {
-                    ImportError::UnsupportedFeature(format!("unsupported TypeScript binary op {:?}", bin.op))
+                    ImportError::UnsupportedFeature(format!(
+                        "unsupported TypeScript binary op {:?}",
+                        bin.op
+                    ))
                 })?,
                 right: Box::new(self.transform_expr(&bin.right)?),
                 span,
@@ -1505,7 +1569,10 @@ impl TypeScriptTransformer {
                         span,
                     })
                 } else {
-                    self.note(format!("unary operator {:?} lowered to passthrough", unary.op));
+                    self.note(format!(
+                        "unary operator {:?} lowered to passthrough",
+                        unary.op
+                    ));
                     Ok(operand)
                 }
             }
@@ -1542,10 +1609,9 @@ impl TypeScriptTransformer {
             ts::Expr::JSXElement(element) => self.transform_jsx_element_expr(element),
             ts::Expr::JSXFragment(fragment) => self.transform_jsx_fragment_expr(fragment),
             ts::Expr::Seq(seq) => {
-                let last = seq
-                    .exprs
-                    .last()
-                    .ok_or_else(|| ImportError::TransformError("empty sequence expression".to_string()))?;
+                let last = seq.exprs.last().ok_or_else(|| {
+                    ImportError::TransformError("empty sequence expression".to_string())
+                })?;
                 self.transform_expr(last)
             }
             other => Err(ImportError::UnsupportedFeature(format!(
@@ -1608,21 +1674,37 @@ impl TypeScriptTransformer {
                 ts::PropOrSpread::Prop(prop) => match &**prop {
                     ts::Prop::KeyValue(prop) => {
                         if let Some(name) = self.prop_name_to_string(&prop.key) {
-                            fields.push((self.rename_field(&name), self.transform_expr(&prop.value)?));
+                            fields.push((
+                                self.rename_field(&name),
+                                self.transform_expr(&prop.value)?,
+                            ));
                         } else if let ts::PropName::Computed(computed) = &prop.key {
                             if let Some(name) = self.expr_to_field_name(&computed.expr) {
-                                fields.push((self.rename_field(&name), self.transform_expr(&prop.value)?));
-                                self.note(format!("computed object key '{}' lowered to a plain field", name));
+                                fields.push((
+                                    self.rename_field(&name),
+                                    self.transform_expr(&prop.value)?,
+                                ));
+                                self.note(format!(
+                                    "computed object key '{}' lowered to a plain field",
+                                    name
+                                ));
                             } else {
-                                self.note("computed object literal key dropped during import".to_string());
+                                self.note(
+                                    "computed object literal key dropped during import".to_string(),
+                                );
                             }
                         } else {
-                            self.note("unsupported object literal key dropped during import".to_string());
+                            self.note(
+                                "unsupported object literal key dropped during import".to_string(),
+                            );
                         }
                     }
                     ts::Prop::Shorthand(ident) => {
                         let name = self.rename_field(&ident.sym);
-                        fields.push((name.clone(), Expr::Ident(self.rename_value(&ident.sym), span)));
+                        fields.push((
+                            name.clone(),
+                            Expr::Ident(self.rename_value(&ident.sym), span),
+                        ));
                     }
                     other => {
                         return Err(ImportError::UnsupportedFeature(format!(
@@ -1631,13 +1713,14 @@ impl TypeScriptTransformer {
                         )));
                     }
                 },
-                ts::PropOrSpread::Spread(_) => {
-                    match self.policy.object_spread {
-                        SpreadFallbackMode::KeepExplicitFields => {
-                            self.note("object spread lowered lossily by keeping explicit fields only".to_string());
-                        }
+                ts::PropOrSpread::Spread(_) => match self.policy.object_spread {
+                    SpreadFallbackMode::KeepExplicitFields => {
+                        self.note(
+                            "object spread lowered lossily by keeping explicit fields only"
+                                .to_string(),
+                        );
                     }
-                }
+                },
             }
         }
 
@@ -1700,7 +1783,10 @@ impl TypeScriptTransformer {
 
     fn transform_simple_assign_target(&mut self, target: &ts::SimpleAssignTarget) -> Result<Expr> {
         match target {
-            ts::SimpleAssignTarget::Ident(ident) => Ok(Expr::Ident(self.rename_value(&ident.id.sym), Span::default())),
+            ts::SimpleAssignTarget::Ident(ident) => Ok(Expr::Ident(
+                self.rename_value(&ident.id.sym),
+                Span::default(),
+            )),
             ts::SimpleAssignTarget::Member(member) => self.transform_member_expr(member),
             ts::SimpleAssignTarget::Paren(paren) => self.transform_expr(&paren.expr),
             ts::SimpleAssignTarget::SuperProp(_) => Err(ImportError::UnsupportedFeature(
@@ -1712,7 +1798,9 @@ impl TypeScriptTransformer {
             ts::SimpleAssignTarget::TsAs(ts_as) => self.transform_expr(&ts_as.expr),
             ts::SimpleAssignTarget::TsSatisfies(ts_sat) => self.transform_expr(&ts_sat.expr),
             ts::SimpleAssignTarget::TsNonNull(non_null) => self.transform_expr(&non_null.expr),
-            ts::SimpleAssignTarget::TsTypeAssertion(assertion) => self.transform_expr(&assertion.expr),
+            ts::SimpleAssignTarget::TsTypeAssertion(assertion) => {
+                self.transform_expr(&assertion.expr)
+            }
             ts::SimpleAssignTarget::TsInstantiation(inst) => self.transform_expr(&inst.expr),
             ts::SimpleAssignTarget::Invalid(_) => Err(ImportError::TransformError(
                 "invalid assignment target".to_string(),
@@ -1789,7 +1877,11 @@ impl TypeScriptTransformer {
         };
         let value = Expr::Binary {
             left: Box::new(target.clone()),
-            op: if delta > 0 { BinaryOp::Add } else { BinaryOp::Sub },
+            op: if delta > 0 {
+                BinaryOp::Add
+            } else {
+                BinaryOp::Sub
+            },
             right: Box::new(Expr::Int(1, span)),
             span,
         };
@@ -1838,7 +1930,9 @@ impl TypeScriptTransformer {
             self.define(&param.name, param.ty.clone());
         }
         let body = match &*arrow.body {
-            ts::BlockStmtOrExpr::BlockStmt(block) => Expr::Block(self.transform_block_stmt(block)?, span),
+            ts::BlockStmtOrExpr::BlockStmt(block) => {
+                Expr::Block(self.transform_block_stmt(block)?, span)
+            }
             ts::BlockStmtOrExpr::Expr(expr) => self.transform_expr(expr)?,
         };
         self.pop_scope();
@@ -1954,13 +2048,11 @@ impl TypeScriptTransformer {
 
                     let value = match &attr.value {
                         None => JSXAttrValue::Bool(true),
-                        Some(ts::JSXAttrValue::Lit(lit)) => {
-                            match lit {
-                                ts::Lit::Str(value) => JSXAttrValue::String(value.value.to_string()),
-                                ts::Lit::Bool(value) => JSXAttrValue::Bool(value.value),
-                                _ => JSXAttrValue::Expr(self.transform_lit(lit)?),
-                            }
-                        }
+                        Some(ts::JSXAttrValue::Lit(lit)) => match lit {
+                            ts::Lit::Str(value) => JSXAttrValue::String(value.value.to_string()),
+                            ts::Lit::Bool(value) => JSXAttrValue::Bool(value.value),
+                            _ => JSXAttrValue::Expr(self.transform_lit(lit)?),
+                        },
                         Some(ts::JSXAttrValue::JSXExprContainer(container)) => {
                             match &container.expr {
                                 ts::JSXExpr::Expr(expr) => {
@@ -1969,12 +2061,12 @@ impl TypeScriptTransformer {
                                 ts::JSXExpr::JSXEmptyExpr(_) => JSXAttrValue::Bool(true),
                             }
                         }
-                        Some(ts::JSXAttrValue::JSXElement(element)) => {
-                            JSXAttrValue::Expr(Expr::JSX(self.transform_jsx_element_node(element)?, Span::default()))
-                        }
-                        Some(ts::JSXAttrValue::JSXFragment(fragment)) => {
-                            JSXAttrValue::Expr(Expr::JSX(self.transform_jsx_fragment_node(fragment)?, Span::default()))
-                        }
+                        Some(ts::JSXAttrValue::JSXElement(element)) => JSXAttrValue::Expr(
+                            Expr::JSX(self.transform_jsx_element_node(element)?, Span::default()),
+                        ),
+                        Some(ts::JSXAttrValue::JSXFragment(fragment)) => JSXAttrValue::Expr(
+                            Expr::JSX(self.transform_jsx_fragment_node(fragment)?, Span::default()),
+                        ),
                     };
 
                     out.push(JSXAttribute {
@@ -2019,7 +2111,9 @@ impl TypeScriptTransformer {
                     out.push(self.transform_jsx_fragment_node(fragment)?);
                 }
                 ts::JSXElementChild::JSXSpreadChild(spread) => {
-                    out.push(JSXNode::Expression(Box::new(self.transform_expr(&spread.expr)?)));
+                    out.push(JSXNode::Expression(Box::new(
+                        self.transform_expr(&spread.expr)?,
+                    )));
                 }
             }
         }
@@ -2041,7 +2135,9 @@ impl TypeScriptTransformer {
         match expr {
             ts::Expr::Paren(paren) => self.try_transform_jsx_root(&paren.expr),
             ts::Expr::JSXElement(element) => Ok(Some(self.transform_jsx_element_node(element)?)),
-            ts::Expr::JSXFragment(fragment) => Ok(Some(self.transform_jsx_fragment_node(fragment)?)),
+            ts::Expr::JSXFragment(fragment) => {
+                Ok(Some(self.transform_jsx_fragment_node(fragment)?))
+            }
             ts::Expr::Cond(cond) => {
                 let Some(then_branch) = self.try_transform_jsx_root(&cond.cons)? else {
                     return Ok(None);
@@ -2069,10 +2165,14 @@ impl TypeScriptTransformer {
                 if let Some(node) = self.try_transform_jsx_map_call(call)? {
                     Ok(Some(node))
                 } else {
-                    Ok(Some(JSXNode::Expression(Box::new(self.transform_expr(expr)?))))
+                    Ok(Some(JSXNode::Expression(Box::new(
+                        self.transform_expr(expr)?,
+                    ))))
                 }
             }
-            _ => Ok(Some(JSXNode::Expression(Box::new(self.transform_expr(expr)?)))),
+            _ => Ok(Some(JSXNode::Expression(Box::new(
+                self.transform_expr(expr)?,
+            )))),
         }
     }
 
@@ -2217,9 +2317,14 @@ impl TypeScriptTransformer {
                                 span,
                             },
                         )),
-                        ts::ObjectPatProp::KeyValue(key_value) => self
-                            .prop_name_to_string(&key_value.key)
-                            .map(|name| (self.rename_field(&name), self.transform_pattern(&key_value.value))),
+                        ts::ObjectPatProp::KeyValue(key_value) => {
+                            self.prop_name_to_string(&key_value.key).map(|name| {
+                                (
+                                    self.rename_field(&name),
+                                    self.transform_pattern(&key_value.value),
+                                )
+                            })
+                        }
                         ts::ObjectPatProp::Rest(_) => None,
                     })
                     .collect(),
@@ -2288,7 +2393,8 @@ impl TypeScriptTransformer {
     }
 
     fn rename_value(&mut self, raw: &str) -> String {
-        self.identifier_renamer.resolve(IdentifierDomain::Value, raw)
+        self.identifier_renamer
+            .resolve(IdentifierDomain::Value, raw)
     }
 
     fn rename_type(&mut self, raw: &str) -> String {
@@ -2296,11 +2402,13 @@ impl TypeScriptTransformer {
     }
 
     fn rename_field(&mut self, raw: &str) -> String {
-        self.identifier_renamer.resolve(IdentifierDomain::Field, raw)
+        self.identifier_renamer
+            .resolve(IdentifierDomain::Field, raw)
     }
 
     fn rename_variant(&mut self, raw: &str) -> String {
-        self.identifier_renamer.resolve(IdentifierDomain::Variant, raw)
+        self.identifier_renamer
+            .resolve(IdentifierDomain::Variant, raw)
     }
 
     fn note(&mut self, msg: String) {
@@ -2311,9 +2419,15 @@ impl TypeScriptTransformer {
         match name {
             ts::JSXElementName::Ident(ident) => ident.sym.to_string(),
             ts::JSXElementName::JSXMemberExpr(member) => {
-                format!("{}.{}", self.jsx_object_to_string(&member.obj), member.prop.sym)
+                format!(
+                    "{}.{}",
+                    self.jsx_object_to_string(&member.obj),
+                    member.prop.sym
+                )
             }
-            ts::JSXElementName::JSXNamespacedName(name) => format!("{}:{}", name.ns.sym, name.name.sym),
+            ts::JSXElementName::JSXNamespacedName(name) => {
+                format!("{}:{}", name.ns.sym, name.name.sym)
+            }
         }
     }
 
@@ -2321,7 +2435,11 @@ impl TypeScriptTransformer {
         match obj {
             ts::JSXObject::Ident(ident) => ident.sym.to_string(),
             ts::JSXObject::JSXMemberExpr(member) => {
-                format!("{}.{}", self.jsx_object_to_string(&member.obj), member.prop.sym)
+                format!(
+                    "{}.{}",
+                    self.jsx_object_to_string(&member.obj),
+                    member.prop.sym
+                )
             }
         }
     }
@@ -2448,7 +2566,9 @@ fn block_with_expr(expr: Expr) -> Block {
 }
 
 fn looks_like_component_name(name: &str) -> bool {
-    name.chars().next().is_some_and(|ch| ch.is_ascii_uppercase())
+    name.chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_uppercase())
 }
 
 fn sanitize_jsx_name(name: &str) -> String {

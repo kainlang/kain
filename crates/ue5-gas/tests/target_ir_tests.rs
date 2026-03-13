@@ -2,7 +2,9 @@
 // Target Actor IR Tests (Phase 7)
 // ============================================================================
 
-use kain_core::ast::{Attribute, Block, Function, TargetActorDef, TargetFilter, TraceType, Visibility};
+use kain_core::ast::{
+    Attribute, Block, Function, TargetActorDef, TargetFilter, TraceType, Visibility,
+};
 use kain_core::span::Span;
 use ue5_gas::target_ir::{TargetActorIR, TraceTypeIR};
 
@@ -60,19 +62,34 @@ fn test_trace_type_mapping_variants() {
     let mut target = create_target_actor("TraceMapTarget");
 
     target.trace_type = TraceType::Line;
-    assert_eq!(TargetActorIR::from_ast(&target).unwrap().trace_type, TraceTypeIR::Line);
+    assert_eq!(
+        TargetActorIR::from_ast(&target).unwrap().trace_type,
+        TraceTypeIR::Line
+    );
 
     target.trace_type = TraceType::Sphere;
-    assert_eq!(TargetActorIR::from_ast(&target).unwrap().trace_type, TraceTypeIR::Sphere);
+    assert_eq!(
+        TargetActorIR::from_ast(&target).unwrap().trace_type,
+        TraceTypeIR::Sphere
+    );
 
     target.trace_type = TraceType::Cone;
-    assert_eq!(TargetActorIR::from_ast(&target).unwrap().trace_type, TraceTypeIR::Cone);
+    assert_eq!(
+        TargetActorIR::from_ast(&target).unwrap().trace_type,
+        TraceTypeIR::Cone
+    );
 
     target.trace_type = TraceType::Box;
-    assert_eq!(TargetActorIR::from_ast(&target).unwrap().trace_type, TraceTypeIR::Box);
+    assert_eq!(
+        TargetActorIR::from_ast(&target).unwrap().trace_type,
+        TraceTypeIR::Box
+    );
 
     target.trace_type = TraceType::Cylinder;
-    assert_eq!(TargetActorIR::from_ast(&target).unwrap().trace_type, TraceTypeIR::Cylinder);
+    assert_eq!(
+        TargetActorIR::from_ast(&target).unwrap().trace_type,
+        TraceTypeIR::Cylinder
+    );
 }
 
 #[test]
@@ -91,7 +108,10 @@ fn test_filter_data_is_translated_to_ir() {
     let filter = ir.filter.expect("expected filter to exist");
 
     assert_eq!(filter.self_filter.as_deref(), Some("IgnoreSelf"));
-    assert_eq!(filter.required_actor_class.as_deref(), Some("AEnemyCharacter"));
+    assert_eq!(
+        filter.required_actor_class.as_deref(),
+        Some("AEnemyCharacter")
+    );
     assert_eq!(filter.require_tags, vec!["Status.Alive".to_string()]);
     assert_eq!(filter.ignore_tags, vec!["Status.Stealthed".to_string()]);
     assert_eq!(

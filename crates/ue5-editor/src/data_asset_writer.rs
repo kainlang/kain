@@ -30,17 +30,16 @@
 
 use std::io::Cursor;
 
+use ue5_asset_utils::{
+    import_builder::ImportBuilder, property_converter::convert_property_defs,
+    property_types::PropertyDef,
+};
 use unreal_asset::{
     engine_version::EngineVersion,
     exports::{base_export::BaseExport, normal_export::NormalExport, Export},
     flags::EObjectFlags,
     types::PackageIndex,
     Asset,
-};
-use ue5_asset_utils::{
-    import_builder::ImportBuilder,
-    property_converter::convert_property_defs,
-    property_types::PropertyDef,
 };
 
 // ─── Error type ──────────────────────────────────────────────────────────────
@@ -72,8 +71,8 @@ pub type Result<T> = std::result::Result<T, DataAssetError>;
 /// Short-name → full-path aliases for common data-asset base classes.
 /// Extend this table instead of adding match arms.
 const DATA_ASSET_CLASS_ALIASES: &[(&str, &str)] = &[
-    ("DataAsset",         "/Script/Engine.DataAsset"),
-    ("PrimaryDataAsset",  "/Script/Engine.PrimaryDataAsset"),
+    ("DataAsset", "/Script/Engine.DataAsset"),
+    ("PrimaryDataAsset", "/Script/Engine.PrimaryDataAsset"),
 ];
 
 const DEFAULT_DATA_ASSET_CLASS: &str = "/Script/Engine.DataAsset";
@@ -207,15 +206,13 @@ fn convert_field_expr_to_property(
 /// Generate a zero/empty PropertyDef for a type with no explicit default.
 fn zero_value_for_type(name: &str, ty: &kain_core::ast::Type) -> Option<PropertyDef> {
     match ty {
-        kain_core::ast::Type::Named { name: ty_name, .. } => {
-            match ty_name.as_str() {
-                "Float" | "f32" | "f64" => Some(PropertyDef::float(name, 0.0)),
-                "Int" | "i32" | "i64" => Some(PropertyDef::int(name, 0)),
-                "Bool" => Some(PropertyDef::bool(name, false)),
-                "String" => Some(PropertyDef::str(name, "")),
-                _ => None,
-            }
-        }
+        kain_core::ast::Type::Named { name: ty_name, .. } => match ty_name.as_str() {
+            "Float" | "f32" | "f64" => Some(PropertyDef::float(name, 0.0)),
+            "Int" | "i32" | "i64" => Some(PropertyDef::int(name, 0)),
+            "Bool" => Some(PropertyDef::bool(name, false)),
+            "String" => Some(PropertyDef::str(name, "")),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -272,9 +269,7 @@ fn convert_expr_to_property(
             }
         }
         ast::Expr::EnumVariant {
-            enum_name,
-            variant,
-            ..
+            enum_name, variant, ..
         } => Some(PropertyDef::enum_val(name, enum_name, variant)),
         ast::Expr::Struct {
             name: struct_name,
@@ -352,7 +347,11 @@ mod tests {
             EngineVersion::VER_UE5_2,
         )
         .expect("write_data_asset should succeed with fields");
-        assert!(bytes.len() > 200, "expected > 200 bytes, got {}", bytes.len());
+        assert!(
+            bytes.len() > 200,
+            "expected > 200 bytes, got {}",
+            bytes.len()
+        );
         assert_eq!(&bytes[0..4], &UE5_MAGIC);
     }
 
@@ -395,10 +394,7 @@ mod tests {
 
     #[test]
     fn test_resolve_class_path_alias() {
-        assert_eq!(
-            resolve_class_path("DataAsset"),
-            "/Script/Engine.DataAsset"
-        );
+        assert_eq!(resolve_class_path("DataAsset"), "/Script/Engine.DataAsset");
         assert_eq!(
             resolve_class_path("PrimaryDataAsset"),
             "/Script/Engine.PrimaryDataAsset"
@@ -407,10 +403,7 @@ mod tests {
 
     #[test]
     fn test_resolve_class_path_empty() {
-        assert_eq!(
-            resolve_class_path(""),
-            "/Script/Engine.DataAsset"
-        );
+        assert_eq!(resolve_class_path(""), "/Script/Engine.DataAsset");
     }
 
     #[test]

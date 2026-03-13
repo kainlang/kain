@@ -9,14 +9,16 @@
 //! - Clean, readable output
 //! - No runtime dependencies
 
-use kain_core::types::{TypedProgram, TypedItem};
-use kain_core::error::KainResult;
 use kain_core::ast::{
-    Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
-    Field, Variant, VariantFields, Impl, Param, MatchArm, CallArg, ElseBranch,
-    VariantPatternFields, EnumVariantFields, Component, JSXNode, JSXAttribute, JSXAttrValue,
+    BinaryOp, Block, CallArg, Component, ElseBranch, Enum, EnumVariantFields, Expr, Field,
+    Function, Impl, JSXAttrValue, JSXAttribute, JSXNode, MatchArm, Param, Pattern, Stmt, Struct,
+    Type, UnaryOp, Variant, VariantFields, VariantPatternFields,
 };
-use kain_core::{lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget};
+use kain_core::error::KainResult;
+use kain_core::types::{TypedItem, TypedProgram};
+use kain_core::{
+    lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
+};
 
 /// Generate JavaScript source code from a typed program
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
@@ -132,7 +134,9 @@ impl JSGen {
 
     fn gen_function(&mut self, func: &Function) {
         // Function signature
-        let params = func.params.iter()
+        let params = func
+            .params
+            .iter()
             .map(|p| p.name.clone())
             .collect::<Vec<_>>()
             .join(", ");
@@ -153,7 +157,9 @@ impl JSGen {
         self.indent();
 
         // Constructor
-        let params = s.fields.iter()
+        let params = s
+            .fields
+            .iter()
             .map(|f| f.name.clone())
             .collect::<Vec<_>>()
             .join(", ");
@@ -178,15 +184,17 @@ impl JSGen {
         for variant in &e.variants {
             match &variant.fields {
                 VariantFields::Unit => {
-                    self.writeln(&format!("{}: {{ type: '{}', tag: '{}' }},", 
-                        variant.name, e.name, variant.name));
+                    self.writeln(&format!(
+                        "{}: {{ type: '{}', tag: '{}' }},",
+                        variant.name, e.name, variant.name
+                    ));
                 }
                 VariantFields::Tuple(types) => {
                     let params = (0..types.len())
                         .map(|i| format!("_{}", i))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    
+
                     self.writeln(&format!("{}: ({}) => ({{", variant.name, params));
                     self.indent();
                     self.writeln(&format!("type: '{}',", e.name));
@@ -198,11 +206,12 @@ impl JSGen {
                     self.writeln("}),");
                 }
                 VariantFields::Struct(fields) => {
-                    let params = fields.iter()
+                    let params = fields
+                        .iter()
                         .map(|f| f.name.clone())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    
+
                     self.writeln(&format!("{}: ({}) => ({{", variant.name, params));
                     self.indent();
                     self.writeln(&format!("type: '{}',", e.name));
@@ -222,7 +231,9 @@ impl JSGen {
 
     fn gen_component(&mut self, comp: &Component) {
         // Component as function returning DOM node
-        let params = comp.props.iter()
+        let params = comp
+            .props
+            .iter()
             .map(|p| p.name.clone())
             .collect::<Vec<_>>()
             .join(", ");
@@ -261,24 +272,45 @@ impl JSGen {
         // Generate methods as static or prototype methods
         if let Type::Named { name, .. } = &impl_block.target_type {
             for method in &impl_block.methods {
-                let params = method.params.iter()
-                    .skip(if method.params.first().map(|p| p.name == "self").unwrap_or(false) { 1 } else { 0 })
+                let params = method
+                    .params
+                    .iter()
+                    .skip(
+                        if method
+                            .params
+                            .first()
+                            .map(|p| p.name == "self")
+                            .unwrap_or(false)
+                        {
+                            1
+                        } else {
+                            0
+                        },
+                    )
                     .map(|p| p.name.clone())
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                let has_self = method.params.first().map(|p| p.name == "self").unwrap_or(false);
-                
+                let has_self = method
+                    .params
+                    .first()
+                    .map(|p| p.name == "self")
+                    .unwrap_or(false);
+
                 if has_self {
                     // Instance method
-                    self.writeln(&format!("{}.prototype.{} = function({}) {{", 
-                        name, method.name, params));
+                    self.writeln(&format!(
+                        "{}.prototype.{} = function({}) {{",
+                        name, method.name, params
+                    ));
                 } else {
                     // Static method
-                    self.writeln(&format!("{}.{} = function({}) {{", 
-                        name, method.name, params));
+                    self.writeln(&format!(
+                        "{}.{} = function({}) {{",
+                        name, method.name, params
+                    ));
                 }
-                
+
                 self.indent();
                 self.gen_block(&method.body);
                 self.dedent();
@@ -318,7 +350,12 @@ impl JSGen {
                 }
                 self.writeln(";");
             }
-            Stmt::For { binding, iter, body, .. } => {
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 if let Pattern::Binding { name, .. } = binding {
                     self.write(&format!("for (const {} of ", name));
                     self.gen_expr(iter);
@@ -329,7 +366,9 @@ impl JSGen {
                     self.writeln("}");
                 }
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 self.write("while (");
                 self.gen_expr(condition);
                 self.writeln(") {");
@@ -368,18 +407,19 @@ impl JSGen {
             Expr::Bool(b, _) => self.write(if *b { "true" } else { "false" }),
             Expr::None(_) => self.write("null"),
             Expr::Ident(name, _) => self.write(name),
-            
-            Expr::Binary { left, op, right, .. } => {
+
+            Expr::Binary {
+                left, op, right, ..
+            } => {
                 self.write("(");
                 self.gen_expr(left);
                 self.write(&format!(" {} ", self.gen_binop(*op)));
                 self.gen_expr(right);
                 self.write(")");
             }
-            
+
             Expr::Unary { op, operand, .. } => {
-                self.write(&format!("({}",
- self.gen_unop(*op)));
+                self.write(&format!("({}", self.gen_unop(*op)));
                 self.gen_expr(operand);
                 self.write(")");
             }
@@ -387,7 +427,7 @@ impl JSGen {
             Expr::Cast { value, .. } => {
                 self.gen_expr(value);
             }
-            
+
             Expr::Call { callee, args, .. } => {
                 self.gen_expr(callee);
                 self.write("(");
@@ -399,7 +439,7 @@ impl JSGen {
                 }
                 self.write(")");
             }
-            
+
             Expr::Array(elements, _) => {
                 self.write("[");
                 for (i, elem) in elements.iter().enumerate() {
@@ -410,7 +450,7 @@ impl JSGen {
                 }
                 self.write("]");
             }
-            
+
             Expr::Tuple(elements, _) => {
                 // Tuples as arrays in JS
                 self.write("[");
@@ -422,20 +462,25 @@ impl JSGen {
                 }
                 self.write("]");
             }
-            
+
             Expr::Index { object, index, .. } => {
                 self.gen_expr(object);
                 self.write("[");
                 self.gen_expr(index);
                 self.write("]");
             }
-            
+
             Expr::Field { object, field, .. } => {
                 self.gen_expr(object);
                 self.write(&format!(".{}", field));
             }
-            
-            Expr::MethodCall { receiver, method, args, .. } => {
+
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                ..
+            } => {
                 self.gen_expr(receiver);
                 self.write(&format!(".{}(", method));
                 for (i, arg) in args.iter().enumerate() {
@@ -446,7 +491,7 @@ impl JSGen {
                 }
                 self.write(")");
             }
-            
+
             Expr::Struct { name, fields, .. } => {
                 self.write(&format!("new {}(", name));
                 for (i, (_, expr)) in fields.iter().enumerate() {
@@ -457,8 +502,13 @@ impl JSGen {
                 }
                 self.write(")");
             }
-            
-            Expr::If { condition, then_branch, else_branch, .. } => {
+
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 self.write("(");
                 self.gen_expr(condition);
                 self.write(" ? ");
@@ -477,8 +527,10 @@ impl JSGen {
                 }
                 self.write(")");
             }
-            
-            Expr::Match { scrutinee, arms, .. } => {
+
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 // Generate as IIFE with switch/if-else
                 self.write("(() => {");
                 self.indent();
@@ -486,7 +538,7 @@ impl JSGen {
                 self.write("const __match = ");
                 self.gen_expr(scrutinee);
                 self.writeln(";");
-                
+
                 for (i, arm) in arms.iter().enumerate() {
                     if i == 0 {
                         self.write("if (");
@@ -507,16 +559,17 @@ impl JSGen {
                 self.dedent();
                 self.write("})()");
             }
-            
+
             Expr::Lambda { params, body, .. } => {
-                let param_names = params.iter()
+                let param_names = params
+                    .iter()
                     .map(|p| p.name.clone())
                     .collect::<Vec<_>>()
                     .join(", ");
                 self.write(&format!("({}) => ", param_names));
                 self.gen_expr(body);
             }
-            
+
             Expr::Block(block, _) => {
                 self.write("(() => {");
                 self.indent();
@@ -525,13 +578,13 @@ impl JSGen {
                 self.dedent();
                 self.write("})()");
             }
-            
+
             Expr::Assign { target, value, .. } => {
                 self.gen_expr(target);
                 self.write(" = ");
                 self.gen_expr(value);
             }
-            
+
             Expr::FString(parts, _) => {
                 self.write("`");
                 for part in parts {
@@ -546,12 +599,17 @@ impl JSGen {
                 }
                 self.write("`");
             }
-            
+
             Expr::JSX(node, _) => {
                 self.gen_jsx(node);
             }
-            
-            Expr::EnumVariant { enum_name, variant, fields, .. } => {
+
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => {
                 self.write(&format!("{}.{}(", enum_name, variant));
                 match fields {
                     EnumVariantFields::Unit => {}
@@ -574,7 +632,7 @@ impl JSGen {
                 }
                 self.write(")");
             }
-            
+
             _ => {
                 self.write("/* unsupported expr */");
             }
@@ -583,13 +641,18 @@ impl JSGen {
 
     fn gen_jsx(&mut self, node: &JSXNode) {
         match node {
-            JSXNode::Element { tag, attributes, children, .. } => {
+            JSXNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } => {
                 // Create element
                 self.write(&format!("(() => {{"));
                 self.indent();
                 self.writeln("");
                 self.writeln(&format!("const __el = document.createElement('{}');", tag));
-                
+
                 // Set attributes
                 for attr in attributes {
                     match &attr.value {
@@ -597,7 +660,10 @@ impl JSGen {
                             if attr.name == "class" {
                                 self.writeln(&format!("__el.className = '{}';", s));
                             } else {
-                                self.writeln(&format!("__el.setAttribute('{}', '{}');", attr.name, s));
+                                self.writeln(&format!(
+                                    "__el.setAttribute('{}', '{}');",
+                                    attr.name, s
+                                ));
                             }
                         }
                         JSXAttrValue::Bool(b) => {
@@ -624,23 +690,26 @@ impl JSGen {
                         }
                     }
                 }
-                
+
                 // Append children
                 for child in children {
                     self.write("__el.appendChild(");
                     self.gen_jsx(child);
                     self.writeln(");");
                 }
-                
+
                 self.writeln("return __el;");
                 self.dedent();
                 self.write("})()");
             }
-            
+
             JSXNode::Text(text, _) => {
-                self.write(&format!("document.createTextNode('{}')", text.escape_default()));
+                self.write(&format!(
+                    "document.createTextNode('{}')",
+                    text.escape_default()
+                ));
             }
-            
+
             JSXNode::Expression(expr) => {
                 self.write("(() => {");
                 self.indent();
@@ -664,8 +733,13 @@ impl JSGen {
                 self.dedent();
                 self.write("})()");
             }
-            
-            JSXNode::ComponentCall { name, props, children, .. } => {
+
+            JSXNode::ComponentCall {
+                name,
+                props,
+                children,
+                ..
+            } => {
                 self.write(&format!("{}({{", name));
                 for (i, prop) in props.iter().enumerate() {
                     if i > 0 {
@@ -693,7 +767,7 @@ impl JSGen {
                 }
                 self.write("})");
             }
-            
+
             JSXNode::Fragment(children, _) => {
                 self.write("(() => {");
                 self.indent();
@@ -708,8 +782,13 @@ impl JSGen {
                 self.dedent();
                 self.write("})()");
             }
-            
-            JSXNode::For { binding, iter, body, .. } => {
+
+            JSXNode::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 self.write("(() => {");
                 self.indent();
                 self.writeln("");
@@ -727,8 +806,13 @@ impl JSGen {
                 self.dedent();
                 self.write("})()");
             }
-            
-            JSXNode::If { condition, then_branch, else_branch, .. } => {
+
+            JSXNode::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 self.write("(() => {");
                 self.indent();
                 self.writeln("");
@@ -773,14 +857,21 @@ impl JSGen {
                 self.write(&format!("{} === ", scrutinee));
                 self.gen_expr(expr);
             }
-            Pattern::Variant { enum_name, variant, fields, .. } => {
+            Pattern::Variant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => {
                 if let Some(enum_name) = enum_name {
-                    self.write(&format!("{}.type === '{}' && {}.tag === '{}'", 
-                        scrutinee, enum_name, scrutinee, variant));
+                    self.write(&format!(
+                        "{}.type === '{}' && {}.tag === '{}'",
+                        scrutinee, enum_name, scrutinee, variant
+                    ));
                 } else {
                     self.write(&format!("{}.tag === '{}'", scrutinee, variant));
                 }
-                
+
                 // Check fields if needed
                 match fields {
                     VariantPatternFields::Tuple(patterns) => {

@@ -1,16 +1,18 @@
 //! LLVM IR Generator
-//! 
+//!
 //! Generates textual LLVM IR (Intermediate Representation) which can be compiled
-//! by `clang` or `llc`. This approach is chosen for maximum portability and 
+//! by `clang` or `llc`. This approach is chosen for maximum portability and
 //! reliability without requiring local LLVM library linking during the build.
 
-use kain_core::types::{TypedProgram, TypedItem, TypedFunction, TypedComponent, ResolvedType};
 use kain_core::ast::{
-    Expr, Stmt, BinaryOp, UnaryOp, Block, Pattern, ElseBranch,
-    VariantPatternFields, JSXNode, JSXAttrValue,
+    BinaryOp, Block, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt, UnaryOp,
+    VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
-use kain_core::{lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget};
+use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram};
+use kain_core::{
+    lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
+};
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -204,7 +206,10 @@ impl LlvmGenerator {
                 for item in items {
                     self.collect_tuple_types_from_resolved(item);
                 }
-                let field_tys = items.iter().map(|item| self.map_type(item)).collect::<Vec<_>>();
+                let field_tys = items
+                    .iter()
+                    .map(|item| self.map_type(item))
+                    .collect::<Vec<_>>();
                 self.register_tuple_struct(field_tys);
             }
             ResolvedType::Array(inner, _)
@@ -291,13 +296,20 @@ impl LlvmGenerator {
         match ty {
             kain_core::ast::Type::Named { name, .. } => self.map_type_from_str(name),
             kain_core::ast::Type::Tuple(items, _) => {
-                let field_tys = items.iter().map(|item| self.map_type_from_ast(item)).collect::<Vec<_>>();
+                let field_tys = items
+                    .iter()
+                    .map(|item| self.map_type_from_ast(item))
+                    .collect::<Vec<_>>();
                 Self::tuple_struct_ptr_type_from_types(&field_tys)
             }
             kain_core::ast::Type::Array(_, _, _) => "i8*".into(),
             kain_core::ast::Type::Slice(_, _) => "i8*".into(),
-            kain_core::ast::Type::Ref { inner, .. } => format!("{}*", self.map_type_from_ast(inner)),
-            kain_core::ast::Type::Ptr { inner, .. } => format!("{}*", self.map_type_from_ast(inner)),
+            kain_core::ast::Type::Ref { inner, .. } => {
+                format!("{}*", self.map_type_from_ast(inner))
+            }
+            kain_core::ast::Type::Ptr { inner, .. } => {
+                format!("{}*", self.map_type_from_ast(inner))
+            }
             kain_core::ast::Type::Option(inner, _) => self.map_type_from_ast(inner),
             kain_core::ast::Type::Result(ok, _, _) => self.map_type_from_ast(ok),
             kain_core::ast::Type::Unit(_) => "void".into(),
@@ -348,7 +360,10 @@ impl LlvmGenerator {
             ResolvedType::Function { .. } => "i64".into(), // Function pointers
             ResolvedType::Generic(name) => self.map_type_from_str(name),
             ResolvedType::Tuple(items) => {
-                let field_tys = items.iter().map(|item| self.map_type(item)).collect::<Vec<_>>();
+                let field_tys = items
+                    .iter()
+                    .map(|item| self.map_type(item))
+                    .collect::<Vec<_>>();
                 Self::tuple_struct_ptr_type_from_types(&field_tys)
             }
             ResolvedType::Ref { inner, .. } => self.map_type(inner),
@@ -376,13 +391,19 @@ impl LlvmGenerator {
         ));
 
         let reg_rc = self.next_reg();
-        self.emit(&format!("  {} = call i8* @string_new(i8* {})", reg_rc, reg_static));
+        self.emit(&format!(
+            "  {} = call i8* @string_new(i8* {})",
+            reg_rc, reg_static
+        ));
         (reg_rc, "i8*".to_string())
     }
 
     fn concat_strings(&mut self, lhs: &str, rhs: &str) -> String {
         let res = self.next_reg();
-        self.emit(&format!("  {} = call i8* @str_concat(i8* {}, i8* {})", res, lhs, rhs));
+        self.emit(&format!(
+            "  {} = call i8* @str_concat(i8* {}, i8* {})",
+            res, lhs, rhs
+        ));
         res
     }
 
@@ -412,7 +433,10 @@ impl LlvmGenerator {
                 let narrowed = self.next_reg();
                 self.emit(&format!("  {} = fptosi double {} to i64", narrowed, val));
                 let res = self.next_reg();
-                self.emit(&format!("  {} = call i8* @to_string(i64 {})", res, narrowed));
+                self.emit(&format!(
+                    "  {} = call i8* @to_string(i64 {})",
+                    res, narrowed
+                ));
                 Ok((res, "i8*".to_string()))
             }
             _ if ty.starts_with('%') => Ok(self.compile_string_literal("<value>")),
@@ -430,7 +454,11 @@ impl LlvmGenerator {
         }
     }
 
-    fn compile_expr_for_target_type(&mut self, expr: &Expr, target_ty: &str) -> KainResult<(String, String)> {
+    fn compile_expr_for_target_type(
+        &mut self,
+        expr: &Expr,
+        target_ty: &str,
+    ) -> KainResult<(String, String)> {
         if matches!(expr, Expr::None(_)) {
             Ok((self.zero_value_for_ty(target_ty), target_ty.to_string()))
         } else {
@@ -465,7 +493,12 @@ impl LlvmGenerator {
         }
     }
 
-    fn cast_numeric_value(&mut self, val: String, src_ty: &str, dst_ty: &str) -> KainResult<String> {
+    fn cast_numeric_value(
+        &mut self,
+        val: String,
+        src_ty: &str,
+        dst_ty: &str,
+    ) -> KainResult<String> {
         if src_ty == dst_ty {
             return Ok(val);
         }
@@ -537,7 +570,14 @@ impl LlvmGenerator {
         Ok((lhs, lhs_ty, rhs, rhs_ty))
     }
 
-    fn compile_value_eq(&mut self, lhs: &str, lhs_ty: &str, rhs: &str, rhs_ty: &str, span: kain_core::Span) -> KainResult<String> {
+    fn compile_value_eq(
+        &mut self,
+        lhs: &str,
+        lhs_ty: &str,
+        rhs: &str,
+        rhs_ty: &str,
+        span: kain_core::Span,
+    ) -> KainResult<String> {
         let (lhs, lhs_ty, rhs, rhs_ty) = self.coerce_binary_operands(
             lhs.to_string(),
             lhs_ty.to_string(),
@@ -547,17 +587,27 @@ impl LlvmGenerator {
 
         let res = self.next_reg();
         if lhs_ty == "i8*" || rhs_ty == "i8*" {
-            self.emit(&format!("  {} = call i1 @deep_eq(i8* {}, i8* {})", res, lhs, rhs));
+            self.emit(&format!(
+                "  {} = call i1 @deep_eq(i8* {}, i8* {})",
+                res, lhs, rhs
+            ));
             return Ok(res);
         }
 
         match lhs_ty.as_str() {
             "double" => self.emit(&format!("  {} = fcmp oeq double {}, {}", res, lhs, rhs)),
-            "i1" | "i8" | "i64" => self.emit(&format!("  {} = icmp eq {} {}, {}", res, lhs_ty, lhs, rhs)),
-            _ if lhs_ty.ends_with('*') => self.emit(&format!("  {} = icmp eq {} {}, {}", res, lhs_ty, lhs, rhs)),
+            "i1" | "i8" | "i64" => {
+                self.emit(&format!("  {} = icmp eq {} {}, {}", res, lhs_ty, lhs, rhs))
+            }
+            _ if lhs_ty.ends_with('*') => {
+                self.emit(&format!("  {} = icmp eq {} {}, {}", res, lhs_ty, lhs, rhs))
+            }
             _ => {
                 return Err(KainError::codegen(
-                    format!("Unsupported equality comparison between {} and {}", lhs_ty, rhs_ty),
+                    format!(
+                        "Unsupported equality comparison between {} and {}",
+                        lhs_ty, rhs_ty
+                    ),
                     span,
                 ));
             }
@@ -579,29 +629,28 @@ impl LlvmGenerator {
 
         if let Some(lo) = start {
             let (lo_val, lo_ty) = self.compile_expr(lo)?;
-            let (lhs, lhs_ty, rhs, _) = self.coerce_binary_operands(
-                val.to_string(),
-                val_ty.to_string(),
-                lo_val,
-                lo_ty,
-            )?;
+            let (lhs, lhs_ty, rhs, _) =
+                self.coerce_binary_operands(val.to_string(), val_ty.to_string(), lo_val, lo_ty)?;
             let cmp = self.next_reg();
             match lhs_ty.as_str() {
                 "double" => self.emit(&format!("  {} = fcmp oge double {}, {}", cmp, lhs, rhs)),
-                "i1" | "i8" | "i64" => self.emit(&format!("  {} = icmp sge {} {}, {}", cmp, lhs_ty, lhs, rhs)),
-                _ => return Err(KainError::codegen(format!("Unsupported range lower bound type {}", lhs_ty), span)),
+                "i1" | "i8" | "i64" => {
+                    self.emit(&format!("  {} = icmp sge {} {}, {}", cmp, lhs_ty, lhs, rhs))
+                }
+                _ => {
+                    return Err(KainError::codegen(
+                        format!("Unsupported range lower bound type {}", lhs_ty),
+                        span,
+                    ))
+                }
             }
             checks.push(cmp);
         }
 
         if let Some(hi) = end {
             let (hi_val, hi_ty) = self.compile_expr(hi)?;
-            let (lhs, lhs_ty, rhs, _) = self.coerce_binary_operands(
-                val.to_string(),
-                val_ty.to_string(),
-                hi_val,
-                hi_ty,
-            )?;
+            let (lhs, lhs_ty, rhs, _) =
+                self.coerce_binary_operands(val.to_string(), val_ty.to_string(), hi_val, hi_ty)?;
             let cmp = self.next_reg();
             match lhs_ty.as_str() {
                 "double" => {
@@ -612,7 +661,12 @@ impl LlvmGenerator {
                     let op = if inclusive { "icmp sle" } else { "icmp slt" };
                     self.emit(&format!("  {} = {} {} {}, {}", cmp, op, lhs_ty, lhs, rhs));
                 }
-                _ => return Err(KainError::codegen(format!("Unsupported range upper bound type {}", lhs_ty), span)),
+                _ => {
+                    return Err(KainError::codegen(
+                        format!("Unsupported range upper bound type {}", lhs_ty),
+                        span,
+                    ))
+                }
             }
             checks.push(cmp);
         }
@@ -645,13 +699,24 @@ impl LlvmGenerator {
                 let (rhs, rhs_ty) = self.compile_expr(expr)?;
                 self.compile_value_eq(scrutinee_val, scrutinee_ty, &rhs, &rhs_ty, span)
             }
-            Pattern::Range { start, end, inclusive, .. } => {
+            Pattern::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
                 self.compile_range_check(scrutinee_val, scrutinee_ty, start, end, *inclusive, span)
             }
             Pattern::Or(items, _) => {
                 let mut regs = Vec::new();
                 for item in items {
-                    regs.push(self.compile_pattern_condition(item, scrutinee_val, scrutinee_ty, enum_name, span)?);
+                    regs.push(self.compile_pattern_condition(
+                        item,
+                        scrutinee_val,
+                        scrutinee_ty,
+                        enum_name,
+                        span,
+                    )?);
                 }
                 if regs.is_empty() {
                     return Ok("0".to_string());
@@ -691,7 +756,12 @@ impl LlvmGenerator {
         }
     }
 
-    fn bind_local_pattern_value(&mut self, pattern: &Pattern, val: String, ty: String) -> KainResult<()> {
+    fn bind_local_pattern_value(
+        &mut self,
+        pattern: &Pattern,
+        val: String,
+        ty: String,
+    ) -> KainResult<()> {
         match pattern {
             Pattern::Wildcard(_) => Ok(()),
             Pattern::Binding { name, .. } => {
@@ -826,14 +896,24 @@ impl LlvmGenerator {
             payload_ptr_ptr, enum_name, scrutinee_ty, scrutinee_val
         ));
         let payload_void = self.next_reg();
-        self.emit(&format!("  {} = load i8*, i8** {}", payload_void, payload_ptr_ptr));
+        self.emit(&format!(
+            "  {} = load i8*, i8** {}",
+            payload_void, payload_ptr_ptr
+        ));
         let payload_ptr = self.next_reg();
-        self.emit(&format!("  {} = bitcast i8* {} to {}", payload_ptr, payload_void, payload_ptr_ty));
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to {}",
+            payload_ptr, payload_void, payload_ptr_ty
+        ));
 
         match fields {
             VariantPatternFields::Unit => Ok(()),
             VariantPatternFields::Tuple(patterns) => {
-                let field_defs = self.struct_defs.get(&payload_struct_name).cloned().unwrap_or_default();
+                let field_defs = self
+                    .struct_defs
+                    .get(&payload_struct_name)
+                    .cloned()
+                    .unwrap_or_default();
                 for (index, pattern) in patterns.iter().enumerate() {
                     let field_ty = field_defs
                         .get(index)
@@ -845,13 +925,20 @@ impl LlvmGenerator {
                         field_ptr, payload_ty, payload_ptr_ty, payload_ptr, index
                     ));
                     let field_val = self.next_reg();
-                    self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
+                    self.emit(&format!(
+                        "  {} = load {}, {}* {}",
+                        field_val, field_ty, field_ty, field_ptr
+                    ));
                     self.bind_local_pattern_value(pattern, field_val, field_ty)?;
                 }
                 Ok(())
             }
             VariantPatternFields::Struct(named_patterns) => {
-                let field_defs = self.struct_defs.get(&payload_struct_name).cloned().unwrap_or_default();
+                let field_defs = self
+                    .struct_defs
+                    .get(&payload_struct_name)
+                    .cloned()
+                    .unwrap_or_default();
                 for (field_name, pattern) in named_patterns {
                     let (index, field_ty) = field_defs
                         .iter()
@@ -860,7 +947,10 @@ impl LlvmGenerator {
                         .map(|(index, (_, ty))| (index, ty.clone()))
                         .ok_or_else(|| {
                             KainError::codegen(
-                                format!("Unknown payload field '{}' for {}::{}", field_name, enum_name, variant),
+                                format!(
+                                    "Unknown payload field '{}' for {}::{}",
+                                    field_name, enum_name, variant
+                                ),
                                 span,
                             )
                         })?;
@@ -870,7 +960,10 @@ impl LlvmGenerator {
                         field_ptr, payload_ty, payload_ptr_ty, payload_ptr, index
                     ));
                     let field_val = self.next_reg();
-                    self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
+                    self.emit(&format!(
+                        "  {} = load {}, {}* {}",
+                        field_val, field_ty, field_ty, field_ptr
+                    ));
                     self.bind_local_pattern_value(pattern, field_val, field_ty)?;
                 }
                 Ok(())
@@ -888,14 +981,26 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         match pattern {
             Pattern::Wildcard(_) => Ok(()),
-            Pattern::Binding { .. } | Pattern::Tuple(_, _) | Pattern::Struct { .. } => {
-                self.bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string())
-            }
-            Pattern::Variant { variant, fields, .. } => {
+            Pattern::Binding { .. } | Pattern::Tuple(_, _) | Pattern::Struct { .. } => self
+                .bind_local_pattern_value(
+                    pattern,
+                    scrutinee_val.to_string(),
+                    scrutinee_ty.to_string(),
+                ),
+            Pattern::Variant {
+                variant, fields, ..
+            } => {
                 let enum_name = enum_name.ok_or_else(|| {
                     KainError::codegen("Variant pattern requires an enum scrutinee", span)
                 })?;
-                self.bind_variant_pattern_fields(enum_name, variant, fields, scrutinee_val, scrutinee_ty, span)
+                self.bind_variant_pattern_fields(
+                    enum_name,
+                    variant,
+                    fields,
+                    scrutinee_val,
+                    scrutinee_ty,
+                    span,
+                )
             }
             Pattern::Or(_, _) | Pattern::Literal(_) | Pattern::Range { .. } => Ok(()),
             other => Err(KainError::codegen(
@@ -945,9 +1050,15 @@ impl LlvmGenerator {
             Ok((field_ptr, pointee_ty.to_string()))
         } else if obj_ty == "i64" {
             let base_ptr = self.next_reg();
-            self.emit(&format!("  {} = inttoptr i64 {} to i64*", base_ptr, obj_val));
+            self.emit(&format!(
+                "  {} = inttoptr i64 {} to i64*",
+                base_ptr, obj_val
+            ));
             let field_ptr = self.next_reg();
-            self.emit(&format!("  {} = getelementptr inbounds i64, i64* {}, i64 {}", field_ptr, base_ptr, idx_val));
+            self.emit(&format!(
+                "  {} = getelementptr inbounds i64, i64* {}, i64 {}",
+                field_ptr, base_ptr, idx_val
+            ));
             Ok((field_ptr, "i64".to_string()))
         } else {
             Err(KainError::codegen(
@@ -959,33 +1070,59 @@ impl LlvmGenerator {
 
     fn compile_addressable_ptr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
         match expr {
-            Expr::Ident(name, span) => self.locals.get(name).cloned().map(|(addr, ty)| (addr, ty)).ok_or_else(|| {
-                KainError::codegen(format!("Undefined variable: {}", name), *span)
-            }),
-            Expr::Field { object, field, span } => {
+            Expr::Ident(name, span) => self
+                .locals
+                .get(name)
+                .cloned()
+                .map(|(addr, ty)| (addr, ty))
+                .ok_or_else(|| KainError::codegen(format!("Undefined variable: {}", name), *span)),
+            Expr::Field {
+                object,
+                field,
+                span,
+            } => {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
-                if let Some(struct_name) = self.ptr_struct_name(&obj_ty).map(|name| name.to_string()) {
+                if let Some(struct_name) =
+                    self.ptr_struct_name(&obj_ty).map(|name| name.to_string())
+                {
                     if let Some(index) = self.field_index(&struct_name, field) {
-                        let field_ty = self.struct_defs
+                        let field_ty = self
+                            .struct_defs
                             .get(&struct_name)
                             .and_then(|fields| fields.get(index))
                             .map(|(_, ty)| ty.clone())
                             .unwrap_or_else(|| "i64".to_string());
                         let field_ptr = self.next_reg();
-                        self.emit(&format!("  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}", field_ptr, struct_name, obj_ty, obj_val, index));
+                        self.emit(&format!(
+                            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                            field_ptr, struct_name, obj_ty, obj_val, index
+                        ));
                         Ok((field_ptr, field_ty))
                     } else {
-                        Err(KainError::codegen(format!("Unknown field '{}' on {}", field, struct_name), *span))
+                        Err(KainError::codegen(
+                            format!("Unknown field '{}' on {}", field, struct_name),
+                            *span,
+                        ))
                     }
                 } else {
-                    Err(KainError::codegen("Field address requires a struct pointer", *span))
+                    Err(KainError::codegen(
+                        "Field address requires a struct pointer",
+                        *span,
+                    ))
                 }
             }
-            Expr::Index { object, index, span } => {
+            Expr::Index {
+                object,
+                index,
+                span,
+            } => {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (idx_val, _) = self.compile_expr(index)?;
                 if obj_ty == "i8*" {
-                    Err(KainError::codegen("Runtime array indexing is not addressable in LLVM", *span))
+                    Err(KainError::codegen(
+                        "Runtime array indexing is not addressable in LLVM",
+                        *span,
+                    ))
                 } else {
                     self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, *span)
                 }
@@ -994,16 +1131,29 @@ impl LlvmGenerator {
         }
     }
 
-    fn compile_lowered_helper_call(&mut self, func_name: &str, args: &[kain_core::ast::CallArg], span: kain_core::Span) -> Option<KainResult<(String, String)>> {
+    fn compile_lowered_helper_call(
+        &mut self,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+        span: kain_core::Span,
+    ) -> Option<KainResult<(String, String)>> {
         match func_name {
             "__kain_bind_local" => {
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen("__kain_bind_local expects 1 argument", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_bind_local expects 1 argument",
+                        span,
+                    )));
                 }
                 let (addr, ty) = match &args[0].value {
                     Expr::Ident(name, arg_span) => match self.locals.get(name).cloned() {
                         Some(pair) => pair,
-                        None => return Some(Err(KainError::codegen(format!("Undefined variable: {}", name), *arg_span))),
+                        None => {
+                            return Some(Err(KainError::codegen(
+                                format!("Undefined variable: {}", name),
+                                *arg_span,
+                            )))
+                        }
                     },
                     other => match self.compile_temporary_address(other) {
                         Ok(pair) => pair,
@@ -1016,7 +1166,10 @@ impl LlvmGenerator {
             }
             "__kain_addr_of" => {
                 if args.is_empty() {
-                    return Some(Err(KainError::codegen("__kain_addr_of expects at least 1 argument", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_addr_of expects at least 1 argument",
+                        span,
+                    )));
                 }
                 let (addr, ty) = match self.compile_addressable_ptr(&args[0].value) {
                     Ok(pair) => pair,
@@ -1028,7 +1181,10 @@ impl LlvmGenerator {
             }
             "__kain_mem_load" => {
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen("__kain_mem_load expects 1 argument", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_mem_load expects 1 argument",
+                        span,
+                    )));
                 }
                 let compiled = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
@@ -1036,14 +1192,20 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled.0, &compiled.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let loaded = self.next_reg();
                 self.emit(&format!("  {} = load i64, i64* {}", loaded, typed_ptr));
                 Some(Ok((loaded, "i64".to_string())))
             }
             "__kain_mem_store" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen("__kain_mem_store expects 2 arguments", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_mem_store expects 2 arguments",
+                        span,
+                    )));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
@@ -1055,13 +1217,22 @@ impl LlvmGenerator {
                     Err(err) => return Some(Err(err)),
                 };
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to {}*", typed_ptr, ptr_i64, val_ty));
-                self.emit(&format!("  store {} {}, {}* {}", val_ty, val, val_ty, typed_ptr));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to {}*",
+                    typed_ptr, ptr_i64, val_ty
+                ));
+                self.emit(&format!(
+                    "  store {} {}, {}* {}",
+                    val_ty, val, val_ty, typed_ptr
+                ));
                 Some(Ok((val, val_ty)))
             }
             "__kain_field_ptr" => {
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen("__kain_field_ptr expects 3 arguments", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_field_ptr expects 3 arguments",
+                        span,
+                    )));
                 }
                 let compiled_base = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
@@ -1078,7 +1249,10 @@ impl LlvmGenerator {
             }
             "__kain_index_ptr" | "__kain_ptr_offset" => {
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(format!("{} expects 3 arguments", func_name), span)));
+                    return Some(Err(KainError::codegen(
+                        format!("{} expects 3 arguments", func_name),
+                        span,
+                    )));
                 }
                 let compiled_base = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
@@ -1101,21 +1275,30 @@ impl LlvmGenerator {
             }
             "__kain_alloc" => {
                 if args.is_empty() {
-                    return Some(Err(KainError::codegen("__kain_alloc expects arguments", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_alloc expects arguments",
+                        span,
+                    )));
                 }
                 let (size, _) = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
                 let raw_ptr = self.next_reg();
-                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", raw_ptr, size));
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    raw_ptr, size
+                ));
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, raw_ptr));
                 Some(Ok((res, "i64".to_string())))
             }
             "__kain_realloc" => {
                 if args.len() < 2 {
-                    return Some(Err(KainError::codegen("__kain_realloc expects at least 2 arguments", span)));
+                    return Some(Err(KainError::codegen(
+                        "__kain_realloc expects at least 2 arguments",
+                        span,
+                    )));
                 }
                 let (ptr, ptr_ty) = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
@@ -1131,12 +1314,21 @@ impl LlvmGenerator {
                 let label_alloc = self.next_label();
                 let label_keep = self.next_label();
                 let label_merge = self.next_label();
-                self.emit(&format!("  br i1 {}, label %{}, label %{}", cond, label_alloc, label_keep));
+                self.emit(&format!(
+                    "  br i1 {}, label %{}, label %{}",
+                    cond, label_alloc, label_keep
+                ));
                 self.emit_label(&label_alloc);
                 let raw_ptr = self.next_reg();
-                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", raw_ptr, size));
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    raw_ptr, size
+                ));
                 let alloc_i64 = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", alloc_i64, raw_ptr));
+                self.emit(&format!(
+                    "  {} = ptrtoint i8* {} to i64",
+                    alloc_i64, raw_ptr
+                ));
                 let alloc_block = self.current_block.clone();
                 self.emit(&format!("  br label %{}", label_merge));
                 self.emit_label(&label_keep);
@@ -1144,7 +1336,10 @@ impl LlvmGenerator {
                 self.emit(&format!("  br label %{}", label_merge));
                 self.emit_label(&label_merge);
                 let res = self.next_reg();
-                self.emit(&format!("  {} = phi i64 [ {}, %{} ], [ {}, %{} ]", res, alloc_i64, alloc_block, ptr_i64, keep_block));
+                self.emit(&format!(
+                    "  {} = phi i64 [ {}, %{} ], [ {}, %{} ]",
+                    res, alloc_i64, alloc_block, ptr_i64, keep_block
+                ));
                 Some(Ok((res, "i64".to_string())))
             }
             _ => None,
@@ -1178,21 +1373,29 @@ impl LlvmGenerator {
                 }
                 Ok((acc, "i8*".to_string()))
             }
-            JSXNode::Element { tag, attributes, children, .. } => {
+            JSXNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } => {
                 let (mut acc, _) = self.compile_string_literal(&format!("<{}", tag));
                 for attr in attributes {
                     match &attr.value {
                         JSXAttrValue::String(value) => {
-                            let (piece, _) = self.compile_string_literal(&format!(" {}=\"{}\"", attr.name, value));
+                            let (piece, _) = self
+                                .compile_string_literal(&format!(" {}=\"{}\"", attr.name, value));
                             acc = self.concat_strings(&acc, &piece);
                         }
                         JSXAttrValue::Bool(true) => {
-                            let (piece, _) = self.compile_string_literal(&format!(" {}", attr.name));
+                            let (piece, _) =
+                                self.compile_string_literal(&format!(" {}", attr.name));
                             acc = self.concat_strings(&acc, &piece);
                         }
                         JSXAttrValue::Bool(false) => {}
                         JSXAttrValue::Expr(expr) => {
-                            let (prefix, _) = self.compile_string_literal(&format!(" {}=\"", attr.name));
+                            let (prefix, _) =
+                                self.compile_string_literal(&format!(" {}=\"", attr.name));
                             acc = self.concat_strings(&acc, &prefix);
                             let (value, ty) = self.compile_expr(expr)?;
                             let (value_str, _) = self.stringify_value(&value, &ty)?;
@@ -1212,7 +1415,12 @@ impl LlvmGenerator {
                 acc = self.concat_strings(&acc, &close);
                 Ok((acc, "i8*".to_string()))
             }
-            JSXNode::ComponentCall { name, props, children, span } => {
+            JSXNode::ComponentCall {
+                name,
+                props,
+                children,
+                span,
+            } => {
                 let defs = self.component_defs.get(name).cloned().unwrap_or_default();
                 let mut compiled_args = Vec::new();
                 let mut arg_types = Vec::new();
@@ -1222,7 +1430,11 @@ impl LlvmGenerator {
                             JSXAttrValue::String(value) => {
                                 let (val, ty) = self.compile_string_literal(value);
                                 compiled_args.push(val);
-                                arg_types.push(if prop_ty == "i8*" { ty } else { prop_ty.clone() });
+                                arg_types.push(if prop_ty == "i8*" {
+                                    ty
+                                } else {
+                                    prop_ty.clone()
+                                });
                             }
                             JSXAttrValue::Bool(value) => {
                                 compiled_args.push(if *value { "1".into() } else { "0".into() });
@@ -1239,7 +1451,8 @@ impl LlvmGenerator {
                         arg_types.push(prop_ty.clone());
                     }
                 }
-                let (children_val, children_ty) = self.compile_jsx(&JSXNode::Fragment(children.clone(), *span))?;
+                let (children_val, children_ty) =
+                    self.compile_jsx(&JSXNode::Fragment(children.clone(), *span))?;
                 compiled_args.push(children_val);
                 arg_types.push(children_ty);
                 let res = self.next_reg();
@@ -1252,17 +1465,30 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = call i8* @{}({})", res, name, arg_str));
                 Ok((res, "i8*".to_string()))
             }
-            JSXNode::For { binding, iter, body, .. } => {
+            JSXNode::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 let (iter_val, iter_ty) = self.compile_expr(iter)?;
                 let _ = binding;
                 let _ = body;
                 self.stringify_value(&iter_val, &iter_ty)
             }
-            JSXNode::If { condition, then_branch, else_branch, .. } => {
+            JSXNode::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 let then_span = self.jsx_span(then_branch);
                 let expr = Expr::If {
                     condition: condition.clone(),
-                    then_branch: Block { stmts: vec![Stmt::Expr(Expr::JSX((**then_branch).clone(), then_span))], span: then_span },
+                    then_branch: Block {
+                        stmts: vec![Stmt::Expr(Expr::JSX((**then_branch).clone(), then_span))],
+                        span: then_span,
+                    },
                     else_branch: else_branch.as_ref().map(|branch| {
                         let branch_span = self.jsx_span(branch);
                         Box::new(ElseBranch::Else(Block {
@@ -1290,12 +1516,15 @@ impl LlvmGenerator {
         // 1. Emit Header
         self.emit("; ModuleID = 'KAIN'");
         self.emit("source_filename = \"KAIN\"");
-        self.emit(&format!("target datalayout = \"{}\"", self.target.datalayout));
+        self.emit(&format!(
+            "target datalayout = \"{}\"",
+            self.target.datalayout
+        ));
         self.emit(&format!("target triple = \"{}\"", self.target.triple));
         self.emit("");
 
         self.collect_program_tuple_types(program);
-        
+
         // 2a. Pre-scan Structs to register and emit definitions
         for item in &program.items {
             if let TypedItem::Struct(s) = item {
@@ -1310,10 +1539,14 @@ impl LlvmGenerator {
                     }
                 }
                 self.struct_defs.insert(s.ast.name.clone(), fields.clone());
-                
+
                 // Emit type definition
                 let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
-                self.emit(&format!("%{} = type {{ {} }}", s.ast.name, field_types.join(", ")));
+                self.emit(&format!(
+                    "%{} = type {{ {} }}",
+                    s.ast.name,
+                    field_types.join(", ")
+                ));
             } else if let TypedItem::Component(component) = item {
                 let mut props = Vec::new();
                 for prop in &component.ast.props {
@@ -1324,13 +1557,15 @@ impl LlvmGenerator {
                     }
                 }
                 props.push(("children".to_string(), "i8*".to_string()));
-                self.component_defs.insert(component.ast.name.clone(), props.clone());
-                self.functions.insert(component.ast.name.clone(), "i8*".to_string());
+                self.component_defs
+                    .insert(component.ast.name.clone(), props.clone());
+                self.functions
+                    .insert(component.ast.name.clone(), "i8*".to_string());
             } else if let TypedItem::Actor(a) = item {
                 let mut fields = Vec::new();
                 // Mailbox is always field 0 (MessageQueue*)
                 fields.push(("__mailbox".to_string(), "i8*".into()));
-                
+
                 for state in &a.ast.state {
                     if let Some(res_ty) = a.state_types.get(&state.name) {
                         fields.push((state.name.clone(), self.map_type(res_ty)));
@@ -1339,34 +1574,47 @@ impl LlvmGenerator {
                     }
                 }
                 self.struct_defs.insert(a.ast.name.clone(), fields.clone());
-                
+
                 let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
-                self.emit(&format!("%{} = type {{ {} }}", a.ast.name, field_types.join(", ")));
-                
+                self.emit(&format!(
+                    "%{} = type {{ {} }}",
+                    a.ast.name,
+                    field_types.join(", ")
+                ));
+
                 // Emit Message Payload Structs
                 for handler in &a.ast.handlers {
                     let mut payload_fields = Vec::new();
                     let mut field_defs = Vec::new();
                     for param in &handler.params {
-                         let p_ty = self.map_type_from_ast(&param.ty);
-                         payload_fields.push(p_ty.clone());
-                         field_defs.push((param.name.clone(), p_ty));
+                        let p_ty = self.map_type_from_ast(&param.ty);
+                        payload_fields.push(p_ty.clone());
+                        field_defs.push((param.name.clone(), p_ty));
                     }
                     let msg_struct_name = format!("{}_{}", a.ast.name, handler.message_type);
                     self.struct_defs.insert(msg_struct_name.clone(), field_defs);
-                    self.emit(&format!("%{} = type {{ {} }}", msg_struct_name, payload_fields.join(", ")));
+                    self.emit(&format!(
+                        "%{} = type {{ {} }}",
+                        msg_struct_name,
+                        payload_fields.join(", ")
+                    ));
                 }
             } else if let TypedItem::Enum(e) = item {
                 // Emit Enum definition: { tag, payload* }
                 self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
-                
+
                 // Emit Variant Payload Structs
                 for (variant_name, payload_types) in &e.variant_payload_types {
                     if !payload_types.is_empty() {
-                        let field_types: Vec<String> = payload_types.iter().map(|t| self.map_type(t)).collect();
+                        let field_types: Vec<String> =
+                            payload_types.iter().map(|t| self.map_type(t)).collect();
                         let struct_name = format!("{}_{}", e.ast.name, variant_name);
-                        self.emit(&format!("%{} = type {{ {} }}", struct_name, field_types.join(", ")));
-                        
+                        self.emit(&format!(
+                            "%{} = type {{ {} }}",
+                            struct_name,
+                            field_types.join(", ")
+                        ));
+
                         // Register payload struct fields for later lookup
                         let mut fields = Vec::new();
                         for (i, ty) in field_types.iter().enumerate() {
@@ -1377,7 +1625,7 @@ impl LlvmGenerator {
                 }
             }
         }
-        
+
         // 2b. Pre-scan functions to register return types
         for item in &program.items {
             if let TypedItem::Function(func) = item {
@@ -1400,19 +1648,20 @@ impl LlvmGenerator {
                         if ret_ty == "void" {
                             ret_ty = "i64".to_string();
                         }
-                        self.functions.insert(format!("{}_{}", name, method.name), ret_ty);
+                        self.functions
+                            .insert(format!("{}_{}", name, method.name), ret_ty);
                     }
                 }
             }
         }
-        
+
         // 2c. Register StdLib functions
         let stdlib = kain_core::stdlib::StdLib::new();
         for (name, func) in stdlib.functions {
             let ret_ty = self.map_type_from_str(func.return_type);
             self.functions.insert(name, ret_ty);
         }
-        
+
         // 3. Emit External Declarations (stdlib)
         self.emit_externs();
         self.emit_runtime();
@@ -1425,13 +1674,17 @@ impl LlvmGenerator {
                 TypedItem::Impl(imp) => self.compile_impl(imp)?,
                 TypedItem::Actor(actor) => self.compile_actor(actor)?,
                 // TODO: Handle Structs, Enums, Consts
-                _ => {} 
+                _ => {}
             }
         }
-        
+
         // 5. Emit String Constants
         // Clone strings to avoid borrow issues
-        let strings: Vec<(String, String)> = self.strings.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let strings: Vec<(String, String)> = self
+            .strings
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         for (content, name) in strings {
             let len = content.len() + 1;
             // Escape string content for LLVM (simplified)
@@ -1445,107 +1698,132 @@ impl LlvmGenerator {
                 }
             }
             escaped.push_str("\\00"); // Null terminator
-            
-            self.emit(&format!("{} = private unnamed_addr constant [{} x i8] c\"{}\", align 1", 
-                name, len, escaped));
+
+            self.emit(&format!(
+                "{} = private unnamed_addr constant [{} x i8] c\"{}\", align 1",
+                name, len, escaped
+            ));
         }
-        
+
         // 6. Emit Struct Destructors
         self.emit_struct_destructors();
 
         Ok(())
     }
 
-
-
     fn compile_actor(&mut self, actor: &kain_core::types::TypedActor) -> KainResult<()> {
         let name = &actor.ast.name;
         let struct_ty = format!("%{}", name);
-        
+
         // Generate Run Loop Function
         self.emit(&format!("define void @{}_run(i8* %arg) {{", name));
         self.emit_label("entry");
-        
+
         // Cast arg to Actor*
         let self_ptr = self.next_reg();
-        self.emit(&format!("  {} = bitcast i8* %arg to {}*", self_ptr, struct_ty));
-        
+        self.emit(&format!(
+            "  {} = bitcast i8* %arg to {}*",
+            self_ptr, struct_ty
+        ));
+
         // Get Mailbox
         let mailbox_ptr = self.next_reg();
-        self.emit(&format!("  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0", mailbox_ptr, struct_ty, struct_ty, self_ptr));
+        self.emit(&format!(
+            "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
+            mailbox_ptr, struct_ty, struct_ty, self_ptr
+        ));
         let mailbox = self.next_reg();
         self.emit(&format!("  {} = load i8*, i8** {}", mailbox, mailbox_ptr));
-        
+
         // Loop
         let label_loop = self.next_label();
         let label_process = self.next_label();
         let label_sleep = self.next_label();
-        
+
         self.emit(&format!("  br label %{}", label_loop));
         self.emit_label(&label_loop);
-        
+
         // Prepare mq_pop args
         let tag_ptr = self.next_reg();
         self.emit(&format!("  {} = alloca i64", tag_ptr));
         let data_ptr = self.next_reg();
         self.emit(&format!("  {} = alloca i8*", data_ptr));
-        
+
         let pop_res = self.next_reg();
-        self.emit(&format!("  {} = call i32 @mq_pop(i8* {}, i64* {}, i8** {})", pop_res, mailbox, tag_ptr, data_ptr));
-        
+        self.emit(&format!(
+            "  {} = call i32 @mq_pop(i8* {}, i64* {}, i8** {})",
+            pop_res, mailbox, tag_ptr, data_ptr
+        ));
+
         let cond = self.next_reg();
         self.emit(&format!("  {} = icmp ne i32 {}, 0", cond, pop_res));
-        self.emit(&format!("  br i1 {}, label %{}, label %{}", cond, label_process, label_sleep));
-        
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            cond, label_process, label_sleep
+        ));
+
         // Sleep
         self.emit_label(&label_sleep);
         self.emit("  call void @KAIN_sleep(double 0.001)");
         self.emit(&format!("  br label %{}", label_loop));
-        
+
         // Process
         self.emit_label(&label_process);
         let tag_val = self.next_reg();
         self.emit(&format!("  {} = load i64, i64* {}", tag_val, tag_ptr));
-        
+
         // Switch
         let mut handler_labels = Vec::new();
         for _ in &actor.ast.handlers {
             handler_labels.push(self.next_label());
         }
-        
+
         let mut switch_cases = String::new();
         for (i, handler) in actor.ast.handlers.iter().enumerate() {
-             let tag = self.hash_message_tag(name, &handler.message_type);
-             switch_cases.push_str(&format!("i64 {}, label %{} ", tag, handler_labels[i]));
+            let tag = self.hash_message_tag(name, &handler.message_type);
+            switch_cases.push_str(&format!("i64 {}, label %{} ", tag, handler_labels[i]));
         }
-        self.emit(&format!("  switch i64 {}, label %{} [ {} ]", tag_val, label_loop, switch_cases));
-        
+        self.emit(&format!(
+            "  switch i64 {}, label %{} [ {} ]",
+            tag_val, label_loop, switch_cases
+        ));
+
         // Generate Handler Bodies
         for (i, handler) in actor.ast.handlers.iter().enumerate() {
             self.emit_label(&handler_labels[i]);
-            
+
             // Extract Payload
             let payload_void = self.next_reg();
             self.emit(&format!("  {} = load i8*, i8** {}", payload_void, data_ptr));
-            
+
             let msg_struct_name = format!("{}_{}", name, handler.message_type);
             let msg_struct_ty = format!("%{}", msg_struct_name);
             let payload = self.next_reg();
-            self.emit(&format!("  {} = bitcast i8* {} to {}*", payload, payload_void, msg_struct_ty));
-            
+            self.emit(&format!(
+                "  {} = bitcast i8* {} to {}*",
+                payload, payload_void, msg_struct_ty
+            ));
+
             // Setup Scope
             self.scopes.push(Vec::new());
-            self.locals.clear(); 
-            self.locals.insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
-            
+            self.locals.clear();
+            self.locals
+                .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
+
             // Map params
             for (j, param) in handler.params.iter().enumerate() {
                 let p_ty = self.map_type_from_ast(&param.ty);
                 let field_ptr = self.next_reg();
-                self.emit(&format!("  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}", field_ptr, msg_struct_ty, msg_struct_ty, payload, j));
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                    field_ptr, msg_struct_ty, msg_struct_ty, payload, j
+                ));
                 let val = self.next_reg();
-                self.emit(&format!("  {} = load {}, {}* {}", val, p_ty, p_ty, field_ptr));
-                
+                self.emit(&format!(
+                    "  {} = load {}, {}* {}",
+                    val, p_ty, p_ty, field_ptr
+                ));
+
                 let addr_reg = format!("%{}.addr", param.name);
                 self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
                 self.emit(&format!("  store {} {}, {}* {}", p_ty, val, p_ty, addr_reg));
@@ -1554,13 +1832,13 @@ impl LlvmGenerator {
                     scope.push(param.name.clone());
                 }
             }
-            
+
             // Compile Body
             self.compile_block(&handler.body)?;
-            
+
             // Free payload
             self.emit(&format!("  call void @rc_release(i8* {})", payload_void));
-            
+
             self.emit(&format!("  br label %{}", label_loop));
         }
 
@@ -1592,7 +1870,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @array_get(i8*, i64)");
         self.emit("declare void @array_set(i8*, i64, i64)");
         self.emit("declare i64 @array_len(i8*)");
-        
+
         // Message Queue & Concurrency
         self.emit("declare i8* @mq_new()");
         self.emit("declare void @mq_push(i8*, i64, i8*)");
@@ -1610,7 +1888,7 @@ impl LlvmGenerator {
         let stdlib = kain_core::stdlib::StdLib::new();
         // Skip functions that conflict with manual runtime declarations or are handled specially
         let skip_list = ["print", "println", "to_string"];
-        
+
         for (name, func) in stdlib.functions {
             if skip_list.contains(&name.as_str()) {
                 continue;
@@ -1621,40 +1899,60 @@ impl LlvmGenerator {
             for (_, p_ty) in func.params {
                 param_tys.push(self.map_type_from_str(p_ty));
             }
-            self.emit(&format!("declare {} @{}({})", ret_ty, name, param_tys.join(", ")));
+            self.emit(&format!(
+                "declare {} @{}({})",
+                ret_ty,
+                name,
+                param_tys.join(", ")
+            ));
         }
     }
 
     fn emit_struct_destructors(&mut self) {
-        let structs: Vec<(String, Vec<(String, String)>)> = self.struct_defs.iter()
+        let structs: Vec<(String, Vec<(String, String)>)> = self
+            .struct_defs
+            .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-            
+
         for (name, fields) in structs {
             // Only generate if there are RC fields
-            let has_rc_fields = fields.iter().any(|(_, ty)| ty == "i8*" || ty.starts_with("%"));
-            if !has_rc_fields { continue; }
-            
+            let has_rc_fields = fields
+                .iter()
+                .any(|(_, ty)| ty == "i8*" || ty.starts_with("%"));
+            if !has_rc_fields {
+                continue;
+            }
+
             let struct_ty = format!("%{}", name);
             let dtor_name = format!("dtor_{}", name);
-            
+
             self.emit(&format!("define void @{}(i8* %ptr_void) {{", dtor_name));
             self.emit_label("entry");
-            
+
             let ptr_typed = self.next_reg();
-            self.emit(&format!("  {} = bitcast i8* %ptr_void to {}*", ptr_typed, struct_ty));
-            
+            self.emit(&format!(
+                "  {} = bitcast i8* %ptr_void to {}*",
+                ptr_typed, struct_ty
+            ));
+
             for (i, (_, field_ty)) in fields.iter().enumerate() {
-                 if field_ty == "i8*" || field_ty.starts_with("%") {
-                     let field_ptr = self.next_reg();
-                     self.emit(&format!("  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}", field_ptr, struct_ty, struct_ty, ptr_typed, i));
-                     let loaded = self.next_reg();
-                     self.emit(&format!("  {} = load {}, {}* {}", loaded, field_ty, field_ty, field_ptr));
-                     
-                     self.emit_release(&loaded, field_ty);
-                 }
+                if field_ty == "i8*" || field_ty.starts_with("%") {
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                        field_ptr, struct_ty, struct_ty, ptr_typed, i
+                    ));
+                    let loaded = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = load {}, {}* {}",
+                        loaded, field_ty, field_ty, field_ptr
+                    ));
+
+                    self.emit_release(&loaded, field_ty);
+                }
             }
-            
+
             self.emit("  ret void");
             self.emit("}");
         }
@@ -1698,8 +1996,12 @@ impl LlvmGenerator {
         for (i, (param_name, param_ty)) in defs.iter().enumerate() {
             let addr_reg = format!("%{}.addr", param_name);
             self.emit(&format!("  {} = alloca {}", addr_reg, param_ty));
-            self.emit(&format!("  store {} %arg{}, {}* {}", param_ty, i, param_ty, addr_reg));
-            self.locals.insert(param_name.clone(), (addr_reg, param_ty.clone()));
+            self.emit(&format!(
+                "  store {} %arg{}, {}* {}",
+                param_ty, i, param_ty, addr_reg
+            ));
+            self.locals
+                .insert(param_name.clone(), (addr_reg, param_ty.clone()));
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param_name.clone());
             }
@@ -1730,7 +2032,11 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    fn compile_impl_method(&mut self, target_name: &str, method: &kain_core::ast::Function) -> KainResult<()> {
+    fn compile_impl_method(
+        &mut self,
+        target_name: &str,
+        method: &kain_core::ast::Function,
+    ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
         self.scopes.clear();
@@ -1750,16 +2056,30 @@ impl LlvmGenerator {
         let mut params = Vec::new();
         params.push(format!("{} %arg0", self_ty));
         for (i, param) in method.params.iter().enumerate() {
-            params.push(format!("{} %arg{}", self.map_type_from_ast(&param.ty), i + 1));
+            params.push(format!(
+                "{} %arg{}",
+                self.map_type_from_ast(&param.ty),
+                i + 1
+            ));
         }
 
-        self.emit(&format!("define {} @{}_{}({}) {{", ret_type, target_name, method.name, params.join(", ")));
+        self.emit(&format!(
+            "define {} @{}_{}({}) {{",
+            ret_type,
+            target_name,
+            method.name,
+            params.join(", ")
+        ));
         self.emit_label("entry");
 
         let self_addr = "%self.addr".to_string();
         self.emit(&format!("  {} = alloca {}", self_addr, self_ty));
-        self.emit(&format!("  store {} %arg0, {}* {}", self_ty, self_ty, self_addr));
-        self.locals.insert("self".to_string(), (self_addr, self_ty.clone()));
+        self.emit(&format!(
+            "  store {} %arg0, {}* {}",
+            self_ty, self_ty, self_addr
+        ));
+        self.locals
+            .insert("self".to_string(), (self_addr, self_ty.clone()));
         if let Some(scope) = self.scopes.last_mut() {
             scope.push("self".to_string());
         }
@@ -1768,7 +2088,13 @@ impl LlvmGenerator {
             let p_ty = self.map_type_from_ast(&param.ty);
             let addr_reg = format!("%{}.addr", param.name);
             self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
-            self.emit(&format!("  store {} %arg{}, {}* {}", p_ty, i + 1, p_ty, addr_reg));
+            self.emit(&format!(
+                "  store {} %arg{}, {}* {}",
+                p_ty,
+                i + 1,
+                p_ty,
+                addr_reg
+            ));
             self.locals.insert(param.name.clone(), (addr_reg, p_ty));
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
@@ -1797,21 +2123,25 @@ impl LlvmGenerator {
         self.scopes.push(Vec::new()); // Top level scope for params
 
         let name = &func.ast.name;
-        
+
         // Get param types and return type from resolved_type
-        let (param_types, ret_type_resolved) = if let ResolvedType::Function { params, ret, .. } = &func.resolved_type {
-            (params, ret)
-        } else {
-            return Err(KainError::codegen("Function has non-function type", func.ast.span));
-        };
-        
+        let (param_types, ret_type_resolved) =
+            if let ResolvedType::Function { params, ret, .. } = &func.resolved_type {
+                (params, ret)
+            } else {
+                return Err(KainError::codegen(
+                    "Function has non-function type",
+                    func.ast.span,
+                ));
+            };
+
         let mut ret_type = self.map_type(ret_type_resolved);
         // Heuristic: If void and not main, assume i64
         if ret_type == "void" && func.ast.name != "main" {
             ret_type = "i64".into();
         }
         self.current_return_type = Some(ret_type.clone());
-        
+
         // Special case for main
         let (llvm_name, is_main) = if name == "main" {
             if ret_type == "void" {
@@ -1825,12 +2155,17 @@ impl LlvmGenerator {
         // Params
         let mut param_str = String::new();
         for (i, _) in func.ast.params.iter().enumerate() {
-            if i > 0 { param_str.push_str(", "); }
+            if i > 0 {
+                param_str.push_str(", ");
+            }
             let p_ty = self.map_type(&param_types[i]);
             param_str.push_str(&format!("{} %arg{}", p_ty, i));
         }
 
-        self.emit(&format!("define {} @{}({}) {{", ret_type, llvm_name, param_str));
+        self.emit(&format!(
+            "define {} @{}({}) {{",
+            ret_type, llvm_name, param_str
+        ));
         self.emit_label("entry");
 
         // Alloc parameters to stack (standard "alloca" pattern for debuggable IR)
@@ -1839,7 +2174,10 @@ impl LlvmGenerator {
             // %param.addr = alloca type
             let addr_reg = format!("%{}.addr", param.name);
             self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
-            self.emit(&format!("  store {} %arg{}, {}* {}", p_ty, i, p_ty, addr_reg));
+            self.emit(&format!(
+                "  store {} %arg{}, {}* {}",
+                p_ty, i, p_ty, addr_reg
+            ));
             self.locals.insert(param.name.clone(), (addr_reg, p_ty));
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
@@ -1881,31 +2219,31 @@ impl LlvmGenerator {
         self.scopes.push(Vec::new());
         let mut last_res = None;
         let mut last_is_new = false;
-        
+
         for (i, stmt) in block.stmts.iter().enumerate() {
             if i == block.stmts.len() - 1 {
-                 if let Stmt::Expr(expr) = stmt {
-                     let (val, ty) = self.compile_expr(expr)?;
-                     last_res = Some((val, ty));
-                     last_is_new = self.is_new_object(expr);
-                 } else {
-                     self.compile_stmt(stmt)?;
-                 }
+                if let Stmt::Expr(expr) = stmt {
+                    let (val, ty) = self.compile_expr(expr)?;
+                    last_res = Some((val, ty));
+                    last_is_new = self.is_new_object(expr);
+                } else {
+                    self.compile_stmt(stmt)?;
+                }
             } else {
                 self.compile_stmt(stmt)?;
             }
         }
-        
+
         // If we are returning a value from the block, we must retain it before scope exit
         // destroys the local variables it might depend on.
         // Optimization: If the value is already a "new object" (owned with RC=1), we don't need to retain it
         // because no local variable owns it yet, so scope exit won't destroy it.
         if let Some((val, ty)) = &last_res {
             if ty == "i8*" && !last_is_new {
-                 self.emit(&format!("  call void @rc_retain(i8* {})", val));
+                self.emit(&format!("  call void @rc_retain(i8* {})", val));
             }
         }
-        
+
         self.emit_scope_exit();
         Ok(last_res)
     }
@@ -1920,7 +2258,10 @@ impl LlvmGenerator {
                 for (i, (_, field_ty)) in fields.iter().enumerate() {
                     if field_ty == "i8*" || field_ty.starts_with("%") {
                         let field_val = self.next_reg();
-                        self.emit(&format!("  {} = extractvalue {} {}, {}", field_val, ty, val, i));
+                        self.emit(&format!(
+                            "  {} = extractvalue {} {}, {}",
+                            field_val, ty, val, i
+                        ));
                         self.emit_release(&field_val, field_ty);
                     }
                 }
@@ -1950,15 +2291,15 @@ impl LlvmGenerator {
                 vars_to_release.push(var.clone());
             }
         }
-        
+
         for var_name in vars_to_release {
-             if let Some((addr, ty)) = self.locals.get(&var_name).cloned() {
-                 if ty == "i8*" || ty.starts_with("%") {
+            if let Some((addr, ty)) = self.locals.get(&var_name).cloned() {
+                if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
                     self.emit_release(&tmp, &ty);
-                 }
-             }
+                }
+            }
         }
     }
 
@@ -1970,20 +2311,21 @@ impl LlvmGenerator {
             Expr::Struct { .. } => true,
             Expr::Call { .. } => true, // Function calls return owned values
             Expr::Binary { op, .. } => *op == BinaryOp::Add, // String concat
-            Expr::If { .. } => true, // If expressions return new objects (Phi result)
+            Expr::If { .. } => true,   // If expressions return new objects (Phi result)
             _ => false,
         }
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> KainResult<()> {
         match stmt {
-            Stmt::Let { pattern, value, ty, .. } => {
+            Stmt::Let {
+                pattern, value, ty, ..
+            } => {
                 if let Some(val_expr) = value {
                     // Allocate and Store
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
-                        let target_ty = ty
-                            .as_ref()
-                            .map(|declared| self.map_type_from_ast(declared));
+                        let target_ty =
+                            ty.as_ref().map(|declared| self.map_type_from_ast(declared));
                         let (val_reg, val_ty) = if let Some(target_ty) = target_ty.as_deref() {
                             self.compile_expr_for_target_type(val_expr, target_ty)?
                         } else {
@@ -1991,17 +2333,20 @@ impl LlvmGenerator {
                         };
                         let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                         self.reg_count += 1;
-                        
+
                         self.emit(&format!("  {} = alloca {}", addr_reg, val_ty));
-                        self.emit(&format!("  store {} {}, {}* {}", val_ty, val_reg, val_ty, addr_reg));
-                        
+                        self.emit(&format!(
+                            "  store {} {}, {}* {}",
+                            val_ty, val_reg, val_ty, addr_reg
+                        ));
+
                         // Retain if RC type AND it's not a new object (which already has RC=1)
                         if val_ty == "i8*" {
                             if !self.is_new_object(val_expr) {
                                 self.emit(&format!("  call void @rc_retain(i8* {})", val_reg));
                             }
                         }
-                        
+
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
                         if let Some(scope) = self.scopes.last_mut() {
                             scope.push(name.clone());
@@ -2026,11 +2371,11 @@ impl LlvmGenerator {
                     } else {
                         self.compile_expr(e)?
                     };
-                    
+
                     if ty == "i8*" {
                         self.emit(&format!("  call void @rc_retain(i8* {})", val));
                     }
-                    
+
                     self.emit_all_scopes_cleanup();
 
                     self.emit(&format!("  ret {} {}", ty, val));
@@ -2056,61 +2401,87 @@ impl LlvmGenerator {
                     self.emit_label(&dead_label);
                 }
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 let label_cond = self.next_label();
                 let label_body = self.next_label();
                 let label_end = self.next_label();
 
                 self.emit(&format!("  br label %{}", label_cond));
                 self.emit_label(&label_cond);
-                
+
                 let (cond_val, _) = self.compile_expr(condition)?;
-                self.emit(&format!("  br i1 {}, label %{}, label %{}", cond_val, label_body, label_end));
-                
+                self.emit(&format!(
+                    "  br i1 {}, label %{}, label %{}",
+                    cond_val, label_body, label_end
+                ));
+
                 self.emit_label(&label_body);
-                
-                self.loop_stack.push((label_cond.clone(), label_end.clone()));
+
+                self.loop_stack
+                    .push((label_cond.clone(), label_end.clone()));
                 self.compile_block(body)?;
                 self.loop_stack.pop();
-                
+
                 self.emit(&format!("  br label %{}", label_cond));
-                
+
                 self.emit_label(&label_end);
             }
             Stmt::Loop { body, .. } => {
                 let label_body = self.next_label();
                 let label_end = self.next_label();
-                
+
                 self.emit(&format!("  br label %{}", label_body));
                 self.emit_label(&label_body);
-                
-                self.loop_stack.push((label_body.clone(), label_end.clone()));
+
+                self.loop_stack
+                    .push((label_body.clone(), label_end.clone()));
                 self.compile_block(body)?;
                 self.loop_stack.pop();
-                
+
                 self.emit(&format!("  br label %{}", label_body));
                 self.emit_label(&label_end);
             }
-            Stmt::For { binding, iter, body, span } => {
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                span,
+            } => {
                 // Determine start, end
                 let (start_val, end_val) = match iter {
                     Expr::Call { callee, args, .. } => {
-                         if let Expr::Ident(name, _) = callee.as_ref() {
-                             if name == "range" && args.len() == 2 {
-                                 let (s, _) = self.compile_expr(&args[0].value)?;
-                                 let (e, _) = self.compile_expr(&args[1].value)?;
-                                 (s, e)
-                             } else {
-                                 return Err(KainError::codegen("Unsupported call in for loop", *span));
-                             }
-                         } else {
-                             return Err(KainError::codegen("Unsupported call in for loop", *span));
-                         }
+                        if let Expr::Ident(name, _) = callee.as_ref() {
+                            if name == "range" && args.len() == 2 {
+                                let (s, _) = self.compile_expr(&args[0].value)?;
+                                let (e, _) = self.compile_expr(&args[1].value)?;
+                                (s, e)
+                            } else {
+                                return Err(KainError::codegen(
+                                    "Unsupported call in for loop",
+                                    *span,
+                                ));
+                            }
+                        } else {
+                            return Err(KainError::codegen("Unsupported call in for loop", *span));
+                        }
                     }
-                    Expr::Range { start, end, inclusive, .. } => {
-                        let s = if let Some(e) = start { self.compile_expr(e)?.0 } else { "0".into() };
-                        let mut e = if let Some(e) = end { self.compile_expr(e)?.0 } else { 
-                            "9223372036854775807".into() 
+                    Expr::Range {
+                        start,
+                        end,
+                        inclusive,
+                        ..
+                    } => {
+                        let s = if let Some(e) = start {
+                            self.compile_expr(e)?.0
+                        } else {
+                            "0".into()
+                        };
+                        let mut e = if let Some(e) = end {
+                            self.compile_expr(e)?.0
+                        } else {
+                            "9223372036854775807".into()
                         };
                         if *inclusive {
                             let tmp = self.next_reg();
@@ -2119,48 +2490,71 @@ impl LlvmGenerator {
                         }
                         (s, e)
                     }
-                    _ => return Err(KainError::codegen("Unsupported iterator in for loop", *span)),
+                    _ => {
+                        return Err(KainError::codegen(
+                            "Unsupported iterator in for loop",
+                            *span,
+                        ))
+                    }
                 };
 
                 // Allocate loop variable
-                let loop_var = if let kain_core::ast::Pattern::Binding { name, .. } = binding { name } else { "it" };
+                let loop_var = if let kain_core::ast::Pattern::Binding { name, .. } = binding {
+                    name
+                } else {
+                    "it"
+                };
                 let var_addr = format!("%{}.addr_{}", loop_var, self.reg_count);
                 self.reg_count += 1;
                 self.emit(&format!("  {} = alloca i64", var_addr));
                 self.emit(&format!("  store i64 {}, i64* {}", start_val, var_addr));
-                self.locals.insert(loop_var.to_string(), (var_addr.clone(), "i64".into()));
-                
+                self.locals
+                    .insert(loop_var.to_string(), (var_addr.clone(), "i64".into()));
+
                 let label_cond = self.next_label();
                 let label_body = self.next_label();
                 let label_step = self.next_label();
                 let label_end = self.next_label();
-                
+
                 self.emit(&format!("  br label %{}", label_cond));
                 self.emit_label(&label_cond);
-                
+
                 // Check condition: var < end
                 let curr_val = self.next_reg();
                 self.emit(&format!("  {} = load i64, i64* {}", curr_val, var_addr));
                 let cond_res = self.next_reg();
-                self.emit(&format!("  {} = icmp slt i64 {}, {}", cond_res, curr_val, end_val));
-                self.emit(&format!("  br i1 {}, label %{}, label %{}", cond_res, label_body, label_end));
-                
+                self.emit(&format!(
+                    "  {} = icmp slt i64 {}, {}",
+                    cond_res, curr_val, end_val
+                ));
+                self.emit(&format!(
+                    "  br i1 {}, label %{}, label %{}",
+                    cond_res, label_body, label_end
+                ));
+
                 self.emit_label(&label_body);
-                
-                self.loop_stack.push((label_step.clone(), label_end.clone()));
+
+                self.loop_stack
+                    .push((label_step.clone(), label_end.clone()));
                 self.compile_block(body)?;
                 self.loop_stack.pop();
-                
+
                 self.emit(&format!("  br label %{}", label_step));
                 self.emit_label(&label_step);
-                
+
                 // Increment
                 let val_before_inc = self.next_reg();
-                self.emit(&format!("  {} = load i64, i64* {}", val_before_inc, var_addr));
+                self.emit(&format!(
+                    "  {} = load i64, i64* {}",
+                    val_before_inc, var_addr
+                ));
                 let val_after_inc = self.next_reg();
-                self.emit(&format!("  {} = add i64 {}, 1", val_after_inc, val_before_inc));
+                self.emit(&format!(
+                    "  {} = add i64 {}, 1",
+                    val_after_inc, val_before_inc
+                ));
                 self.emit(&format!("  store i64 {}, i64* {}", val_after_inc, var_addr));
-                
+
                 self.emit(&format!("  br label %{}", label_cond));
                 self.emit_label(&label_end);
             }
@@ -2187,7 +2581,9 @@ impl LlvmGenerator {
             Expr::None(_) => Ok(("0".into(), "i64".to_string())),
             Expr::JSX(node, _) => self.compile_jsx(node),
             Expr::Paren(inner, _) => self.compile_expr(inner),
-            Expr::Block(block, _) => self.compile_block_with_result(block).map(|res| res.unwrap_or(("0".into(), "i64".into()))),
+            Expr::Block(block, _) => self
+                .compile_block_with_result(block)
+                .map(|res| res.unwrap_or(("0".into(), "i64".into()))),
             Expr::Cast { value, target, .. } => {
                 let (val, src_ty) = self.compile_expr(value)?;
                 let dst_ty = self.map_type_from_ast(target);
@@ -2236,16 +2632,34 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load {}, {} {}", res, pointee_ty, ty, val));
                     Ok((res, pointee_ty.to_string()))
                 } else {
-                    Err(KainError::codegen("Cannot dereference non-pointer value", *span))
+                    Err(KainError::codegen(
+                        "Cannot dereference non-pointer value",
+                        *span,
+                    ))
                 }
             }
-            Expr::PtrOffset { pointer, offset, element_ty, .. } => {
+            Expr::PtrOffset {
+                pointer,
+                offset,
+                element_ty,
+                ..
+            } => {
                 let (base, base_ty) = self.compile_expr(pointer)?;
                 let (off, _) = self.compile_expr(offset)?;
                 let stride = element_ty
                     .as_ref()
                     .map(|ty| self.map_type_from_ast(ty))
-                    .map(|ty| if ty == "double" { 8 } else if ty == "i8" { 1 } else if ty == "i1" { 1 } else { 8 })
+                    .map(|ty| {
+                        if ty == "double" {
+                            8
+                        } else if ty == "i8" {
+                            1
+                        } else if ty == "i1" {
+                            1
+                        } else {
+                            8
+                        }
+                    })
                     .unwrap_or(8);
                 let base_i64 = self.coerce_to_i64_storage(&base, &base_ty);
                 let scaled = self.next_reg();
@@ -2257,7 +2671,11 @@ impl LlvmGenerator {
             Expr::MemLoad { pointer, .. } => {
                 let call = Expr::Call {
                     callee: Box::new(Expr::Ident("__kain_mem_load".to_string(), pointer.span())),
-                    args: vec![kain_core::ast::CallArg { name: None, value: (**pointer).clone(), span: pointer.span() }],
+                    args: vec![kain_core::ast::CallArg {
+                        name: None,
+                        value: (**pointer).clone(),
+                        span: pointer.span(),
+                    }],
                     span: pointer.span(),
                 };
                 self.compile_expr(&call)
@@ -2266,8 +2684,16 @@ impl LlvmGenerator {
                 let call = Expr::Call {
                     callee: Box::new(Expr::Ident("__kain_mem_store".to_string(), value.span())),
                     args: vec![
-                        kain_core::ast::CallArg { name: None, value: (**pointer).clone(), span: pointer.span() },
-                        kain_core::ast::CallArg { name: None, value: (**value).clone(), span: value.span() },
+                        kain_core::ast::CallArg {
+                            name: None,
+                            value: (**pointer).clone(),
+                            span: pointer.span(),
+                        },
+                        kain_core::ast::CallArg {
+                            name: None,
+                            value: (**value).clone(),
+                            span: value.span(),
+                        },
                     ],
                     span: value.span(),
                 };
@@ -2275,12 +2701,28 @@ impl LlvmGenerator {
             }
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
-                let size = if mapped == "double" { 8 } else if mapped == "i8" { 1 } else if mapped == "i1" { 1 } else { 8 };
+                let size = if mapped == "double" {
+                    8
+                } else if mapped == "i8" {
+                    1
+                } else if mapped == "i1" {
+                    1
+                } else {
+                    8
+                };
                 Ok((size.to_string(), "i64".into()))
             }
             Expr::AlignOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
-                let align = if mapped == "double" { 8 } else if mapped == "i8" { 1 } else if mapped == "i1" { 1 } else { 8 };
+                let align = if mapped == "double" {
+                    8
+                } else if mapped == "i8" {
+                    1
+                } else if mapped == "i1" {
+                    1
+                } else {
+                    8
+                };
                 Ok((align.to_string(), "i64".into()))
             }
             Expr::Alloca { ty, .. } => {
@@ -2289,11 +2731,18 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = alloca {}", addr, ty_str));
                 Ok((addr, format!("{}*", ty_str)))
             }
-            Expr::Uninit { ty, .. } => Ok((self.zero_value_for_ty(&self.map_type_from_ast(ty)), self.map_type_from_ast(ty))),
+            Expr::Uninit { ty, .. } => Ok((
+                self.zero_value_for_ty(&self.map_type_from_ast(ty)),
+                self.map_type_from_ast(ty),
+            )),
             Expr::Alloc { size, .. } => {
                 let call = Expr::Call {
                     callee: Box::new(Expr::Ident("__kain_alloc".to_string(), size.span())),
-                    args: vec![kain_core::ast::CallArg { name: None, value: (**size).clone(), span: size.span() }],
+                    args: vec![kain_core::ast::CallArg {
+                        name: None,
+                        value: (**size).clone(),
+                        span: size.span(),
+                    }],
                     span: size.span(),
                 };
                 self.compile_expr(&call)
@@ -2302,8 +2751,16 @@ impl LlvmGenerator {
                 let call = Expr::Call {
                     callee: Box::new(Expr::Ident("__kain_realloc".to_string(), size.span())),
                     args: vec![
-                        kain_core::ast::CallArg { name: None, value: (**pointer).clone(), span: pointer.span() },
-                        kain_core::ast::CallArg { name: None, value: (**size).clone(), span: size.span() },
+                        kain_core::ast::CallArg {
+                            name: None,
+                            value: (**pointer).clone(),
+                            span: pointer.span(),
+                        },
+                        kain_core::ast::CallArg {
+                            name: None,
+                            value: (**size).clone(),
+                            span: size.span(),
+                        },
                     ],
                     span: size.span(),
                 };
@@ -2337,83 +2794,134 @@ impl LlvmGenerator {
                             self.emit(&format!("  {} = load {}, {} {}", res, pointee_ty, ty, val));
                             Ok((res, pointee_ty.to_string()))
                         } else {
-                            Err(KainError::codegen("Cannot dereference non-pointer value", *span))
+                            Err(KainError::codegen(
+                                "Cannot dereference non-pointer value",
+                                *span,
+                            ))
                         }
                     }
                     UnaryOp::Ref | UnaryOp::RefMut => Ok((val, format!("{}*", ty))),
                 }
             }
-            Expr::Field { object, field, span } => {
+            Expr::Field {
+                object,
+                field,
+                span,
+            } => {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
-                if let Some(struct_name) = self.ptr_struct_name(&obj_ty).map(|name| name.to_string()) {
+                if let Some(struct_name) =
+                    self.ptr_struct_name(&obj_ty).map(|name| name.to_string())
+                {
                     if let Some(index) = self.field_index(&struct_name, field) {
-                        let field_ty = self.struct_defs
+                        let field_ty = self
+                            .struct_defs
                             .get(&struct_name)
                             .and_then(|fields| fields.get(index))
                             .map(|(_, ty)| ty.clone())
                             .unwrap_or_else(|| "i64".to_string());
                         let field_ptr = self.next_reg();
-                        self.emit(&format!("  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}", field_ptr, struct_name, obj_ty, obj_val, index));
+                        self.emit(&format!(
+                            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                            field_ptr, struct_name, obj_ty, obj_val, index
+                        ));
                         let loaded = self.next_reg();
-                        self.emit(&format!("  {} = load {}, {}* {}", loaded, field_ty, field_ty, field_ptr));
+                        self.emit(&format!(
+                            "  {} = load {}, {}* {}",
+                            loaded, field_ty, field_ty, field_ptr
+                        ));
                         Ok((loaded, field_ty))
                     } else {
-                        Err(KainError::codegen(format!("Unknown field '{}' on {}", field, struct_name), *span))
+                        Err(KainError::codegen(
+                            format!("Unknown field '{}' on {}", field, struct_name),
+                            *span,
+                        ))
                     }
                 } else {
-                    Err(KainError::codegen("Field access requires a struct pointer", *span))
+                    Err(KainError::codegen(
+                        "Field access requires a struct pointer",
+                        *span,
+                    ))
                 }
             }
-            Expr::Assign { target, value, span } => {
-                match target.as_ref() {
-                    Expr::Ident(name, _) => {
-                        if let Some((addr, ty)) = self.locals.get(name).cloned() {
-                            let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
-                            self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
-                            Ok((rhs, rhs_ty))
-                        } else {
-                            Err(KainError::codegen(format!("Undefined assignment target: {}", name), *span))
-                        }
+            Expr::Assign {
+                target,
+                value,
+                span,
+            } => match target.as_ref() {
+                Expr::Ident(name, _) => {
+                    if let Some((addr, ty)) = self.locals.get(name).cloned() {
+                        let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
+                        self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
+                        Ok((rhs, rhs_ty))
+                    } else {
+                        Err(KainError::codegen(
+                            format!("Undefined assignment target: {}", name),
+                            *span,
+                        ))
                     }
-                    Expr::Field { object, field, .. } => {
-                        let (obj_val, obj_ty) = self.compile_expr(object)?;
-                        if let Some(struct_name) = self.ptr_struct_name(&obj_ty).map(|name| name.to_string()) {
-                            if let Some(index) = self.field_index(&struct_name, field) {
-                                let field_ty = self.struct_defs
-                                    .get(&struct_name)
-                                    .and_then(|fields| fields.get(index))
-                                    .map(|(_, ty)| ty.clone())
-                                    .unwrap_or_else(|| "i64".to_string());
-                                let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
-                                let field_ptr = self.next_reg();
-                                self.emit(&format!("  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}", field_ptr, struct_name, obj_ty, obj_val, index));
-                                self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, field_ty, field_ptr));
-                                Ok((rhs, rhs_ty))
-                            } else {
-                                Err(KainError::codegen(format!("Unknown field '{}' on {}", field, struct_name), *span))
-                            }
-                        } else {
-                            Err(KainError::codegen("Field assignment requires a struct pointer", *span))
-                        }
-                    }
-                    Expr::Index { object, index, .. } => {
-                        let (obj_val, obj_ty) = self.compile_expr(object)?;
-                        let (idx_val, _) = self.compile_expr(index)?;
-                        if obj_ty == "i8*" {
-                            let (rhs, rhs_ty) = self.compile_expr(value)?;
-                            let stored = self.coerce_to_i64_storage(&rhs, &rhs_ty);
-                            self.emit(&format!("  call void @array_set(i8* {}, i64 {}, i64 {})", obj_val, idx_val, stored));
-                            Ok((rhs, rhs_ty))
-                        } else {
-                            let (field_ptr, field_ty) = self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, *span)?;
-                            let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
-                            self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, field_ty, field_ptr));
-                            Ok((rhs, rhs_ty))
-                        }
-                    }
-                    _ => Err(KainError::codegen("Unsupported assignment target", *span)),
                 }
-            }
+                Expr::Field { object, field, .. } => {
+                    let (obj_val, obj_ty) = self.compile_expr(object)?;
+                    if let Some(struct_name) =
+                        self.ptr_struct_name(&obj_ty).map(|name| name.to_string())
+                    {
+                        if let Some(index) = self.field_index(&struct_name, field) {
+                            let field_ty = self
+                                .struct_defs
+                                .get(&struct_name)
+                                .and_then(|fields| fields.get(index))
+                                .map(|(_, ty)| ty.clone())
+                                .unwrap_or_else(|| "i64".to_string());
+                            let (rhs, rhs_ty) =
+                                self.compile_expr_for_target_type(value, &field_ty)?;
+                            let field_ptr = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                                field_ptr, struct_name, obj_ty, obj_val, index
+                            ));
+                            self.emit(&format!(
+                                "  store {} {}, {}* {}",
+                                rhs_ty, rhs, field_ty, field_ptr
+                            ));
+                            Ok((rhs, rhs_ty))
+                        } else {
+                            Err(KainError::codegen(
+                                format!("Unknown field '{}' on {}", field, struct_name),
+                                *span,
+                            ))
+                        }
+                    } else {
+                        Err(KainError::codegen(
+                            "Field assignment requires a struct pointer",
+                            *span,
+                        ))
+                    }
+                }
+                Expr::Index { object, index, .. } => {
+                    let (obj_val, obj_ty) = self.compile_expr(object)?;
+                    let (idx_val, _) = self.compile_expr(index)?;
+                    if obj_ty == "i8*" {
+                        let (rhs, rhs_ty) = self.compile_expr(value)?;
+                        let stored = self.coerce_to_i64_storage(&rhs, &rhs_ty);
+                        self.emit(&format!(
+                            "  call void @array_set(i8* {}, i64 {}, i64 {})",
+                            obj_val, idx_val, stored
+                        ));
+                        Ok((rhs, rhs_ty))
+                    } else {
+                        let (field_ptr, field_ty) = self.compile_index_address_from_compiled(
+                            &obj_val, &obj_ty, &idx_val, *span,
+                        )?;
+                        let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
+                        self.emit(&format!(
+                            "  store {} {}, {}* {}",
+                            rhs_ty, rhs, field_ty, field_ptr
+                        ));
+                        Ok((rhs, rhs_ty))
+                    }
+                }
+                _ => Err(KainError::codegen("Unsupported assignment target", *span)),
+            },
             Expr::Struct { name, fields, span } => {
                 let def = self.struct_defs.get(name).cloned().ok_or_else(|| {
                     KainError::codegen(format!("Unknown struct: {}", name), *span)
@@ -2422,13 +2930,25 @@ impl LlvmGenerator {
                 let ptr_ty = format!("{}*", struct_ty);
                 let null_ptr = format!("{} null", ptr_ty);
                 let size_ptr_reg = self.next_reg();
-                self.emit(&format!("  {} = getelementptr {}, {}, i32 1", size_ptr_reg, struct_ty, null_ptr));
+                self.emit(&format!(
+                    "  {} = getelementptr {}, {}, i32 1",
+                    size_ptr_reg, struct_ty, null_ptr
+                ));
                 let size_reg = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint {} {} to i64", size_reg, ptr_ty, size_ptr_reg));
+                self.emit(&format!(
+                    "  {} = ptrtoint {} {} to i64",
+                    size_reg, ptr_ty, size_ptr_reg
+                ));
                 let mem_reg = self.next_reg();
-                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", mem_reg, size_reg));
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    mem_reg, size_reg
+                ));
                 let struct_ptr = self.next_reg();
-                self.emit(&format!("  {} = bitcast i8* {} to {}", struct_ptr, mem_reg, ptr_ty));
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}",
+                    struct_ptr, mem_reg, ptr_ty
+                ));
                 let mut provided: HashMap<String, Expr> = fields.iter().cloned().collect();
                 for (i, (field_name, field_ty)) in def.iter().enumerate() {
                     let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
@@ -2437,30 +2957,48 @@ impl LlvmGenerator {
                         (self.zero_value_for_ty(field_ty), field_ty.clone())
                     };
                     let field_ptr = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}", field_ptr, struct_ty, ptr_ty, struct_ptr, i));
-                    self.emit(&format!("  store {} {}, {}* {}", val_ty, val, val_ty, field_ptr));
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                        field_ptr, struct_ty, ptr_ty, struct_ptr, i
+                    ));
+                    self.emit(&format!(
+                        "  store {} {}, {}* {}",
+                        val_ty, val, val_ty, field_ptr
+                    ));
                 }
                 Ok((struct_ptr, ptr_ty))
             }
-            Expr::AggregateInit { ty, fields, span, .. } => {
-                match ty {
-                    kain_core::ast::Type::Named { name, .. } => self.compile_expr(&Expr::Struct { name: name.clone(), fields: fields.clone(), span: *span }),
-                    kain_core::ast::Type::Tuple(_, _) => {
-                        self.compile_expr(&Expr::Tuple(fields.iter().map(|(_, value)| value.clone()).collect(), *span))
-                    }
-                    _ => Err(KainError::codegen(
-                        format!("Unsupported LLVM aggregate init type: {:?}", ty),
-                        *span,
-                    )),
-                }
-            }
+            Expr::AggregateInit {
+                ty, fields, span, ..
+            } => match ty {
+                kain_core::ast::Type::Named { name, .. } => self.compile_expr(&Expr::Struct {
+                    name: name.clone(),
+                    fields: fields.clone(),
+                    span: *span,
+                }),
+                kain_core::ast::Type::Tuple(_, _) => self.compile_expr(&Expr::Tuple(
+                    fields.iter().map(|(_, value)| value.clone()).collect(),
+                    *span,
+                )),
+                _ => Err(KainError::codegen(
+                    format!("Unsupported LLVM aggregate init type: {:?}", ty),
+                    *span,
+                )),
+            },
             Expr::Array(items, _) => {
                 let arr = self.next_reg();
-                self.emit(&format!("  {} = call i8* @array_new(i64 {})", arr, items.len().max(4)));
+                self.emit(&format!(
+                    "  {} = call i8* @array_new(i64 {})",
+                    arr,
+                    items.len().max(4)
+                ));
                 for item in items {
                     let (val, ty) = self.compile_expr(item)?;
                     let stored = self.coerce_to_i64_storage(&val, &ty);
-                    self.emit(&format!("  call void @array_push(i8* {}, i64 {})", arr, stored));
+                    self.emit(&format!(
+                        "  call void @array_push(i8* {}, i64 {})",
+                        arr, stored
+                    ));
                 }
                 Ok((arr, "i8*".into()))
             }
@@ -2477,20 +3015,35 @@ impl LlvmGenerator {
                 let tuple_ptr_ty = format!("%{}*", tuple_name);
                 if !self.struct_defs.contains_key(&tuple_name) {
                     return Err(KainError::codegen(
-                        format!("Tuple LLVM type '{}' was not registered before codegen", tuple_name),
+                        format!(
+                            "Tuple LLVM type '{}' was not registered before codegen",
+                            tuple_name
+                        ),
                         *span,
                     ));
                 }
 
                 let null_ptr = format!("{} null", tuple_ptr_ty);
                 let size_ptr_reg = self.next_reg();
-                self.emit(&format!("  {} = getelementptr %{}, {}, i32 1", size_ptr_reg, tuple_name, null_ptr));
+                self.emit(&format!(
+                    "  {} = getelementptr %{}, {}, i32 1",
+                    size_ptr_reg, tuple_name, null_ptr
+                ));
                 let size_reg = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint {} {} to i64", size_reg, tuple_ptr_ty, size_ptr_reg));
+                self.emit(&format!(
+                    "  {} = ptrtoint {} {} to i64",
+                    size_reg, tuple_ptr_ty, size_ptr_reg
+                ));
                 let mem_reg = self.next_reg();
-                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", mem_reg, size_reg));
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    mem_reg, size_reg
+                ));
                 let tuple_ptr = self.next_reg();
-                self.emit(&format!("  {} = bitcast i8* {} to {}", tuple_ptr, mem_reg, tuple_ptr_ty));
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}",
+                    tuple_ptr, mem_reg, tuple_ptr_ty
+                ));
 
                 for (index, (field_val, field_ty)) in compiled_fields.iter().enumerate() {
                     let field_ptr = self.next_reg();
@@ -2498,85 +3051,148 @@ impl LlvmGenerator {
                         "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
                         field_ptr, tuple_name, tuple_ptr_ty, tuple_ptr, index
                     ));
-                    self.emit(&format!("  store {} {}, {}* {}", field_ty, field_val, field_ty, field_ptr));
+                    self.emit(&format!(
+                        "  store {} {}, {}* {}",
+                        field_ty, field_val, field_ty, field_ptr
+                    ));
                 }
 
                 Ok((tuple_ptr, tuple_ptr_ty))
             }
-            Expr::Index { object, index, span: _ } => {
+            Expr::Index {
+                object,
+                index,
+                span: _,
+            } => {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (idx_val, _) = self.compile_expr(index)?;
                 if obj_ty == "i8*" {
                     let res = self.next_reg();
-                    self.emit(&format!("  {} = call i64 @array_get(i8* {}, i64 {})", res, obj_val, idx_val));
+                    self.emit(&format!(
+                        "  {} = call i64 @array_get(i8* {}, i64 {})",
+                        res, obj_val, idx_val
+                    ));
                     Ok((res, "i64".into()))
                 } else {
-                    let (field_ptr, field_ty) = self.compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, index.span())?;
+                    let (field_ptr, field_ty) = self.compile_index_address_from_compiled(
+                        &obj_val,
+                        &obj_ty,
+                        &idx_val,
+                        index.span(),
+                    )?;
                     let loaded = self.next_reg();
-                    self.emit(&format!("  {} = load {}, {}* {}", loaded, field_ty, field_ty, field_ptr));
+                    self.emit(&format!(
+                        "  {} = load {}, {}* {}",
+                        loaded, field_ty, field_ty, field_ptr
+                    ));
                     Ok((loaded, field_ty))
                 }
             }
             Expr::Spawn { actor, init, span } => {
-                let def = self.struct_defs.get(actor).cloned().ok_or(
-                    KainError::codegen(format!("Unknown actor: {}", actor), *span)
-                )?;
-                
+                let def = self
+                    .struct_defs
+                    .get(actor)
+                    .cloned()
+                    .ok_or(KainError::codegen(
+                        format!("Unknown actor: {}", actor),
+                        *span,
+                    ))?;
+
                 let struct_ty = format!("%{}", actor);
-                
+
                 // Allocate on Heap
                 let null_ptr = format!("{}* null", struct_ty);
                 let size_ptr_reg = self.next_reg();
-                self.emit(&format!("  {} = getelementptr {}, {}, i32 1", size_ptr_reg, struct_ty, null_ptr));
+                self.emit(&format!(
+                    "  {} = getelementptr {}, {}, i32 1",
+                    size_ptr_reg, struct_ty, null_ptr
+                ));
                 let size_reg = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint {}* {} to i64", size_reg, struct_ty, size_ptr_reg));
-                
+                self.emit(&format!(
+                    "  {} = ptrtoint {}* {} to i64",
+                    size_reg, struct_ty, size_ptr_reg
+                ));
+
                 let mem_reg = self.next_reg();
-                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", mem_reg, size_reg));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    mem_reg, size_reg
+                ));
+
                 // Cast to struct ptr
                 let struct_ptr = self.next_reg();
-                self.emit(&format!("  {} = bitcast i8* {} to {}*", struct_ptr, mem_reg, struct_ty));
-                
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    struct_ptr, mem_reg, struct_ty
+                ));
+
                 // Initialize fields
                 let mut provided: HashMap<String, Expr> = init.iter().cloned().collect();
                 for (i, (field_name, field_ty)) in def.iter().enumerate() {
-                     let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
-                         self.compile_expr(&expr)?
+                    let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
+                        self.compile_expr(&expr)?
                     } else {
-                         // Default zero init
-                         let zero_val = if field_ty == "double" { "0.0" } else if field_ty == "i8*" { "null" } else { "0" };
-                         (zero_val.into(), field_ty.clone())
+                        // Default zero init
+                        let zero_val = if field_ty == "double" {
+                            "0.0"
+                        } else if field_ty == "i8*" {
+                            "null"
+                        } else {
+                            "0"
+                        };
+                        (zero_val.into(), field_ty.clone())
                     };
-                    
+
                     let field_ptr = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}", 
-                        field_ptr, struct_ty, struct_ty, struct_ptr, i));
-                    self.emit(&format!("  store {} {}, {}* {}", val_ty, val, val_ty, field_ptr));
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                        field_ptr, struct_ty, struct_ty, struct_ptr, i
+                    ));
+                    self.emit(&format!(
+                        "  store {} {}, {}* {}",
+                        val_ty, val, val_ty, field_ptr
+                    ));
                 }
-                
+
                 // Spawn
                 // Cast func to i8*
-                let func_ptr = "bitcast (void (i8*)* @default_actor_run to i8*)"; 
-                
+                let func_ptr = "bitcast (void (i8*)* @default_actor_run to i8*)";
+
                 // Register Destructor if struct has RC fields
                 let has_rc_fields = def.iter().any(|(_, ty)| ty == "i8*" || ty.starts_with("%"));
                 if has_rc_fields {
                     let dtor_name = format!("dtor_{}", actor);
-                    self.emit(&format!("  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})", mem_reg, dtor_name));
+                    self.emit(&format!(
+                        "  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})",
+                        mem_reg, dtor_name
+                    ));
                 }
-                
-                self.emit(&format!("  call void @KAIN_spawn(i8* {}, i8* {})", func_ptr, mem_reg));
-                
+
+                self.emit(&format!(
+                    "  call void @KAIN_spawn(i8* {}, i8* {})",
+                    func_ptr, mem_reg
+                ));
+
                 Ok((struct_ptr, format!("%{}*", actor)))
             }
-            Expr::SendMsg { target, message, data, span } => {
+            Expr::SendMsg {
+                target,
+                message,
+                data,
+                span,
+            } => {
                 let (target_val, target_ty) = self.compile_expr(target)?;
                 let actor_name = if target_ty.starts_with('%') && target_ty.ends_with('*') {
-                    target_ty.trim_start_matches('%').trim_end_matches('*').to_string()
+                    target_ty
+                        .trim_start_matches('%')
+                        .trim_end_matches('*')
+                        .to_string()
                 } else {
                     return Err(KainError::codegen(
-                        format!("Cannot send message '{}' to non-actor type {}", message, target_ty),
+                        format!(
+                            "Cannot send message '{}' to non-actor type {}",
+                            message, target_ty
+                        ),
                         *span,
                     ));
                 };
@@ -2590,58 +3206,89 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = load i8*, i8** {}", mailbox, mailbox_ptr));
 
                 let payload_struct_name = format!("{}_{}", actor_name, message);
-                let payload_mem = if let Some(field_defs) = self.struct_defs.get(&payload_struct_name).cloned() {
-                    let payload_ty = format!("%{}", payload_struct_name);
-                    let payload_ptr_ty = format!("{}*", payload_ty);
-                    let null_ptr = format!("{} null", payload_ptr_ty);
-                    let size_ptr_reg = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr {}, {}, i32 1", size_ptr_reg, payload_ty, null_ptr));
-                    let size_reg = self.next_reg();
-                    self.emit(&format!("  {} = ptrtoint {} {} to i64", size_reg, payload_ptr_ty, size_ptr_reg));
-                    let payload_mem = self.next_reg();
-                    self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", payload_mem, size_reg));
-                    let payload_ptr = self.next_reg();
-                    self.emit(&format!("  {} = bitcast i8* {} to {}", payload_ptr, payload_mem, payload_ptr_ty));
-
-                    let named_args: std::collections::HashMap<String, Expr> = data.iter().cloned().collect();
-                    for (i, (field_name, field_ty)) in field_defs.iter().enumerate() {
-                        let expr = named_args.get(field_name).ok_or_else(|| {
-                            KainError::codegen(
-                                format!("Missing field '{}' for actor message '{}.{}'", field_name, actor_name, message),
-                                *span,
-                            )
-                        })?;
-                        let (val, val_ty) = self.compile_expr(expr)?;
-                        let field_ptr = self.next_reg();
+                let payload_mem =
+                    if let Some(field_defs) = self.struct_defs.get(&payload_struct_name).cloned() {
+                        let payload_ty = format!("%{}", payload_struct_name);
+                        let payload_ptr_ty = format!("{}*", payload_ty);
+                        let null_ptr = format!("{} null", payload_ptr_ty);
+                        let size_ptr_reg = self.next_reg();
                         self.emit(&format!(
-                            "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
-                            field_ptr, payload_ty, payload_ptr_ty, payload_ptr, i
+                            "  {} = getelementptr {}, {}, i32 1",
+                            size_ptr_reg, payload_ty, null_ptr
                         ));
-                        self.emit(&format!("  store {} {}, {}* {}", val_ty, val, field_ty, field_ptr));
-                    }
+                        let size_reg = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = ptrtoint {} {} to i64",
+                            size_reg, payload_ptr_ty, size_ptr_reg
+                        ));
+                        let payload_mem = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i8* @KAIN_alloc(i64 {})",
+                            payload_mem, size_reg
+                        ));
+                        let payload_ptr = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = bitcast i8* {} to {}",
+                            payload_ptr, payload_mem, payload_ptr_ty
+                        ));
 
-                    payload_mem
-                } else {
-                    "null".to_string()
-                };
+                        let named_args: std::collections::HashMap<String, Expr> =
+                            data.iter().cloned().collect();
+                        for (i, (field_name, field_ty)) in field_defs.iter().enumerate() {
+                            let expr = named_args.get(field_name).ok_or_else(|| {
+                                KainError::codegen(
+                                    format!(
+                                        "Missing field '{}' for actor message '{}.{}'",
+                                        field_name, actor_name, message
+                                    ),
+                                    *span,
+                                )
+                            })?;
+                            let (val, val_ty) = self.compile_expr(expr)?;
+                            let field_ptr = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                                field_ptr, payload_ty, payload_ptr_ty, payload_ptr, i
+                            ));
+                            self.emit(&format!(
+                                "  store {} {}, {}* {}",
+                                val_ty, val, field_ty, field_ptr
+                            ));
+                        }
+
+                        payload_mem
+                    } else {
+                        "null".to_string()
+                    };
 
                 let tag = self.hash_message_tag(&actor_name, message);
-                self.emit(&format!("  call void @mq_push(i8* {}, i64 {}, i8* {})", mailbox, tag, payload_mem));
+                self.emit(&format!(
+                    "  call void @mq_push(i8* {}, i64 {}, i8* {})",
+                    mailbox, tag, payload_mem
+                ));
                 Ok(("0".into(), "i64".into()))
             }
-            Expr::If { condition, then_branch, else_branch, span } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                span,
+            } => {
                 let start_block = self.current_block.clone();
                 let (cond_val, _) = self.compile_expr(condition)?;
-                
+
                 let label_then = self.next_label();
                 let label_else = self.next_label();
                 let label_merge = self.next_label();
-                
+
                 let has_else = else_branch.is_some();
                 let target_else = if has_else { &label_else } else { &label_merge };
 
-                self.emit(&format!("  br i1 {}, label %{}, label %{}", cond_val, label_then, target_else));
-                
+                self.emit(&format!(
+                    "  br i1 {}, label %{}, label %{}",
+                    cond_val, label_then, target_else
+                ));
+
                 let mut incoming = Vec::new();
 
                 // Then Block
@@ -2649,36 +3296,36 @@ impl LlvmGenerator {
                 let then_res = self.compile_block_with_result(then_branch)?;
                 let then_end_block = self.current_block.clone();
                 self.emit(&format!("  br label %{}", label_merge));
-                
+
                 if let Some((val, ty)) = then_res {
                     incoming.push((val, ty, then_end_block));
                 } else {
                     incoming.push(("0".into(), "i64".into(), then_end_block));
                 }
-                
+
                 // Else Block
                 if let Some(else_branch) = else_branch {
                     self.emit_label(&label_else);
                     let else_res = match else_branch.as_ref() {
                         kain_core::ast::ElseBranch::Else(b) => self.compile_block_with_result(b)?,
                         kain_core::ast::ElseBranch::ElseIf(cond, then, el) => {
-                             let nested = Expr::If {
-                                 condition: cond.clone(),
-                                 then_branch: then.clone(),
-                                 else_branch: el.clone(),
-                                 span: *span
-                             };
-                             Some(self.compile_expr(&nested)?)
+                            let nested = Expr::If {
+                                condition: cond.clone(),
+                                then_branch: then.clone(),
+                                else_branch: el.clone(),
+                                span: *span,
+                            };
+                            Some(self.compile_expr(&nested)?)
                         }
                     };
-                    
+
                     let else_end_block = self.current_block.clone();
                     self.emit(&format!("  br label %{}", label_merge));
-                    
+
                     if let Some((val, ty)) = else_res {
                         incoming.push((val, ty, else_end_block));
                     } else {
-                         incoming.push(("0".into(), "i64".into(), else_end_block));
+                        incoming.push(("0".into(), "i64".into(), else_end_block));
                     }
                 } else {
                     // No else branch: path comes from start_block with value 0
@@ -2686,20 +3333,21 @@ impl LlvmGenerator {
                 }
 
                 self.emit_label(&label_merge);
-                
+
                 // Generate Phi
                 let res_ty = incoming[0].1.clone();
                 let res_reg = self.next_reg();
-                
+
                 // Check consistency (simple check)
                 let consistent = incoming.iter().all(|(_, ty, _)| *ty == res_ty);
-                
+
                 if consistent {
-                    let phi_args = incoming.iter()
+                    let phi_args = incoming
+                        .iter()
                         .map(|(val, _, block)| format!("[ {}, %{} ]", val, block))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    
+
                     self.emit(&format!("  {} = phi {} {}", res_reg, res_ty, phi_args));
                     Ok((res_reg, res_ty))
                 } else {
@@ -2715,30 +3363,43 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
                     Ok((reg, ty))
                 } else {
-                    Err(KainError::codegen(format!("Undefined variable: {}", name), *span))
+                    Err(KainError::codegen(
+                        format!("Undefined variable: {}", name),
+                        *span,
+                    ))
                 }
             }
-            Expr::Binary { left, op, right, .. } => {
+            Expr::Binary {
+                left, op, right, ..
+            } => {
                 let (lhs, lhs_ty) = self.compile_expr(left)?;
                 let (rhs, rhs_ty) = self.compile_expr(right)?;
-                let (lhs, ty, rhs, rhs_ty) = self.coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?;
-                
+                let (lhs, ty, rhs, rhs_ty) =
+                    self.coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?;
+
                 if *op == BinaryOp::Add && (ty == "i8*" || rhs_ty == "i8*") {
                     let res = self.next_reg();
-                    self.emit(&format!("  {} = call i8* @str_concat(i8* {}, i8* {})", res, lhs, rhs));
+                    self.emit(&format!(
+                        "  {} = call i8* @str_concat(i8* {}, i8* {})",
+                        res, lhs, rhs
+                    ));
                     return Ok((res, "i8*".into()));
                 }
 
-                if (*op == BinaryOp::Eq || *op == BinaryOp::Ne) && (ty == "i8*" || rhs_ty == "i8*") {
-                     let res = self.next_reg();
-                     self.emit(&format!("  {} = call i1 @deep_eq(i8* {}, i8* {})", res, lhs, rhs));
-                     
-                     if *op == BinaryOp::Ne {
-                         let inv = self.next_reg();
-                         self.emit(&format!("  {} = xor i1 {}, 1", inv, res));
-                         return Ok((inv, "i1".into()));
-                     }
-                     return Ok((res, "i1".into()));
+                if (*op == BinaryOp::Eq || *op == BinaryOp::Ne) && (ty == "i8*" || rhs_ty == "i8*")
+                {
+                    let res = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = call i1 @deep_eq(i8* {}, i8* {})",
+                        res, lhs, rhs
+                    ));
+
+                    if *op == BinaryOp::Ne {
+                        let inv = self.next_reg();
+                        self.emit(&format!("  {} = xor i1 {}, 1", inv, res));
+                        return Ok((inv, "i1".into()));
+                    }
+                    return Ok((res, "i1".into()));
                 }
 
                 let is_float = ty == "double" && rhs_ty == "double";
@@ -2787,13 +3448,19 @@ impl LlvmGenerator {
                     }
                     BinaryOp::Pow => {
                         if is_float {
-                            self.emit(&format!("  {} = call double @pow(double {}, double {})", res, lhs, rhs));
+                            self.emit(&format!(
+                                "  {} = call double @pow(double {}, double {})",
+                                res, lhs, rhs
+                            ));
                             Ok((res, "double".to_string()))
                         } else {
                             let lhs_cast = self.cast_numeric_value(lhs, &ty, "double")?;
                             let rhs_cast = self.cast_numeric_value(rhs, &rhs_ty, "double")?;
                             let pow_res = self.next_reg();
-                            self.emit(&format!("  {} = call double @pow(double {}, double {})", pow_res, lhs_cast, rhs_cast));
+                            self.emit(&format!(
+                                "  {} = call double @pow(double {}, double {})",
+                                pow_res, lhs_cast, rhs_cast
+                            ));
                             let int_res = self.next_reg();
                             self.emit(&format!("  {} = fptosi double {} to i64", int_res, pow_res));
                             Ok((int_res, "i64".to_string()))
@@ -2881,35 +3548,42 @@ impl LlvmGenerator {
                     )),
                 }
             }
-            Expr::MethodCall { receiver, method, args, span } => {
-                // LLVM doesn't have native method dispatch. 
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                span,
+            } => {
+                // LLVM doesn't have native method dispatch.
                 // We resolve methods by checking the type of the receiver.
-                
+
                 let (obj_val, obj_ty) = self.compile_expr(receiver)?;
-                
+
                 // 1. Struct Methods: Call Struct_method(obj, args...)
                 if obj_ty.starts_with("%") && obj_ty.ends_with("*") {
-                    let struct_name = &obj_ty[1..obj_ty.len()-1]; // Remove % and *
+                    let struct_name = &obj_ty[1..obj_ty.len() - 1]; // Remove % and *
                     let func_name = format!("{}_{}", struct_name, method);
-                    
+
                     if self.functions.contains_key(&func_name) {
                         let mut compiled_args = Vec::new();
                         let mut arg_types = Vec::new();
-                        
+
                         // Pass 'self' as first argument
                         compiled_args.push(obj_val);
                         arg_types.push(obj_ty);
-                        
+
                         for arg in args {
                             let (val, ty) = self.compile_expr(&arg.value)?;
                             compiled_args.push(val);
                             arg_types.push(ty);
                         }
-                        
+
                         let ret_ty = self.functions.get(&func_name).unwrap().clone();
                         let res = self.next_reg();
-                        
-                        let arg_str = compiled_args.iter().zip(arg_types.iter())
+
+                        let arg_str = compiled_args
+                            .iter()
+                            .zip(arg_types.iter())
                             .map(|(val, ty)| format!("{} {}", ty, val))
                             .collect::<Vec<_>>()
                             .join(", ");
@@ -2919,12 +3593,18 @@ impl LlvmGenerator {
                             return Ok(("0".into(), "i64".into()));
                         }
 
-                        self.emit(&format!("  {} = call {} @{}({})", res, ret_ty, func_name, arg_str));
+                        self.emit(&format!(
+                            "  {} = call {} @{}({})",
+                            res, ret_ty, func_name, arg_str
+                        ));
                         return Ok((res, ret_ty));
                     }
                 }
-                
-                return Err(KainError::codegen(format!("Method {} not found on type {}", method, obj_ty), *span));
+
+                return Err(KainError::codegen(
+                    format!("Method {} not found on type {}", method, obj_ty),
+                    *span,
+                ));
             }
             Expr::Call { callee, args, span } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
@@ -2943,7 +3623,7 @@ impl LlvmGenerator {
                             return Ok((res, "i8*".into()));
                         }
                     }
-                    
+
                     if name == "now" {
                         let res = self.next_reg();
                         self.emit(&format!("  {} = call i64 @clock_wrapper()", res));
@@ -2964,37 +3644,46 @@ impl LlvmGenerator {
                                 // Assume string or unknown
                                 self.emit(&format!("  call void @print_str(i8* {}, i64 0)", val));
                             }
-                            
+
                             // Release if temporary
-                            if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(&arg.value) {
+                            if (ty == "i8*" || ty.starts_with("%"))
+                                && self.is_new_object(&arg.value)
+                            {
                                 self.emit_release(&val, &ty);
                             }
                         }
                         return Ok(("0".into(), "i64".into()));
                     }
                 }
-                
+
                 // Normal call - extract function name
                 let func_name = match callee.as_ref() {
                     Expr::Ident(name, _) => name.clone(),
-                    _ => return Err(KainError::codegen("Only direct function calls supported", *span)),
+                    _ => {
+                        return Err(KainError::codegen(
+                            "Only direct function calls supported",
+                            *span,
+                        ))
+                    }
                 };
-                
+
                 let mut compiled_args = Vec::new();
                 let mut arg_types = Vec::new();
-                
+
                 for (i, arg) in args.iter().enumerate() {
                     let (val, ty) = self.compile_expr(&arg.value)?;
-                    
+
                     // --- HOTFIX: Intrinsic Pointer Casting ---
-                    // Check if we are passing a pointer (i8* or %Struct*) to a function 
+                    // Check if we are passing a pointer (i8* or %Struct*) to a function
                     // that expects a generic i64 storage value (Array/Map storage).
-                    let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with("%")) && (
-                        (func_name == "push" && i == 1) ||        // push(arr, VAL)
+                    let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with("%"))
+                        && (
+                            (func_name == "push" && i == 1) ||        // push(arr, VAL)
                         (func_name == "array_push" && i == 1) ||  // array_push(arr, VAL)
                         (func_name == "array_set" && i == 2) ||   // array_set(arr, idx, VAL)
-                        (func_name == "map_set" && i == 2)        // map_set(map, key, VAL)
-                    );
+                        (func_name == "map_set" && i == 2)
+                            // map_set(map, key, VAL)
+                        );
 
                     if needs_cast_to_i64 {
                         let int_val = self.next_reg();
@@ -3005,19 +3694,21 @@ impl LlvmGenerator {
                         continue;
                     }
                     // --- END HOTFIX ---
-                    
+
                     compiled_args.push(val);
                     arg_types.push(ty);
                 }
-                
+
                 let ret_ty = if let Some(ty) = self.functions.get(&func_name) {
                     ty.clone()
                 } else {
                     "i64".into() // Default
                 };
-                
+
                 let res = self.next_reg();
-                let arg_str = compiled_args.iter().zip(arg_types.iter())
+                let arg_str = compiled_args
+                    .iter()
+                    .zip(arg_types.iter())
                     .map(|(val, ty)| format!("{} {}", ty, val))
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -3026,92 +3717,153 @@ impl LlvmGenerator {
                     self.emit(&format!("  call void @{}({})", func_name, arg_str));
                     Ok(("0".into(), "i64".into()))
                 } else {
-                    self.emit(&format!("  {} = call {} @{}({})", res, ret_ty, func_name, arg_str));
+                    self.emit(&format!(
+                        "  {} = call {} @{}({})",
+                        res, ret_ty, func_name, arg_str
+                    ));
                     Ok((res, ret_ty))
                 }
             }
-            Expr::EnumVariant { enum_name, variant, fields, .. } => {
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => {
                 let struct_ty = format!("%{}", enum_name);
                 let ptr_ty = format!("{}*", struct_ty);
-                
+
                 // Allocate Enum struct
                 let null_ptr = format!("{} null", ptr_ty);
                 let size_ptr_reg = self.next_reg();
-                self.emit(&format!("  {} = getelementptr {}, {}, i32 1", size_ptr_reg, struct_ty, null_ptr));
+                self.emit(&format!(
+                    "  {} = getelementptr {}, {}, i32 1",
+                    size_ptr_reg, struct_ty, null_ptr
+                ));
                 let size_reg = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint {} {} to i64", size_reg, ptr_ty, size_ptr_reg));
-                
+                self.emit(&format!(
+                    "  {} = ptrtoint {} {} to i64",
+                    size_reg, ptr_ty, size_ptr_reg
+                ));
+
                 let mem_reg = self.next_reg();
-                self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", mem_reg, size_reg));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    mem_reg, size_reg
+                ));
+
                 let enum_ptr = self.next_reg();
-                self.emit(&format!("  {} = bitcast i8* {} to {}", enum_ptr, mem_reg, ptr_ty));
-                
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}",
+                    enum_ptr, mem_reg, ptr_ty
+                ));
+
                 // Store Tag
                 let tag = self.hash_message_tag(enum_name, variant);
                 let tag_ptr = self.next_reg();
-                self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 0", tag_ptr, struct_ty, ptr_ty, enum_ptr));
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 0",
+                    tag_ptr, struct_ty, ptr_ty, enum_ptr
+                ));
                 self.emit(&format!("  store i64 {}, i64* {}", tag, tag_ptr));
-                
+
                 // Handle Payload
                 let payload_struct_name = format!("{}_{}", enum_name, variant);
                 let payload_ty = format!("%{}", payload_struct_name);
                 let payload_ptr_ty = format!("{}*", payload_ty);
-                
+
                 // Check if payload struct exists (implies non-empty payload)
                 if self.struct_defs.contains_key(&payload_struct_name) {
                     // Allocate Payload
                     let p_null_ptr = format!("{} null", payload_ptr_ty);
                     let p_size_ptr = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr {}, {}, i32 1", p_size_ptr, payload_ty, p_null_ptr));
+                    self.emit(&format!(
+                        "  {} = getelementptr {}, {}, i32 1",
+                        p_size_ptr, payload_ty, p_null_ptr
+                    ));
                     let p_size = self.next_reg();
-                    self.emit(&format!("  {} = ptrtoint {} {} to i64", p_size, payload_ptr_ty, p_size_ptr));
-                    
+                    self.emit(&format!(
+                        "  {} = ptrtoint {} {} to i64",
+                        p_size, payload_ptr_ty, p_size_ptr
+                    ));
+
                     let p_mem = self.next_reg();
-                    self.emit(&format!("  {} = call i8* @KAIN_alloc(i64 {})", p_mem, p_size));
-                    
+                    self.emit(&format!(
+                        "  {} = call i8* @KAIN_alloc(i64 {})",
+                        p_mem, p_size
+                    ));
+
                     let p_ptr = self.next_reg();
-                    self.emit(&format!("  {} = bitcast i8* {} to {}", p_ptr, p_mem, payload_ptr_ty));
-                    
+                    self.emit(&format!(
+                        "  {} = bitcast i8* {} to {}",
+                        p_ptr, p_mem, payload_ptr_ty
+                    ));
+
                     // Store Fields
                     match fields {
                         kain_core::ast::EnumVariantFields::Tuple(exprs) => {
                             for (i, expr) in exprs.iter().enumerate() {
                                 let (val, val_ty) = self.compile_expr(expr)?;
                                 let field_ptr = self.next_reg();
-                                self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}", field_ptr, payload_ty, payload_ptr_ty, p_ptr, i));
-                                self.emit(&format!("  store {} {}, {}* {}", val_ty, val, val_ty, field_ptr));
+                                self.emit(&format!(
+                                    "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                                    field_ptr, payload_ty, payload_ptr_ty, p_ptr, i
+                                ));
+                                self.emit(&format!(
+                                    "  store {} {}, {}* {}",
+                                    val_ty, val, val_ty, field_ptr
+                                ));
                             }
                         }
                         kain_core::ast::EnumVariantFields::Struct(named_fields) => {
-                             for (i, (_, expr)) in named_fields.iter().enumerate() {
-                                 let (val, val_ty) = self.compile_expr(expr)?;
-                                 let field_ptr = self.next_reg();
-                                 self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}", field_ptr, payload_ty, payload_ptr_ty, p_ptr, i));
-                                 self.emit(&format!("  store {} {}, {}* {}", val_ty, val, val_ty, field_ptr));
-                             }
+                            for (i, (_, expr)) in named_fields.iter().enumerate() {
+                                let (val, val_ty) = self.compile_expr(expr)?;
+                                let field_ptr = self.next_reg();
+                                self.emit(&format!(
+                                    "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                                    field_ptr, payload_ty, payload_ptr_ty, p_ptr, i
+                                ));
+                                self.emit(&format!(
+                                    "  store {} {}, {}* {}",
+                                    val_ty, val, val_ty, field_ptr
+                                ));
+                            }
                         }
                         _ => {}
                     }
-                    
+
                     // Store Payload Pointer in Enum
                     let payload_ptr_ptr = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 1", payload_ptr_ptr, struct_ty, ptr_ty, enum_ptr));
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 1",
+                        payload_ptr_ptr, struct_ty, ptr_ty, enum_ptr
+                    ));
                     self.emit(&format!("  store i8* {}, i8** {}", p_mem, payload_ptr_ptr));
-                    
                 } else {
                     // Store Null
                     let payload_ptr_ptr = self.next_reg();
-                    self.emit(&format!("  {} = getelementptr inbounds {}, {} {}, i32 0, i32 1", payload_ptr_ptr, struct_ty, ptr_ty, enum_ptr));
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 1",
+                        payload_ptr_ptr, struct_ty, ptr_ty, enum_ptr
+                    ));
                     self.emit(&format!("  store i8* null, i8** {}", payload_ptr_ptr));
                 }
-                
+
                 Ok((enum_ptr, ptr_ty))
             }
-            Expr::Match { scrutinee, arms, span } => {
+            Expr::Match {
+                scrutinee,
+                arms,
+                span,
+            } => {
                 let (val, val_ty) = self.compile_expr(scrutinee)?;
                 let enum_name = if val_ty.starts_with('%') && val_ty.ends_with('*') {
-                    Some(val_ty.trim_start_matches('%').trim_end_matches('*').to_string())
+                    Some(
+                        val_ty
+                            .trim_start_matches('%')
+                            .trim_end_matches('*')
+                            .to_string(),
+                    )
                 } else {
                     None
                 };
@@ -3152,7 +3904,10 @@ impl LlvmGenerator {
                     } else {
                         label_end.clone()
                     };
-                    self.emit(&format!("  br i1 {}, label %{}, label %{}", cond, branch_true, branch_false));
+                    self.emit(&format!(
+                        "  br i1 {}, label %{}, label %{}",
+                        cond, branch_true, branch_false
+                    ));
 
                     self.emit_label(&arm_labels[i]);
                     self.scopes.push(Vec::new());
@@ -3179,7 +3934,10 @@ impl LlvmGenerator {
                         } else {
                             label_end.clone()
                         };
-                        self.emit(&format!("  br i1 {}, label %{}, label %{}", guard_val, guard_pass, guard_fail));
+                        self.emit(&format!(
+                            "  br i1 {}, label %{}, label %{}",
+                            guard_val, guard_pass, guard_fail
+                        ));
                         self.emit_label(&guard_pass);
                     }
 
@@ -3199,23 +3957,22 @@ impl LlvmGenerator {
                 } else {
                     let res_ty = incoming[0].1.clone();
                     let res_reg = self.next_reg();
-                    
-                    let phi_args = incoming.iter()
+
+                    let phi_args = incoming
+                        .iter()
                         .map(|(val, _, block)| format!("[ {}, %{} ]", val, block))
                         .collect::<Vec<_>>()
                         .join(", ");
-                        
+
                     self.emit(&format!("  {} = phi {} {}", res_reg, res_ty, phi_args));
                     Ok((res_reg, res_ty))
                 }
             }
             // Catch-all for unsupported expressions
-            other => {
-                Err(KainError::codegen(
-                    format!("Unsupported LLVM expression: {:?}", other),
-                    other.span(),
-                ))
-            }
+            other => Err(KainError::codegen(
+                format!("Unsupported LLVM expression: {:?}", other),
+                other.span(),
+            )),
         }
     }
 }

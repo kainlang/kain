@@ -56,15 +56,39 @@ enum CBuiltinTypeSpecifier {
 
 const C_BUILTIN_TYPE_SPECIFIERS: &[(CBuiltinTypeSpecifier, KainTypeDescriptor)] = &[
     (CBuiltinTypeSpecifier::Void, KainTypeDescriptor::Unit),
-    (CBuiltinTypeSpecifier::Char, KainTypeDescriptor::Named("Char")),
-    (CBuiltinTypeSpecifier::Short, KainTypeDescriptor::Named("Int")),
+    (
+        CBuiltinTypeSpecifier::Char,
+        KainTypeDescriptor::Named("Char"),
+    ),
+    (
+        CBuiltinTypeSpecifier::Short,
+        KainTypeDescriptor::Named("Int"),
+    ),
     (CBuiltinTypeSpecifier::Int, KainTypeDescriptor::Named("Int")),
-    (CBuiltinTypeSpecifier::Long, KainTypeDescriptor::Named("Int")),
-    (CBuiltinTypeSpecifier::Signed, KainTypeDescriptor::Named("Int")),
-    (CBuiltinTypeSpecifier::Unsigned, KainTypeDescriptor::Named("Int")),
-    (CBuiltinTypeSpecifier::Float, KainTypeDescriptor::Named("Float")),
-    (CBuiltinTypeSpecifier::Double, KainTypeDescriptor::Named("Float")),
-    (CBuiltinTypeSpecifier::Bool, KainTypeDescriptor::Named("Bool")),
+    (
+        CBuiltinTypeSpecifier::Long,
+        KainTypeDescriptor::Named("Int"),
+    ),
+    (
+        CBuiltinTypeSpecifier::Signed,
+        KainTypeDescriptor::Named("Int"),
+    ),
+    (
+        CBuiltinTypeSpecifier::Unsigned,
+        KainTypeDescriptor::Named("Int"),
+    ),
+    (
+        CBuiltinTypeSpecifier::Float,
+        KainTypeDescriptor::Named("Float"),
+    ),
+    (
+        CBuiltinTypeSpecifier::Double,
+        KainTypeDescriptor::Named("Float"),
+    ),
+    (
+        CBuiltinTypeSpecifier::Bool,
+        KainTypeDescriptor::Named("Bool"),
+    ),
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -211,18 +235,31 @@ pub fn resolve_c_binary_operator(op: &c_ast::BinaryOperator) -> CBinaryOperatorR
 
     match C_BINARY_OPERATOR_MAPPINGS
         .iter()
-        .find_map(|(candidate, mapped)| if *candidate == key { Some(*mapped) } else { None })
-    {
+        .find_map(|(candidate, mapped)| {
+            if *candidate == key {
+                Some(*mapped)
+            } else {
+                None
+            }
+        }) {
         Some(mapped) => CBinaryOperatorResolution::Supported(mapped),
         None => CBinaryOperatorResolution::Unsupported,
     }
 }
 
-pub fn resolve_c_compound_assignment_binary_operator(op: &c_ast::BinaryOperator) -> Option<BinaryOp> {
+pub fn resolve_c_compound_assignment_binary_operator(
+    op: &c_ast::BinaryOperator,
+) -> Option<BinaryOp> {
     let key = c_binary_operator_key(op)?;
     C_COMPOUND_ASSIGNMENT_BINARY_MAPPINGS
         .iter()
-        .find_map(|(candidate, mapped)| if *candidate == key { Some(*mapped) } else { None })
+        .find_map(|(candidate, mapped)| {
+            if *candidate == key {
+                Some(*mapped)
+            } else {
+                None
+            }
+        })
 }
 
 fn c_binary_operator_key(op: &c_ast::BinaryOperator) -> Option<CBinaryOperatorKey> {

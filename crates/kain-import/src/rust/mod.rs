@@ -45,18 +45,14 @@ mod transformer;
 mod types;
 
 pub use selfhost::{
-    import_rust_selfhost_dir,
-    import_rust_selfhost_dir_detailed,
-    RustCrateGraph,
-    RustModuleNode,
-    RustSelfHostImportResult,
-    RustSelfHostOptions,
+    import_rust_selfhost_dir, import_rust_selfhost_dir_detailed, RustCrateGraph, RustModuleNode,
+    RustSelfHostImportResult, RustSelfHostOptions,
 };
 pub use transformer::RustTransformer;
 
+use crate::{ImportError, Result};
 use kain_core::ast::Program;
 use std::path::Path;
-use crate::{ImportError, Result};
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -94,7 +90,10 @@ pub fn import_rust_project(paths: &[&Path]) -> Result<Program> {
         all_items.extend(program.items);
     }
 
-    Ok(Program { items: all_items, span })
+    Ok(Program {
+        items: all_items,
+        span,
+    })
 }
 
 /// Recursively collect and import all `.rs` files under a directory.
@@ -139,7 +138,10 @@ fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
         }));
     }
 
-    Ok(Program { items: top_items, span })
+    Ok(Program {
+        items: top_items,
+        span,
+    })
 }
 
 fn collect_rust_files(dir: &Path) -> Result<Vec<std::path::PathBuf>> {
@@ -149,10 +151,7 @@ fn collect_rust_files(dir: &Path) -> Result<Vec<std::path::PathBuf>> {
     Ok(files)
 }
 
-fn collect_rust_files_into(
-    dir: &Path,
-    files: &mut Vec<std::path::PathBuf>,
-) -> Result<()> {
+fn collect_rust_files_into(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> Result<()> {
     for entry in std::fs::read_dir(dir).map_err(ImportError::IoError)? {
         let entry = entry.map_err(ImportError::IoError)?;
         let path = entry.path();

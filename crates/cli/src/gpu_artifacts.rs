@@ -27,8 +27,9 @@ pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainErro
     let typed_program = frontend_to_typed_program(source, CompileTarget::Spirv)?;
     let spirv = gpu::generate_spirv(&typed_program)?;
     let rust_host = generate_rust_gpu_host_wrappers(&typed_program)?;
-    let reflection_json = collect_gpu_artifacts_json(&typed_program)
-        .map_err(|err| KainError::runtime(format!("Failed to serialize GPU reflection JSON: {}", err)))?;
+    let reflection_json = collect_gpu_artifacts_json(&typed_program).map_err(|err| {
+        KainError::runtime(format!("Failed to serialize GPU reflection JSON: {}", err))
+    })?;
     let metadata = collect_gpu_artifacts(&typed_program);
 
     Ok(GpuArtifactOutput {
@@ -63,19 +64,35 @@ pub fn write_gpu_artifacts_bundle(
     for path in [&spirv_path, &rust_path, &json_path] {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| {
-                KainError::runtime(format!("Failed to create output directory {}: {}", parent.display(), err))
+                KainError::runtime(format!(
+                    "Failed to create output directory {}: {}",
+                    parent.display(),
+                    err
+                ))
             })?;
         }
     }
 
     fs::write(&spirv_path, &artifacts.spirv).map_err(|err| {
-        KainError::runtime(format!("Failed to write SPIR-V output {}: {}", spirv_path.display(), err))
+        KainError::runtime(format!(
+            "Failed to write SPIR-V output {}: {}",
+            spirv_path.display(),
+            err
+        ))
     })?;
     fs::write(&rust_path, artifacts.rust_host.as_bytes()).map_err(|err| {
-        KainError::runtime(format!("Failed to write Rust GPU host output {}: {}", rust_path.display(), err))
+        KainError::runtime(format!(
+            "Failed to write Rust GPU host output {}: {}",
+            rust_path.display(),
+            err
+        ))
     })?;
     fs::write(&json_path, artifacts.reflection_json.as_bytes()).map_err(|err| {
-        KainError::runtime(format!("Failed to write GPU reflection output {}: {}", json_path.display(), err))
+        KainError::runtime(format!(
+            "Failed to write GPU reflection output {}: {}",
+            json_path.display(),
+            err
+        ))
     })?;
 
     Ok(vec![spirv_path, rust_path, json_path])

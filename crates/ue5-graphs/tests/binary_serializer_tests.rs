@@ -2,15 +2,12 @@
 //!
 //! Comprehensive tests for the graph editor binary serializer
 
-use ue5_graphs::{
-    GraphEditor, NodeType, PinDefinition, PinType, 
-    binary_serializer::serialize,
-};
+use ue5_graphs::{binary_serializer::serialize, GraphEditor, NodeType, PinDefinition, PinType};
 
 #[test]
 fn test_simple_graph_binary_format() {
     let mut graph = GraphEditor::new("SimpleGraph");
-    
+
     graph.add_node_type(NodeType {
         name: "TestNode".to_string(),
         category: "Test".to_string(),
@@ -24,10 +21,14 @@ fn test_simple_graph_binary_format() {
     });
 
     let bytes = serialize(&graph).expect("serialization should succeed");
-    
+
     // Verify UE5 magic number
-    assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E], "Invalid UE5 magic number");
-    
+    assert_eq!(
+        &bytes[0..4],
+        &[0xC1, 0x83, 0x2A, 0x9E],
+        "Invalid UE5 magic number"
+    );
+
     // Verify file is not empty
     assert!(bytes.len() > 100, "File should be larger than header");
 }
@@ -118,24 +119,20 @@ fn test_combat_graph_serialization() {
     graph.add_node_type(NodeType {
         name: "PortalNode".to_string(),
         category: "Combat/Flow".to_string(),
-        inputs: vec![
-            PinDefinition {
-                name: "Execute".to_string(),
-                pin_type: PinType::Exec,
-                is_array: false,
-                default_value: None,
-                tooltip: None,
-            },
-        ],
-        outputs: vec![
-            PinDefinition {
-                name: "Execute".to_string(),
-                pin_type: PinType::Exec,
-                is_array: false,
-                default_value: None,
-                tooltip: None,
-            },
-        ],
+        inputs: vec![PinDefinition {
+            name: "Execute".to_string(),
+            pin_type: PinType::Exec,
+            is_array: false,
+            default_value: None,
+            tooltip: None,
+        }],
+        outputs: vec![PinDefinition {
+            name: "Execute".to_string(),
+            pin_type: PinType::Exec,
+            is_array: false,
+            default_value: None,
+            tooltip: None,
+        }],
         properties: vec![],
         color: Some([0.5, 0.5, 1.0, 1.0]),
         icon: Some("Icons.Portal".to_string()),
@@ -144,10 +141,10 @@ fn test_combat_graph_serialization() {
     });
 
     let bytes = serialize(&graph).expect("serialization should succeed");
-    
+
     // Verify magic number
     assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
-    
+
     // Verify file size is reasonable (should have 3 node types + graph + schema)
     assert!(bytes.len() > 500, "File should contain multiple exports");
 }
@@ -255,12 +252,15 @@ fn test_all_pin_types_serialization() {
     });
 
     let bytes = serialize(&graph).expect("serialization should succeed");
-    
+
     // Verify magic number
     assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
-    
+
     // Verify file is substantial
-    assert!(bytes.len() > 300, "File should contain comprehensive node definition");
+    assert!(
+        bytes.len() > 300,
+        "File should contain comprehensive node definition"
+    );
 }
 
 #[test]
@@ -268,12 +268,15 @@ fn test_empty_graph_serialization() {
     let graph = GraphEditor::new("EmptyGraph");
 
     let bytes = serialize(&graph).expect("serialization should succeed");
-    
+
     // Verify magic number
     assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
-    
+
     // Even empty graph should have basic structure
-    assert!(bytes.len() > 50, "Empty graph should still have header and basic exports");
+    assert!(
+        bytes.len() > 50,
+        "Empty graph should still have header and basic exports"
+    );
 }
 
 #[test]
@@ -326,12 +329,15 @@ fn test_large_graph_serialization() {
     }
 
     let bytes = serialize(&graph).expect("serialization should succeed");
-    
+
     // Verify magic number
     assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
-    
+
     // Large graph should have substantial size
-    assert!(bytes.len() > 1000, "Large graph should have significant size");
+    assert!(
+        bytes.len() > 1000,
+        "Large graph should have significant size"
+    );
 }
 
 #[test]
@@ -367,12 +373,15 @@ fn test_node_with_complex_tooltips() {
     });
 
     let bytes = serialize(&graph).expect("serialization should succeed");
-    
+
     // Verify magic number
     assert_eq!(&bytes[0..4], &[0xC1, 0x83, 0x2A, 0x9E]);
-    
+
     // Should handle long strings
-    assert!(bytes.len() > 200, "File should contain long tooltip strings");
+    assert!(
+        bytes.len() > 200,
+        "File should contain long tooltip strings"
+    );
 }
 
 #[test]
@@ -394,7 +403,7 @@ fn test_serialization_deterministic() {
     // Serialize twice
     let bytes1 = serialize(&graph).expect("first serialization should succeed");
     let bytes2 = serialize(&graph).expect("second serialization should succeed");
-    
+
     // Results should be identical (deterministic)
     assert_eq!(bytes1, bytes2, "Serialization should be deterministic");
 }

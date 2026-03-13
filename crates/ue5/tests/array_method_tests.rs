@@ -11,19 +11,19 @@ fn compile_ue5(source: &str) -> Result<Ue5Output, error::KainError> {
     let tokens = lexer::Lexer::new(source).tokenize()?;
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
     let mut ast = parser::Parser::new(&tokens, &span_mapper, "<test>").parse()?;
-    
+
     // Compile-time evaluation
     comptime::eval_program(&mut ast)?;
-    
+
     // Type checking
     let typed = types::check(&ast, &span_mapper, "<test>")?;
-    
+
     // Monomorphization
     let mono = monomorphize::monomorphize(&typed)?;
-    
+
     // UE5 codegen
     let output = generate(&mono, None, None)?;
-    
+
     Ok(output)
 }
 
@@ -41,15 +41,18 @@ fn main():
     let arr: Array<Int> = []
     let size = get_array_size(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .len() → .Num()
     assert!(cpp.contains(".Num()"), "Should translate .len() to .Num()");
-    assert!(!cpp.contains(".len()"), "Should not contain KAIN .len() in output");
+    assert!(
+        !cpp.contains(".len()"),
+        "Should not contain KAIN .len() in output"
+    );
 }
 
 #[test]
@@ -62,15 +65,18 @@ fn main():
     let arr: Array<Int> = []
     add_item(arr, 42)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .push() → .Add()
     assert!(cpp.contains(".Add("), "Should translate .push() to .Add()");
-    assert!(!cpp.contains(".push("), "Should not contain KAIN .push() in output");
+    assert!(
+        !cpp.contains(".push("),
+        "Should not contain KAIN .push() in output"
+    );
 }
 
 #[test]
@@ -83,15 +89,18 @@ fn main():
     let arr: Array<Int> = [1, 2, 3]
     let last = remove_last(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .pop() → .Pop()
     assert!(cpp.contains(".Pop("), "Should translate .pop() to .Pop()");
-    assert!(!cpp.contains(".pop("), "Should not contain KAIN .pop() in output");
+    assert!(
+        !cpp.contains(".pop("),
+        "Should not contain KAIN .pop() in output"
+    );
 }
 
 #[test]
@@ -104,15 +113,21 @@ fn main():
     let arr: Array<Int> = [1, 2, 3]
     clear_array(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .clear() → .Empty()
-    assert!(cpp.contains(".Empty("), "Should translate .clear() to .Empty()");
-    assert!(!cpp.contains(".clear("), "Should not contain KAIN .clear() in output");
+    assert!(
+        cpp.contains(".Empty("),
+        "Should translate .clear() to .Empty()"
+    );
+    assert!(
+        !cpp.contains(".clear("),
+        "Should not contain KAIN .clear() in output"
+    );
 }
 
 // ============================================================================
@@ -129,15 +144,21 @@ fn main():
     let arr: Array<Float> = [1.0, 2.0]
     let len = get_length(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .length() → .Num()
-    assert!(cpp.contains(".Num()"), "Should translate .length() to .Num()");
-    assert!(!cpp.contains(".length()"), "Should not contain KAIN .length() in output");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .length() to .Num()"
+    );
+    assert!(
+        !cpp.contains(".length()"),
+        "Should not contain KAIN .length() in output"
+    );
 }
 
 #[test]
@@ -150,15 +171,21 @@ fn main():
     let arr: Array<String> = ["a", "b", "c"]
     let cnt = count_items(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .count() → .Num()
-    assert!(cpp.contains(".Num()"), "Should translate .count() to .Num()");
-    assert!(!cpp.contains(".count()"), "Should not contain KAIN .count() in output");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .count() to .Num()"
+    );
+    assert!(
+        !cpp.contains(".count()"),
+        "Should not contain KAIN .count() in output"
+    );
 }
 
 #[test]
@@ -171,15 +198,18 @@ fn main():
     let arr: Array<Bool> = [true, false]
     let sz = get_size(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .size() → .Num()
     assert!(cpp.contains(".Num()"), "Should translate .size() to .Num()");
-    assert!(!cpp.contains(".size()"), "Should not contain KAIN .size() in output");
+    assert!(
+        !cpp.contains(".size()"),
+        "Should not contain KAIN .size() in output"
+    );
 }
 
 #[test]
@@ -192,15 +222,21 @@ fn main():
     let arr: Array<Int> = []
     append_item(arr, 10)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .append() → .Add()
-    assert!(cpp.contains(".Add("), "Should translate .append() to .Add()");
-    assert!(!cpp.contains(".append("), "Should not contain KAIN .append() in output");
+    assert!(
+        cpp.contains(".Add("),
+        "Should translate .append() to .Add()"
+    );
+    assert!(
+        !cpp.contains(".append("),
+        "Should not contain KAIN .append() in output"
+    );
 }
 
 #[test]
@@ -213,15 +249,18 @@ fn main():
     let arr: Array<Float> = []
     add_value(arr, 3.14)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .add() → .Add()
     assert!(cpp.contains(".Add("), "Should translate .add() to .Add()");
-    assert!(!cpp.contains(".add("), "Should not contain KAIN .add() in output");
+    assert!(
+        !cpp.contains(".add("),
+        "Should not contain KAIN .add() in output"
+    );
 }
 
 #[test]
@@ -234,15 +273,21 @@ fn main():
     let arr: Array<String> = ["test"]
     empty_array(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .empty() → .Empty()
-    assert!(cpp.contains(".Empty("), "Should translate .empty() to .Empty()");
-    assert!(!cpp.contains(".empty("), "Should not contain KAIN .empty() in output");
+    assert!(
+        cpp.contains(".Empty("),
+        "Should translate .empty() to .Empty()"
+    );
+    assert!(
+        !cpp.contains(".empty("),
+        "Should not contain KAIN .empty() in output"
+    );
 }
 
 // ============================================================================
@@ -259,15 +304,21 @@ fn main():
     let arr: Array<Int> = [1, 2, 3]
     remove_at_index(arr, 1)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .remove() → .RemoveAt()
-    assert!(cpp.contains(".RemoveAt("), "Should translate .remove() to .RemoveAt()");
-    assert!(!cpp.contains(".remove("), "Should not contain KAIN .remove() in output");
+    assert!(
+        cpp.contains(".RemoveAt("),
+        "Should translate .remove() to .RemoveAt()"
+    );
+    assert!(
+        !cpp.contains(".remove("),
+        "Should not contain KAIN .remove() in output"
+    );
 }
 
 #[test]
@@ -280,15 +331,21 @@ fn main():
     let arr: Array<Int> = [1, 2, 3]
     let found = has_value(arr, 2)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .contains() → .Contains()
-    assert!(cpp.contains(".Contains("), "Should translate .contains() to .Contains()");
-    assert!(!cpp.contains(".contains("), "Should not contain KAIN .contains() in output");
+    assert!(
+        cpp.contains(".Contains("),
+        "Should translate .contains() to .Contains()"
+    );
+    assert!(
+        !cpp.contains(".contains("),
+        "Should not contain KAIN .contains() in output"
+    );
 }
 
 #[test]
@@ -301,15 +358,21 @@ fn main():
     let arr: Array<String> = ["a", "b", "c"]
     let idx = find_index(arr, "b")
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .find() → .Find()
-    assert!(cpp.contains(".Find("), "Should translate .find() to .Find()");
-    assert!(!cpp.contains(".find("), "Should not contain KAIN .find() in output");
+    assert!(
+        cpp.contains(".Find("),
+        "Should translate .find() to .Find()"
+    );
+    assert!(
+        !cpp.contains(".find("),
+        "Should not contain KAIN .find() in output"
+    );
 }
 
 #[test]
@@ -322,15 +385,21 @@ fn main():
     let arr: Array<Int> = [1, 3]
     insert_at(arr, 1, 2)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .insert() → .Insert()
-    assert!(cpp.contains(".Insert("), "Should translate .insert() to .Insert()");
-    assert!(!cpp.contains(".insert("), "Should not contain KAIN .insert() in output");
+    assert!(
+        cpp.contains(".Insert("),
+        "Should translate .insert() to .Insert()"
+    );
+    assert!(
+        !cpp.contains(".insert("),
+        "Should not contain KAIN .insert() in output"
+    );
 }
 
 #[test]
@@ -343,15 +412,21 @@ fn main():
     let arr: Array<Int> = [3, 1, 2]
     sort_array(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .sort() → .Sort()
-    assert!(cpp.contains(".Sort("), "Should translate .sort() to .Sort()");
-    assert!(!cpp.contains(".sort("), "Should not contain KAIN .sort() in output");
+    assert!(
+        cpp.contains(".Sort("),
+        "Should translate .sort() to .Sort()"
+    );
+    assert!(
+        !cpp.contains(".sort("),
+        "Should not contain KAIN .sort() in output"
+    );
 }
 
 // ============================================================================
@@ -371,17 +446,20 @@ fn main():
     let arr: Array<Int> = [1, 2]
     let result = process_array(arr, 3)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify all methods are translated
     assert!(cpp.contains(".Add("), "Should translate .push() to .Add()");
     assert!(cpp.contains(".Num()"), "Should translate .len() to .Num()");
-    assert!(cpp.contains(".Empty("), "Should translate .clear() to .Empty()");
-    
+    assert!(
+        cpp.contains(".Empty("),
+        "Should translate .clear() to .Empty()"
+    );
+
     // Verify no KAIN methods remain
     assert!(!cpp.contains(".push("), "Should not contain KAIN .push()");
     assert!(!cpp.contains(".len()"), "Should not contain KAIN .len()");
@@ -406,16 +484,25 @@ actor InventoryManager:
 fn main():
     let manager = InventoryManager()
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify all methods are translated in actor context
-    assert!(cpp.contains(".Add("), "Should translate .push() to .Add() in actor");
-    assert!(cpp.contains(".Num()"), "Should translate .len() to .Num() in actor");
-    assert!(cpp.contains(".Empty("), "Should translate .clear() to .Empty() in actor");
+    assert!(
+        cpp.contains(".Add("),
+        "Should translate .push() to .Add() in actor"
+    );
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .len() to .Num() in actor"
+    );
+    assert!(
+        cpp.contains(".Empty("),
+        "Should translate .clear() to .Empty() in actor"
+    );
 }
 
 #[test]
@@ -428,14 +515,17 @@ struct DataCollector:
 fn main():
     let collector = DataCollector()
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify component is generated correctly
-    assert!(cpp.contains("UDataCollector"), "Should generate UDataCollector component");
+    assert!(
+        cpp.contains("UDataCollector"),
+        "Should generate UDataCollector component"
+    );
     // Note: Methods would need to be in an impl block to be generated
     // This test verifies the component structure is correct
 }
@@ -455,14 +545,17 @@ fn main():
     let arr: Array<Int> = []
     let result = process(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify all operations are translated
-    assert!(cpp.matches(".Add(").count() >= 3, "Should have multiple .Add() calls");
+    assert!(
+        cpp.matches(".Add(").count() >= 3,
+        "Should have multiple .Add() calls"
+    );
     assert!(cpp.contains(".Num()"), "Should translate .len() to .Num()");
     assert!(cpp.contains(".Pop("), "Should translate .pop() to .Pop()");
 }
@@ -479,14 +572,17 @@ fn main():
     let int_len = get_array_length(int_arr)
     let float_len = get_array_length(float_arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .len() → .Num() works with generic arrays
-    assert!(cpp.contains(".Num()"), "Should translate .len() to .Num() for generic arrays");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .len() to .Num() for generic arrays"
+    );
     // Note: Generic functions may be monomorphized to Any type due to type inference limitations
     // This is acceptable as long as the method translation works
 }
@@ -505,15 +601,21 @@ fn main():
     let arr: Array<Int> = [1, 2, 3]
     let size = get_size(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify property-style .length → .Num()
-    assert!(cpp.contains(".Num()"), "Should translate property .length to .Num()");
-    assert!(!cpp.contains(".length"), "Should not contain KAIN .length property in output");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate property .length to .Num()"
+    );
+    assert!(
+        !cpp.contains(".length"),
+        "Should not contain KAIN .length property in output"
+    );
 }
 
 #[test]
@@ -526,15 +628,21 @@ fn main():
     let arr: Array<String> = []
     let is_empty = check_empty(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify property-style .len → .Num()
-    assert!(cpp.contains(".Num()"), "Should translate property .len to .Num()");
-    assert!(!cpp.contains(".len"), "Should not contain KAIN .len property in output");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate property .len to .Num()"
+    );
+    assert!(
+        !cpp.contains(".len"),
+        "Should not contain KAIN .len property in output"
+    );
 }
 
 // ============================================================================
@@ -551,16 +659,21 @@ fn main():
     let nested: Array<Array<Int>> = [[1, 2], [3, 4]]
     let size = get_nested_size(nested)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .len() → .Num() works with nested arrays
-    assert!(cpp.contains(".Num()"), "Should translate .len() to .Num() for nested arrays");
-    assert!(cpp.contains("TArray<TArray<int64>>") || cpp.contains("TArray<TArray<int32>>"),
-            "Should have nested TArray type");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .len() to .Num() for nested arrays"
+    );
+    assert!(
+        cpp.contains("TArray<TArray<int64>>") || cpp.contains("TArray<TArray<int32>>"),
+        "Should have nested TArray type"
+    );
 }
 
 #[test]
@@ -575,14 +688,17 @@ fn main():
     let arr: Array<Int> = []
     let empty = is_empty(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .len() → .Num() in conditional
-    assert!(cpp.contains(".Num()"), "Should translate .len() to .Num() in conditional");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .len() to .Num() in conditional"
+    );
     assert!(cpp.contains("== 0"), "Should have comparison with 0");
 }
 
@@ -601,13 +717,16 @@ fn main():
     let arr: Array<Int> = [1, 2, 3]
     let sum = sum_array(arr)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify .len() → .Num() in loop condition
-    assert!(cpp.contains(".Num()"), "Should translate .len() to .Num() in loop");
+    assert!(
+        cpp.contains(".Num()"),
+        "Should translate .len() to .Num() in loop"
+    );
     assert!(cpp.contains("while"), "Should have while loop");
 }

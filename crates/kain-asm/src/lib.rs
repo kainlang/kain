@@ -3,7 +3,9 @@ mod error;
 
 use std::path::Path;
 
-pub use dialects::furby_6502::{ImportAsmOutput, RecoveryIssue, RecoveryReport, RecoverySectionScore};
+pub use dialects::furby_6502::{
+    ImportAsmOutput, RecoveryIssue, RecoveryReport, RecoverySectionScore,
+};
 pub use error::{AsmError, AsmResult};
 
 type ImporterFn = fn(&Path, &str, Option<&Path>, bool) -> AsmResult<ImportAsmOutput>;
@@ -51,9 +53,9 @@ fn normalize_format(format: &str) -> String {
 
 fn find_dialect(format: &str) -> Option<&'static AsmDialect> {
     let norm = normalize_format(format);
-    DIALECTS.iter().find(|dialect| {
-        dialect.id == norm || dialect.aliases.iter().any(|alias| *alias == norm)
-    })
+    DIALECTS
+        .iter()
+        .find(|dialect| dialect.id == norm || dialect.aliases.iter().any(|alias| *alias == norm))
 }
 
 pub fn import_asm(
@@ -66,10 +68,10 @@ pub fn import_asm(
         return (dialect.importer)(input, format, out_kn, validate_only);
     }
     Err(AsmError::runtime(format!(
-            "Unsupported asm format '{}'. Supported: {}",
-            format,
-            supported_format_aliases().join(", ")
-        )))
+        "Unsupported asm format '{}'. Supported: {}",
+        format,
+        supported_format_aliases().join(", ")
+    )))
 }
 
 #[cfg(test)]

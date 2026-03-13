@@ -1,8 +1,8 @@
 //! Comprehensive tests for AST to IR conversion
 
 use kain_core::ast::{
-    Attribute, Expr, GraphEditorDef, GraphSchemaDef, NodeTypeDef, PinDef, PropertyDef,
-    SchemaRule, Type,
+    Attribute, Expr, GraphEditorDef, GraphSchemaDef, NodeTypeDef, PinDef, PropertyDef, SchemaRule,
+    Type,
 };
 use kain_core::span::Span;
 use ue5_graphs::ast_converter::convert_graph_editor;

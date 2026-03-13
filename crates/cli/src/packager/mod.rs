@@ -1,28 +1,28 @@
-pub mod config;
-pub mod registry;
 pub mod build;
-pub mod ue5_pipeline;
-pub mod plugin_layout;
-pub mod codegen;
-pub mod material_gen;
-pub mod uplugin_gen;
 pub mod build_cs_gen;
-pub mod post_process;
+pub mod codegen;
+pub mod config;
+pub mod cpp_validator;
 pub mod dependencies;
 pub mod inject;
+pub mod material_gen;
+pub mod plugin_layout;
+pub mod post_process;
+pub mod registry;
 pub mod registry_writer;
-pub mod cpp_validator;
+pub mod ue5_pipeline;
+pub mod uplugin_gen;
 
 // Re-export public API to maintain backward compatibility
-pub use config::*;
 pub use build::{build_project, build_rust_project};
-pub use ue5_pipeline::{build_ue5_plugin, build_ue5_plugin_with_options};
-pub use registry::{add_dependency, install_all};
+pub use config::*;
 pub use inject::inject_into_plugin;
+pub use registry::{add_dependency, install_all};
+pub use ue5_pipeline::{build_ue5_plugin, build_ue5_plugin_with_options};
 
+use crate::error::{KainError, KainResult};
 use std::fs;
 use std::path::PathBuf;
-use crate::error::{KainError, KainResult};
 
 pub fn init_project(path: &PathBuf, name: Option<String>) -> KainResult<()> {
     if !path.exists() {
@@ -40,7 +40,7 @@ pub fn init_project(path: &PathBuf, name: Option<String>) -> KainResult<()> {
     let manifest = PackageManifest::default(&name);
     let toml = toml::to_string_pretty(&manifest)
         .map_err(|e| KainError::runtime(format!("Failed to serialize manifest: {}", e)))?;
-    
+
     fs::write(path.join("KAIN.toml"), toml).map_err(|e| KainError::Io(e))?;
 
     // Create src directory
@@ -48,13 +48,16 @@ pub fn init_project(path: &PathBuf, name: Option<String>) -> KainResult<()> {
     fs::create_dir_all(&src_dir).map_err(|e| KainError::Io(e))?;
 
     // Create main.kn
-    let main_src = format!(r#"
+    let main_src = format!(
+        r#"
 # {} - Main Entry Point
 
 fn main():
     println("Hello, KAIN World!")
-"#, name);
-    
+"#,
+        name
+    );
+
     fs::write(src_dir.join("main.kn"), main_src.trim()).map_err(|e| KainError::Io(e))?;
 
     // Create .gitignore
@@ -73,7 +76,8 @@ pub fn load_manifest(path: &PathBuf) -> KainResult<PackageManifest> {
 
     if !manifest_path.exists() {
         return Err(KainError::runtime(format!(
-            "No KAIN.toml found at {}", manifest_path.display()
+            "No KAIN.toml found at {}",
+            manifest_path.display()
         )));
     }
 
@@ -86,6 +90,6 @@ pub fn load_manifest(path: &PathBuf) -> KainResult<PackageManifest> {
             KainError::runtime(format!("Invalid [ue5.modules] configuration: {}", e))
         })?;
     }
-    
+
     Ok(manifest)
 }

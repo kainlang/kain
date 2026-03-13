@@ -19,7 +19,14 @@ impl MaterialNodeBuilder {
         id
     }
 
-    pub fn texture_sample_param2d(&mut self, param_name: &str, default_texture: Option<&str>, uv: Option<&str>, x: i32, y: i32) -> String {
+    pub fn texture_sample_param2d(
+        &mut self,
+        param_name: &str,
+        default_texture: Option<&str>,
+        uv: Option<&str>,
+        x: i32,
+        y: i32,
+    ) -> String {
         let id = self.next_id();
         self.nodes.push(MaterialNode {
             id: id.clone(),
@@ -33,7 +40,13 @@ impl MaterialNodeBuilder {
         id
     }
 
-    pub fn texture_sample(&mut self, texture: Option<&str>, uv: Option<&str>, x: i32, y: i32) -> String {
+    pub fn texture_sample(
+        &mut self,
+        texture: Option<&str>,
+        uv: Option<&str>,
+        x: i32,
+        y: i32,
+    ) -> String {
         let id = self.next_id();
         self.nodes.push(MaterialNode {
             id: id.clone(),

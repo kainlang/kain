@@ -79,9 +79,14 @@ fn run_optional_command(manifest: &ValidationManifest, case_root: &Path) {
         .unwrap_or_else(|| case_root.to_path_buf());
     cmd.current_dir(&cwd);
 
-    let output = cmd
-        .output()
-        .unwrap_or_else(|e| panic!("failed to run command {} in {}: {}", program, cwd.display(), e));
+    let output = cmd.output().unwrap_or_else(|e| {
+        panic!(
+            "failed to run command {} in {}: {}",
+            program,
+            cwd.display(),
+            e
+        )
+    });
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -107,7 +112,12 @@ fn require_field(spec: &AssertionSpec, field: &str) -> String {
         "build_cs_file" => spec.build_cs_file.clone(),
         _ => None,
     }
-    .unwrap_or_else(|| panic!("assertion kind '{}' is missing required field '{}': {:?}", spec.kind, field, spec))
+    .unwrap_or_else(|| {
+        panic!(
+            "assertion kind '{}' is missing required field '{}': {:?}",
+            spec.kind, field, spec
+        )
+    })
 }
 
 fn read_case_file(case_root: &Path, relative: &str) -> String {
@@ -196,8 +206,7 @@ fn run_assertion(case_root: &Path, spec: &AssertionSpec) {
             assert!(
                 module_found,
                 "module_name_matches_uplugin assertion failed\nuplugin: {}\nexpected module: {}",
-                uplugin_file,
-                module_name
+                uplugin_file, module_name
             );
 
             let build_cs = read_case_file(case_root, &build_cs_file);
@@ -265,7 +274,7 @@ fn codegen_verify_factory_profiles() {
         let default_case_root = profile_dir.join(
             path.file_stem()
                 .and_then(|s| s.to_str())
-                .expect("profile file stem")
+                .expect("profile file stem"),
         );
         let case_root = resolve_case_root(&profile, &default_case_root);
 

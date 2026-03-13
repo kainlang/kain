@@ -1,10 +1,10 @@
-use std::fs;
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
-use crate::error::{KainError, KainResult};
-use kain_core::diagnostics::{SpanMapper, enhance_error_with_location};
 use super::config::Ue5Config;
 use super::post_process;
+use crate::error::{KainError, KainResult};
+use kain_core::diagnostics::{enhance_error_with_location, SpanMapper};
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::PathBuf;
 
 /// Helper function to enhance codegen errors with file:line:col location information
 /// Takes a Result from codegen and enhances any KainError::Codegen with location data
@@ -36,12 +36,14 @@ pub fn build_ue5_plugin() -> KainResult<()> {
 /// Build UE5 plugin with options (embed KAIN markers, etc.)
 pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    
+
     // Try to load KAIN.toml, but don't fail if it doesn't exist
     let (manifest, ue5_config) = match super::load_manifest(&cwd) {
         Ok(manifest) => {
             // KAIN.toml exists - use it
-            let ue5_config = manifest.ue5.as_ref()
+            let ue5_config = manifest
+                .ue5
+                .as_ref()
                 .ok_or_else(|| KainError::runtime("No [ue5] section in KAIN.toml"))?
                 .clone();
             (Some(manifest), ue5_config)
@@ -54,17 +56,38 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             (None, config)
         }
     };
-    
+
     println!("🚀 Building UE5 Plugin: {}", ue5_config.plugin_name);
     println!("📍 Plugin directory: {}", ue5_config.plugin_dir.display());
     println!();
 
     // STEP 1: Load and parse source files
-    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks, target_actors) =
-        load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
+    let (
+        typed_program,
+        all_shader_names,
+        stdlib_files,
+        user_source_files,
+        symbol_source_map,
+        material_graphs,
+        material_functions,
+        graph_editors,
+        graph_runtimes,
+        gameplay_tags,
+        gameplay_abilities,
+        gameplay_effects,
+        gameplay_cues,
+        ability_tasks,
+        target_actors,
+    ) = load_and_parse_sources(&ue5_config, manifest.as_ref(), &cwd)?;
 
     // STEP 2: Setup plugin directory structure
-    let layout = super::plugin_layout::setup(&ue5_config, &cwd, &typed_program, !all_shader_names.is_empty(), !graph_editors.is_empty())?;
+    let layout = super::plugin_layout::setup(
+        &ue5_config,
+        &cwd,
+        &typed_program,
+        !all_shader_names.is_empty(),
+        !graph_editors.is_empty(),
+    )?;
 
     // Use shader names from config or auto-detected
     let shader_names = if ue5_config.shaders.is_empty() {
@@ -76,7 +99,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     // STEP 3: Compile shaders (optional)
     super::codegen::compile_shaders(&layout, &ue5_config, &typed_program, &shader_names)?;
 
-    println!("DEBUG: After shader compilation, target_actors.len() = {}", target_actors.len());
+    println!(
+        "DEBUG: After shader compilation, target_actors.len() = {}",
+        target_actors.len()
+    );
 
     // Accumulate all successfully written binary assets so we can stamp AssetRegistry.bin
     // in a single pass at the end. This is data-driven: each step appends to this Vec.
@@ -101,14 +127,19 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         let surface_shader_hlsl: std::collections::HashMap<String, String> = {
             let mirrors = ue5_shaders::codegen_usf::CachedMirrors::from_program(&typed_program);
             let type_db = ue5_shaders::codegen_usf::build_struct_map_pub(&typed_program);
-            typed_program.items.iter()
+            typed_program
+                .items
+                .iter()
                 .filter_map(|item| {
                     if let kain_core::types::TypedItem::Shader(shader) = item {
                         if matches!(shader.ast.stage, kain_core::ast::ShaderStage::Surface) {
                             let name = shader.ast.name.clone();
                             let body = ue5_shaders::codegen_usf::emit_shader_body(
-                                shader, &mirrors, type_db.clone(),
-                            ).unwrap_or_default();
+                                shader,
+                                &mirrors,
+                                type_db.clone(),
+                            )
+                            .unwrap_or_default();
                             return Some((name, body));
                         }
                     }
@@ -118,8 +149,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         };
 
         if !surface_shader_hlsl.is_empty() {
-            println!("   🔗 Shader bridge: {} Surface shader(s) available for material injection",
-                surface_shader_hlsl.len());
+            println!(
+                "   🔗 Shader bridge: {} Surface shader(s) available for material injection",
+                surface_shader_hlsl.len()
+            );
         }
 
         // Ensure Content/Materials exists for binary output
@@ -133,13 +166,23 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             match convert_material_graph(mat_def, &surface_shader_hlsl) {
                 Ok(graph) => {
                     // Attempt binary .uasset generation first
-                    match ue5_materials::material_serializer::serialize_material_graph(&graph, ue5_asset_utils::KainEngineTarget::default()) {
+                    match ue5_materials::material_serializer::serialize_material_graph(
+                        &graph,
+                        ue5_asset_utils::KainEngineTarget::default(),
+                    ) {
                         Ok(bytes) => {
                             let path = mat_content_dir.join(format!("{}.uasset", graph.name));
                             if let Err(e) = fs::write(&path, &bytes) {
-                                eprintln!("   ⚠️  Failed to write .uasset for {}: {}", graph.name, e);
+                                eprintln!(
+                                    "   ⚠️  Failed to write .uasset for {}: {}",
+                                    graph.name, e
+                                );
                             } else {
-                                println!("   ✓ Binary material asset: {} ({} bytes)", graph.name, bytes.len());
+                                println!(
+                                    "   ✓ Binary material asset: {} ({} bytes)",
+                                    graph.name,
+                                    bytes.len()
+                                );
                                 generated_assets.push(GeneratedAsset {
                                     package_name: format!("/Game/Materials/{}", graph.name),
                                     asset_name: graph.name.clone(),
@@ -164,7 +207,11 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         // Route through layout.private_dir so the files land in the correct
         // Source/<Module>/Private/Generated/ path, not at the project root.
         if !converted_graphs.is_empty() {
-            super::material_gen::generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &layout.private_dir)?;
+            super::material_gen::generate_material_factories(
+                &ue5_config.plugin_name,
+                &converted_graphs,
+                &layout.private_dir,
+            )?;
         }
         println!();
     }
@@ -173,39 +220,68 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     #[cfg(feature = "ue5")]
     if !material_functions.is_empty() {
         println!();
-        println!("🔧 Generating {} material functions...", material_functions.len());
+        println!(
+            "🔧 Generating {} material functions...",
+            material_functions.len()
+        );
 
         // Ensure Content/Materials/Functions exists for binary output
-        let func_content_dir = layout.plugin_root.join("Content").join("Materials").join("Functions");
+        let func_content_dir = layout
+            .plugin_root
+            .join("Content")
+            .join("Materials")
+            .join("Functions");
         if let Err(e) = fs::create_dir_all(&func_content_dir) {
-            eprintln!("   ⚠️  Failed to create material functions content dir: {}", e);
+            eprintln!(
+                "   ⚠️  Failed to create material functions content dir: {}",
+                e
+            );
         }
 
         for func_def in &material_functions {
             match convert_material_function(func_def) {
                 Ok(func_ir) => {
                     // Generate .uasset file
-                    match ue5_materials::material_function_builder::serialize_material_function(&func_ir) {
+                    match ue5_materials::material_function_builder::serialize_material_function(
+                        &func_ir,
+                    ) {
                         Ok(bytes) => {
-                            let path = func_content_dir.join(format!("MF_{}.uasset", func_def.name));
+                            let path =
+                                func_content_dir.join(format!("MF_{}.uasset", func_def.name));
                             if let Err(e) = fs::write(&path, &bytes) {
-                                eprintln!("   ⚠️  Failed to write .uasset for {}: {}", func_def.name, e);
+                                eprintln!(
+                                    "   ⚠️  Failed to write .uasset for {}: {}",
+                                    func_def.name, e
+                                );
                             } else {
-                                println!("   ✓ Material function: MF_{} ({} bytes)", func_def.name, bytes.len());
+                                println!(
+                                    "   ✓ Material function: MF_{} ({} bytes)",
+                                    func_def.name,
+                                    bytes.len()
+                                );
                                 generated_assets.push(GeneratedAsset {
-                                    package_name: format!("/Game/Materials/Functions/MF_{}", func_def.name),
+                                    package_name: format!(
+                                        "/Game/Materials/Functions/MF_{}",
+                                        func_def.name
+                                    ),
                                     asset_name: format!("MF_{}", func_def.name),
                                     class_path: "/Script/Engine.MaterialFunction",
                                 });
                             }
                         }
                         Err(e) => {
-                            eprintln!("   ⚠️  Failed to serialize material function {}: {}", func_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to serialize material function {}: {}",
+                                func_def.name, e
+                            );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Failed to convert material function {}: {}", func_def.name, e);
+                    eprintln!(
+                        "   ⚠️  Failed to convert material function {}: {}",
+                        func_def.name, e
+                    );
                 }
             }
         }
@@ -225,7 +301,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         }
 
         // Separate runtime graphs from editor graphs
-        let (runtime_graphs, editor_graphs): (Vec<_>, Vec<_>) = graph_editors.iter()
+        let (runtime_graphs, editor_graphs): (Vec<_>, Vec<_>) = graph_editors
+            .iter()
             .partition(|g| g.attributes.iter().any(|a| a.name == "runtime_graph"));
 
         // Generate editor graphs (traditional UEdGraph-based)
@@ -234,11 +311,19 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                 Ok(output) => {
                     // Write .uasset binary
                     if !output.uasset.is_empty() {
-                        let uasset_path = graph_content_dir.join(format!("{}.uasset", graph_def.name));
+                        let uasset_path =
+                            graph_content_dir.join(format!("{}.uasset", graph_def.name));
                         if let Err(e) = fs::write(&uasset_path, &output.uasset) {
-                            eprintln!("   ⚠️  Failed to write .uasset for {}: {}", graph_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to write .uasset for {}: {}",
+                                graph_def.name, e
+                            );
                         } else {
-                            println!("   ✓ Graph editor asset: {} ({} bytes)", graph_def.name, output.uasset.len());
+                            println!(
+                                "   ✓ Graph editor asset: {} ({} bytes)",
+                                graph_def.name,
+                                output.uasset.len()
+                            );
                             generated_assets.push(GeneratedAsset {
                                 package_name: format!("/Game/Graphs/{}", graph_def.name),
                                 asset_name: graph_def.name.clone(),
@@ -255,10 +340,15 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             editor_pub.join(format!("{}Factory.h", graph_def.name))
                         } else {
                             // Single module: write to resolved public directory
-                            layout.public_dir.join(format!("{}Factory.h", graph_def.name))
+                            layout
+                                .public_dir
+                                .join(format!("{}Factory.h", graph_def.name))
                         };
                         if let Err(e) = fs::write(&header_path, &output.header) {
-                            eprintln!("   ⚠️  Failed to write factory header for {}: {}", graph_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to write factory header for {}: {}",
+                                graph_def.name, e
+                            );
                         } else {
                             println!("   ✓ Factory header: {}Factory.h", graph_def.name);
                         }
@@ -271,17 +361,25 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             editor_priv.join(format!("{}Factory.cpp", graph_def.name))
                         } else {
                             // Single module: write to resolved private directory
-                            layout.private_dir.join(format!("{}Factory.cpp", graph_def.name))
+                            layout
+                                .private_dir
+                                .join(format!("{}Factory.cpp", graph_def.name))
                         };
                         if let Err(e) = fs::write(&source_path, &output.source) {
-                            eprintln!("   ⚠️  Failed to write factory source for {}: {}", graph_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to write factory source for {}: {}",
+                                graph_def.name, e
+                            );
                         } else {
                             println!("   ✓ Factory source: {}Factory.cpp", graph_def.name);
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Failed to generate graph editor {}: {}", graph_def.name, e);
+                    eprintln!(
+                        "   ⚠️  Failed to generate graph editor {}: {}",
+                        graph_def.name, e
+                    );
                 }
             }
         }
@@ -296,56 +394,100 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                     Ok(runtime_ir) => {
                         // Convert runtime IR to GraphEditor IR for codegen
                         let mut graph_editor = ue5_graphs::GraphEditor::new(&runtime_ir.name);
-                        
+
                         for node_data in &runtime_ir.node_types {
                             let node_type = ue5_graphs::NodeType {
                                 name: node_data.name.clone(),
                                 category: node_data.category.clone(),
-                                inputs: node_data.input_pins.iter().map(|p| {
-                                    ue5_graphs::PinDefinition {
+                                inputs: node_data
+                                    .input_pins
+                                    .iter()
+                                    .map(|p| ue5_graphs::PinDefinition {
                                         name: p.name.clone(),
                                         pin_type: match &p.pin_type {
-                                            ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
-                                            ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
-                                            ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
-                                            ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
-                                            ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
-                                            ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
-                                            ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
-                                            ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                            ue5_graphs::RuntimePinType::Exec => {
+                                                ue5_graphs::PinType::Exec
+                                            }
+                                            ue5_graphs::RuntimePinType::Bool => {
+                                                ue5_graphs::PinType::Bool
+                                            }
+                                            ue5_graphs::RuntimePinType::Int
+                                            | ue5_graphs::RuntimePinType::Int64 => {
+                                                ue5_graphs::PinType::Int
+                                            }
+                                            ue5_graphs::RuntimePinType::Float => {
+                                                ue5_graphs::PinType::Float
+                                            }
+                                            ue5_graphs::RuntimePinType::String
+                                            | ue5_graphs::RuntimePinType::Name
+                                            | ue5_graphs::RuntimePinType::Text => {
+                                                ue5_graphs::PinType::String
+                                            }
+                                            ue5_graphs::RuntimePinType::Object(name) => {
+                                                ue5_graphs::PinType::Object(name.clone())
+                                            }
+                                            ue5_graphs::RuntimePinType::Struct(name) => {
+                                                ue5_graphs::PinType::Struct(name.clone())
+                                            }
+                                            ue5_graphs::RuntimePinType::Enum(name) => {
+                                                ue5_graphs::PinType::Enum(name.clone())
+                                            }
                                             _ => ue5_graphs::PinType::Wildcard,
                                         },
                                         is_array: p.is_array,
                                         default_value: p.default_value.clone(),
                                         tooltip: p.tooltip.clone(),
-                                    }
-                                }).collect(),
-                                outputs: node_data.output_pins.iter().map(|p| {
-                                    ue5_graphs::PinDefinition {
+                                    })
+                                    .collect(),
+                                outputs: node_data
+                                    .output_pins
+                                    .iter()
+                                    .map(|p| ue5_graphs::PinDefinition {
                                         name: p.name.clone(),
                                         pin_type: match &p.pin_type {
-                                            ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
-                                            ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
-                                            ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
-                                            ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
-                                            ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
-                                            ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
-                                            ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
-                                            ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                            ue5_graphs::RuntimePinType::Exec => {
+                                                ue5_graphs::PinType::Exec
+                                            }
+                                            ue5_graphs::RuntimePinType::Bool => {
+                                                ue5_graphs::PinType::Bool
+                                            }
+                                            ue5_graphs::RuntimePinType::Int
+                                            | ue5_graphs::RuntimePinType::Int64 => {
+                                                ue5_graphs::PinType::Int
+                                            }
+                                            ue5_graphs::RuntimePinType::Float => {
+                                                ue5_graphs::PinType::Float
+                                            }
+                                            ue5_graphs::RuntimePinType::String
+                                            | ue5_graphs::RuntimePinType::Name
+                                            | ue5_graphs::RuntimePinType::Text => {
+                                                ue5_graphs::PinType::String
+                                            }
+                                            ue5_graphs::RuntimePinType::Object(name) => {
+                                                ue5_graphs::PinType::Object(name.clone())
+                                            }
+                                            ue5_graphs::RuntimePinType::Struct(name) => {
+                                                ue5_graphs::PinType::Struct(name.clone())
+                                            }
+                                            ue5_graphs::RuntimePinType::Enum(name) => {
+                                                ue5_graphs::PinType::Enum(name.clone())
+                                            }
                                             _ => ue5_graphs::PinType::Wildcard,
                                         },
                                         is_array: p.is_array,
                                         default_value: p.default_value.clone(),
                                         tooltip: p.tooltip.clone(),
-                                    }
-                                }).collect(),
-                                properties: node_data.properties.iter().map(|prop| {
-                                    ue5_graphs::PropertyDefinition {
+                                    })
+                                    .collect(),
+                                properties: node_data
+                                    .properties
+                                    .iter()
+                                    .map(|prop| ue5_graphs::PropertyDefinition {
                                         name: prop.name.clone(),
                                         property_type: format!("{:?}", prop.property_type),
                                         default_value: prop.default_value.clone(),
-                                    }
-                                }).collect(),
+                                    })
+                                    .collect(),
                                 color: node_data.color,
                                 icon: node_data.icon.clone(),
                                 tooltip: node_data.tooltip.clone(),
@@ -353,7 +495,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             };
                             graph_editor.add_node_type(node_type);
                         }
-                        
+
                         // Generate NodeData classes
                         let node_gen = ue5_graphs::NodeDataGenerator::new(
                             &graph_editor,
@@ -369,7 +511,9 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                                 }
 
                                 let pin_data_path = public_dir.join(&node_output.pin_data_header.0);
-                                if let Err(e) = fs::write(&pin_data_path, &node_output.pin_data_header.1) {
+                                if let Err(e) =
+                                    fs::write(&pin_data_path, &node_output.pin_data_header.1)
+                                {
                                     eprintln!("   ⚠️  Failed to write pin data header: {}", e);
                                 } else {
                                     println!("   ✓ Pin data: {}", node_output.pin_data_header.0);
@@ -378,7 +522,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                                 for (filename, header) in &node_output.node_data_headers {
                                     let path = public_dir.join(filename);
                                     if let Err(e) = fs::write(&path, header) {
-                                        eprintln!("   ⚠️  Failed to write node data header {}: {}", filename, e);
+                                        eprintln!(
+                                            "   ⚠️  Failed to write node data header {}: {}",
+                                            filename, e
+                                        );
                                     } else {
                                         println!("   ✓ Node data: {}", filename);
                                     }
@@ -393,14 +540,20 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                                 for (filename, source) in &node_output.node_data_sources {
                                     let path = private_dir.join(filename);
                                     if let Err(e) = fs::write(&path, source) {
-                                        eprintln!("   ⚠️  Failed to write node data source {}: {}", filename, e);
+                                        eprintln!(
+                                            "   ⚠️  Failed to write node data source {}: {}",
+                                            filename, e
+                                        );
                                     } else {
                                         println!("   ✓ Node data: {}", filename);
                                     }
                                 }
                             }
                             Err(e) => {
-                                eprintln!("   ⚠️  Failed to generate node data for {}: {}", runtime_ir.name, e);
+                                eprintln!(
+                                    "   ⚠️  Failed to generate node data for {}: {}",
+                                    runtime_ir.name, e
+                                );
                             }
                         }
 
@@ -415,22 +568,37 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                                 let public_dir = layout.public_dir.clone();
                                 let private_dir = layout.private_dir.clone();
 
-                                let header_path = public_dir.join(&instance_output.instance_header.0);
-                                if let Err(e) = fs::write(&header_path, &instance_output.instance_header.1) {
+                                let header_path =
+                                    public_dir.join(&instance_output.instance_header.0);
+                                if let Err(e) =
+                                    fs::write(&header_path, &instance_output.instance_header.1)
+                                {
                                     eprintln!("   ⚠️  Failed to write instance header: {}", e);
                                 } else {
-                                    println!("   ✓ Instance: {}", instance_output.instance_header.0);
+                                    println!(
+                                        "   ✓ Instance: {}",
+                                        instance_output.instance_header.0
+                                    );
                                 }
 
-                                let source_path = private_dir.join(&instance_output.instance_source.0);
-                                if let Err(e) = fs::write(&source_path, &instance_output.instance_source.1) {
+                                let source_path =
+                                    private_dir.join(&instance_output.instance_source.0);
+                                if let Err(e) =
+                                    fs::write(&source_path, &instance_output.instance_source.1)
+                                {
                                     eprintln!("   ⚠️  Failed to write instance source: {}", e);
                                 } else {
-                                    println!("   ✓ Instance: {}", instance_output.instance_source.0);
+                                    println!(
+                                        "   ✓ Instance: {}",
+                                        instance_output.instance_source.0
+                                    );
                                 }
                             }
                             Err(e) => {
-                                eprintln!("   ⚠️  Failed to generate instance for {}: {}", runtime_ir.name, e);
+                                eprintln!(
+                                    "   ⚠️  Failed to generate instance for {}: {}",
+                                    runtime_ir.name, e
+                                );
                             }
                         }
 
@@ -441,7 +609,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         ) {
                             Ok(header) => {
                                 let public_dir = layout.public_dir.clone();
-                                let path = public_dir.join(format!("{}GraphData.h", runtime_ir.name));
+                                let path =
+                                    public_dir.join(format!("{}GraphData.h", runtime_ir.name));
                                 if let Err(e) = fs::write(&path, &header) {
                                     eprintln!("   ⚠️  Failed to write graph data header: {}", e);
                                 } else {
@@ -459,7 +628,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         ) {
                             Ok(source) => {
                                 let private_dir = layout.private_dir.clone();
-                                let path = private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
+                                let path =
+                                    private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
                                 if let Err(e) = fs::write(&path, &source) {
                                     eprintln!("   ⚠️  Failed to write graph data source: {}", e);
                                 } else {
@@ -472,7 +642,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         }
                     }
                     Err(e) => {
-                        eprintln!("   ⚠️  Failed to convert runtime graph {}: {}", graph_def.name, e);
+                        eprintln!(
+                            "   ⚠️  Failed to convert runtime graph {}: {}",
+                            graph_def.name, e
+                        );
                     }
                 }
             }
@@ -492,7 +665,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     #[cfg(feature = "ue5")]
     if !graph_runtimes.is_empty() {
         println!();
-        println!("⚡ Generating {} runtime graph system(s)...", graph_runtimes.is_empty());
+        println!(
+            "⚡ Generating {} runtime graph system(s)...",
+            graph_runtimes.is_empty()
+        );
 
         for graph_runtime_def in &graph_runtimes {
             println!("   📊 Processing runtime graph: {}", graph_runtime_def.name);
@@ -502,65 +678,125 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                 Ok(runtime_ir) => {
                     // Convert RuntimeGraph IR to GraphEditor IR (needed for codegen)
                     let mut graph_editor = ue5_graphs::GraphEditor::new(&runtime_ir.name);
-                    
+
                     // Convert node types from RuntimeNodeData to NodeType
                     for node_data in &runtime_ir.node_types {
                         let node_type = ue5_graphs::NodeType {
                             name: node_data.name.clone(),
                             category: node_data.category.clone(),
-                            inputs: node_data.input_pins.iter().map(|p| {
-                                ue5_graphs::PinDefinition {
+                            inputs: node_data
+                                .input_pins
+                                .iter()
+                                .map(|p| ue5_graphs::PinDefinition {
                                     name: p.name.clone(),
                                     pin_type: match &p.pin_type {
-                                        ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
-                                        ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
-                                        ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
-                                        ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
-                                        ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
-                                        ue5_graphs::RuntimePinType::Vector => ue5_graphs::PinType::Struct("FVector".to_string()),
-                                        ue5_graphs::RuntimePinType::Rotator => ue5_graphs::PinType::Struct("FRotator".to_string()),
-                                        ue5_graphs::RuntimePinType::Transform => ue5_graphs::PinType::Struct("FTransform".to_string()),
-                                        ue5_graphs::RuntimePinType::Color => ue5_graphs::PinType::Struct("FLinearColor".to_string()),
-                                        ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
-                                        ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
-                                        ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                        ue5_graphs::RuntimePinType::Exec => {
+                                            ue5_graphs::PinType::Exec
+                                        }
+                                        ue5_graphs::RuntimePinType::Bool => {
+                                            ue5_graphs::PinType::Bool
+                                        }
+                                        ue5_graphs::RuntimePinType::Int
+                                        | ue5_graphs::RuntimePinType::Int64 => {
+                                            ue5_graphs::PinType::Int
+                                        }
+                                        ue5_graphs::RuntimePinType::Float => {
+                                            ue5_graphs::PinType::Float
+                                        }
+                                        ue5_graphs::RuntimePinType::String
+                                        | ue5_graphs::RuntimePinType::Name
+                                        | ue5_graphs::RuntimePinType::Text => {
+                                            ue5_graphs::PinType::String
+                                        }
+                                        ue5_graphs::RuntimePinType::Vector => {
+                                            ue5_graphs::PinType::Struct("FVector".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Rotator => {
+                                            ue5_graphs::PinType::Struct("FRotator".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Transform => {
+                                            ue5_graphs::PinType::Struct("FTransform".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Color => {
+                                            ue5_graphs::PinType::Struct("FLinearColor".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Object(name) => {
+                                            ue5_graphs::PinType::Object(name.clone())
+                                        }
+                                        ue5_graphs::RuntimePinType::Struct(name) => {
+                                            ue5_graphs::PinType::Struct(name.clone())
+                                        }
+                                        ue5_graphs::RuntimePinType::Enum(name) => {
+                                            ue5_graphs::PinType::Enum(name.clone())
+                                        }
                                         _ => ue5_graphs::PinType::Wildcard,
                                     },
                                     is_array: p.is_array,
                                     default_value: p.default_value.clone(),
                                     tooltip: p.tooltip.clone(),
-                                }
-                            }).collect(),
-                            outputs: node_data.output_pins.iter().map(|p| {
-                                ue5_graphs::PinDefinition {
+                                })
+                                .collect(),
+                            outputs: node_data
+                                .output_pins
+                                .iter()
+                                .map(|p| ue5_graphs::PinDefinition {
                                     name: p.name.clone(),
                                     pin_type: match &p.pin_type {
-                                        ue5_graphs::RuntimePinType::Exec => ue5_graphs::PinType::Exec,
-                                        ue5_graphs::RuntimePinType::Bool => ue5_graphs::PinType::Bool,
-                                        ue5_graphs::RuntimePinType::Int | ue5_graphs::RuntimePinType::Int64 => ue5_graphs::PinType::Int,
-                                        ue5_graphs::RuntimePinType::Float => ue5_graphs::PinType::Float,
-                                        ue5_graphs::RuntimePinType::String | ue5_graphs::RuntimePinType::Name | ue5_graphs::RuntimePinType::Text => ue5_graphs::PinType::String,
-                                        ue5_graphs::RuntimePinType::Vector => ue5_graphs::PinType::Struct("FVector".to_string()),
-                                        ue5_graphs::RuntimePinType::Rotator => ue5_graphs::PinType::Struct("FRotator".to_string()),
-                                        ue5_graphs::RuntimePinType::Transform => ue5_graphs::PinType::Struct("FTransform".to_string()),
-                                        ue5_graphs::RuntimePinType::Color => ue5_graphs::PinType::Struct("FLinearColor".to_string()),
-                                        ue5_graphs::RuntimePinType::Object(name) => ue5_graphs::PinType::Object(name.clone()),
-                                        ue5_graphs::RuntimePinType::Struct(name) => ue5_graphs::PinType::Struct(name.clone()),
-                                        ue5_graphs::RuntimePinType::Enum(name) => ue5_graphs::PinType::Enum(name.clone()),
+                                        ue5_graphs::RuntimePinType::Exec => {
+                                            ue5_graphs::PinType::Exec
+                                        }
+                                        ue5_graphs::RuntimePinType::Bool => {
+                                            ue5_graphs::PinType::Bool
+                                        }
+                                        ue5_graphs::RuntimePinType::Int
+                                        | ue5_graphs::RuntimePinType::Int64 => {
+                                            ue5_graphs::PinType::Int
+                                        }
+                                        ue5_graphs::RuntimePinType::Float => {
+                                            ue5_graphs::PinType::Float
+                                        }
+                                        ue5_graphs::RuntimePinType::String
+                                        | ue5_graphs::RuntimePinType::Name
+                                        | ue5_graphs::RuntimePinType::Text => {
+                                            ue5_graphs::PinType::String
+                                        }
+                                        ue5_graphs::RuntimePinType::Vector => {
+                                            ue5_graphs::PinType::Struct("FVector".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Rotator => {
+                                            ue5_graphs::PinType::Struct("FRotator".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Transform => {
+                                            ue5_graphs::PinType::Struct("FTransform".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Color => {
+                                            ue5_graphs::PinType::Struct("FLinearColor".to_string())
+                                        }
+                                        ue5_graphs::RuntimePinType::Object(name) => {
+                                            ue5_graphs::PinType::Object(name.clone())
+                                        }
+                                        ue5_graphs::RuntimePinType::Struct(name) => {
+                                            ue5_graphs::PinType::Struct(name.clone())
+                                        }
+                                        ue5_graphs::RuntimePinType::Enum(name) => {
+                                            ue5_graphs::PinType::Enum(name.clone())
+                                        }
                                         _ => ue5_graphs::PinType::Wildcard,
                                     },
                                     is_array: p.is_array,
                                     default_value: p.default_value.clone(),
                                     tooltip: p.tooltip.clone(),
-                                }
-                            }).collect(),
-                            properties: node_data.properties.iter().map(|prop| {
-                                ue5_graphs::PropertyDefinition {
+                                })
+                                .collect(),
+                            properties: node_data
+                                .properties
+                                .iter()
+                                .map(|prop| ue5_graphs::PropertyDefinition {
                                     name: prop.name.clone(),
                                     property_type: format!("{:?}", prop.property_type),
                                     default_value: prop.default_value.clone(),
-                                }
-                            }).collect(),
+                                })
+                                .collect(),
                             color: node_data.color,
                             icon: node_data.icon.clone(),
                             tooltip: node_data.tooltip.clone(),
@@ -568,42 +804,50 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         };
                         graph_editor.add_node_type(node_type);
                     }
-                    
+
                     // Generate NodeData classes
-                    let node_gen = ue5_graphs::NodeDataGenerator::new(
-                        &graph_editor,
-                        &ue5_config.plugin_name,
-                    );
+                    let node_gen =
+                        ue5_graphs::NodeDataGenerator::new(&graph_editor, &ue5_config.plugin_name);
 
                     match node_gen.generate() {
                         Ok(node_output) => {
                             // Write PinData header
-                            let pin_data_path = layout.public_dir.join(&node_output.pin_data_header.0);
-                            if let Err(e) = fs::write(&pin_data_path, &node_output.pin_data_header.1) {
+                            let pin_data_path =
+                                layout.public_dir.join(&node_output.pin_data_header.0);
+                            if let Err(e) =
+                                fs::write(&pin_data_path, &node_output.pin_data_header.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write pin data header: {}", e);
                             } else {
                                 println!("      ✓ {}", node_output.pin_data_header.0);
                             }
 
                             // Write PinData source
-                            let pin_data_src_path = layout.private_dir.join(&node_output.pin_data_source.0);
-                            if let Err(e) = fs::write(&pin_data_src_path, &node_output.pin_data_source.1) {
+                            let pin_data_src_path =
+                                layout.private_dir.join(&node_output.pin_data_source.0);
+                            if let Err(e) =
+                                fs::write(&pin_data_src_path, &node_output.pin_data_source.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write pin data source: {}", e);
                             } else {
                                 println!("      ✓ {}", node_output.pin_data_source.0);
                             }
 
                             // Write base NodeData header
-                            let base_header_path = layout.public_dir.join(&node_output.base_header.0);
-                            if let Err(e) = fs::write(&base_header_path, &node_output.base_header.1) {
+                            let base_header_path =
+                                layout.public_dir.join(&node_output.base_header.0);
+                            if let Err(e) = fs::write(&base_header_path, &node_output.base_header.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write base node data header: {}", e);
                             } else {
                                 println!("      ✓ {}", node_output.base_header.0);
                             }
 
                             // Write base NodeData source
-                            let base_source_path = layout.private_dir.join(&node_output.base_source.0);
-                            if let Err(e) = fs::write(&base_source_path, &node_output.base_source.1) {
+                            let base_source_path =
+                                layout.private_dir.join(&node_output.base_source.0);
+                            if let Err(e) = fs::write(&base_source_path, &node_output.base_source.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write base node data source: {}", e);
                             } else {
                                 println!("      ✓ {}", node_output.base_source.0);
@@ -613,7 +857,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             for (filename, header) in &node_output.node_data_headers {
                                 let path = layout.public_dir.join(filename);
                                 if let Err(e) = fs::write(&path, header) {
-                                    eprintln!("      ⚠️  Failed to write node data header {}: {}", filename, e);
+                                    eprintln!(
+                                        "      ⚠️  Failed to write node data header {}: {}",
+                                        filename, e
+                                    );
                                 } else {
                                     println!("      ✓ {}", filename);
                                 }
@@ -623,36 +870,46 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             for (filename, source) in &node_output.node_data_sources {
                                 let path = layout.private_dir.join(filename);
                                 if let Err(e) = fs::write(&path, source) {
-                                    eprintln!("      ⚠️  Failed to write node data source {}: {}", filename, e);
+                                    eprintln!(
+                                        "      ⚠️  Failed to write node data source {}: {}",
+                                        filename, e
+                                    );
                                 } else {
                                     println!("      ✓ {}", filename);
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("      ⚠️  Failed to generate node data for {}: {}", runtime_ir.name, e);
+                            eprintln!(
+                                "      ⚠️  Failed to generate node data for {}: {}",
+                                runtime_ir.name, e
+                            );
                         }
                     }
 
                     // Generate GraphInstance class
-                    let instance_gen = ue5_graphs::InstanceGenerator::new(
-                        &graph_editor,
-                        &ue5_config.plugin_name,
-                    );
+                    let instance_gen =
+                        ue5_graphs::InstanceGenerator::new(&graph_editor, &ue5_config.plugin_name);
 
                     match instance_gen.generate() {
                         Ok(instance_output) => {
                             // Write instance header
-                            let header_path = layout.public_dir.join(&instance_output.instance_header.0);
-                            if let Err(e) = fs::write(&header_path, &instance_output.instance_header.1) {
+                            let header_path =
+                                layout.public_dir.join(&instance_output.instance_header.0);
+                            if let Err(e) =
+                                fs::write(&header_path, &instance_output.instance_header.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write instance header: {}", e);
                             } else {
                                 println!("      ✓ {}", instance_output.instance_header.0);
                             }
 
                             // Write instance source
-                            let source_path = layout.private_dir.join(&instance_output.instance_source.0);
-                            if let Err(e) = fs::write(&source_path, &instance_output.instance_source.1) {
+                            let source_path =
+                                layout.private_dir.join(&instance_output.instance_source.0);
+                            if let Err(e) =
+                                fs::write(&source_path, &instance_output.instance_source.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write instance source: {}", e);
                             } else {
                                 println!("      ✓ {}", instance_output.instance_source.0);
@@ -661,36 +918,46 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             // Note: NodeData files are already written above from node_gen.generate()
                         }
                         Err(e) => {
-                            eprintln!("      ⚠️  Failed to generate instance for {}: {}", runtime_ir.name, e);
+                            eprintln!(
+                                "      ⚠️  Failed to generate instance for {}: {}",
+                                runtime_ir.name, e
+                            );
                         }
                     }
 
                     // Generate GraphAsset class
-                    let asset_gen = ue5_graphs::AssetGenerator::new(
-                        &graph_editor,
-                        &ue5_config.plugin_name,
-                    );
+                    let asset_gen =
+                        ue5_graphs::AssetGenerator::new(&graph_editor, &ue5_config.plugin_name);
 
                     match asset_gen.generate() {
                         Ok(asset_output) => {
                             // Write asset header
-                            let asset_header_path = layout.public_dir.join(&asset_output.asset_header.0);
-                            if let Err(e) = fs::write(&asset_header_path, &asset_output.asset_header.1) {
+                            let asset_header_path =
+                                layout.public_dir.join(&asset_output.asset_header.0);
+                            if let Err(e) =
+                                fs::write(&asset_header_path, &asset_output.asset_header.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write asset header: {}", e);
                             } else {
                                 println!("      ✓ {}", asset_output.asset_header.0);
                             }
 
                             // Write asset source
-                            let asset_source_path = layout.private_dir.join(&asset_output.asset_source.0);
-                            if let Err(e) = fs::write(&asset_source_path, &asset_output.asset_source.1) {
+                            let asset_source_path =
+                                layout.private_dir.join(&asset_output.asset_source.0);
+                            if let Err(e) =
+                                fs::write(&asset_source_path, &asset_output.asset_source.1)
+                            {
                                 eprintln!("      ⚠️  Failed to write asset source: {}", e);
                             } else {
                                 println!("      ✓ {}", asset_output.asset_source.0);
                             }
                         }
                         Err(e) => {
-                            eprintln!("      ⚠️  Failed to generate asset for {}: {}", runtime_ir.name, e);
+                            eprintln!(
+                                "      ⚠️  Failed to generate asset for {}: {}",
+                                runtime_ir.name, e
+                            );
                         }
                     }
 
@@ -700,7 +967,9 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         &ue5_config.plugin_name,
                     ) {
                         Ok(header) => {
-                            let path = layout.public_dir.join(format!("{}GraphData.h", runtime_ir.name));
+                            let path = layout
+                                .public_dir
+                                .join(format!("{}GraphData.h", runtime_ir.name));
                             if let Err(e) = fs::write(&path, &header) {
                                 eprintln!("      ⚠️  Failed to write graph data header: {}", e);
                             } else {
@@ -717,7 +986,9 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         &ue5_config.plugin_name,
                     ) {
                         Ok(source) => {
-                            let path = layout.private_dir.join(format!("{}GraphData.cpp", runtime_ir.name));
+                            let path = layout
+                                .private_dir
+                                .join(format!("{}GraphData.cpp", runtime_ir.name));
                             if let Err(e) = fs::write(&path, &source) {
                                 eprintln!("      ⚠️  Failed to write graph data source: {}", e);
                             } else {
@@ -729,10 +1000,16 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         }
                     }
 
-                    println!("      ✅ Runtime graph system complete: {}", runtime_ir.name);
+                    println!(
+                        "      ✅ Runtime graph system complete: {}",
+                        runtime_ir.name
+                    );
                 }
                 Err(e) => {
-                    eprintln!("      ❌ Failed to convert runtime graph {} to IR: {}", graph_runtime_def.name, e);
+                    eprintln!(
+                        "      ❌ Failed to convert runtime graph {} to IR: {}",
+                        graph_runtime_def.name, e
+                    );
                     eprintln!("         Error: {}", e);
                 }
             }
@@ -744,7 +1021,9 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     // STEP 3.6: Generate Blueprints (Binary .uasset + C++ Factory fallback)
     #[cfg(feature = "ue5")]
     {
-        let actors: Vec<&kain_core::ast::Actor> = typed_program.items.iter()
+        let actors: Vec<&kain_core::ast::Actor> = typed_program
+            .items
+            .iter()
             .filter_map(|item| {
                 if let kain_core::types::TypedItem::Actor(typed_actor) = item {
                     Some(&typed_actor.ast)
@@ -760,13 +1039,13 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             // Ensure Content/Blueprints exists
             let bp_content_dir = layout.plugin_root.join("Content").join("Blueprints");
             if let Err(e) = fs::create_dir_all(&bp_content_dir) {
-                 eprintln!("   ⚠️  Failed to create blueprints content dir: {}", e);
+                eprintln!("   ⚠️  Failed to create blueprints content dir: {}", e);
             }
 
             // Ensure Generated/Factories exists for fallback
             let factory_dir = layout.private_dir.join("Generated").join("Factories");
             if let Err(e) = fs::create_dir_all(&factory_dir) {
-                 eprintln!("   ⚠️  Failed to create factory dir: {}", e);
+                eprintln!("   ⚠️  Failed to create factory dir: {}", e);
             }
 
             for actor in actors {
@@ -774,36 +1053,56 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                     Ok(bp_ir) => {
                         // Attempt binary .uasset generation
                         match ue5_blueprints::generate_uasset(&bp_ir) {
-                             Ok(Some(bytes)) => {
-                                 let path = bp_content_dir.join(format!("{}.uasset", bp_ir.name));
-                                 match fs::write(&path, &bytes) {
-                                     Ok(_) => {
-                                         println!("   ✓ Binary blueprint: {} ({} bytes)", bp_ir.name, bytes.len());
-                                         generated_assets.push(GeneratedAsset {
-                                             package_name: format!("/Game/Blueprints/{}", bp_ir.name),
-                                             asset_name: bp_ir.name.clone(),
-                                             class_path: "/Script/Engine.Blueprint",
-                                         });
-                                     }
-                                     Err(e) => eprintln!("   ⚠️  Failed to write .uasset for {}: {}", bp_ir.name, e),
-                                 }
-                             }
-                             // Fallback to C++ Factory
-                             Ok(None) => {
-                                 println!("   ℹ️  {} has event graph, using C++ factory fallback.", bp_ir.name);
-                                 let (header, source) = ue5_blueprints::generate_factory(&bp_ir);
-                                 let h_path = factory_dir.join(format!("{}Factory.h", bp_ir.name));
-                                 let cpp_path = factory_dir.join(format!("{}Factory.cpp", bp_ir.name));
-                                 let _ = fs::write(&h_path, header);
-                                 let _ = fs::write(&cpp_path, source);
-                             }
-                             Err(e) => {
-                                 eprintln!("   ❌ Blueprint generation error for {}: {}", bp_ir.name, e);
-                             }
+                            Ok(Some(bytes)) => {
+                                let path = bp_content_dir.join(format!("{}.uasset", bp_ir.name));
+                                match fs::write(&path, &bytes) {
+                                    Ok(_) => {
+                                        println!(
+                                            "   ✓ Binary blueprint: {} ({} bytes)",
+                                            bp_ir.name,
+                                            bytes.len()
+                                        );
+                                        generated_assets.push(GeneratedAsset {
+                                            package_name: format!(
+                                                "/Game/Blueprints/{}",
+                                                bp_ir.name
+                                            ),
+                                            asset_name: bp_ir.name.clone(),
+                                            class_path: "/Script/Engine.Blueprint",
+                                        });
+                                    }
+                                    Err(e) => eprintln!(
+                                        "   ⚠️  Failed to write .uasset for {}: {}",
+                                        bp_ir.name, e
+                                    ),
+                                }
+                            }
+                            // Fallback to C++ Factory
+                            Ok(None) => {
+                                println!(
+                                    "   ℹ️  {} has event graph, using C++ factory fallback.",
+                                    bp_ir.name
+                                );
+                                let (header, source) = ue5_blueprints::generate_factory(&bp_ir);
+                                let h_path = factory_dir.join(format!("{}Factory.h", bp_ir.name));
+                                let cpp_path =
+                                    factory_dir.join(format!("{}Factory.cpp", bp_ir.name));
+                                let _ = fs::write(&h_path, header);
+                                let _ = fs::write(&cpp_path, source);
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "   ❌ Blueprint generation error for {}: {}",
+                                    bp_ir.name, e
+                                );
+                            }
                         }
                     }
                     Err(e) => {
-                         eprintln!("   ❌ Failed to convert actor {} to blueprint IR: {}", actor.name, e);
+                        eprintln!(
+                            "   ❌ Failed to convert actor {} to blueprint IR: {}",
+                            actor.name, e
+                        );
                     }
                 }
             }
@@ -822,7 +1121,9 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             fields_from_struct, resolve_data_asset_class, write_data_asset,
         };
 
-        let data_asset_structs: Vec<&kain_core::ast::Struct> = typed_program.items.iter()
+        let data_asset_structs: Vec<&kain_core::ast::Struct> = typed_program
+            .items
+            .iter()
             .filter_map(|item| {
                 if let kain_core::types::TypedItem::Struct(ts) = item {
                     // Only emit if the struct carries a @data_asset attribute
@@ -845,10 +1146,13 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             // Derive UE5 engine version from the config engine_version field (if present)
             // or fall back to whatever KainEngineTarget::default() maps to.
             // This keeps the fallback in sync with a single definition (engine_target.rs).
-            let engine_ver = ue5_config.engine_version
+            let engine_ver = ue5_config
+                .engine_version
                 .as_deref()
                 .and_then(parse_engine_version)
-                .unwrap_or_else(|| ue5_asset_utils::KainEngineTarget::default().as_serializer_version());
+                .unwrap_or_else(|| {
+                    ue5_asset_utils::KainEngineTarget::default().as_serializer_version()
+                });
 
             for st in data_asset_structs {
                 // Resolve optional class argument: @data_asset("MyPlugin.UMyClass")
@@ -865,18 +1169,26 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         let path = da_content_dir.join(format!("{}.uasset", asset_name));
                         match fs::write(&path, &bytes) {
                             Ok(_) => {
-                                println!("   ✓ DataAsset: {} ({} bytes, class: {})",
-                                    asset_name, bytes.len(), class_path);
+                                println!(
+                                    "   ✓ DataAsset: {} ({} bytes, class: {})",
+                                    asset_name,
+                                    bytes.len(),
+                                    class_path
+                                );
                                 generated_assets.push(GeneratedAsset {
                                     package_name: format!("/Game/DataAssets/{}", asset_name),
                                     asset_name: asset_name.clone(),
                                     class_path: "/Script/Engine.DataAsset",
                                 });
                             }
-                            Err(e) => eprintln!("   ⚠️  Failed to write DataAsset {}: {}", asset_name, e),
+                            Err(e) => {
+                                eprintln!("   ⚠️  Failed to write DataAsset {}: {}", asset_name, e)
+                            }
                         }
                     }
-                    Err(e) => eprintln!("   ⚠️  Failed to generate DataAsset {}: {}", asset_name, e),
+                    Err(e) => {
+                        eprintln!("   ⚠️  Failed to generate DataAsset {}: {}", asset_name, e)
+                    }
                 }
             }
             println!();
@@ -887,7 +1199,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     #[cfg(feature = "ue5")]
     if !gameplay_tags.is_empty() {
         println!();
-        println!("🏷️  Generating {} GameplayTags namespace(s)...", gameplay_tags.len());
+        println!(
+            "🏷️  Generating {} GameplayTags namespace(s)...",
+            gameplay_tags.len()
+        );
 
         // Ensure Config/Tags directory exists
         let tags_config_dir = layout.plugin_root.join("Config").join("Tags");
@@ -906,7 +1221,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         if let Err(e) = fs::write(&header_path, &output.header) {
                             eprintln!("   ⚠️  Failed to write GameplayTags.h: {}", e);
                         } else {
-                            println!("   ✓ GameplayTags.h ({} lines)", output.header.lines().count());
+                            println!(
+                                "   ✓ GameplayTags.h ({} lines)",
+                                output.header.lines().count()
+                            );
                         }
 
                         // Write implementation
@@ -914,7 +1232,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         if let Err(e) = fs::write(&impl_path, &output.implementation) {
                             eprintln!("   ⚠️  Failed to write GameplayTags.cpp: {}", e);
                         } else {
-                            println!("   ✓ GameplayTags.cpp ({} lines)", output.implementation.lines().count());
+                            println!(
+                                "   ✓ GameplayTags.cpp ({} lines)",
+                                output.implementation.lines().count()
+                            );
                         }
 
                         // Write INI
@@ -922,7 +1243,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                         if let Err(e) = fs::write(&ini_path, &output.ini_file) {
                             eprintln!("   ⚠️  Failed to write DefaultGameplayTags.ini: {}", e);
                         } else {
-                            println!("   ✓ DefaultGameplayTags.ini ({} tags)", tags_ir.all_tags().len());
+                            println!(
+                                "   ✓ DefaultGameplayTags.ini ({} tags)",
+                                tags_ir.all_tags().len()
+                            );
                         }
                     }
                     Err(e) => {
@@ -941,7 +1265,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     #[cfg(feature = "ue5")]
     if !gameplay_abilities.is_empty() {
         println!();
-        println!("⚡ Generating {} GameplayAbility(ies)...", gameplay_abilities.len());
+        println!(
+            "⚡ Generating {} GameplayAbility(ies)...",
+            gameplay_abilities.len()
+        );
 
         // Ensure Abilities directory exists
         let abilities_public_dir = layout.public_dir.join("Abilities");
@@ -961,28 +1288,44 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                     match ue5_gas::ability_codegen::generate(&ability_ir, &ue5_config.plugin_name) {
                         Ok(output) => {
                             // Write header
-                            let header_path = abilities_public_dir.join(format!("{}.h", ability_def.name));
+                            let header_path =
+                                abilities_public_dir.join(format!("{}.h", ability_def.name));
                             if let Err(e) = fs::write(&header_path, &output.header) {
                                 eprintln!("   ⚠️  Failed to write {}.h: {}", ability_def.name, e);
                             } else {
-                                println!("   ✓ {}.h ({} lines)", ability_def.name, output.header.lines().count());
+                                println!(
+                                    "   ✓ {}.h ({} lines)",
+                                    ability_def.name,
+                                    output.header.lines().count()
+                                );
                             }
 
                             // Write source
-                            let source_path = abilities_private_dir.join(format!("{}.cpp", ability_def.name));
+                            let source_path =
+                                abilities_private_dir.join(format!("{}.cpp", ability_def.name));
                             if let Err(e) = fs::write(&source_path, &output.source) {
                                 eprintln!("   ⚠️  Failed to write {}.cpp: {}", ability_def.name, e);
                             } else {
-                                println!("   ✓ {}.cpp ({} lines)", ability_def.name, output.source.lines().count());
+                                println!(
+                                    "   ✓ {}.cpp ({} lines)",
+                                    ability_def.name,
+                                    output.source.lines().count()
+                                );
                             }
                         }
                         Err(e) => {
-                            eprintln!("   ⚠️  Failed to generate ability {}: {}", ability_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to generate ability {}: {}",
+                                ability_def.name, e
+                            );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Failed to convert ability {} to IR: {}", ability_def.name, e);
+                    eprintln!(
+                        "   ⚠️  Failed to convert ability {} to IR: {}",
+                        ability_def.name, e
+                    );
                 }
             }
         }
@@ -993,7 +1336,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     #[cfg(feature = "ue5")]
     if !gameplay_effects.is_empty() {
         println!();
-        println!("💥 Generating {} GameplayEffect(s)...", gameplay_effects.len());
+        println!(
+            "💥 Generating {} GameplayEffect(s)...",
+            gameplay_effects.len()
+        );
 
         // Ensure Effects directory exists
         let effects_public_dir = layout.public_dir.join("Effects");
@@ -1013,28 +1359,44 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                     match ue5_gas::effect_codegen::generate(&effect_ir, &ue5_config.plugin_name) {
                         Ok(output) => {
                             // Write header
-                            let header_path = effects_public_dir.join(format!("{}.h", effect_def.name));
+                            let header_path =
+                                effects_public_dir.join(format!("{}.h", effect_def.name));
                             if let Err(e) = fs::write(&header_path, &output.header) {
                                 eprintln!("   ⚠️  Failed to write {}.h: {}", effect_def.name, e);
                             } else {
-                                println!("   ✓ {}.h ({} lines)", effect_def.name, output.header.lines().count());
+                                println!(
+                                    "   ✓ {}.h ({} lines)",
+                                    effect_def.name,
+                                    output.header.lines().count()
+                                );
                             }
 
                             // Write source
-                            let source_path = effects_private_dir.join(format!("{}.cpp", effect_def.name));
+                            let source_path =
+                                effects_private_dir.join(format!("{}.cpp", effect_def.name));
                             if let Err(e) = fs::write(&source_path, &output.source) {
                                 eprintln!("   ⚠️  Failed to write {}.cpp: {}", effect_def.name, e);
                             } else {
-                                println!("   ✓ {}.cpp ({} lines)", effect_def.name, output.source.lines().count());
+                                println!(
+                                    "   ✓ {}.cpp ({} lines)",
+                                    effect_def.name,
+                                    output.source.lines().count()
+                                );
                             }
                         }
                         Err(e) => {
-                            eprintln!("   ⚠️  Failed to generate effect {}: {}", effect_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to generate effect {}: {}",
+                                effect_def.name, e
+                            );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Failed to convert effect {} to IR: {}", effect_def.name, e);
+                    eprintln!(
+                        "   ⚠️  Failed to convert effect {} to IR: {}",
+                        effect_def.name, e
+                    );
                 }
             }
         }
@@ -1069,15 +1431,24 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             if let Err(e) = fs::write(&header_path, &output.header) {
                                 eprintln!("   ⚠️  Failed to write {}.h: {}", cue_def.name, e);
                             } else {
-                                println!("   ✓ {}.h ({} lines)", cue_def.name, output.header.lines().count());
+                                println!(
+                                    "   ✓ {}.h ({} lines)",
+                                    cue_def.name,
+                                    output.header.lines().count()
+                                );
                             }
 
                             // Write source
-                            let source_path = cues_private_dir.join(format!("{}.cpp", cue_def.name));
+                            let source_path =
+                                cues_private_dir.join(format!("{}.cpp", cue_def.name));
                             if let Err(e) = fs::write(&source_path, &output.source) {
                                 eprintln!("   ⚠️  Failed to write {}.cpp: {}", cue_def.name, e);
                             } else {
-                                println!("   ✓ {}.cpp ({} lines)", cue_def.name, output.source.lines().count());
+                                println!(
+                                    "   ✓ {}.cpp ({} lines)",
+                                    cue_def.name,
+                                    output.source.lines().count()
+                                );
                             }
                         }
                         Err(e) => {
@@ -1121,15 +1492,24 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                             if let Err(e) = fs::write(&header_path, &output.header) {
                                 eprintln!("   ⚠️  Failed to write {}.h: {}", task_def.name, e);
                             } else {
-                                println!("   ✓ {}.h ({} lines)", task_def.name, output.header.lines().count());
+                                println!(
+                                    "   ✓ {}.h ({} lines)",
+                                    task_def.name,
+                                    output.header.lines().count()
+                                );
                             }
 
                             // Write source
-                            let source_path = tasks_private_dir.join(format!("{}.cpp", task_def.name));
+                            let source_path =
+                                tasks_private_dir.join(format!("{}.cpp", task_def.name));
                             if let Err(e) = fs::write(&source_path, &output.source) {
                                 eprintln!("   ⚠️  Failed to write {}.cpp: {}", task_def.name, e);
                             } else {
-                                println!("   ✓ {}.cpp ({} lines)", task_def.name, output.source.lines().count());
+                                println!(
+                                    "   ✓ {}.cpp ({} lines)",
+                                    task_def.name,
+                                    output.source.lines().count()
+                                );
                             }
                         }
                         Err(e) => {
@@ -1138,7 +1518,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Failed to convert task {} to IR: {}", task_def.name, e);
+                    eprintln!(
+                        "   ⚠️  Failed to convert task {} to IR: {}",
+                        task_def.name, e
+                    );
                 }
             }
         }
@@ -1171,28 +1554,44 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                     match ue5_gas::target_codegen::generate(&target_ir, &ue5_config.plugin_name) {
                         Ok(output) => {
                             // Write header
-                            let header_path = targeting_public_dir.join(format!("{}.h", target_def.name));
+                            let header_path =
+                                targeting_public_dir.join(format!("{}.h", target_def.name));
                             if let Err(e) = fs::write(&header_path, &output.header) {
                                 eprintln!("   ⚠️  Failed to write {}.h: {}", target_def.name, e);
                             } else {
-                                println!("   ✓ {}.h ({} lines)", target_def.name, output.header.lines().count());
+                                println!(
+                                    "   ✓ {}.h ({} lines)",
+                                    target_def.name,
+                                    output.header.lines().count()
+                                );
                             }
 
                             // Write source
-                            let source_path = targeting_private_dir.join(format!("{}.cpp", target_def.name));
+                            let source_path =
+                                targeting_private_dir.join(format!("{}.cpp", target_def.name));
                             if let Err(e) = fs::write(&source_path, &output.source) {
                                 eprintln!("   ⚠️  Failed to write {}.cpp: {}", target_def.name, e);
                             } else {
-                                println!("   ✓ {}.cpp ({} lines)", target_def.name, output.source.lines().count());
+                                println!(
+                                    "   ✓ {}.cpp ({} lines)",
+                                    target_def.name,
+                                    output.source.lines().count()
+                                );
                             }
                         }
                         Err(e) => {
-                            eprintln!("   ⚠️  Failed to generate target {}: {}", target_def.name, e);
+                            eprintln!(
+                                "   ⚠️  Failed to generate target {}: {}",
+                                target_def.name, e
+                            );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Failed to convert target {} to IR: {}", target_def.name, e);
+                    eprintln!(
+                        "   ⚠️  Failed to convert target {} to IR: {}",
+                        target_def.name, e
+                    );
                 }
             }
         }
@@ -1208,21 +1607,44 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             Ok(config_files) => {
                 if !config_files.is_empty() {
                     println!();
-                    println!("⚙️  Generating {} config class(es)...", config_files.iter().filter(|f| f.path.ends_with(".h")).count());
+                    println!(
+                        "⚙️  Generating {} config class(es)...",
+                        config_files
+                            .iter()
+                            .filter(|f| f.path.ends_with(".h"))
+                            .count()
+                    );
                     for file in &config_files {
                         let dest = if file.path.ends_with(".h") {
-                            layout.public_dir.join(std::path::Path::new(&file.path).file_name().unwrap_or_default())
+                            layout.public_dir.join(
+                                std::path::Path::new(&file.path)
+                                    .file_name()
+                                    .unwrap_or_default(),
+                            )
                         } else if file.path.ends_with(".cpp") {
-                            layout.private_dir.join(std::path::Path::new(&file.path).file_name().unwrap_or_default())
+                            layout.private_dir.join(
+                                std::path::Path::new(&file.path)
+                                    .file_name()
+                                    .unwrap_or_default(),
+                            )
                         } else {
                             // .ini files go to Config/ at plugin root
                             let config_dir = layout.plugin_root.join("Config");
                             let _ = fs::create_dir_all(&config_dir);
-                            config_dir.join(std::path::Path::new(&file.path).file_name().unwrap_or_default())
+                            config_dir.join(
+                                std::path::Path::new(&file.path)
+                                    .file_name()
+                                    .unwrap_or_default(),
+                            )
                         };
                         match fs::write(&dest, &file.content) {
-                            Ok(_) => println!("   ✓ Config: {}", dest.file_name().unwrap_or_default().to_string_lossy()),
-                            Err(e) => eprintln!("   ⚠️  Failed to write config file {}: {}", file.path, e),
+                            Ok(_) => println!(
+                                "   ✓ Config: {}",
+                                dest.file_name().unwrap_or_default().to_string_lossy()
+                            ),
+                            Err(e) => {
+                                eprintln!("   ⚠️  Failed to write config file {}: {}", file.path, e)
+                            }
                         }
                     }
                     println!();
@@ -1241,8 +1663,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         // MODULAR MODE: Generate separate .h/.cpp for each source file
         println!("🎯 Generating modular plugin files (per-file output)...");
 
-        let has_gas_features =
-            !gameplay_tags.is_empty()
+        let has_gas_features = !gameplay_tags.is_empty()
             || !gameplay_abilities.is_empty()
             || !gameplay_effects.is_empty()
             || !gameplay_cues.is_empty()
@@ -1251,12 +1672,20 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
         // Generate headers (master, delegates, EditorTypes)
         let (master_header_path, _delegate_count, mut type_headers) =
-            super::codegen::generate_headers(&layout, &ue5_config, &typed_program, &symbol_source_map)?;
+            super::codegen::generate_headers(
+                &layout,
+                &ue5_config,
+                &typed_program,
+                &symbol_source_map,
+            )?;
 
         // Register runtime graph aliases so regular UE5 codegen can resolve types used
         // by subsystems/components/functions (e.g., DialogueGraph -> DialogueGraphInstance.h).
         for runtime_def in &graph_runtimes {
-            type_headers.insert(runtime_def.name.clone(), format!("{}Instance.h", runtime_def.name));
+            type_headers.insert(
+                runtime_def.name.clone(),
+                format!("{}Instance.h", runtime_def.name),
+            );
         }
 
         // Generate per-item runtime files
@@ -1273,10 +1702,23 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         )?;
 
         // Generate stdlib functions
-        super::codegen::generate_stdlib_functions(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path, has_gas_features)?;
+        super::codegen::generate_stdlib_functions(
+            &layout,
+            &ue5_config,
+            &typed_program,
+            &type_headers,
+            &master_header_path,
+            has_gas_features,
+        )?;
 
         // Generate blueprint function library
-        super::codegen::generate_blueprint_library(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path)?;
+        super::codegen::generate_blueprint_library(
+            &layout,
+            &ue5_config,
+            &typed_program,
+            &type_headers,
+            &master_header_path,
+        )?;
 
         // Generate editor tools
         let editor_manifest = super::codegen::generate_editor_items(
@@ -1314,7 +1756,6 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             &runtime_manifest,
             &editor_manifest,
         )?;
-
     } else {
         // MONOLITHIC MODE: Generate single .h/.cpp with all types merged
         super::codegen::generate_monolithic(&layout, &ue5_config, &typed_program)?;
@@ -1329,10 +1770,13 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     //   2. Walk up from CWD (finds kain/unreal/metadata/ from any plugin subdir)
     //   3. CWD-relative fallback (works if run directly from kain/ root)
     let module_graph_path = {
-        let relative = std::path::Path::new("unreal").join("metadata").join("module_graph.json");
+        let relative = std::path::Path::new("unreal")
+            .join("metadata")
+            .join("module_graph.json");
 
         // 1. Explicit env var — highest priority
-        let from_env = std::env::var("KAIN_ROOT").ok()
+        let from_env = std::env::var("KAIN_ROOT")
+            .ok()
             .map(|root| std::path::PathBuf::from(root).join(&relative))
             .filter(|p| p.exists());
 
@@ -1343,7 +1787,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         let from_cwd_walk = {
             let mut dir = cwd.clone();
             let mut found = None;
-            for _ in 0..10 {  // walk up at most 10 levels
+            for _ in 0..10 {
+                // walk up at most 10 levels
                 let candidate = dir.join(&relative);
                 if candidate.exists() {
                     found = Some(candidate);
@@ -1362,20 +1807,19 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             .unwrap_or_else(|| cwd.join(&relative))
     };
 
-
     if module_graph_path.exists() {
         match fs::read_to_string(&module_graph_path) {
-            Ok(data) => {
-                match module_graph.load(&data) {
-                    Ok(()) => {
-                        let (mods, types, headers) = module_graph.stats();
-                        println!("📊 Module graph loaded: {} modules, {} types, {} headers",
-                            mods, types, headers);
-                        println!("   📍 From: {}", module_graph_path.display());
-                    }
-                    Err(e) => eprintln!("⚠️  module_graph.json parse error: {}", e),
+            Ok(data) => match module_graph.load(&data) {
+                Ok(()) => {
+                    let (mods, types, headers) = module_graph.stats();
+                    println!(
+                        "📊 Module graph loaded: {} modules, {} types, {} headers",
+                        mods, types, headers
+                    );
+                    println!("   📍 From: {}", module_graph_path.display());
                 }
-            }
+                Err(e) => eprintln!("⚠️  module_graph.json parse error: {}", e),
+            },
             Err(e) => eprintln!("⚠️  Could not read module_graph.json: {}", e),
         }
     } else {
@@ -1384,7 +1828,8 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     }
 
     // Get description from manifest or use default
-    let description = manifest.as_ref()
+    let description = manifest
+        .as_ref()
         .and_then(|m| m.package.description.clone());
 
     // Detect GAS features for module dependencies
@@ -1394,9 +1839,22 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     let has_gameplay_cues = !gameplay_cues.is_empty();
     let has_ability_tasks = !ability_tasks.is_empty();
     let has_target_actors = !target_actors.is_empty();
-    let has_gas_features = has_gameplay_tags || has_gameplay_abilities || has_gameplay_effects || has_gameplay_cues || has_ability_tasks || has_target_actors;
+    let has_gas_features = has_gameplay_tags
+        || has_gameplay_abilities
+        || has_gameplay_effects
+        || has_gameplay_cues
+        || has_ability_tasks
+        || has_target_actors;
 
-    super::codegen::write_plugin_files(&layout, &ue5_config, &description, has_shaders, has_gas_features, &module_graph, &typed_program)?;
+    super::codegen::write_plugin_files(
+        &layout,
+        &ue5_config,
+        &description,
+        has_shaders,
+        has_gas_features,
+        &module_graph,
+        &typed_program,
+    )?;
 
     // STEP 6: Stamp AssetRegistry.bin
     //
@@ -1410,7 +1868,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
         use super::registry_writer::{register_assets, AssetEntry};
 
         if !generated_assets.is_empty() {
-            println!("📋 Updating AssetRegistry.bin ({} assets)...", generated_assets.len());
+            println!(
+                "📋 Updating AssetRegistry.bin ({} assets)...",
+                generated_assets.len()
+            );
 
             // AssetRegistry.bin must live inside Content/ — that is the path
             // UE's plugin asset-registry scanner reads on startup.
@@ -1418,10 +1879,13 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
             let registry_path = layout.plugin_root.join("Content").join("AssetRegistry.bin");
 
             // Derive UE5 engine version (same logic as DataAsset step)
-            let engine_ver = ue5_config.engine_version
+            let engine_ver = ue5_config
+                .engine_version
                 .as_deref()
                 .and_then(parse_engine_version)
-                .unwrap_or_else(|| ue5_asset_utils::KainEngineTarget::default().as_serializer_version());
+                .unwrap_or_else(|| {
+                    ue5_asset_utils::KainEngineTarget::default().as_serializer_version()
+                });
 
             // Build data-driven AssetEntry descriptors from the accumulated list
             let entries: Vec<AssetEntry> = generated_assets
@@ -1430,7 +1894,10 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
                 .collect();
 
             match register_assets(&registry_path, &entries, engine_ver) {
-                Ok(()) => println!("   ✓ AssetRegistry.bin updated: {}", registry_path.display()),
+                Ok(()) => println!(
+                    "   ✓ AssetRegistry.bin updated: {}",
+                    registry_path.display()
+                ),
                 Err(e) => eprintln!("   ⚠️  AssetRegistry update failed (non-fatal): {}", e),
             }
             println!();
@@ -1459,14 +1926,18 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
     println!("📍 Location: {}", layout.plugin_root.display());
     println!();
     if ue5_config.modular_output {
-        println!("💡 Modular compilation: {} user files + {} stdlib files → {} C++ modules",
+        println!(
+            "💡 Modular compilation: {} user files + {} stdlib files → {} C++ modules",
             user_source_files.len(),
             stdlib_files.len(),
-            user_source_files.len());
+            user_source_files.len()
+        );
     } else {
-        println!("💡 Multi-file compilation: {} user files + {} stdlib files combined",
+        println!(
+            "💡 Multi-file compilation: {} user files + {} stdlib files combined",
             user_source_files.len(),
-            stdlib_files.len());
+            stdlib_files.len()
+        );
     }
     println!("⚡ Total shaders: {}", shader_names.len());
     #[cfg(feature = "ue5")]
@@ -1517,7 +1988,23 @@ fn load_and_parse_sources(
     ue5_config: &Ue5Config,
     manifest: Option<&super::config::PackageManifest>,
     cwd: &PathBuf,
-) -> KainResult<(kain_core::types::TypedProgram, Vec<String>, Vec<PathBuf>, Vec<PathBuf>, HashMap<String, PathBuf>, Vec<kain_core::ast::MaterialGraphDef>, Vec<kain_core::ast::MaterialFunctionDef>, Vec<kain_core::ast::GraphEditorDef>, Vec<kain_core::ast::GraphRuntimeDef>, Vec<kain_core::ast::GameplayTagsNamespace>, Vec<kain_core::ast::GameplayAbilityDef>, Vec<kain_core::ast::GameplayEffectDef>, Vec<kain_core::ast::GameplayCueDef>, Vec<kain_core::ast::AbilityTaskDef>, Vec<kain_core::ast::TargetActorDef>)> {
+) -> KainResult<(
+    kain_core::types::TypedProgram,
+    Vec<String>,
+    Vec<PathBuf>,
+    Vec<PathBuf>,
+    HashMap<String, PathBuf>,
+    Vec<kain_core::ast::MaterialGraphDef>,
+    Vec<kain_core::ast::MaterialFunctionDef>,
+    Vec<kain_core::ast::GraphEditorDef>,
+    Vec<kain_core::ast::GraphRuntimeDef>,
+    Vec<kain_core::ast::GameplayTagsNamespace>,
+    Vec<kain_core::ast::GameplayAbilityDef>,
+    Vec<kain_core::ast::GameplayEffectDef>,
+    Vec<kain_core::ast::GameplayCueDef>,
+    Vec<kain_core::ast::AbilityTaskDef>,
+    Vec<kain_core::ast::TargetActorDef>,
+)> {
     // STEP 1: Load stdlib files FIRST (they contain type definitions)
     let mut all_source_files = Vec::new();
     let mut stdlib_files = Vec::new();
@@ -1529,17 +2016,16 @@ fn load_and_parse_sources(
             vec![m.build.entry.clone()]
         } else {
             // No manifest and no sources - error
-            return Err(KainError::runtime("No source files specified and no KAIN.toml found"));
+            return Err(KainError::runtime(
+                "No source files specified and no KAIN.toml found",
+            ));
         }
     } else {
         // Use multiple source files - GODMODE
         ue5_config.sources.clone()
     };
 
-    let user_source_paths: Vec<PathBuf> = user_source_files
-        .iter()
-        .map(|f| cwd.join(f))
-        .collect();
+    let user_source_paths: Vec<PathBuf> = user_source_files.iter().map(|f| cwd.join(f)).collect();
 
     // Build import roots from user files so stdlib loading can be module-driven.
     let mut imported_roots: HashSet<String> = HashSet::new();
@@ -1551,10 +2037,12 @@ fn load_and_parse_sources(
 
     // Foundational modules are always safe to include for type aliases/definitions.
     const ALWAYS_INCLUDE_STDLIB_MODULES: &[&str] = &["common", "components", "patterns"];
-    let has_explicit_stdlib_imports = imported_roots
-        .iter()
-        .any(|name| ALWAYS_INCLUDE_STDLIB_MODULES.iter().all(|always| name != always));
-    
+    let has_explicit_stdlib_imports = imported_roots.iter().any(|name| {
+        ALWAYS_INCLUDE_STDLIB_MODULES
+            .iter()
+            .all(|always| name != always)
+    });
+
     // Determine stdlib path with prioritized search strategy
     let stdlib_search_paths: Vec<PathBuf> = if let Some(custom_path) = &ue5_config.stdlib_path {
         // Priority 1: Explicit path from KAIN.toml (highest priority)
@@ -1565,7 +2053,7 @@ fn load_and_parse_sources(
     } else {
         // Priority 3: Auto-discovery via filesystem walking
         let mut roots = Vec::new();
-        
+
         // Walk up from current working directory
         if let Ok(mut current) = std::env::current_dir() {
             loop {
@@ -1575,7 +2063,7 @@ fn load_and_parse_sources(
                     roots.push(kain_stdlib);
                     break;
                 }
-                
+
                 // Check for stdlib in current directory (but only if it has ue5/ subdirectory)
                 let stdlib_dir = current.join("stdlib");
                 if stdlib_dir.exists() && stdlib_dir.is_dir() {
@@ -1585,7 +2073,7 @@ fn load_and_parse_sources(
                         break;
                     }
                 }
-                
+
                 // Move to parent directory
                 if let Some(parent) = current.parent() {
                     current = parent.to_path_buf();
@@ -1594,10 +2082,10 @@ fn load_and_parse_sources(
                 }
             }
         }
-        
+
         roots
     };
-    
+
     // Try each search path, checking ue5/ subdirectory first
     for stdlib_root in stdlib_search_paths {
         // Try <root>/ue5/ first (UE5-specific stdlib)
@@ -1607,7 +2095,7 @@ fn load_and_parse_sources(
         } else {
             stdlib_root.clone()
         };
-        
+
         if search_path.exists() {
             if let Ok(entries) = fs::read_dir(&search_path) {
                 for entry in entries {
@@ -1627,7 +2115,9 @@ fn load_and_parse_sources(
                             let include_file = if has_explicit_stdlib_imports {
                                 if let Some(module_name) = stdlib_module_name(&path) {
                                     imported_roots.contains(&module_name)
-                                        || ALWAYS_INCLUDE_STDLIB_MODULES.iter().any(|m| *m == module_name)
+                                        || ALWAYS_INCLUDE_STDLIB_MODULES
+                                            .iter()
+                                            .any(|m| *m == module_name)
                                 } else {
                                     false
                                 }
@@ -1649,29 +2139,33 @@ fn load_and_parse_sources(
             }
         }
     }
-    
+
     // Sort stdlib files for consistent ordering
     stdlib_files.sort();
-    
+
     // Add stdlib files first
     for stdlib_file in &stdlib_files {
         all_source_files.push(stdlib_file.clone());
     }
-    
+
     // STEP 2: Add user source files (resolved relative to cwd)
     for user_path in &user_source_paths {
         all_source_files.push(user_path.clone());
     }
-    
-    println!("📁 Source files: {} (stdlib: {}, user: {})", 
-        all_source_files.len(), 
-        stdlib_files.len(), 
+
+    println!(
+        "📁 Source files: {} (stdlib: {}, user: {})",
+        all_source_files.len(),
+        stdlib_files.len(),
         user_source_files.len()
     );
     if has_explicit_stdlib_imports {
         let mut imported_list: Vec<String> = imported_roots.iter().cloned().collect();
         imported_list.sort();
-        println!("   🎯 Import-aware stdlib mode: {}", imported_list.join(", "));
+        println!(
+            "   🎯 Import-aware stdlib mode: {}",
+            imported_list.join(", ")
+        );
     }
     println!("   📚 Stdlib files:");
     for (i, file) in stdlib_files.iter().enumerate() {
@@ -1684,48 +2178,53 @@ fn load_and_parse_sources(
         println!("      {}. {}", i + 1, file.display());
     }
     println!();
-    
+
     // Parse and validate EACH source file independently (LLM-optimized pipeline)
     let mut all_asts = Vec::new();
     let mut all_shader_names = Vec::new();
     let mut symbol_source_map: HashMap<String, PathBuf> = HashMap::new();
     let mut all_span_mappers: Vec<(String, kain_core::diagnostics::SpanMapper)> = Vec::new();
     let mut all_parse_errors: Vec<String> = Vec::new(); // Collect errors across all files
-    
+
     println!("🔍 Validating source files...");
     for source_path in &all_source_files {
         if !source_path.exists() {
             all_parse_errors.push(format!(
-                "❌ Source file not found: {}", source_path.display()
+                "❌ Source file not found: {}",
+                source_path.display()
             ));
             continue;
         }
-        
+
         let file_source = fs::read_to_string(&source_path).map_err(|e| KainError::Io(e))?;
-        
+
         // Parse this file independently - catch errors early with clear file context
         let tokens = match kain_core::Lexer::new(&file_source).tokenize() {
             Ok(t) => t,
             Err(e) => {
                 all_parse_errors.push(format!(
-                    "❌ Syntax error in {}: {}", source_path.display(), e
+                    "❌ Syntax error in {}: {}",
+                    source_path.display(),
+                    e
                 ));
                 continue; // Don't abort — keep parsing remaining files
             }
         };
-        
+
         let span_mapper = kain_core::diagnostics::SpanMapper::new(&file_source);
-        let file_name = source_path.file_name()
+        let file_name = source_path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("<unknown>");
-        
+
         let ast = match kain_core::Parser::new(&tokens, &span_mapper, file_name).parse() {
             Ok(a) => a,
             Err(e) => {
-                let file_name_str = source_path.file_name()
+                let file_name_str = source_path
+                    .file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| source_path.display().to_string());
-                
+
                 // Handle Multi variant (multiple errors from one file)
                 match e {
                     kain_core::error::KainError::Multi(errors) => {
@@ -1733,10 +2232,14 @@ fn load_and_parse_sources(
                         for individual_error in errors {
                             let err_str = individual_error.to_string();
                             let formatted_error = post_process::format_error_with_location(
-                                &file_source, &err_str, file_name_str.clone()
+                                &file_source,
+                                &err_str,
+                                file_name_str.clone(),
                             );
                             all_parse_errors.push(format!(
-                                "❌ Parse error in {}:{}", source_path.display(), formatted_error
+                                "❌ Parse error in {}:{}",
+                                source_path.display(),
+                                formatted_error
                             ));
                         }
                     }
@@ -1744,22 +2247,26 @@ fn load_and_parse_sources(
                         // Single error
                         let err_str = e.to_string();
                         let formatted_error = post_process::format_error_with_location(
-                            &file_source, &err_str, file_name_str.clone()
+                            &file_source,
+                            &err_str,
+                            file_name_str.clone(),
                         );
                         all_parse_errors.push(format!(
-                            "❌ Parse error in {}:{}", source_path.display(), formatted_error
+                            "❌ Parse error in {}:{}",
+                            source_path.display(),
+                            formatted_error
                         ));
                     }
                 }
                 continue; // Don't abort — keep parsing remaining files
             }
         };
-        
+
         // Extract shader names from this file
         if let Ok(names) = post_process::extract_shader_names(&file_source) {
             all_shader_names.extend(names);
         }
-        
+
         if let Some(name) = source_path.file_name() {
             println!("   ✓ {} validated", name.to_string_lossy());
         }
@@ -1769,31 +2276,36 @@ fn load_and_parse_sources(
                 symbol_source_map.insert(symbol, source_path.clone());
             }
         }
-        
+
         all_span_mappers.push((file_name.to_string(), span_mapper));
         all_asts.push(ast);
     }
-    
+
     // Report all parse errors together
     if !all_parse_errors.is_empty() {
         let count = all_parse_errors.len();
         let body = all_parse_errors.join("\n\n");
         return Err(KainError::runtime(format!(
-            "{} parse error(s) found:\n\n{}", count, body
+            "{} parse error(s) found:\n\n{}",
+            count, body
         )));
     }
     println!();
-    
+
     // MERGE all ASTs into a single program with:
     //   1. Stdlib deduplication (user code shadows stdlib items with same name)
     //   2. Stdlib tree-shaking (only include stdlib items transitively referenced by user code)
     //
     // Stdlib files are parsed first (indices 0..stdlib_files.len()), user files come after.
-    let mut merged = kain_core::ast::Program { items: Vec::new(), span: kain_core::Span { start: 0, end: 0 } };
+    let mut merged = kain_core::ast::Program {
+        items: Vec::new(),
+        span: kain_core::Span { start: 0, end: 0 },
+    };
     let stdlib_ast_count = stdlib_files.len();
     {
         // Phase 1: Collect all user-defined symbol names (for dedup — user shadows stdlib)
-        let mut user_defined_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut user_defined_names: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         for ast in all_asts.iter().skip(stdlib_ast_count) {
             for item in &ast.items {
                 if let Some(name) = ast_item_symbol_name(item) {
@@ -1803,7 +2315,8 @@ fn load_and_parse_sources(
         }
 
         // Phase 2: Collect all type names referenced by user code (tree-shaking seeds)
-        let mut user_type_refs: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut user_type_refs: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         for ast in all_asts.iter().skip(stdlib_ast_count) {
             for item in &ast.items {
                 let refs = kain_core::ast::collect_referenced_type_names(item);
@@ -1812,8 +2325,10 @@ fn load_and_parse_sources(
         }
 
         // Phase 3: Build stdlib dependency graph (item name → set of type names it references)
-        let mut stdlib_item_names: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut stdlib_deps: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+        let mut stdlib_item_names: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        let mut stdlib_deps: std::collections::HashMap<String, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
         for ast in all_asts.iter().take(stdlib_ast_count) {
             for item in &ast.items {
                 if let Some(name) = ast_item_symbol_name(item) {
@@ -1828,7 +2343,8 @@ fn load_and_parse_sources(
         // stdlib items that are transitively needed.
         let mut reachable: std::collections::HashSet<String> = std::collections::HashSet::new();
         // Seed: all user type refs that match a stdlib item name
-        let mut worklist: Vec<String> = user_type_refs.iter()
+        let mut worklist: Vec<String> = user_type_refs
+            .iter()
             .filter(|name| stdlib_item_names.contains(*name))
             .cloned()
             .collect();
@@ -1852,8 +2368,11 @@ fn load_and_parse_sources(
         }
 
         // Phase 5: Merge stdlib ASTs, applying both dedup AND tree-shaking filters
-        let total_stdlib_items: usize = all_asts.iter().take(stdlib_ast_count)
-            .map(|ast| ast.items.len()).sum();
+        let total_stdlib_items: usize = all_asts
+            .iter()
+            .take(stdlib_ast_count)
+            .map(|ast| ast.items.len())
+            .sum();
         let mut stdlib_deduped = 0usize;
         let mut stdlib_pruned = 0usize;
         for ast in all_asts.iter().take(stdlib_ast_count) {
@@ -1885,9 +2404,11 @@ fn load_and_parse_sources(
                 total_stdlib_items, stdlib_kept, stdlib_pruned, stdlib_deduped);
         }
     }
-    
+
     // Extract material graphs BEFORE type checking (since MaterialGraph not yet in TypedItem)
-    let material_graphs: Vec<kain_core::ast::MaterialGraphDef> = merged.items.iter()
+    let material_graphs: Vec<kain_core::ast::MaterialGraphDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::MaterialGraph(def) = item {
                 Some(def.clone())
@@ -1896,9 +2417,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract material functions BEFORE type checking
-    let material_functions: Vec<kain_core::ast::MaterialFunctionDef> = merged.items.iter()
+    let material_functions: Vec<kain_core::ast::MaterialFunctionDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::MaterialFunction(def) = item {
                 Some(def.clone())
@@ -1907,9 +2430,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract graph editors BEFORE type checking
-    let graph_editors: Vec<kain_core::ast::GraphEditorDef> = merged.items.iter()
+    let graph_editors: Vec<kain_core::ast::GraphEditorDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::GraphEditor(def) = item {
                 Some(def.clone())
@@ -1918,9 +2443,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract graph runtimes BEFORE type checking
-    let graph_runtimes: Vec<kain_core::ast::GraphRuntimeDef> = merged.items.iter()
+    let graph_runtimes: Vec<kain_core::ast::GraphRuntimeDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::GraphRuntime(def) = item {
                 Some(def.clone())
@@ -1929,9 +2456,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract GameplayTags BEFORE type checking
-    let gameplay_tags: Vec<kain_core::ast::GameplayTagsNamespace> = merged.items.iter()
+    let gameplay_tags: Vec<kain_core::ast::GameplayTagsNamespace> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::GameplayTags(def) = item {
                 Some(def.clone())
@@ -1940,9 +2469,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract GameplayAbilities BEFORE type checking
-    let gameplay_abilities: Vec<kain_core::ast::GameplayAbilityDef> = merged.items.iter()
+    let gameplay_abilities: Vec<kain_core::ast::GameplayAbilityDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::GameplayAbility(def) = item {
                 Some(def.clone())
@@ -1951,9 +2482,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract GameplayEffects BEFORE type checking
-    let gameplay_effects: Vec<kain_core::ast::GameplayEffectDef> = merged.items.iter()
+    let gameplay_effects: Vec<kain_core::ast::GameplayEffectDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::GameplayEffect(def) = item {
                 Some(def.clone())
@@ -1962,9 +2495,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract GameplayCues BEFORE type checking
-    let gameplay_cues: Vec<kain_core::ast::GameplayCueDef> = merged.items.iter()
+    let gameplay_cues: Vec<kain_core::ast::GameplayCueDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::GameplayCue(def) = item {
                 Some(def.clone())
@@ -1973,9 +2508,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract AbilityTasks BEFORE type checking
-    let ability_tasks: Vec<kain_core::ast::AbilityTaskDef> = merged.items.iter()
+    let ability_tasks: Vec<kain_core::ast::AbilityTaskDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::AbilityTask(def) = item {
                 Some(def.clone())
@@ -1984,9 +2521,11 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Extract TargetActors BEFORE type checking
-    let target_actors: Vec<kain_core::ast::TargetActorDef> = merged.items.iter()
+    let target_actors: Vec<kain_core::ast::TargetActorDef> = merged
+        .items
+        .iter()
         .filter_map(|item| {
             if let kain_core::ast::Item::TargetActor(def) = item {
                 Some(def.clone())
@@ -1995,29 +2534,33 @@ fn load_and_parse_sources(
             }
         })
         .collect();
-    
+
     // Filter out material graphs, material functions, graph editors, graph runtimes, and GAS items from the program before type checking
     // (they will be processed separately for generation)
-    merged.items.retain(|item| !matches!(item, 
-        kain_core::ast::Item::MaterialGraph(_) | 
-        kain_core::ast::Item::MaterialFunction(_) |
-        kain_core::ast::Item::GraphEditor(_) |
-        kain_core::ast::Item::GraphRuntime(_) |
-        kain_core::ast::Item::GameplayTags(_) |
-        kain_core::ast::Item::GameplayAbility(_) |
-        kain_core::ast::Item::GameplayEffect(_) |
-        kain_core::ast::Item::GameplayCue(_) |
-        kain_core::ast::Item::AbilityTask(_) |
-        kain_core::ast::Item::TargetActor(_)
-    ));
-    
+    merged.items.retain(|item| {
+        !matches!(
+            item,
+            kain_core::ast::Item::MaterialGraph(_)
+                | kain_core::ast::Item::MaterialFunction(_)
+                | kain_core::ast::Item::GraphEditor(_)
+                | kain_core::ast::Item::GraphRuntime(_)
+                | kain_core::ast::Item::GameplayTags(_)
+                | kain_core::ast::Item::GameplayAbility(_)
+                | kain_core::ast::Item::GameplayEffect(_)
+                | kain_core::ast::Item::GameplayCue(_)
+                | kain_core::ast::Item::AbilityTask(_)
+                | kain_core::ast::Item::TargetActor(_)
+        )
+    });
+
     // Type-check the MERGED program
     println!("🔍 Type checking merged program...");
-    
+
     // Use first span_mapper for merged program type checking
-    let (first_filename, first_span_mapper) = all_span_mappers.first()
+    let (first_filename, first_span_mapper) = all_span_mappers
+        .first()
         .ok_or_else(|| KainError::runtime("No source files to compile"))?;
-    
+
     let typed_program = match kain_core::types::check(&merged, first_span_mapper, first_filename) {
         Ok(tp) => {
             println!("   ✓ Type checking passed");
@@ -2025,12 +2568,13 @@ fn load_and_parse_sources(
         }
         Err(e) => {
             return Err(KainError::runtime(format!(
-                "❌ Type error in merged program: {}", e
+                "❌ Type error in merged program: {}",
+                e
             )));
         }
     };
     println!();
-    
+
     // Monomorphize (instantiate generic functions with concrete types)
     println!("🔄 Monomorphizing generic functions...");
     let mono_ast = match kain_core::monomorphize::monomorphize(&typed_program) {
@@ -2040,14 +2584,17 @@ fn load_and_parse_sources(
         }
         Err(e) => {
             return Err(KainError::runtime(format!(
-                "❌ Monomorphization error: {}", e
+                "❌ Monomorphization error: {}",
+                e
             )));
         }
     };
     // Convert MonomorphizedProgram back to TypedProgram for codegen
-    let typed_program = kain_core::types::TypedProgram { items: mono_ast.items };
+    let typed_program = kain_core::types::TypedProgram {
+        items: mono_ast.items,
+    };
     println!();
-    
+
     // Run Oracle validation (with data-driven UHT rules when available)
     println!("🔬 Running Unreal Semantic Validator (Oracle)...");
     let kb = ue5::ue5::engine_knowledge::EngineKnowledge::new();
@@ -2058,7 +2605,13 @@ fn load_and_parse_sources(
             let _ = uht.load(&data);
         }
     }
-    match ue5::ue5::oracle::validate_program_full(&typed_program, &kb, &uht, first_span_mapper, first_filename) {
+    match ue5::ue5::oracle::validate_program_full(
+        &typed_program,
+        &kb,
+        &uht,
+        first_span_mapper,
+        first_filename,
+    ) {
         Ok(()) => {
             println!("   ✓ Oracle validation passed");
         }
@@ -2067,8 +2620,24 @@ fn load_and_parse_sources(
         }
     }
     println!();
-    
-    Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks, target_actors))
+
+    Ok((
+        typed_program,
+        all_shader_names,
+        stdlib_files,
+        user_source_files,
+        symbol_source_map,
+        material_graphs,
+        material_functions,
+        graph_editors,
+        graph_runtimes,
+        gameplay_tags,
+        gameplay_abilities,
+        gameplay_effects,
+        gameplay_cues,
+        ability_tasks,
+        target_actors,
+    ))
 }
 
 fn ast_item_symbol_name(item: &kain_core::ast::Item) -> Option<String> {
@@ -2110,8 +2679,7 @@ fn parse_engine_version(s: &str) -> Option<unreal_asset_base::engine_version::En
     } else {
         s.to_string()
     };
-    KainEngineTarget::from_str(normalised.trim())
-        .map(|t| t.as_serializer_version())
+    KainEngineTarget::from_str(normalised.trim()).map(|t| t.as_serializer_version())
 }
 
 /// Convert AST MaterialGraphDef to IR MaterialGraph.
@@ -2125,10 +2693,11 @@ fn convert_material_graph(
     def: &kain_core::ast::MaterialGraphDef,
     surface_shaders: &std::collections::HashMap<String, String>,
 ) -> KainResult<ue5_materials::MaterialGraph> {
-    use ue5_materials::{MaterialGraph, MaterialInput, MaterialInputType, MaterialProperties,
-                        MaterialOutputs, BlendMode, ShadingModel, MaterialDomain,
-                        MaterialNode, MaterialNodeType};
     use std::collections::HashMap;
+    use ue5_materials::{
+        BlendMode, MaterialDomain, MaterialGraph, MaterialInput, MaterialInputType, MaterialNode,
+        MaterialNodeType, MaterialOutputs, MaterialProperties, ShadingModel,
+    };
 
     // Extract blend_mode and shading_model from attributes
     let mut blend_mode = BlendMode::Opaque;
@@ -2168,14 +2737,18 @@ fn convert_material_graph(
     }
 
     // Convert inputs
-    let inputs: Vec<MaterialInput> = def.inputs.iter().map(|input| {
-        MaterialInput {
-            name: input.name.clone(),
-            input_type: map_material_input_type(&input.ty),
-            default_value: input.default.as_ref().map(|e| format!("{:?}", e)),
-            is_dynamic: false, // Phase 7.1: dynamic marking happens post-construction
-        }
-    }).collect();
+    let inputs: Vec<MaterialInput> = def
+        .inputs
+        .iter()
+        .map(|input| {
+            MaterialInput {
+                name: input.name.clone(),
+                input_type: map_material_input_type(&input.ty),
+                default_value: input.default.as_ref().map(|e| format!("{:?}", e)),
+                is_dynamic: false, // Phase 7.1: dynamic marking happens post-construction
+            }
+        })
+        .collect();
 
     // --- Expression → Node conversion ---
     // node_counter: monotonically increasing ID for generated nodes
@@ -2204,19 +2777,37 @@ fn convert_material_graph(
                 },
                 "Float" => MaterialNodeType::ScalarParameter {
                     name: input.name.clone(),
-                    default: input.default.as_ref().and_then(|e| {
-                        if let kain_core::ast::Expr::Float(v, _) = e { Some(*v as f32) } else { None }
-                    }).unwrap_or(0.0),
+                    default: input
+                        .default
+                        .as_ref()
+                        .and_then(|e| {
+                            if let kain_core::ast::Expr::Float(v, _) = e {
+                                Some(*v as f32)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or(0.0),
                 },
                 "Vec3" | "Vec4" => MaterialNodeType::VectorParameter {
                     name: input.name.clone(),
                     default: [1.0, 1.0, 1.0],
                 },
-                _ => MaterialNodeType::ScalarParameter { name: input.name.clone(), default: 0.0 },
+                _ => MaterialNodeType::ScalarParameter {
+                    name: input.name.clone(),
+                    default: 0.0,
+                },
             },
-            _ => MaterialNodeType::ScalarParameter { name: input.name.clone(), default: 0.0 },
+            _ => MaterialNodeType::ScalarParameter {
+                name: input.name.clone(),
+                default: 0.0,
+            },
         };
-        nodes.push(MaterialNode { id: id.clone(), node_type, position: (x, y) });
+        nodes.push(MaterialNode {
+            id: id.clone(),
+            node_type,
+            position: (x, y),
+        });
         scope.insert(input.name.clone(), id);
     }
 
@@ -2225,7 +2816,15 @@ fn convert_material_graph(
         if let kain_core::ast::MaterialStatement::Let { name, value, .. } = stmt {
             let x = -500 + stmt_idx as i32 * col_width;
             let y = 0;
-            let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope, surface_shaders);
+            let node_id = emit_expr(
+                value,
+                x,
+                y,
+                &mut node_counter,
+                &mut nodes,
+                &scope,
+                surface_shaders,
+            );
             scope.insert(name.clone(), node_id);
         }
     }
@@ -2233,17 +2832,25 @@ fn convert_material_graph(
     // Resolve outputs: each output.value is an Ident referring to a let-binding or input
     let mut outputs = MaterialOutputs::default();
     for output in &def.outputs {
-        let node_id = emit_expr(&output.value, 400, 0, &mut node_counter, &mut nodes, &scope, surface_shaders);
+        let node_id = emit_expr(
+            &output.value,
+            400,
+            0,
+            &mut node_counter,
+            &mut nodes,
+            &scope,
+            surface_shaders,
+        );
         match output.name.as_str() {
-            "base_color"           => outputs.base_color = Some(node_id),
-            "metallic"             => outputs.metallic = Some(node_id),
-            "specular"             => outputs.specular = Some(node_id),
-            "roughness"            => outputs.roughness = Some(node_id),
-            "emissive"             => outputs.emissive = Some(node_id),
-            "opacity"              => outputs.opacity = Some(node_id),
-            "normal"               => outputs.normal = Some(node_id),
-            "ambient_occlusion"    => outputs.ambient_occlusion = Some(node_id),
-            "world_position_offset"=> outputs.world_position_offset = Some(node_id),
+            "base_color" => outputs.base_color = Some(node_id),
+            "metallic" => outputs.metallic = Some(node_id),
+            "specular" => outputs.specular = Some(node_id),
+            "roughness" => outputs.roughness = Some(node_id),
+            "emissive" => outputs.emissive = Some(node_id),
+            "opacity" => outputs.opacity = Some(node_id),
+            "normal" => outputs.normal = Some(node_id),
+            "ambient_occlusion" => outputs.ambient_occlusion = Some(node_id),
+            "world_position_offset" => outputs.world_position_offset = Some(node_id),
             _ => {}
         }
     }
@@ -2265,9 +2872,9 @@ fn convert_material_graph(
         outputs,
         properties,
         nodes,
-        is_dynamic: false,               // Phase 7: set true when Time nodes are detected
-        dynamic_parameters: Vec::new(),  // Phase 7.1: populated by mark_parameter_dynamic()
-        uses_vertex_shader,              // Phase 7.5: auto-detected from output connections
+        is_dynamic: false, // Phase 7: set true when Time nodes are detected
+        dynamic_parameters: Vec::new(), // Phase 7.1: populated by mark_parameter_dynamic()
+        uses_vertex_shader, // Phase 7.5: auto-detected from output connections
         vertex_displacement_scale: None, // Phase 7.5: no explicit scale by default
     })
 }
@@ -2287,8 +2894,8 @@ fn emit_expr(
     scope: &std::collections::HashMap<String, String>,
     surface_shaders: &std::collections::HashMap<String, String>,
 ) -> String {
+    use kain_core::ast::{BinaryOp, Expr};
     use ue5_materials::{MaterialNode, MaterialNodeType};
-    use kain_core::ast::{Expr, BinaryOp};
 
     match expr {
         // Identifier — look up in scope (input param or let binding)
@@ -2301,7 +2908,10 @@ fn emit_expr(
             *counter += 1;
             nodes.push(MaterialNode {
                 id: id.clone(),
-                node_type: MaterialNodeType::ScalarParameter { name: name.clone(), default: 0.0 },
+                node_type: MaterialNodeType::ScalarParameter {
+                    name: name.clone(),
+                    default: 0.0,
+                },
                 position: (x, y),
             });
             id
@@ -2332,9 +2942,27 @@ fn emit_expr(
         }
 
         // Binary ops: *, +, -, /
-        Expr::Binary { left, op, right, .. } => {
-            let a = emit_expr(left, x - 200, y - 100, counter, nodes, scope, surface_shaders);
-            let b = emit_expr(right, x - 200, y + 100, counter, nodes, scope, surface_shaders);
+        Expr::Binary {
+            left, op, right, ..
+        } => {
+            let a = emit_expr(
+                left,
+                x - 200,
+                y - 100,
+                counter,
+                nodes,
+                scope,
+                surface_shaders,
+            );
+            let b = emit_expr(
+                right,
+                x - 200,
+                y + 100,
+                counter,
+                nodes,
+                scope,
+                surface_shaders,
+            );
             let id = format!("node_{}", counter);
             *counter += 1;
             let node_type = match op {
@@ -2344,41 +2972,66 @@ fn emit_expr(
                 BinaryOp::Div => MaterialNodeType::Divide { a, b },
                 _ => MaterialNodeType::Multiply { a, b }, // fallback
             };
-            nodes.push(MaterialNode { id: id.clone(), node_type, position: (x, y) });
+            nodes.push(MaterialNode {
+                id: id.clone(),
+                node_type,
+                position: (x, y),
+            });
             id
         }
 
         // Function calls: lerp(), clamp(), sample(), multiply(), add(), etc.
         Expr::Call { callee, args, .. } => {
-            let func_name = if let Expr::Ident(n, _) = &**callee { n.as_str() } else { "" };
+            let func_name = if let Expr::Ident(n, _) = &**callee {
+                n.as_str()
+            } else {
+                ""
+            };
 
             // texture_coordinate / uv — read index directly from literal, emit no child nodes
             if func_name == "texture_coordinate" || func_name == "uv" {
                 let index = if let Some(first) = args.first() {
-                    if let Expr::Int(v, _) = &first.value { *v as u32 } else { 0 }
-                } else { 0 };
+                    if let Expr::Int(v, _) = &first.value {
+                        *v as u32
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                };
                 let id = format!("node_{}", counter);
                 *counter += 1;
                 nodes.push(MaterialNode {
                     id: id.clone(),
-                    node_type: MaterialNodeType::TextureCoordinate { index, tiling: [1.0, 1.0] },
+                    node_type: MaterialNodeType::TextureCoordinate {
+                        index,
+                        tiling: [1.0, 1.0],
+                    },
                     position: (x, y),
                 });
                 return id;
             }
 
-            let arg_ids: Vec<String> = args.iter().enumerate().map(|(i, arg)| {
-                let ax = x - 200;
-                let ay = y + i as i32 * 150 - (args.len() as i32 * 75);
-                emit_expr(&arg.value, ax, ay, counter, nodes, scope, surface_shaders)
-            }).collect();
+            let arg_ids: Vec<String> = args
+                .iter()
+                .enumerate()
+                .map(|(i, arg)| {
+                    let ax = x - 200;
+                    let ay = y + i as i32 * 150 - (args.len() as i32 * 75);
+                    emit_expr(&arg.value, ax, ay, counter, nodes, scope, surface_shaders)
+                })
+                .collect();
 
             // sample(tex, uv) — patch uv onto the existing texture param node, return tex id
             if func_name == "sample" {
                 if let (Some(tex_id), Some(uv_id)) = (arg_ids.get(0), arg_ids.get(1)) {
                     for n in nodes.iter_mut() {
                         if &n.id == tex_id {
-                            if let MaterialNodeType::TextureSampleParameter2D { ref mut uv_input, .. } = n.node_type {
+                            if let MaterialNodeType::TextureSampleParameter2D {
+                                ref mut uv_input,
+                                ..
+                            } = n.node_type
+                            {
                                 *uv_input = Some(uv_id.clone());
                             }
                             break;
@@ -2426,23 +3079,38 @@ fn emit_expr(
                 }
                 "mask_r" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, mask: "R".to_string() }
+                    MaterialNodeType::ComponentMask {
+                        input,
+                        mask: "R".to_string(),
+                    }
                 }
                 "mask_g" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, mask: "G".to_string() }
+                    MaterialNodeType::ComponentMask {
+                        input,
+                        mask: "G".to_string(),
+                    }
                 }
                 "mask_b" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, mask: "B".to_string() }
+                    MaterialNodeType::ComponentMask {
+                        input,
+                        mask: "B".to_string(),
+                    }
                 }
                 "mask_a" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, mask: "A".to_string() }
+                    MaterialNodeType::ComponentMask {
+                        input,
+                        mask: "A".to_string(),
+                    }
                 }
                 "mask_rgb" => {
                     let input = arg_ids.get(0).cloned().unwrap_or_default();
-                    MaterialNodeType::ComponentMask { input, mask: "RGB".to_string() }
+                    MaterialNodeType::ComponentMask {
+                        input,
+                        mask: "RGB".to_string(),
+                    }
                 }
                 "append" => {
                     let a = arg_ids.get(0).cloned().unwrap_or_default();
@@ -2452,7 +3120,10 @@ fn emit_expr(
                 "fresnel" => {
                     let exponent = arg_ids.get(0).cloned().unwrap_or_default();
                     let base_reflect_fraction = arg_ids.get(1).cloned().unwrap_or_default();
-                    MaterialNodeType::Fresnel { exponent, base_reflect_fraction }
+                    MaterialNodeType::Fresnel {
+                        exponent,
+                        base_reflect_fraction,
+                    }
                 }
                 // ── Shader→Material bridge ───────────────────────────
                 // When a call refers to a known Surface-stage shader name,
@@ -2460,7 +3131,7 @@ fn emit_expr(
                 // Each positional argument becomes a Float1 input pin named
                 // after its node_id so the material graph can wire it up.
                 name if surface_shaders.contains_key(name) => {
-                    use ue5_materials::{CustomOutputType, CustomInput};
+                    use ue5_materials::{CustomInput, CustomOutputType};
                     let hlsl_body = surface_shaders.get(name).cloned().unwrap_or_default();
                     // Map each positional argument to a typed input pin.
                     // The arg child nodes are already in `nodes`; CustomHLSL
@@ -2481,11 +3152,18 @@ fn emit_expr(
                 }
                 _ => {
                     // Unknown function — emit a scalar param as placeholder
-                    MaterialNodeType::ScalarParameter { name: func_name.to_string(), default: 0.0 }
+                    MaterialNodeType::ScalarParameter {
+                        name: func_name.to_string(),
+                        default: 0.0,
+                    }
                 }
             };
 
-            nodes.push(MaterialNode { id: id.clone(), node_type, position: (x, y) });
+            nodes.push(MaterialNode {
+                id: id.clone(),
+                node_type,
+                position: (x, y),
+            });
             id
         }
 
@@ -2506,7 +3184,10 @@ fn emit_expr(
             };
             nodes.push(MaterialNode {
                 id: id.clone(),
-                node_type: MaterialNodeType::ComponentMask { input, mask: mask.to_string() },
+                node_type: MaterialNodeType::ComponentMask {
+                    input,
+                    mask: mask.to_string(),
+                },
                 position: (x, y),
             });
             id
@@ -2533,18 +3214,21 @@ fn emit_expr(
 fn convert_material_function(
     def: &kain_core::ast::MaterialFunctionDef,
 ) -> KainResult<ue5_materials::MaterialFunction> {
-    use ue5_materials::{MaterialFunction, MaterialFunctionInput, MaterialInputType,
-                        MaterialNode, MaterialNodeType};
     use std::collections::HashMap;
+    use ue5_materials::{
+        MaterialFunction, MaterialFunctionInput, MaterialInputType, MaterialNode, MaterialNodeType,
+    };
 
     // Convert inputs
-    let inputs: Vec<MaterialFunctionInput> = def.inputs.iter().map(|input| {
-        MaterialFunctionInput {
+    let inputs: Vec<MaterialFunctionInput> = def
+        .inputs
+        .iter()
+        .map(|input| MaterialFunctionInput {
             name: input.name.clone(),
             input_type: map_material_input_type(&input.ty),
             default_value: input.default.as_ref().map(|e| format!("{:?}", e)),
-        }
-    }).collect();
+        })
+        .collect();
 
     // --- Expression → Node conversion ---
     let mut node_counter: usize = 0;
@@ -2560,12 +3244,16 @@ fn convert_material_function(
         let x = -800;
         let y = row as i32 * row_height;
         let id = format!("input_{}", input.name);
-        
+
         // Material function inputs are represented as FunctionInput nodes
         // These will be converted to MaterialExpressionFunctionInput in the builder
         let node_type = MaterialNodeType::ConstantFloat { value: 0.0 }; // Placeholder - will be replaced by FunctionInput
-        
-        nodes.push(MaterialNode { id: id.clone(), node_type, position: (x, y) });
+
+        nodes.push(MaterialNode {
+            id: id.clone(),
+            node_type,
+            position: (x, y),
+        });
         scope.insert(input.name.clone(), id);
     }
 
@@ -2575,14 +3263,30 @@ fn convert_material_function(
             let x = -500 + stmt_idx as i32 * col_width;
             let y = 0;
             let surface_shaders = HashMap::new(); // Functions don't use surface shaders
-            let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope, &surface_shaders);
+            let node_id = emit_expr(
+                value,
+                x,
+                y,
+                &mut node_counter,
+                &mut nodes,
+                &scope,
+                &surface_shaders,
+            );
             scope.insert(name.clone(), node_id);
         }
     }
 
     // Resolve output expression
     let surface_shaders = HashMap::new();
-    let output_node_id = emit_expr(&def.output, 400, 0, &mut node_counter, &mut nodes, &scope, &surface_shaders);
+    let output_node_id = emit_expr(
+        &def.output,
+        400,
+        0,
+        &mut node_counter,
+        &mut nodes,
+        &scope,
+        &surface_shaders,
+    );
 
     Ok(MaterialFunction {
         name: def.name.clone(),
@@ -2598,15 +3302,13 @@ fn convert_material_function(
 fn map_material_input_type(ty: &kain_core::ast::Type) -> ue5_materials::MaterialInputType {
     use ue5_materials::MaterialInputType;
     match ty {
-        kain_core::ast::Type::Named { name, .. } => {
-            match name.as_str() {
-                "Float" => MaterialInputType::Float,
-                "Vec2" => MaterialInputType::Vec2,
-                "Vec3" => MaterialInputType::Vec3,
-                "Vec4" => MaterialInputType::Vec4,
-                _ => MaterialInputType::Float,
-            }
-        }
+        kain_core::ast::Type::Named { name, .. } => match name.as_str() {
+            "Float" => MaterialInputType::Float,
+            "Vec2" => MaterialInputType::Vec2,
+            "Vec3" => MaterialInputType::Vec3,
+            "Vec4" => MaterialInputType::Vec4,
+            _ => MaterialInputType::Float,
+        },
         _ => MaterialInputType::Float,
     }
 }
@@ -2615,16 +3317,16 @@ fn map_material_input_type(ty: &kain_core::ast::Type) -> ue5_materials::Material
 fn create_default_config(cwd: &PathBuf) -> KainResult<Ue5Config> {
     // Detect plugin name from .uplugin or directory name
     let plugin_name = detect_plugin_name_from_dir(cwd)?;
-    
+
     // Find all .kn files in current directory (non-recursive)
     let sources = find_kn_files(cwd)?;
-    
+
     if sources.is_empty() {
         return Err(KainError::runtime(
             "No .kn files found in current directory. Please create a .kn file or add a KAIN.toml configuration."
         ));
     }
-    
+
     println!("📁 Found {} .kn file(s):", sources.len());
     for src in &sources {
         if let Some(name) = src.file_name() {
@@ -2632,16 +3334,16 @@ fn create_default_config(cwd: &PathBuf) -> KainResult<Ue5Config> {
         }
     }
     println!();
-    
+
     Ok(Ue5Config {
         plugin_name,
         plugin_dir: cwd.to_path_buf(),
         sources,
         shaders: vec![],
         copyright: None,
-        modular_output: true,  // Default to modular output
-        stdlib_path: None,     // No stdlib by default
-        engine_version: None,  // Use default (5.2)
+        modular_output: true, // Default to modular output
+        stdlib_path: None,    // No stdlib by default
+        engine_version: None, // Use default (5.2)
         modules: Vec::new(),
         plugin_dependencies: Vec::new(),
     })
@@ -2662,23 +3364,23 @@ fn detect_plugin_name_from_dir(cwd: &PathBuf) -> KainResult<String> {
             }
         }
     }
-    
+
     // Fallback to directory name
     if let Some(dir_name) = cwd.file_name() {
         let name = dir_name.to_string_lossy().to_string();
         println!("🔍 Using directory name as plugin name: {}", name);
         return Ok(name);
     }
-    
+
     Err(KainError::runtime(
-        "Could not determine plugin name. Please create a KAIN.toml or .uplugin file."
+        "Could not determine plugin name. Please create a KAIN.toml or .uplugin file.",
     ))
 }
 
 /// Find all .kn files in the current directory (non-recursive)
 fn find_kn_files(cwd: &PathBuf) -> KainResult<Vec<PathBuf>> {
     let mut kn_files = Vec::new();
-    
+
     if let Ok(entries) = fs::read_dir(cwd) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -2694,9 +3396,9 @@ fn find_kn_files(cwd: &PathBuf) -> KainResult<Vec<PathBuf>> {
             }
         }
     }
-    
+
     // Sort for consistent ordering
     kn_files.sort();
-    
+
     Ok(kn_files)
 }

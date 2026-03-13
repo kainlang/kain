@@ -17,10 +17,7 @@ use anyhow::Result;
 ///     TEXT("Chunk Size"),
 ///     ECVF_Default);
 /// ```
-pub fn generate_cvar_declarations(
-    config: &ConfigStruct,
-    plugin_name: &str,
-) -> Result<Vec<String>> {
+pub fn generate_cvar_declarations(config: &ConfigStruct, plugin_name: &str) -> Result<Vec<String>> {
     let mut declarations = Vec::new();
 
     for field in &config.fields {
@@ -84,9 +81,13 @@ fn format_default_value(field: &ConfigField) -> Result<String> {
             } else {
                 Ok(format!("{}.0f", s))
             }
-        },
+        }
         Some(Expr::Int(val, _)) => Ok(val.to_string()),
-        Some(Expr::Bool(val, _)) => Ok(if *val { "true".to_string() } else { "false".to_string() }),
+        Some(Expr::Bool(val, _)) => Ok(if *val {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }),
         Some(Expr::String(val, _)) => Ok(format!("TEXT(\"{}\")", val)),
         None => {
             // Use type-appropriate defaults
@@ -98,7 +99,10 @@ fn format_default_value(field: &ConfigField) -> Result<String> {
                 _ => anyhow::bail!("Cannot determine default value for field: {}", field.name),
             }
         }
-        _ => anyhow::bail!("Unsupported default value expression for field: {}", field.name),
+        _ => anyhow::bail!(
+            "Unsupported default value expression for field: {}",
+            field.name
+        ),
     }
 }
 
@@ -112,10 +116,7 @@ fn format_default_value(field: &ConfigField) -> Result<String> {
 ///     ChunkSize = CVarChunkSize.GetValueOnGameThread();
 /// }
 /// ```
-pub fn generate_cvar_callbacks(
-    config: &ConfigStruct,
-    plugin_name: &str,
-) -> Result<Vec<String>> {
+pub fn generate_cvar_callbacks(config: &ConfigStruct, plugin_name: &str) -> Result<Vec<String>> {
     let mut callbacks = Vec::new();
 
     for field in &config.fields {
@@ -197,7 +198,12 @@ mod tests {
         }
     }
 
-    fn make_test_field(name: &str, ty_name: &str, default: Option<Expr>, cvar: Option<String>) -> ConfigField {
+    fn make_test_field(
+        name: &str,
+        ty_name: &str,
+        default: Option<Expr>,
+        cvar: Option<String>,
+    ) -> ConfigField {
         ConfigField {
             name: name.to_string(),
             ty: Type::Named {
@@ -371,12 +377,7 @@ mod tests {
         );
         assert_eq!(format_default_value(&float_field).unwrap(), "123.45f");
 
-        let int_field = make_test_field(
-            "test",
-            "Int",
-            Some(Expr::Int(42, Span::default())),
-            None,
-        );
+        let int_field = make_test_field("test", "Int", Some(Expr::Int(42, Span::default())), None);
         assert_eq!(format_default_value(&int_field).unwrap(), "42");
 
         let bool_field = make_test_field(
@@ -393,6 +394,9 @@ mod tests {
             Some(Expr::String("hello".to_string(), Span::default())),
             None,
         );
-        assert_eq!(format_default_value(&string_field).unwrap(), "TEXT(\"hello\")");
+        assert_eq!(
+            format_default_value(&string_field).unwrap(),
+            "TEXT(\"hello\")"
+        );
     }
 }

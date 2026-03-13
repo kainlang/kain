@@ -1,8 +1,8 @@
 //! UE5 Naming Conventions
-//! 
+//!
 //! The Authority on Naming - centralizes all naming transformations.
 //! If we change how a class is named, it changes everywhere automatically.
-//! 
+//!
 //! Also validates against UE5 reserved engine names loaded from
 //! `unreal/metadata/reserved_engine_names.json` (data-driven!).
 
@@ -199,26 +199,116 @@ fn format_prefixed_name(name: &str, prefix: char, check_collision: bool) -> Kain
 
 /// C++ keywords that cannot be used as identifiers
 const CPP_KEYWORDS: &[&str] = &[
-    "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor",
-    "bool", "break", "case", "catch", "char", "char8_t", "char16_t", "char32_t",
-    "class", "compl", "concept", "const", "consteval", "constexpr", "constinit",
-    "const_cast", "continue", "co_await", "co_return", "co_yield", "decltype",
-    "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit",
-    "export", "extern", "false", "float", "for", "friend", "goto", "if", "inline",
-    "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq",
-    "nullptr", "operator", "or", "or_eq", "private", "protected", "public",
-    "register", "reinterpret_cast", "requires", "return", "short", "signed",
-    "sizeof", "static", "static_assert", "static_cast", "struct", "switch",
-    "template", "this", "thread_local", "throw", "true", "try", "typedef",
-    "typeid", "typename", "union", "unsigned", "using", "virtual", "void",
-    "volatile", "wchar_t", "while", "xor", "xor_eq",
+    "alignas",
+    "alignof",
+    "and",
+    "and_eq",
+    "asm",
+    "auto",
+    "bitand",
+    "bitor",
+    "bool",
+    "break",
+    "case",
+    "catch",
+    "char",
+    "char8_t",
+    "char16_t",
+    "char32_t",
+    "class",
+    "compl",
+    "concept",
+    "const",
+    "consteval",
+    "constexpr",
+    "constinit",
+    "const_cast",
+    "continue",
+    "co_await",
+    "co_return",
+    "co_yield",
+    "decltype",
+    "default",
+    "delete",
+    "do",
+    "double",
+    "dynamic_cast",
+    "else",
+    "enum",
+    "explicit",
+    "export",
+    "extern",
+    "false",
+    "float",
+    "for",
+    "friend",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "mutable",
+    "namespace",
+    "new",
+    "noexcept",
+    "not",
+    "not_eq",
+    "nullptr",
+    "operator",
+    "or",
+    "or_eq",
+    "private",
+    "protected",
+    "public",
+    "register",
+    "reinterpret_cast",
+    "requires",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "static_assert",
+    "static_cast",
+    "struct",
+    "switch",
+    "template",
+    "this",
+    "thread_local",
+    "throw",
+    "true",
+    "try",
+    "typedef",
+    "typeid",
+    "typename",
+    "union",
+    "unsigned",
+    "using",
+    "virtual",
+    "void",
+    "volatile",
+    "wchar_t",
+    "while",
+    "xor",
+    "xor_eq",
 ];
 
 /// UE5 macro names that cannot be used as identifiers
 const UE5_MACROS: &[&str] = &[
-    "UCLASS", "USTRUCT", "UENUM", "UFUNCTION", "UPROPERTY", "UMETA",
-    "GENERATED_BODY", "GENERATED_USTRUCT_BODY", "GENERATED_UCLASS_BODY",
-    "UPARAM", "UDELEGATE", "TEXT", "LOCTEXT", "NSLOCTEXT",
+    "UCLASS",
+    "USTRUCT",
+    "UENUM",
+    "UFUNCTION",
+    "UPROPERTY",
+    "UMETA",
+    "GENERATED_BODY",
+    "GENERATED_USTRUCT_BODY",
+    "GENERATED_UCLASS_BODY",
+    "UPARAM",
+    "UDELEGATE",
+    "TEXT",
+    "LOCTEXT",
+    "NSLOCTEXT",
 ];
 
 /// Validate that a name is a valid C++ identifier
@@ -227,7 +317,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
     if name.is_empty() {
         return Err(KainError::validation_error("Identifier cannot be empty"));
     }
-    
+
     // Check if starts with number
     if name.chars().next().unwrap().is_numeric() {
         return Err(KainError::validation_error(format!(
@@ -235,7 +325,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
             name
         )));
     }
-    
+
     // Check for special characters (allow only alphanumeric and underscore)
     for (i, ch) in name.chars().enumerate() {
         if !ch.is_alphanumeric() && ch != '_' {
@@ -245,7 +335,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
             )));
         }
     }
-    
+
     // Check if it's a C++ keyword
     let lower = name.to_lowercase();
     if CPP_KEYWORDS.contains(&lower.as_str()) {
@@ -254,7 +344,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
             name, name, name
         )));
     }
-    
+
     // Check if it's a UE5 macro name
     let upper = name.to_uppercase();
     if UE5_MACROS.contains(&upper.as_str()) {
@@ -263,7 +353,7 @@ fn validate_identifier(name: &str) -> KainResult<()> {
             name
         )));
     }
-    
+
     Ok(())
 }
 
@@ -331,7 +421,7 @@ pub fn to_component_name_checked(name: &str) -> KainResult<String> {
     if name.ends_with("Component") {
         return to_uobject_name_checked(name);
     }
-    
+
     // Otherwise, add U prefix (without Component suffix for CreateDefaultSubobject)
     to_uobject_name_checked(name)
 }
@@ -348,11 +438,12 @@ pub fn to_component_name(name: &str) -> String {
 /// Subsystem names get 'U' prefix and 'Subsystem' suffix: TickOptimizer -> UTickOptimizerSubsystem
 /// If name already ends with "Subsystem", just add U prefix.
 pub fn to_subsystem_name(name: &str) -> String {
-    let raw_name = if name.starts_with('U') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
-        strip_prefixed_engine_name(name, 'U').to_string()
-    } else {
-        name.to_string()
-    };
+    let raw_name =
+        if name.starts_with('U') && name.chars().nth(1).map_or(false, |c| c.is_uppercase()) {
+            strip_prefixed_engine_name(name, 'U').to_string()
+        } else {
+            name.to_string()
+        };
     let subsystem_base = if raw_name.ends_with("Subsystem") {
         raw_name
     } else {
@@ -448,18 +539,27 @@ mod tests {
     fn test_invalid_identifier_starts_with_number() {
         let result = to_actor_name_checked("2Player");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("cannot start with a number"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("cannot start with a number"));
     }
 
     #[test]
     fn test_invalid_identifier_special_chars() {
         let result = to_struct_name_checked("My-Struct");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("special character"));
-        
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("special character"));
+
         let result2 = to_enum_name_checked("My@Enum");
         assert!(result2.is_err());
-        assert!(result2.unwrap_err().to_string().contains("special character"));
+        assert!(result2
+            .unwrap_err()
+            .to_string()
+            .contains("special character"));
     }
 
     #[test]
@@ -467,7 +567,7 @@ mod tests {
         let result = to_actor_name_checked("class");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("C++ keyword"));
-        
+
         let result2 = to_struct_name_checked("struct");
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("C++ keyword"));
@@ -478,7 +578,7 @@ mod tests {
         let result = to_actor_name_checked("UCLASS");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("UE5 macro"));
-        
+
         let result2 = to_struct_name_checked("UPROPERTY");
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("UE5 macro"));

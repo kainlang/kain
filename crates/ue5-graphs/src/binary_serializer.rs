@@ -13,14 +13,14 @@ use unreal_asset::{
     Asset, Import,
 };
 use unreal_asset_properties::{
-    int_property::{IntProperty, BoolProperty},
+    array_property::ArrayProperty,
+    int_property::{BoolProperty, IntProperty},
     object_property::ObjectProperty,
     str_property::StrProperty,
-    array_property::ArrayProperty,
     Property,
 };
 
-use crate::{GraphEditor, NodeType, PinDefinition, PinType, GraphError, Result};
+use crate::{GraphEditor, GraphError, NodeType, PinDefinition, PinType, Result};
 
 // ---------------------------------------------------------------------------
 // GraphAssetBuilder — programmatic .uasset creation for UE5 graph editors
@@ -73,12 +73,13 @@ impl GraphAssetBuilder {
         // ── Core imports every graph needs ────
         let core_uobject_import = Self::get_or_add_package(&mut asset, "/Script/CoreUObject");
         let engine_import = Self::get_or_add_package(&mut asset, "/Script/Engine");
-        
+
         // Graph editor base classes
         let graph_class_import = Self::get_or_add_class(&mut asset, "EdGraph", engine_import);
         let node_class_import = Self::get_or_add_class(&mut asset, "EdGraphNode", engine_import);
         let pin_class_import = Self::get_or_add_class(&mut asset, "EdGraphPin", engine_import);
-        let schema_class_import = Self::get_or_add_class(&mut asset, "EdGraphSchema", engine_import);
+        let schema_class_import =
+            Self::get_or_add_class(&mut asset, "EdGraphSchema", engine_import);
 
         let mut builder = GraphAssetBuilder {
             asset,
@@ -138,8 +139,9 @@ impl GraphAssetBuilder {
     ) -> PackageIndex {
         // Check if class already exists
         for (idx, import) in asset.imports.iter().enumerate() {
-            if import.object_name.get_content(|s| s == class_name) 
-                && import.outer_index == package_index {
+            if import.object_name.get_content(|s| s == class_name)
+                && import.outer_index == package_index
+            {
                 return PackageIndex::new(-((idx + 1) as i32));
             }
         }
@@ -167,11 +169,7 @@ impl GraphAssetBuilder {
             return idx;
         }
 
-        let idx = Self::get_or_add_class(
-            &mut self.asset,
-            class_name,
-            self.engine_import,
-        );
+        let idx = Self::get_or_add_class(&mut self.asset, class_name, self.engine_import);
 
         self.class_imports.insert(class_name.to_string(), idx);
         idx
@@ -223,7 +221,11 @@ impl GraphAssetBuilder {
     pub fn add_node_type_export(&mut self, node_type: &NodeType) -> PackageIndex {
         let class_import = self.get_node_type_class_import("EdGraphNode");
 
-        let obj_name = self.asset.add_fname(&format!("{}_{}", node_type.name, self.node_type_exports.len()));
+        let obj_name = self.asset.add_fname(&format!(
+            "{}_{}",
+            node_type.name,
+            self.node_type_exports.len()
+        ));
         let (pos_x, pos_y) = self.next_position();
 
         // Build properties for the node type
@@ -394,9 +396,9 @@ impl GraphAssetBuilder {
 
         // Write to bytes
         let mut output = Cursor::new(Vec::new());
-        self.asset
-            .write_data(&mut output, None)
-            .map_err(|e| GraphError::BinarySerialization(format!("Failed to write .uasset: {}", e)))?;
+        self.asset.write_data(&mut output, None).map_err(|e| {
+            GraphError::BinarySerialization(format!("Failed to write .uasset: {}", e))
+        })?;
 
         Ok(output.into_inner())
     }
@@ -495,25 +497,23 @@ pub fn serialize(graph: &GraphEditor) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{GraphEditor, NodeType, PinDefinition, PinType, GraphSchema, GraphProperties};
+    use crate::{GraphEditor, GraphProperties, GraphSchema, NodeType, PinDefinition, PinType};
 
     #[test]
     fn test_simple_graph_serialization() {
         let mut graph = GraphEditor::new("TestGraph");
-        
+
         let node_type = NodeType {
             name: "InputNode".to_string(),
             category: "Input".to_string(),
             inputs: vec![],
-            outputs: vec![
-                PinDefinition {
-                    name: "Execute".to_string(),
-                    pin_type: PinType::Exec,
-                    is_array: false,
-                    default_value: None,
-                    tooltip: None,
-                },
-            ],
+            outputs: vec![PinDefinition {
+                name: "Execute".to_string(),
+                pin_type: PinType::Exec,
+                is_array: false,
+                default_value: None,
+                tooltip: None,
+            }],
             properties: Vec::new(),
             color: Some([1.0, 0.0, 0.0, 1.0]),
             icon: None,
@@ -538,15 +538,13 @@ mod tests {
             name: "InputNode".to_string(),
             category: "Combat/Input".to_string(),
             inputs: vec![],
-            outputs: vec![
-                PinDefinition {
-                    name: "Execute".to_string(),
-                    pin_type: PinType::Exec,
-                    is_array: false,
-                    default_value: None,
-                    tooltip: None,
-                },
-            ],
+            outputs: vec![PinDefinition {
+                name: "Execute".to_string(),
+                pin_type: PinType::Exec,
+                is_array: false,
+                default_value: None,
+                tooltip: None,
+            }],
             properties: Vec::new(),
             color: Some([0.0, 1.0, 0.0, 1.0]),
             icon: None,
@@ -574,15 +572,13 @@ mod tests {
                     tooltip: Some("Damage amount".to_string()),
                 },
             ],
-            outputs: vec![
-                PinDefinition {
-                    name: "Execute".to_string(),
-                    pin_type: PinType::Exec,
-                    is_array: false,
-                    default_value: None,
-                    tooltip: None,
-                },
-            ],
+            outputs: vec![PinDefinition {
+                name: "Execute".to_string(),
+                pin_type: PinType::Exec,
+                is_array: false,
+                default_value: None,
+                tooltip: None,
+            }],
             properties: Vec::new(),
             color: Some([1.0, 1.0, 0.0, 1.0]),
             icon: None,
@@ -669,15 +665,13 @@ mod tests {
                     tooltip: None,
                 },
             ],
-            outputs: vec![
-                PinDefinition {
-                    name: "ExecOut".to_string(),
-                    pin_type: PinType::Exec,
-                    is_array: false,
-                    default_value: None,
-                    tooltip: None,
-                },
-            ],
+            outputs: vec![PinDefinition {
+                name: "ExecOut".to_string(),
+                pin_type: PinType::Exec,
+                is_array: false,
+                default_value: None,
+                tooltip: None,
+            }],
             properties: Vec::new(),
             color: Some([0.5, 0.5, 0.5, 1.0]),
             icon: None,

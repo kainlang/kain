@@ -36,7 +36,9 @@ impl ConfigCategory {
             ConfigCategory::Game => "DefaultGame.ini",
             ConfigCategory::Engine => "DefaultEngine.ini",
             ConfigCategory::Editor => "DefaultEditor.ini",
-            ConfigCategory::EditorPerProjectUserSettings => "DefaultEditorPerProjectUserSettings.ini",
+            ConfigCategory::EditorPerProjectUserSettings => {
+                "DefaultEditorPerProjectUserSettings.ini"
+            }
         }
     }
 
@@ -57,25 +59,25 @@ impl ConfigCategory {
 pub struct ConfigStruct {
     /// Original struct name (e.g., "VoxelSettings")
     pub name: String,
-    
+
     /// Configuration category (Game, Engine, Editor, EditorPerProjectUserSettings)
     pub category: ConfigCategory,
-    
+
     /// Optional custom .ini file name (overrides category default)
     pub ini_file: Option<String>,
-    
+
     /// Optional custom .ini section name (defaults to plugin name)
     pub ini_section: Option<String>,
-    
+
     /// Optional display name for Project Settings UI
     pub display_name: Option<String>,
-    
+
     /// Fields with @setting attributes
     pub fields: Vec<ConfigField>,
-    
+
     /// Original struct for reference
     pub original_struct: Struct,
-    
+
     /// Span for error reporting
     pub span: Span,
 }
@@ -107,16 +109,16 @@ impl ConfigStruct {
 
     /// Get the .ini file name (uses category default if not specified)
     pub fn get_ini_file(&self) -> String {
-        self.ini_file.clone().unwrap_or_else(|| {
-            self.category.default_ini_file().to_string()
-        })
+        self.ini_file
+            .clone()
+            .unwrap_or_else(|| self.category.default_ini_file().to_string())
     }
 
     /// Get the .ini section name (defaults to plugin name)
     pub fn get_ini_section(&self, plugin_name: &str) -> String {
-        self.ini_section.clone().unwrap_or_else(|| {
-            format!("/Script/{}.{}", plugin_name, self.ue5_class_name())
-        })
+        self.ini_section
+            .clone()
+            .unwrap_or_else(|| format!("/Script/{}.{}", plugin_name, self.ue5_class_name()))
     }
 }
 
@@ -125,37 +127,37 @@ impl ConfigStruct {
 pub struct ConfigField {
     /// Field name (e.g., "chunk_size")
     pub name: String,
-    
+
     /// Field type
     pub ty: Type,
-    
+
     /// Default value expression
     pub default: Option<Expr>,
-    
+
     /// Display name for UI (optional)
     pub display_name: Option<String>,
-    
+
     /// Tooltip text (optional)
     pub tooltip: Option<String>,
-    
+
     /// Console variable name (e.g., "voxel.ChunkSize")
     pub cvar: Option<String>,
-    
+
     /// Generate Blueprint accessor functions
     pub blueprint: bool,
-    
+
     /// Minimum value (for numeric types)
     pub min: Option<f64>,
-    
+
     /// Maximum value (for numeric types)
     pub max: Option<f64>,
-    
+
     /// Generate setter functions (default: false, read-only)
     pub writable: bool,
-    
+
     /// Original field for reference
     pub original_field: Field,
-    
+
     /// Span for error reporting
     pub span: Span,
 }
@@ -171,7 +173,8 @@ impl ConfigField {
     pub fn get_display_name(&self) -> String {
         self.display_name.clone().unwrap_or_else(|| {
             // Convert snake_case to "Snake Case"
-            self.name.replace('_', " ")
+            self.name
+                .replace('_', " ")
                 .split_whitespace()
                 .map(|word| {
                     let mut chars = word.chars();
@@ -205,19 +208,19 @@ impl ConfigField {
 pub struct CVar {
     /// Console variable name (e.g., "voxel.ChunkSize")
     pub name: String,
-    
+
     /// Variable type (Float, Int, Bool, String)
     pub ty: Type,
-    
+
     /// Default value
     pub default: Option<Expr>,
-    
+
     /// Help text
     pub help_text: String,
-    
+
     /// Flags (e.g., ECVF_Default)
     pub flags: String,
-    
+
     /// Associated config field
     pub field: ConfigField,
 }
@@ -255,15 +258,27 @@ mod tests {
         assert_eq!(ConfigCategory::Game.uclass_specifier(), "Game");
         assert_eq!(ConfigCategory::Engine.uclass_specifier(), "Engine");
         assert_eq!(ConfigCategory::Editor.uclass_specifier(), "Editor");
-        assert_eq!(ConfigCategory::EditorPerProjectUserSettings.uclass_specifier(), "EditorPerProjectUserSettings");
+        assert_eq!(
+            ConfigCategory::EditorPerProjectUserSettings.uclass_specifier(),
+            "EditorPerProjectUserSettings"
+        );
     }
 
     #[test]
     fn test_config_category_default_ini_file() {
         assert_eq!(ConfigCategory::Game.default_ini_file(), "DefaultGame.ini");
-        assert_eq!(ConfigCategory::Engine.default_ini_file(), "DefaultEngine.ini");
-        assert_eq!(ConfigCategory::Editor.default_ini_file(), "DefaultEditor.ini");
-        assert_eq!(ConfigCategory::EditorPerProjectUserSettings.default_ini_file(), "DefaultEditorPerProjectUserSettings.ini");
+        assert_eq!(
+            ConfigCategory::Engine.default_ini_file(),
+            "DefaultEngine.ini"
+        );
+        assert_eq!(
+            ConfigCategory::Editor.default_ini_file(),
+            "DefaultEditor.ini"
+        );
+        assert_eq!(
+            ConfigCategory::EditorPerProjectUserSettings.default_ini_file(),
+            "DefaultEditorPerProjectUserSettings.ini"
+        );
     }
 
     #[test]
@@ -271,9 +286,18 @@ mod tests {
         assert_eq!(ConfigCategory::from_str("game"), Some(ConfigCategory::Game));
         assert_eq!(ConfigCategory::from_str("Game"), Some(ConfigCategory::Game));
         assert_eq!(ConfigCategory::from_str("GAME"), Some(ConfigCategory::Game));
-        assert_eq!(ConfigCategory::from_str("engine"), Some(ConfigCategory::Engine));
-        assert_eq!(ConfigCategory::from_str("editor"), Some(ConfigCategory::Editor));
-        assert_eq!(ConfigCategory::from_str("editorperprojectusersettings"), Some(ConfigCategory::EditorPerProjectUserSettings));
+        assert_eq!(
+            ConfigCategory::from_str("engine"),
+            Some(ConfigCategory::Engine)
+        );
+        assert_eq!(
+            ConfigCategory::from_str("editor"),
+            Some(ConfigCategory::Editor)
+        );
+        assert_eq!(
+            ConfigCategory::from_str("editorperprojectusersettings"),
+            Some(ConfigCategory::EditorPerProjectUserSettings)
+        );
         assert_eq!(ConfigCategory::from_str("invalid"), None);
     }
 
@@ -297,9 +321,9 @@ mod tests {
             },
             span: Span::default(),
         };
-        
+
         assert_eq!(config.ue5_class_name(), "UVoxelSettings");
-        
+
         let config_with_u = ConfigStruct {
             name: "UVoxelSettings".to_string(),
             ..config
@@ -310,7 +334,7 @@ mod tests {
     #[test]
     fn test_config_field_ue5_property_name() {
         use kain_core::ast::{Field, Visibility};
-        
+
         let field = ConfigField {
             name: "chunk_size".to_string(),
             ty: Type::Named {
@@ -341,14 +365,14 @@ mod tests {
             },
             span: Span::default(),
         };
-        
+
         assert_eq!(field.ue5_property_name(), "ChunkSize");
     }
 
     #[test]
     fn test_config_field_get_display_name() {
         use kain_core::ast::{Field, Visibility};
-        
+
         let field = ConfigField {
             name: "chunk_size".to_string(),
             ty: Type::Named {
@@ -379,9 +403,9 @@ mod tests {
             },
             span: Span::default(),
         };
-        
+
         assert_eq!(field.get_display_name(), "Chunk Size");
-        
+
         let field_with_display = ConfigField {
             display_name: Some("Custom Display Name".to_string()),
             ..field

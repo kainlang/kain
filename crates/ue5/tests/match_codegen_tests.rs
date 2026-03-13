@@ -10,19 +10,19 @@ fn compile_ue5(source: &str) -> Result<Ue5Output, error::KainError> {
     let tokens = lexer::Lexer::new(source).tokenize()?;
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
     let mut ast = parser::Parser::new(&tokens, &span_mapper, "<test>").parse()?;
-    
+
     // Compile-time evaluation
     comptime::eval_program(&mut ast)?;
-    
+
     // Type checking
     let typed = types::check(&ast, &span_mapper, "<test>")?;
-    
+
     // Monomorphization
     let mono = monomorphize::monomorphize(&typed)?;
-    
+
     // UE5 codegen
     let output = generate(&mono, None, None)?;
-    
+
     Ok(output)
 }
 
@@ -47,23 +47,31 @@ fn get_status_code(status: Status) -> Int:
 fn main():
     let code = get_status_code(Status::Active)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify enum variant matching generates correct C++ comparisons
-    assert!(cpp.contains("EStatus::Active") || cpp.contains("status == EStatus::Active"), 
-            "Should have enum variant comparison");
-    assert!(cpp.contains("EStatus::Inactive") || cpp.contains("status == EStatus::Inactive"), 
-            "Should have enum variant comparison");
-    assert!(cpp.contains("EStatus::Pending") || cpp.contains("status == EStatus::Pending"), 
-            "Should have enum variant comparison");
-    
+    assert!(
+        cpp.contains("EStatus::Active") || cpp.contains("status == EStatus::Active"),
+        "Should have enum variant comparison"
+    );
+    assert!(
+        cpp.contains("EStatus::Inactive") || cpp.contains("status == EStatus::Inactive"),
+        "Should have enum variant comparison"
+    );
+    assert!(
+        cpp.contains("EStatus::Pending") || cpp.contains("status == EStatus::Pending"),
+        "Should have enum variant comparison"
+    );
+
     // Verify ternary or if/else chain structure
-    assert!(cpp.contains("?") || cpp.contains("if"), 
-            "Should generate ternary or if/else chain");
+    assert!(
+        cpp.contains("?") || cpp.contains("if"),
+        "Should generate ternary or if/else chain"
+    );
 }
 
 #[test]
@@ -85,16 +93,18 @@ fn is_primary(color: Color) -> Bool:
 fn main():
     let result = is_primary(Color::Red)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify wildcard generates else clause
-    assert!(cpp.contains("else") || cpp.contains(": false"), 
-            "Wildcard should generate else clause or default value");
-    
+    assert!(
+        cpp.contains("else") || cpp.contains(": false"),
+        "Wildcard should generate else clause or default value"
+    );
+
     // Verify enum comparisons
     assert!(cpp.contains("EColor::Red"), "Should have Red variant");
     assert!(cpp.contains("EColor::Green"), "Should have Green variant");
@@ -118,23 +128,31 @@ fn classify_number(n: Int) -> String:
 fn main():
     let result = classify_number(1)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify literal comparisons
-    assert!(cpp.contains("== 0") || cpp.contains("(n == 0)"), 
-            "Should have literal 0 comparison");
-    assert!(cpp.contains("== 1") || cpp.contains("(n == 1)"), 
-            "Should have literal 1 comparison");
-    assert!(cpp.contains("== 2") || cpp.contains("(n == 2)"), 
-            "Should have literal 2 comparison");
-    
+    assert!(
+        cpp.contains("== 0") || cpp.contains("(n == 0)"),
+        "Should have literal 0 comparison"
+    );
+    assert!(
+        cpp.contains("== 1") || cpp.contains("(n == 1)"),
+        "Should have literal 1 comparison"
+    );
+    assert!(
+        cpp.contains("== 2") || cpp.contains("(n == 2)"),
+        "Should have literal 2 comparison"
+    );
+
     // Verify string literals are TEXT() wrapped
-    assert!(cpp.contains("TEXT(\"zero\")") || cpp.contains("TEXT(\"one\")"), 
-            "String literals should be TEXT() wrapped");
+    assert!(
+        cpp.contains("TEXT(\"zero\")") || cpp.contains("TEXT(\"one\")"),
+        "String literals should be TEXT() wrapped"
+    );
 }
 
 #[test]
@@ -148,17 +166,21 @@ fn bool_to_int(b: Bool) -> Int:
 fn main():
     let result = bool_to_int(true)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify bool literal matching
-    assert!(cpp.contains("true") && cpp.contains("false"), 
-            "Should have bool literal comparisons");
-    assert!(cpp.contains("?") || cpp.contains("if"), 
-            "Should generate conditional");
+    assert!(
+        cpp.contains("true") && cpp.contains("false"),
+        "Should have bool literal comparisons"
+    );
+    assert!(
+        cpp.contains("?") || cpp.contains("if"),
+        "Should generate conditional"
+    );
 }
 
 // ============================================================================
@@ -175,12 +197,12 @@ fn always_returns_42(x: Int) -> Int:
 fn main():
     let result = always_returns_42(100)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Wildcard should just return the value directly or in else clause
     assert!(cpp.contains("42"), "Should have return value 42");
 }
@@ -195,16 +217,18 @@ fn identity_match(x: Int) -> Int:
 fn main():
     let result = identity_match(42)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Binding pattern should create a variable binding
     // In simple cases, it might just return x directly
-    assert!(cpp.contains("return") || cpp.contains("n"), 
-            "Should have return or binding variable");
+    assert!(
+        cpp.contains("return") || cpp.contains("n"),
+        "Should have return or binding variable"
+    );
 }
 
 // ============================================================================
@@ -235,19 +259,23 @@ fn nested_match(o: Outer, i: Inner) -> Int:
 fn main():
     let val = nested_match(Outer::A, Inner::X)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify nested match generates nested conditionals
-    assert!(cpp.contains("EOuter::A") && cpp.contains("EInner::X"), 
-            "Should have both enum types");
-    
+    assert!(
+        cpp.contains("EOuter::A") && cpp.contains("EInner::X"),
+        "Should have both enum types"
+    );
+
     // Should have conditional logic (ternary or if statements)
-    assert!(cpp.contains("?") || cpp.contains("if"), 
-            "Should have conditional logic for nested match");
+    assert!(
+        cpp.contains("?") || cpp.contains("if"),
+        "Should have conditional logic for nested match"
+    );
 }
 
 #[test]
@@ -267,24 +295,36 @@ fn apply_op(op: Operation, a: Int, b: Int) -> Int:
 fn main():
     let result = apply_op(Operation::Add, 10, 20)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify arithmetic operations in match arms
-    assert!(cpp.contains("+") || cpp.contains("a + b"), 
-            "Should have addition");
-    assert!(cpp.contains("-") || cpp.contains("a - b"), 
-            "Should have subtraction");
-    assert!(cpp.contains("*") || cpp.contains("a * b"), 
-            "Should have multiplication");
-    
+    assert!(
+        cpp.contains("+") || cpp.contains("a + b"),
+        "Should have addition"
+    );
+    assert!(
+        cpp.contains("-") || cpp.contains("a - b"),
+        "Should have subtraction"
+    );
+    assert!(
+        cpp.contains("*") || cpp.contains("a * b"),
+        "Should have multiplication"
+    );
+
     // Verify enum matching
     assert!(cpp.contains("EOperation::Add"), "Should have Add variant");
-    assert!(cpp.contains("EOperation::Subtract"), "Should have Subtract variant");
-    assert!(cpp.contains("EOperation::Multiply"), "Should have Multiply variant");
+    assert!(
+        cpp.contains("EOperation::Subtract"),
+        "Should have Subtract variant"
+    );
+    assert!(
+        cpp.contains("EOperation::Multiply"),
+        "Should have Multiply variant"
+    );
 }
 
 // ============================================================================
@@ -308,20 +348,27 @@ fn set_speed(mode: Mode):
 fn main():
     set_speed(Mode::Fast)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify match with assignments generates if/else blocks
-    assert!(cpp.contains("speed = 100") || cpp.contains("speed=100"), 
-            "Should have assignment in match arm");
-    assert!(cpp.contains("speed = 10") || cpp.contains("speed=10"), 
-            "Should have assignment in match arm");
-    
+    assert!(
+        cpp.contains("speed = 100") || cpp.contains("speed=100"),
+        "Should have assignment in match arm"
+    );
+    assert!(
+        cpp.contains("speed = 10") || cpp.contains("speed=10"),
+        "Should have assignment in match arm"
+    );
+
     // Should use if/else, not ternary (because of assignments)
-    assert!(cpp.contains("if"), "Should use if/else for statement-level match");
+    assert!(
+        cpp.contains("if"),
+        "Should use if/else for statement-level match"
+    );
 }
 
 // ============================================================================
@@ -360,20 +407,35 @@ fn main():
     let cpp = &output.source;
 
     // Outer match arms should be if/else
-    assert!(cpp.contains("EMode::Conservative") || cpp.contains("Mode::Conservative"),
-        "Should have outer enum variant. Source:\n{}", cpp);
-    assert!(cpp.contains("EMode::Balanced") || cpp.contains("Mode::Balanced"),
-        "Should have outer enum variant. Source:\n{}", cpp);
+    assert!(
+        cpp.contains("EMode::Conservative") || cpp.contains("Mode::Conservative"),
+        "Should have outer enum variant. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("EMode::Balanced") || cpp.contains("Mode::Balanced"),
+        "Should have outer enum variant. Source:\n{}",
+        cpp
+    );
 
     // Inner match arms should also appear
-    assert!(cpp.contains("EBand::Near") || cpp.contains("Band::Near"),
-        "Should have inner enum variant. Source:\n{}", cpp);
-    assert!(cpp.contains("EBand::Far") || cpp.contains("Band::Far"),
-        "Should have inner enum variant. Source:\n{}", cpp);
+    assert!(
+        cpp.contains("EBand::Near") || cpp.contains("Band::Near"),
+        "Should have inner enum variant. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("EBand::Far") || cpp.contains("Band::Far"),
+        "Should have inner enum variant. Source:\n{}",
+        cpp
+    );
 
     // No unsupported pattern markers
-    assert!(!cpp.contains("/* unsupported pattern */"),
-        "Should not emit unsupported pattern markers. Source:\n{}", cpp);
+    assert!(
+        !cpp.contains("/* unsupported pattern */"),
+        "Should not emit unsupported pattern markers. Source:\n{}",
+        cpp
+    );
 }
 
 #[test]
@@ -399,14 +461,23 @@ fn main():
     let cpp = &output.source;
 
     // Let bindings inside match arm blocks must appear in output
-    assert!(cpp.contains("2.0") || cpp.contains("2"),
-        "Should have double multiplier. Source:\n{}", cpp);
-    assert!(cpp.contains("3.0") || cpp.contains("3"),
-        "Should have triple multiplier. Source:\n{}", cpp);
+    assert!(
+        cpp.contains("2.0") || cpp.contains("2"),
+        "Should have double multiplier. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("3.0") || cpp.contains("3"),
+        "Should have triple multiplier. Source:\n{}",
+        cpp
+    );
 
     // No unsupported pattern markers
-    assert!(!cpp.contains("/* unsupported pattern */"),
-        "Should not emit unsupported pattern markers. Source:\n{}", cpp);
+    assert!(
+        !cpp.contains("/* unsupported pattern */"),
+        "Should not emit unsupported pattern markers. Source:\n{}",
+        cpp
+    );
 }
 
 #[test]
@@ -438,23 +509,44 @@ fn main():
     let cpp = &output.source;
 
     // All three arms should appear
-    assert!(cpp.contains("EPhase::Init") || cpp.contains("Phase::Init"),
-        "Should have Init arm. Source:\n{}", cpp);
-    assert!(cpp.contains("EPhase::Run") || cpp.contains("Phase::Run"),
-        "Should have Run arm. Source:\n{}", cpp);
-    assert!(cpp.contains("EPhase::Cleanup") || cpp.contains("Phase::Cleanup"),
-        "Should have Cleanup arm. Source:\n{}", cpp);
+    assert!(
+        cpp.contains("EPhase::Init") || cpp.contains("Phase::Init"),
+        "Should have Init arm. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("EPhase::Run") || cpp.contains("Phase::Run"),
+        "Should have Run arm. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("EPhase::Cleanup") || cpp.contains("Phase::Cleanup"),
+        "Should have Cleanup arm. Source:\n{}",
+        cpp
+    );
 
     // Multi-statement arms: both assignments in Init arm must appear
-    assert!(cpp.contains("counter = 0"),
-        "Should have counter = 0. Source:\n{}", cpp);
-    assert!(cpp.contains("active = true") || cpp.contains("active=true"),
-        "Should have active = true. Source:\n{}", cpp);
-    assert!(cpp.contains("active = false") || cpp.contains("active=false"),
-        "Should have active = false. Source:\n{}", cpp);
+    assert!(
+        cpp.contains("counter = 0"),
+        "Should have counter = 0. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("active = true") || cpp.contains("active=true"),
+        "Should have active = true. Source:\n{}",
+        cpp
+    );
+    assert!(
+        cpp.contains("active = false") || cpp.contains("active=false"),
+        "Should have active = false. Source:\n{}",
+        cpp
+    );
 
-    assert!(!cpp.contains("/* unsupported pattern */"),
-        "Should not emit unsupported pattern markers. Source:\n{}", cpp);
+    assert!(
+        !cpp.contains("/* unsupported pattern */"),
+        "Should not emit unsupported pattern markers. Source:\n{}",
+        cpp
+    );
 }
 
 // ============================================================================
@@ -471,12 +563,12 @@ fn always_42(x: Int) -> Int:
 fn main():
     let result = always_42(100)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Single wildcard arm should just return the value
     assert!(cpp.contains("42"), "Should have return value");
 }
@@ -500,23 +592,30 @@ fn get_multiplier(level: Level) -> Float:
 fn main():
     let mult = get_multiplier(Level::High)
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify all arms are generated
     assert!(cpp.contains("ELevel::Low"), "Should have Low variant");
     assert!(cpp.contains("ELevel::Medium"), "Should have Medium variant");
     assert!(cpp.contains("ELevel::High"), "Should have High variant");
-    assert!(cpp.contains("ELevel::VeryHigh"), "Should have VeryHigh variant");
-    
+    assert!(
+        cpp.contains("ELevel::VeryHigh"),
+        "Should have VeryHigh variant"
+    );
+
     // Verify float literals
-    assert!(cpp.contains("0.5") || cpp.contains("0.500000"), 
-            "Should have float literal");
-    assert!(cpp.contains("1.0") || cpp.contains("1.000000"), 
-            "Should have float literal");
+    assert!(
+        cpp.contains("0.5") || cpp.contains("0.500000"),
+        "Should have float literal"
+    );
+    assert!(
+        cpp.contains("1.0") || cpp.contains("1.000000"),
+        "Should have float literal"
+    );
 }
 
 // ============================================================================
@@ -543,18 +642,22 @@ actor GameManager:
 fn main():
     println("Test")
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify actor generation with match expression
-    assert!(cpp.contains("AGameManager") || cpp.contains("class GameManager"), 
-            "Should generate actor class");
+    assert!(
+        cpp.contains("AGameManager") || cpp.contains("class GameManager"),
+        "Should generate actor class"
+    );
     assert!(cpp.contains("EGameState::Menu"), "Should have enum variant");
-    assert!(cpp.contains("get_state_name") || cpp.contains("GetStateName"), 
-            "Should have method");
+    assert!(
+        cpp.contains("get_state_name") || cpp.contains("GetStateName"),
+        "Should have method"
+    );
 }
 
 #[test]
@@ -575,20 +678,24 @@ fn get_priority_value(priority: Priority) -> Int:
 fn main():
     println("Test")
 "#;
-    
+
     let output = compile_ue5(source).unwrap();
     let cpp = &output.source;
-    
+
     println!("Generated C++:\n{}", cpp);
-    
+
     // Verify blueprint function with match
     // Note: UFUNCTION macro generation depends on full UE5 backend pipeline
     // For now, verify the function exists and match logic is correct
-    assert!(cpp.contains("get_priority_value") || cpp.contains("GetPriorityValue"), 
-            "Should have function name");
+    assert!(
+        cpp.contains("get_priority_value") || cpp.contains("GetPriorityValue"),
+        "Should have function name"
+    );
     assert!(cpp.contains("EPriority::Low"), "Should have enum variant");
-    
+
     // Verify match expression generates correct conditional logic
-    assert!(cpp.contains("?") || cpp.contains("if"), 
-            "Should have conditional logic for match expression");
+    assert!(
+        cpp.contains("?") || cpp.contains("if"),
+        "Should have conditional logic for match expression"
+    );
 }

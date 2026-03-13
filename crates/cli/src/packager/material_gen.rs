@@ -1,9 +1,9 @@
-use std::path::Path;
-use std::fs;
 use crate::error::KainResult;
+use std::fs;
+use std::path::Path;
 
 #[cfg(feature = "ue5")]
-use ue5_materials::{MaterialGraph, MaterialFactoryGenerator};
+use ue5_materials::{MaterialFactoryGenerator, MaterialGraph};
 
 /// Generate material factory files for runtime material creation.
 /// Creates MaterialFactories.h/cpp in `private_dir/Generated/`.
@@ -36,7 +36,10 @@ pub fn generate_material_factories(
     let cpp = generator.generate_factory_cpp(graphs);
     fs::write(generated_dir.join("MaterialFactories.cpp"), cpp)?;
 
-    println!("✓ Generated material factories for {} materials", graphs.len());
+    println!(
+        "✓ Generated material factories for {} materials",
+        graphs.len()
+    );
 
     Ok(())
 }

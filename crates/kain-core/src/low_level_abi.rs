@@ -84,14 +84,49 @@ const fn policy_entry(
 }
 
 const C_ABI_POLICY_TABLE: &[CAbiPolicyEntry] = &[
-    policy_entry("generic-lp64", CAbiKind::GenericLp64, CCompilerFlavor::Generic, 64),
-    policy_entry("generic-llp64", CAbiKind::GenericLlp64, CCompilerFlavor::Generic, 32),
+    policy_entry(
+        "generic-lp64",
+        CAbiKind::GenericLp64,
+        CCompilerFlavor::Generic,
+        64,
+    ),
+    policy_entry(
+        "generic-llp64",
+        CAbiKind::GenericLlp64,
+        CCompilerFlavor::Generic,
+        32,
+    ),
     policy_entry("gcc-lp64", CAbiKind::GenericLp64, CCompilerFlavor::Gcc, 64),
-    policy_entry("gcc-llp64", CAbiKind::GenericLlp64, CCompilerFlavor::Gcc, 32),
-    policy_entry("clang-lp64", CAbiKind::GenericLp64, CCompilerFlavor::Clang, 64),
-    policy_entry("clang-llp64", CAbiKind::GenericLlp64, CCompilerFlavor::Clang, 32),
-    policy_entry("msvc-lp64", CAbiKind::GenericLp64, CCompilerFlavor::Msvc, 64),
-    policy_entry("msvc-llp64", CAbiKind::GenericLlp64, CCompilerFlavor::Msvc, 32),
+    policy_entry(
+        "gcc-llp64",
+        CAbiKind::GenericLlp64,
+        CCompilerFlavor::Gcc,
+        32,
+    ),
+    policy_entry(
+        "clang-lp64",
+        CAbiKind::GenericLp64,
+        CCompilerFlavor::Clang,
+        64,
+    ),
+    policy_entry(
+        "clang-llp64",
+        CAbiKind::GenericLlp64,
+        CCompilerFlavor::Clang,
+        32,
+    ),
+    policy_entry(
+        "msvc-lp64",
+        CAbiKind::GenericLp64,
+        CCompilerFlavor::Msvc,
+        64,
+    ),
+    policy_entry(
+        "msvc-llp64",
+        CAbiKind::GenericLlp64,
+        CCompilerFlavor::Msvc,
+        32,
+    ),
 ];
 
 pub fn c_compiler_flavor_from_str(value: &str) -> Option<CCompilerFlavor> {
@@ -220,23 +255,46 @@ pub fn usual_arithmetic_conversion_type(
     let rhs = arithmetic_domain_for_type(right, abi)?;
 
     match (lhs, rhs) {
-        (ArithmeticDomain::Float { bits: lhs_bits }, ArithmeticDomain::Float { bits: rhs_bits }) => {
-            Some(if lhs_bits >= rhs_bits { left.clone() } else { right.clone() })
-        }
+        (
+            ArithmeticDomain::Float { bits: lhs_bits },
+            ArithmeticDomain::Float { bits: rhs_bits },
+        ) => Some(if lhs_bits >= rhs_bits {
+            left.clone()
+        } else {
+            right.clone()
+        }),
         (ArithmeticDomain::Float { .. }, _) => Some(left.clone()),
         (_, ArithmeticDomain::Float { .. }) => Some(right.clone()),
         (
-            ArithmeticDomain::Integer { bits: lhs_bits, signed: lhs_signed },
-            ArithmeticDomain::Integer { bits: rhs_bits, signed: rhs_signed },
+            ArithmeticDomain::Integer {
+                bits: lhs_bits,
+                signed: lhs_signed,
+            },
+            ArithmeticDomain::Integer {
+                bits: rhs_bits,
+                signed: rhs_signed,
+            },
         ) => {
             let lhs_promoted = promoted_integer_bits(lhs_bits, lhs_signed, abi);
             let rhs_promoted = promoted_integer_bits(rhs_bits, rhs_signed, abi);
             if lhs_signed == rhs_signed {
-                Some(if lhs_signed { named_type("Int") } else { named_type("UInt") })
+                Some(if lhs_signed {
+                    named_type("Int")
+                } else {
+                    named_type("UInt")
+                })
             } else if lhs_promoted > rhs_promoted {
-                Some(if lhs_signed { named_type("Int") } else { named_type("UInt") })
+                Some(if lhs_signed {
+                    named_type("Int")
+                } else {
+                    named_type("UInt")
+                })
             } else if rhs_promoted > lhs_promoted {
-                Some(if rhs_signed { named_type("Int") } else { named_type("UInt") })
+                Some(if rhs_signed {
+                    named_type("Int")
+                } else {
+                    named_type("UInt")
+                })
             } else if !lhs_signed || !rhs_signed {
                 Some(named_type("UInt"))
             } else {
@@ -293,9 +351,18 @@ mod tests {
 
     #[test]
     fn compiler_flavor_parser_accepts_aliases() {
-        assert_eq!(c_compiler_flavor_from_str("gnu"), Some(CCompilerFlavor::Gcc));
-        assert_eq!(c_compiler_flavor_from_str("llvm"), Some(CCompilerFlavor::Clang));
-        assert_eq!(c_compiler_flavor_from_str("cl"), Some(CCompilerFlavor::Msvc));
+        assert_eq!(
+            c_compiler_flavor_from_str("gnu"),
+            Some(CCompilerFlavor::Gcc)
+        );
+        assert_eq!(
+            c_compiler_flavor_from_str("llvm"),
+            Some(CCompilerFlavor::Clang)
+        );
+        assert_eq!(
+            c_compiler_flavor_from_str("cl"),
+            Some(CCompilerFlavor::Msvc)
+        );
         assert_eq!(c_compiler_flavor_from_str("unknown"), None);
     }
 }

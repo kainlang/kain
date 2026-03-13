@@ -51,22 +51,22 @@ use thiserror::Error;
 pub enum ImportError {
     #[error("Failed to parse C file: {0}")]
     CParseError(String),
-    
+
     #[error("Failed to parse Rust file: {0}")]
     RustParseError(String),
-    
+
     #[error("Failed to parse TypeScript file: {0}")]
     TypeScriptParseError(String),
-    
+
     #[error("Failed to transform to KAIN AST: {0}")]
     TransformError(String),
-    
+
     #[error("Unsupported language feature: {0}")]
     UnsupportedFeature(String),
-    
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    
+
     #[error("Type resolution error: {0}")]
     TypeError(String),
 }
@@ -175,8 +175,7 @@ pub fn import_usf_with_config(
     path: &std::path::Path,
     config: usf::UsfImportConfig,
 ) -> Result<Program> {
-    usf::import_usf_file(path, config)
-        .map_err(|e| ImportError::TransformError(e.to_string()))
+    usf::import_usf_file(path, config).map_err(|e| ImportError::TransformError(e.to_string()))
 }
 
 #[cfg(feature = "usf")]

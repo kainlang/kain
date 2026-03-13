@@ -1,21 +1,21 @@
 //! KAIN Effect System - Track side effects at compile time
 
 use crate::diagnostic_registry::DiagnosticCode;
+use crate::error::KainResult;
 use crate::error::{DiagnosticBuilder, ErrorKind};
 use crate::span::Span;
-use crate::error::KainResult;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Effect {
-    Pure,      // No side effects
-    IO,        // File/Network/Console
-    Async,     // Can await
-    GPU,       // Runs on graphics hardware
-    Reactive,  // Triggers UI updates
-    Unsafe,    // Breaks safety guarantees
-    Alloc,     // Memory allocation
-    Panic,     // Can abort
+    Pure,     // No side effects
+    IO,       // File/Network/Console
+    Async,    // Can await
+    GPU,      // Runs on graphics hardware
+    Reactive, // Triggers UI updates
+    Unsafe,   // Breaks safety guarantees
+    Alloc,    // Memory allocation
+    Panic,    // Can abort
 }
 
 impl Effect {
@@ -38,38 +38,52 @@ pub struct EffectSet {
 }
 
 impl EffectSet {
-    pub fn new() -> Self { Self { effects: HashSet::new() } }
-    pub fn pure() -> Self { Self::new().with(Effect::Pure) }
-    
+    pub fn new() -> Self {
+        Self {
+            effects: HashSet::new(),
+        }
+    }
+    pub fn pure() -> Self {
+        Self::new().with(Effect::Pure)
+    }
+
     pub fn with(mut self, e: Effect) -> Self {
         self.effects.insert(e);
         self
     }
-    
+
     pub fn is_pure(&self) -> bool {
         self.effects.is_empty() || self.effects.iter().all(|e| *e == Effect::Pure)
     }
-    
+
     pub fn can_call(&self, callee: &EffectSet) -> bool {
-        if callee.is_pure() { return true; }
-        if self.is_pure() { return false; }
-        if self.effects.contains(&Effect::Unsafe) { return true; }
+        if callee.is_pure() {
+            return true;
+        }
+        if self.is_pure() {
+            return false;
+        }
+        if self.effects.contains(&Effect::Unsafe) {
+            return true;
+        }
         callee.effects.iter().all(|e| self.effects.contains(e))
     }
 }
 
 pub fn check_effect_call(
-    caller: &EffectSet, 
-    callee: &EffectSet, 
+    caller: &EffectSet,
+    callee: &EffectSet,
     caller_name: &str,
     callee_name: &str,
-    _span: Span
+    _span: Span,
 ) -> KainResult<()> {
     if !caller.can_call(callee) {
-        let caller_effect_str = if caller.is_pure() { 
-            "Pure".to_string() 
-        } else { 
-            caller.effects.iter()
+        let caller_effect_str = if caller.is_pure() {
+            "Pure".to_string()
+        } else {
+            caller
+                .effects
+                .iter()
                 .map(|e| match e {
                     Effect::Pure => "Pure",
                     Effect::IO => "IO",
@@ -83,11 +97,13 @@ pub fn check_effect_call(
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        
-        let callee_effect_str = if callee.is_pure() { 
-            "Pure".to_string() 
-        } else { 
-            callee.effects.iter()
+
+        let callee_effect_str = if callee.is_pure() {
+            "Pure".to_string()
+        } else {
+            callee
+                .effects
+                .iter()
                 .map(|e| match e {
                     Effect::Pure => "Pure",
                     Effect::IO => "IO",
@@ -101,12 +117,11 @@ pub fn check_effect_call(
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        
-        return Err(
-            DiagnosticBuilder::new(
-                ErrorKind::Validation,
-                DiagnosticCode::EffectViolation,
-                format!(
+
+        return Err(DiagnosticBuilder::new(
+            ErrorKind::Validation,
+            DiagnosticCode::EffectViolation,
+            format!(
                 "Effect violation: {} function '{}' cannot call {} function '{}'.
 
 Effect System Rules:
@@ -139,17 +154,23 @@ Example (Fixed):
       let config = read_config()   # OK: IO can call IO
       return 42
 ",
-                caller_effect_str, caller_name, callee_effect_str, callee_name,
-                caller_name, caller_effect_str, callee_name, callee_effect_str,
-                caller_name, callee_effect_str
-                ),
-            )
-            .context(format!(
-                "Caller '{}' ({}) attempted to call '{}' ({})",
-                caller_name, caller_effect_str, callee_name, callee_effect_str
-            ))
-            .build(),
-        );
+                caller_effect_str,
+                caller_name,
+                callee_effect_str,
+                callee_name,
+                caller_name,
+                caller_effect_str,
+                callee_name,
+                callee_effect_str,
+                caller_name,
+                callee_effect_str
+            ),
+        )
+        .context(format!(
+            "Caller '{}' ({}) attempted to call '{}' ({})",
+            caller_name, caller_effect_str, callee_name, callee_effect_str
+        ))
+        .build());
     }
     Ok(())
 }

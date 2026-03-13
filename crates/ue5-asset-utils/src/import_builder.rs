@@ -18,10 +18,7 @@ pub struct ImportBuilder;
 impl ImportBuilder {
     /// Find an existing import by its object name string.
     /// Returns `Some(PackageIndex)` (negative) if found, `None` otherwise.
-    pub fn find_import_by_name(
-        asset: &Asset<Cursor<Vec<u8>>>,
-        name: &str,
-    ) -> Option<PackageIndex> {
+    pub fn find_import_by_name(asset: &Asset<Cursor<Vec<u8>>>, name: &str) -> Option<PackageIndex> {
         for (i, imp) in asset.imports.iter().enumerate() {
             let matches = imp.object_name.get_content(|n| n == name);
             if matches {
@@ -111,10 +108,7 @@ impl ImportBuilder {
     ///
     /// Creates the package import and object import if they don't exist.
     /// Returns `PackageIndex(0)` (null) only if the path is empty.
-    pub fn resolve_object_import(
-        asset: &mut Asset<Cursor<Vec<u8>>>,
-        path: &str,
-    ) -> PackageIndex {
+    pub fn resolve_object_import(asset: &mut Asset<Cursor<Vec<u8>>>, path: &str) -> PackageIndex {
         if path.is_empty() {
             return PackageIndex::new(0);
         }
@@ -191,17 +185,14 @@ mod tests {
         let mut asset = empty_asset();
         let idx = ImportBuilder::resolve_object_import(&mut asset, "/Script/Engine.Actor");
         assert!(idx.index < 0); // negative = import
-        // Should have created: /Script/Engine (package) + Actor (class)
+                                // Should have created: /Script/Engine (package) + Actor (class)
         assert_eq!(asset.imports.len(), 2);
     }
 
     #[test]
     fn test_resolve_object_import_game_path() {
         let mut asset = empty_asset();
-        let idx = ImportBuilder::resolve_object_import(
-            &mut asset,
-            "/Game/Meshes/SM_Cube.SM_Cube",
-        );
+        let idx = ImportBuilder::resolve_object_import(&mut asset, "/Game/Meshes/SM_Cube.SM_Cube");
         assert!(idx.index < 0);
         // Package + Object = 2 imports
         assert_eq!(asset.imports.len(), 2);

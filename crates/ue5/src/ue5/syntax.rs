@@ -1,5 +1,5 @@
 //! UE5 Macro Builders
-//! 
+//!
 //! Abstract helpers for UFUNCTION, UPROPERTY, UCLASS, etc.
 //! Instead of manual string formatting, use fluent builders.
 
@@ -67,7 +67,8 @@ impl PropertyBuilder {
     }
 
     pub fn display_name(mut self, name: impl Into<String>) -> Self {
-        self.meta_tags.push(format!("DisplayName = \"{}\"", name.into()));
+        self.meta_tags
+            .push(format!("DisplayName = \"{}\"", name.into()));
         self
     }
 
@@ -93,15 +94,15 @@ impl PropertyBuilder {
 
     pub fn build(self) -> String {
         let mut parts = self.specifiers;
-        
+
         if let Some(cat) = self.category {
             parts.push(format!("Category = \"{}\"", cat));
         }
-        
+
         if !self.meta_tags.is_empty() {
             parts.push(format!("meta = ({})", self.meta_tags.join(", ")));
         }
-        
+
         format!("UPROPERTY({})", parts.join(", "))
     }
 }
@@ -156,15 +157,15 @@ impl FunctionBuilder {
 
     pub fn build(self) -> String {
         let mut parts = self.specifiers;
-        
+
         if let Some(cat) = self.category {
             parts.push(format!("Category = \"{}\"", cat));
         }
-        
+
         if !self.meta_tags.is_empty() {
             parts.push(format!("meta = ({})", self.meta_tags.join(", ")));
         }
-        
+
         format!("UFUNCTION({})", parts.join(", "))
     }
 }
@@ -182,7 +183,7 @@ mod tests {
             .clamp_min(0)
             .clamp_max(100)
             .build();
-        
+
         assert!(prop.contains("EditAnywhere"));
         assert!(prop.contains("BlueprintReadWrite"));
         assert!(prop.contains("Category = \"Test\""));
@@ -195,7 +196,7 @@ mod tests {
             .blueprint_callable()
             .category("MyCategory")
             .build();
-        
+
         assert!(func.contains("BlueprintCallable"));
         assert!(func.contains("Category = \"MyCategory\""));
     }

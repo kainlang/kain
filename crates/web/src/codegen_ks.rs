@@ -10,13 +10,13 @@
 //! Think of it as TypeScript that refused to put up a build wall between you and your code.
 
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, EnumVariantFields, Expr, Impl, JSXAttrValue, JSXNode,
-    Pattern, Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
+    BinaryOp, Block, ElseBranch, EnumVariantFields, Expr, Impl, JSXAttrValue, JSXNode, Pattern,
+    Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
 };
 use kain_core::error::KainResult;
 use kain_core::types::{
-    FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction,
-    TypedItem, TypedProgram, TypedStruct,
+    FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem,
+    TypedProgram, TypedStruct,
 };
 use std::collections::HashSet;
 
@@ -70,8 +70,14 @@ impl KsGen {
         self.out.push(String::new());
     }
 
-    fn indent(&mut self) { self.indent += 1; }
-    fn dedent(&mut self) { if self.indent > 0 { self.indent -= 1; } }
+    fn indent(&mut self) {
+        self.indent += 1;
+    }
+    fn dedent(&mut self) {
+        if self.indent > 0 {
+            self.indent -= 1;
+        }
+    }
 
     // ── Type → JSDoc string ────────────────────────────────────────────────
 
@@ -79,9 +85,10 @@ impl KsGen {
         match ty {
             Type::Named { name, generics, .. } => {
                 let base = match name.as_str() {
-                    "Int" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
-                    | "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
-                    | "f32" | "f64" | "Float" => "number".to_string(),
+                    "Int" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16"
+                    | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" | "Float" => {
+                        "number".to_string()
+                    }
                     "Bool" => "boolean".to_string(),
                     "String" | "str" | "Char" => "string".to_string(),
                     "Unit" => "void".to_string(),
@@ -93,35 +100,57 @@ impl KsGen {
                 if generics.is_empty() {
                     base
                 } else {
-                    let gs = generics.iter().map(|g| self.type_jsdoc(g)).collect::<Vec<_>>().join(", ");
+                    let gs = generics
+                        .iter()
+                        .map(|g| self.type_jsdoc(g))
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     // Map KAIN generics to JSDoc equivalents
                     match base.as_str() {
                         "Array" | "Vec" => format!("{}[]", self.type_jsdoc(&generics[0])),
-                        "Map" | "HashMap" if generics.len() == 2 =>
-                            format!("Map<{}, {}>", self.type_jsdoc(&generics[0]), self.type_jsdoc(&generics[1])),
-                        "Set" | "HashSet" if !generics.is_empty() =>
-                            format!("Set<{}>", self.type_jsdoc(&generics[0])),
+                        "Map" | "HashMap" if generics.len() == 2 => format!(
+                            "Map<{}, {}>",
+                            self.type_jsdoc(&generics[0]),
+                            self.type_jsdoc(&generics[1])
+                        ),
+                        "Set" | "HashSet" if !generics.is_empty() => {
+                            format!("Set<{}>", self.type_jsdoc(&generics[0]))
+                        }
                         _ => format!("{}<{}>", base, gs),
                     }
                 }
             }
-            Type::Array(inner, _, _) | Type::Slice(inner, _) =>
-                format!("{}[]", self.type_jsdoc(inner)),
+            Type::Array(inner, _, _) | Type::Slice(inner, _) => {
+                format!("{}[]", self.type_jsdoc(inner))
+            }
             Type::Tuple(types, _) => {
-                let inner = types.iter().map(|t| self.type_jsdoc(t)).collect::<Vec<_>>().join(", ");
+                let inner = types
+                    .iter()
+                    .map(|t| self.type_jsdoc(t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("[{}]", inner)
             }
             Type::Ref { inner, .. } => self.type_jsdoc(inner),
-            Type::Function { params, return_type, .. } => {
-                let ps = params.iter().enumerate()
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
+                let ps = params
+                    .iter()
+                    .enumerate()
                     .map(|(i, p)| format!("arg{}: {}", i, self.type_jsdoc(p)))
-                    .collect::<Vec<_>>().join(", ");
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("function({}): {}", ps, self.type_jsdoc(return_type))
             }
             Type::Option(inner, _) => format!("{} | null | undefined", self.type_jsdoc(inner)),
-            Type::Result(ok, err, _) =>
-                format!("{{ ok: true, value: {} }} | {{ ok: false, error: {} }}",
-                    self.type_jsdoc(ok), self.type_jsdoc(err)),
+            Type::Result(ok, err, _) => format!(
+                "{{ ok: true, value: {} }} | {{ ok: false, error: {} }}",
+                self.type_jsdoc(ok),
+                self.type_jsdoc(err)
+            ),
             Type::Never(_) => "never".to_string(),
             Type::Unit(_) => "void".to_string(),
             Type::Infer(_) | Type::Impl { .. } => "*".to_string(),
@@ -135,23 +164,36 @@ impl KsGen {
             ResolvedType::Bool => "boolean".to_string(),
             ResolvedType::Int(_) | ResolvedType::Float(_) => "number".to_string(),
             ResolvedType::String | ResolvedType::Char => "string".to_string(),
-            ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) =>
-                format!("{}[]", self.resolved_jsdoc(inner)),
+            ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
+                format!("{}[]", self.resolved_jsdoc(inner))
+            }
             ResolvedType::Tuple(inner) => {
-                let s = inner.iter().map(|t| self.resolved_jsdoc(t)).collect::<Vec<_>>().join(", ");
+                let s = inner
+                    .iter()
+                    .map(|t| self.resolved_jsdoc(t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("[{}]", s)
             }
-            ResolvedType::Option(inner) => format!("{} | null | undefined", self.resolved_jsdoc(inner)),
-            ResolvedType::Result(ok, err) =>
-                format!("{{ ok: true, value: {} }} | {{ ok: false, error: {} }}",
-                    self.resolved_jsdoc(ok), self.resolved_jsdoc(err)),
+            ResolvedType::Option(inner) => {
+                format!("{} | null | undefined", self.resolved_jsdoc(inner))
+            }
+            ResolvedType::Result(ok, err) => format!(
+                "{{ ok: true, value: {} }} | {{ ok: false, error: {} }}",
+                self.resolved_jsdoc(ok),
+                self.resolved_jsdoc(err)
+            ),
             ResolvedType::Ref { inner, .. } => self.resolved_jsdoc(inner),
-            ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) | ResolvedType::Generic(name) =>
-                name.clone(),
+            ResolvedType::Struct(name, _)
+            | ResolvedType::Enum(name, _)
+            | ResolvedType::Generic(name) => name.clone(),
             ResolvedType::Function { params, ret, .. } => {
-                let ps = params.iter().enumerate()
+                let ps = params
+                    .iter()
+                    .enumerate()
                     .map(|(i, p)| format!("arg{}: {}", i, self.resolved_jsdoc(p)))
-                    .collect::<Vec<_>>().join(", ");
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("function({}): {}", ps, self.resolved_jsdoc(ret))
             }
             ResolvedType::Never => "never".to_string(),
@@ -173,47 +215,95 @@ impl KsGen {
 
         // File header
         self.out.push("// @ts-check".to_string());
-        self.out.push("// Generated by KAIN compiler — KainScript target (.ks)".to_string());
-        self.out.push("// Runs natively in Node.js, Deno, Bun, and browsers. No compilation needed.".to_string());
-        self.out.push("// Full type checking: tsc --checkJs --noEmit file.ks".to_string());
+        self.out
+            .push("// Generated by KAIN compiler — KainScript target (.ks)".to_string());
+        self.out.push(
+            "// Runs natively in Node.js, Deno, Bun, and browsers. No compilation needed."
+                .to_string(),
+        );
+        self.out
+            .push("// Full type checking: tsc --checkJs --noEmit file.ks".to_string());
         self.out.push("/* eslint-disable */".to_string());
         self.blank();
 
         // Numeric coercion helpers (documented with JSDoc for type safety)
-        self.out.push("// ── Numeric type coercion helpers ─────────────────────────────────────────".to_string());
-        self.out.push("/** @param {number} n @returns {number} */ function u8(n)  { return n & 0xFF; }".to_string());
-        self.out.push("/** @param {number} n @returns {number} */ function u16(n) { return n & 0xFFFF; }".to_string());
-        self.out.push("/** @param {number} n @returns {number} */ function u32(n) { return n >>> 0; }".to_string());
+        self.out.push(
+            "// ── Numeric type coercion helpers ─────────────────────────────────────────"
+                .to_string(),
+        );
+        self.out.push(
+            "/** @param {number} n @returns {number} */ function u8(n)  { return n & 0xFF; }"
+                .to_string(),
+        );
+        self.out.push(
+            "/** @param {number} n @returns {number} */ function u16(n) { return n & 0xFFFF; }"
+                .to_string(),
+        );
+        self.out.push(
+            "/** @param {number} n @returns {number} */ function u32(n) { return n >>> 0; }"
+                .to_string(),
+        );
         self.out.push("/** @param {number} n @returns {number} */ function i8(n)  { return (n << 24) >> 24; }".to_string());
         self.out.push("/** @param {number} n @returns {number} */ function i16(n) { return (n << 16) >> 16; }".to_string());
-        self.out.push("/** @param {number} n @returns {number} */ function i32(n) { return n | 0; }".to_string());
-        self.out.push("/** @param {number} n @returns {number} */ function f32(n) { return Math.fround(n); }".to_string());
+        self.out.push(
+            "/** @param {number} n @returns {number} */ function i32(n) { return n | 0; }"
+                .to_string(),
+        );
+        self.out.push(
+            "/** @param {number} n @returns {number} */ function f32(n) { return Math.fround(n); }"
+                .to_string(),
+        );
         self.blank();
         // KAIN stdlib bridge — maps bare KAIN names to JS globals so .ks runs
         // natively in Node.js, Deno, Bun, and browsers with no polyfills needed.
-        self.out.push("// ── KAIN stdlib bridge (auto-generated) ───────────────────────────────────".to_string());
-        self.out.push("function __kain_clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }".to_string());
-        self.out.push("function println(...a) { console.log(...a); }".to_string());
-        self.out.push("function print(...a) { process?.stdout?.write(String(a[0])) ?? console.log(...a); }".to_string());
-        self.out.push("function push(arr, v) { arr.push(v); return arr; }".to_string());
-        self.out.push("function pop(arr) { return arr.pop(); }".to_string());
-        self.out.push("function len(v) { return v?.length ?? 0; }".to_string());
-        self.out.push("function is_empty(v) { return (v?.length ?? 0) === 0; }".to_string());
-        self.out.push("function map(arr, f) { return arr.map(f); }".to_string());
-        self.out.push("function filter(arr, f) { return arr.filter(f); }".to_string());
-        self.out.push("function reduce(arr, f, init) { return arr.reduce(f, init); }".to_string());
-        self.out.push("function to_string(v) { return String(v); }".to_string());
-        self.out.push("function parse_int(s) { return parseInt(s, 10); }".to_string());
-        self.out.push("function parse_float(s) { return parseFloat(s); }".to_string());
-        self.out.push("function http_get(url) { return fetch(url).then(r => r.text()); }".to_string());
+        self.out.push(
+            "// ── KAIN stdlib bridge (auto-generated) ───────────────────────────────────"
+                .to_string(),
+        );
+        self.out.push(
+            "function __kain_clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }"
+                .to_string(),
+        );
+        self.out
+            .push("function println(...a) { console.log(...a); }".to_string());
+        self.out.push(
+            "function print(...a) { process?.stdout?.write(String(a[0])) ?? console.log(...a); }"
+                .to_string(),
+        );
+        self.out
+            .push("function push(arr, v) { arr.push(v); return arr; }".to_string());
+        self.out
+            .push("function pop(arr) { return arr.pop(); }".to_string());
+        self.out
+            .push("function len(v) { return v?.length ?? 0; }".to_string());
+        self.out
+            .push("function is_empty(v) { return (v?.length ?? 0) === 0; }".to_string());
+        self.out
+            .push("function map(arr, f) { return arr.map(f); }".to_string());
+        self.out
+            .push("function filter(arr, f) { return arr.filter(f); }".to_string());
+        self.out
+            .push("function reduce(arr, f, init) { return arr.reduce(f, init); }".to_string());
+        self.out
+            .push("function to_string(v) { return String(v); }".to_string());
+        self.out
+            .push("function parse_int(s) { return parseInt(s, 10); }".to_string());
+        self.out
+            .push("function parse_float(s) { return parseFloat(s); }".to_string());
+        self.out
+            .push("function http_get(url) { return fetch(url).then(r => r.text()); }".to_string());
         self.out.push("function http_post(url, body) { return fetch(url, { method: 'POST', body: JSON.stringify(body) }).then(r => r.text()); }".to_string());
-        self.out.push("function json_parse(s) { return JSON.parse(s); }".to_string());
-        self.out.push("function json_stringify(v) { return JSON.stringify(v); }".to_string());
+        self.out
+            .push("function json_parse(s) { return JSON.parse(s); }".to_string());
+        self.out
+            .push("function json_stringify(v) { return JSON.stringify(v); }".to_string());
         self.blank();
 
         if self.needs_dom {
-            self.out.push("// DOM type hints for JSX components".to_string());
-            self.out.push("/** @typedef {Node | DocumentFragment} KainNode */".to_string());
+            self.out
+                .push("// DOM type hints for JSX components".to_string());
+            self.out
+                .push("/** @typedef {Node | DocumentFragment} KainNode */".to_string());
             self.blank();
         }
 
@@ -240,13 +330,17 @@ impl KsGen {
             }
         }
         // Auto-call main() if defined — makes `node file.ks` work directly
-        let has_main = program.items.iter().any(|item| {
-            matches!(item, TypedItem::Function(f) if f.ast.name == "main")
-        });
+        let has_main = program
+            .items
+            .iter()
+            .any(|item| matches!(item, TypedItem::Function(f) if f.ast.name == "main"));
         if has_main {
             self.blank();
-            self.out.push("// Auto-entry: call main() if defined (node file.ks just works)".to_string());
-            self.out.push("if (typeof main === 'function') main();".to_string());
+            self.out.push(
+                "// Auto-entry: call main() if defined (node file.ks just works)".to_string(),
+            );
+            self.out
+                .push("if (typeof main === 'function') main();".to_string());
         }
 
         std::mem::take(&mut self.out).build()
@@ -255,12 +349,17 @@ impl KsGen {
     // ── Struct → @typedef + class ──────────────────────────────────────────
 
     fn gen_struct(&mut self, s: &TypedStruct) {
-        if self.seen_types.contains(&s.ast.name) { return; }
+        if self.seen_types.contains(&s.ast.name) {
+            return;
+        }
         self.seen_types.insert(s.ast.name.clone());
 
         // Opaque C types → simple typedef
         if s.ast.fields.is_empty() {
-            self.out.push(format!("/** @typedef {{Record<string, *>}} {} */", s.ast.name));
+            self.out.push(format!(
+                "/** @typedef {{Record<string, *>}} {} */",
+                s.ast.name
+            ));
             self.blank();
             return;
         }
@@ -277,26 +376,32 @@ impl KsGen {
         self.out.push(typedef);
 
         // Emit a class that implements the typedef so `new Point(1,2)` works
-        let ctor_params = s.ast.fields.iter()
+        let ctor_params = s
+            .ast
+            .fields
+            .iter()
             .map(|f| {
                 let dflt = match self.type_jsdoc(&f.ty).as_str() {
-                    "number"  => "0".to_string(),
+                    "number" => "0".to_string(),
                     "boolean" => "false".to_string(),
-                    "string"  => r#""""#.to_string(),
+                    "string" => r#""""#.to_string(),
                     t if t.ends_with("[]") => "[]".to_string(),
                     _ => "null".to_string(),
                 };
                 format!("{} = {}", f.name, dflt)
             })
-            .collect::<Vec<_>>().join(", ");
+            .collect::<Vec<_>>()
+            .join(", ");
 
         self.out.push(format!("class {} {{", s.ast.name));
         // JSDoc for constructor params
         for f in &s.ast.fields {
             let ty = self.type_jsdoc(&f.ty);
-            self.out.push(format!("  /** @type {{{}}} */ {};", ty, f.name));
+            self.out
+                .push(format!("  /** @type {{{}}} */ {};", ty, f.name));
         }
-        self.out.push(format!("  /** @param {{{}}} _ */", s.ast.name));
+        self.out
+            .push(format!("  /** @param {{{}}} _ */", s.ast.name));
         self.out.push(format!("  constructor({}) {{", ctor_params));
         for f in &s.ast.fields {
             self.out.push(format!("    this.{n} = {n};", n = f.name));
@@ -309,7 +414,9 @@ impl KsGen {
     // ── Enum → @typedef union + const object ──────────────────────────────
 
     fn gen_enum(&mut self, e: &TypedEnum) {
-        if self.seen_types.contains(&e.ast.name) { return; }
+        if self.seen_types.contains(&e.ast.name) {
+            return;
+        }
         self.seen_types.insert(e.ast.name.clone());
 
         // Build @typedef union of all variants
@@ -320,35 +427,66 @@ impl KsGen {
             match &v.fields {
                 VariantFields::Unit => {
                     variants_doc.push(format!("{{{{ tag: '{}' }}}}", v.name));
-                    const_parts.push(format!("  /** @type {{{{tag: '{}'}}}} */\n  {}: Object.freeze({{ tag: '{}' }}),",
-                        v.name, v.name, v.name));
+                    const_parts.push(format!(
+                        "  /** @type {{{{tag: '{}'}}}} */\n  {}: Object.freeze({{ tag: '{}' }}),",
+                        v.name, v.name, v.name
+                    ));
                 }
                 VariantFields::Tuple(types) => {
-                    let fields: String = types.iter().enumerate()
+                    let fields: String = types
+                        .iter()
+                        .enumerate()
                         .map(|(i, t)| format!("_{i}: {}", self.type_jsdoc(t)))
-                        .collect::<Vec<_>>().join(", ");
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     variants_doc.push(format!("{{{{ tag: '{}', {} }}}}", v.name, fields));
-                    let param_list = types.iter().enumerate().map(|(i, _)| format!("_{i}")).collect::<Vec<_>>().join(", ");
-                    let obj_fields = types.iter().enumerate().map(|(i, _)| format!("_{i}")).collect::<Vec<_>>().join(", ");
-                    const_parts.push(format!("  {}({}) {{ return {{ tag: '{}', {} }}; }},",
-                        v.name, param_list, v.name, obj_fields));
+                    let param_list = types
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| format!("_{i}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let obj_fields = types
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| format!("_{i}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    const_parts.push(format!(
+                        "  {}({}) {{ return {{ tag: '{}', {} }}; }},",
+                        v.name, param_list, v.name, obj_fields
+                    ));
                 }
                 VariantFields::Struct(fields) => {
-                    let fstr: String = fields.iter()
+                    let fstr: String = fields
+                        .iter()
                         .map(|f| format!("{}: {}", f.name, self.type_jsdoc(&f.ty)))
-                        .collect::<Vec<_>>().join(", ");
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     variants_doc.push(format!("{{{{ tag: '{}', {} }}}}", v.name, fstr));
-                    let param_list = fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
-                    let obj_fields: String = fields.iter()
-                        .map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
-                    const_parts.push(format!("  {}({{{}}}) {{ return {{ tag: '{}', {} }}; }},",
-                        v.name, param_list, v.name, obj_fields));
+                    let param_list = fields
+                        .iter()
+                        .map(|f| f.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let obj_fields: String = fields
+                        .iter()
+                        .map(|f| f.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    const_parts.push(format!(
+                        "  {}({{{}}}) {{ return {{ tag: '{}', {} }}; }},",
+                        v.name, param_list, v.name, obj_fields
+                    ));
                 }
             }
         }
 
-        self.out.push(format!("/** @typedef {{{}}} {} */",
-            variants_doc.join(" | "), e.ast.name));
+        self.out.push(format!(
+            "/** @typedef {{{}}} {} */",
+            variants_doc.join(" | "),
+            e.ast.name
+        ));
         self.out.push(format!("const {} = {{", e.ast.name));
         for p in const_parts {
             self.out.push(format!("  {}", p));
@@ -377,8 +515,13 @@ impl KsGen {
         };
 
         if !f.ast.effects.is_empty() {
-            let effects: String = f.ast.effects.iter()
-                .map(|e| format!("{:?}", e)).collect::<Vec<_>>().join(", ");
+            let effects: String = f
+                .ast
+                .effects
+                .iter()
+                .map(|e| format!("{:?}", e))
+                .collect::<Vec<_>>()
+                .join(", ");
             doc_lines.push(format!(" * @kain-effects {}", effects));
         }
 
@@ -390,8 +533,15 @@ impl KsGen {
         }
 
         // Function signature
-        let params = f.ast.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");
-        self.out.push(format!("function {}({}) {{", f.ast.name, params));
+        let params = f
+            .ast
+            .params
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.out
+            .push(format!("function {}({}) {{", f.ast.name, params));
 
         self.indent();
         self.gen_block(&f.ast.body);
@@ -406,7 +556,10 @@ impl KsGen {
         let mut doc_lines = vec!["/**".to_string()];
         for prop in &c.ast.props {
             let ty = self.type_jsdoc(&prop.ty);
-            doc_lines.push(format!(" * @param {{{{{}:{}, children?:KainNode[]}}}} props", prop.name, ty));
+            doc_lines.push(format!(
+                " * @param {{{{{}:{}, children?:KainNode[]}}}} props",
+                prop.name, ty
+            ));
         }
         if c.ast.props.is_empty() {
             doc_lines.push(" * @param {{children?: KainNode[]}} props".to_string());
@@ -420,9 +573,13 @@ impl KsGen {
         self.out.push(format!("function {}(props) {{", c.ast.name));
         let prop_names: Vec<_> = c.ast.props.iter().map(|p| p.name.as_str()).collect();
         if prop_names.is_empty() {
-            self.out.push("  const { children = [] } = props;".to_string());
+            self.out
+                .push("  const { children = [] } = props;".to_string());
         } else {
-            self.out.push(format!("  const {{ {}, children = [] }} = props;", prop_names.join(", ")));
+            self.out.push(format!(
+                "  const {{ {}, children = [] }} = props;",
+                prop_names.join(", ")
+            ));
         }
         // State
         for s in &c.ast.state {
@@ -452,15 +609,21 @@ impl KsGen {
                 let ty = self.type_jsdoc(&p.ty);
                 self.out.push(format!(" * @param {{{}}} {}", ty, p.name));
             }
-            let ret = method.return_type.as_ref()
+            let ret = method
+                .return_type
+                .as_ref()
                 .map(|t| self.type_jsdoc(t))
                 .unwrap_or("void".to_string());
             self.out.push(format!(" * @returns {{{}}}", ret));
             self.out.push(" */".to_string());
 
             let params: Vec<_> = method.params.iter().map(|p| p.name.as_str()).collect();
-            self.out.push(format!("{}.prototype.{} = function({}) {{",
-                type_name, method.name, params.join(", ")));
+            self.out.push(format!(
+                "{}.prototype.{} = function({}) {{",
+                type_name,
+                method.name,
+                params.join(", ")
+            ));
             self.indent();
             self.gen_block(&method.body);
             self.dedent();
@@ -479,7 +642,9 @@ impl KsGen {
 
     fn gen_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { pattern, ty, value, .. } => {
+            Stmt::Let {
+                pattern, ty, value, ..
+            } => {
                 let name = match pattern {
                     Pattern::Binding { name, mutable, .. } => {
                         let kw = if *mutable { "let" } else { "let" };
@@ -504,7 +669,13 @@ impl KsGen {
                 // If the expression is an `if/else` expression at statement level,
                 // emit it as proper if/else statements instead of an IIFE so that
                 // `return` statements inside branches actually return from the function.
-                if let Expr::If { condition, then_branch, else_branch, .. } = expr {
+                if let Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } = expr
+                {
                     let mut cond_s = String::new();
                     self.expr_to_str(condition, &mut cond_s);
                     self.line(format!("if ({}) {{", cond_s));
@@ -553,13 +724,25 @@ impl KsGen {
             }
             Stmt::Break(None, _) => self.line("break;"),
             Stmt::Continue(_) => self.line("continue;"),
-            Stmt::For { binding, iter, body, .. } => {
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 let b = match binding {
                     Pattern::Binding { name, .. } => name.clone(),
                     Pattern::Tuple(pats, _) => {
-                        let ns: Vec<_> = pats.iter().filter_map(|p| {
-                            if let Pattern::Binding { name, .. } = p { Some(name.as_str()) } else { None }
-                        }).collect();
+                        let ns: Vec<_> = pats
+                            .iter()
+                            .filter_map(|p| {
+                                if let Pattern::Binding { name, .. } = p {
+                                    Some(name.as_str())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
                         format!("[{}]", ns.join(", "))
                     }
                     _ => "_".to_string(),
@@ -572,7 +755,9 @@ impl KsGen {
                 self.dedent();
                 self.line("}");
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 let mut cs = String::new();
                 self.expr_to_str(condition, &mut cs);
                 self.line(format!("while ({}) {{", cs));
@@ -596,14 +781,19 @@ impl KsGen {
 
     fn expr_to_str(&self, expr: &Expr, out: &mut String) {
         match expr {
-            Expr::Int(n, _)   => out.push_str(&n.to_string()),
+            Expr::Int(n, _) => out.push_str(&n.to_string()),
             Expr::Float(f, _) => out.push_str(&f.to_string()),
-            Expr::Bool(b, _)  => out.push_str(&b.to_string()),
-            Expr::None(_)     => out.push_str("null"),
+            Expr::Bool(b, _) => out.push_str(&b.to_string()),
+            Expr::None(_) => out.push_str("null"),
             Expr::String(s, _) => {
                 out.push('"');
-                out.push_str(&s.replace('\\', "\\\\").replace('"', "\\\"")
-                    .replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t"));
+                out.push_str(
+                    &s.replace('\\', "\\\\")
+                        .replace('"', "\\\"")
+                        .replace('\n', "\\n")
+                        .replace('\r', "\\r")
+                        .replace('\t', "\\t"),
+                );
                 out.push('"');
             }
             Expr::FString(parts, _) => {
@@ -623,29 +813,29 @@ impl KsGen {
             Expr::Ident(n, _) => {
                 // Map KAIN stdlib bare names to JS global equivalents
                 let mapped = match n.as_str() {
-                    "sqrt"  => "Math.sqrt",
-                    "sin"   => "Math.sin",
-                    "cos"   => "Math.cos",
-                    "tan"   => "Math.tan",
-                    "atan"  => "Math.atan",
+                    "sqrt" => "Math.sqrt",
+                    "sin" => "Math.sin",
+                    "cos" => "Math.cos",
+                    "tan" => "Math.tan",
+                    "atan" => "Math.atan",
                     "atan2" => "Math.atan2",
-                    "asin"  => "Math.asin",
-                    "acos"  => "Math.acos",
+                    "asin" => "Math.asin",
+                    "acos" => "Math.acos",
                     "floor" => "Math.floor",
-                    "ceil"  => "Math.ceil",
+                    "ceil" => "Math.ceil",
                     "round" => "Math.round",
-                    "abs"   => "Math.abs",
-                    "pow"   => "Math.pow",
-                    "exp"   => "Math.exp",
-                    "log"   => "Math.log",
-                    "log2"  => "Math.log2",
+                    "abs" => "Math.abs",
+                    "pow" => "Math.pow",
+                    "exp" => "Math.exp",
+                    "log" => "Math.log",
+                    "log2" => "Math.log2",
                     "log10" => "Math.log10",
-                    "min"   => "Math.min",
-                    "max"   => "Math.max",
-                    "fmin"  => "Math.min",
-                    "fmax"  => "Math.max",
+                    "min" => "Math.min",
+                    "max" => "Math.max",
+                    "fmin" => "Math.min",
+                    "fmax" => "Math.max",
                     "clamp" => "__kain_clamp",
-                    other   => other,
+                    other => other,
                 };
                 out.push_str(mapped);
             }
@@ -664,7 +854,9 @@ impl KsGen {
                 out.push_str(op_str);
                 self.expr_to_str(operand, out);
             }
-            Expr::Binary { left, op, right, .. } => {
+            Expr::Binary {
+                left, op, right, ..
+            } => {
                 self.expr_to_str(left, out);
                 out.push(' ');
                 out.push_str(self.binop_str(*op));
@@ -691,99 +883,229 @@ impl KsGen {
                 self.expr_to_str(callee, out);
                 out.push('(');
                 for (i, arg) in args.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(&arg.value, out);
                 }
                 out.push(')');
             }
-            Expr::MethodCall { receiver, method, args, .. } => {
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                ..
+            } => {
                 // Known method translations
                 match method.as_str() {
                     "len" | "count" => {
-                        self.expr_to_str(receiver, out); out.push_str(".length"); return;
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".length");
+                        return;
                     }
                     "is_empty" => {
-                        self.expr_to_str(receiver, out); out.push_str(".length === 0"); return;
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".length === 0");
+                        return;
                     }
                     "push" | "append" => {
-                        self.expr_to_str(receiver, out); out.push_str(".push(");
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".push(");
                         for (i, a) in args.iter().enumerate() {
-                            if i > 0 { out.push_str(", "); }
+                            if i > 0 {
+                                out.push_str(", ");
+                            }
                             self.expr_to_str(&a.value, out);
                         }
-                        out.push(')'); return;
+                        out.push(')');
+                        return;
                     }
-                    "pop" => { self.expr_to_str(receiver, out); out.push_str(".pop()"); return; }
-                    "first" => { self.expr_to_str(receiver, out); out.push_str("[0]"); return; }
+                    "pop" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".pop()");
+                        return;
+                    }
+                    "first" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str("[0]");
+                        return;
+                    }
                     "last" => {
                         // (() => { const __r = recv; return __r[__r.length-1]; })()
                         out.push_str("(() => { const __r = ");
                         self.expr_to_str(receiver, out);
-                        out.push_str("; return __r[__r.length - 1]; })()"); return;
+                        out.push_str("; return __r[__r.length - 1]; })()");
+                        return;
                     }
                     "contains" | "includes" => {
-                        self.expr_to_str(receiver, out); out.push_str(".includes(");
-                        if let Some(a) = args.first() { self.expr_to_str(&a.value, out); }
-                        out.push(')'); return;
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".includes(");
+                        if let Some(a) = args.first() {
+                            self.expr_to_str(&a.value, out);
+                        }
+                        out.push(')');
+                        return;
                     }
-                    "map"    => { self.method_higher_order(receiver, ".map(", args, out); return; }
-                    "filter" => { self.method_higher_order(receiver, ".filter(", args, out); return; }
-                    "find"   => { self.expr_to_str(receiver, out); out.push_str(".find(");
-                        if let Some(a) = args.first() { self.expr_to_str(&a.value, out); }
-                        out.push_str(") ?? null"); return; }
-                    "any"    => { self.method_higher_order(receiver, ".some(", args, out); return; }
-                    "all"    => { self.method_higher_order(receiver, ".every(", args, out); return; }
+                    "map" => {
+                        self.method_higher_order(receiver, ".map(", args, out);
+                        return;
+                    }
+                    "filter" => {
+                        self.method_higher_order(receiver, ".filter(", args, out);
+                        return;
+                    }
+                    "find" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".find(");
+                        if let Some(a) = args.first() {
+                            self.expr_to_str(&a.value, out);
+                        }
+                        out.push_str(") ?? null");
+                        return;
+                    }
+                    "any" => {
+                        self.method_higher_order(receiver, ".some(", args, out);
+                        return;
+                    }
+                    "all" => {
+                        self.method_higher_order(receiver, ".every(", args, out);
+                        return;
+                    }
                     "enumerate" => {
                         self.expr_to_str(receiver, out);
-                        out.push_str(".map((__v, __i) => [__i, __v])"); return;
+                        out.push_str(".map((__v, __i) => [__i, __v])");
+                        return;
                     }
                     "collect" => {
-                        out.push_str("Array.from("); self.expr_to_str(receiver, out); out.push(')'); return;
+                        out.push_str("Array.from(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
                     }
                     "iter" | "into_iter" | "iter_mut" => {
-                        self.expr_to_str(receiver, out); return;
+                        self.expr_to_str(receiver, out);
+                        return;
                     }
                     "clone" | "to_vec" => {
-                        out.push_str("[..."); self.expr_to_str(receiver, out); out.push(']'); return;
+                        out.push_str("[...");
+                        self.expr_to_str(receiver, out);
+                        out.push(']');
+                        return;
                     }
                     "to_string" | "to_owned" => {
-                        out.push_str("String("); self.expr_to_str(receiver, out); out.push(')'); return;
+                        out.push_str("String(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
                     }
-                    "to_uppercase" => { self.expr_to_str(receiver, out); out.push_str(".toUpperCase()"); return; }
-                    "to_lowercase" => { self.expr_to_str(receiver, out); out.push_str(".toLowerCase()"); return; }
-                    "trim"  => { self.expr_to_str(receiver, out); out.push_str(".trim()"); return; }
-                    "split" => { self.expr_to_str(receiver, out); out.push_str(".split(");
-                        if let Some(a) = args.first() { self.expr_to_str(&a.value, out); }
-                        out.push(')'); return; }
-                    "join"  => { self.expr_to_str(receiver, out); out.push_str(".join(");
-                        if let Some(a) = args.first() { self.expr_to_str(&a.value, out); }
-                        out.push(')'); return; }
+                    "to_uppercase" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".toUpperCase()");
+                        return;
+                    }
+                    "to_lowercase" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".toLowerCase()");
+                        return;
+                    }
+                    "trim" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".trim()");
+                        return;
+                    }
+                    "split" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".split(");
+                        if let Some(a) = args.first() {
+                            self.expr_to_str(&a.value, out);
+                        }
+                        out.push(')');
+                        return;
+                    }
+                    "join" => {
+                        self.expr_to_str(receiver, out);
+                        out.push_str(".join(");
+                        if let Some(a) = args.first() {
+                            self.expr_to_str(&a.value, out);
+                        }
+                        out.push(')');
+                        return;
+                    }
                     "unwrap" => {
-                        out.push_str("("); self.expr_to_str(receiver, out);
-                        out.push_str(" ?? (() => { throw new Error('KAIN: unwrap on null'); })())"); return;
+                        out.push_str("(");
+                        self.expr_to_str(receiver, out);
+                        out.push_str(" ?? (() => { throw new Error('KAIN: unwrap on null'); })())");
+                        return;
                     }
                     "unwrap_or" => {
-                        out.push_str("("); self.expr_to_str(receiver, out); out.push_str(" ?? ");
-                        if let Some(a) = args.first() { self.expr_to_str(&a.value, out); }
-                        out.push(')'); return;
+                        out.push_str("(");
+                        self.expr_to_str(receiver, out);
+                        out.push_str(" ?? ");
+                        if let Some(a) = args.first() {
+                            self.expr_to_str(&a.value, out);
+                        }
+                        out.push(')');
+                        return;
                     }
                     "is_some" | "is_ok" => {
-                        out.push_str("(("); self.expr_to_str(receiver, out); out.push_str(") != null)"); return;
+                        out.push_str("((");
+                        self.expr_to_str(receiver, out);
+                        out.push_str(") != null)");
+                        return;
                     }
                     "is_none" | "is_err" => {
-                        out.push_str("(("); self.expr_to_str(receiver, out); out.push_str(") == null)"); return;
+                        out.push_str("((");
+                        self.expr_to_str(receiver, out);
+                        out.push_str(") == null)");
+                        return;
                     }
-                    "abs"   => { out.push_str("Math.abs("); self.expr_to_str(receiver, out); out.push(')'); return; }
-                    "sqrt"  => { out.push_str("Math.sqrt("); self.expr_to_str(receiver, out); out.push(')'); return; }
-                    "floor" => { out.push_str("Math.floor("); self.expr_to_str(receiver, out); out.push(')'); return; }
-                    "ceil"  => { out.push_str("Math.ceil("); self.expr_to_str(receiver, out); out.push(')'); return; }
-                    "round" => { out.push_str("Math.round("); self.expr_to_str(receiver, out); out.push(')'); return; }
-                    "parse" => { out.push_str("Number("); self.expr_to_str(receiver, out); out.push(')'); return; }
-                    "sort"  => {
-                        out.push_str("[..."); self.expr_to_str(receiver, out); out.push_str("].sort()"); return;
+                    "abs" => {
+                        out.push_str("Math.abs(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
+                    }
+                    "sqrt" => {
+                        out.push_str("Math.sqrt(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
+                    }
+                    "floor" => {
+                        out.push_str("Math.floor(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
+                    }
+                    "ceil" => {
+                        out.push_str("Math.ceil(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
+                    }
+                    "round" => {
+                        out.push_str("Math.round(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
+                    }
+                    "parse" => {
+                        out.push_str("Number(");
+                        self.expr_to_str(receiver, out);
+                        out.push(')');
+                        return;
+                    }
+                    "sort" => {
+                        out.push_str("[...");
+                        self.expr_to_str(receiver, out);
+                        out.push_str("].sort()");
+                        return;
                     }
                     "reverse" => {
-                        out.push_str("[..."); self.expr_to_str(receiver, out); out.push_str("].reverse()"); return;
+                        out.push_str("[...");
+                        self.expr_to_str(receiver, out);
+                        out.push_str("].reverse()");
+                        return;
                     }
                     _ => {}
                 }
@@ -793,7 +1115,9 @@ impl KsGen {
                 out.push_str(method);
                 out.push('(');
                 for (i, a) in args.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(&a.value, out);
                 }
                 out.push(')');
@@ -802,39 +1126,49 @@ impl KsGen {
                 // Use constructor
                 out.push_str(&format!("new {}(", name));
                 for (i, (_, v)) in fields.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(v, out);
                 }
                 out.push(')');
             }
-            Expr::EnumVariant { enum_name, variant, fields, .. } => {
-                match fields {
-                    EnumVariantFields::Unit =>
-                        out.push_str(&format!("{}.{}", enum_name, variant)),
-                    EnumVariantFields::Tuple(exprs) => {
-                        out.push_str(&format!("{}.{}(", enum_name, variant));
-                        for (i, e) in exprs.iter().enumerate() {
-                            if i > 0 { out.push_str(", "); }
-                            self.expr_to_str(e, out);
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => match fields {
+                EnumVariantFields::Unit => out.push_str(&format!("{}.{}", enum_name, variant)),
+                EnumVariantFields::Tuple(exprs) => {
+                    out.push_str(&format!("{}.{}(", enum_name, variant));
+                    for (i, e) in exprs.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
                         }
-                        out.push(')');
+                        self.expr_to_str(e, out);
                     }
-                    EnumVariantFields::Struct(fields) => {
-                        out.push_str(&format!("{}.{}({{", enum_name, variant));
-                        for (i, (name, val)) in fields.iter().enumerate() {
-                            if i > 0 { out.push_str(", "); }
-                            out.push_str(name);
-                            out.push_str(": ");
-                            self.expr_to_str(val, out);
-                        }
-                        out.push_str("})");
-                    }
+                    out.push(')');
                 }
-            }
+                EnumVariantFields::Struct(fields) => {
+                    out.push_str(&format!("{}.{}({{", enum_name, variant));
+                    for (i, (name, val)) in fields.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
+                        }
+                        out.push_str(name);
+                        out.push_str(": ");
+                        self.expr_to_str(val, out);
+                    }
+                    out.push_str("})");
+                }
+            },
             Expr::Array(exprs, _) => {
                 out.push('[');
                 for (i, e) in exprs.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(e, out);
                 }
                 out.push(']');
@@ -842,21 +1176,41 @@ impl KsGen {
             Expr::Tuple(exprs, _) => {
                 out.push('[');
                 for (i, e) in exprs.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(e, out);
                 }
                 out.push(']');
             }
-            Expr::Range { start, end, inclusive, .. } => {
+            Expr::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
                 out.push_str("((__s, __e) => { const __a = []; for (let __i = __s; __i ");
                 out.push_str(if *inclusive { "<= __e" } else { "< __e" });
                 out.push_str("; __i++) __a.push(__i); return __a; })(");
-                if let Some(s) = start { self.expr_to_str(s, out); } else { out.push('0'); }
+                if let Some(s) = start {
+                    self.expr_to_str(s, out);
+                } else {
+                    out.push('0');
+                }
                 out.push_str(", ");
-                if let Some(e) = end { self.expr_to_str(e, out); } else { out.push('0'); }
+                if let Some(e) = end {
+                    self.expr_to_str(e, out);
+                } else {
+                    out.push('0');
+                }
                 out.push(')');
             }
-            Expr::If { condition, then_branch, else_branch, .. } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 out.push_str("(() => { if (");
                 self.expr_to_str(condition, out);
                 out.push_str(") { return ");
@@ -883,7 +1237,9 @@ impl KsGen {
                 }
                 out.push_str(" return undefined; })()");
             }
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 out.push_str("(() => { const __s = ");
                 self.expr_to_str(scrutinee, out);
                 out.push_str("; ");
@@ -912,7 +1268,9 @@ impl KsGen {
             Expr::Cast { value, .. } => {
                 // JSDoc casts use /** @type {T} */ (value) but inside expression context
                 // we just emit the value — type annotation is on the let binding
-                out.push('('); self.expr_to_str(value, out); out.push(')');
+                out.push('(');
+                self.expr_to_str(value, out);
+                out.push(')');
             }
             Expr::Try(inner, _) => {
                 out.push_str("(() => { const __r = ");
@@ -929,73 +1287,106 @@ impl KsGen {
             }
             Expr::Comptime(inner, _) => self.expr_to_str(inner, out),
             Expr::Return(Some(v), _) => {
-                out.push_str("(() => { return "); self.expr_to_str(v, out); out.push_str("; })()");
+                out.push_str("(() => { return ");
+                self.expr_to_str(v, out);
+                out.push_str("; })()");
             }
             Expr::Return(None, _) => out.push_str("(() => {})()"),
-            Expr::Break(Some(v), _) => { self.expr_to_str(v, out); }
+            Expr::Break(Some(v), _) => {
+                self.expr_to_str(v, out);
+            }
             Expr::Break(None, _) | Expr::Continue(_) => out.push_str("undefined"),
             Expr::Spawn { actor, init, .. } => {
                 out.push_str(&format!("new {}(", actor));
                 for (i, (_, v)) in init.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(v, out);
                 }
                 out.push(')');
             }
-            Expr::SendMsg { target, message, data, .. } => {
+            Expr::SendMsg {
+                target,
+                message,
+                data,
+                ..
+            } => {
                 self.expr_to_str(target, out);
                 out.push_str(&format!(".{}(", message));
                 for (i, (_, v)) in data.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     self.expr_to_str(v, out);
                 }
                 out.push(')');
             }
-            Expr::MacroCall { name, args, .. } => {
-                match name.as_str() {
-                    "print" | "println" | "eprintln" => {
-                        out.push_str("console.log(");
-                        for (i, a) in args.iter().enumerate() {
-                            if i > 0 { out.push_str(", "); }
-                            self.expr_to_str(a, out);
+            Expr::MacroCall { name, args, .. } => match name.as_str() {
+                "print" | "println" | "eprintln" => {
+                    out.push_str("console.log(");
+                    for (i, a) in args.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
                         }
-                        out.push(')');
+                        self.expr_to_str(a, out);
                     }
-                    "assert" => {
-                        out.push_str("(() => { const __ok = ");
-                        if let Some(e) = args.first() { self.expr_to_str(e, out); } else { out.push_str("true"); }
-                        out.push_str("; if (!__ok) throw new Error('KAIN assert failed'); })()");
-                    }
-                    "vec" | "array" => {
-                        out.push('[');
-                        for (i, a) in args.iter().enumerate() {
-                            if i > 0 { out.push_str(", "); }
-                            self.expr_to_str(a, out);
-                        }
-                        out.push(']');
-                    }
-                    "format" | "concat" => {
-                        out.push('`');
-                        for a in args { out.push_str("${"); self.expr_to_str(a, out); out.push('}'); }
-                        out.push('`');
-                    }
-                    "todo" => out.push_str("(() => { throw new Error('TODO: not yet implemented'); })()"),
-                    "unreachable" => out.push_str("(() => { throw new Error('KAIN: unreachable'); })()"),
-                    "panic" => {
-                        out.push_str("(() => { throw new Error(");
-                        if let Some(e) = args.first() { self.expr_to_str(e, out); } else { out.push_str("'panic'"); }
-                        out.push_str("); })()");
-                    }
-                    _ => {
-                        out.push_str(&format!("{}__macro(", name));
-                        for (i, a) in args.iter().enumerate() {
-                            if i > 0 { out.push_str(", "); }
-                            self.expr_to_str(a, out);
-                        }
-                        out.push(')');
-                    }
+                    out.push(')');
                 }
-            }
+                "assert" => {
+                    out.push_str("(() => { const __ok = ");
+                    if let Some(e) = args.first() {
+                        self.expr_to_str(e, out);
+                    } else {
+                        out.push_str("true");
+                    }
+                    out.push_str("; if (!__ok) throw new Error('KAIN assert failed'); })()");
+                }
+                "vec" | "array" => {
+                    out.push('[');
+                    for (i, a) in args.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
+                        }
+                        self.expr_to_str(a, out);
+                    }
+                    out.push(']');
+                }
+                "format" | "concat" => {
+                    out.push('`');
+                    for a in args {
+                        out.push_str("${");
+                        self.expr_to_str(a, out);
+                        out.push('}');
+                    }
+                    out.push('`');
+                }
+                "todo" => {
+                    out.push_str("(() => { throw new Error('TODO: not yet implemented'); })()")
+                }
+                "unreachable" => {
+                    out.push_str("(() => { throw new Error('KAIN: unreachable'); })()")
+                }
+                "panic" => {
+                    out.push_str("(() => { throw new Error(");
+                    if let Some(e) = args.first() {
+                        self.expr_to_str(e, out);
+                    } else {
+                        out.push_str("'panic'");
+                    }
+                    out.push_str("); })()");
+                }
+                _ => {
+                    out.push_str(&format!("{}__macro(", name));
+                    for (i, a) in args.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
+                        }
+                        self.expr_to_str(a, out);
+                    }
+                    out.push(')');
+                }
+            },
             Expr::JSX(node, _) => self.jsx_to_str(node, out),
             _ => out.push_str("/* unsupported */"),
         }
@@ -1029,34 +1420,55 @@ impl KsGen {
                 s.push_str(&vs);
                 s
             }
-            Pattern::Variant { enum_name, variant, .. } => {
+            Pattern::Variant {
+                enum_name, variant, ..
+            } => {
                 if let Some(en) = enum_name {
-                    format!("{}.type === '{}' && {}.tag === '{}'", scrutinee, en, scrutinee, variant)
+                    format!(
+                        "{}.type === '{}' && {}.tag === '{}'",
+                        scrutinee, en, scrutinee, variant
+                    )
                 } else {
                     format!("{}.tag === '{}'", scrutinee, variant)
                 }
             }
-            Pattern::Range { start, end, inclusive, .. } => {
+            Pattern::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
                 let mut s = String::new();
                 if let Some(st) = start {
                     self.expr_to_str(st, &mut s);
                     s.push_str(&format!(" <= {}", scrutinee));
                 }
                 if let Some(en) = end {
-                    if !s.is_empty() { s.push_str(" && "); }
+                    if !s.is_empty() {
+                        s.push_str(" && ");
+                    }
                     s.push_str(&format!("{} ", scrutinee));
-                    if *inclusive { s.push_str("<="); } else { s.push('<'); }
+                    if *inclusive {
+                        s.push_str("<=");
+                    } else {
+                        s.push('<');
+                    }
                     let mut es = String::new();
                     self.expr_to_str(en, &mut es);
                     s.push(' ');
                     s.push_str(&es);
                 }
-                if s.is_empty() { "true".to_string() } else { s }
+                if s.is_empty() {
+                    "true".to_string()
+                } else {
+                    s
+                }
             }
-            Pattern::Or(patterns, _) => {
-                patterns.iter().map(|p| self.pattern_cond(scrutinee, p))
-                    .collect::<Vec<_>>().join(" || ")
-            }
+            Pattern::Or(patterns, _) => patterns
+                .iter()
+                .map(|p| self.pattern_cond(scrutinee, p))
+                .collect::<Vec<_>>()
+                .join(" || "),
             _ => "false".to_string(),
         }
     }
@@ -1072,11 +1484,21 @@ impl KsGen {
     fn jsx_to_str(&self, node: &JSXNode, out: &mut String) {
         match node {
             JSXNode::Text(s, _) => {
-                out.push_str(&format!("document.createTextNode('{}')",
-                    s.replace('\'', "\\'").replace('\\', "\\\\")));
+                out.push_str(&format!(
+                    "document.createTextNode('{}')",
+                    s.replace('\'', "\\'").replace('\\', "\\\\")
+                ));
             }
-            JSXNode::Element { tag, attributes, children, .. } => {
-                out.push_str(&format!("(() => {{ const __el = document.createElement('{}'); ", tag));
+            JSXNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } => {
+                out.push_str(&format!(
+                    "(() => {{ const __el = document.createElement('{}'); ",
+                    tag
+                ));
                 for attr in attributes {
                     let val = match &attr.value {
                         JSXAttrValue::String(s) => format!("'{}'", s),
@@ -1088,8 +1510,11 @@ impl KsGen {
                         }
                     };
                     if attr.name.starts_with("on") {
-                        out.push_str(&format!("__el.addEventListener('{}', {}); ",
-                            &attr.name[2..].to_lowercase(), val));
+                        out.push_str(&format!(
+                            "__el.addEventListener('{}', {}); ",
+                            &attr.name[2..].to_lowercase(),
+                            val
+                        ));
                     } else {
                         out.push_str(&format!("__el.setAttribute('{}', {}); ", attr.name, val));
                     }
@@ -1111,10 +1536,17 @@ impl KsGen {
                 }
                 out.push_str("return __f; })()");
             }
-            JSXNode::ComponentCall { name, props, children, .. } => {
+            JSXNode::ComponentCall {
+                name,
+                props,
+                children,
+                ..
+            } => {
                 out.push_str(&format!("{}({{", name));
                 for (i, p) in props.iter().enumerate() {
-                    if i > 0 { out.push_str(", "); }
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
                     let val = match &p.value {
                         JSXAttrValue::String(s) => format!("'{}'", s),
                         JSXAttrValue::Bool(b) => b.to_string(),
@@ -1127,24 +1559,41 @@ impl KsGen {
                     out.push_str(&format!("{}: {}", p.name, val));
                 }
                 if !children.is_empty() {
-                    if !props.is_empty() { out.push_str(", "); }
+                    if !props.is_empty() {
+                        out.push_str(", ");
+                    }
                     out.push_str("children: [");
                     for (i, c) in children.iter().enumerate() {
-                        if i > 0 { out.push_str(", "); }
+                        if i > 0 {
+                            out.push_str(", ");
+                        }
                         self.jsx_to_str(c, out);
                     }
                     out.push(']');
                 }
                 out.push_str("})");
             }
-            JSXNode::For { binding, iter, body, .. } => {
-                out.push_str(&format!("(() => {{ const __f = document.createDocumentFragment(); for (const {} of ", binding));
+            JSXNode::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
+                out.push_str(&format!(
+                    "(() => {{ const __f = document.createDocumentFragment(); for (const {} of ",
+                    binding
+                ));
                 self.expr_to_str(iter, out);
                 out.push_str(") { __f.appendChild(");
                 self.jsx_to_str(body, out);
                 out.push_str("); } return __f; })()");
             }
-            JSXNode::If { condition, then_branch, else_branch, .. } => {
+            JSXNode::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 out.push_str("(() => { if (");
                 self.expr_to_str(condition, out);
                 out.push_str(") { return ");
@@ -1164,31 +1613,48 @@ impl KsGen {
 
     fn binop_str(&self, op: BinaryOp) -> &'static str {
         match op {
-            BinaryOp::Add => "+",   BinaryOp::Sub => "-",
-            BinaryOp::Mul => "*",   BinaryOp::Div => "/",
-            BinaryOp::Mod => "%",   BinaryOp::Pow => "**",
-            BinaryOp::Eq  => "===", BinaryOp::Ne  => "!==",
-            BinaryOp::Lt  => "<",   BinaryOp::Le  => "<=",
-            BinaryOp::Gt  => ">",   BinaryOp::Ge  => ">=",
-            BinaryOp::And => "&&",  BinaryOp::Or  => "||",
-            BinaryOp::BitAnd => "&", BinaryOp::BitOr => "|",
-            BinaryOp::BitXor => "^", BinaryOp::Shl => "<<",
+            BinaryOp::Add => "+",
+            BinaryOp::Sub => "-",
+            BinaryOp::Mul => "*",
+            BinaryOp::Div => "/",
+            BinaryOp::Mod => "%",
+            BinaryOp::Pow => "**",
+            BinaryOp::Eq => "===",
+            BinaryOp::Ne => "!==",
+            BinaryOp::Lt => "<",
+            BinaryOp::Le => "<=",
+            BinaryOp::Gt => ">",
+            BinaryOp::Ge => ">=",
+            BinaryOp::And => "&&",
+            BinaryOp::Or => "||",
+            BinaryOp::BitAnd => "&",
+            BinaryOp::BitOr => "|",
+            BinaryOp::BitXor => "^",
+            BinaryOp::Shl => "<<",
             BinaryOp::Shr => ">>",
-            BinaryOp::Assign    => "=",
-            BinaryOp::AddAssign => "+=", BinaryOp::SubAssign => "-=",
-            BinaryOp::MulAssign => "*=", BinaryOp::DivAssign => "/=",
+            BinaryOp::Assign => "=",
+            BinaryOp::AddAssign => "+=",
+            BinaryOp::SubAssign => "-=",
+            BinaryOp::MulAssign => "*=",
+            BinaryOp::DivAssign => "/=",
             BinaryOp::Range | BinaryOp::RangeInclusive => "/* .. */",
         }
     }
 
     // ── Higher-order method helper ─────────────────────────────────────────
 
-    fn method_higher_order(&self, receiver: &Expr, method_js: &str,
-                            args: &[kain_core::ast::CallArg], out: &mut String)
-    {
+    fn method_higher_order(
+        &self,
+        receiver: &Expr,
+        method_js: &str,
+        args: &[kain_core::ast::CallArg],
+        out: &mut String,
+    ) {
         self.expr_to_str(receiver, out);
         out.push_str(method_js);
-        if let Some(a) = args.first() { self.expr_to_str(&a.value, out); }
+        if let Some(a) = args.first() {
+            self.expr_to_str(&a.value, out);
+        }
         out.push(')');
     }
 }
@@ -1203,8 +1669,14 @@ mod tests {
         let prog = TypedProgram { items: vec![] };
         let out = generate(&prog).unwrap();
         assert!(out.contains("// @ts-check"), "should start with @ts-check");
-        assert!(out.contains("KainScript"), "should mention KainScript target");
-        assert!(!out.contains("KainNode"), "should not emit KainNode without components");
+        assert!(
+            out.contains("KainScript"),
+            "should mention KainScript target"
+        );
+        assert!(
+            !out.contains("KainNode"),
+            "should not emit KainNode without components"
+        );
     }
 
     #[test]

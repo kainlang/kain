@@ -5,7 +5,7 @@ use std::mem::size_of;
 use byteorder::WriteBytesExt;
 
 use crate::reader::{ArchiveReader, ArchiveWriter};
-use crate::types::{PackageIndex};
+use crate::types::PackageIndex;
 use crate::unversioned::{usmap_reader::UsmapReader, usmap_writer::UsmapWriter};
 use crate::Error;
 

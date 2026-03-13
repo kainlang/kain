@@ -1,5 +1,5 @@
 //! UE5 Project File Generation
-//! 
+//!
 //! Handles .uplugin, .uproject, and .Build.cs generation with automatic dependency management.
 
 use std::collections::HashSet;
@@ -123,7 +123,7 @@ impl BuildFile {
         public_deps.insert("Core".to_string());
         public_deps.insert("CoreUObject".to_string());
         public_deps.insert("Engine".to_string());
-        
+
         Self {
             module_name: module_name.into(),
             public_dependencies: public_deps,
@@ -137,7 +137,7 @@ impl BuildFile {
     pub fn add_dependency_for_feature(&mut self, feature: &str) -> bool {
         // Track that this feature was used
         self.features_used.insert(feature.to_string());
-        
+
         match feature {
             "Slate" | "SlateWidget" => {
                 self.public_dependencies.insert("Slate".to_string());
@@ -153,7 +153,8 @@ impl BuildFile {
                 true
             }
             "Networking" | "Replication" => {
-                self.public_dependencies.insert("OnlineSubsystem".to_string());
+                self.public_dependencies
+                    .insert("OnlineSubsystem".to_string());
                 true
             }
             "Shader" | "RenderCore" => {
@@ -166,14 +167,14 @@ impl BuildFile {
                 self.public_dependencies.insert("Projects".to_string());
                 true
             }
-            _ => false
+            _ => false,
         }
     }
 
     pub fn to_csharp(&self) -> String {
         let public_deps: Vec<_> = self.public_dependencies.iter().collect();
         let private_deps: Vec<_> = self.private_dependencies.iter().collect();
-        
+
         format!(
             r#"using UnrealBuildTool;
 
@@ -194,11 +195,19 @@ public class {} : ModuleRules
 }}"#,
             self.module_name,
             self.module_name,
-            public_deps.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(", "),
+            public_deps
+                .iter()
+                .map(|s| format!("\"{}\"", s))
+                .collect::<Vec<_>>()
+                .join(", "),
             if private_deps.is_empty() {
                 "".to_string()
             } else {
-                private_deps.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(", ")
+                private_deps
+                    .iter()
+                    .map(|s| format!("\"{}\"", s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             }
         )
     }

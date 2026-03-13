@@ -11,10 +11,12 @@ use kain_core::ast::{
     Pattern, Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
 };
 use kain_core::error::KainResult;
-use kain_core::{lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget};
 use kain_core::types::{
-    FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem, TypedProgram,
-    TypedStruct,
+    FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem,
+    TypedProgram, TypedStruct,
+};
+use kain_core::{
+    lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
 };
 use std::collections::HashSet;
 
@@ -116,7 +118,9 @@ impl TSGen {
         self.writeln("function __kain_new_ptr(meta: __KainPtrMeta): number { const ptr = __kainNextPtr++; __kainPtrMeta.set(ptr, meta); return ptr; }");
         self.writeln("function __kain_clone_value<T>(value: T): T { if (Array.isArray(value)) { return value.map((item) => __kain_clone_value(item)) as T; } if (value && typeof value === \"object\") { return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, __kain_clone_value(v)])) as T; } return value; }");
         self.writeln("function __kain_addr_of<T>(value: T): number { const ptr = __kain_new_ptr({ kind: \"value\" }); __kainMem.set(ptr, value); return ptr; }");
-        self.writeln("function __kain_bind_local<T>(value: T): number { return __kain_addr_of(value); }");
+        self.writeln(
+            "function __kain_bind_local<T>(value: T): number { return __kain_addr_of(value); }",
+        );
         self.writeln("function __kain_field_ptr(ptr: number, field: string, _offset: number): number { return __kain_new_ptr({ kind: \"field\", base: ptr, field }); }");
         self.writeln("function __kain_index_ptr(ptr: number, index: number, _stride: number): number { return __kain_new_ptr({ kind: \"index\", base: ptr, index }); }");
         self.writeln("function __kain_ptr_offset(ptr: number, offset: number, stride: number): number { return ptr + (offset * Math.max(stride, 1)); }");
@@ -170,7 +174,10 @@ impl TSGen {
             .join(", ");
 
         let ret = self.function_return_ts(func);
-        self.writeln(&format!("export function {}({}): {} {{", func.ast.name, params, ret));
+        self.writeln(&format!(
+            "export function {}({}): {} {{",
+            func.ast.name, params, ret
+        ));
         self.indent();
         self.gen_block(&func.ast.body);
         self.dedent();
@@ -186,7 +193,10 @@ impl TSGen {
 
         // Empty structs (opaque C types) → compact type alias
         if s.ast.fields.is_empty() {
-            self.writeln(&format!("export type {} = Record<string, unknown>;", s.ast.name));
+            self.writeln(&format!(
+                "export type {} = Record<string, unknown>;",
+                s.ast.name
+            ));
             return;
         }
 
@@ -199,7 +209,10 @@ impl TSGen {
         self.dedent();
         self.writeln("}");
 
-        self.writeln(&format!("export class {} implements {}Shape {{", s.ast.name, s.ast.name));
+        self.writeln(&format!(
+            "export class {} implements {}Shape {{",
+            s.ast.name, s.ast.name
+        ));
         self.indent();
 
         for field in &s.ast.fields {
@@ -222,10 +235,15 @@ impl TSGen {
             .iter()
             .map(|f| {
                 let ty = self.type_to_ts(&f.ty);
-                let default = if ty == "number" { "0".to_string() }
-                    else if ty == "boolean" { "false".to_string() }
-                    else if ty == "string" { "\"\"".to_string() }
-                    else { "null as any".to_string() };
+                let default = if ty == "number" {
+                    "0".to_string()
+                } else if ty == "boolean" {
+                    "false".to_string()
+                } else if ty == "string" {
+                    "\"\"".to_string()
+                } else {
+                    "null as any".to_string()
+                };
                 format!("{}: {} = {}", f.name, ty, default)
             })
             .collect::<Vec<_>>()
@@ -319,7 +337,10 @@ impl TSGen {
                         .map(|(i, ty)| format!("_{}: {}", i, self.type_to_ts(ty)))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    self.writeln(&format!("{}: ({}) : {} => ({{", variant.name, params, e.ast.name));
+                    self.writeln(&format!(
+                        "{}: ({}) : {} => ({{",
+                        variant.name, params, e.ast.name
+                    ));
                     self.indent();
                     self.writeln(&format!("type: '{}',", e.ast.name));
                     self.writeln(&format!("tag: '{}',", variant.name));
@@ -335,7 +356,10 @@ impl TSGen {
                         .map(|f| format!("{}: {}", f.name, self.type_to_ts(&f.ty)))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    self.writeln(&format!("{}: ({}) : {} => ({{", variant.name, params, e.ast.name));
+                    self.writeln(&format!(
+                        "{}: ({}) : {} => ({{",
+                        variant.name, params, e.ast.name
+                    ));
                     self.indent();
                     self.writeln(&format!("type: '{}',", e.ast.name));
                     self.writeln(&format!("tag: '{}',", variant.name));
@@ -363,7 +387,10 @@ impl TSGen {
         self.dedent();
         self.writeln("}");
 
-        self.writeln(&format!("export function {}(props: {}): KainNode {{", comp.ast.name, props_name));
+        self.writeln(&format!(
+            "export function {}(props: {}): KainNode {{",
+            comp.ast.name, props_name
+        ));
         self.indent();
 
         // Destructure props including children
@@ -381,7 +408,11 @@ impl TSGen {
         }
 
         for state in &comp.ast.state {
-            self.write(&format!("let {}: {} = ", state.name, self.type_to_ts(&state.ty)));
+            self.write(&format!(
+                "let {}: {} = ",
+                state.name,
+                self.type_to_ts(&state.ty)
+            ));
             self.gen_expr(&state.initial);
             self.writeln(";");
         }
@@ -421,7 +452,11 @@ impl TSGen {
 
     fn gen_const(&mut self, name: &str, ty: Option<&Type>, value: &Expr) {
         if let Some(ty) = ty {
-            self.write(&format!("export const {}: {} = ", name, self.type_to_ts(ty)));
+            self.write(&format!(
+                "export const {}: {} = ",
+                name,
+                self.type_to_ts(ty)
+            ));
         } else {
             self.write(&format!("export const {} = ", name));
         }
@@ -484,7 +519,9 @@ impl TSGen {
                 self.gen_expr(expr);
                 self.writeln(";");
             }
-            Stmt::Let { pattern, ty, value, .. } => {
+            Stmt::Let {
+                pattern, ty, value, ..
+            } => {
                 if let Pattern::Binding { name, .. } = pattern {
                     self.write(&format!("let {}", name));
                     if let Some(t) = ty {
@@ -507,7 +544,12 @@ impl TSGen {
                 }
                 self.writeln(";");
             }
-            Stmt::For { binding, iter, body, .. } => {
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 if let Pattern::Binding { name, .. } = binding {
                     self.write(&format!("for (const {} of ", name));
                     self.gen_expr(iter);
@@ -518,7 +560,9 @@ impl TSGen {
                     self.writeln("}");
                 }
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 self.write("while (");
                 self.gen_expr(condition);
                 self.writeln(") {");
@@ -545,7 +589,12 @@ impl TSGen {
             }
             // If is not a Stmt variant — it's Stmt::Expr(Expr::If{..})
             // This arm is unreachable but kept as dead code guard
-            Stmt::Expr(Expr::If { condition, then_branch, else_branch, .. }) if false => {
+            Stmt::Expr(Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            }) if false => {
                 self.write("if (");
                 self.gen_expr(condition);
                 self.writeln(") {");
@@ -603,7 +652,9 @@ impl TSGen {
             Expr::None(_) => self.write("null"),
             Expr::Ident(name, _) => self.write(name),
 
-            Expr::Binary { left, op, right, .. } => {
+            Expr::Binary {
+                left, op, right, ..
+            } => {
                 self.write("(");
                 self.gen_expr(left);
                 self.write(&format!(" {} ", self.gen_binop(*op)));
@@ -667,7 +718,12 @@ impl TSGen {
                 self.write(&format!(".{}", field));
             }
 
-            Expr::MethodCall { receiver, method, args, .. } => {
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                ..
+            } => {
                 // Special handling for array methods - translate to JavaScript equivalents
                 match method.as_str() {
                     "len" => {
@@ -746,28 +802,36 @@ impl TSGen {
                     "split" => {
                         self.gen_expr(receiver);
                         self.write(".split(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "join" => {
                         self.gen_expr(receiver);
                         self.write(".join(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "starts_with" => {
                         self.gen_expr(receiver);
                         self.write(".startsWith(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "ends_with" => {
                         self.gen_expr(receiver);
                         self.write(".endsWith(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
@@ -775,7 +839,9 @@ impl TSGen {
                         self.gen_expr(receiver);
                         self.write(".replaceAll(");
                         for (i, arg) in args.iter().enumerate() {
-                            if i > 0 { self.write(", "); }
+                            if i > 0 {
+                                self.write(", ");
+                            }
                             self.gen_expr(&arg.value);
                         }
                         self.write(")");
@@ -790,21 +856,27 @@ impl TSGen {
                     "map" => {
                         self.gen_expr(receiver);
                         self.write(".map(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "filter" => {
                         self.gen_expr(receiver);
                         self.write(".filter(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "filter_map" => {
                         self.gen_expr(receiver);
                         self.write(".flatMap(__x => { const __v = (");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")(__x); return __v != null ? [__v] : []; })");
                         return;
                     }
@@ -812,7 +884,9 @@ impl TSGen {
                         self.gen_expr(receiver);
                         self.write(".reduce(");
                         for (i, arg) in args.iter().enumerate() {
-                            if i > 0 { self.write(", "); }
+                            if i > 0 {
+                                self.write(", ");
+                            }
                             self.gen_expr(&arg.value);
                         }
                         self.write(")");
@@ -821,21 +895,27 @@ impl TSGen {
                     "find" => {
                         self.gen_expr(receiver);
                         self.write(".find(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(") ?? null");
                         return;
                     }
                     "any" => {
                         self.gen_expr(receiver);
                         self.write(".some(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "all" => {
                         self.gen_expr(receiver);
                         self.write(".every(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
@@ -848,7 +928,9 @@ impl TSGen {
                         self.write("(() => { const __a = ");
                         self.gen_expr(receiver);
                         self.write("; const __b = ");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write("; return __a.map((__v, __i) => [__v, __b[__i]]); })()");
                         return;
                     }
@@ -904,28 +986,38 @@ impl TSGen {
                     "min" => {
                         self.write("Math.min(");
                         self.gen_expr(receiver);
-                        if let Some(arg) = args.first() { self.write(", "); self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.write(", ");
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "max" => {
                         self.write("Math.max(");
                         self.gen_expr(receiver);
-                        if let Some(arg) = args.first() { self.write(", "); self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.write(", ");
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
                     "unwrap" | "unwrap_or_default" => {
                         self.write("((");
                         self.gen_expr(receiver);
-                        self.write(") ?? (() => { throw new Error('KAIN: unwrap on null/None'); })())");
+                        self.write(
+                            ") ?? (() => { throw new Error('KAIN: unwrap on null/None'); })())",
+                        );
                         return;
                     }
                     "unwrap_or" => {
                         self.write("((");
                         self.gen_expr(receiver);
                         self.write(") ?? ");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
@@ -958,7 +1050,9 @@ impl TSGen {
                         self.write("[...");
                         self.gen_expr(receiver);
                         self.write("].sort(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
@@ -989,7 +1083,9 @@ impl TSGen {
                     "get" => {
                         self.gen_expr(receiver);
                         self.write("[");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write("] ?? null");
                         return;
                     }
@@ -998,7 +1094,9 @@ impl TSGen {
                         self.gen_expr(receiver);
                         self.write(".set(");
                         for (i, arg) in args.iter().enumerate() {
-                            if i > 0 { self.write(", "); }
+                            if i > 0 {
+                                self.write(", ");
+                            }
                             self.gen_expr(&arg.value);
                         }
                         self.write(")");
@@ -1007,7 +1105,9 @@ impl TSGen {
                     "remove" => {
                         self.gen_expr(receiver);
                         self.write(".delete(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
@@ -1032,7 +1132,9 @@ impl TSGen {
                     "extend" => {
                         self.gen_expr(receiver);
                         self.write(".push(...");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write(")");
                         return;
                     }
@@ -1041,7 +1143,9 @@ impl TSGen {
                         self.write("(() => { const __recv = ");
                         self.gen_expr(receiver);
                         self.write("; const __kept = __recv.filter(");
-                        if let Some(arg) = args.first() { self.gen_expr(&arg.value); }
+                        if let Some(arg) = args.first() {
+                            self.gen_expr(&arg.value);
+                        }
                         self.write("); __recv.length = 0; __recv.push(...__kept); })()");
                         return;
                     }
@@ -1077,7 +1181,12 @@ impl TSGen {
                 self.write(")");
             }
 
-            Expr::If { condition, then_branch, else_branch, .. } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 // Emit as an IIFE so else-if chains and blocks work correctly
                 self.write("(() => { if (");
                 self.gen_expr(condition);
@@ -1106,7 +1215,9 @@ impl TSGen {
                 self.write(" return undefined; })()");
             }
 
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 self.write("(() => {");
                 self.indent();
                 self.writeln("");
@@ -1178,7 +1289,12 @@ impl TSGen {
 
             Expr::JSX(node, _) => self.gen_jsx(node),
 
-            Expr::EnumVariant { enum_name, variant, fields, .. } => {
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => {
                 self.write(&format!("{}.{}(", enum_name, variant));
                 match fields {
                     EnumVariantFields::Unit => {}
@@ -1232,13 +1348,26 @@ impl TSGen {
             }
 
             // --- Range: emit as a lazy iterator helper ---
-            Expr::Range { start, end, inclusive, .. } => {
+            Expr::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
                 self.write("((__s, __e) => { const __a: number[] = []; for (let __i = __s; __i ");
                 self.write(if *inclusive { "<= __e" } else { "< __e" });
                 self.write("; __i++) __a.push(__i); return __a; })(");
-                if let Some(s) = start { self.gen_expr(s); } else { self.write("0"); }
+                if let Some(s) = start {
+                    self.gen_expr(s);
+                } else {
+                    self.write("0");
+                }
                 self.write(", ");
-                if let Some(e) = end { self.gen_expr(e); } else { self.write("0"); }
+                if let Some(e) = end {
+                    self.gen_expr(e);
+                } else {
+                    self.write("0");
+                }
                 self.write(")");
             }
 
@@ -1268,18 +1397,27 @@ impl TSGen {
             Expr::Spawn { actor, init, .. } => {
                 self.write(&format!("new {}(", actor));
                 for (i, (_, expr)) in init.iter().enumerate() {
-                    if i > 0 { self.write(", "); }
+                    if i > 0 {
+                        self.write(", ");
+                    }
                     self.gen_expr(expr);
                 }
                 self.write(")");
             }
 
             // --- Message send: emit as a method call convention ---
-            Expr::SendMsg { target, message, data, .. } => {
+            Expr::SendMsg {
+                target,
+                message,
+                data,
+                ..
+            } => {
                 self.gen_expr(target);
                 self.write(&format!(".{}(", message));
                 for (i, (_, expr)) in data.iter().enumerate() {
-                    if i > 0 { self.write(", "); }
+                    if i > 0 {
+                        self.write(", ");
+                    }
                     self.gen_expr(expr);
                 }
                 self.write(")");
@@ -1291,7 +1429,9 @@ impl TSGen {
                     "print" | "println" | "eprintln" => {
                         self.write("console.log(");
                         for (i, arg) in args.iter().enumerate() {
-                            if i > 0 { self.write(", "); }
+                            if i > 0 {
+                                self.write(", ");
+                            }
                             match arg {
                                 e => self.gen_expr(e),
                             }
@@ -1305,12 +1445,17 @@ impl TSGen {
                         } else {
                             self.write("true");
                         }
-                        self.write(&format!("; if (!__ok) throw new Error('KAIN assert failed: {}'); }})()", name));
+                        self.write(&format!(
+                            "; if (!__ok) throw new Error('KAIN assert failed: {}'); }})()",
+                            name
+                        ));
                     }
                     "vec" | "array" => {
                         self.write("[");
                         for (i, arg) in args.iter().enumerate() {
-                            if i > 0 { self.write(", "); }
+                            if i > 0 {
+                                self.write(", ");
+                            }
                             self.gen_expr(arg);
                         }
                         self.write("]");
@@ -1325,8 +1470,11 @@ impl TSGen {
                         }
                         self.write("`");
                     }
-                    "todo" => self.write("(() => { throw new Error('TODO: not yet implemented'); })()"),
-                    "unreachable" => self.write("(() => { throw new Error('KAIN: unreachable code reached'); })()"),
+                    "todo" => {
+                        self.write("(() => { throw new Error('TODO: not yet implemented'); })()")
+                    }
+                    "unreachable" => self
+                        .write("(() => { throw new Error('KAIN: unreachable code reached'); })()"),
                     "panic" => {
                         self.write("(() => { throw new Error(");
                         if let Some(e) = args.first() {
@@ -1340,7 +1488,9 @@ impl TSGen {
                         // Unknown macro: emit as a function call
                         self.write(&format!("{}__macro(", name));
                         for (i, arg) in args.iter().enumerate() {
-                            if i > 0 { self.write(", "); }
+                            if i > 0 {
+                                self.write(", ");
+                            }
                             self.gen_expr(arg);
                         }
                         self.write(")");
@@ -1354,7 +1504,12 @@ impl TSGen {
 
     fn gen_jsx(&mut self, node: &JSXNode) {
         match node {
-            JSXNode::Element { tag, attributes, children, .. } => {
+            JSXNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } => {
                 self.write("(() => {");
                 self.indent();
                 self.writeln("");
@@ -1366,7 +1521,10 @@ impl TSGen {
                             if attr.name == "class" {
                                 self.writeln(&format!("__el.className = '{}';", s));
                             } else {
-                                self.writeln(&format!("__el.setAttribute('{}', '{}');", attr.name, s));
+                                self.writeln(&format!(
+                                    "__el.setAttribute('{}', '{}');",
+                                    attr.name, s
+                                ));
                             }
                         }
                         JSXAttrValue::Bool(b) => {
@@ -1405,9 +1563,7 @@ impl TSGen {
             }
             JSXNode::Text(text, _) => {
                 // Proper JavaScript single-quote escaping for text nodes
-                let escaped = text
-                    .replace('\\', "\\\\")
-                    .replace('\'', "\\'");
+                let escaped = text.replace('\\', "\\\\").replace('\'', "\\'");
                 self.write(&format!("document.createTextNode('{}')", escaped))
             }
             JSXNode::Expression(expr) => {
@@ -1433,7 +1589,12 @@ impl TSGen {
                 self.dedent();
                 self.write("})()");
             }
-            JSXNode::ComponentCall { name, props, children, .. } => {
+            JSXNode::ComponentCall {
+                name,
+                props,
+                children,
+                ..
+            } => {
                 self.write(&format!("{}({{", name));
                 for (i, prop) in props.iter().enumerate() {
                     if i > 0 {
@@ -1475,7 +1636,12 @@ impl TSGen {
                 self.dedent();
                 self.write("})()");
             }
-            JSXNode::For { binding, iter, body, .. } => {
+            JSXNode::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 self.write("(() => {");
                 self.indent();
                 self.writeln("");
@@ -1493,7 +1659,12 @@ impl TSGen {
                 self.dedent();
                 self.write("})()");
             }
-            JSXNode::If { condition, then_branch, else_branch, .. } => {
+            JSXNode::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 self.write("(() => {");
                 self.indent();
                 self.writeln("");
@@ -1537,7 +1708,12 @@ impl TSGen {
                 self.write(&format!("{} === ", scrutinee));
                 self.gen_expr(expr);
             }
-            Pattern::Variant { enum_name, variant, fields, .. } => {
+            Pattern::Variant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => {
                 if let Some(enum_name) = enum_name {
                     self.write(&format!(
                         "{}.type === '{}' && {}.tag === '{}'",
@@ -1618,8 +1794,10 @@ impl TSGen {
         match ty {
             Type::Named { name, generics, .. } => {
                 let base = match name.as_str() {
-                    "Int" | "Float" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
-                    | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => "number".to_string(),
+                    "Int" | "Float" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8"
+                    | "u16" | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => {
+                        "number".to_string()
+                    }
                     "Bool" => "boolean".to_string(),
                     "String" | "str" | "Char" => "string".to_string(),
                     "Unit" => "void".to_string(),
@@ -1652,7 +1830,11 @@ impl TSGen {
             }
             Type::Ref { inner, .. } => self.type_to_ts(inner),
             Type::Ptr { inner, .. } => self.type_to_ts(inner),
-            Type::Function { params, return_type, .. } => {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
                 let params = params
                     .iter()
                     .enumerate()
@@ -1665,7 +1847,10 @@ impl TSGen {
             Type::Result(ok, err, _) => {
                 let ok_t = self.type_to_ts(ok);
                 let err_t = self.type_to_ts(err);
-                format!("{{ ok: true; value: {} }} | {{ ok: false; error: {} }}", ok_t, err_t)
+                format!(
+                    "{{ ok: true; value: {} }} | {{ ok: false; error: {} }}",
+                    ok_t, err_t
+                )
             }
             Type::Infer(_) | Type::Impl { .. } => "unknown".to_string(),
             Type::Never(_) => "never".to_string(),
@@ -1689,7 +1874,9 @@ impl TSGen {
             | ResolvedType::Int(IntSize::U8)
             | ResolvedType::Int(IntSize::U128)
             | ResolvedType::Int(IntSize::Usize) => "number".to_string(),
-            ResolvedType::Float(FloatSize::F32) | ResolvedType::Float(FloatSize::F64) => "number".to_string(),
+            ResolvedType::Float(FloatSize::F32) | ResolvedType::Float(FloatSize::F64) => {
+                "number".to_string()
+            }
             ResolvedType::String | ResolvedType::Char => "string".to_string(),
             ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
                 format!("Array<{}>", self.resolved_type_to_ts(inner))
@@ -1706,7 +1893,10 @@ impl TSGen {
             ResolvedType::Result(ok, err) => {
                 let ok_t = self.resolved_type_to_ts(ok);
                 let err_t = self.resolved_type_to_ts(err);
-                format!("{{ ok: true; value: {} }} | {{ ok: false; error: {} }}", ok_t, err_t)
+                format!(
+                    "{{ ok: true; value: {} }} | {{ ok: false; error: {} }}",
+                    ok_t, err_t
+                )
             }
             ResolvedType::Ref { inner, .. } => self.resolved_type_to_ts(inner),
             ResolvedType::Ptr { inner, .. } => self.resolved_type_to_ts(inner),
@@ -1719,7 +1909,9 @@ impl TSGen {
                     .join(", ");
                 format!("({}) => {}", ps, self.resolved_type_to_ts(ret))
             }
-            ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) | ResolvedType::Generic(name) => name.clone(),
+            ResolvedType::Struct(name, _)
+            | ResolvedType::Enum(name, _)
+            | ResolvedType::Generic(name) => name.clone(),
             ResolvedType::Never => "never".to_string(),
             ResolvedType::Unknown => "unknown".to_string(),
         }
@@ -1790,9 +1982,7 @@ mod tests {
 
     #[test]
     fn test_numeric_helpers_generated() {
-        let program = TypedProgram {
-            items: vec![],
-        };
+        let program = TypedProgram { items: vec![] };
         let output = generate(&program).unwrap();
         assert!(output.contains("function u8(n: number)"));
         assert!(output.contains("function u16(n: number)"));
@@ -1944,19 +2134,17 @@ mod tests {
         let comp = TypedComponent {
             ast: kain_core::ast::Component {
                 name: "TestComp".to_string(),
-                props: vec![
-                    Param {
-                        name: "title".to_string(),
-                        ty: Type::Named {
-                            name: "String".to_string(),
-                            generics: vec![],
-                            span: Span::default(),
-                        },
-                        mutable: false,
-                        default: None,
+                props: vec![Param {
+                    name: "title".to_string(),
+                    ty: Type::Named {
+                        name: "String".to_string(),
+                        generics: vec![],
                         span: Span::default(),
-                    }
-                ],
+                    },
+                    mutable: false,
+                    default: None,
+                    span: Span::default(),
+                }],
                 state: vec![],
                 methods: vec![],
                 effects: vec![],

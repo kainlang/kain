@@ -1,47 +1,47 @@
 //! # KAIN Core Compiler
-//! 
+//!
 //! Frontend, type system, and runtime for the KAIN programming language.
 
 // Core modules
-pub mod lexer;
+pub mod asm_ir;
 pub mod ast;
-pub mod parser;
-pub mod types;
-pub mod effects;
-pub mod stdlib;
-pub mod error;
-pub mod span;
 pub mod comptime;
-pub mod diagnostics;
 pub mod diagnostic_registry;
+pub mod diagnostics;
+pub mod effects;
+pub mod error;
+pub mod language_features;
+pub mod lexer;
 pub mod low_level_abi;
 pub mod low_level_memory;
 pub mod low_level_memory_metadata;
 pub mod monomorphize;
+pub mod parser;
 pub mod runtime;
-pub mod ui;
 pub mod shader_analysis;
-pub mod asm_ir;
-pub mod language_features;
+pub mod span;
+pub mod stdlib;
+pub mod types;
+pub mod ui;
 
 #[cfg(test)]
 mod stdlib_tests;
 
 // Re-exports for convenience
-pub use lexer::Lexer;
-pub use parser::Parser;
+pub use asm_ir::*;
 pub use ast::*;
-pub use types::*;
+pub use diagnostic_registry::*;
 pub use effects::*;
 pub use error::*;
-pub use diagnostic_registry::*;
+pub use language_features::*;
+pub use lexer::Lexer;
 pub use low_level_abi::*;
 pub use low_level_memory::*;
 pub use low_level_memory_metadata::*;
-pub use span::*;
 pub use monomorphize::MonomorphizedProgram;
-pub use asm_ir::*;
-pub use language_features::*;
+pub use parser::Parser;
+pub use span::*;
+pub use types::*;
 pub use ui::*;
 
 /// Compilation target
@@ -96,17 +96,17 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
 
     // 1. Lex
     let tokens = Lexer::new(&full_source).tokenize()?;
-    
+
     // 2. Parse
     let span_mapper = diagnostics::SpanMapper::new(&full_source);
     let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
-    
+
     // 2.5 Comptime
     comptime::eval_program(&mut ast)?;
-    
+
     // 3. Type check
     let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
-    
+
     // 4. Codegen (handled by backend crates)
     // This is just a placeholder - actual codegen happens in cli/
     Ok(format!("Compiled to {:?}", target))

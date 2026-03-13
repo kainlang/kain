@@ -1,4 +1,4 @@
-use minijinja::{Environment, context};
+use minijinja::{context, Environment};
 use once_cell::sync::Lazy;
 
 pub static TEMPLATES: Lazy<Ue5Templates> = Lazy::new(|| Ue5Templates::new());
@@ -10,11 +10,23 @@ pub struct Ue5Templates {
 impl Ue5Templates {
     pub fn new() -> Self {
         let mut env = Environment::new();
-        
-        env.add_template("header_preamble", include_str!("templates/header_preamble.jinja")).unwrap();
-        env.add_template("source_preamble", include_str!("templates/source_preamble.jinja")).unwrap();
-        env.add_template("uclass_header", include_str!("templates/uclass_header.jinja")).unwrap();
-        
+
+        env.add_template(
+            "header_preamble",
+            include_str!("templates/header_preamble.jinja"),
+        )
+        .unwrap();
+        env.add_template(
+            "source_preamble",
+            include_str!("templates/source_preamble.jinja"),
+        )
+        .unwrap();
+        env.add_template(
+            "uclass_header",
+            include_str!("templates/uclass_header.jinja"),
+        )
+        .unwrap();
+
         Self { env }
     }
 

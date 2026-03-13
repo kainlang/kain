@@ -25,10 +25,10 @@ mod parser;
 mod transformer;
 mod types;
 
+use crate::Result;
 use kain_core::ast::Program;
 use kain_core::language_features::LanguageCapabilities;
 use std::path::Path;
-use crate::Result;
 
 #[derive(Debug, Clone, Default)]
 pub struct CImportOptions {
@@ -95,7 +95,7 @@ pub fn import_c_project_with_language_capabilities(
     language_capabilities: LanguageCapabilities,
 ) -> Result<Program> {
     let mut all_items = Vec::new();
-    
+
     for path in paths {
         let program = import_c_file_with_language_capabilities_and_options(
             path,
@@ -104,8 +104,8 @@ pub fn import_c_project_with_language_capabilities(
         )?;
         all_items.extend(program.items);
     }
-    
-    Ok(Program { 
+
+    Ok(Program {
         items: all_items,
         span: kain_core::span::Span::default(),
     })

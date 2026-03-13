@@ -16,7 +16,10 @@ pub struct RustBuildOutput {
 }
 
 #[cfg(feature = "sys")]
-pub fn compile_rust_build(source: &str, config: &RustBuildConfig) -> Result<RustBuildOutput, KainError> {
+pub fn compile_rust_build(
+    source: &str,
+    config: &RustBuildConfig,
+) -> Result<RustBuildOutput, KainError> {
     let typed_program = frontend_to_typed_program(source, CompileTarget::Rust)?;
     let bundle = generate_rust_artifact_bundle(&typed_program)?;
 
@@ -44,7 +47,10 @@ pub fn compile_rust_build(source: &str, config: &RustBuildConfig) -> Result<Rust
 }
 
 #[cfg(not(feature = "sys"))]
-pub fn compile_rust_build(_source: &str, _config: &RustBuildConfig) -> Result<RustBuildOutput, KainError> {
+pub fn compile_rust_build(
+    _source: &str,
+    _config: &RustBuildConfig,
+) -> Result<RustBuildOutput, KainError> {
     Err(KainError::runtime(
         "Rust build bundling requires the sys feature",
     ))
@@ -76,7 +82,11 @@ pub fn write_rust_build_outputs(
     compiled: &RustBuildOutput,
 ) -> Result<Vec<PathBuf>, KainError> {
     fs::create_dir_all(output_root).map_err(|err| {
-        KainError::runtime(format!("Failed to create Rust output directory {}: {}", output_root.display(), err))
+        KainError::runtime(format!(
+            "Failed to create Rust output directory {}: {}",
+            output_root.display(),
+            err
+        ))
     })?;
 
     let mut written = Vec::new();
@@ -86,16 +96,26 @@ pub fn write_rust_build_outputs(
         if config.artifacts.contains(&RustBuildArtifact::Source) {
             let path = output_root.join(format!("{}.rs", base_name));
             fs::write(&path, compiled.bundle.primary.contents.as_bytes()).map_err(|err| {
-                KainError::runtime(format!("Failed to write Rust source output {}: {}", path.display(), err))
+                KainError::runtime(format!(
+                    "Failed to write Rust source output {}: {}",
+                    path.display(),
+                    err
+                ))
             })?;
             written.push(path);
         }
 
         for artifact in &compiled.bundle.supplemental {
             let should_write = match artifact.kind {
-                RustArtifactKind::PrimarySource => config.artifacts.contains(&RustBuildArtifact::Source),
-                RustArtifactKind::ShaderHost => config.artifacts.contains(&RustBuildArtifact::ShaderHost),
-                RustArtifactKind::ShaderReflection => config.artifacts.contains(&RustBuildArtifact::ShaderReflection),
+                RustArtifactKind::PrimarySource => {
+                    config.artifacts.contains(&RustBuildArtifact::Source)
+                }
+                RustArtifactKind::ShaderHost => {
+                    config.artifacts.contains(&RustBuildArtifact::ShaderHost)
+                }
+                RustArtifactKind::ShaderReflection => config
+                    .artifacts
+                    .contains(&RustBuildArtifact::ShaderReflection),
             };
             if !should_write {
                 continue;
@@ -104,10 +124,16 @@ pub fn write_rust_build_outputs(
             let path = match artifact.kind {
                 RustArtifactKind::PrimarySource => output_root.join(format!("{}.rs", base_name)),
                 RustArtifactKind::ShaderHost => output_root.join(format!("{}.gpu.rs", base_name)),
-                RustArtifactKind::ShaderReflection => output_root.join(format!("{}.reflect.json", base_name)),
+                RustArtifactKind::ShaderReflection => {
+                    output_root.join(format!("{}.reflect.json", base_name))
+                }
             };
             fs::write(&path, artifact.contents.as_bytes()).map_err(|err| {
-                KainError::runtime(format!("Failed to write Rust artifact output {}: {}", path.display(), err))
+                KainError::runtime(format!(
+                    "Failed to write Rust artifact output {}: {}",
+                    path.display(),
+                    err
+                ))
             })?;
             written.push(path);
         }
@@ -117,7 +143,11 @@ pub fn write_rust_build_outputs(
         if let Some(spirv) = &compiled.spirv {
             let path = output_root.join(format!("{}.spv", base_name));
             fs::write(&path, spirv).map_err(|err| {
-                KainError::runtime(format!("Failed to write SPIR-V output {}: {}", path.display(), err))
+                KainError::runtime(format!(
+                    "Failed to write SPIR-V output {}: {}",
+                    path.display(),
+                    err
+                ))
             })?;
             written.push(path);
         }
@@ -133,7 +163,10 @@ fn resolve_file_mode_output_root(
 ) -> PathBuf {
     if let Some(output) = output {
         if output.extension().is_some() {
-            return output.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+            return output
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."));
         }
         return output.clone();
     }

@@ -41,8 +41,7 @@ use unreal_asset_registry::{
 /// `AddedDependencyFlags` is pre-FixedTags, uses a self-contained name table,
 /// and is compatible with UE 4.27 / 5.0+.
 #[cfg(feature = "ue5")]
-const REGISTRY_VERSION: FAssetRegistryVersionType =
-    FAssetRegistryVersionType::AddedDependencyFlags;
+const REGISTRY_VERSION: FAssetRegistryVersionType = FAssetRegistryVersionType::AddedDependencyFlags;
 
 // ─── Asset descriptor ────────────────────────────────────────────────────────
 
@@ -136,8 +135,7 @@ pub fn register_assets(
         return Ok(());
     }
 
-    let (object_version, object_version_ue5) =
-        engine_version::get_object_versions(engine_version);
+    let (object_version, object_version_ue5) = engine_version::get_object_versions(engine_version);
 
     // ── Try to load existing registry ───────────────────────────────────
     let mut registry = if registry_path.exists() {
@@ -147,10 +145,7 @@ pub fn register_assets(
     };
 
     // ── Resolve the name map ────────────────────────────────────────────
-    let name_map = registry
-        .name_map()
-        .cloned()
-        .unwrap_or_else(NameMap::new);
+    let name_map = registry.name_map().cloned().unwrap_or_else(NameMap::new);
 
     // ── Collect existing object paths for dedup ─────────────────────────
     let existing_paths: std::collections::HashSet<String> = registry
@@ -205,13 +200,10 @@ fn load_existing_registry(
     path: &Path,
     engine_version: unreal_asset_base::engine_version::EngineVersion,
 ) -> Result<AssetRegistryState, String> {
-    use unreal_asset_base::{
-        containers::Chain,
-        reader::RawReader,
-    };
+    use unreal_asset_base::{containers::Chain, reader::RawReader};
 
-    let data = std::fs::read(path)
-        .map_err(|e| format!("Failed to read AssetRegistry.bin: {}", e))?;
+    let data =
+        std::fs::read(path).map_err(|e| format!("Failed to read AssetRegistry.bin: {}", e))?;
 
     let cursor = Cursor::new(data);
     let (ov, ov5) = engine_version::get_object_versions(engine_version);
@@ -275,7 +267,7 @@ fn build_asset_data(
         asset_name,
         asset_class,
         asset_path,
-        IndexedMap::new(), // no tags
+        IndexedMap::new(),  // no tags
         Default::default(), // no bundles
         Vec::new(),         // no chunk ids
         EPackageFlags::PKG_NONE,
@@ -296,13 +288,13 @@ fn build_package_data(
         make_fname(name_map, &entry.package_name),
         unreal_asset_base::Guid::default(),
         Some(FMD5Hash { hash: None }), // empty cooked hash (required for versions >= AddedCookedMD5Hash)
-        None,  // imported_classes
-        0,     // disk_size
-        0,     // file_version
-        None,  // ue5_version
-        -1,    // file_version_licensee_ue
-        None,  // custom_versions
-        0,     // flags
+        None,                          // imported_classes
+        0,                             // disk_size
+        0,                             // file_version
+        None,                          // ue5_version
+        -1,                            // file_version_licensee_ue
+        None,                          // custom_versions
+        0,                             // flags
         version,
     )
 }
@@ -395,9 +387,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let registry_path = dir.join("AssetRegistry.bin");
 
-        let entries = vec![
-            AssetEntry::blueprint("/Game/BP/BP_A", "BP_A"),
-        ];
+        let entries = vec![AssetEntry::blueprint("/Game/BP/BP_A", "BP_A")];
 
         // First write
         register_assets(

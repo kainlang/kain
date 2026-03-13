@@ -10,9 +10,7 @@
 // - Proper UCLASS macros
 // ============================================================================
 
-use crate::effect_ir::{
-    GameplayEffectIR, DurationPolicy, ModifierOp, StackingType
-};
+use crate::effect_ir::{DurationPolicy, GameplayEffectIR, ModifierOp, StackingType};
 use kain_core::error::KainResult;
 
 /// Output structure for effect codegen
@@ -23,78 +21,97 @@ pub struct GameplayEffectOutput {
 }
 
 /// Generate complete C++ code for a gameplay effect
-pub fn generate(effect_ir: &GameplayEffectIR, plugin_name: &str) -> KainResult<GameplayEffectOutput> {
+pub fn generate(
+    effect_ir: &GameplayEffectIR,
+    plugin_name: &str,
+) -> KainResult<GameplayEffectOutput> {
     let class_name = format!("U{}", effect_ir.name);
-    
+
     let header = generate_header(effect_ir, &class_name, plugin_name)?;
     let source = generate_source(effect_ir, &class_name, plugin_name)?;
-    
+
     Ok(GameplayEffectOutput { header, source })
 }
 
 /// Generate header file (.h)
-fn generate_header(effect_ir: &GameplayEffectIR, class_name: &str, _plugin_name: &str) -> KainResult<String> {
+fn generate_header(
+    effect_ir: &GameplayEffectIR,
+    class_name: &str,
+    _plugin_name: &str,
+) -> KainResult<String> {
     let mut output = String::new();
-    
+
     // Header guard
     output.push_str("#pragma once\n\n");
-    
+
     // Includes
     output.push_str("#include \"CoreMinimal.h\"\n");
     output.push_str("#include \"GameplayEffect.h\"\n");
     output.push_str(&format!("#include \"{}.generated.h\"\n\n", effect_ir.name));
-    
+
     // Class declaration
     output.push_str("UCLASS(MinimalAPI, BlueprintType)\n");
     output.push_str(&format!("class {} : public UGameplayEffect\n", class_name));
     output.push_str("{\n");
     output.push_str("\tGENERATED_BODY()\n\n");
-    
+
     // Public section
     output.push_str("public:\n");
     output.push_str(&format!("\t{}();\n", class_name));
-    
+
     // Close class
     output.push_str("};\n");
-    
+
     Ok(output)
 }
 
 /// Generate source file (.cpp)
-fn generate_source(effect_ir: &GameplayEffectIR, class_name: &str, _plugin_name: &str) -> KainResult<String> {
+fn generate_source(
+    effect_ir: &GameplayEffectIR,
+    class_name: &str,
+    _plugin_name: &str,
+) -> KainResult<String> {
     let mut output = String::new();
-    
+
     // Includes
     output.push_str(&format!("#include \"Effects/{}.h\"\n", effect_ir.name));
     output.push_str("#include \"GameplayTags.h\"\n\n");
-    output.push_str("#if __has_include(\"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\")\n");
+    output.push_str(
+        "#if __has_include(\"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\")\n",
+    );
     output.push_str("#include \"GameplayEffectComponents/AssetTagsGameplayEffectComponent.h\"\n");
     output.push_str("#endif\n");
-    output.push_str("#if __has_include(\"GameplayEffectComponents/TargetTagsGameplayEffectComponent.h\")\n");
+    output.push_str(
+        "#if __has_include(\"GameplayEffectComponents/TargetTagsGameplayEffectComponent.h\")\n",
+    );
     output.push_str("#include \"GameplayEffectComponents/TargetTagsGameplayEffectComponent.h\"\n");
     output.push_str("#endif\n");
     output.push_str("#if __has_include(\"GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h\")\n");
-    output.push_str("#include \"GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h\"\n");
+    output.push_str(
+        "#include \"GameplayEffectComponents/TargetTagRequirementsGameplayEffectComponent.h\"\n",
+    );
     output.push_str("#endif\n\n");
-    
+
     // Constructor
     output.push_str(&generate_constructor(effect_ir, class_name)?);
-    
+
     Ok(output)
 }
 
 /// Generate constructor with all effect configuration
 fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainResult<String> {
     let mut output = String::new();
-    
+
     output.push_str(&format!("{}::{}()\n", class_name, class_name));
     output.push_str("{\n");
-    
+
     // Duration policy and magnitude
     output.push_str("\t// Duration\n");
-    output.push_str(&format!("\tDurationPolicy = {};\n", 
-        duration_policy_to_ue5(&effect_ir.duration_policy)));
-    
+    output.push_str(&format!(
+        "\tDurationPolicy = {};\n",
+        duration_policy_to_ue5(&effect_ir.duration_policy)
+    ));
+
     if let Some(duration) = effect_ir.duration_magnitude {
         // Format with .0 if it's a whole number
         let duration_str = if duration.fract() == 0.0 {
@@ -102,10 +119,13 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
         } else {
             format!("{}", duration)
         };
-        output.push_str(&format!("\tDurationMagnitude = FScalableFloat({}f);\n", duration_str));
+        output.push_str(&format!(
+            "\tDurationMagnitude = FScalableFloat({}f);\n",
+            duration_str
+        ));
     }
     output.push_str("\n");
-    
+
     // Period configuration
     if let Some(period) = effect_ir.period {
         output.push_str("\t// Period\n");
@@ -115,20 +135,20 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
             format!("{}", period)
         };
         output.push_str(&format!("\tPeriod = FScalableFloat({}f);\n", period_str));
-        
+
         if effect_ir.execute_on_application {
             output.push_str("\tbExecutePeriodicEffectOnApplication = true;\n");
         }
         output.push_str("\n");
     }
-    
+
     // Modifiers
     if !effect_ir.modifiers.is_empty() {
         output.push_str("\t// Modifiers\n");
         for modifier in &effect_ir.modifiers {
             output.push_str("\t{\n");
             output.push_str("\t\tFGameplayModifierInfo Modifier;\n");
-            
+
             // Parse attribute (format: "AttributeSet.Attribute" or just "Attribute")
             let (attribute_set, attribute_name) = if modifier.attribute.contains('.') {
                 let parts: Vec<&str> = modifier.attribute.split('.').collect();
@@ -142,35 +162,44 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
                 output.push_str(&format!("\t\t// TODO(kain): unresolved attribute set for '{}'; emitting empty gameplay attribute fallback\n", attribute_name));
                 output.push_str("\t\tModifier.Attribute = FGameplayAttribute();\n");
             } else {
-                output.push_str(&format!("\t\tModifier.Attribute = U{}::Get{}Attribute();\n", 
-                    attribute_set, capitalize_first(&attribute_name)));
+                output.push_str(&format!(
+                    "\t\tModifier.Attribute = U{}::Get{}Attribute();\n",
+                    attribute_set,
+                    capitalize_first(&attribute_name)
+                ));
             }
-            output.push_str(&format!("\t\tModifier.ModifierOp = {};\n", 
-                modifier_op_to_ue5(&modifier.operation)));
-            
+            output.push_str(&format!(
+                "\t\tModifier.ModifierOp = {};\n",
+                modifier_op_to_ue5(&modifier.operation)
+            ));
+
             // Format magnitude with .0 if it's a whole number
             let magnitude_str = if modifier.magnitude.fract() == 0.0 {
                 format!("{:.1}", modifier.magnitude)
             } else {
                 format!("{}", modifier.magnitude)
             };
-            output.push_str(&format!("\t\tModifier.ModifierMagnitude = FScalableFloat({}f);\n", 
-                magnitude_str));
+            output.push_str(&format!(
+                "\t\tModifier.ModifierMagnitude = FScalableFloat({}f);\n",
+                magnitude_str
+            ));
             output.push_str("\t\tModifiers.Add(Modifier);\n");
             output.push_str("\t}\n");
         }
         output.push_str("\n");
     }
-    
+
     // Stacking configuration
     if let Some(ref stacking) = effect_ir.stacking {
         output.push_str("\t// Stacking\n");
-        output.push_str(&format!("\tStackingType = {};\n", 
-            stacking_type_to_ue5(&stacking.stacking_type)));
+        output.push_str(&format!(
+            "\tStackingType = {};\n",
+            stacking_type_to_ue5(&stacking.stacking_type)
+        ));
         output.push_str(&format!("\tStackLimitCount = {};\n", stacking.limit));
         output.push_str("\n");
     }
-    
+
     let has_tag_data = !effect_ir.owned_tags.is_empty()
         || !effect_ir.granted_tags.is_empty()
         || !effect_ir.application_tag_requirements.require.is_empty()
@@ -224,7 +253,10 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
             output.push_str("\t// Owned tags (legacy fallback)\n");
             for tag in &effect_ir.owned_tags {
                 output.push_str(&format!("\tInheritableOwnedTagsContainer.AddTag(\n"));
-                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str(&format!(
+                    "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                    tag
+                ));
                 output.push_str("\t);\n");
             }
         }
@@ -233,7 +265,10 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
             output.push_str("\t// Granted tags (legacy fallback)\n");
             for tag in &effect_ir.granted_tags {
                 output.push_str(&format!("\tInheritableGameplayEffectTags.Added.AddTag(\n"));
-                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str(&format!(
+                    "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                    tag
+                ));
                 output.push_str("\t);\n");
             }
         }
@@ -243,13 +278,23 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
         {
             output.push_str("\t// Application requirements (legacy fallback)\n");
             for tag in &effect_ir.application_tag_requirements.require {
-                output.push_str(&format!("\tApplicationTagRequirements.RequireTags.AddTag(\n"));
-                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str(&format!(
+                    "\tApplicationTagRequirements.RequireTags.AddTag(\n"
+                ));
+                output.push_str(&format!(
+                    "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                    tag
+                ));
                 output.push_str("\t);\n");
             }
             for tag in &effect_ir.application_tag_requirements.ignore {
-                output.push_str(&format!("\tApplicationTagRequirements.IgnoreTags.AddTag(\n"));
-                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str(&format!(
+                    "\tApplicationTagRequirements.IgnoreTags.AddTag(\n"
+                ));
+                output.push_str(&format!(
+                    "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                    tag
+                ));
                 output.push_str("\t);\n");
             }
         }
@@ -260,40 +305,53 @@ fn generate_constructor(effect_ir: &GameplayEffectIR, class_name: &str) -> KainR
             output.push_str("\t// Ongoing requirements (legacy fallback)\n");
             for tag in &effect_ir.ongoing_tag_requirements.require {
                 output.push_str(&format!("\tOngoingTagRequirements.RequireTags.AddTag(\n"));
-                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str(&format!(
+                    "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                    tag
+                ));
                 output.push_str("\t);\n");
             }
             for tag in &effect_ir.ongoing_tag_requirements.ignore {
                 output.push_str(&format!("\tOngoingTagRequirements.IgnoreTags.AddTag(\n"));
-                output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+                output.push_str(&format!(
+                    "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                    tag
+                ));
                 output.push_str("\t);\n");
             }
         }
 
         output.push_str("\t#endif\n\n");
     }
-    
+
     // Removal tag requirements
-    if !effect_ir.removal_tag_requirements.require.is_empty() 
-        || !effect_ir.removal_tag_requirements.ignore.is_empty() {
+    if !effect_ir.removal_tag_requirements.require.is_empty()
+        || !effect_ir.removal_tag_requirements.ignore.is_empty()
+    {
         output.push_str("\t// Removal requirements\n");
-        
+
         for tag in &effect_ir.removal_tag_requirements.require {
             output.push_str(&format!("\tRemovalTagRequirements.RequireTags.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+            output.push_str(&format!(
+                "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                tag
+            ));
             output.push_str("\t);\n");
         }
-        
+
         for tag in &effect_ir.removal_tag_requirements.ignore {
             output.push_str(&format!("\tRemovalTagRequirements.IgnoreTags.AddTag(\n"));
-            output.push_str(&format!("\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n", tag));
+            output.push_str(&format!(
+                "\t\tFGameplayTag::RequestGameplayTag(FName(\"{}\"))\n",
+                tag
+            ));
             output.push_str("\t);\n");
         }
         output.push_str("\n");
     }
-    
+
     output.push_str("}\n");
-    
+
     Ok(output)
 }
 

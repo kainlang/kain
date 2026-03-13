@@ -35,8 +35,7 @@ fn main() {
                 .unwrap_or(0)
         });
 
-    let build_number = env::var("KAIN_BUILD_NUMBER")
-        .unwrap_or_else(|_| unix_time.to_string());
+    let build_number = env::var("KAIN_BUILD_NUMBER").unwrap_or_else(|_| unix_time.to_string());
 
     println!("cargo:rustc-env=KAIN_BUILD_NUMBER={}", build_number);
     println!("cargo:rustc-env=KAIN_BUILD_UNIX_TIME={}", unix_time);
@@ -53,10 +52,10 @@ fn main() {
         env::var("HOST").unwrap_or_else(|_| "unknown".to_string())
     );
 
-    let git_sha = git_output(&["rev-parse", "--short=12", "HEAD"])
-        .unwrap_or_else(|| "unknown".to_string());
-    let git_commit_count = git_output(&["rev-list", "--count", "HEAD"])
-        .unwrap_or_else(|| "0".to_string());
+    let git_sha =
+        git_output(&["rev-parse", "--short=12", "HEAD"]).unwrap_or_else(|| "unknown".to_string());
+    let git_commit_count =
+        git_output(&["rev-list", "--count", "HEAD"]).unwrap_or_else(|| "0".to_string());
     let git_dirty = match git_output(&["status", "--porcelain"]) {
         Some(status) if status.is_empty() => "clean".to_string(),
         Some(_) => "dirty".to_string(),

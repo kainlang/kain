@@ -4,9 +4,7 @@
 
 use crate::graph_ir::*;
 use crate::{GraphError, Result};
-use kain_core::ast::{
-    Attribute, Expr, GraphEditorDef, GraphSchemaDef, NodeTypeDef, PinDef, Type,
-};
+use kain_core::ast::{Attribute, Expr, GraphEditorDef, GraphSchemaDef, NodeTypeDef, PinDef, Type};
 use std::collections::HashMap;
 
 /// Converts KAIN AST graph editor definitions to GraphEditor IR
@@ -56,7 +54,8 @@ impl GraphEditorConverter {
         for attr in attributes {
             match attr.name.as_str() {
                 "allow_multiple_inputs" => {
-                    props.allow_multiple_input_connections = self.extract_bool_arg(&attr.args, 0)?;
+                    props.allow_multiple_input_connections =
+                        self.extract_bool_arg(&attr.args, 0)?;
                 }
                 "allow_multiple_outputs" => {
                     props.allow_multiple_output_connections =
@@ -81,7 +80,10 @@ impl GraphEditorConverter {
     fn convert_node_type(&self, def: &NodeTypeDef) -> Result<NodeType> {
         let mut node_type = NodeType {
             name: def.name.clone(),
-            category: def.category.clone().unwrap_or_else(|| "Default".to_string()),
+            category: def
+                .category
+                .clone()
+                .unwrap_or_else(|| "Default".to_string()),
             inputs: Vec::new(),
             outputs: Vec::new(),
             properties: Vec::new(),
@@ -442,10 +444,7 @@ mod tests {
             generics: vec![],
             span: dummy_span(),
         };
-        assert_eq!(
-            converter.convert_type(&float_type).unwrap(),
-            PinType::Float
-        );
+        assert_eq!(converter.convert_type(&float_type).unwrap(), PinType::Float);
 
         let exec_type = Type::Named {
             name: "Exec".to_string(),

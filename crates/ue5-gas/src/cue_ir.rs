@@ -5,7 +5,7 @@
 // Handles static/actor cues, lifecycle methods, and state fields.
 // ============================================================================
 
-use kain_core::ast::{GameplayCueDef, CueType};
+use kain_core::ast::{CueType, GameplayCueDef};
 use kain_core::error::{KainError, KainResult};
 
 /// Intermediate representation of a gameplay cue
@@ -46,7 +46,7 @@ impl GameplayCueIR {
                 cue.span,
             ));
         }
-        
+
         // Validate tag format
         if cue.tag.is_empty() {
             return Err(KainError::codegen(
@@ -54,14 +54,14 @@ impl GameplayCueIR {
                 cue.span,
             ));
         }
-        
+
         if !cue.tag.starts_with("GameplayCue.") {
             return Err(KainError::codegen(
                 format!("Cue tag '{}' must start with 'GameplayCue.'", cue.tag),
                 cue.span,
             ));
         }
-        
+
         // Validate tag has content after prefix
         if cue.tag == "GameplayCue." {
             return Err(KainError::codegen(
@@ -69,38 +69,44 @@ impl GameplayCueIR {
                 cue.span,
             ));
         }
-        
+
         // Convert cue type
         let cue_type = match cue.cue_type {
             CueType::Static => CueTypeIR::Static,
             CueType::Actor => CueTypeIR::Actor,
         };
-        
+
         // Convert state fields
-        let state_fields = cue.state_fields.iter()
+        let state_fields = cue
+            .state_fields
+            .iter()
             .map(|f| StateFieldIR {
                 name: f.name.clone(),
-                field_type: format!("{:?}", f.ty),  // TODO: proper type mapping
+                field_type: format!("{:?}", f.ty), // TODO: proper type mapping
             })
             .collect();
-        
+
         // Convert lifecycle methods to strings (placeholder for now)
-        let on_execute_body = cue.on_execute.as_ref().map(|_| {
-            "// TODO: Implement on_execute codegen".to_string()
-        });
-        
-        let on_add_body = cue.on_add.as_ref().map(|_| {
-            "// TODO: Implement on_add codegen".to_string()
-        });
-        
-        let on_remove_body = cue.on_remove.as_ref().map(|_| {
-            "// TODO: Implement on_remove codegen".to_string()
-        });
-        
-        let while_active_body = cue.while_active.as_ref().map(|_| {
-            "// TODO: Implement while_active codegen".to_string()
-        });
-        
+        let on_execute_body = cue
+            .on_execute
+            .as_ref()
+            .map(|_| "// TODO: Implement on_execute codegen".to_string());
+
+        let on_add_body = cue
+            .on_add
+            .as_ref()
+            .map(|_| "// TODO: Implement on_add codegen".to_string());
+
+        let on_remove_body = cue
+            .on_remove
+            .as_ref()
+            .map(|_| "// TODO: Implement on_remove codegen".to_string());
+
+        let while_active_body = cue
+            .while_active
+            .as_ref()
+            .map(|_| "// TODO: Implement while_active codegen".to_string());
+
         Ok(GameplayCueIR {
             name: cue.name.clone(),
             tag: cue.tag.clone(),

@@ -39,11 +39,21 @@ impl RustSelfHostOptions {
         let allowlist: SelfHostAllowlist = serde_json::from_str(
             &std::fs::read_to_string(&allowlist_path).map_err(ImportError::IoError)?,
         )
-        .map_err(|e| ImportError::TransformError(format!("failed to parse {}: {e}", allowlist_path.display())))?;
+        .map_err(|e| {
+            ImportError::TransformError(format!(
+                "failed to parse {}: {e}",
+                allowlist_path.display()
+            ))
+        })?;
         let module_map: SelfHostModuleMap = serde_json::from_str(
             &std::fs::read_to_string(&module_map_path).map_err(ImportError::IoError)?,
         )
-        .map_err(|e| ImportError::TransformError(format!("failed to parse {}: {e}", module_map_path.display())))?;
+        .map_err(|e| {
+            ImportError::TransformError(format!(
+                "failed to parse {}: {e}",
+                module_map_path.display()
+            ))
+        })?;
 
         Ok(Self {
             allow_external_mod_decls: true,
@@ -74,12 +84,30 @@ impl RustCrateGraph {
         let mut entry_points = BTreeMap::new();
         if let Some(module_map) = &options.module_map {
             if let Some(crate_spec) = module_map.find_crate(crate_root) {
-                collect_modules_from_spec(crate_root, crate_spec, options, &mut modules, &mut entry_points)?;
+                collect_modules_from_spec(
+                    crate_root,
+                    crate_spec,
+                    options,
+                    &mut modules,
+                    &mut entry_points,
+                )?;
             } else {
-                collect_modules(crate_root, crate_root, options, &mut modules, &mut entry_points)?;
+                collect_modules(
+                    crate_root,
+                    crate_root,
+                    options,
+                    &mut modules,
+                    &mut entry_points,
+                )?;
             }
         } else {
-            collect_modules(crate_root, crate_root, options, &mut modules, &mut entry_points)?;
+            collect_modules(
+                crate_root,
+                crate_root,
+                options,
+                &mut modules,
+                &mut entry_points,
+            )?;
         }
         modules.sort_by(|a, b| a.file_path.cmp(&b.file_path));
         Ok(Self {
@@ -130,7 +158,10 @@ pub fn import_rust_selfhost_dir_detailed(
     })
 }
 
-pub fn import_rust_selfhost_dir(crate_root: &Path, options: &RustSelfHostOptions) -> Result<Program> {
+pub fn import_rust_selfhost_dir(
+    crate_root: &Path,
+    options: &RustSelfHostOptions,
+) -> Result<Program> {
     let result = import_rust_selfhost_dir_detailed(crate_root, options)?;
     if result.rejected {
         return Err(ImportError::UnsupportedFeature(format!(
@@ -153,7 +184,10 @@ fn collect_modules(
         let entry = entry.map_err(ImportError::IoError)?;
         let path = entry.path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
             if !options.include_tests && matches!(name, "tests" | "benches" | "examples") {
                 continue;
             }
@@ -170,10 +204,16 @@ fn collect_modules(
         }
 
         let module_name = module_name_for(root, &path);
-        if matches!(path.file_name().and_then(|n| n.to_str()), Some("lib.rs" | "main.rs" | "mod.rs")) {
+        if matches!(
+            path.file_name().and_then(|n| n.to_str()),
+            Some("lib.rs" | "main.rs" | "mod.rs")
+        ) {
             entry_points.insert(module_name.clone(), path.clone());
         }
-        modules.push(RustModuleNode { module_name, file_path: path });
+        modules.push(RustModuleNode {
+            module_name,
+            file_path: path,
+        });
     }
     Ok(())
 }
@@ -208,7 +248,10 @@ fn collect_modules_from_spec(
     }
 
     for (owner, children) in &spec.nested_modules {
-        let owner_dir = owner.trim_end_matches("mod.rs").trim_end_matches('/').trim_end_matches('\\');
+        let owner_dir = owner
+            .trim_end_matches("mod.rs")
+            .trim_end_matches('/')
+            .trim_end_matches('\\');
         let owner_path = src_dir.join(normalize_rel_path(owner_dir));
         for child in children {
             let direct = owner_path.join(format!("{child}.rs"));
@@ -230,7 +273,10 @@ fn collect_modules_from_spec(
                 module_name: module_name_for(crate_root, &file_path),
                 file_path: file_path.clone(),
             });
-            if matches!(file_path.file_name().and_then(|n| n.to_str()), Some("lib.rs" | "main.rs" | "mod.rs")) {
+            if matches!(
+                file_path.file_name().and_then(|n| n.to_str()),
+                Some("lib.rs" | "main.rs" | "mod.rs")
+            ) {
                 entry_points.insert(module_name_for(crate_root, &file_path), file_path);
             }
         }
@@ -493,9 +539,27 @@ impl RustSelfHostOptions {
         super::transformer::RustTransformOptions {
             strict_selfhost: true,
             macro_policy: super::transformer::RustMacroPolicy {
-                lower_directly: self.allowlist.macro_policy.lower_directly.iter().cloned().collect::<HashSet<_>>(),
-                preserve: self.allowlist.macro_policy.preserve.iter().cloned().collect::<HashSet<_>>(),
-                reject: self.allowlist.macro_policy.reject.iter().cloned().collect::<HashSet<_>>(),
+                lower_directly: self
+                    .allowlist
+                    .macro_policy
+                    .lower_directly
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                preserve: self
+                    .allowlist
+                    .macro_policy
+                    .preserve
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                reject: self
+                    .allowlist
+                    .macro_policy
+                    .reject
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
             },
         }
     }

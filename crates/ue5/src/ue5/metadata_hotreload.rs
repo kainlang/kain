@@ -1,11 +1,11 @@
 // Metadata hot-reload system for KAIN compiler
 // Watches metadata files and reloads them when changed
 
+use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use std::collections::HashMap;
-use std::fs;
 
 use crate::ue5::engine_knowledge::EngineKnowledge;
 use crate::ue5::metadata_validation::MetadataValidator;
@@ -14,13 +14,13 @@ use crate::ue5::metadata_validation::MetadataValidator;
 pub struct MetadataWatcher {
     /// Directory containing metadata files
     metadata_dir: PathBuf,
-    
+
     /// Last modification times for each file
     file_mtimes: HashMap<PathBuf, SystemTime>,
-    
+
     /// Validator for checking metadata before applying
     validator: MetadataValidator,
-    
+
     /// Whether hot-reload is enabled
     enabled: bool,
 }
@@ -35,31 +35,34 @@ impl MetadataWatcher {
             enabled: true,
         }
     }
-    
+
     /// Enable or disable hot-reload
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
-    
+
     /// Check if hot-reload is enabled
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
-    
+
     /// Initialize the watcher by recording current modification times
     pub fn initialize(&mut self) -> Result<(), String> {
         if !self.metadata_dir.exists() {
-            return Err(format!("Metadata directory not found: {:?}", self.metadata_dir));
+            return Err(format!(
+                "Metadata directory not found: {:?}",
+                self.metadata_dir
+            ));
         }
-        
+
         // Scan all JSON files in metadata directory
         let entries = fs::read_dir(&self.metadata_dir)
             .map_err(|e| format!("Failed to read metadata directory: {}", e))?;
-        
+
         for entry in entries {
             let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
             let path = entry.path();
-            
+
             // Only track JSON files
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(metadata) = fs::metadata(&path) {
@@ -69,18 +72,18 @@ impl MetadataWatcher {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Check for modified files and return list of changed files
     pub fn check_for_changes(&mut self) -> Result<Vec<PathBuf>, String> {
         if !self.enabled {
             return Ok(Vec::new());
         }
-        
+
         let mut changed_files = Vec::new();
-        
+
         // Check each tracked file
         for (path, old_mtime) in &self.file_mtimes {
             if let Ok(metadata) = fs::metadata(path) {
@@ -91,25 +94,25 @@ impl MetadataWatcher {
                 }
             }
         }
-        
+
         // Check for new files
         let entries = fs::read_dir(&self.metadata_dir)
             .map_err(|e| format!("Failed to read metadata directory: {}", e))?;
-        
+
         for entry in entries {
             let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
             let path = entry.path();
-            
+
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if !self.file_mtimes.contains_key(&path) {
                     changed_files.push(path.clone());
                 }
             }
         }
-        
+
         Ok(changed_files)
     }
-    
+
     /// Update modification time for a file
     fn update_mtime(&mut self, path: &Path) -> Result<(), String> {
         if let Ok(metadata) = fs::metadata(path) {
@@ -120,33 +123,39 @@ impl MetadataWatcher {
         }
         Err(format!("Failed to get modification time for {:?}", path))
     }
-    
+
     /// Validate a metadata file before applying changes
     pub fn validate_file(&self, path: &Path) -> Result<(), String> {
         let content = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read file {:?}: {}", path, e))?;
-        
+
         // Validate JSON syntax and schema
-        self.validator.validate_file(path, &content)
+        self.validator
+            .validate_file(path, &content)
             .map_err(|e| format!("Validation failed for {:?}: {}", path, e))?;
-        
+
         Ok(())
     }
-    
+
     /// Reload a metadata file into EngineKnowledge
-    pub fn reload_file(&mut self, path: &Path, knowledge: &mut EngineKnowledge) -> Result<(), String> {
+    pub fn reload_file(
+        &mut self,
+        path: &Path,
+        knowledge: &mut EngineKnowledge,
+    ) -> Result<(), String> {
         // Validate before loading
         self.validate_file(path)?;
-        
+
         // Read file content
         let content = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read file {:?}: {}", path, e))?;
-        
+
         // Determine file type and load appropriately
-        let filename = path.file_name()
+        let filename = path
+            .file_name()
             .and_then(|s| s.to_str())
             .ok_or_else(|| format!("Invalid filename: {:?}", path))?;
-        
+
         if filename.starts_with("engine_") && filename.ends_with("_scanned.json") {
             // Engine scan file
             knowledge.load_metadata_validated(path, &content)?;
@@ -158,23 +167,26 @@ impl MetadataWatcher {
             // TODO: Add support for module_graph, uht_rules, etc.
             return Ok(());
         }
-        
+
         // Update modification time
         self.update_mtime(path)?;
-        
+
         Ok(())
     }
-    
+
     /// Check for changes and reload modified files
-    pub fn check_and_reload(&mut self, knowledge: &mut EngineKnowledge) -> Result<Vec<PathBuf>, String> {
+    pub fn check_and_reload(
+        &mut self,
+        knowledge: &mut EngineKnowledge,
+    ) -> Result<Vec<PathBuf>, String> {
         let changed_files = self.check_for_changes()?;
-        
+
         if changed_files.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         let mut reloaded = Vec::new();
-        
+
         for path in &changed_files {
             match self.reload_file(path, knowledge) {
                 Ok(()) => {
@@ -185,7 +197,7 @@ impl MetadataWatcher {
                 }
             }
         }
-        
+
         Ok(reloaded)
     }
 }
@@ -198,40 +210,47 @@ pub struct HotReloadManager {
 
 impl HotReloadManager {
     /// Create a new hot-reload manager
-    pub fn new(metadata_dir: impl AsRef<Path>, knowledge: Arc<Mutex<EngineKnowledge>>) -> Result<Self, String> {
+    pub fn new(
+        metadata_dir: impl AsRef<Path>,
+        knowledge: Arc<Mutex<EngineKnowledge>>,
+    ) -> Result<Self, String> {
         let mut watcher = MetadataWatcher::new(metadata_dir);
         watcher.initialize()?;
-        
+
         Ok(Self {
             watcher: Arc::new(Mutex::new(watcher)),
             knowledge,
         })
     }
-    
+
     /// Enable or disable hot-reload
     pub fn set_enabled(&self, enabled: bool) {
         if let Ok(mut watcher) = self.watcher.lock() {
             watcher.set_enabled(enabled);
         }
     }
-    
+
     /// Check for changes and reload if needed
     pub fn check_and_reload(&self) -> Result<Vec<PathBuf>, String> {
-        let mut watcher = self.watcher.lock()
+        let mut watcher = self
+            .watcher
+            .lock()
             .map_err(|e| format!("Failed to lock watcher: {}", e))?;
-        
-        let mut knowledge = self.knowledge.lock()
+
+        let mut knowledge = self
+            .knowledge
+            .lock()
             .map_err(|e| format!("Failed to lock knowledge: {}", e))?;
-        
+
         watcher.check_and_reload(&mut knowledge)
     }
-    
+
     /// Start a background thread that periodically checks for changes
     pub fn start_background_watcher(self, interval: Duration) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
             loop {
                 std::thread::sleep(interval);
-                
+
                 match self.check_and_reload() {
                     Ok(reloaded) => {
                         if !reloaded.is_empty() {
@@ -256,86 +275,86 @@ mod tests {
     use std::fs;
     use std::io::Write;
     use tempfile::TempDir;
-    
+
     #[test]
     fn test_watcher_creation() {
         let temp_dir = TempDir::new().unwrap();
         let watcher = MetadataWatcher::new(temp_dir.path());
         assert!(watcher.is_enabled());
     }
-    
+
     #[test]
     fn test_watcher_initialization() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a test JSON file
         let test_file = temp_dir.path().join("test.json");
         fs::write(&test_file, "{}").unwrap();
-        
+
         let mut watcher = MetadataWatcher::new(temp_dir.path());
         assert!(watcher.initialize().is_ok());
         assert_eq!(watcher.file_mtimes.len(), 1);
     }
-    
+
     #[test]
     fn test_change_detection() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create initial file
         let test_file = temp_dir.path().join("test.json");
         fs::write(&test_file, "{}").unwrap();
-        
+
         let mut watcher = MetadataWatcher::new(temp_dir.path());
         watcher.initialize().unwrap();
-        
+
         // No changes initially
         let changes = watcher.check_for_changes().unwrap();
         assert_eq!(changes.len(), 0);
-        
+
         // Wait a bit to ensure different mtime
         std::thread::sleep(Duration::from_millis(100));
-        
+
         // Modify file
         fs::write(&test_file, "{\"modified\": true}").unwrap();
-        
+
         // Should detect change
         let changes = watcher.check_for_changes().unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0], test_file);
     }
-    
+
     #[test]
     fn test_new_file_detection() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let mut watcher = MetadataWatcher::new(temp_dir.path());
         watcher.initialize().unwrap();
-        
+
         // Create new file
         let new_file = temp_dir.path().join("new.json");
         fs::write(&new_file, "{}").unwrap();
-        
+
         // Should detect new file
         let changes = watcher.check_for_changes().unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0], new_file);
     }
-    
+
     #[test]
     fn test_disable_hotreload() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let test_file = temp_dir.path().join("test.json");
         fs::write(&test_file, "{}").unwrap();
-        
+
         let mut watcher = MetadataWatcher::new(temp_dir.path());
         watcher.initialize().unwrap();
         watcher.set_enabled(false);
-        
+
         // Modify file
         std::thread::sleep(Duration::from_millis(100));
         fs::write(&test_file, "{\"modified\": true}").unwrap();
-        
+
         // Should not detect changes when disabled
         let changes = watcher.check_for_changes().unwrap();
         assert_eq!(changes.len(), 0);

@@ -8,8 +8,8 @@
 //! - Actors (Erlang-style concurrency)
 //! - Comptime blocks (Zig-style compile-time execution)
 
-use crate::span::Span;
 use crate::effects::Effect;
+use crate::span::Span;
 
 /// A complete KAIN program/module
 #[derive(Debug, Clone, PartialEq)]
@@ -23,43 +23,43 @@ pub struct Program {
 pub enum Item {
     /// `fn name(args) -> Type with Effects: body`
     Function(Function),
-    
+
     /// `component Name(props) -> UI with Reactive: jsx`
     Component(Component),
-    
+
     /// `shader Name(inputs) -> Fragment with GPU: body`
     Shader(Shader),
-    
+
     /// `actor Name: handlers`
     Actor(Actor),
-    
+
     /// `struct Name { fields }`
     Struct(Struct),
-    
+
     /// `enum Name { variants }`
     Enum(Enum),
-    
+
     /// `trait Name { methods }`
     Trait(Trait),
-    
+
     /// `impl Trait for Type { methods }`
     Impl(Impl),
-    
+
     /// `type Alias = Type`
     TypeAlias(TypeAlias),
-    
+
     /// `use path::to::item`
     Use(Use),
-    
+
     /// `mod name`
     Mod(Mod),
-    
+
     /// `const NAME: Type = value`
     Const(Const),
-    
+
     /// `comptime { code }`
     Comptime(ComptimeBlock),
-    
+
     /// `macro name!(params) { expansion }`
     Macro(MacroDef),
 
@@ -583,10 +583,7 @@ pub enum Stmt {
         span: Span,
     },
     /// `loop: body`
-    Loop {
-        body: Block,
-        span: Span,
-    },
+    Loop { body: Block, span: Span },
     /// Item declaration (nested function, struct, etc.)
     Item(Box<Item>),
 }
@@ -600,17 +597,17 @@ pub enum Expr {
     FString(Vec<Expr>, Span),
     Bool(bool, Span),
     None(Span),
-    
+
     /// Identifier
     Ident(String, Span),
-    
+
     /// Macro call
     MacroCall {
         name: String,
         args: Vec<Expr>,
         span: Span,
     },
-    
+
     /// Binary operation
     Binary {
         left: Box<Expr>,
@@ -618,21 +615,21 @@ pub enum Expr {
         right: Box<Expr>,
         span: Span,
     },
-    
+
     /// Unary operation
     Unary {
         op: UnaryOp,
         operand: Box<Expr>,
         span: Span,
     },
-    
+
     /// Function call: `func(args)`
     Call {
         callee: Box<Expr>,
         args: Vec<CallArg>,
         span: Span,
     },
-    
+
     /// Method call: `obj.method(args)`
     MethodCall {
         receiver: Box<Expr>,
@@ -640,14 +637,14 @@ pub enum Expr {
         args: Vec<CallArg>,
         span: Span,
     },
-    
+
     /// Field access: `obj.field`
     Field {
         object: Box<Expr>,
         field: String,
         span: Span,
     },
-    
+
     /// Index: `arr[i]`
     Index {
         object: Box<Expr>,
@@ -661,7 +658,7 @@ pub enum Expr {
         value: Box<Expr>,
         span: Span,
     },
-    
+
     /// Struct literal: `Point { x: 1, y: 2 }`
     Struct {
         name: String,
@@ -682,13 +679,13 @@ pub enum Expr {
         fields: EnumVariantFields,
         span: Span,
     },
-    
+
     /// Array literal: `[1, 2, 3]`
     Array(Vec<Expr>, Span),
-    
+
     /// Tuple literal: `(a, b, c)`
     Tuple(Vec<Expr>, Span),
-    
+
     /// Range: `start..end`, `start..=end`
     Range {
         start: Option<Box<Expr>>,
@@ -696,7 +693,7 @@ pub enum Expr {
         inclusive: bool,
         span: Span,
     },
-    
+
     /// If expression
     If {
         condition: Box<Expr>,
@@ -704,14 +701,14 @@ pub enum Expr {
         else_branch: Option<Box<ElseBranch>>,
         span: Span,
     },
-    
+
     /// Match expression
     Match {
         scrutinee: Box<Expr>,
         arms: Vec<MatchArm>,
         span: Span,
     },
-    
+
     /// Lambda: `|args| body` or `|args| -> Type: body`
     Lambda {
         params: Vec<Param>,
@@ -719,7 +716,7 @@ pub enum Expr {
         body: Box<Expr>,
         span: Span,
     },
-    
+
     /// Reference: `&value`, `&mut value`
     Ref {
         mutable: bool,
@@ -733,7 +730,7 @@ pub enum Expr {
         pointee_ty: Option<Type>,
         span: Span,
     },
-    
+
     /// Dereference: `*ptr`
     Deref(Box<Expr>, Span),
 
@@ -798,27 +795,27 @@ pub enum Expr {
         zeroed_new: bool,
         span: Span,
     },
-    
+
     /// Cast: `value as Type`
     Cast {
         value: Box<Expr>,
         target: Type,
         span: Span,
     },
-    
+
     /// Try: `expr?`
     Try(Box<Expr>, Span),
-    
+
     /// Await: `await expr`
     Await(Box<Expr>, Span),
-    
+
     /// Spawn actor: `spawn ActorName { state }`
     Spawn {
         actor: String,
         init: Vec<(String, Expr)>,
         span: Span,
     },
-    
+
     /// Send message: `send target <- Message { data }`
     SendMsg {
         target: Box<Expr>,
@@ -826,28 +823,28 @@ pub enum Expr {
         data: Vec<(String, Expr)>,
         span: Span,
     },
-    
+
     /// Comptime expression: `comptime { expr }`
     Comptime(Box<Expr>, Span),
-    
+
     /// Macro invocation: `name!(args)`
     // Already defined above, remove duplicate
-    
+
     /// Block expression
     Block(Block, Span),
 
     /// JSX embedded in expression
     JSX(JSXNode, Span),
-    
+
     /// Grouped expression: `(expr)`
     Paren(Box<Expr>, Span),
-    
+
     /// Return expression: `return [expr]`
     Return(Option<Box<Expr>>, Span),
-    
+
     /// Break expression: `break [expr]`
     Break(Option<Box<Expr>>, Span),
-    
+
     /// Continue expression: `continue`
     Continue(Span),
 }
@@ -998,7 +995,7 @@ pub enum BinaryOp {
     Div,
     Mod,
     Pow,
-    
+
     // Comparison
     Eq,
     Ne,
@@ -1006,25 +1003,25 @@ pub enum BinaryOp {
     Gt,
     Le,
     Ge,
-    
+
     // Logical
     And,
     Or,
-    
+
     // Bitwise
     BitAnd,
     BitOr,
     BitXor,
     Shl,
     Shr,
-    
+
     // Assignment
     Assign,
     AddAssign,
     SubAssign,
     MulAssign,
     DivAssign,
-    
+
     // Range
     Range,
     RangeInclusive,
@@ -1050,7 +1047,6 @@ pub enum Visibility {
     Crate,
     Super,
 }
-
 
 // === MATERIAL GRAPHS (UE5 Material System) ===
 
@@ -1088,7 +1084,7 @@ pub enum MaterialStatement {
 /// Material output pin (base_color, emissive, roughness, etc.)
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterialOutput {
-    pub name: String,  // base_color, emissive, roughness, metallic, normal, opacity, etc.
+    pub name: String, // base_color, emissive, roughness, metallic, normal, opacity, etc.
     pub value: Expr,
     pub span: Span,
 }
@@ -1101,7 +1097,7 @@ pub struct MaterialFunctionDef {
     pub attributes: Vec<Attribute>,
     pub inputs: Vec<MaterialInput>,
     pub body: Vec<MaterialStatement>,
-    pub output: Expr,  // Single output expression
+    pub output: Expr, // Single output expression
     pub span: Span,
 }
 
@@ -1193,12 +1189,12 @@ pub struct GraphDataDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NodeDataDef {
     pub name: String,
-    pub base_class: Option<String>,  // Optional base node class
+    pub base_class: Option<String>, // Optional base node class
     pub input_pins: Vec<PinDef>,
     pub output_pins: Vec<PinDef>,
     pub properties: Vec<Field>,
     pub methods: Vec<Function>,
-    pub execute_logic: Option<Block>,  // Optional ExecuteNode() implementation
+    pub execute_logic: Option<Block>, // Optional ExecuteNode() implementation
     pub attributes: Vec<Attribute>,
     pub span: Span,
 }
@@ -1260,21 +1256,15 @@ pub struct ReplicatedProperty {
 pub enum ReplicationMode {
     /// Simple replication (no interpolation)
     Simple,
-    
+
     /// Interpolated replication with back_time buffer
-    Interpolated {
-        back_time: f32,
-    },
-    
+    Interpolated { back_time: f32 },
+
     /// Extrapolated replication for prediction
-    Extrapolated {
-        limit: f32,
-    },
-    
+    Extrapolated { limit: f32 },
+
     /// Compressed replication with threshold
-    Compressed {
-        threshold: f32,
-    },
+    Compressed { threshold: f32 },
 }
 
 /// Compression settings for replicated properties
@@ -1392,9 +1382,9 @@ pub struct EditorModuleDef {
 /// Menu entry definition for editor menu extensions
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuEntryDef {
-    pub path: String,  // e.g., "Tools/Weapons"
-    pub label: String,  // e.g., "Open Weapon Editor"
-    pub method: Function,  // Callback method
+    pub path: String,     // e.g., "Tools/Weapons"
+    pub label: String,    // e.g., "Open Weapon Editor"
+    pub method: Function, // Callback method
     pub icon: Option<String>,
     pub tooltip: Option<String>,
     pub attributes: Vec<Attribute>,
@@ -1404,10 +1394,10 @@ pub struct MenuEntryDef {
 /// Toolbar button definition for editor toolbar extensions
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolbarButtonDef {
-    pub section: String,  // e.g., "Content"
-    pub label: Option<String>,  // Optional label
-    pub icon: String,  // e.g., "Icons.Weapon"
-    pub method: Function,  // Callback method
+    pub section: String,       // e.g., "Content"
+    pub label: Option<String>, // Optional label
+    pub icon: String,          // e.g., "Icons.Weapon"
+    pub method: Function,      // Callback method
     pub tooltip: Option<String>,
     pub attributes: Vec<Attribute>,
     pub span: Span,
@@ -1416,9 +1406,9 @@ pub struct ToolbarButtonDef {
 /// Toolbar widget definition for custom editor toolbar widgets
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolbarWidgetDef {
-    pub section: String,  // e.g., "CameraSpeed"
+    pub section: String, // e.g., "CameraSpeed"
     pub position: ToolbarPosition,
-    pub widget_type: String,  // Widget class name
+    pub widget_type: String, // Widget class name
     pub attributes: Vec<Attribute>,
     pub span: Span,
 }
@@ -1824,7 +1814,11 @@ fn collect_type_names_from_type(ty: &Type, out: &mut HashSet<String>) {
         Type::Ptr { inner, .. } => {
             collect_type_names_from_type(inner, out);
         }
-        Type::Function { params, return_type, .. } => {
+        Type::Function {
+            params,
+            return_type,
+            ..
+        } => {
             for p in params {
                 collect_type_names_from_type(p, out);
             }
@@ -1837,7 +1831,11 @@ fn collect_type_names_from_type(ty: &Type, out: &mut HashSet<String>) {
             collect_type_names_from_type(ok, out);
             collect_type_names_from_type(err, out);
         }
-        Type::Impl { trait_name, generics, .. } => {
+        Type::Impl {
+            trait_name,
+            generics,
+            ..
+        } => {
             out.insert(trait_name.clone());
             for g in generics {
                 collect_type_names_from_type(g, out);
@@ -1866,7 +1864,9 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_expr(field_expr, out);
             }
         }
-        Expr::EnumVariant { enum_name, fields, .. } => {
+        Expr::EnumVariant {
+            enum_name, fields, ..
+        } => {
             out.insert(enum_name.clone());
             match fields {
                 EnumVariantFields::Unit => {}
@@ -1918,14 +1918,21 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             collect_type_names_from_expr(target, out);
             collect_type_names_from_expr(value, out);
         }
-        Expr::If { condition, then_branch, else_branch, .. } => {
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
             collect_type_names_from_expr(condition, out);
             collect_type_names_from_block(then_branch, out);
             if let Some(else_b) = else_branch {
                 collect_type_names_from_else_branch(else_b, out);
             }
         }
-        Expr::Match { scrutinee, arms, .. } => {
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
             collect_type_names_from_expr(scrutinee, out);
             for arm in arms {
                 collect_type_names_from_pattern(&arm.pattern, out);
@@ -1935,7 +1942,12 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_expr(&arm.body, out);
             }
         }
-        Expr::Lambda { params, return_type, body, .. } => {
+        Expr::Lambda {
+            params,
+            return_type,
+            body,
+            ..
+        } => {
             for p in params {
                 collect_type_names_from_type(&p.ty, out);
             }
@@ -1964,36 +1976,57 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             collect_type_names_from_block(block, out);
         }
         Expr::Range { start, end, .. } => {
-            if let Some(s) = start { collect_type_names_from_expr(s, out); }
-            if let Some(e) = end { collect_type_names_from_expr(e, out); }
+            if let Some(s) = start {
+                collect_type_names_from_expr(s, out);
+            }
+            if let Some(e) = end {
+                collect_type_names_from_expr(e, out);
+            }
         }
         Expr::Ref { value, .. } => {
             collect_type_names_from_expr(value, out);
         }
-        Expr::AddrOf { value, pointee_ty, .. } => {
+        Expr::AddrOf {
+            value, pointee_ty, ..
+        } => {
             collect_type_names_from_expr(value, out);
             if let Some(ty) = pointee_ty {
                 collect_type_names_from_type(ty, out);
             }
         }
-        Expr::Deref(inner, _) | Expr::Try(inner, _) | Expr::Await(inner, _)
-        | Expr::Comptime(inner, _) | Expr::Paren(inner, _) => {
+        Expr::Deref(inner, _)
+        | Expr::Try(inner, _)
+        | Expr::Await(inner, _)
+        | Expr::Comptime(inner, _)
+        | Expr::Paren(inner, _) => {
             collect_type_names_from_expr(inner, out);
         }
-        Expr::PtrOffset { pointer, offset, element_ty, .. } => {
+        Expr::PtrOffset {
+            pointer,
+            offset,
+            element_ty,
+            ..
+        } => {
             collect_type_names_from_expr(pointer, out);
             collect_type_names_from_expr(offset, out);
             if let Some(ty) = element_ty {
                 collect_type_names_from_type(ty, out);
             }
         }
-        Expr::MemLoad { pointer, load_ty, .. } => {
+        Expr::MemLoad {
+            pointer, load_ty, ..
+        } => {
             collect_type_names_from_expr(pointer, out);
             if let Some(ty) = load_ty {
                 collect_type_names_from_type(ty, out);
             }
         }
-        Expr::MemStore { pointer, value, store_ty, .. } => {
+        Expr::MemStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => {
             collect_type_names_from_expr(pointer, out);
             collect_type_names_from_expr(value, out);
             if let Some(ty) = store_ty {
@@ -2016,10 +2049,7 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             }
         }
         Expr::Realloc {
-            pointer,
-            size,
-            ty,
-            ..
+            pointer, size, ty, ..
         } => {
             collect_type_names_from_expr(pointer, out);
             collect_type_names_from_expr(size, out);
@@ -2034,9 +2064,15 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             collect_type_names_from_jsx(node, out);
         }
         // Terminals with no type references
-        Expr::Int(_, _) | Expr::Float(_, _) | Expr::String(_, _)
-        | Expr::Bool(_, _) | Expr::None(_) | Expr::Ident(_, _)
-        | Expr::Return(None, _) | Expr::Break(None, _) | Expr::Continue(_) => {}
+        Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::Return(None, _)
+        | Expr::Break(None, _)
+        | Expr::Continue(_) => {}
     }
 }
 
@@ -2050,7 +2086,9 @@ fn collect_type_names_from_block(block: &Block, out: &mut HashSet<String>) {
 /// Recursively collect type names from a Stmt.
 fn collect_type_names_from_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
     match stmt {
-        Stmt::Let { ty, value, pattern, .. } => {
+        Stmt::Let {
+            ty, value, pattern, ..
+        } => {
             if let Some(ty) = ty {
                 collect_type_names_from_type(ty, out);
             }
@@ -2065,12 +2103,19 @@ fn collect_type_names_from_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
         Stmt::Return(Some(expr), _) => {
             collect_type_names_from_expr(expr, out);
         }
-        Stmt::For { iter, body, binding, .. } => {
+        Stmt::For {
+            iter,
+            body,
+            binding,
+            ..
+        } => {
             collect_type_names_from_pattern(binding, out);
             collect_type_names_from_expr(iter, out);
             collect_type_names_from_block(body, out);
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             collect_type_names_from_expr(condition, out);
             collect_type_names_from_block(body, out);
         }
@@ -2103,7 +2148,9 @@ fn collect_type_names_from_else_branch(branch: &ElseBranch, out: &mut HashSet<St
 /// Collect type names from patterns (destructuring may reference types).
 fn collect_type_names_from_pattern(pattern: &Pattern, out: &mut HashSet<String>) {
     match pattern {
-        Pattern::Variant { enum_name, fields, .. } => {
+        Pattern::Variant {
+            enum_name, fields, ..
+        } => {
             if let Some(name) = enum_name {
                 out.insert(name.clone());
             }
@@ -2143,8 +2190,12 @@ fn collect_type_names_from_pattern(pattern: &Pattern, out: &mut HashSet<String>)
             }
         }
         Pattern::Range { start, end, .. } => {
-            if let Some(s) = start { collect_type_names_from_expr(s, out); }
-            if let Some(e) = end { collect_type_names_from_expr(e, out); }
+            if let Some(s) = start {
+                collect_type_names_from_expr(s, out);
+            }
+            if let Some(e) = end {
+                collect_type_names_from_expr(e, out);
+            }
         }
         Pattern::Literal(expr) => {
             collect_type_names_from_expr(expr, out);
@@ -2157,7 +2208,11 @@ fn collect_type_names_from_pattern(pattern: &Pattern, out: &mut HashSet<String>)
 /// Collect type names from JSX nodes.
 fn collect_type_names_from_jsx(node: &JSXNode, out: &mut HashSet<String>) {
     match node {
-        JSXNode::Element { children, attributes, .. } => {
+        JSXNode::Element {
+            children,
+            attributes,
+            ..
+        } => {
             for attr in attributes {
                 match &attr.value {
                     JSXAttrValue::Expr(e) => collect_type_names_from_expr(e, out),
@@ -2168,7 +2223,12 @@ fn collect_type_names_from_jsx(node: &JSXNode, out: &mut HashSet<String>) {
                 collect_type_names_from_jsx(child, out);
             }
         }
-        JSXNode::ComponentCall { name, props, children, .. } => {
+        JSXNode::ComponentCall {
+            name,
+            props,
+            children,
+            ..
+        } => {
             out.insert(name.clone());
             for prop in props {
                 match &prop.value {
@@ -2187,7 +2247,12 @@ fn collect_type_names_from_jsx(node: &JSXNode, out: &mut HashSet<String>) {
             collect_type_names_from_expr(iter, out);
             collect_type_names_from_jsx(body, out);
         }
-        JSXNode::If { condition, then_branch, else_branch, .. } => {
+        JSXNode::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
             collect_type_names_from_expr(condition, out);
             collect_type_names_from_jsx(then_branch, out);
             if let Some(else_b) = else_branch {
@@ -2218,7 +2283,7 @@ pub struct GameplayTagsNamespace {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameplayTagNode {
     pub name: String,
-    pub full_path: String,  // "Ability.Attack.Melee.Sword"
+    pub full_path: String, // "Ability.Attack.Melee.Sword"
     pub comment: Option<String>,
     pub children: Vec<GameplayTagNode>,
     pub span: Span,
@@ -2252,12 +2317,12 @@ pub struct GameplayAbilityDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameplayEffectDef {
     pub name: String,
-    pub duration_policy: Option<String>,  // "Instant", "Infinite", "HasDuration"
+    pub duration_policy: Option<String>, // "Instant", "Infinite", "HasDuration"
     pub duration_magnitude: Option<f32>,
     pub period: Option<f32>,
     pub execute_on_application: bool,
     pub modifiers: Vec<GameplayEffectModifier>,
-    pub stacking_type: Option<String>,  // "None", "AggregateBySource", "AggregateByTarget"
+    pub stacking_type: Option<String>, // "None", "AggregateBySource", "AggregateByTarget"
     pub stacking_limit: Option<i32>,
     pub owned_tags: Vec<String>,
     pub granted_tags: Vec<String>,
@@ -2274,7 +2339,7 @@ pub struct GameplayEffectDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameplayEffectModifier {
     pub attribute: String,
-    pub operation: String,  // "Add", "Multiply", "Divide", "Override"
+    pub operation: String, // "Add", "Multiply", "Divide", "Override"
     pub magnitude: f32,
     pub span: Span,
 }

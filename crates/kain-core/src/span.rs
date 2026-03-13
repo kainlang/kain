@@ -57,4 +57,3 @@ impl<T> Spanned<T> {
         }
     }
 }
-

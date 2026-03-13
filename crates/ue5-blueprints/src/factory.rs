@@ -146,7 +146,9 @@ void {class_name}::Create(UObject* Outer)
         }
 
         let mut lines = Vec::new();
-        lines.push("    USimpleConstructionScript* SCS = Blueprint->SimpleConstructionScript;".to_string());
+        lines.push(
+            "    USimpleConstructionScript* SCS = Blueprint->SimpleConstructionScript;".to_string(),
+        );
         lines.push("    if (!SCS) return;".to_string());
         lines.push(String::new());
 
@@ -155,25 +157,19 @@ void {class_name}::Create(UObject* Outer)
             let class_name = &comp.class_name;
             let var_name = &comp.variable_name;
 
-            lines.push(format!(
-                "    // Component: {var_name} ({class_name})"
-            ));
+            lines.push(format!("    // Component: {var_name} ({class_name})"));
             lines.push(format!(
                 "    USCS_Node* {node_var} = SCS->CreateNodeWithoutOwner(U{class_name}::StaticClass(), FName(TEXT(\"{var_name}\")));"
             ));
 
             // Attach to parent or root
             if let Some(parent) = &comp.attach_parent {
-                lines.push(format!(
-                    "    // Attach {var_name} to parent: {parent}"
-                ));
+                lines.push(format!("    // Attach {var_name} to parent: {parent}"));
                 lines.push(format!(
                     "    {{ USCS_Node* ParentNode = SCS->FindSCSNode(FName(TEXT(\"{parent}\"))); if (ParentNode) ParentNode->ChildNodes.Add({node_var}); }}"
                 ));
             } else {
-                lines.push(format!(
-                    "    SCS->AddNode({node_var});"
-                ));
+                lines.push(format!("    SCS->AddNode({node_var});"));
             }
 
             // Component defaults
@@ -237,7 +233,10 @@ void {class_name}::Create(UObject* Outer)
         }
 
         let mut lines = Vec::new();
-        lines.push("    UEdGraph* EventGraph = FBlueprintEditorUtils::FindEventGraph(Blueprint);".to_string());
+        lines.push(
+            "    UEdGraph* EventGraph = FBlueprintEditorUtils::FindEventGraph(Blueprint);"
+                .to_string(),
+        );
         lines.push("    if (!EventGraph) return;".to_string());
         lines.push(String::new());
 
@@ -246,7 +245,10 @@ void {class_name}::Create(UObject* Outer)
                 EventGraphNode::BeginPlay { calls } => {
                     lines.push(format!("    // Event BeginPlay (node group {})", i));
                     lines.push("    {".to_string());
-                    lines.push("        UK2Node_Event* EventNode = NewObject<UK2Node_Event>(EventGraph);".to_string());
+                    lines.push(
+                        "        UK2Node_Event* EventNode = NewObject<UK2Node_Event>(EventGraph);"
+                            .to_string(),
+                    );
                     lines.push("        EventNode->EventReference.SetExternalMember(FName(\"ReceiveBeginPlay\"), AActor::StaticClass());".to_string());
                     lines.push("        EventNode->bOverrideFunction = true;".to_string());
                     lines.push("        EventGraph->AddNode(EventNode, false, false);".to_string());
@@ -256,7 +258,10 @@ void {class_name}::Create(UObject* Outer)
                 EventGraphNode::Tick { calls } => {
                     lines.push(format!("    // Event Tick (node group {})", i));
                     lines.push("    {".to_string());
-                    lines.push("        UK2Node_Event* TickNode = NewObject<UK2Node_Event>(EventGraph);".to_string());
+                    lines.push(
+                        "        UK2Node_Event* TickNode = NewObject<UK2Node_Event>(EventGraph);"
+                            .to_string(),
+                    );
                     lines.push("        TickNode->EventReference.SetExternalMember(FName(\"ReceiveTick\"), AActor::StaticClass());".to_string());
                     lines.push("        TickNode->bOverrideFunction = true;".to_string());
                     lines.push("        EventGraph->AddNode(TickNode, false, false);".to_string());
@@ -264,11 +269,16 @@ void {class_name}::Create(UObject* Outer)
                     lines.push("    }".to_string());
                 }
                 EventGraphNode::CustomEvent { event_name, calls } => {
-                    lines.push(format!("    // Custom Event: {event_name} (node group {i})"));
+                    lines.push(format!(
+                        "    // Custom Event: {event_name} (node group {i})"
+                    ));
                     lines.push("    {".to_string());
                     lines.push("        UK2Node_CustomEvent* CustomNode = NewObject<UK2Node_CustomEvent>(EventGraph);".to_string());
-                    lines.push(format!("        CustomNode->CustomFunctionName = FName(TEXT(\"{event_name}\"));"));
-                    lines.push("        EventGraph->AddNode(CustomNode, false, false);".to_string());
+                    lines.push(format!(
+                        "        CustomNode->CustomFunctionName = FName(TEXT(\"{event_name}\"));"
+                    ));
+                    lines
+                        .push("        EventGraph->AddNode(CustomNode, false, false);".to_string());
                     lines.push(generate_call_chain(calls, "CustomNode"));
                     lines.push("    }".to_string());
                 }
@@ -276,7 +286,10 @@ void {class_name}::Create(UObject* Outer)
             lines.push(String::new());
         }
 
-        lines.push("    FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);".to_string());
+        lines.push(
+            "    FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);"
+                .to_string(),
+        );
 
         format!(
             "void PLACEHOLDER::SetupEventGraph(UBlueprint* Blueprint)\n{{\n{}\n}}",
@@ -299,29 +312,37 @@ fn parent_cpp_class(parent_class: &str) -> &str {
 /// Generate a C++ setter expression for a property
 fn property_setter(prop: &PropertyDef, obj: &str) -> Option<String> {
     match &prop.value {
-        PropertyValue::Bool(v)  => Some(format!("{}->{}  = {};", obj, prop.name, v)),
-        PropertyValue::Int(v)   => Some(format!("{}->{}  = {};", obj, prop.name, v)),
+        PropertyValue::Bool(v) => Some(format!("{}->{}  = {};", obj, prop.name, v)),
+        PropertyValue::Int(v) => Some(format!("{}->{}  = {};", obj, prop.name, v)),
         PropertyValue::Float(v) => Some(format!("{}->{}  = {}f;", obj, prop.name, v)),
-        PropertyValue::Double(v)=> Some(format!("{}->{}  = {};", obj, prop.name, v)),
-        PropertyValue::Str(v)   => Some(format!("{}->{}  = TEXT(\"{}\");", obj, prop.name, v)),
-        PropertyValue::Name(v)  => Some(format!("{}->{}  = FName(TEXT(\"{}\"));", obj, prop.name, v)),
+        PropertyValue::Double(v) => Some(format!("{}->{}  = {};", obj, prop.name, v)),
+        PropertyValue::Str(v) => Some(format!("{}->{}  = TEXT(\"{}\");", obj, prop.name, v)),
+        PropertyValue::Name(v) => {
+            Some(format!("{}->{}  = FName(TEXT(\"{}\"));", obj, prop.name, v))
+        }
         PropertyValue::SoftObject(path) => Some(format!(
-            "{}->{}  = FSoftObjectPath(TEXT(\"{}\"));", obj, prop.name, path
+            "{}->{}  = FSoftObjectPath(TEXT(\"{}\"));",
+            obj, prop.name, path
         )),
         PropertyValue::Vector { x, y, z } => Some(format!(
-            "{}->{}  = FVector({}f, {}f, {}f);", obj, prop.name, x, y, z
+            "{}->{}  = FVector({}f, {}f, {}f);",
+            obj, prop.name, x, y, z
         )),
         PropertyValue::Rotator { pitch, yaw, roll } => Some(format!(
-            "{}->{}  = FRotator({}f, {}f, {}f);", obj, prop.name, pitch, yaw, roll
+            "{}->{}  = FRotator({}f, {}f, {}f);",
+            obj, prop.name, pitch, yaw, roll
         )),
         PropertyValue::LinearColor { r, g, b, a } => Some(format!(
-            "{}->{}  = FLinearColor({}f, {}f, {}f, {}f);", obj, prop.name, r, g, b, a
+            "{}->{}  = FLinearColor({}f, {}f, {}f, {}f);",
+            obj, prop.name, r, g, b, a
         )),
         PropertyValue::Enum { enum_type, value } => Some(format!(
-            "{}->{}  = {}::{};", obj, prop.name, enum_type, value
+            "{}->{}  = {}::{};",
+            obj, prop.name, enum_type, value
         )),
         PropertyValue::Text(v) => Some(format!(
-            "{}->{}  = FText::FromString(TEXT(\"{}\"));", obj, prop.name, v
+            "{}->{}  = FText::FromString(TEXT(\"{}\"));",
+            obj, prop.name, v
         )),
         // Complex types — skip for now, handled by binary writer
         _ => None,
@@ -335,7 +356,10 @@ fn generate_call_chain(calls: &[KismetCall], entry_node: &str) -> String {
     }
 
     let mut lines = Vec::new();
-    lines.push(format!("        UEdGraphPin* PrevThen = {}->FindPin(UEdGraphSchema_K2::PN_Then);", entry_node));
+    lines.push(format!(
+        "        UEdGraphPin* PrevThen = {}->FindPin(UEdGraphSchema_K2::PN_Then);",
+        entry_node
+    ));
 
     for (i, call) in calls.iter().enumerate() {
         let node_var = format!("CallNode_{}", i);
@@ -346,7 +370,9 @@ fn generate_call_chain(calls: &[KismetCall], entry_node: &str) -> String {
             "        {node_var}->FunctionReference.SetExternalMember(FName(TEXT(\"{}\")), Blueprint->GeneratedClass);",
             call.function_name
         ));
-        lines.push(format!("        EventGraph->AddNode({node_var}, false, false);"));
+        lines.push(format!(
+            "        EventGraph->AddNode({node_var}, false, false);"
+        ));
         lines.push(format!(
             "        if (PrevThen) PrevThen->MakeLinkTo({node_var}->FindPin(UEdGraphSchema_K2::PN_Execute));"
         ));

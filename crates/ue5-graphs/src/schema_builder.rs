@@ -15,13 +15,9 @@ impl SchemaBuilder {
             schema: GraphSchema::default(),
         }
     }
-    
+
     /// Allow connection between two pin types
-    pub fn allow_connection(
-        mut self,
-        from: PinType,
-        to: PinType,
-    ) -> Self {
+    pub fn allow_connection(mut self, from: PinType, to: PinType) -> Self {
         self.schema.allowed_connections.push(ConnectionRule {
             from,
             to,
@@ -30,7 +26,7 @@ impl SchemaBuilder {
         });
         self
     }
-    
+
     /// Disallow connection between two pin types
     pub fn disallow_connection(
         mut self,
@@ -46,7 +42,7 @@ impl SchemaBuilder {
         });
         self
     }
-    
+
     /// Build the schema
     pub fn build(self) -> GraphSchema {
         self.schema
@@ -71,10 +67,10 @@ mod tests {
             .disallow_connection(
                 PinType::Exec,
                 PinType::Float,
-                "Cannot connect execution to data"
+                "Cannot connect execution to data",
             )
             .build();
-        
+
         assert!(schema.allowed_connections.len() >= 3);
     }
 }

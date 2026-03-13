@@ -42,22 +42,21 @@
 //! let source = BlueprintFactoryGenerator::generate_source(&bp);
 //! ```
 
-pub mod error;
-pub mod ir;
-pub mod factory;
-pub mod writer;
 pub mod conversion;
+pub mod error;
+pub mod factory;
+pub mod ir;
 pub mod kismet;
+pub mod writer;
 
 // Re-export the most common types at crate root
-pub use ir::{
-    BlueprintDef, BlueprintEngineVersion,
-    ComponentDef, PropertyDef, PropertyValue,
-    EventGraphNode, KismetCall,
-};
-pub use factory::BlueprintFactoryGenerator;
-pub use writer::BlueprintBinaryWriter;
 pub use error::{BlueprintError, Result};
+pub use factory::BlueprintFactoryGenerator;
+pub use ir::{
+    BlueprintDef, BlueprintEngineVersion, ComponentDef, EventGraphNode, KismetCall, PropertyDef,
+    PropertyValue,
+};
+pub use writer::BlueprintBinaryWriter;
 
 /// Convenience: generate both header and source for a blueprint.
 /// Returns `(header_content, source_content)`.
@@ -85,9 +84,9 @@ pub fn generate_uasset(bp: &BlueprintDef) -> Result<Option<Vec<u8>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ComponentDef, PropertyDef, EventGraphNode, KismetCall};
+    use crate::ir::{ComponentDef, EventGraphNode, KismetCall, PropertyDef};
     #[allow(unused_imports)]
-    use crate::{BlueprintFactoryGenerator, BlueprintBinaryWriter};
+    use crate::{BlueprintBinaryWriter, BlueprintFactoryGenerator};
 
     fn sample_blueprint() -> BlueprintDef {
         BlueprintDef::new(
@@ -155,7 +154,10 @@ mod tests {
     fn test_asset_path_generation() {
         let bp = sample_blueprint();
         assert_eq!(bp.asset_path(), "/Game/Tests/Blueprints/BP_TestPlayer");
-        assert_eq!(bp.generated_class_path(), "/Game/Tests/Blueprints/BP_TestPlayer.BP_TestPlayer_C");
+        assert_eq!(
+            bp.generated_class_path(),
+            "/Game/Tests/Blueprints/BP_TestPlayer.BP_TestPlayer_C"
+        );
     }
 
     #[test]

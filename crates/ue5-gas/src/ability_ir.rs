@@ -5,7 +5,7 @@
 // Handles ability policies, tags, cost/cooldown, and lifecycle hooks.
 // ============================================================================
 
-use kain_core::ast::{GameplayAbilityDef, Function};
+use kain_core::ast::{Function, GameplayAbilityDef};
 use kain_core::error::{KainError, KainResult};
 use kain_core::span::Span;
 
@@ -168,7 +168,10 @@ impl GameplayAbilityIR {
                 "ReplicateNo" => Ok(ReplicationPolicy::ReplicateNo),
                 "ReplicateYes" => Ok(ReplicationPolicy::ReplicateYes),
                 _ => Err(KainError::codegen(
-                    format!("Invalid replication policy: {}. Valid values: ReplicateNo, ReplicateYes", policy_str),
+                    format!(
+                        "Invalid replication policy: {}. Valid values: ReplicateNo, ReplicateYes",
+                        policy_str
+                    ),
                     ability.span,
                 )),
             }
@@ -199,10 +202,7 @@ impl GameplayAbilityIR {
     fn validate_tags(tags: &[String], span: Span) -> KainResult<()> {
         for tag in tags {
             if tag.is_empty() {
-                return Err(KainError::codegen(
-                    "Tag cannot be empty".to_string(),
-                    span,
-                ));
+                return Err(KainError::codegen("Tag cannot be empty".to_string(), span));
             }
 
             // Tags must be dot-separated identifiers
@@ -217,7 +217,10 @@ impl GameplayAbilityIR {
                 // Check if part is a valid identifier
                 if !part.chars().next().unwrap().is_alphabetic() {
                     return Err(KainError::codegen(
-                        format!("Invalid tag '{}': component '{}' must start with a letter", tag, part),
+                        format!(
+                            "Invalid tag '{}': component '{}' must start with a letter",
+                            tag, part
+                        ),
                         span,
                     ));
                 }
@@ -225,7 +228,10 @@ impl GameplayAbilityIR {
                 for ch in part.chars() {
                     if !ch.is_alphanumeric() && ch != '_' {
                         return Err(KainError::codegen(
-                            format!("Invalid tag '{}': component '{}' contains invalid character '{}'", tag, part, ch),
+                            format!(
+                                "Invalid tag '{}': component '{}' contains invalid character '{}'",
+                                tag, part, ch
+                            ),
                             span,
                         ));
                     }
@@ -274,17 +280,26 @@ mod tests {
 
     #[test]
     fn test_instancing_policy_default() {
-        assert_eq!(InstancingPolicy::default(), InstancingPolicy::InstancedPerExecution);
+        assert_eq!(
+            InstancingPolicy::default(),
+            InstancingPolicy::InstancedPerExecution
+        );
     }
 
     #[test]
     fn test_replication_policy_default() {
-        assert_eq!(ReplicationPolicy::default(), ReplicationPolicy::ReplicateYes);
+        assert_eq!(
+            ReplicationPolicy::default(),
+            ReplicationPolicy::ReplicateYes
+        );
     }
 
     #[test]
     fn test_net_execution_policy_default() {
-        assert_eq!(NetExecutionPolicy::default(), NetExecutionPolicy::LocalPredicted);
+        assert_eq!(
+            NetExecutionPolicy::default(),
+            NetExecutionPolicy::LocalPredicted
+        );
     }
 
     #[test]

@@ -43,19 +43,19 @@ impl CompletenessReport {
             missing_files: Vec::new(),
         }
     }
-    
+
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty() || !self.missing_files.is_empty()
     }
-    
+
     pub fn add_error(&mut self, error: ValidationError) {
         self.errors.push(error);
     }
-    
+
     pub fn add_warning(&mut self, warning: ValidationWarning) {
         self.warnings.push(warning);
     }
-    
+
     pub fn add_missing_file(&mut self, path: PathBuf) {
         self.missing_files.push(path);
     }
@@ -63,8 +63,12 @@ impl CompletenessReport {
 
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Metadata validation error in {}: {}", 
-            self.file_path.display(), self.message)?;
+        write!(
+            f,
+            "Metadata validation error in {}: {}",
+            self.file_path.display(),
+            self.message
+        )?;
         if let Some(json_path) = &self.json_path {
             write!(f, " at {}", json_path)?;
         }
@@ -88,7 +92,7 @@ impl MetadataValidator {
         let mut validator = Self {
             schemas: HashMap::new(),
         };
-        
+
         // Load all schema definitions
         validator.load_engine_knowledge_schema();
         validator.load_module_graph_schema();
@@ -99,15 +103,15 @@ impl MetadataValidator {
         validator.load_virtual_obligations_schema();
         validator.load_codegen_rules_schema();
         validator.load_version_config_schema();
-        
+
         validator
     }
-    
+
     /// Check completeness of all metadata files in a directory
     /// Requirements: 13.10, 13.20
     pub fn check_completeness(&self, metadata_dir: &Path) -> CompletenessReport {
         let mut report = CompletenessReport::new();
-        
+
         // Required metadata files
         let required_files = vec![
             "engine_knowledge.json",
@@ -116,7 +120,7 @@ impl MetadataValidator {
             "shader_knowledge.json",
             "widget_registry.json",
         ];
-        
+
         // Optional metadata files (warn if missing)
         let optional_files = vec![
             "editor_attributes.json",
@@ -124,7 +128,7 @@ impl MetadataValidator {
             "codegen_rules.json",
             "engine_knowledge_expanded.json",
         ];
-        
+
         // Check required files exist
         for filename in required_files {
             let file_path = metadata_dir.join(filename);
@@ -133,7 +137,10 @@ impl MetadataValidator {
                     file_path: file_path.clone(),
                     json_path: None,
                     message: format!("Required metadata file missing: {}", filename),
-                    suggestion: Some(format!("Run metadata extraction scripts to generate {}", filename)),
+                    suggestion: Some(format!(
+                        "Run metadata extraction scripts to generate {}",
+                        filename
+                    )),
                 });
                 report.add_missing_file(file_path);
             } else {
@@ -150,7 +157,7 @@ impl MetadataValidator {
                 }
             }
         }
-        
+
         // Check optional files (warnings only)
         for filename in optional_files {
             let file_path = metadata_dir.join(filename);
@@ -162,17 +169,21 @@ impl MetadataValidator {
                 });
             }
         }
-        
+
         // Check completeness of engine_knowledge.json
         let engine_knowledge_path = metadata_dir.join("engine_knowledge.json");
         if engine_knowledge_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&engine_knowledge_path) {
                 if let Ok(json) = serde_json::from_str::<Value>(&content) {
-                    self.check_engine_knowledge_completeness(&engine_knowledge_path, &json, &mut report);
+                    self.check_engine_knowledge_completeness(
+                        &engine_knowledge_path,
+                        &json,
+                        &mut report,
+                    );
                 }
             }
         }
-        
+
         // Check completeness of module_graph.json
         let module_graph_path = metadata_dir.join("module_graph.json");
         if module_graph_path.exists() {
@@ -182,12 +193,17 @@ impl MetadataValidator {
                 }
             }
         }
-        
+
         report
     }
-    
+
     /// Check completeness of engine_knowledge.json
-    fn check_engine_knowledge_completeness(&self, file_path: &Path, json: &Value, report: &mut CompletenessReport) {
+    fn check_engine_knowledge_completeness(
+        &self,
+        file_path: &Path,
+        json: &Value,
+        report: &mut CompletenessReport,
+    ) {
         // Check for required top-level fields
         if json.get("classes").is_none() {
             report.add_warning(ValidationWarning {
@@ -196,7 +212,7 @@ impl MetadataValidator {
                 message: "Missing 'classes' array in engine_knowledge.json".to_string(),
             });
         }
-        
+
         if json.get("structs").is_none() {
             report.add_warning(ValidationWarning {
                 file_path: file_path.to_path_buf(),
@@ -204,7 +220,7 @@ impl MetadataValidator {
                 message: "Missing 'structs' array in engine_knowledge.json".to_string(),
             });
         }
-        
+
         if json.get("enums").is_none() {
             report.add_warning(ValidationWarning {
                 file_path: file_path.to_path_buf(),
@@ -212,28 +228,43 @@ impl MetadataValidator {
                 message: "Missing 'enums' array in engine_knowledge.json".to_string(),
             });
         }
-        
+
         // Check for common UE5 types
-        let common_types = vec!["AActor", "UObject", "UActorComponent", "FVector", "FRotator", "FTransform"];
+        let common_types = vec![
+            "AActor",
+            "UObject",
+            "UActorComponent",
+            "FVector",
+            "FRotator",
+            "FTransform",
+        ];
         if let Some(classes) = json.get("classes").and_then(|c| c.as_array()) {
             for expected_type in common_types {
-                let found = classes.iter().any(|c| {
-                    c.get("name").and_then(|n| n.as_str()) == Some(expected_type)
-                });
-                
+                let found = classes
+                    .iter()
+                    .any(|c| c.get("name").and_then(|n| n.as_str()) == Some(expected_type));
+
                 if !found {
                     report.add_warning(ValidationWarning {
                         file_path: file_path.to_path_buf(),
                         field_path: format!("classes[{}]", expected_type),
-                        message: format!("Common UE5 type '{}' not found in engine_knowledge.json", expected_type),
+                        message: format!(
+                            "Common UE5 type '{}' not found in engine_knowledge.json",
+                            expected_type
+                        ),
                     });
                 }
             }
         }
     }
-    
+
     /// Check completeness of module_graph.json
-    fn check_module_graph_completeness(&self, file_path: &Path, json: &Value, report: &mut CompletenessReport) {
+    fn check_module_graph_completeness(
+        &self,
+        file_path: &Path,
+        json: &Value,
+        report: &mut CompletenessReport,
+    ) {
         // Check for required fields
         if json.get("modules").is_none() {
             report.add_warning(ValidationWarning {
@@ -242,7 +273,7 @@ impl MetadataValidator {
                 message: "Missing 'modules' array in module_graph.json".to_string(),
             });
         }
-        
+
         if json.get("include_to_module").is_none() {
             report.add_warning(ValidationWarning {
                 file_path: file_path.to_path_buf(),
@@ -250,39 +281,44 @@ impl MetadataValidator {
                 message: "Missing 'include_to_module' map in module_graph.json".to_string(),
             });
         }
-        
+
         // Check for common UE5 modules
         let common_modules = vec!["Core", "CoreUObject", "Engine", "Slate", "SlateCore"];
         if let Some(modules) = json.get("modules").and_then(|m| m.as_array()) {
             for expected_module in common_modules {
-                let found = modules.iter().any(|m| {
-                    m.get("name").and_then(|n| n.as_str()) == Some(expected_module)
-                });
-                
+                let found = modules
+                    .iter()
+                    .any(|m| m.get("name").and_then(|n| n.as_str()) == Some(expected_module));
+
                 if !found {
                     report.add_warning(ValidationWarning {
                         file_path: file_path.to_path_buf(),
                         field_path: format!("modules[{}]", expected_module),
-                        message: format!("Common UE5 module '{}' not found in module_graph.json", expected_module),
+                        message: format!(
+                            "Common UE5 module '{}' not found in module_graph.json",
+                            expected_module
+                        ),
                     });
                 }
             }
         }
     }
-    
+
     /// Validate a metadata file against its schema
     pub fn validate_file(&self, file_path: &Path, content: &str) -> ValidationResult<Value> {
         // Parse JSON
-        let instance: Value = serde_json::from_str(content)
-            .map_err(|e| ValidationError {
-                file_path: file_path.to_path_buf(),
-                json_path: None,
-                message: format!("Failed to parse JSON: {}", e),
-                suggestion: Some("Check JSON syntax for missing commas, brackets, or quotes".to_string()),
-            })?;
-        
+        let instance: Value = serde_json::from_str(content).map_err(|e| ValidationError {
+            file_path: file_path.to_path_buf(),
+            json_path: None,
+            message: format!("Failed to parse JSON: {}", e),
+            suggestion: Some(
+                "Check JSON syntax for missing commas, brackets, or quotes".to_string(),
+            ),
+        })?;
+
         // Determine schema based on filename
-        let filename = file_path.file_name()
+        let filename = file_path
+            .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| ValidationError {
                 file_path: file_path.to_path_buf(),
@@ -290,41 +326,49 @@ impl MetadataValidator {
                 message: "Invalid file path".to_string(),
                 suggestion: None,
             })?;
-        
+
         let schema_name = self.get_schema_name(filename);
-        
+
         // Get schema
-        let schema = self.schemas.get(&schema_name)
+        let schema = self
+            .schemas
+            .get(&schema_name)
             .ok_or_else(|| ValidationError {
                 file_path: file_path.to_path_buf(),
                 json_path: None,
                 message: format!("No schema found for file type: {}", filename),
-                suggestion: Some("This metadata file type is not yet supported for validation".to_string()),
+                suggestion: Some(
+                    "This metadata file type is not yet supported for validation".to_string(),
+                ),
             })?;
-        
+
         // Validate against schema
         if let Err(errors) = schema.validate(&instance) {
             let error_messages: Vec<String> = errors
                 .map(|e| format!("{} at {}", e, e.instance_path))
                 .collect();
-            
+
             return Err(ValidationError {
                 file_path: file_path.to_path_buf(),
                 json_path: Some(error_messages.join("; ")),
                 message: "Schema validation failed".to_string(),
-                suggestion: Some("Check the metadata file structure against the expected schema".to_string()),
+                suggestion: Some(
+                    "Check the metadata file structure against the expected schema".to_string(),
+                ),
             });
         }
-        
+
         Ok(instance)
     }
-    
+
     /// Determine schema name from filename
     fn get_schema_name(&self, filename: &str) -> String {
         if filename.starts_with("engine_") && filename.ends_with("_scanned.json") {
             // Scanned files use the same schema as engine_knowledge
             "engine_knowledge".to_string()
-        } else if filename == "engine_knowledge.json" || filename == "engine_knowledge_expanded.json" {
+        } else if filename == "engine_knowledge.json"
+            || filename == "engine_knowledge_expanded.json"
+        {
             "engine_knowledge".to_string()
         } else if filename == "module_graph.json" {
             "module_graph".to_string()
@@ -340,13 +384,15 @@ impl MetadataValidator {
             "virtual_obligations".to_string()
         } else if filename == "codegen_rules.json" {
             "codegen_rules".to_string()
-        } else if filename.ends_with(".json") && filename.chars().next().map_or(false, |c| c.is_numeric()) {
+        } else if filename.ends_with(".json")
+            && filename.chars().next().map_or(false, |c| c.is_numeric())
+        {
             "version_config".to_string()
         } else {
             "unknown".to_string()
         }
     }
-    
+
     /// Load engine_knowledge.json schema
     fn load_engine_knowledge_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -469,7 +515,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -477,7 +523,7 @@ impl MetadataValidator {
             self.schemas.insert("engine_knowledge".to_string(), schema);
         }
     }
-    
+
     /// Load module_graph.json schema
     fn load_module_graph_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -508,7 +554,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -516,7 +562,7 @@ impl MetadataValidator {
             self.schemas.insert("module_graph".to_string(), schema);
         }
     }
-    
+
     /// Load uht_rules.json schema
     fn load_uht_rules_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -539,7 +585,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -547,7 +593,7 @@ impl MetadataValidator {
             self.schemas.insert("uht_rules".to_string(), schema);
         }
     }
-    
+
     /// Load shader_knowledge.json schema
     fn load_shader_knowledge_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -571,7 +617,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -579,7 +625,7 @@ impl MetadataValidator {
             self.schemas.insert("shader_knowledge".to_string(), schema);
         }
     }
-    
+
     /// Load widget_registry.json schema
     fn load_widget_registry_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -610,7 +656,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -618,7 +664,7 @@ impl MetadataValidator {
             self.schemas.insert("widget_registry".to_string(), schema);
         }
     }
-    
+
     /// Load editor_attributes.json schema
     fn load_editor_attributes_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -642,7 +688,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -650,7 +696,7 @@ impl MetadataValidator {
             self.schemas.insert("editor_attributes".to_string(), schema);
         }
     }
-    
+
     /// Load virtual_obligations.json schema
     fn load_virtual_obligations_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -673,15 +719,16 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
         {
-            self.schemas.insert("virtual_obligations".to_string(), schema);
+            self.schemas
+                .insert("virtual_obligations".to_string(), schema);
         }
     }
-    
+
     /// Load codegen_rules.json schema
     fn load_codegen_rules_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -702,7 +749,7 @@ impl MetadataValidator {
                 }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -710,7 +757,7 @@ impl MetadataValidator {
             self.schemas.insert("codegen_rules".to_string(), schema);
         }
     }
-    
+
     /// Load version config schema (5.4.json, 5.5.json, etc.)
     fn load_version_config_schema(&mut self) {
         let schema_json = serde_json::json!({
@@ -722,7 +769,7 @@ impl MetadataValidator {
                 "engine_path": { "type": "string" }
             }
         });
-        
+
         if let Ok(schema) = JSONSchema::options()
             .with_draft(Draft::Draft7)
             .compile(&schema_json)
@@ -730,7 +777,6 @@ impl MetadataValidator {
             self.schemas.insert("version_config".to_string(), schema);
         }
     }
-    
 }
 
 impl Default for MetadataValidator {
@@ -744,23 +790,35 @@ mod tests {
     use super::*;
     use std::fs;
     use std::io::Write;
-    
+
     #[test]
     fn test_validator_creation() {
         let validator = MetadataValidator::new();
-        assert!(validator.schemas.len() > 0, "Validator should have loaded schemas");
+        assert!(
+            validator.schemas.len() > 0,
+            "Validator should have loaded schemas"
+        );
     }
-    
+
     #[test]
     fn test_schema_name_detection() {
         let validator = MetadataValidator::new();
-        
-        assert_eq!(validator.get_schema_name("engine_knowledge.json"), "engine_knowledge");
-        assert_eq!(validator.get_schema_name("engine_5.4_scanned.json"), "engine_knowledge");
-        assert_eq!(validator.get_schema_name("module_graph.json"), "module_graph");
+
+        assert_eq!(
+            validator.get_schema_name("engine_knowledge.json"),
+            "engine_knowledge"
+        );
+        assert_eq!(
+            validator.get_schema_name("engine_5.4_scanned.json"),
+            "engine_knowledge"
+        );
+        assert_eq!(
+            validator.get_schema_name("module_graph.json"),
+            "module_graph"
+        );
         assert_eq!(validator.get_schema_name("5.4.json"), "version_config");
     }
-    
+
     #[test]
     fn test_valid_engine_knowledge() {
         let validator = MetadataValidator::new();
@@ -772,99 +830,107 @@ mod tests {
             "type_aliases": [],
             "include_map": {}
         }"#;
-        
-        let result = validator.validate_file(
-            Path::new("engine_knowledge.json"),
-            valid_json
+
+        let result = validator.validate_file(Path::new("engine_knowledge.json"), valid_json);
+
+        assert!(
+            result.is_ok(),
+            "Valid engine_knowledge.json should pass validation"
         );
-        
-        assert!(result.is_ok(), "Valid engine_knowledge.json should pass validation");
     }
-    
+
     #[test]
     fn test_invalid_json_syntax() {
         let validator = MetadataValidator::new();
         let invalid_json = r#"{ "engine_version": "5.4", "#; // Missing closing brace
-        
-        let result = validator.validate_file(
-            Path::new("engine_knowledge.json"),
-            invalid_json
-        );
-        
+
+        let result = validator.validate_file(Path::new("engine_knowledge.json"), invalid_json);
+
         assert!(result.is_err(), "Invalid JSON syntax should fail");
         if let Err(e) = result {
             assert!(e.message.contains("Failed to parse JSON"));
         }
     }
-    
+
     #[test]
     fn test_completeness_check_missing_required_files() {
         let validator = MetadataValidator::new();
-        
+
         // Create a temporary directory
         let temp_dir = std::env::temp_dir().join("kain_metadata_test");
         let _ = fs::create_dir_all(&temp_dir);
-        
+
         // Check completeness (should report missing files)
         let report = validator.check_completeness(&temp_dir);
-        
-        assert!(report.has_errors(), "Should report errors for missing required files");
+
+        assert!(
+            report.has_errors(),
+            "Should report errors for missing required files"
+        );
         assert!(report.missing_files.len() > 0, "Should list missing files");
-        
+
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
     }
-    
+
     #[test]
     fn test_completeness_check_empty_file() {
         let validator = MetadataValidator::new();
-        
+
         // Create a temporary directory with an empty file
         let temp_dir = std::env::temp_dir().join("kain_metadata_test_empty");
         let _ = fs::create_dir_all(&temp_dir);
-        
+
         let empty_file = temp_dir.join("engine_knowledge.json");
         let _ = fs::File::create(&empty_file);
-        
+
         // Check completeness (should report empty file error)
         let report = validator.check_completeness(&temp_dir);
-        
+
         assert!(report.has_errors(), "Should report error for empty file");
-        
+
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
     }
-    
+
     #[test]
     fn test_completeness_check_incomplete_engine_knowledge() {
         let validator = MetadataValidator::new();
-        
+
         // Create a temporary directory with incomplete engine_knowledge.json
         let temp_dir = std::env::temp_dir().join("kain_metadata_test_incomplete");
         let _ = fs::create_dir_all(&temp_dir);
-        
+
         let incomplete_json = r#"{
             "engine_version": "5.4",
             "classes": [],
             "structs": []
         }"#;
-        
+
         let file_path = temp_dir.join("engine_knowledge.json");
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(incomplete_json.as_bytes()).unwrap();
-        
+
         // Also create other required files to avoid missing file errors
-        for filename in &["module_graph.json", "uht_rules.json", "shader_knowledge.json", "widget_registry.json"] {
+        for filename in &[
+            "module_graph.json",
+            "uht_rules.json",
+            "shader_knowledge.json",
+            "widget_registry.json",
+        ] {
             let path = temp_dir.join(filename);
             let mut f = fs::File::create(&path).unwrap();
             f.write_all(b"{}").unwrap();
         }
-        
+
         // Check completeness (should report warnings for missing fields)
         let report = validator.check_completeness(&temp_dir);
-        
-        assert!(report.warnings.len() > 0, "Should report warnings for incomplete metadata");
-        
+
+        assert!(
+            report.warnings.len() > 0,
+            "Should report warnings for incomplete metadata"
+        );
+
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
     }

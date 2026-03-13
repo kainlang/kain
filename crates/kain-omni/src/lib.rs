@@ -2,26 +2,17 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gpu::{generate_hlsl, generate_spirv};
 use kain_asm;
 use kain_core::ast::{Block, Expr, Function, Impl, Item, Pattern, Program, Stmt, Struct, Type};
 use kain_core::error::KainError;
-use kain_core::{comptime, diagnostics, monomorphize, stdlib, types, CompileTarget, Lexer, Parser, TypedProgram};
+use kain_core::CompileTarget;
+use kain_driver::{self as driver, GpuArtifactOutput, RustBundleOutput};
 use kain_import::c::{import_c_file_with_options, CImportOptions};
 use kain_import::rust::import_rust_file;
 use kain_import::typescript::import_typescript_file;
-use kain_sys_codegen::{
-    collect_gpu_artifacts_json, generate_cpp, generate_rust,
-    generate_rust_artifact_bundle, generate_rust_gpu_host_wrappers, RustArtifactBundle,
-    RustArtifactKind,
-};
+use kain_sys_codegen::RustArtifactKind;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use ue5::generate as generate_ue5;
-use ue5_editor::generate as generate_ue5_editor;
-use ue5_shaders::generate_usf;
-use web::{generate_js, generate_ks, generate_ts};
-
 #[derive(Debug, Error)]
 pub enum OmniError {
     #[error("IO error: {0}")]
@@ -159,19 +150,6 @@ pub struct StagedImport {
     pub generated_kn_path: PathBuf,
 }
 
-#[derive(Debug, Clone)]
-struct GpuArtifactOutput {
-    spirv: Vec<u8>,
-    rust_host: String,
-    reflection_json: String,
-}
-
-#[derive(Debug, Clone)]
-struct RustBuildOutput {
-    bundle: RustArtifactBundle,
-    spirv: Option<Vec<u8>>,
-}
-
 impl Default for OmniManifest {
     fn default() -> Self {
         Self {
@@ -227,7 +205,11 @@ pub fn build_manifest_path(path: &Path) -> OmniResult<OmniBuildResult> {
     build(&manifest_root, &manifest, Some(path))
 }
 
-pub fn build(project_root: &Path, manifest: &OmniManifest, manifest_path: Option<&Path>) -> OmniResult<OmniBuildResult> {
+pub fn build(
+    project_root: &Path,
+    manifest: &OmniManifest,
+    manifest_path: Option<&Path>,
+) -> OmniResult<OmniBuildResult> {
     let build_root = resolve_from_root(project_root, &manifest.project.build_dir);
     let staged_dir = build_root.join("staged_imports");
     let resolved_dir = build_root.join("resolved");
@@ -289,7 +271,11 @@ fn default_rust_bundle_artifacts() -> Vec<OmniRustArtifact> {
     ]
 }
 
-fn stage_imports(project_root: &Path, staged_dir: &Path, imports: &[OmniImportSource]) -> OmniResult<Vec<StagedImport>> {
+fn stage_imports(
+    project_root: &Path,
+    staged_dir: &Path,
+    imports: &[OmniImportSource],
+) -> OmniResult<Vec<StagedImport>> {
     let mut staged = Vec::new();
     for import in imports {
         let source_path = resolve_from_root(project_root, &import.path);
@@ -371,11 +357,16 @@ fn import_c_path(path: &Path, config: &OmniImportSource) -> OmniResult<Program> 
     }
     let files = collect_language_files(path, config, &["c", "h"])?;
     import_many_as_program(&files, config.flat, |file| {
-        import_c_file_with_options(file, &options).map_err(|err| OmniError::Compiler(err.to_string()))
+        import_c_file_with_options(file, &options)
+            .map_err(|err| OmniError::Compiler(err.to_string()))
     })
 }
 
-fn collect_language_files(root: &Path, config: &OmniImportSource, allowed_extensions: &[&str]) -> OmniResult<Vec<PathBuf>> {
+fn collect_language_files(
+    root: &Path,
+    config: &OmniImportSource,
+    allowed_extensions: &[&str],
+) -> OmniResult<Vec<PathBuf>> {
     let mut files = Vec::new();
     collect_language_files_into(root, root, config, allowed_extensions, &mut files)?;
     files.sort();
@@ -401,10 +392,18 @@ fn collect_language_files_into(
         let Some(ext) = path.extension().and_then(|value| value.to_str()) else {
             continue;
         };
-        if !allowed_extensions.iter().any(|allowed| ext.eq_ignore_ascii_case(allowed)) {
+        if !allowed_extensions
+            .iter()
+            .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+        {
             continue;
         }
-        let relative = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_ascii_lowercase();
         if !config.include_filters.is_empty()
             && !config
                 .include_filters
@@ -454,7 +453,13 @@ fn sanitize_module_name(path: &Path) -> String {
         .unwrap_or("module");
     let mut name = raw
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
         .collect::<String>();
     if name.is_empty() {
         name.push_str("module");
@@ -506,7 +511,11 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> OmniResult<()>
             Ok(())
         }
         Item::TypeAlias(value) => {
-            write_line(output, indent, &format!("type {} = {}", value.name, type_to_string(&value.target)))?;
+            write_line(
+                output,
+                indent,
+                &format!("type {} = {}", value.name, type_to_string(&value.target)),
+            )?;
             writeln!(output).map_err(|err| OmniError::SourceGeneration(err.to_string()))?;
             Ok(())
         }
@@ -514,7 +523,12 @@ fn write_item(output: &mut String, item: &Item, indent: usize) -> OmniResult<()>
             write_line(
                 output,
                 indent,
-                &format!("const {}: {} = {}", value.name, type_to_string(&value.ty), expr_to_string(&value.value)),
+                &format!(
+                    "const {}: {} = {}",
+                    value.name,
+                    type_to_string(&value.ty),
+                    expr_to_string(&value.value)
+                ),
             )?;
             writeln!(output).map_err(|err| OmniError::SourceGeneration(err.to_string()))?;
             Ok(())
@@ -575,7 +589,11 @@ fn write_enum(output: &mut String, value: &kain_core::ast::Enum, indent: usize) 
             let line = match &variant.fields {
                 kain_core::ast::VariantFields::Unit => variant.name.clone(),
                 kain_core::ast::VariantFields::Tuple(types) => {
-                    let values = types.iter().map(type_to_string).collect::<Vec<_>>().join(", ");
+                    let values = types
+                        .iter()
+                        .map(type_to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     format!("{}({values})", variant.name)
                 }
                 kain_core::ast::VariantFields::Struct(fields) => {
@@ -598,7 +616,11 @@ fn write_impl(output: &mut String, value: &Impl, indent: usize) -> OmniResult<()
     use std::fmt::Write;
 
     let header = match &value.trait_name {
-        Some(trait_name) => format!("impl {} for {}:", trait_name, type_to_string(&value.target_type)),
+        Some(trait_name) => format!(
+            "impl {} for {}:",
+            trait_name,
+            type_to_string(&value.target_type)
+        ),
         None => format!("impl {}:", type_to_string(&value.target_type)),
     };
     write_line(output, indent, &header)?;
@@ -626,7 +648,9 @@ fn write_block(output: &mut String, block: &Block, indent: usize) -> OmniResult<
 
 fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> OmniResult<()> {
     match stmt {
-        Stmt::Let { pattern, ty, value, .. } => {
+        Stmt::Let {
+            pattern, ty, value, ..
+        } => {
             let mut line = format!("let {}", pattern_to_string(pattern));
             if let Some(ty) = ty {
                 line.push_str(&format!(": {}", type_to_string(ty)));
@@ -687,17 +711,37 @@ fn type_to_string(ty: &Type) -> String {
             if generics.is_empty() {
                 name.clone()
             } else {
-                format!("{}<{}>", name, generics.iter().map(type_to_string).collect::<Vec<_>>().join(", "))
+                format!(
+                    "{}<{}>",
+                    name,
+                    generics
+                        .iter()
+                        .map(type_to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         }
-        Type::Tuple(types, _) => format!("({})", types.iter().map(type_to_string).collect::<Vec<_>>().join(", ")),
+        Type::Tuple(types, _) => format!(
+            "({})",
+            types
+                .iter()
+                .map(type_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
         Type::Array(inner, _, _) => format!("Array<{}>", type_to_string(inner)),
         Type::Option(inner, _) => format!("Option<{}>", type_to_string(inner)),
         _ => "Any".to_string(),
     }
 }
 
-fn build_target(source: &str, resolved_entry: &Path, output: &Path, target: &OmniTarget) -> OmniResult<Vec<PathBuf>> {
+fn build_target(
+    source: &str,
+    resolved_entry: &Path,
+    output: &Path,
+    target: &OmniTarget,
+) -> OmniResult<Vec<PathBuf>> {
     match target.kind {
         OmniTargetKind::GpuArtifacts => {
             let artifacts = compile_gpu_artifacts(source)?;
@@ -706,13 +750,20 @@ fn build_target(source: &str, resolved_entry: &Path, output: &Path, target: &Omn
         OmniTargetKind::RustBundle => {
             let config = target.rust_bundle.clone().unwrap_or_default();
             let compiled = compile_rust_bundle(source, &config)?;
-            let output_root = config.output.as_ref().map(|value| {
-                if value.is_absolute() {
-                    value.clone()
-                } else {
-                    output.parent().map(|parent| parent.join(value)).unwrap_or_else(|| value.clone())
-                }
-            }).unwrap_or_else(|| output.to_path_buf());
+            let output_root = config
+                .output
+                .as_ref()
+                .map(|value| {
+                    if value.is_absolute() {
+                        value.clone()
+                    } else {
+                        output
+                            .parent()
+                            .map(|parent| parent.join(value))
+                            .unwrap_or_else(|| value.clone())
+                    }
+                })
+                .unwrap_or_else(|| output.to_path_buf());
             let base_name = resolved_entry
                 .file_stem()
                 .and_then(|value| value.to_str())
@@ -725,8 +776,9 @@ fn build_target(source: &str, resolved_entry: &Path, output: &Path, target: &Omn
             Ok(vec![output.to_path_buf()])
         }
         _ => {
-            let compile_target = compile_target_for_kind(&target.kind)
-                .ok_or_else(|| OmniError::Config(format!("Unsupported target: {:?}", target.kind)))?;
+            let compile_target = compile_target_for_kind(&target.kind).ok_or_else(|| {
+                OmniError::Config(format!("Unsupported target: {:?}", target.kind))
+            })?;
             let compiled = compile_to_text(source, compile_target)?;
             let final_output = ensure_target_extension(output, compile_target);
             if let Some(parent) = final_output.parent() {
@@ -762,103 +814,25 @@ fn ensure_target_extension(path: &Path, target: CompileTarget) -> PathBuf {
 }
 
 fn target_extension(target: CompileTarget) -> &'static str {
-    match target {
-        CompileTarget::Js => "js",
-        CompileTarget::Ts => "ts",
-        CompileTarget::Ks => "ks",
-        CompileTarget::Rust => "rs",
-        CompileTarget::Cpp => "cpp",
-        CompileTarget::Hlsl => "hlsl",
-        CompileTarget::Usf => "usf",
-        CompileTarget::Ue5 => "h",
-        CompileTarget::Ue5Editor => "h",
-        CompileTarget::Spirv => "spv",
-        CompileTarget::Wasm => "wasm",
-        CompileTarget::Llvm => "ll",
-        CompileTarget::Hybrid => "js",
-        CompileTarget::Interpret | CompileTarget::Test => "txt",
-    }
-}
-
-fn frontend_to_monomorphized_program(source: &str, target: CompileTarget) -> Result<monomorphize::MonomorphizedProgram, KainError> {
-    let stdlib_source = stdlib::load_stdlib_for_target(target);
-    let full_source = format!("{}\n{}", stdlib_source, source);
-    let tokens = Lexer::new(&full_source).tokenize()?;
-    let span_mapper = diagnostics::SpanMapper::new(&full_source);
-    let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
-    comptime::eval_program(&mut ast)?;
-    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
-    monomorphize::monomorphize(&typed_ast)
-}
-
-fn frontend_to_typed_program(source: &str, target: CompileTarget) -> Result<TypedProgram, KainError> {
-    let program = frontend_to_monomorphized_program(source, target)?;
-    Ok(TypedProgram { items: program.items })
+    driver::target_extension(target)
 }
 
 fn compile_to_text(source: &str, target: CompileTarget) -> OmniResult<String> {
-    match target {
-        CompileTarget::Rust => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_rust(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Cpp => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_cpp(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Hlsl => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_hlsl(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Usf => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_usf(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Js => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_js(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Ts => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_ts(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Ks => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            generate_ks(&typed).map_err(to_compiler_error)
-        }
-        CompileTarget::Ue5 => {
-            let mono = frontend_to_monomorphized_program(source, target).map_err(to_compiler_error)?;
-            let generated = generate_ue5(&mono, None, None).map_err(to_compiler_error)?;
-            Ok(format!("{}\n{}", generated.header, generated.source))
-        }
-        CompileTarget::Ue5Editor => {
-            let typed = frontend_to_typed_program(source, target).map_err(to_compiler_error)?;
-            let generated = generate_ue5_editor(&typed, "EditorTools", None).map_err(to_compiler_error)?;
-            Ok(format!("{}\n{}", generated.header, generated.source))
-        }
-        _ => Err(OmniError::Config(format!("Unsupported text target: {:?}", target))),
-    }
+    driver::compile(source, target).map_err(to_compiler_error)
 }
 
 fn compile_spirv_binary(source: &str) -> OmniResult<Vec<u8>> {
-    let typed = frontend_to_typed_program(source, CompileTarget::Spirv).map_err(to_compiler_error)?;
-    generate_spirv(&typed).map_err(to_compiler_error)
+    driver::compile_spirv_binary(source).map_err(to_compiler_error)
 }
 
 fn compile_gpu_artifacts(source: &str) -> OmniResult<GpuArtifactOutput> {
-    let typed = frontend_to_typed_program(source, CompileTarget::Spirv).map_err(to_compiler_error)?;
-    let spirv = generate_spirv(&typed).map_err(to_compiler_error)?;
-    let rust_host = generate_rust_gpu_host_wrappers(&typed).map_err(to_compiler_error)?;
-    let reflection_json = collect_gpu_artifacts_json(&typed)
-        .map_err(|err| OmniError::Compiler(format!("Failed to serialize GPU reflection JSON: {err}")))?;
-    Ok(GpuArtifactOutput {
-        spirv,
-        rust_host,
-        reflection_json,
-    })
+    driver::compile_gpu_artifacts(source).map_err(to_compiler_error)
 }
 
-fn write_gpu_artifacts_bundle(output: &Path, artifacts: &GpuArtifactOutput) -> OmniResult<Vec<PathBuf>> {
+fn write_gpu_artifacts_bundle(
+    output: &Path,
+    artifacts: &GpuArtifactOutput,
+) -> OmniResult<Vec<PathBuf>> {
     let spirv_path = with_file_name_suffix(output, "", "spv");
     let rust_path = with_file_name_suffix(output, ".gpu", "rs");
     let json_path = with_file_name_suffix(output, ".reflect", "json");
@@ -873,27 +847,22 @@ fn write_gpu_artifacts_bundle(output: &Path, artifacts: &GpuArtifactOutput) -> O
     Ok(vec![spirv_path, rust_path, json_path])
 }
 
-fn compile_rust_bundle(source: &str, config: &OmniRustBundleConfig) -> OmniResult<RustBuildOutput> {
-    let typed = frontend_to_typed_program(source, CompileTarget::Rust).map_err(to_compiler_error)?;
-    let bundle = generate_rust_artifact_bundle(&typed).map_err(to_compiler_error)?;
-    let spirv = if config.artifacts.contains(&OmniRustArtifact::Spirv)
-        && bundle
-            .shader_metadata
-            .as_ref()
-            .is_some_and(|metadata| !metadata.shaders.is_empty())
-    {
-        Some(compile_spirv_binary(source)?)
-    } else {
-        None
-    };
-    Ok(RustBuildOutput { bundle, spirv })
+fn compile_rust_bundle(
+    source: &str,
+    config: &OmniRustBundleConfig,
+) -> OmniResult<RustBundleOutput> {
+    driver::compile_rust_artifact_bundle(
+        source,
+        config.artifacts.contains(&OmniRustArtifact::Spirv),
+    )
+    .map_err(to_compiler_error)
 }
 
 fn write_rust_bundle_outputs(
     output_root: &Path,
     base_name: &str,
     config: &OmniRustBundleConfig,
-    compiled: &RustBuildOutput,
+    compiled: &RustBundleOutput,
 ) -> OmniResult<Vec<PathBuf>> {
     fs::create_dir_all(output_root)?;
     let mut written = Vec::new();
@@ -905,8 +874,12 @@ fn write_rust_bundle_outputs(
     for artifact in &compiled.bundle.supplemental {
         let should_write = match artifact.kind {
             RustArtifactKind::PrimarySource => config.artifacts.contains(&OmniRustArtifact::Source),
-            RustArtifactKind::ShaderHost => config.artifacts.contains(&OmniRustArtifact::ShaderHost),
-            RustArtifactKind::ShaderReflection => config.artifacts.contains(&OmniRustArtifact::ShaderReflection),
+            RustArtifactKind::ShaderHost => {
+                config.artifacts.contains(&OmniRustArtifact::ShaderHost)
+            }
+            RustArtifactKind::ShaderReflection => config
+                .artifacts
+                .contains(&OmniRustArtifact::ShaderReflection),
         };
         if !should_write {
             continue;
@@ -914,7 +887,9 @@ fn write_rust_bundle_outputs(
         let path = match artifact.kind {
             RustArtifactKind::PrimarySource => output_root.join(format!("{base_name}.rs")),
             RustArtifactKind::ShaderHost => output_root.join(format!("{base_name}.gpu.rs")),
-            RustArtifactKind::ShaderReflection => output_root.join(format!("{base_name}.reflect.json")),
+            RustArtifactKind::ShaderReflection => {
+                output_root.join(format!("{base_name}.reflect.json"))
+            }
         };
         fs::write(&path, artifact.contents.as_bytes())?;
         written.push(path);
@@ -942,7 +917,11 @@ fn to_compiler_error(error: KainError) -> OmniError {
     OmniError::Compiler(error.to_string())
 }
 
-fn build_search_roots(project_root: &Path, staged_imports: &[StagedImport], config: &OmniImportResolution) -> Vec<PathBuf> {
+fn build_search_roots(
+    project_root: &Path,
+    staged_imports: &[StagedImport],
+    config: &OmniImportResolution,
+) -> Vec<PathBuf> {
     let mut roots = BTreeSet::new();
     roots.insert(project_root.to_path_buf());
     for root in &config.search_roots {
@@ -973,7 +952,12 @@ fn resolve_kain_program(entry: &Path, search_roots: &[PathBuf]) -> OmniResult<St
     Ok(merged)
 }
 
-fn resolve_kain_file(path: &Path, search_roots: &[PathBuf], visited: &mut BTreeSet<PathBuf>, ordered: &mut Vec<String>) -> OmniResult<()> {
+fn resolve_kain_file(
+    path: &Path,
+    search_roots: &[PathBuf],
+    visited: &mut BTreeSet<PathBuf>,
+    ordered: &mut Vec<String>,
+) -> OmniResult<()> {
     let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     if !visited.insert(canonical.clone()) {
         return Ok(());
@@ -1003,7 +987,11 @@ fn parse_quoted_import(line: &str) -> Option<String> {
     Some(rest[..second_quote].to_string())
 }
 
-fn resolve_quoted_import(current_file: &Path, import_spec: &str, search_roots: &[PathBuf]) -> OmniResult<PathBuf> {
+fn resolve_quoted_import(
+    current_file: &Path,
+    import_spec: &str,
+    search_roots: &[PathBuf],
+) -> OmniResult<PathBuf> {
     let mut candidates = Vec::new();
     let import_path = PathBuf::from(import_spec);
     let dotted = PathBuf::from(import_spec.replace('.', "/"));
@@ -1047,8 +1035,14 @@ mod tests {
 
     #[test]
     fn parses_quoted_import() {
-        assert_eq!(parse_quoted_import("import \"Unreal.Core\""), Some("Unreal.Core".to_string()));
-        assert_eq!(parse_quoted_import("  import \"paint/brush\"  "), Some("paint/brush".to_string()));
+        assert_eq!(
+            parse_quoted_import("import \"Unreal.Core\""),
+            Some("Unreal.Core".to_string())
+        );
+        assert_eq!(
+            parse_quoted_import("  import \"paint/brush\"  "),
+            Some("paint/brush".to_string())
+        );
         assert_eq!(parse_quoted_import("use foo::bar"), None);
     }
 
@@ -1076,7 +1070,8 @@ mod tests {
         let entry = dir.path().join("main.kn");
         fs::write(&entry, "import \"Unreal.Core\"\nfn main():\n    return 0\n").unwrap();
 
-        let resolved = resolve_quoted_import(&entry, "Unreal.Core", &[dir.path().to_path_buf()]).unwrap();
+        let resolved =
+            resolve_quoted_import(&entry, "Unreal.Core", &[dir.path().to_path_buf()]).unwrap();
         assert_eq!(resolved, module_path);
     }
 
@@ -1086,7 +1081,11 @@ mod tests {
         let shared = dir.path().join("shared.kn");
         let entry = dir.path().join("main.kn");
         fs::write(&shared, "fn helper():\n    return 7\n").unwrap();
-        fs::write(&entry, "import \"shared.kn\"\nfn main():\n    return helper()\n").unwrap();
+        fs::write(
+            &entry,
+            "import \"shared.kn\"\nfn main():\n    return helper()\n",
+        )
+        .unwrap();
 
         let merged = resolve_kain_program(&entry, &[dir.path().to_path_buf()]).unwrap();
         assert!(merged.contains("fn helper():"));
@@ -1125,13 +1124,20 @@ mod tests {
         fs::write(&manifest_path, toml::to_string_pretty(&manifest).unwrap()).unwrap();
 
         let result = build_manifest_path(&manifest_path).unwrap();
-        let resolved_entry = project_root.join(Path::new("build_artifacts").join("resolved").join("main.kn"));
+        let resolved_entry = project_root.join(
+            Path::new("build_artifacts")
+                .join("resolved")
+                .join("main.kn"),
+        );
         let rust_output = project_root.join(Path::new("dist").join("generated").join("app.rs"));
 
         assert_eq!(result.resolved_entry, resolved_entry);
         assert!(resolved_entry.exists());
         assert!(rust_output.exists());
-        assert!(result.written_outputs.iter().any(|path| path == &rust_output));
+        assert!(result
+            .written_outputs
+            .iter()
+            .any(|path| path == &rust_output));
     }
 
     #[test]
@@ -1141,7 +1147,11 @@ mod tests {
         let entry = root.join("main.kn");
         let shared = root.join("shared.kn");
         fs::write(&shared, "fn helper() -> Int:\n    return 7\n").unwrap();
-        fs::write(&entry, "import \"shared.kn\"\nfn main() -> Int:\n    return helper()\n").unwrap();
+        fs::write(
+            &entry,
+            "import \"shared.kn\"\nfn main() -> Int:\n    return helper()\n",
+        )
+        .unwrap();
 
         let manifest = OmniManifest {
             project: OmniProject {
@@ -1160,6 +1170,9 @@ mod tests {
         let result = build(root, &manifest, None).unwrap();
         let rust_output = root.join("omni_out/generated/main.rs");
         assert!(rust_output.exists());
-        assert!(result.written_outputs.iter().any(|path| path == &rust_output));
+        assert!(result
+            .written_outputs
+            .iter()
+            .any(|path| path == &rust_output));
     }
 }

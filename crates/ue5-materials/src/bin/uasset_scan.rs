@@ -68,10 +68,9 @@ fn try_parse_asset(path: &Path) -> Result<Asset<File>, String> {
     for &engine_version in engine_versions_to_try() {
         // Try with split export file first when present.
         if has_uexp {
-            let file = File::open(path)
-                .map_err(|e| format!("open uasset failed: {}", e))?;
-            let uexp_file = File::open(&uexp_path)
-                .map_err(|e| format!("open uexp failed: {}", e))?;
+            let file = File::open(path).map_err(|e| format!("open uasset failed: {}", e))?;
+            let uexp_file =
+                File::open(&uexp_path).map_err(|e| format!("open uexp failed: {}", e))?;
             match Asset::new(file, Some(uexp_file), engine_version, None) {
                 Ok(asset) => return Ok(asset),
                 Err(e) => errors.push(format!("{:?} with .uexp: {}", engine_version, e)),
@@ -140,7 +139,11 @@ fn scan_file(path: &Path, report: &mut ScanReport) {
                         .unwrap_or_else(|| "<none>".to_string());
 
                     let key = format!("{}::{}", class_name, prop_name);
-                    add_enum(report, &format!("{} (type={})", key, enum_type), &enum_value);
+                    add_enum(
+                        report,
+                        &format!("{} (type={})", key, enum_type),
+                        &enum_value,
+                    );
                 }
             }
         }

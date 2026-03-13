@@ -75,10 +75,7 @@ pub fn parse_config_attribute(struct_def: &Struct) -> Result<Option<ConfigStruct
 /// ```
 pub fn parse_setting_attribute(field: &Field) -> Result<Option<ConfigField>> {
     // Find @setting attribute
-    let setting_attr = field
-        .attributes
-        .iter()
-        .find(|attr| attr.name == "setting");
+    let setting_attr = field.attributes.iter().find(|attr| attr.name == "setting");
 
     let Some(setting_attr) = setting_attr else {
         return Ok(None);
@@ -126,7 +123,9 @@ fn extract_string_param(args: &[Expr], param_name: &str) -> Option<String> {
                 }
             }
             // Named argument via BinaryOp::Assign (name = value)
-            Expr::Binary { left, op, right, .. } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
+            Expr::Binary {
+                left, op, right, ..
+            } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
                 if let Expr::Ident(name, _) = &**left {
                     if name == param_name {
                         if let Expr::String(value, _) = &**right {
@@ -166,7 +165,9 @@ fn extract_bool_param(args: &[Expr], param_name: &str) -> Option<bool> {
                 }
             }
             // Named argument via BinaryOp::Assign (name = value)
-            Expr::Binary { left, op, right, .. } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
+            Expr::Binary {
+                left, op, right, ..
+            } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
                 if let Expr::Ident(name, _) = &**left {
                     if name == param_name {
                         if let Expr::Bool(value, _) = &**right {
@@ -208,7 +209,9 @@ fn extract_float_param(args: &[Expr], param_name: &str) -> Option<f64> {
                 }
             }
             // Named argument via BinaryOp::Assign (name = value)
-            Expr::Binary { left, op, right, .. } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
+            Expr::Binary {
+                left, op, right, ..
+            } if matches!(op, kain_core::ast::BinaryOp::Assign) => {
                 if let Expr::Ident(name, _) = &**left {
                     if name == param_name {
                         match &**right {
@@ -271,8 +274,14 @@ mod tests {
             make_named_arg("file", make_string_expr("DefaultGame.ini")),
         ];
 
-        assert_eq!(extract_string_param(&args, "category"), Some("Game".to_string()));
-        assert_eq!(extract_string_param(&args, "file"), Some("DefaultGame.ini".to_string()));
+        assert_eq!(
+            extract_string_param(&args, "category"),
+            Some("Game".to_string())
+        );
+        assert_eq!(
+            extract_string_param(&args, "file"),
+            Some("DefaultGame.ini".to_string())
+        );
         assert_eq!(extract_string_param(&args, "missing"), None);
     }
 

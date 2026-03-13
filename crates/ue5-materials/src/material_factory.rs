@@ -45,14 +45,14 @@ private:
         for graph in graphs {
             header.push_str(&format!("    static void Generate_{}();\n", graph.name));
         }
-        
+
         header.push_str("};\n\n");
-        
+
         // Feature 7.1: Generate parameter structs for dynamic materials
         for graph in graphs {
             header.push_str(&self.generate_parameter_struct(graph));
         }
-        
+
         // Feature 7.1: Generate MID helper function declarations
         for graph in graphs {
             if graph.properties.expose_parameters {
@@ -127,7 +127,7 @@ void F{}MaterialFactory::GenerateMaterials()
         for graph in graphs {
             cpp.push_str(&self.generate_material_function(graph));
         }
-        
+
         // Feature 7.1: Generate MID helper implementations
         for graph in graphs {
             cpp.push_str(&self.generate_mid_helper(graph));
@@ -201,7 +201,10 @@ void F{}MaterialFactory::GenerateMaterials()
         let (x, y) = node.position;
 
         match &node.node_type {
-            MaterialNodeType::TextureSample { texture_input, uv_input } => {
+            MaterialNodeType::TextureSample {
+                texture_input,
+                uv_input,
+            } => {
                 format!(
                     r#"    UMaterialExpressionTextureSample* {} = NewObject<UMaterialExpressionTextureSample>(Material);
     {}->MaterialExpressionEditorX = {};
@@ -212,7 +215,11 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::TextureSampleParameter2D { param_name, default_texture, uv_input } => {
+            MaterialNodeType::TextureSampleParameter2D {
+                param_name,
+                default_texture,
+                uv_input,
+            } => {
                 format!(
                     r#"    UMaterialExpressionTextureSampleParameter2D* {} = NewObject<UMaterialExpressionTextureSampleParameter2D>(Material);
     {}->ParameterName = TEXT("{}");
@@ -234,7 +241,16 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, name, node.id, cpp_float(*default), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    name,
+                    node.id,
+                    cpp_float(*default),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             MaterialNodeType::VectorParameter { name, default } => {
@@ -247,7 +263,18 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, name, node.id, cpp_float(default[0]), cpp_float(default[1]), cpp_float(default[2]), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    name,
+                    node.id,
+                    cpp_float(default[0]),
+                    cpp_float(default[1]),
+                    cpp_float(default[2]),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             MaterialNodeType::Multiply { a, b } => {
@@ -327,7 +354,10 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::Fresnel { exponent, base_reflect_fraction } => {
+            MaterialNodeType::Fresnel {
+                exponent,
+                base_reflect_fraction,
+            } => {
                 format!(
                     r#"    UMaterialExpressionFresnel* {} = NewObject<UMaterialExpressionFresnel>(Material);
     {}->MaterialExpressionEditorX = {};
@@ -361,12 +391,18 @@ void F{}MaterialFactory::GenerateMaterials()
     
 "#,
                     node.id,
-                    node.id, if r { "true" } else { "false" },
-                    node.id, if g { "true" } else { "false" },
-                    node.id, if b { "true" } else { "false" },
-                    node.id, if a { "true" } else { "false" },
-                    node.id, x,
-                    node.id, y,
+                    node.id,
+                    if r { "true" } else { "false" },
+                    node.id,
+                    if g { "true" } else { "false" },
+                    node.id,
+                    if b { "true" } else { "false" },
+                    node.id,
+                    if a { "true" } else { "false" },
+                    node.id,
+                    x,
+                    node.id,
+                    y,
                     node.id
                 )
             }
@@ -379,23 +415,46 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, cpp_float(*value), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    cpp_float(*value),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             // Aliases - just delegate to the main implementation
             MaterialNodeType::DotProduct { .. } => self.generate_node_code(&MaterialNode {
                 id: node.id.clone(),
-                node_type: MaterialNodeType::Dot { 
-                    a: if let MaterialNodeType::DotProduct { a, .. } = &node.node_type { a.clone() } else { unreachable!() },
-                    b: if let MaterialNodeType::DotProduct { b, .. } = &node.node_type { b.clone() } else { unreachable!() },
+                node_type: MaterialNodeType::Dot {
+                    a: if let MaterialNodeType::DotProduct { a, .. } = &node.node_type {
+                        a.clone()
+                    } else {
+                        unreachable!()
+                    },
+                    b: if let MaterialNodeType::DotProduct { b, .. } = &node.node_type {
+                        b.clone()
+                    } else {
+                        unreachable!()
+                    },
                 },
                 position: node.position,
             }),
             MaterialNodeType::AppendVector { .. } => self.generate_node_code(&MaterialNode {
                 id: node.id.clone(),
-                node_type: MaterialNodeType::Append { 
-                    a: if let MaterialNodeType::AppendVector { a, .. } = &node.node_type { a.clone() } else { unreachable!() },
-                    b: if let MaterialNodeType::AppendVector { b, .. } = &node.node_type { b.clone() } else { unreachable!() },
+                node_type: MaterialNodeType::Append {
+                    a: if let MaterialNodeType::AppendVector { a, .. } = &node.node_type {
+                        a.clone()
+                    } else {
+                        unreachable!()
+                    },
+                    b: if let MaterialNodeType::AppendVector { b, .. } = &node.node_type {
+                        b.clone()
+                    } else {
+                        unreachable!()
+                    },
                 },
                 position: node.position,
             }),
@@ -419,7 +478,19 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, name, node.id, cpp_float(default[0]), cpp_float(default[1]), cpp_float(default[2]), cpp_float(default[3]), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    name,
+                    node.id,
+                    cpp_float(default[0]),
+                    cpp_float(default[1]),
+                    cpp_float(default[2]),
+                    cpp_float(default[3]),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             MaterialNodeType::Dot { a, b } => {
@@ -453,7 +524,16 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, cpp_float(value[0]), cpp_float(value[1]), cpp_float(value[2]), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    cpp_float(value[0]),
+                    cpp_float(value[1]),
+                    cpp_float(value[2]),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             MaterialNodeType::ConstantVec4 { value } => {
@@ -465,7 +545,17 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, cpp_float(value[0]), cpp_float(value[1]), cpp_float(value[2]), cpp_float(value[3]), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    cpp_float(value[0]),
+                    cpp_float(value[1]),
+                    cpp_float(value[2]),
+                    cpp_float(value[3]),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             MaterialNodeType::TextureCoordinate { index, tiling } => {
@@ -479,7 +569,18 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({});
     
 "#,
-                    node.id, node.id, index, node.id, cpp_float(tiling[0]), node.id, cpp_float(tiling[1]), node.id, x, node.id, y, node.id
+                    node.id,
+                    node.id,
+                    index,
+                    node.id,
+                    cpp_float(tiling[0]),
+                    node.id,
+                    cpp_float(tiling[1]),
+                    node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id
                 )
             }
             MaterialNodeType::Cross { a, b } => {
@@ -669,7 +770,11 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::CustomHLSL { code, output_type, inputs } => {
+            MaterialNodeType::CustomHLSL {
+                code,
+                output_type,
+                inputs,
+            } => {
                 // Generate UMaterialExpressionCustom node with embedded HLSL code
                 let output_type_enum = match output_type {
                     crate::material_graph::CustomOutputType::Float1 => "CMOT_Float1",
@@ -677,7 +782,7 @@ void F{}MaterialFactory::GenerateMaterials()
                     crate::material_graph::CustomOutputType::Float3 => "CMOT_Float3",
                     crate::material_graph::CustomOutputType::Float4 => "CMOT_Float4",
                 };
-                
+
                 let mut result = format!(
                     r#"    UMaterialExpressionCustom* {} = NewObject<UMaterialExpressionCustom>(Material);
     {}->Code = TEXT("{}");
@@ -685,13 +790,17 @@ void F{}MaterialFactory::GenerateMaterials()
     {}->MaterialExpressionEditorX = {};
     {}->MaterialExpressionEditorY = {};
 "#,
-                    node.id, 
-                    node.id, code.replace("\"", "\\\"").replace("\n", "\\n"),
-                    node.id, output_type_enum,
-                    node.id, x, 
-                    node.id, y
+                    node.id,
+                    node.id,
+                    code.replace("\"", "\\\"").replace("\n", "\\n"),
+                    node.id,
+                    output_type_enum,
+                    node.id,
+                    x,
+                    node.id,
+                    y
                 );
-                
+
                 // Add input declarations
                 for input in inputs {
                     let input_type_enum = match input.input_type {
@@ -710,17 +819,21 @@ void F{}MaterialFactory::GenerateMaterials()
                         input.name, node.id
                     ));
                 }
-                
+
                 result.push_str(&format!(
                     r#"    Material->GetExpressionCollection().AddExpression({});
     
 "#,
                     node.id
                 ));
-                
+
                 result
             }
-            MaterialNodeType::UVScroll { uv_input, offset_x, offset_y } => {
+            MaterialNodeType::UVScroll {
+                uv_input,
+                offset_x,
+                offset_y,
+            } => {
                 // UV scrolling is implemented as two Add nodes (one for X, one for Y)
                 // We need to split the UV into components, add offsets, then recombine
                 format!(
@@ -735,7 +848,11 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::UVScale { uv_input, scale_x, scale_y } => {
+            MaterialNodeType::UVScale {
+                uv_input,
+                scale_x,
+                scale_y,
+            } => {
                 // UV scaling is implemented as Multiply nodes
                 format!(
                     r#"    // UVScale node - multiplies UV by scale factors
@@ -749,7 +866,11 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::UVRotate { uv_input, angle, center } => {
+            MaterialNodeType::UVRotate {
+                uv_input,
+                angle,
+                center,
+            } => {
                 // UV rotation requires a rotation matrix (sine, cosine, multiply, add nodes)
                 // This is complex and will be fully implemented in generate_connections
                 format!(
@@ -764,7 +885,10 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::MaterialFunctionCall { function_path, inputs } => {
+            MaterialNodeType::MaterialFunctionCall {
+                function_path,
+                inputs,
+            } => {
                 // Generate UMaterialExpressionMaterialFunctionCall node
                 // This node calls an existing material function (which could be a KAIN shader)
                 let mut result = format!(
@@ -787,15 +911,19 @@ void F{}MaterialFactory::GenerateMaterials()
     
 "#,
                     node.id,
-                    node.id, x,
-                    node.id, y,
-                    node.id, function_path,
                     node.id,
-                    node.id, node.id,
+                    x,
+                    node.id,
+                    y,
+                    node.id,
+                    function_path,
+                    node.id,
+                    node.id,
+                    node.id,
                     function_path,
                     node.id
                 );
-                
+
                 result
             }
             // Feature 7.4: World-Space Operations
@@ -888,7 +1016,12 @@ void F{}MaterialFactory::GenerateMaterials()
                     node.id, node.id, x, node.id, y, node.id
                 )
             }
-            MaterialNodeType::MaterialLayer { base_layer, blend_layer, blend_mode, alpha } => {
+            MaterialNodeType::MaterialLayer {
+                base_layer,
+                blend_layer,
+                blend_mode,
+                alpha,
+            } => {
                 // Material layer blending — implemented as Lerp between base and blend
                 let blend_fn = match blend_mode {
                     LayerBlendMode::Lerp => "LinearInterpolate",
@@ -904,10 +1037,17 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({id});
     
 "#,
-                    blend_fn = blend_fn, id = node.id, x = x, y = y
+                    blend_fn = blend_fn,
+                    id = node.id,
+                    x = x,
+                    y = y
                 )
             }
-            MaterialNodeType::MaterialLayerBlend { layers, blend_modes, alphas } => {
+            MaterialNodeType::MaterialLayerBlend {
+                layers,
+                blend_modes,
+                alphas,
+            } => {
                 // Multi-layer blend — generate a chain of Lerp nodes
                 // The final result uses the last node ID
                 format!(
@@ -917,7 +1057,9 @@ void F{}MaterialFactory::GenerateMaterials()
     Material->GetExpressionCollection().AddExpression({id});
     
 "#,
-                    id = node.id, x = x, y = y
+                    id = node.id,
+                    x = x,
+                    y = y
                 )
             }
         }
@@ -961,31 +1103,52 @@ void F{}MaterialFactory::GenerateMaterials()
                 }
                 MaterialNodeType::Power { base, exponent } => {
                     code.push_str(&format!("    {}->Base.Expression = {};\n", node.id, base));
-                    code.push_str(&format!("    {}->Exponent.Expression = {};\n", node.id, exponent));
+                    code.push_str(&format!(
+                        "    {}->Exponent.Expression = {};\n",
+                        node.id, exponent
+                    ));
                 }
                 MaterialNodeType::Clamp { input, min, max } => {
                     code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
                     code.push_str(&format!("    {}->Min.Expression = {};\n", node.id, min));
                     code.push_str(&format!("    {}->Max.Expression = {};\n", node.id, max));
                 }
-                MaterialNodeType::Fresnel { exponent, base_reflect_fraction } => {
-                    code.push_str(&format!("    {}->ExponentIn.Expression = {};\n", node.id, exponent));
-                    code.push_str(&format!("    {}->BaseReflectFractionIn.Expression = {};\n", node.id, base_reflect_fraction));
+                MaterialNodeType::Fresnel {
+                    exponent,
+                    base_reflect_fraction,
+                } => {
+                    code.push_str(&format!(
+                        "    {}->ExponentIn.Expression = {};\n",
+                        node.id, exponent
+                    ));
+                    code.push_str(&format!(
+                        "    {}->BaseReflectFractionIn.Expression = {};\n",
+                        node.id, base_reflect_fraction
+                    ));
                 }
                 MaterialNodeType::ComponentMask { input, .. } => {
                     code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
                 }
-                MaterialNodeType::TextureSample { texture_input, uv_input } => {
+                MaterialNodeType::TextureSample {
+                    texture_input,
+                    uv_input,
+                } => {
                     if let Some(tex) = texture_input {
                         code.push_str(&format!("    {}->Texture = {};\n", node.id, tex));
                     }
                     if let Some(uv) = uv_input {
-                        code.push_str(&format!("    {}->Coordinates.Expression = {};\n", node.id, uv));
+                        code.push_str(&format!(
+                            "    {}->Coordinates.Expression = {};\n",
+                            node.id, uv
+                        ));
                     }
                 }
                 MaterialNodeType::TextureSampleParameter2D { uv_input, .. } => {
                     if let Some(uv) = uv_input {
-                        code.push_str(&format!("    {}->Coordinates.Expression = {};\n", node.id, uv));
+                        code.push_str(&format!(
+                            "    {}->Coordinates.Expression = {};\n",
+                            node.id, uv
+                        ));
                     }
                 }
                 MaterialNodeType::Cross { a, b } => {
@@ -993,7 +1156,10 @@ void F{}MaterialFactory::GenerateMaterials()
                     code.push_str(&format!("    {}->B.Expression = {};\n", node.id, b));
                 }
                 MaterialNodeType::Normalize { input } => {
-                    code.push_str(&format!("    {}->VectorInput.Expression = {};\n", node.id, input));
+                    code.push_str(&format!(
+                        "    {}->VectorInput.Expression = {};\n",
+                        node.id, input
+                    ));
                 }
                 MaterialNodeType::Length { input } => {
                     code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
@@ -1043,7 +1209,11 @@ void F{}MaterialFactory::GenerateMaterials()
                 MaterialNodeType::Cosine { input } => {
                     code.push_str(&format!("    {}->Input.Expression = {};\n", node.id, input));
                 }
-                MaterialNodeType::UVScroll { uv_input, offset_x, offset_y } => {
+                MaterialNodeType::UVScroll {
+                    uv_input,
+                    offset_x,
+                    offset_y,
+                } => {
                     // UVScroll: Add offset to UV coordinates
                     // The node itself is an Add node, wire UV and offset
                     code.push_str(&format!("    {}->A.Expression = {};\n", node.id, uv_input));
@@ -1051,14 +1221,22 @@ void F{}MaterialFactory::GenerateMaterials()
                     // TODO: Properly handle 2D offset with component-wise addition
                     code.push_str(&format!("    {}->B.Expression = {};\n", node.id, offset_x));
                 }
-                MaterialNodeType::UVScale { uv_input, scale_x, scale_y } => {
+                MaterialNodeType::UVScale {
+                    uv_input,
+                    scale_x,
+                    scale_y,
+                } => {
                     // UVScale: Multiply UV by scale factors
                     code.push_str(&format!("    {}->A.Expression = {};\n", node.id, uv_input));
                     // For now, we'll use scale_x as the scale (simplified)
                     // TODO: Properly handle 2D scale with component-wise multiplication
                     code.push_str(&format!("    {}->B.Expression = {};\n", node.id, scale_x));
                 }
-                MaterialNodeType::UVRotate { uv_input, angle, center } => {
+                MaterialNodeType::UVRotate {
+                    uv_input,
+                    angle,
+                    center,
+                } => {
                     // UVRotate: Complex rotation matrix
                     // For now, simplified implementation
                     // TODO: Implement full rotation matrix with sine/cosine nodes
@@ -1079,10 +1257,17 @@ void F{}MaterialFactory::GenerateMaterials()
                         ));
                     }
                 }
-                MaterialNodeType::TriplanarSample { texture, world_position, .. } => {
+                MaterialNodeType::TriplanarSample {
+                    texture,
+                    world_position,
+                    ..
+                } => {
                     // Triplanar sampling is implemented as CustomHLSL
                     // Wire texture, world position, and world normal inputs
-                    code.push_str(&format!("    // Triplanar sample connections for {}\n", node.id));
+                    code.push_str(&format!(
+                        "    // Triplanar sample connections for {}\n",
+                        node.id
+                    ));
                     code.push_str(&format!("    // Texture: {}\n", texture));
                     if let Some(pos) = world_position {
                         code.push_str(&format!("    // World Position: {}\n", pos));
@@ -1096,34 +1281,58 @@ void F{}MaterialFactory::GenerateMaterials()
 
         // Connect to material outputs
         if let Some(base_color) = &graph.outputs.base_color {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->BaseColor.Expression = {};\n", base_color));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->BaseColor.Expression = {};\n",
+                base_color
+            ));
         }
         if let Some(emissive) = &graph.outputs.emissive {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->EmissiveColor.Expression = {};\n", emissive));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->EmissiveColor.Expression = {};\n",
+                emissive
+            ));
         }
         if let Some(roughness) = &graph.outputs.roughness {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->Roughness.Expression = {};\n", roughness));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->Roughness.Expression = {};\n",
+                roughness
+            ));
         }
         if let Some(metallic) = &graph.outputs.metallic {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->Metallic.Expression = {};\n", metallic));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->Metallic.Expression = {};\n",
+                metallic
+            ));
         }
         if let Some(normal) = &graph.outputs.normal {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->Normal.Expression = {};\n", normal));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->Normal.Expression = {};\n",
+                normal
+            ));
         }
         if let Some(opacity) = &graph.outputs.opacity {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->Opacity.Expression = {};\n", opacity));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->Opacity.Expression = {};\n",
+                opacity
+            ));
         }
         if let Some(ao) = &graph.outputs.ambient_occlusion {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->AmbientOcclusion.Expression = {};\n", ao));
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->AmbientOcclusion.Expression = {};\n",
+                ao
+            ));
         }
-        
+
         // Phase 7.5: Connect WorldPositionOffset for vertex shader displacement
         if let Some(wpo) = &graph.outputs.world_position_offset {
-            code.push_str(&format!("    Material->GetEditorOnlyData()->WorldPositionOffset.Expression = {};\n", wpo));
-            
+            code.push_str(&format!(
+                "    Material->GetEditorOnlyData()->WorldPositionOffset.Expression = {};\n",
+                wpo
+            ));
+
             // Add comment explaining vertex shader usage
             code.push_str("    // WorldPositionOffset enables vertex displacement in the vertex shader stage\n");
-            
+
             // If displacement scale is specified, add a comment
             if let Some(scale) = graph.vertex_displacement_scale {
                 code.push_str(&format!("    // Displacement scale: {}x\n", scale));
@@ -1167,19 +1376,19 @@ void F{}MaterialFactory::GenerateMaterials()
             if props.two_sided { "true" } else { "false" }
         )
     }
-    
+
     /// Feature 7.1: Generate parameter struct for dynamic materials
     /// Creates a USTRUCT with all material parameters exposed for runtime modification
     fn generate_parameter_struct(&self, graph: &MaterialGraph) -> String {
         if !graph.properties.expose_parameters || graph.dynamic_parameters.is_empty() {
             return String::new();
         }
-        
+
         let mut code = format!(
             "// Parameter struct for dynamic material: {}\nUSTRUCT(BlueprintType)\nstruct F{}MaterialParams\n{{\n    GENERATED_BODY()\n\n",
             graph.name, graph.name
         );
-        
+
         // Use the dynamic_parameters list instead of scanning all nodes
         for param in &graph.dynamic_parameters {
             match param.param_type {
@@ -1215,30 +1424,36 @@ void F{}MaterialFactory::GenerateMaterials()
                 }
             }
         }
-        
+
         code.push_str("};\n\n");
         code
     }
-    
+
     /// Feature 7.1: Generate Material Instance Dynamic helper function
     /// Creates a Blueprint-callable function that instantiates a MID with parameters
     fn generate_mid_helper(&self, graph: &MaterialGraph) -> String {
         if !graph.properties.expose_parameters || graph.dynamic_parameters.is_empty() {
             return String::new();
         }
-        
+
         let mut setter_code = String::new();
         for param in &graph.dynamic_parameters {
             match param.param_type {
                 DynamicParameterType::Scalar => {
-                    setter_code.push_str(&format!("    MID->SetScalarParameterValue(TEXT(\"{}\"), Params.{});\n", param.name, param.name));
+                    setter_code.push_str(&format!(
+                        "    MID->SetScalarParameterValue(TEXT(\"{}\"), Params.{});\n",
+                        param.name, param.name
+                    ));
                 }
                 DynamicParameterType::Vector | DynamicParameterType::Color => {
-                    setter_code.push_str(&format!("    MID->SetVectorParameterValue(TEXT(\"{}\"), Params.{});\n", param.name, param.name));
+                    setter_code.push_str(&format!(
+                        "    MID->SetVectorParameterValue(TEXT(\"{}\"), Params.{});\n",
+                        param.name, param.name
+                    ));
                 }
             }
         }
-        
+
         format!(
             r#"
 UMaterialInstanceDynamic* Create{}MaterialInstance(UObject* Outer, const F{}MaterialParams& Params)
@@ -1282,20 +1497,18 @@ mod tests {
     #[test]
     fn test_factory_header_generation() {
         let gen = MaterialFactoryGenerator::new("TestPlugin".to_string());
-        let graphs = vec![
-            MaterialGraph {
-                name: "TestMaterial".to_string(),
-                inputs: vec![],
-                nodes: vec![],
-                outputs: MaterialOutputs::default(),
-                properties: MaterialProperties::default(),
-                is_dynamic: false,
-                dynamic_parameters: Vec::new(),
-                uses_vertex_shader: false,
-                vertex_displacement_scale: None,
-            }
-        ];
-        
+        let graphs = vec![MaterialGraph {
+            name: "TestMaterial".to_string(),
+            inputs: vec![],
+            nodes: vec![],
+            outputs: MaterialOutputs::default(),
+            properties: MaterialProperties::default(),
+            is_dynamic: false,
+            dynamic_parameters: Vec::new(),
+            uses_vertex_shader: false,
+            vertex_displacement_scale: None,
+        }];
+
         let header = gen.generate_factory_header(&graphs);
         assert!(header.contains("class FTestPluginMaterialFactory"));
         assert!(header.contains("static void Generate_TestMaterial();"));
@@ -1336,14 +1549,14 @@ mod tests {
         assert!(code.contains("MaterialExpressionEditorX = 300"));
         assert!(code.contains("MaterialExpressionEditorY = 400"));
     }
-    
+
     #[test]
     fn test_dynamic_material_generation() {
         let gen = MaterialFactoryGenerator::new("TestPlugin".to_string());
-        
+
         let mut graph = MaterialGraph::new("M_Dynamic".to_string());
         graph.properties.expose_parameters = true;
-        
+
         // Add inputs (required for mark_parameter_dynamic to work)
         graph.inputs.push(MaterialInput {
             name: "Intensity".to_string(),
@@ -1363,7 +1576,7 @@ mod tests {
             default_value: Some("vec4(1.0, 0.5, 0.0, 1.0)".to_string()),
             is_dynamic: false,
         });
-        
+
         // Add scalar parameter
         graph.nodes.push(MaterialNode {
             id: "node_0".to_string(),
@@ -1373,7 +1586,7 @@ mod tests {
             },
             position: (0, 0),
         });
-        
+
         // Add vector parameter
         graph.nodes.push(MaterialNode {
             id: "node_1".to_string(),
@@ -1383,7 +1596,7 @@ mod tests {
             },
             position: (0, 100),
         });
-        
+
         // Add color parameter
         graph.nodes.push(MaterialNode {
             id: "node_2".to_string(),
@@ -1393,26 +1606,26 @@ mod tests {
             },
             position: (0, 200),
         });
-        
+
         // Mark parameters as dynamic (Phase 7.1)
         graph.mark_parameter_dynamic("Intensity").unwrap();
         graph.mark_parameter_dynamic("Tint").unwrap();
         graph.mark_parameter_dynamic("EmissiveColor").unwrap();
-        
+
         let header = gen.generate_factory_header(&[graph.clone()]);
         let cpp = gen.generate_factory_cpp(&[graph]);
-        
+
         // Verify parameter struct generation
         assert!(header.contains("struct FM_DynamicMaterialParams"));
         assert!(header.contains("float Intensity"));
         assert!(header.contains("FLinearColor Tint"));
         assert!(header.contains("FLinearColor EmissiveColor"));
         assert!(header.contains("UPROPERTY(EditAnywhere, BlueprintReadWrite"));
-        
+
         // Verify MID helper declaration
         assert!(header.contains("CreateM_DynamicMaterialInstance"));
         assert!(header.contains("UFUNCTION(BlueprintCallable"));
-        
+
         // Verify MID helper implementation
         assert!(cpp.contains("UMaterialInstanceDynamic* CreateM_DynamicMaterialInstance"));
         assert!(cpp.contains("UMaterialInstanceDynamic::Create"));
@@ -1420,18 +1633,18 @@ mod tests {
         assert!(cpp.contains("SetVectorParameterValue(TEXT(\"Tint\")"));
         assert!(cpp.contains("SetVectorParameterValue(TEXT(\"EmissiveColor\")"));
         assert!(cpp.contains("LoadObject<UMaterial>"));
-        
+
         // Verify includes
         assert!(cpp.contains("#include \"Materials/MaterialInstanceDynamic.h\""));
     }
-    
+
     #[test]
     fn test_non_dynamic_material_no_params() {
         let gen = MaterialFactoryGenerator::new("TestPlugin".to_string());
-        
+
         let mut graph = MaterialGraph::new("M_Static".to_string());
-        graph.properties.expose_parameters = false;  // Not dynamic
-        
+        graph.properties.expose_parameters = false; // Not dynamic
+
         graph.nodes.push(MaterialNode {
             id: "node_0".to_string(),
             node_type: MaterialNodeType::ScalarParameter {
@@ -1440,13 +1653,13 @@ mod tests {
             },
             position: (0, 0),
         });
-        
+
         let header = gen.generate_factory_header(&[graph.clone()]);
         let cpp = gen.generate_factory_cpp(&[graph]);
-        
+
         // Verify NO parameter struct generated
         assert!(!header.contains("struct FM_StaticMaterialParams"));
-        
+
         // Verify NO MID helper generated
         assert!(!header.contains("CreateM_StaticMaterialInstance"));
         assert!(!cpp.contains("UMaterialInstanceDynamic* CreateM_StaticMaterialInstance"));

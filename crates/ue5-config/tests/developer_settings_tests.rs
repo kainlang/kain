@@ -3,7 +3,9 @@
 use kain_core::ast::{Expr, Field, Struct, Type, Visibility};
 use kain_core::span::Span;
 use ue5_config::config_ir::{ConfigCategory, ConfigField, ConfigStruct};
-use ue5_config::developer_settings_codegen::{generate, generate_developer_settings_header, generate_developer_settings_cpp};
+use ue5_config::developer_settings_codegen::{
+    generate, generate_developer_settings_cpp, generate_developer_settings_header,
+};
 
 fn create_test_field(name: &str, ty_name: &str, default_value: Option<&str>) -> ConfigField {
     let default = match (ty_name, default_value) {
@@ -13,7 +15,7 @@ fn create_test_field(name: &str, ty_name: &str, default_value: Option<&str>) -> 
         ("String", Some(v)) => Some(Expr::String(v.to_string(), Span::default())),
         _ => None,
     };
-    
+
     ConfigField {
         name: name.to_string(),
         ty: Type::Named {
@@ -46,7 +48,11 @@ fn create_test_field(name: &str, ty_name: &str, default_value: Option<&str>) -> 
     }
 }
 
-fn create_test_config(name: &str, category: ConfigCategory, fields: Vec<ConfigField>) -> ConfigStruct {
+fn create_test_config(
+    name: &str,
+    category: ConfigCategory,
+    fields: Vec<ConfigField>,
+) -> ConfigStruct {
     ConfigStruct {
         name: name.to_string(),
         category,
@@ -403,7 +409,9 @@ fn test_generate_cpp_post_edit_change_property() {
 
     let cpp = result.unwrap();
     assert!(cpp.contains("#if WITH_EDITOR"));
-    assert!(cpp.contains("void UVoxelSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)"));
+    assert!(cpp.contains(
+        "void UVoxelSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)"
+    ));
     assert!(cpp.contains("Super::PostEditChangeProperty(PropertyChangedEvent);"));
     assert!(cpp.contains("if (PropertyChangedEvent.Property)"));
     assert!(cpp.contains("ExportValuesToConsoleVariables(PropertyChangedEvent.Property);"));

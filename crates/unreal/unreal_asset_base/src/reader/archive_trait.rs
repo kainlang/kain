@@ -10,7 +10,6 @@ use crate::object_version::{ObjectVersion, ObjectVersionUE5};
 use crate::types::{FName, PackageIndex, PackageIndexTrait};
 use crate::unversioned::Usmap;
 
-
 /// An enum to help identify current archive type
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ArchiveType {

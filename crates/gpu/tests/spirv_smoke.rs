@@ -13,7 +13,9 @@ fn typed_program_for_spirv(source: &str) -> TypedProgram {
     let stdlib_src = stdlib::load_stdlib_for_target(CompileTarget::Spirv);
     let full_source = format!("{}\n{}", stdlib_src, source);
     let span_mapper = SpanMapper::new(&full_source);
-    let tokens = Lexer::new(&full_source).tokenize().expect("tokenize failed");
+    let tokens = Lexer::new(&full_source)
+        .tokenize()
+        .expect("tokenize failed");
     let mut ast = Parser::new(&tokens, &span_mapper, "<spirv-smoke>")
         .parse()
         .expect("parse failed");
@@ -28,7 +30,11 @@ fn compile_spirv(source: &str) -> Vec<u8> {
 
 fn assert_basic_spirv_shape(bytes: &[u8]) {
     assert!(bytes.len() > 16, "SPIR-V output too small");
-    assert_eq!(&bytes[0..4], [0x03, 0x02, 0x23, 0x07], "invalid SPIR-V magic");
+    assert_eq!(
+        &bytes[0..4],
+        [0x03, 0x02, 0x23, 0x07],
+        "invalid SPIR-V magic"
+    );
 }
 
 fn resolve_spirv_val() -> Option<PathBuf> {
@@ -72,7 +78,9 @@ fn write_temp_spv(case_name: &str, bytes: &[u8]) -> PathBuf {
 
 fn run_spirv_val(case_name: &str, spv_path: &Path) {
     let Some(spirv_val) = resolve_spirv_val() else {
-        eprintln!("[spirv-smoke] spirv-val not found; skipping external validation for {case_name}");
+        eprintln!(
+            "[spirv-smoke] spirv-val not found; skipping external validation for {case_name}"
+        );
         return;
     };
 
@@ -86,8 +94,7 @@ fn run_spirv_val(case_name: &str, spv_path: &Path) {
         let stdout = String::from_utf8_lossy(&output.stdout);
         panic!(
             "spirv-val rejected case {case_name}\nstdout:\n{}\nstderr:\n{}",
-            stdout,
-            stderr,
+            stdout, stderr,
         );
     }
 }

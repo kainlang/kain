@@ -2,25 +2,23 @@
 //!
 //! Converts KAIN AST graph definitions to runtime graph IR.
 
-use crate::runtime_ir::*;
 use crate::error::{GraphError, Result};
+use crate::runtime_ir::*;
 use kain_core::ast;
 
 /// Convert a KAIN AST GraphRuntimeDef to RuntimeGraph IR
 ///
 /// This is the main entry point for converting @graph_runtime definitions
 /// from the KAIN AST into the intermediate representation used for code generation.
-pub fn convert_graph_runtime_to_ir(
-    ast: &ast::GraphRuntimeDef,
-) -> Result<RuntimeGraph> {
+pub fn convert_graph_runtime_to_ir(ast: &ast::GraphRuntimeDef) -> Result<RuntimeGraph> {
     let mut graph = RuntimeGraph::new(&ast.name);
-    
+
     // Convert node types (NodeDataDef -> RuntimeNodeData)
     for node_data_ast in &ast.node_types {
         let node_data = convert_node_data_def(node_data_ast)?;
         graph.add_node_type(node_data);
     }
-    
+
     // Convert instance definition (GraphInstanceDef -> RuntimeInstance)
     if let Some(instance_ast) = &ast.instance {
         graph.instance_def = convert_instance_def(instance_ast, &ast.name)?;
@@ -28,10 +26,10 @@ pub fn convert_graph_runtime_to_ir(
         // Create default instance if not specified
         graph.instance_def = RuntimeInstance::new(format!("{}Instance", ast.name));
     }
-    
+
     // Extract graph properties from attributes
     graph.properties = extract_graph_properties(&ast.attributes);
-    
+
     Ok(graph)
 }
 
@@ -40,30 +38,30 @@ fn convert_node_data_def(ast: &ast::NodeDataDef) -> Result<RuntimeNodeData> {
     // Extract category from attributes or use default
     let category = extract_category(&ast.attributes).unwrap_or_else(|| "Default".to_string());
     let mut node = RuntimeNodeData::new(&ast.name, category);
-    
+
     // Convert input pins
     for input_ast in &ast.input_pins {
         let pin = convert_pin_def(input_ast, PinDirection::Input)?;
         node.add_input_pin(pin);
     }
-    
+
     // Convert output pins
     for output_ast in &ast.output_pins {
         let pin = convert_pin_def(output_ast, PinDirection::Output)?;
         node.add_output_pin(pin);
     }
-    
+
     // Convert properties (Field -> RuntimeProperty)
     for field_ast in &ast.properties {
         let property = convert_field_to_property(field_ast)?;
         node.add_property(property);
     }
-    
+
     // Convert execution logic if present
     if let Some(execute_block) = &ast.execute_logic {
         node.execute_logic = Some(ExecuteLogic::KainExpr(block_to_string(execute_block)));
     }
-    
+
     // Extract node metadata from attributes
     for attr in &ast.attributes {
         match attr.name.as_str() {
@@ -85,26 +83,26 @@ fn convert_node_data_def(ast: &ast::NodeDataDef) -> Result<RuntimeNodeData> {
             _ => {}
         }
     }
-    
+
     Ok(node)
 }
 
 /// Convert a GraphInstanceDef to RuntimeInstance
 fn convert_instance_def(ast: &ast::GraphInstanceDef, graph_name: &str) -> Result<RuntimeInstance> {
     let mut instance = RuntimeInstance::new(format!("{}Instance", graph_name));
-    
+
     // Convert state fields (Field -> RuntimeProperty)
     for field_ast in &ast.state {
         let property = convert_field_to_property(field_ast)?;
         instance.add_state_field(property);
     }
-    
+
     // Convert methods (Function -> RuntimeMethod)
     for func_ast in &ast.methods {
         let method = convert_function_to_method(func_ast)?;
         instance.add_method(method);
     }
-    
+
     // Check for replication and savegame attributes
     for attr in &ast.attributes {
         match attr.name.as_str() {
@@ -113,26 +111,26 @@ fn convert_instance_def(ast: &ast::GraphInstanceDef, graph_name: &str) -> Result
             _ => {}
         }
     }
-    
+
     Ok(instance)
 }
 
 /// Convert a PinDef to RuntimePin
 fn convert_pin_def(ast: &ast::PinDef, direction: PinDirection) -> Result<RuntimePin> {
     let pin_type = convert_type_to_pin_type(&ast.ty)?;
-    
+
     let mut pin = match direction {
         PinDirection::Input => RuntimePin::input(&ast.name, pin_type),
         PinDirection::Output => RuntimePin::output(&ast.name, pin_type),
     };
-    
+
     pin.is_array = ast.is_array;
-    
+
     // Extract default value
     if let Some(default_expr) = &ast.default {
         pin.default_value = Some(expr_to_string(default_expr));
     }
-    
+
     // Extract tooltip from attributes
     for attr in &ast.attributes {
         if attr.name == "tooltip" {
@@ -141,21 +139,23 @@ fn convert_pin_def(ast: &ast::PinDef, direction: PinDirection) -> Result<Runtime
             }
         }
     }
-    
+
     Ok(pin)
 }
 
 /// Convert a Field to RuntimeProperty
 fn convert_field_to_property(ast: &ast::Field) -> Result<RuntimeProperty> {
     let property_type = convert_type_to_pin_type(&ast.ty)?;
-    
+
     let mut specifiers = Vec::new();
-    
+
     // Extract specifiers from attributes
     for attr in &ast.attributes {
         match attr.name.as_str() {
             "edit_anywhere" | "editanywhere" => specifiers.push(PropertySpecifier::EditAnywhere),
-            "edit_defaults" | "editdefaults" => specifiers.push(PropertySpecifier::EditDefaultsOnly),
+            "edit_defaults" | "editdefaults" => {
+                specifiers.push(PropertySpecifier::EditDefaultsOnly)
+            }
             "visible" | "visibleanywhere" => specifiers.push(PropertySpecifier::VisibleAnywhere),
             "blueprint_readonly" => specifiers.push(PropertySpecifier::BlueprintReadOnly),
             "blueprint_readwrite" => specifiers.push(PropertySpecifier::BlueprintReadWrite),
@@ -170,14 +170,16 @@ fn convert_field_to_property(ast: &ast::Field) -> Result<RuntimeProperty> {
             _ => {}
         }
     }
-    
+
     let default_value = ast.default.as_ref().map(expr_to_string);
-    
+
     // Extract tooltip from attributes
-    let tooltip = ast.attributes.iter()
+    let tooltip = ast
+        .attributes
+        .iter()
         .find(|attr| attr.name == "tooltip")
         .and_then(parse_string_attribute);
-    
+
     Ok(RuntimeProperty {
         name: ast.name.clone(),
         property_type,
@@ -191,21 +193,25 @@ fn convert_field_to_property(ast: &ast::Field) -> Result<RuntimeProperty> {
 /// Convert a Function to RuntimeMethod
 fn convert_function_to_method(ast: &ast::Function) -> Result<RuntimeMethod> {
     // Convert parameters
-    let params = ast.params.iter()
+    let params = ast
+        .params
+        .iter()
         .map(|param| RuntimeParam {
             name: param.name.clone(),
             param_type: convert_type_to_pin_type(&param.ty).unwrap_or(RuntimePinType::Wildcard),
             is_array: false, // TODO: Detect array types
         })
         .collect();
-    
+
     // Convert return type
-    let return_type = ast.return_type.as_ref()
+    let return_type = ast
+        .return_type
+        .as_ref()
         .and_then(|ty| convert_type_to_pin_type(ty).ok());
-    
+
     // Convert body
     let body = block_to_string(&ast.body);
-    
+
     // Extract function specifiers from attributes
     let mut specifiers = Vec::new();
     for attr in &ast.attributes {
@@ -227,7 +233,7 @@ fn convert_function_to_method(ast: &ast::Function) -> Result<RuntimeMethod> {
             _ => {}
         }
     }
-    
+
     Ok(RuntimeMethod {
         name: ast.name.clone(),
         params,
@@ -295,16 +301,18 @@ fn convert_type_to_pin_type(ty: &ast::Type) -> Result<RuntimePinType> {
                 ast::Type::Result { .. } => "Result type",
                 _ => "complex type",
             };
-            Err(GraphError::ASTConversion(
-                format!("Unsupported type for runtime pin: {}", type_desc)
-            ))
+            Err(GraphError::ASTConversion(format!(
+                "Unsupported type for runtime pin: {}",
+                type_desc
+            )))
         }
     }
 }
 
 /// Extract category from attributes
 fn extract_category(attributes: &[ast::Attribute]) -> Option<String> {
-    attributes.iter()
+    attributes
+        .iter()
         .find(|attr| attr.name == "category")
         .and_then(parse_string_attribute)
 }
@@ -313,53 +321,60 @@ fn extract_category(attributes: &[ast::Attribute]) -> Option<String> {
 #[deprecated(note = "Use convert_graph_runtime_to_ir instead")]
 pub fn convert_runtime_graph(ast: &ast::GraphEditorDef) -> Result<RuntimeGraph> {
     let mut graph = RuntimeGraph::new(&ast.name);
-    
+
     // Check if this is a runtime graph
-    let is_runtime = ast.attributes.iter().any(|attr| attr.name == "runtime_graph");
+    let is_runtime = ast
+        .attributes
+        .iter()
+        .any(|attr| attr.name == "runtime_graph");
     if !is_runtime {
-        return Err(GraphError::ASTConversion(
-            format!("Graph '{}' is not marked with @runtime_graph attribute", ast.name)
-        ));
+        return Err(GraphError::ASTConversion(format!(
+            "Graph '{}' is not marked with @runtime_graph attribute",
+            ast.name
+        )));
     }
-    
+
     // Convert node types
     for node_type_ast in &ast.node_types {
         let node_data = convert_node_type_legacy(node_type_ast)?;
         graph.add_node_type(node_data);
     }
-    
+
     // Set up instance definition
     graph.instance_def = RuntimeInstance::new(format!("{}Instance", ast.name));
-    
+
     // Extract graph properties from attributes
     graph.properties = extract_graph_properties(&ast.attributes);
-    
+
     Ok(graph)
 }
 
 /// Legacy node type converter
 fn convert_node_type_legacy(ast: &ast::NodeTypeDef) -> Result<RuntimeNodeData> {
-    let category = ast.category.clone().unwrap_or_else(|| "Default".to_string());
+    let category = ast
+        .category
+        .clone()
+        .unwrap_or_else(|| "Default".to_string());
     let mut node = RuntimeNodeData::new(&ast.name, category);
-    
+
     // Convert input pins
     for input_ast in &ast.inputs {
         let pin = convert_pin(input_ast, PinDirection::Input)?;
         node.add_input_pin(pin);
     }
-    
+
     // Convert output pins
     for output_ast in &ast.outputs {
         let pin = convert_pin(output_ast, PinDirection::Output)?;
         node.add_output_pin(pin);
     }
-    
+
     // Convert properties
     for prop_ast in &ast.properties {
         let property = convert_property(prop_ast)?;
         node.add_property(property);
     }
-    
+
     // Extract node metadata from attributes
     for attr in &ast.attributes {
         match attr.name.as_str() {
@@ -381,26 +396,26 @@ fn convert_node_type_legacy(ast: &ast::NodeTypeDef) -> Result<RuntimeNodeData> {
             _ => {}
         }
     }
-    
+
     Ok(node)
 }
 
 /// Legacy pin converter
 fn convert_pin(ast: &ast::PinDef, direction: PinDirection) -> Result<RuntimePin> {
     let pin_type = convert_type_to_pin_type(&ast.ty)?;
-    
+
     let mut pin = match direction {
         PinDirection::Input => RuntimePin::input(&ast.name, pin_type),
         PinDirection::Output => RuntimePin::output(&ast.name, pin_type),
     };
-    
+
     pin.is_array = ast.is_array;
-    
+
     // Extract default value
     if let Some(default_expr) = &ast.default {
         pin.default_value = Some(expr_to_string(default_expr));
     }
-    
+
     // Extract tooltip from attributes
     for attr in &ast.attributes {
         if attr.name == "tooltip" {
@@ -409,16 +424,16 @@ fn convert_pin(ast: &ast::PinDef, direction: PinDirection) -> Result<RuntimePin>
             }
         }
     }
-    
+
     Ok(pin)
 }
 
 /// Legacy property converter
 fn convert_property(ast: &ast::PropertyDef) -> Result<RuntimeProperty> {
     let property_type = convert_type_to_pin_type(&ast.ty)?;
-    
+
     let mut specifiers = Vec::new();
-    
+
     // Extract specifiers from attributes
     for attr in &ast.attributes {
         match attr.name.as_str() {
@@ -438,9 +453,9 @@ fn convert_property(ast: &ast::PropertyDef) -> Result<RuntimeProperty> {
             _ => {}
         }
     }
-    
+
     let default_value = ast.default.as_ref().map(expr_to_string);
-    
+
     Ok(RuntimeProperty {
         name: ast.name.clone(),
         property_type,
@@ -454,7 +469,7 @@ fn convert_property(ast: &ast::PropertyDef) -> Result<RuntimeProperty> {
 /// Extract graph properties from attributes
 fn extract_graph_properties(attributes: &[ast::Attribute]) -> RuntimeGraphProperties {
     let mut props = RuntimeGraphProperties::default();
-    
+
     for attr in attributes {
         match attr.name.as_str() {
             "parallel_execution" => {
@@ -475,7 +490,7 @@ fn extract_graph_properties(attributes: &[ast::Attribute]) -> RuntimeGraphProper
             _ => {}
         }
     }
-    
+
     props
 }
 

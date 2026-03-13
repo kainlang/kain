@@ -1,6 +1,8 @@
 use kain_core::ast::{Expr, Item};
 use kain_core::diagnostics::SpanMapper;
-use kain_core::low_level_memory_metadata::{attr_usize_arg, has_attr, C_PACK_ALIGN_ATTR, C_PACKED_ATTR};
+use kain_core::low_level_memory_metadata::{
+    attr_usize_arg, has_attr, C_PACKED_ATTR, C_PACK_ALIGN_ATTR,
+};
 use kain_core::types::{check, TypedItem, TypedProgram};
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use kain_import::c::{import_c_file_with_options, CImportOptions};
@@ -37,7 +39,9 @@ fn lowered_return_int(program: &TypedProgram, function_name: &str) -> i64 {
         })
         .unwrap_or_else(|| panic!("missing function {function_name}"));
 
-    let Some(kain_core::ast::Stmt::Return(Some(Expr::Int(value, _)), _)) = function.ast.body.stmts.last() else {
+    let Some(kain_core::ast::Stmt::Return(Some(Expr::Int(value, _)), _)) =
+        function.ast.body.stmts.last()
+    else {
         panic!("expected lowered integer return for {function_name}");
     };
     *value
@@ -74,7 +78,10 @@ fn pragma_pack_conformance_survives_import_and_lowering_targets() {
         .expect("missing Packet struct");
 
     assert!(has_attr(&packet.attributes, C_PACKED_ATTR));
-    assert_eq!(attr_usize_arg(&packet.attributes, C_PACK_ALIGN_ATTR), Some(8));
+    assert_eq!(
+        attr_usize_arg(&packet.attributes, C_PACK_ALIGN_ATTR),
+        Some(8)
+    );
 
     for lowered in [&lowered_ts, &lowered_wasm, &lowered_cpp] {
         assert_eq!(lowered_return_int(lowered, "packet_size"), 5);

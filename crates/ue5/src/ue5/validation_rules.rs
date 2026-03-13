@@ -1,11 +1,11 @@
 // Data-driven validation rules system
 // Allows loading validation rules from JSON configuration
 
+use kain_core::error::{ErrorContext, KainError, KainResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use kain_core::error::{KainError, KainResult, ErrorContext};
 
 /// Category of validation rule
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,17 +32,11 @@ pub enum Severity {
 #[serde(tag = "type")]
 pub enum RuleCondition {
     /// Type name collides with reserved names
-    TypeCollision {
-        type_names: Vec<String>,
-    },
+    TypeCollision { type_names: Vec<String> },
     /// Incompatible attribute combinations
-    IncompatibleAttributes {
-        attributes: Vec<(String, String)>,
-    },
+    IncompatibleAttributes { attributes: Vec<(String, String)> },
     /// Invalid RPC naming pattern
-    InvalidRpcNaming {
-        pattern: String,
-    },
+    InvalidRpcNaming { pattern: String },
     /// Nested container types
     NestedContainer {
         outer: Vec<String>,
@@ -89,7 +83,7 @@ impl ValidationRules {
     /// Load validation rules from JSON file
     pub fn load<P: AsRef<Path>>(path: P) -> KainResult<Self> {
         let path = path.as_ref();
-        
+
         // If file doesn't exist, return empty rules (will use built-in defaults)
         if !path.exists() {
             return Ok(Self {
@@ -97,33 +91,35 @@ impl ValidationRules {
                 rules: Vec::new(),
             });
         }
-        
+
         let content = fs::read_to_string(path)
             .map_err(|e| KainError::io_error(format!("Failed to read validation rules: {}", e)))
             .with_file(path.to_path_buf())
             .with_context("Reading validation_rules.json")?;
-        
+
         let rules: ValidationRules = serde_json::from_str(&content)
-            .map_err(|e| KainError::config_error(format!("Failed to parse validation rules: {}", e)))
+            .map_err(|e| {
+                KainError::config_error(format!("Failed to parse validation rules: {}", e))
+            })
             .with_file(path.to_path_buf())
             .with_context("Parsing validation_rules.json")
             .with_suggestion("Check JSON syntax and ensure it matches the schema")?;
-        
+
         // Validate schema (basic checks)
         rules.validate_schema()?;
-        
+
         Ok(rules)
     }
-    
+
     /// Validate the rules schema
     fn validate_schema(&self) -> KainResult<()> {
         // Check version format
         if !self.version.contains('.') {
             return Err(KainError::config_error(
-                "Invalid version format. Expected format: X.Y.Z"
+                "Invalid version format. Expected format: X.Y.Z",
             ));
         }
-        
+
         // Check for duplicate rule IDs
         let mut seen_ids = HashMap::new();
         for rule in &self.rules {
@@ -134,20 +130,20 @@ impl ValidationRules {
                 )));
             }
         }
-        
+
         // Validate each rule
         for rule in &self.rules {
             rule.validate()?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Get all enabled rules
     pub fn enabled_rules(&self) -> Vec<&ValidationRule> {
         self.rules.iter().filter(|r| !r.disabled).collect()
     }
-    
+
     /// Get rules by category
     pub fn rules_by_category(&self, category: RuleCategory) -> Vec<&ValidationRule> {
         self.rules
@@ -155,36 +151,36 @@ impl ValidationRules {
             .filter(|r| !r.disabled && r.category == category)
             .collect()
     }
-    
+
     /// Get rule by ID
     pub fn get_rule(&self, id: &str) -> Option<&ValidationRule> {
         self.rules.iter().find(|r| r.id == id)
     }
-    
+
     /// Check for conflicting rules
     pub fn detect_conflicts(&self) -> Vec<(String, String, String)> {
         let mut conflicts = Vec::new();
-        
+
         // Check for rules that might conflict
         for i in 0..self.rules.len() {
             for j in (i + 1)..self.rules.len() {
                 let rule1 = &self.rules[i];
                 let rule2 = &self.rules[j];
-                
+
                 if rule1.disabled || rule2.disabled {
                     continue;
                 }
-                
+
                 // Check if rules conflict
                 if let Some(reason) = Self::check_conflict(rule1, rule2) {
                     conflicts.push((rule1.id.clone(), rule2.id.clone(), reason));
                 }
             }
         }
-        
+
         conflicts
     }
-    
+
     /// Check if two rules conflict
     fn check_conflict(rule1: &ValidationRule, rule2: &ValidationRule) -> Option<String> {
         // Check for conflicting type collision rules
@@ -202,7 +198,7 @@ impl ValidationRules {
                 ));
             }
         }
-        
+
         // Check for conflicting incompatible attribute rules
         if let (
             RuleCondition::IncompatibleAttributes { attributes: attrs1 },
@@ -218,7 +214,7 @@ impl ValidationRules {
                 ));
             }
         }
-        
+
         None
     }
 }
@@ -227,13 +223,17 @@ impl ValidationRule {
     /// Validate the rule structure
     fn validate(&self) -> KainResult<()> {
         // Check ID format
-        if !self.id.chars().all(|c| c.is_ascii_lowercase() || c == '_' || c.is_ascii_digit()) {
+        if !self
+            .id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c == '_' || c.is_ascii_digit())
+        {
             return Err(KainError::config_error(format!(
                 "Invalid rule ID '{}'. Must be lowercase with underscores only",
                 self.id
             )));
         }
-        
+
         // Validate condition-specific requirements
         match &self.condition {
             RuleCondition::TypeCollision { type_names } => {
@@ -269,7 +269,10 @@ impl ValidationRule {
                     )));
                 }
             }
-            RuleCondition::InvalidNaming { pattern, applies_to } => {
+            RuleCondition::InvalidNaming {
+                pattern,
+                applies_to,
+            } => {
                 if regex::Regex::new(pattern).is_err() {
                     return Err(KainError::config_error(format!(
                         "Rule '{}': Invalid regex pattern '{}'",
@@ -283,7 +286,10 @@ impl ValidationRule {
                     )));
                 }
             }
-            RuleCondition::MissingAttribute { required_attribute, when_attribute } => {
+            RuleCondition::MissingAttribute {
+                required_attribute,
+                when_attribute,
+            } => {
                 if required_attribute.is_empty() || when_attribute.is_empty() {
                     return Err(KainError::config_error(format!(
                         "Rule '{}': MissingAttribute must specify both attributes",
@@ -291,7 +297,10 @@ impl ValidationRule {
                     )));
                 }
             }
-            RuleCondition::ForbiddenType { forbidden_types, context } => {
+            RuleCondition::ForbiddenType {
+                forbidden_types,
+                context,
+            } => {
                 if forbidden_types.is_empty() {
                     return Err(KainError::config_error(format!(
                         "Rule '{}': ForbiddenType must have at least one forbidden type",
@@ -306,7 +315,7 @@ impl ValidationRule {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -314,14 +323,14 @@ impl ValidationRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_load_validation_rules() {
         // Test loading from non-existent file (should return empty rules)
         let rules = ValidationRules::load("nonexistent.json").unwrap();
         assert_eq!(rules.rules.len(), 0);
     }
-    
+
     #[test]
     fn test_rule_validation() {
         let rule = ValidationRule {
@@ -335,10 +344,10 @@ mod tests {
             suggestion: None,
             disabled: false,
         };
-        
+
         assert!(rule.validate().is_ok());
     }
-    
+
     #[test]
     fn test_invalid_rule_id() {
         let rule = ValidationRule {
@@ -352,10 +361,10 @@ mod tests {
             suggestion: None,
             disabled: false,
         };
-        
+
         assert!(rule.validate().is_err());
     }
-    
+
     #[test]
     fn test_enabled_rules_filter() {
         let rules = ValidationRules {
@@ -385,7 +394,7 @@ mod tests {
                 },
             ],
         };
-        
+
         let enabled = rules.enabled_rules();
         assert_eq!(enabled.len(), 1);
         assert_eq!(enabled[0].id, "enabled_rule");

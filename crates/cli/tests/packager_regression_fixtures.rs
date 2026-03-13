@@ -80,7 +80,11 @@ fn multimodule_uplugin_fixture_matches() {
 fn multimodule_build_cs_fixture_matches() {
     let actual = generate_build_cs_module(
         "DemoPlugin",
-        &["Core".to_string(), "CoreUObject".to_string(), "Engine".to_string()],
+        &[
+            "Core".to_string(),
+            "CoreUObject".to_string(),
+            "Engine".to_string(),
+        ],
         &["Projects".to_string()],
     );
     let expected = fixture("multimodule_runtime.Build.cs");

@@ -83,9 +83,16 @@ impl GameplayEffectIR {
     /// Convert AST GameplayEffectDef to IR
     pub fn from_ast(effect: &GameplayEffectDef) -> KainResult<Self> {
         // Verify @gameplay_effect attribute
-        if !effect.attributes.iter().any(|a| a.name == "gameplay_effect") {
+        if !effect
+            .attributes
+            .iter()
+            .any(|a| a.name == "gameplay_effect")
+        {
             return Err(KainError::codegen(
-                format!("Struct '{}' must have @gameplay_effect attribute", effect.name),
+                format!(
+                    "Struct '{}' must have @gameplay_effect attribute",
+                    effect.name
+                ),
                 effect.span,
             ));
         }
@@ -96,7 +103,10 @@ impl GameplayEffectIR {
         // Validate duration magnitude for HasDuration policy
         if duration_policy == DurationPolicy::HasDuration && effect.duration_magnitude.is_none() {
             return Err(KainError::codegen(
-                format!("Effect '{}' has HasDuration policy but no duration magnitude specified", effect.name),
+                format!(
+                    "Effect '{}' has HasDuration policy but no duration magnitude specified",
+                    effect.name
+                ),
                 effect.span,
             ));
         }
@@ -150,7 +160,10 @@ impl GameplayEffectIR {
                 "Infinite" => Ok(DurationPolicy::Infinite),
                 "HasDuration" => Ok(DurationPolicy::HasDuration),
                 _ => Err(KainError::codegen(
-                    format!("Invalid duration policy: {}. Valid values: Instant, Infinite, HasDuration", policy_str),
+                    format!(
+                        "Invalid duration policy: {}. Valid values: Instant, Infinite, HasDuration",
+                        policy_str
+                    ),
                     effect.span,
                 )),
             }
@@ -224,10 +237,7 @@ impl GameplayEffectIR {
     fn validate_tags(tags: &[String], span: Span) -> KainResult<()> {
         for tag in tags {
             if tag.is_empty() {
-                return Err(KainError::codegen(
-                    "Tag cannot be empty".to_string(),
-                    span,
-                ));
+                return Err(KainError::codegen("Tag cannot be empty".to_string(), span));
             }
 
             // Tags must be dot-separated identifiers
@@ -242,7 +252,10 @@ impl GameplayEffectIR {
                 // Check if part is a valid identifier
                 if !part.chars().next().unwrap().is_alphabetic() {
                     return Err(KainError::codegen(
-                        format!("Invalid tag '{}': component '{}' must start with a letter", tag, part),
+                        format!(
+                            "Invalid tag '{}': component '{}' must start with a letter",
+                            tag, part
+                        ),
                         span,
                     ));
                 }
@@ -250,7 +263,10 @@ impl GameplayEffectIR {
                 for ch in part.chars() {
                     if !ch.is_alphanumeric() && ch != '_' {
                         return Err(KainError::codegen(
-                            format!("Invalid tag '{}': component '{}' contains invalid character '{}'", tag, part, ch),
+                            format!(
+                                "Invalid tag '{}': component '{}' contains invalid character '{}'",
+                                tag, part, ch
+                            ),
                             span,
                         ));
                     }

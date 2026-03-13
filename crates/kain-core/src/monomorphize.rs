@@ -1,6 +1,6 @@
-use crate::types::*;
 use crate::ast::*;
-use crate::error::{KainResult, KainError};
+use crate::error::{KainError, KainResult};
+use crate::types::*;
 use std::collections::{HashMap, HashSet};
 
 /// Result of monomorphization
@@ -10,20 +10,16 @@ pub struct MonomorphizedProgram {
 
 pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> {
     let mut ctx = MonoContext::new();
-    
 
-    
     // 1. First Pass: Collect all global items: functions, impls
     for item in &program.items {
         match item {
             TypedItem::Function(func) => {
-
                 if !func.ast.generics.is_empty() {
-                    ctx.generic_functions.insert(func.ast.name.clone(), func.clone());
-
+                    ctx.generic_functions
+                        .insert(func.ast.name.clone(), func.clone());
                 } else {
                     ctx.concrete_items.push(item.clone());
-
                 }
             }
             TypedItem::Struct(s) => {
@@ -33,7 +29,7 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                         fields.insert(f.name.clone(), ty);
                     }
                 }
-                
+
                 if !s.ast.generics.is_empty() {
                     // Generic struct - store for later instantiation
                     ctx.generic_structs.insert(s.ast.name.clone(), s.clone());
@@ -50,15 +46,16 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                     Type::Named { name, .. } => name.clone(),
                     _ => continue, // Skip complex types for now
                 };
-                
-                let target_ty = resolve_ast_type(&imp.ast.target_type).unwrap_or(ResolvedType::Unknown);
-                
+
+                let target_ty =
+                    resolve_ast_type(&imp.ast.target_type).unwrap_or(ResolvedType::Unknown);
+
                 // Register trait implementation
                 if let Some(trait_name) = &imp.ast.trait_name {
                     let type_name_str = type_to_string(&target_ty);
                     ctx.trait_impls.insert((trait_name.clone(), type_name_str));
                 }
-                
+
                 // Check if this is a generic impl block
                 if !imp.ast.generics.is_empty() {
                     // Generic impl - store for later instantiation
@@ -67,36 +64,42 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                     // Concrete impl - generate methods immediately
                     for method in &imp.ast.methods {
                         let mangled_name = format!("{}_{}", type_name, method.name);
-                        
+
                         let mut standalone_fn = method.clone();
                         standalone_fn.name = mangled_name.clone();
-                        
+
                         // Resolve method type
                         let mut params = Vec::new();
                         for p in &method.params {
-                             if p.name == "self" {
-                                 params.push(target_ty.clone());
-                             } else {
-                                 params.push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
-                             }
+                            if p.name == "self" {
+                                params.push(target_ty.clone());
+                            } else {
+                                params
+                                    .push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
+                            }
                         }
-                        let ret = method.return_type.as_ref()
+                        let ret = method
+                            .return_type
+                            .as_ref()
                             .map(|t| resolve_ast_type(t).unwrap_or(ResolvedType::Unknown))
                             .unwrap_or(ResolvedType::Unit);
-                        
+
                         let method_ty = ResolvedType::Function {
                             params,
                             ret: Box::new(ret),
                             effects: crate::effects::EffectSet::new(), // Todo scan effects?
                         };
-                        
+
                         let typed_method = TypedFunction {
                             ast: standalone_fn,
                             resolved_type: method_ty,
                             effects: crate::effects::EffectSet::new(),
                         };
-                        
-                        ctx.methods.entry(type_name.clone()).or_default().insert(method.name.clone(), mangled_name.clone());
+
+                        ctx.methods
+                            .entry(type_name.clone())
+                            .or_default()
+                            .insert(method.name.clone(), mangled_name.clone());
                         ctx.concrete_items.push(TypedItem::Function(typed_method));
                     }
                 }
@@ -106,7 +109,7 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
             }
         }
     }
-    
+
     // 2. Scan concrete items for calls
     let mut i = 0;
     while i < ctx.concrete_items.len() {
@@ -114,12 +117,16 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
         match item {
             TypedItem::Function(func) => {
                 // Check if Async
-                if func.effects.effects.contains(&crate::effects::Effect::Async) {
+                if func
+                    .effects
+                    .effects
+                    .contains(&crate::effects::Effect::Async)
+                {
                     // Lower Async Function to State Machine
                     // This returns the transformed entry function (synchronous, returns Future struct)
                     // The State Machine Struct and Poll Function are pushed to ctx.concrete_items inside lower_async_fn
                     let entry_fn = lower_async_fn(&mut ctx, &func)?;
-                    
+
                     // Replace the original async function with the transformed entry function
                     ctx.concrete_items[i] = TypedItem::Function(entry_fn);
                 } else {
@@ -131,8 +138,10 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
         }
         i += 1;
     }
-    
-    Ok(MonomorphizedProgram { items: ctx.concrete_items })
+
+    Ok(MonomorphizedProgram {
+        items: ctx.concrete_items,
+    })
 }
 
 struct MonoContext {
@@ -165,98 +174,135 @@ impl MonoContext {
             trait_impls: HashSet::new(),
         }
     }
-    
+
     fn instantiate(&mut self, name: &str, type_args: &[ResolvedType]) -> KainResult<String> {
         let mangled_name = format!("{}_{}", name, mangle_types(type_args));
-        
+
         if self.instantiated.contains_key(&mangled_name) {
             return Ok(mangled_name);
         }
-        
-        let generic_func = self.generic_functions.get(name)
-            .ok_or_else(|| KainError::type_error(format!("Generic function {} not found", name), crate::span::Span::new(0,0)))?
+
+        let generic_func = self
+            .generic_functions
+            .get(name)
+            .ok_or_else(|| {
+                KainError::type_error(
+                    format!("Generic function {} not found", name),
+                    crate::span::Span::new(0, 0),
+                )
+            })?
             .clone();
-            
+
         if generic_func.ast.generics.len() != type_args.len() {
-             return Err(KainError::type_error(format!("Generic arg count mismatch for {}: expected {}, got {}", name, generic_func.ast.generics.len(), type_args.len()), generic_func.ast.span));
+            return Err(KainError::type_error(
+                format!(
+                    "Generic arg count mismatch for {}: expected {}, got {}",
+                    name,
+                    generic_func.ast.generics.len(),
+                    type_args.len()
+                ),
+                generic_func.ast.span,
+            ));
         }
-        
+
         let mut mapping = HashMap::new();
         for (i, param) in generic_func.ast.generics.iter().enumerate() {
             mapping.insert(param.name.clone(), type_args[i].clone());
         }
-        
+
         let mut new_func = generic_func.clone();
         new_func.ast.name = mangled_name.clone();
         new_func.ast.generics.clear();
-        
+
         if let ResolvedType::Function { params, ret, .. } = &mut new_func.resolved_type {
             for p in params {
                 *p = substitute_type(p, &mapping);
             }
             *ret = Box::new(substitute_type(&ret, &mapping));
         }
-        
-        self.instantiated.insert(mangled_name.clone(), mangled_name.clone());
-        
+
+        self.instantiated
+            .insert(mangled_name.clone(), mangled_name.clone());
+
         substitute_ast_types(&mut new_func.ast, &mapping);
         self.concrete_items.push(TypedItem::Function(new_func));
-        
+
         Ok(mangled_name)
     }
-    
+
     fn instantiate_struct(&mut self, name: &str, type_args: &[ResolvedType]) -> KainResult<String> {
         let mangled_name = format!("{}_{}", name, mangle_types(type_args));
-        
+
         if self.instantiated_structs.contains_key(&mangled_name) {
             return Ok(mangled_name);
         }
-        
-        let generic_struct = self.generic_structs.get(name)
-            .ok_or_else(|| KainError::type_error(format!("Generic struct {} not found", name), crate::span::Span::new(0,0)))?
+
+        let generic_struct = self
+            .generic_structs
+            .get(name)
+            .ok_or_else(|| {
+                KainError::type_error(
+                    format!("Generic struct {} not found", name),
+                    crate::span::Span::new(0, 0),
+                )
+            })?
             .clone();
-            
+
         if generic_struct.ast.generics.len() != type_args.len() {
-             return Err(KainError::type_error(format!("Generic arg count mismatch for {}: expected {}, got {}", name, generic_struct.ast.generics.len(), type_args.len()), generic_struct.ast.span));
+            return Err(KainError::type_error(
+                format!(
+                    "Generic arg count mismatch for {}: expected {}, got {}",
+                    name,
+                    generic_struct.ast.generics.len(),
+                    type_args.len()
+                ),
+                generic_struct.ast.span,
+            ));
         }
-        
+
         // Build type mapping
         let mut mapping = HashMap::new();
         for (i, param) in generic_struct.ast.generics.iter().enumerate() {
             mapping.insert(param.name.clone(), type_args[i].clone());
         }
-        
+
         // Clone and modify the struct
         let mut new_struct = generic_struct.clone();
         new_struct.ast.name = mangled_name.clone();
         new_struct.ast.generics.clear();
-        
+
         // Substitute types in fields
         for field in &mut new_struct.ast.fields {
             substitute_type_ast(&mut field.ty, &mapping);
         }
-        
+
         // Update field_types map
         let mut new_field_types = HashMap::new();
         for (field_name, field_ty) in &new_struct.field_types {
             new_field_types.insert(field_name.clone(), substitute_type(field_ty, &mapping));
         }
         new_struct.field_types = new_field_types.clone();
-        
+
         // Register the instantiated struct
-        self.instantiated_structs.insert(mangled_name.clone(), mangled_name.clone());
+        self.instantiated_structs
+            .insert(mangled_name.clone(), mangled_name.clone());
         self.structs.insert(mangled_name.clone(), new_field_types);
         self.concrete_items.push(TypedItem::Struct(new_struct));
-        
+
         // Instantiate generic methods for this struct if they exist
         if let Some(generic_impl) = self.generic_impls.get(name).cloned() {
             self.instantiate_impl_methods(&mangled_name, &generic_impl, type_args)?;
         }
-        
+
         Ok(mangled_name)
     }
-    
-    fn instantiate_impl_methods(&mut self, instantiated_struct_name: &str, generic_impl: &TypedImpl, type_args: &[ResolvedType]) -> KainResult<()> {
+
+    fn instantiate_impl_methods(
+        &mut self,
+        instantiated_struct_name: &str,
+        generic_impl: &TypedImpl,
+        type_args: &[ResolvedType],
+    ) -> KainResult<()> {
         // Build type mapping from generic parameters to concrete types
         let mut mapping = HashMap::new();
         for (i, param) in generic_impl.ast.generics.iter().enumerate() {
@@ -264,29 +310,30 @@ impl MonoContext {
                 mapping.insert(param.name.clone(), type_args[i].clone());
             }
         }
-        
+
         // Instantiate each method
         for method in &generic_impl.ast.methods {
             let mangled_name = format!("{}_{}", instantiated_struct_name, method.name);
-            
+
             let mut standalone_fn = method.clone();
             standalone_fn.name = mangled_name.clone();
-            
+
             // Substitute types in parameters
             for param in &mut standalone_fn.params {
                 substitute_type_ast(&mut param.ty, &mapping);
             }
-            
+
             // Substitute return type
             if let Some(ret) = &mut standalone_fn.return_type {
                 substitute_type_ast(ret, &mapping);
             }
-            
+
             // Substitute types in body
             substitute_block(&mut standalone_fn.body, &mapping);
-            
+
             // Resolve method type
-            let target_ty = ResolvedType::Struct(instantiated_struct_name.to_string(), HashMap::new());
+            let target_ty =
+                ResolvedType::Struct(instantiated_struct_name.to_string(), HashMap::new());
             let mut params = Vec::new();
             for p in &standalone_fn.params {
                 if p.name == "self" {
@@ -295,27 +342,32 @@ impl MonoContext {
                     params.push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
                 }
             }
-            let ret = standalone_fn.return_type.as_ref()
+            let ret = standalone_fn
+                .return_type
+                .as_ref()
                 .map(|t| resolve_ast_type(t).unwrap_or(ResolvedType::Unknown))
                 .unwrap_or(ResolvedType::Unit);
-            
+
             let method_ty = ResolvedType::Function {
                 params,
                 ret: Box::new(ret),
                 effects: crate::effects::EffectSet::new(),
             };
-            
+
             let typed_method = TypedFunction {
                 ast: standalone_fn,
                 resolved_type: method_ty,
                 effects: crate::effects::EffectSet::new(),
             };
-            
+
             // Register the method
-            self.methods.entry(instantiated_struct_name.to_string()).or_default().insert(method.name.clone(), mangled_name.clone());
+            self.methods
+                .entry(instantiated_struct_name.to_string())
+                .or_default()
+                .insert(method.name.clone(), mangled_name.clone());
             self.concrete_items.push(TypedItem::Function(typed_method));
         }
-        
+
         Ok(())
     }
 }
@@ -329,13 +381,20 @@ fn type_to_string(ty: &ResolvedType) -> String {
         ResolvedType::Unit => "Unit".to_string(),
         ResolvedType::Struct(n, _) => n.clone(),
         ResolvedType::Enum(n, _) => n.clone(),
-        ResolvedType::Tuple(ts) => format!("({})", ts.iter().map(type_to_string).collect::<Vec<_>>().join(", ")),
+        ResolvedType::Tuple(ts) => format!(
+            "({})",
+            ts.iter().map(type_to_string).collect::<Vec<_>>().join(", ")
+        ),
         _ => "Any".to_string(),
     }
 }
 
 fn mangle_types(types: &[ResolvedType]) -> String {
-    types.iter().map(type_to_string).collect::<Vec<_>>().join("_")
+    types
+        .iter()
+        .map(type_to_string)
+        .collect::<Vec<_>>()
+        .join("_")
 }
 
 fn resolve_ast_type(ty: &Type) -> KainResult<ResolvedType> {
@@ -359,10 +418,20 @@ fn unify(
                 bindings.insert(name.clone(), concrete.clone());
             }
         }
-        
+
         // Recursively unify function types
-        (ResolvedType::Function { params: p_params, ret: p_ret, .. }, 
-         ResolvedType::Function { params: a_params, ret: a_ret, .. }) => {
+        (
+            ResolvedType::Function {
+                params: p_params,
+                ret: p_ret,
+                ..
+            },
+            ResolvedType::Function {
+                params: a_params,
+                ret: a_ret,
+                ..
+            },
+        ) => {
             // Unify parameter types
             for (pp, ap) in p_params.iter().zip(a_params.iter()) {
                 unify(pp, ap, bindings);
@@ -370,19 +439,19 @@ fn unify(
             // Unify return type
             unify(p_ret, a_ret, bindings);
         }
-        
+
         // Recursively unify array types
         (ResolvedType::Array(p_inner, _), ResolvedType::Array(a_inner, _)) => {
             unify(p_inner, a_inner, bindings);
         }
-        
+
         // Recursively unify tuple types
         (ResolvedType::Tuple(p_elems), ResolvedType::Tuple(a_elems)) => {
             for (pe, ae) in p_elems.iter().zip(a_elems.iter()) {
                 unify(pe, ae, bindings);
             }
         }
-        
+
         // For concrete types that match, nothing to unify
         _ => {}
     }
@@ -395,60 +464,75 @@ fn infer_type_args(
     arg_types: &[ResolvedType],
 ) -> KainResult<Vec<ResolvedType>> {
     let mut bindings: HashMap<String, ResolvedType> = HashMap::new();
-    
+
     // Get the parameter types from the function signature
-    let param_types: Vec<ResolvedType> = if let ResolvedType::Function { params, .. } = &generic_func.resolved_type {
-        params.clone()
-    } else {
-        // Fallback: resolve from AST
-        generic_func.ast.params.iter()
-            .map(|p| resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown))
-            .collect()
-    };
-    
+    let param_types: Vec<ResolvedType> =
+        if let ResolvedType::Function { params, .. } = &generic_func.resolved_type {
+            params.clone()
+        } else {
+            // Fallback: resolve from AST
+            generic_func
+                .ast
+                .params
+                .iter()
+                .map(|p| resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown))
+                .collect()
+        };
+
     // Unify each parameter type with the corresponding argument type
     for (param_ty, arg_ty) in param_types.iter().zip(arg_types.iter()) {
         unify(param_ty, arg_ty, &mut bindings);
     }
-    
+
     // Extract the inferred types in the order of the generic parameters
     let mut inferred = Vec::new();
     for generic in &generic_func.ast.generics {
         if let Some(ty) = bindings.get(&generic.name) {
-             // Check Bounds!
-             for bound in &generic.bounds {
-                 let type_name = type_to_string(ty);
-                 if !ctx.trait_impls.contains(&(bound.trait_name.clone(), type_name.clone())) {
-                     return Err(KainError::type_error(
-                         format!("Type '{}' does not satisfy bound '{}'", type_name, bound.trait_name), 
-                         generic.span
-                     ));
-                 }
-             }
-             inferred.push(ty.clone());
+            // Check Bounds!
+            for bound in &generic.bounds {
+                let type_name = type_to_string(ty);
+                if !ctx
+                    .trait_impls
+                    .contains(&(bound.trait_name.clone(), type_name.clone()))
+                {
+                    return Err(KainError::type_error(
+                        format!(
+                            "Type '{}' does not satisfy bound '{}'",
+                            type_name, bound.trait_name
+                        ),
+                        generic.span,
+                    ));
+                }
+            }
+            inferred.push(ty.clone());
         } else {
             // Generic wasn't inferred - could be an error, but let's use Unknown for now
             inferred.push(ResolvedType::Unknown);
         }
     }
-    
+
     Ok(inferred)
 }
 
 fn substitute_type(ty: &ResolvedType, mapping: &HashMap<String, ResolvedType>) -> ResolvedType {
     match ty {
         ResolvedType::Generic(name) => mapping.get(name).cloned().unwrap_or(ty.clone()),
-        ResolvedType::Function { params, ret, effects } => {
-            ResolvedType::Function {
-                params: params.iter().map(|p| substitute_type(p, mapping)).collect(),
-                ret: Box::new(substitute_type(ret, mapping)),
-                effects: effects.clone()
-            }
+        ResolvedType::Function {
+            params,
+            ret,
+            effects,
+        } => ResolvedType::Function {
+            params: params.iter().map(|p| substitute_type(p, mapping)).collect(),
+            ret: Box::new(substitute_type(ret, mapping)),
+            effects: effects.clone(),
+        },
+        ResolvedType::Array(inner, n) => {
+            ResolvedType::Array(Box::new(substitute_type(inner, mapping)), *n)
         }
-        ResolvedType::Array(inner, n) => ResolvedType::Array(Box::new(substitute_type(inner, mapping)), *n),
         ResolvedType::Struct(name, fields) => {
             // Substitute types in struct fields
-            let new_fields: HashMap<String, ResolvedType> = fields.iter()
+            let new_fields: HashMap<String, ResolvedType> = fields
+                .iter()
                 .map(|(k, v)| (k.clone(), substitute_type(v, mapping)))
                 .collect();
             ResolvedType::Struct(name.clone(), new_fields)
@@ -456,21 +540,25 @@ fn substitute_type(ty: &ResolvedType, mapping: &HashMap<String, ResolvedType>) -
         ResolvedType::Tuple(elems) => {
             ResolvedType::Tuple(elems.iter().map(|e| substitute_type(e, mapping)).collect())
         }
-        ResolvedType::Option(inner) => ResolvedType::Option(Box::new(substitute_type(inner, mapping))),
+        ResolvedType::Option(inner) => {
+            ResolvedType::Option(Box::new(substitute_type(inner, mapping)))
+        }
         ResolvedType::Result(ok, err) => ResolvedType::Result(
             Box::new(substitute_type(ok, mapping)),
-            Box::new(substitute_type(err, mapping))
+            Box::new(substitute_type(err, mapping)),
         ),
         ResolvedType::Ref { mutable, inner } => ResolvedType::Ref {
             mutable: *mutable,
-            inner: Box::new(substitute_type(inner, mapping))
+            inner: Box::new(substitute_type(inner, mapping)),
         },
         ResolvedType::Ptr { mutable, inner } => ResolvedType::Ptr {
             mutable: *mutable,
             inner: Box::new(substitute_type(inner, mapping)),
         },
-        ResolvedType::Slice(inner) => ResolvedType::Slice(Box::new(substitute_type(inner, mapping))),
-        _ => ty.clone() 
+        ResolvedType::Slice(inner) => {
+            ResolvedType::Slice(Box::new(substitute_type(inner, mapping)))
+        }
+        _ => ty.clone(),
     }
 }
 
@@ -479,12 +567,12 @@ fn substitute_ast_types(func: &mut Function, mapping: &HashMap<String, ResolvedT
     for param in &mut func.params {
         substitute_type_ast(&mut param.ty, mapping);
     }
-    
+
     // 2. Substitute return type
     if let Some(ret) = &mut func.return_type {
         substitute_type_ast(ret, mapping);
     }
-    
+
     // 3. Substitute body
     substitute_block(&mut func.body, mapping);
 }
@@ -511,7 +599,9 @@ fn substitute_stmt(stmt: &mut Stmt, mapping: &HashMap<String, ResolvedType>) {
             substitute_expr(iter, mapping);
             substitute_block(body, mapping);
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             substitute_expr(condition, mapping);
             substitute_block(body, mapping);
         }
@@ -550,48 +640,61 @@ fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, ResolvedType>) {
             substitute_expr(index, mapping);
         }
         Expr::Struct { fields, .. } => {
-             for (_, v) in fields {
-                 substitute_expr(v, mapping);
-             }
+            for (_, v) in fields {
+                substitute_expr(v, mapping);
+            }
         }
         Expr::Array(items, _) => {
-             for item in items {
-                 substitute_expr(item, mapping);
-             }
+            for item in items {
+                substitute_expr(item, mapping);
+            }
         }
         Expr::Tuple(items, _) => {
-             for item in items {
-                 substitute_expr(item, mapping);
-             }
+            for item in items {
+                substitute_expr(item, mapping);
+            }
         }
         Expr::Block(b, _) => substitute_block(b, mapping),
-        Expr::If { condition, then_branch, else_branch, .. } => {
-             substitute_expr(condition, mapping);
-             substitute_block(then_branch, mapping);
-             if let Some(br) = else_branch {
-                 match br.as_mut() {
-                     ElseBranch::Else(b) => substitute_block(b, mapping),
-                     ElseBranch::ElseIf(c, t, _) => { // Simplified recursion
-                         substitute_expr(c, mapping);
-                         substitute_block(t, mapping);
-                     }
-                 }
-             }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            substitute_expr(condition, mapping);
+            substitute_block(then_branch, mapping);
+            if let Some(br) = else_branch {
+                match br.as_mut() {
+                    ElseBranch::Else(b) => substitute_block(b, mapping),
+                    ElseBranch::ElseIf(c, t, _) => {
+                        // Simplified recursion
+                        substitute_expr(c, mapping);
+                        substitute_block(t, mapping);
+                    }
+                }
+            }
         }
-        Expr::Match { scrutinee, arms, .. } => {
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
             substitute_expr(scrutinee, mapping);
             for arm in arms {
                 substitute_expr(&mut arm.body, mapping);
             }
         }
-        Expr::Lambda { params, body, return_type, .. } => {
-             for p in params {
-                 substitute_type_ast(&mut p.ty, mapping);
-             }
-             if let Some(ret) = return_type {
-                 substitute_type_ast(ret, mapping);
-             }
-             substitute_expr(body, mapping);
+        Expr::Lambda {
+            params,
+            body,
+            return_type,
+            ..
+        } => {
+            for p in params {
+                substitute_type_ast(&mut p.ty, mapping);
+            }
+            if let Some(ret) = return_type {
+                substitute_type_ast(ret, mapping);
+            }
+            substitute_expr(body, mapping);
         }
         Expr::Await(inner, _) => {
             substitute_expr(inner, mapping);
@@ -616,40 +719,68 @@ fn substitute_type_ast(ty: &mut Type, mapping: &HashMap<String, ResolvedType>) {
                 substitute_type_ast(t, mapping);
             }
         }
-        Type::Function { params, return_type, .. } => {
+        Type::Function {
+            params,
+            return_type,
+            ..
+        } => {
             for p in params {
                 substitute_type_ast(p, mapping);
             }
             substitute_type_ast(return_type, mapping);
         }
         Type::Array(inner, _, _) => {
-             substitute_type_ast(inner, mapping);
-         }
-         Type::Slice(inner, _) => {
-             substitute_type_ast(inner, mapping);
-         }
-         Type::Ref { inner, .. } | Type::Ptr { inner, .. } | Type::Option(inner, _) => {
-             substitute_type_ast(inner, mapping);
-         }
-         _ => {}
+            substitute_type_ast(inner, mapping);
+        }
+        Type::Slice(inner, _) => {
+            substitute_type_ast(inner, mapping);
+        }
+        Type::Ref { inner, .. } | Type::Ptr { inner, .. } | Type::Option(inner, _) => {
+            substitute_type_ast(inner, mapping);
+        }
+        _ => {}
     }
 }
 
 fn resolved_to_ast_type(res: &ResolvedType, span: crate::span::Span) -> Type {
     match res {
-        ResolvedType::Int(_) => Type::Named { name: "Int".into(), generics: vec![], span },
-        ResolvedType::Float(_) => Type::Named { name: "Float".into(), generics: vec![], span },
-        ResolvedType::Bool => Type::Named { name: "Bool".into(), generics: vec![], span },
-        ResolvedType::String => Type::Named { name: "String".into(), generics: vec![], span },
+        ResolvedType::Int(_) => Type::Named {
+            name: "Int".into(),
+            generics: vec![],
+            span,
+        },
+        ResolvedType::Float(_) => Type::Named {
+            name: "Float".into(),
+            generics: vec![],
+            span,
+        },
+        ResolvedType::Bool => Type::Named {
+            name: "Bool".into(),
+            generics: vec![],
+            span,
+        },
+        ResolvedType::String => Type::Named {
+            name: "String".into(),
+            generics: vec![],
+            span,
+        },
         ResolvedType::Unit => Type::Unit(span),
-        ResolvedType::Struct(n, _) => Type::Named { name: n.clone(), generics: vec![], span },
+        ResolvedType::Struct(n, _) => Type::Named {
+            name: n.clone(),
+            generics: vec![],
+            span,
+        },
         ResolvedType::Ptr { mutable, inner } => Type::Ptr {
             mutable: *mutable,
             inner: Box::new(resolved_to_ast_type(inner, span)),
             provenance: crate::ast::PointerProvenance::LoweredRef,
             span,
         },
-        _ => Type::Named { name: "Any".into(), generics: vec![], span }, // Fallback
+        _ => Type::Named {
+            name: "Any".into(),
+            generics: vec![],
+            span,
+        }, // Fallback
     }
 }
 
@@ -659,20 +790,28 @@ struct MonoTypeEnv {
 
 impl MonoTypeEnv {
     fn new() -> Self {
-        Self { scopes: vec![HashMap::new()] }
+        Self {
+            scopes: vec![HashMap::new()],
+        }
     }
-    fn push(&mut self) { self.scopes.push(HashMap::new()); }
-    fn pop(&mut self) { self.scopes.pop(); }
-    
+    fn push(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+    fn pop(&mut self) {
+        self.scopes.pop();
+    }
+
     fn define(&mut self, name: String, ty: ResolvedType) {
         if let Some(s) = self.scopes.last_mut() {
             s.insert(name, ty);
         }
     }
-    
+
     fn get(&self, name: &str) -> ResolvedType {
         for s in self.scopes.iter().rev() {
-            if let Some(t) = s.get(name) { return t.clone(); }
+            if let Some(t) = s.get(name) {
+                return t.clone();
+            }
         }
         ResolvedType::Unknown
     }
@@ -680,43 +819,50 @@ impl MonoTypeEnv {
 
 fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<TypedFunction> {
     let state_machine_name = format!("{}_Future", func.ast.name);
-    
+
     // 1. Create State Machine Struct
     // struct MyFn_Future { state: Int, ...args, ...locals }
     let mut fields = HashMap::new();
     fields.insert("state".to_string(), ResolvedType::Int(IntSize::I64));
-    
+
     // Capture arguments
     for param in &func.ast.params {
-        fields.insert(param.name.clone(), resolve_ast_type(&param.ty).unwrap_or(ResolvedType::Unknown));
+        fields.insert(
+            param.name.clone(),
+            resolve_ast_type(&param.ty).unwrap_or(ResolvedType::Unknown),
+        );
     }
-    
+
     // Capture locals (lifted to struct fields)
     let locals = collect_locals(&func.ast.body);
     for (name, ty) in locals {
         fields.entry(name).or_insert(ty);
     }
-    
+
     let _struct_ty = ResolvedType::Struct(state_machine_name.clone(), fields.clone());
-    
+
     // Register Struct
-    ctx.structs.insert(state_machine_name.clone(), fields.clone());
-    
+    ctx.structs
+        .insert(state_machine_name.clone(), fields.clone());
+
     // Emit Struct Definition
     // We need to create a TypedStruct and push it
     let struct_def = TypedItem::Struct(TypedStruct {
         ast: Struct {
             name: state_machine_name.clone(),
             generics: vec![],
-            fields: fields.iter().map(|(n, t)| Field {
-                name: n.clone(),
-                ty: resolved_to_ast_type(t, func.ast.span),
-                attributes: vec![],
-                visibility: Visibility::Public,
-                default: None,
-                weak: false,
-                span: func.ast.span
-            }).collect(),
+            fields: fields
+                .iter()
+                .map(|(n, t)| Field {
+                    name: n.clone(),
+                    ty: resolved_to_ast_type(t, func.ast.span),
+                    attributes: vec![],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
+                    span: func.ast.span,
+                })
+                .collect(),
             visibility: Visibility::Public,
             attributes: vec![],
             methods: vec![],
@@ -725,11 +871,11 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
         field_types: fields.clone(),
     });
     ctx.concrete_items.push(struct_def);
-    
+
     // 2. Generate Poll Function
     // fn MyFn_Future_poll(self: &mut MyFn_Future) -> Poll<T>
     let poll_name = format!("{}_poll", state_machine_name);
-    
+
     // Create 'self' param
     let self_type = ResolvedType::Struct(state_machine_name.clone(), fields.clone());
     let self_param = Param {
@@ -739,37 +885,38 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
         default: None,
         span: func.ast.span,
     };
-    
+
     // === AWAIT CHOPPING: Split function body at await points ===
-    
+
     // Step 1: Collect all await points and statements between them
     let await_points = collect_await_points(&func.ast.body);
-    
+
     // Step 2: Add storage fields for each await's pending future and its result
     for (i, _) in await_points.iter().enumerate() {
         let field_name = format!("_await_{}", i);
         // Store futures as Unknown type (dynamic typing for interpreter)
         fields.insert(field_name, ResolvedType::Unknown);
-        
+
         // Store result of the future
         let res_name = format!("_await_{}_result", i);
         fields.insert(res_name, ResolvedType::Unknown);
     }
-    
+
     // Update struct with new fields
-    ctx.structs.insert(state_machine_name.clone(), fields.clone());
-    
+    ctx.structs
+        .insert(state_machine_name.clone(), fields.clone());
+
     // Step 3: Generate match arms for each state
     let mut arms = Vec::new();
-    
+
     if await_points.is_empty() {
         // No awaits - just execute the whole body in state 0 and return Ready
         let mut rewritten_body = func.ast.body.clone();
         rewrite_access_to_self(&mut rewritten_body, &fields);
-        
+
         // Wrap result in Poll::Ready
         let body_with_ready = wrap_return_in_poll_ready(rewritten_body, func.ast.span);
-        
+
         let arm0 = MatchArm {
             pattern: Pattern::Literal(Expr::Int(0, func.ast.span)),
             guard: None,
@@ -780,7 +927,7 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
     } else {
         // Has awaits - generate state machine
         let segments = split_at_awaits(&func.ast.body, &await_points);
-        
+
         for (state_idx, segment) in segments.iter().enumerate() {
             let arm = generate_state_arm(
                 state_idx,
@@ -793,7 +940,7 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
             arms.push(arm);
         }
     }
-    
+
     // Fallback arm for completed/invalid states
     let arm_wild = MatchArm {
         pattern: Pattern::Wildcard(func.ast.span),
@@ -810,22 +957,25 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
         span: func.ast.span,
     };
     arms.push(arm_wild);
-    
+
     // Create poll body with the match expression
-    let mut poll_body = Block { stmts: vec![], span: func.ast.span };
-    
+    let mut poll_body = Block {
+        stmts: vec![],
+        span: func.ast.span,
+    };
+
     let match_expr = Expr::Match {
         scrutinee: Box::new(Expr::Field {
             object: Box::new(Expr::Ident("self".to_string(), func.ast.span)),
             field: "state".to_string(),
-            span: func.ast.span
+            span: func.ast.span,
         }),
         arms,
         span: func.ast.span,
     };
-    
+
     poll_body.stmts.push(Stmt::Expr(match_expr));
-    
+
     let poll_fn = TypedItem::Function(TypedFunction {
         ast: Function {
             name: poll_name.clone(),
@@ -846,56 +996,71 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
         effects: crate::effects::EffectSet::new(),
     });
     ctx.concrete_items.push(poll_fn);
-    
+
     // 3. Rewrite Original Function
     // fn MyFn(args) -> MyFn_Future
     let mut entry_fn = func.clone();
-    
+
     // Construct Struct Init
     let mut init_fields = Vec::new();
     init_fields.push(("state".to_string(), Expr::Int(0, func.ast.span)));
     for param in &func.ast.params {
-        init_fields.push((param.name.clone(), Expr::Ident(param.name.clone(), func.ast.span)));
+        init_fields.push((
+            param.name.clone(),
+            Expr::Ident(param.name.clone(), func.ast.span),
+        ));
     }
-    
+
     // Initialize await fields
     for (i, _) in await_points.iter().enumerate() {
         init_fields.push((format!("_await_{}", i), Expr::None(func.ast.span)));
         init_fields.push((format!("_await_{}_result", i), Expr::None(func.ast.span)));
     }
-    
+
     // Initialize captured locals
     let captured_locals = collect_locals(&func.ast.body);
     for (name, _) in captured_locals {
         // Skip params (already initialized)
-        if func.ast.params.iter().any(|p| p.name == name) { continue; }
+        if func.ast.params.iter().any(|p| p.name == name) {
+            continue;
+        }
         init_fields.push((name, Expr::None(func.ast.span)));
     }
-    
+
     let body_expr = Expr::Struct {
         name: state_machine_name.clone(),
         fields: init_fields,
         span: func.ast.span,
     };
-    
+
     entry_fn.ast.body = Block {
         stmts: vec![Stmt::Return(Some(body_expr), func.ast.span)],
         span: func.ast.span,
     };
-    
+
     // Update return type to Future (Struct)
     // Note: In real implementation this would be impl Future<Output=T>
     // For now, we return the struct directly.
     entry_fn.resolved_type = ResolvedType::Function {
-        params: if let ResolvedType::Function{params, ..} = &func.resolved_type { params.clone() } else { vec![] },
+        params: if let ResolvedType::Function { params, .. } = &func.resolved_type {
+            params.clone()
+        } else {
+            vec![]
+        },
         ret: Box::new(ResolvedType::Struct(state_machine_name, fields)),
         effects: crate::effects::EffectSet::new(), // Entry function is synchronous (returns Future)
     };
-    
+
     // Clear async effect
-    entry_fn.effects.effects.remove(&crate::effects::Effect::Async);
-    entry_fn.ast.effects.retain(|e| *e != crate::effects::Effect::Async);
-    
+    entry_fn
+        .effects
+        .effects
+        .remove(&crate::effects::Effect::Async);
+    entry_fn
+        .ast
+        .effects
+        .retain(|e| *e != crate::effects::Effect::Async);
+
     Ok(entry_fn)
 }
 
@@ -915,29 +1080,41 @@ fn rewrite_stmt(stmt: &mut Stmt, fields: &HashMap<String, ResolvedType>) {
             rewrite_expr(iter, fields);
             rewrite_access_to_self(body, fields);
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             rewrite_expr(condition, fields);
             rewrite_access_to_self(body, fields);
         }
         _ => {}
     }
-    
+
     // 2. Transform local bindings to struct assignments if captured
-    let transform = if let Stmt::Let { pattern: Pattern::Binding { name, .. }, value: Some(e), span, .. } = stmt {
+    let transform = if let Stmt::Let {
+        pattern: Pattern::Binding { name, .. },
+        value: Some(e),
+        span,
+        ..
+    } = stmt
+    {
         if fields.contains_key(name) {
-             Some((name.clone(), e.clone(), *span))
-        } else { None }
-    } else { None };
-    
+            Some((name.clone(), e.clone(), *span))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     if let Some((name, val, span)) = transform {
         *stmt = Stmt::Expr(Expr::Assign {
-             target: Box::new(Expr::Field {
-                 object: Box::new(Expr::Ident("self".to_string(), span)),
-                 field: name,
-                 span,
-             }),
-             value: Box::new(val),
-             span,
+            target: Box::new(Expr::Field {
+                object: Box::new(Expr::Ident("self".to_string(), span)),
+                field: name,
+                span,
+            }),
+            value: Box::new(val),
+            span,
         });
     }
 }
@@ -1006,7 +1183,7 @@ fn collect_awaits_from_stmt(stmt: &Stmt, points: &mut Vec<AwaitPoint>) {
                 Pattern::Binding { name: n, .. } => Some(n.clone()),
                 _ => None,
             };
-            
+
             // Check if the value is an await expression
             if let Some(expr) = value {
                 if let Expr::Await(inner, _) = expr {
@@ -1042,7 +1219,7 @@ fn collect_awaits_from_stmt(stmt: &Stmt, points: &mut Vec<AwaitPoint>) {
                 collect_awaits_from_expr(expr, points);
             }
         }
-        // Note: In KAIN, if is an expression, not a statement. If used in Stmt::Expr, 
+        // Note: In KAIN, if is an expression, not a statement. If used in Stmt::Expr,
         // collect_awaits_from_expr will handle it.
         Stmt::While { body, .. } | Stmt::Loop { body, .. } => {
             collect_awaits_from_block(body, points);
@@ -1074,7 +1251,11 @@ fn collect_awaits_from_expr(expr: &Expr, points: &mut Vec<AwaitPoint>) {
             }
         }
         Expr::Block(block, _) => collect_awaits_from_block(block, points),
-        Expr::If { then_branch, else_branch, .. } => {
+        Expr::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
             collect_awaits_from_block(then_branch, points);
             if let Some(else_b) = else_branch {
                 match else_b.as_ref() {
@@ -1103,16 +1284,19 @@ fn split_at_awaits(block: &Block, await_points: &[AwaitPoint]) -> Vec<CodeSegmen
     let mut segments = Vec::new();
     let mut current_stmts = Vec::new();
     let mut await_idx = 0;
-    
+
     for stmt in &block.stmts {
         // Check if this statement contains an await at the top level
         let contains_await = match stmt {
-            Stmt::Let { value: Some(Expr::Await(_, _)), .. } => true,
+            Stmt::Let {
+                value: Some(Expr::Await(_, _)),
+                ..
+            } => true,
             Stmt::Expr(Expr::Await(_, _)) => true,
             Stmt::Return(Some(Expr::Await(_, _)), _) => true,
             _ => false,
         };
-        
+
         if contains_await && await_idx < await_points.len() {
             // End current segment, start new one after await
             segments.push(CodeSegment {
@@ -1126,10 +1310,11 @@ fn split_at_awaits(block: &Block, await_points: &[AwaitPoint]) -> Vec<CodeSegmen
             current_stmts.push(stmt.clone());
         }
     }
-    
+
     // Add final segment (code after last await)
     if !current_stmts.is_empty() || segments.is_empty() {
-        let ends_with_return = current_stmts.last()
+        let ends_with_return = current_stmts
+            .last()
             .map(|s| matches!(s, Stmt::Return(_, _)))
             .unwrap_or(false);
         segments.push(CodeSegment {
@@ -1138,7 +1323,7 @@ fn split_at_awaits(block: &Block, await_points: &[AwaitPoint]) -> Vec<CodeSegmen
             ends_with_return,
         });
     }
-    
+
     segments
 }
 
@@ -1152,13 +1337,13 @@ fn generate_state_arm(
     span: crate::span::Span,
 ) -> MatchArm {
     let mut body_stmts = Vec::new();
-    
+
     // If this is a continuation state (after an await), we must POLL the future from the previous step
     if state_idx > 0 && state_idx <= await_points.len() {
         let prev_await = &await_points[state_idx - 1];
         let poll_field = format!("_await_{}", prev_await.index);
         let res_field = format!("_await_{}_result", prev_await.index);
-        
+
         // Match expression to check poll status
         // match self._await_N.poll() { ... }
         let poll_call = Expr::MethodCall {
@@ -1171,7 +1356,7 @@ fn generate_state_arm(
             args: vec![],
             span,
         };
-        
+
         // Arm 1: Poll::Pending => return Poll::Pending
         let pending_arm = MatchArm {
             pattern: Pattern::Variant {
@@ -1192,7 +1377,7 @@ fn generate_state_arm(
             ),
             span,
         };
-        
+
         // Arm 2: Poll::Ready(val) => { self._await_N_result = val; }
         // We capture 'val' in a binding
         let val_name = "val".to_string();
@@ -1200,9 +1385,11 @@ fn generate_state_arm(
             pattern: Pattern::Variant {
                 enum_name: Some("Poll".to_string()),
                 variant: "Ready".to_string(),
-                fields: VariantPatternFields::Tuple(vec![
-                    Pattern::Binding { name: val_name.clone(), mutable: false, span }
-                ]),
+                fields: VariantPatternFields::Tuple(vec![Pattern::Binding {
+                    name: val_name.clone(),
+                    mutable: false,
+                    span,
+                }]),
                 span,
             },
             guard: None,
@@ -1217,37 +1404,41 @@ fn generate_state_arm(
             },
             span,
         };
-        
+
         let poll_match = Expr::Match {
             scrutinee: Box::new(poll_call),
             arms: vec![pending_arm, ready_arm],
             span,
         };
-        
+
         body_stmts.push(Stmt::Expr(poll_match));
-        
+
         // Bind the result to the user's variable: let result_binding = self._await_N_result
         // Bind the result to the user's variable
         // If captured, we must assign to self.variable, otherwise use let for temporary
         if let Some(binding) = &prev_await.result_binding {
             if fields.contains_key(binding) {
-                 // self.binding = self._await_N_result
-                 body_stmts.push(Stmt::Expr(Expr::Assign {
-                     target: Box::new(Expr::Field {
-                         object: Box::new(Expr::Ident("self".to_string(), span)),
-                         field: binding.clone(),
-                         span,
-                     }),
-                     value: Box::new(Expr::Field {
-                         object: Box::new(Expr::Ident("self".to_string(), span)),
-                         field: res_field,
-                         span,
-                     }),
-                     span,
-                 }));
+                // self.binding = self._await_N_result
+                body_stmts.push(Stmt::Expr(Expr::Assign {
+                    target: Box::new(Expr::Field {
+                        object: Box::new(Expr::Ident("self".to_string(), span)),
+                        field: binding.clone(),
+                        span,
+                    }),
+                    value: Box::new(Expr::Field {
+                        object: Box::new(Expr::Ident("self".to_string(), span)),
+                        field: res_field,
+                        span,
+                    }),
+                    span,
+                }));
             } else {
                 body_stmts.push(Stmt::Let {
-                    pattern: Pattern::Binding { name: binding.clone(), mutable: false, span },
+                    pattern: Pattern::Binding {
+                        name: binding.clone(),
+                        mutable: false,
+                        span,
+                    },
                     ty: None,
                     value: Some(Expr::Field {
                         object: Box::new(Expr::Ident("self".to_string(), span)),
@@ -1259,21 +1450,21 @@ fn generate_state_arm(
             }
         }
     }
-    
+
     // Add the segment's statements (rewritten to use self.x)
     for stmt in &segment.stmts_before {
         let mut rewritten_stmt = stmt.clone();
         rewrite_stmt(&mut rewritten_stmt, fields);
         body_stmts.push(rewritten_stmt);
     }
-    
+
     // Handle the await point (if any)
     if let Some(await_point) = &segment.await_point {
         // 1. Evaluate the future expression and store it
         let store_field = format!("_await_{}", await_point.index);
         let mut awaited_expr = await_point.awaited_expr.clone();
         rewrite_expr(&mut awaited_expr, fields);
-        
+
         body_stmts.push(Stmt::Expr(Expr::Assign {
             target: Box::new(Expr::Field {
                 object: Box::new(Expr::Ident("self".to_string(), span)),
@@ -1283,7 +1474,7 @@ fn generate_state_arm(
             value: Box::new(awaited_expr),
             span,
         }));
-        
+
         // 2. Increment state
         body_stmts.push(Stmt::Expr(Expr::Assign {
             target: Box::new(Expr::Field {
@@ -1294,7 +1485,7 @@ fn generate_state_arm(
             value: Box::new(Expr::Int((state_idx + 1) as i64, span)),
             span,
         }));
-        
+
         // 3. Return Poll::Pending
         body_stmts.push(Stmt::Return(
             Some(Expr::EnumVariant {
@@ -1320,11 +1511,17 @@ fn generate_state_arm(
             span,
         ));
     }
-    
+
     MatchArm {
         pattern: Pattern::Literal(Expr::Int(state_idx as i64, span)),
         guard: None,
-        body: Expr::Block(Block { stmts: body_stmts, span }, span),
+        body: Expr::Block(
+            Block {
+                stmts: body_stmts,
+                span,
+            },
+            span,
+        ),
         span,
     }
 }
@@ -1361,7 +1558,7 @@ fn wrap_stmt_returns(stmt: &mut Stmt, span: crate::span::Span) {
                 *s,
             );
         }
-        // Note: In KAIN, if is an expression. Expr::If would be in Stmt::Expr, 
+        // Note: In KAIN, if is an expression. Expr::If would be in Stmt::Expr,
         // but we handle expressions separately if needed.
         Stmt::While { body, .. } | Stmt::Loop { body, .. } => {
             for s in &mut body.stmts {
@@ -1380,7 +1577,7 @@ fn wrap_stmt_returns(stmt: &mut Stmt, span: crate::span::Span) {
 fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<TypedFunction> {
     let mut new_func = func.clone();
     let mut env = MonoTypeEnv::new();
-    
+
     if let ResolvedType::Function { params, .. } = &func.resolved_type {
         for (i, p) in params.iter().enumerate() {
             if i < func.ast.params.len() {
@@ -1388,7 +1585,7 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
             }
         }
     }
-    
+
     // Check function parameters for generic struct types
     for param in &func.ast.params {
         if let Type::Named { name, generics, .. } = &param.ty {
@@ -1400,7 +1597,7 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
                         type_args.push(resolved);
                     }
                 }
-                
+
                 // Instantiate the generic struct
                 if !type_args.is_empty() {
                     let _ = ctx.instantiate_struct(name, &type_args)?;
@@ -1408,7 +1605,7 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
             }
         }
     }
-    
+
     // Check if the return type is a generic struct that needs instantiation
     if let Some(ret_ty) = &func.ast.return_type {
         if let Type::Named { name, generics, .. } = ret_ty {
@@ -1420,7 +1617,7 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
                         type_args.push(resolved);
                     }
                 }
-                
+
                 // Instantiate the generic struct
                 if !type_args.is_empty() {
                     let _ = ctx.instantiate_struct(name, &type_args)?;
@@ -1428,7 +1625,7 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
             }
         }
     }
-    
+
     scan_block(ctx, &mut env, &mut new_func.ast.body)?;
     Ok(new_func)
 }
@@ -1444,9 +1641,15 @@ fn scan_block(ctx: &mut MonoContext, env: &mut MonoTypeEnv, block: &mut Block) -
 
 fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> KainResult<()> {
     match stmt {
-        Stmt::Expr(e) => { scan_expr(ctx, env, e)?; }
-        Stmt::Return(Some(e), _) => { scan_expr(ctx, env, e)?; }
-        Stmt::Let { pattern, ty, value, .. } => {
+        Stmt::Expr(e) => {
+            scan_expr(ctx, env, e)?;
+        }
+        Stmt::Return(Some(e), _) => {
+            scan_expr(ctx, env, e)?;
+        }
+        Stmt::Let {
+            pattern, ty, value, ..
+        } => {
             // Check if the type annotation is a generic struct
             if let Some(type_ann) = ty {
                 if let Type::Named { name, generics, .. } = type_ann {
@@ -1458,7 +1661,7 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
                                 type_args.push(resolved);
                             }
                         }
-                        
+
                         // Instantiate the generic struct
                         if !type_args.is_empty() {
                             let _ = ctx.instantiate_struct(name, &type_args)?;
@@ -1466,7 +1669,7 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
                     }
                 }
             }
-            
+
             // Scan the value expression (may contain generic calls like identity(42))
             if let Some(val_expr) = value {
                 let ty = scan_expr(ctx, env, val_expr)?;
@@ -1476,13 +1679,18 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
                 }
             }
         }
-        Stmt::For { binding, iter, body, .. } => {
+        Stmt::For {
+            binding,
+            iter,
+            body,
+            ..
+        } => {
             let iter_ty = scan_expr(ctx, env, iter)?;
             let elem_ty = match iter_ty {
                 ResolvedType::Array(inner, _) => *inner,
                 _ => ResolvedType::Int(IntSize::I64),
             };
-            
+
             env.push();
             if let Pattern::Binding { name, .. } = binding {
                 env.define(name.clone(), elem_ty);
@@ -1490,7 +1698,9 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
             scan_block(ctx, env, body)?;
             env.pop();
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             scan_expr(ctx, env, condition)?;
             scan_block(ctx, env, body)?;
         }
@@ -1499,7 +1709,11 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
     Ok(())
 }
 
-fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> KainResult<ResolvedType> {
+fn scan_expr(
+    ctx: &mut MonoContext,
+    env: &mut MonoTypeEnv,
+    expr: &mut Expr,
+) -> KainResult<ResolvedType> {
     match expr {
         Expr::Int(_, _) => Ok(ResolvedType::Int(IntSize::I64)),
         Expr::Float(_, _) => Ok(ResolvedType::Float(FloatSize::F64)),
@@ -1509,7 +1723,7 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
         Expr::Unary { op, operand, .. } => {
             // Handle unary expressions - importantly, negative literals like -42
             let operand_ty = scan_expr(ctx, env, operand)?;
-            
+
             // For unary minus, preserve the operand type (Int/Float)
             // This ensures -42 is inferred as Int, not Any
             match op {
@@ -1535,18 +1749,22 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                 let val_ty = scan_expr(ctx, env, val)?;
                 field_types.insert(field_name.clone(), val_ty);
             }
-            
+
             // Check if this struct is generic and needs instantiation
             if let Some(generic_struct) = ctx.generic_structs.get(name).cloned() {
                 // Infer type arguments from field values
                 let mut type_args = Vec::new();
-                
+
                 for generic_param in &generic_struct.ast.generics {
                     // Find a field that uses this type parameter
                     let mut inferred_type = None;
-                    
+
                     for field in &generic_struct.ast.fields {
-                        if let Type::Named { name: field_type_name, .. } = &field.ty {
+                        if let Type::Named {
+                            name: field_type_name,
+                            ..
+                        } = &field.ty
+                        {
                             if field_type_name == &generic_param.name {
                                 // This field uses the generic parameter
                                 if let Some(val_ty) = field_types.get(&field.name) {
@@ -1556,32 +1774,38 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                             }
                         }
                     }
-                    
+
                     if let Some(ty) = inferred_type {
                         type_args.push(ty);
                     } else {
                         type_args.push(ResolvedType::Unknown);
                     }
                 }
-                
+
                 // Instantiate the generic struct with inferred types
-                if !type_args.is_empty() && !type_args.iter().any(|t| matches!(t, ResolvedType::Unknown)) {
+                if !type_args.is_empty()
+                    && !type_args.iter().any(|t| matches!(t, ResolvedType::Unknown))
+                {
                     let instantiated_name = ctx.instantiate_struct(name, &type_args)?;
                     return Ok(ResolvedType::Struct(instantiated_name, HashMap::new()));
                 }
             }
-            
+
             // Return struct type
             Ok(ResolvedType::Struct(name.clone(), HashMap::new()))
-        },
-        Expr::Field { object, field, span: _ } => {
+        }
+        Expr::Field {
+            object,
+            field,
+            span: _,
+        } => {
             let obj_ty = scan_expr(ctx, env, object)?;
             match obj_ty {
                 ResolvedType::Struct(name, _) => {
                     if let Some(fields) = ctx.structs.get(&name) {
-                         if let Some(ty) = fields.get(field) {
-                             return Ok(ty.clone());
-                         }
+                        if let Some(ty) = fields.get(field) {
+                            return Ok(ty.clone());
+                        }
                     }
                     // If struct logic isn't fully loaded or field missing, return Unknown but maybe warn?
                     // For now, if we can't find it, we can't infer proper type for chain calls.
@@ -1589,10 +1813,15 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                 }
                 _ => Ok(ResolvedType::Unknown),
             }
-        },
-        Expr::MethodCall { receiver, method, args, span } => {
+        }
+        Expr::MethodCall {
+            receiver,
+            method,
+            args,
+            span,
+        } => {
             let receiver_ty = scan_expr(ctx, env, receiver)?;
-            
+
             let type_name = match &receiver_ty {
                 ResolvedType::Struct(name, _) => name.clone(),
                 ResolvedType::Int(_) => "Int".to_string(),
@@ -1600,13 +1829,13 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                 ResolvedType::String => "String".to_string(),
                 _ => {
                     if let ResolvedType::Unknown = receiver_ty {
-                         // Don't error hard yet, as we might be in partial state
-                         return Ok(ResolvedType::Unknown);
+                        // Don't error hard yet, as we might be in partial state
+                        return Ok(ResolvedType::Unknown);
                     }
                     type_to_string(&receiver_ty)
                 }
             };
-            
+
             let mangled_target = {
                 let methods = ctx.methods.get(&type_name);
                 if let Some(lookup) = methods {
@@ -1615,24 +1844,31 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                     None
                 }
             };
-            
-            if let Some(target_name) = mangled_target {
-                 let mut new_args = args.clone();
-                 new_args.insert(0, CallArg { name: None, value: *receiver.clone(), span: receiver.span() });
-                 
-                 for arg in &mut new_args {
-                     scan_expr(ctx, env, &mut arg.value)?;
-                 }
 
-                 *expr = Expr::Call {
-                     callee: Box::new(Expr::Ident(target_name, *span)), // No ctx borrow here
-                     args: new_args,
-                     span: *span
-                 };
-                 
-                 // Ideally lookup return type of function
-                 // For now Unknown is safe for logic
-                 return Ok(ResolvedType::Unknown);
+            if let Some(target_name) = mangled_target {
+                let mut new_args = args.clone();
+                new_args.insert(
+                    0,
+                    CallArg {
+                        name: None,
+                        value: *receiver.clone(),
+                        span: receiver.span(),
+                    },
+                );
+
+                for arg in &mut new_args {
+                    scan_expr(ctx, env, &mut arg.value)?;
+                }
+
+                *expr = Expr::Call {
+                    callee: Box::new(Expr::Ident(target_name, *span)), // No ctx borrow here
+                    args: new_args,
+                    span: *span,
+                };
+
+                // Ideally lookup return type of function
+                // For now Unknown is safe for logic
+                return Ok(ResolvedType::Unknown);
             }
 
             Ok(ResolvedType::Unknown)
@@ -1645,19 +1881,19 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
                     for arg in args {
                         arg_types.push(scan_expr(ctx, env, &mut arg.value)?);
                     }
-                    
+
                     // Infer type arguments through unification
                     let inferred_type_args = infer_type_args(ctx, &generic_func, &arg_types)?;
-                    
+
                     let new_name = ctx.instantiate(name, &inferred_type_args)?;
                     *callee = Box::new(Expr::Ident(new_name, callee.span()));
-                    return Ok(ResolvedType::Unknown); 
+                    return Ok(ResolvedType::Unknown);
                 }
-                
+
                 // If it's a standard function, we might want to lookup return type
                 // But for now, just scan args
             }
-             for arg in args {
+            for arg in args {
                 scan_expr(ctx, env, &mut arg.value)?;
             }
             Ok(ResolvedType::Unknown)
@@ -1665,23 +1901,30 @@ fn scan_expr(ctx: &mut MonoContext, env: &mut MonoTypeEnv, expr: &mut Expr) -> K
         Expr::Binary { left, right, .. } => {
             let t = scan_expr(ctx, env, left)?;
             scan_expr(ctx, env, right)?;
-            Ok(t) 
+            Ok(t)
         }
         Expr::Assign { value, .. } => scan_expr(ctx, env, value),
         Expr::Block(b, _) => {
             scan_block(ctx, env, b)?;
             Ok(ResolvedType::Unknown)
         }
-        Expr::If { condition, then_branch, else_branch, .. } => {
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
             scan_expr(ctx, env, condition)?;
             scan_block(ctx, env, then_branch)?;
             if let Some(b) = else_branch {
-                 match b.as_mut() {
-                     ElseBranch::Else(blk) => { scan_block(ctx, env, blk)?; }
-                     ElseBranch::ElseIf(_, _, _) => {} 
-                 }
+                match b.as_mut() {
+                    ElseBranch::Else(blk) => {
+                        scan_block(ctx, env, blk)?;
+                    }
+                    ElseBranch::ElseIf(_, _, _) => {}
+                }
             }
-             Ok(ResolvedType::Unknown)
+            Ok(ResolvedType::Unknown)
         }
         Expr::Await(inner, _) => {
             // Scan the inner future expression for generic calls
@@ -1704,7 +1947,11 @@ fn collect_locals_recursive(block: &Block, locals: &mut HashMap<String, Resolved
             Stmt::For { body, .. } => collect_locals_recursive(body, locals),
             Stmt::While { body, .. } => collect_locals_recursive(body, locals),
             Stmt::Expr(Expr::Block(b, _)) => collect_locals_recursive(b, locals),
-            Stmt::Expr(Expr::If { then_branch, else_branch, .. }) => {
+            Stmt::Expr(Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            }) => {
                 collect_locals_recursive(then_branch, locals);
                 if let Some(b) = else_branch {
                     collect_from_else(b, locals);
@@ -1716,41 +1963,57 @@ fn collect_locals_recursive(block: &Block, locals: &mut HashMap<String, Resolved
 }
 
 fn collect_from_else(branch: &ElseBranch, locals: &mut HashMap<String, ResolvedType>) {
-     match branch {
-         ElseBranch::Else(block) => collect_locals_recursive(block, locals),
-         ElseBranch::ElseIf(_, block, next) => {
-             collect_locals_recursive(block, locals);
-             if let Some(n) = next {
-                 collect_from_else(n, locals);
-             }
-         }
-     }
+    match branch {
+        ElseBranch::Else(block) => collect_locals_recursive(block, locals),
+        ElseBranch::ElseIf(_, block, next) => {
+            collect_locals_recursive(block, locals);
+            if let Some(n) = next {
+                collect_from_else(n, locals);
+            }
+        }
+    }
 }
 
 fn collect_from_pattern(pattern: &Pattern, locals: &mut HashMap<String, ResolvedType>) {
     match pattern {
-        Pattern::Binding { name, .. } => { locals.insert(name.clone(), ResolvedType::Unknown); },
+        Pattern::Binding { name, .. } => {
+            locals.insert(name.clone(), ResolvedType::Unknown);
+        }
         Pattern::Tuple(pats, _) => {
-            for p in pats { collect_from_pattern(p, locals); }
+            for p in pats {
+                collect_from_pattern(p, locals);
+            }
         }
         Pattern::Slice { patterns, rest, .. } => {
-             for p in patterns { collect_from_pattern(p, locals); }
-             if let Some(r) = rest {
-                 locals.insert(r.clone(), ResolvedType::Unknown);
-             }
+            for p in patterns {
+                collect_from_pattern(p, locals);
+            }
+            if let Some(r) = rest {
+                locals.insert(r.clone(), ResolvedType::Unknown);
+            }
         }
         Pattern::Struct { fields, .. } => {
-             for (_, p) in fields { collect_from_pattern(p, locals); }
+            for (_, p) in fields {
+                collect_from_pattern(p, locals);
+            }
         }
-        Pattern::Variant { fields, .. } => {
-              match fields {
-                  VariantPatternFields::Tuple(pats) => { for p in pats { collect_from_pattern(p, locals); } },
-                  VariantPatternFields::Struct(pats) => { for (_, p) in pats { collect_from_pattern(p, locals); } },
-                  _ => {}
-              }
-        }
+        Pattern::Variant { fields, .. } => match fields {
+            VariantPatternFields::Tuple(pats) => {
+                for p in pats {
+                    collect_from_pattern(p, locals);
+                }
+            }
+            VariantPatternFields::Struct(pats) => {
+                for (_, p) in pats {
+                    collect_from_pattern(p, locals);
+                }
+            }
+            _ => {}
+        },
         Pattern::Or(pats, _) => {
-             for p in pats { collect_from_pattern(p, locals); }
+            for p in pats {
+                collect_from_pattern(p, locals);
+            }
         }
         _ => {}
     }

@@ -14,11 +14,8 @@ fn import_asm_command_generates_expected_artifacts() {
     fs::create_dir_all(&base).expect("failed to create test directory");
 
     let input = base.join("furby_source.asm");
-    fs::write(
-        &input,
-        "Start:\nLDA #10\nSTA PortA\nTable1: DB 10,20,30\n",
-    )
-    .expect("failed to write input");
+    fs::write(&input, "Start:\nLDA #10\nSTA PortA\nTable1: DB 10,20,30\n")
+        .expect("failed to write input");
 
     let output = Command::new(env!("CARGO_BIN_EXE_kain"))
         .arg("import-asm")
@@ -36,8 +33,16 @@ fn import_asm_command_generates_expected_artifacts() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    assert!(base.join("Research").join("furby").join("furby_canonical.asm").exists());
-    assert!(base.join("Research").join("furby").join("furby_recovery_report.json").exists());
+    assert!(base
+        .join("Research")
+        .join("furby")
+        .join("furby_canonical.asm")
+        .exists());
+    assert!(base
+        .join("Research")
+        .join("furby")
+        .join("furby_recovery_report.json")
+        .exists());
     assert!(base.join("generated").join("furby_firmware.kn").exists());
     assert!(base.join("generated").join("furby_map.json").exists());
 }

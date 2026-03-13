@@ -9,12 +9,12 @@
 //! - **`import_builder`** — Deduplicating import creation helpers
 
 pub mod engine_target;
-pub mod property_types;
-pub mod property_converter;
 pub mod import_builder;
+pub mod property_converter;
+pub mod property_types;
 
 // Re-export the most commonly used types at crate root
 pub use engine_target::KainEngineTarget;
-pub use property_types::{PropertyDef, PropertyValue};
-pub use property_converter::convert_property_def;
 pub use import_builder::ImportBuilder;
+pub use property_converter::convert_property_def;
+pub use property_types::{PropertyDef, PropertyValue};

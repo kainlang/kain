@@ -22,13 +22,35 @@ pub enum PropertyValue {
     SoftObject(String),
     /// Hard object reference — e.g. "/Script/Engine.StaticMesh"
     ObjectRef(String),
-    Vector { x: f32, y: f32, z: f32 },
-    Rotator { pitch: f32, yaw: f32, roll: f32 },
-    LinearColor { r: f32, g: f32, b: f32, a: f32 },
-    Enum { enum_type: String, value: String },
+    Vector {
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    Rotator {
+        pitch: f32,
+        yaw: f32,
+        roll: f32,
+    },
+    LinearColor {
+        r: f32,
+        g: f32,
+        b: f32,
+        a: f32,
+    },
+    Enum {
+        enum_type: String,
+        value: String,
+    },
     Text(String),
-    Array { inner_type: String, values: Vec<PropertyValue> },
-    Struct { struct_type: String, fields: Vec<PropertyDef> },
+    Array {
+        inner_type: String,
+        values: Vec<PropertyValue>,
+    },
+    Struct {
+        struct_type: String,
+        fields: Vec<PropertyDef>,
+    },
 }
 
 /// One tagged property: name + value.
@@ -40,7 +62,10 @@ pub struct PropertyDef {
 
 impl PropertyDef {
     pub fn new(name: impl Into<String>, value: PropertyValue) -> Self {
-        Self { name: name.into(), value }
+        Self {
+            name: name.into(),
+            value,
+        }
     }
 
     // ── Ergonomic constructors ───────────────────────────────────────────────
@@ -86,10 +111,13 @@ impl PropertyDef {
         enum_type: impl Into<String>,
         value: impl Into<String>,
     ) -> Self {
-        Self::new(name, PropertyValue::Enum {
-            enum_type: enum_type.into(),
-            value: value.into(),
-        })
+        Self::new(
+            name,
+            PropertyValue::Enum {
+                enum_type: enum_type.into(),
+                value: value.into(),
+            },
+        )
     }
     pub fn text(name: impl Into<String>, v: impl Into<String>) -> Self {
         Self::new(name, PropertyValue::Text(v.into()))

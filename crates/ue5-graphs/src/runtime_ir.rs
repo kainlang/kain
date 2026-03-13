@@ -20,13 +20,13 @@ use serde::{Deserialize, Serialize};
 pub struct RuntimeGraph {
     /// Graph name (e.g., "CombatGraph")
     pub name: String,
-    
+
     /// Node type definitions
     pub node_types: Vec<RuntimeNodeData>,
-    
+
     /// Graph instance definition
     pub instance_def: RuntimeInstance,
-    
+
     /// Graph-level properties
     pub properties: RuntimeGraphProperties,
 }
@@ -37,28 +37,28 @@ pub struct RuntimeGraph {
 pub struct RuntimeNodeData {
     /// Node type name (e.g., "DamageNode")
     pub name: String,
-    
+
     /// Node category for organization (e.g., "Combat/Damage")
     pub category: String,
-    
+
     /// Node properties (UPROPERTY fields)
     pub properties: Vec<RuntimeProperty>,
-    
+
     /// Input pins
     pub input_pins: Vec<RuntimePin>,
-    
+
     /// Output pins
     pub output_pins: Vec<RuntimePin>,
-    
+
     /// Execution logic (C++ code or KAIN expression)
     pub execute_logic: Option<ExecuteLogic>,
-    
+
     /// Node color (RGBA) for visualization
     pub color: Option<[f32; 4]>,
-    
+
     /// Node icon path
     pub icon: Option<String>,
-    
+
     /// Node tooltip
     pub tooltip: Option<String>,
 }
@@ -69,16 +69,16 @@ pub struct RuntimeNodeData {
 pub struct RuntimeInstance {
     /// Instance class name (e.g., "CombatGraphInstance")
     pub name: String,
-    
+
     /// State fields (UPROPERTY fields)
     pub state_fields: Vec<RuntimeProperty>,
-    
+
     /// Instance methods
     pub methods: Vec<RuntimeMethod>,
-    
+
     /// Whether this instance is replicated
     pub is_replicated: bool,
-    
+
     /// Whether this instance is savegame
     pub is_savegame: bool,
 }
@@ -88,19 +88,19 @@ pub struct RuntimeInstance {
 pub struct RuntimePin {
     /// Pin name (e.g., "Execute", "Damage", "Target")
     pub name: String,
-    
+
     /// Pin type
     pub pin_type: RuntimePinType,
-    
+
     /// Is this an array pin?
     pub is_array: bool,
-    
+
     /// Default value (optional)
     pub default_value: Option<String>,
-    
+
     /// Pin tooltip
     pub tooltip: Option<String>,
-    
+
     /// Pin direction (Input or Output)
     pub direction: PinDirection,
 }
@@ -117,49 +117,49 @@ pub enum PinDirection {
 pub enum RuntimePinType {
     /// Execution flow pin
     Exec,
-    
+
     /// Boolean value
     Bool,
-    
+
     /// Integer value (int32)
     Int,
-    
+
     /// 64-bit integer
     Int64,
-    
+
     /// Float value
     Float,
-    
+
     /// String value
     String,
-    
+
     /// Name value (FName)
     Name,
-    
+
     /// Text value (FText)
     Text,
-    
+
     /// Vector (FVector)
     Vector,
-    
+
     /// Rotator (FRotator)
     Rotator,
-    
+
     /// Transform (FTransform)
     Transform,
-    
+
     /// Color (FLinearColor)
     Color,
-    
+
     /// UObject reference (class name)
     Object(String),
-    
+
     /// Struct value (struct name)
     Struct(String),
-    
+
     /// Enum value (enum name)
     Enum(String),
-    
+
     /// Wildcard (any type)
     Wildcard,
 }
@@ -169,19 +169,19 @@ pub enum RuntimePinType {
 pub struct RuntimeProperty {
     /// Property name
     pub name: String,
-    
+
     /// Property type
     pub property_type: RuntimePinType,
-    
+
     /// Is this an array property?
     pub is_array: bool,
-    
+
     /// Default value (optional)
     pub default_value: Option<String>,
-    
+
     /// UPROPERTY specifiers
     pub specifiers: Vec<PropertySpecifier>,
-    
+
     /// Property tooltip
     pub tooltip: Option<String>,
 }
@@ -191,28 +191,28 @@ pub struct RuntimeProperty {
 pub enum PropertySpecifier {
     /// EditAnywhere
     EditAnywhere,
-    
+
     /// EditDefaultsOnly
     EditDefaultsOnly,
-    
+
     /// VisibleAnywhere
     VisibleAnywhere,
-    
+
     /// BlueprintReadOnly
     BlueprintReadOnly,
-    
+
     /// BlueprintReadWrite
     BlueprintReadWrite,
-    
+
     /// Replicated
     Replicated,
-    
+
     /// SaveGame
     SaveGame,
-    
+
     /// Transient
     Transient,
-    
+
     /// Category with name
     Category(String),
 }
@@ -222,16 +222,16 @@ pub enum PropertySpecifier {
 pub struct RuntimeMethod {
     /// Method name
     pub name: String,
-    
+
     /// Method parameters
     pub params: Vec<RuntimeParam>,
-    
+
     /// Return type (None for void)
     pub return_type: Option<RuntimePinType>,
-    
+
     /// Method body (C++ code or KAIN expression)
     pub body: String,
-    
+
     /// UFUNCTION specifiers
     pub specifiers: Vec<FunctionSpecifier>,
 }
@@ -241,10 +241,10 @@ pub struct RuntimeMethod {
 pub struct RuntimeParam {
     /// Parameter name
     pub name: String,
-    
+
     /// Parameter type
     pub param_type: RuntimePinType,
-    
+
     /// Is this an array parameter?
     pub is_array: bool,
 }
@@ -254,13 +254,13 @@ pub struct RuntimeParam {
 pub enum FunctionSpecifier {
     /// BlueprintCallable
     BlueprintCallable,
-    
+
     /// BlueprintPure
     BlueprintPure,
-    
+
     /// BlueprintNativeEvent
     BlueprintNativeEvent,
-    
+
     /// Category with name
     Category(String),
 }
@@ -270,10 +270,10 @@ pub enum FunctionSpecifier {
 pub enum ExecuteLogic {
     /// Inline C++ code
     CppCode(String),
-    
+
     /// KAIN expression (to be converted to C++)
     KainExpr(String),
-    
+
     /// Blueprint-callable function name
     BlueprintFunction(String),
 }
@@ -283,13 +283,13 @@ pub enum ExecuteLogic {
 pub struct RuntimeGraphProperties {
     /// Allow parallel execution of nodes?
     pub allow_parallel_execution: bool,
-    
+
     /// Maximum execution depth (prevent infinite loops)
     pub max_execution_depth: i32,
-    
+
     /// Enable debug logging?
     pub enable_debug_logging: bool,
-    
+
     /// Graph execution mode
     pub execution_mode: ExecutionMode,
 }
@@ -299,10 +299,10 @@ pub struct RuntimeGraphProperties {
 pub enum ExecutionMode {
     /// Sequential execution (one node at a time)
     Sequential,
-    
+
     /// Parallel execution (multiple nodes simultaneously)
     Parallel,
-    
+
     /// Event-driven execution (nodes execute on events)
     EventDriven,
 }
@@ -330,12 +330,12 @@ impl RuntimeGraph {
             properties: RuntimeGraphProperties::default(),
         }
     }
-    
+
     /// Add a node type
     pub fn add_node_type(&mut self, node_type: RuntimeNodeData) {
         self.node_types.push(node_type);
     }
-    
+
     /// Find a node type by name
     pub fn find_node_type(&self, name: &str) -> Option<&RuntimeNodeData> {
         self.node_types.iter().find(|nt| nt.name == name)
@@ -353,12 +353,12 @@ impl RuntimeInstance {
             is_savegame: false,
         }
     }
-    
+
     /// Add a state field
     pub fn add_state_field(&mut self, field: RuntimeProperty) {
         self.state_fields.push(field);
     }
-    
+
     /// Add a method
     pub fn add_method(&mut self, method: RuntimeMethod) {
         self.methods.push(method);
@@ -380,17 +380,17 @@ impl RuntimeNodeData {
             tooltip: None,
         }
     }
-    
+
     /// Add an input pin
     pub fn add_input_pin(&mut self, pin: RuntimePin) {
         self.input_pins.push(pin);
     }
-    
+
     /// Add an output pin
     pub fn add_output_pin(&mut self, pin: RuntimePin) {
         self.output_pins.push(pin);
     }
-    
+
     /// Add a property
     pub fn add_property(&mut self, property: RuntimeProperty) {
         self.properties.push(property);
@@ -409,7 +409,7 @@ impl RuntimePin {
             direction: PinDirection::Input,
         }
     }
-    
+
     /// Create a new output pin
     pub fn output(name: impl Into<String>, pin_type: RuntimePinType) -> Self {
         Self {
@@ -421,19 +421,19 @@ impl RuntimePin {
             direction: PinDirection::Output,
         }
     }
-    
+
     /// Make this pin an array
     pub fn as_array(mut self) -> Self {
         self.is_array = true;
         self
     }
-    
+
     /// Set default value
     pub fn with_default(mut self, default: impl Into<String>) -> Self {
         self.default_value = Some(default.into());
         self
     }
-    
+
     /// Set tooltip
     pub fn with_tooltip(mut self, tooltip: impl Into<String>) -> Self {
         self.tooltip = Some(tooltip.into());

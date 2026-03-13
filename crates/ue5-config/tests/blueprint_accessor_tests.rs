@@ -29,12 +29,7 @@ fn create_test_config(name: &str) -> ConfigStruct {
     }
 }
 
-fn create_test_field(
-    name: &str,
-    ty_name: &str,
-    blueprint: bool,
-    writable: bool,
-) -> ConfigField {
+fn create_test_field(name: &str, ty_name: &str, blueprint: bool, writable: bool) -> ConfigField {
     ConfigField {
         name: name.to_string(),
         ty: Type::Named {
@@ -276,7 +271,7 @@ fn test_setter_has_doc_comment() {
 #[test]
 fn test_all_types_supported() {
     let config = create_test_config("TestSettings");
-    
+
     let float_field = create_test_field("float_val", "Float", true, false);
     let int_field = create_test_field("int_val", "Int", true, false);
     let bool_field = create_test_field("bool_val", "Bool", true, false);

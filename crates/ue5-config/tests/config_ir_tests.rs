@@ -1,8 +1,8 @@
 //! Tests for config_ir.rs - IR type functionality
 
-use ue5_config::config_ir::{ConfigCategory, ConfigField, ConfigStruct};
 use kain_core::ast::{Expr, Field, Struct, Type, Visibility};
 use kain_core::span::Span;
+use ue5_config::config_ir::{ConfigCategory, ConfigField, ConfigStruct};
 
 #[test]
 fn test_config_category_all_variants() {
@@ -27,7 +27,10 @@ fn test_config_category_round_trip() {
         ("GAME", ConfigCategory::Game),
         ("engine", ConfigCategory::Engine),
         ("editor", ConfigCategory::Editor),
-        ("editorperprojectusersettings", ConfigCategory::EditorPerProjectUserSettings),
+        (
+            "editorperprojectusersettings",
+            ConfigCategory::EditorPerProjectUserSettings,
+        ),
     ];
 
     for (input, expected) in test_cases {
@@ -77,7 +80,10 @@ fn test_config_struct_get_ini_file_custom() {
 #[test]
 fn test_config_struct_get_ini_section_default() {
     let config = make_test_config("VoxelSettings");
-    assert_eq!(config.get_ini_section("MyPlugin"), "/Script/MyPlugin.UVoxelSettings");
+    assert_eq!(
+        config.get_ini_section("MyPlugin"),
+        "/Script/MyPlugin.UVoxelSettings"
+    );
 }
 
 #[test]
@@ -116,14 +122,20 @@ fn test_config_field_get_display_name_custom() {
 fn test_config_field_get_cvar_name_explicit() {
     let mut field = make_test_field("chunk_size");
     field.cvar = Some("voxel.ChunkSize".to_string());
-    assert_eq!(field.get_cvar_name("MyPlugin"), Some("voxel.ChunkSize".to_string()));
+    assert_eq!(
+        field.get_cvar_name("MyPlugin"),
+        Some("voxel.ChunkSize".to_string())
+    );
 }
 
 #[test]
 fn test_config_field_get_cvar_name_default() {
     let mut field = make_test_field("chunk_size");
     field.cvar = Some("".to_string()); // Empty string means generate default
-    assert_eq!(field.get_cvar_name("MyPlugin"), Some("MyPlugin.ChunkSize".to_string()));
+    assert_eq!(
+        field.get_cvar_name("MyPlugin"),
+        Some("MyPlugin.ChunkSize".to_string())
+    );
 }
 
 #[test]

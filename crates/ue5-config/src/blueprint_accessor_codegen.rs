@@ -31,10 +31,7 @@ use crate::config_ir::{ConfigField, ConfigStruct};
 use kain_core::ast::Type;
 
 /// Generate Blueprint getter function declaration for header
-pub fn generate_blueprint_getter_declaration(
-    config: &ConfigStruct,
-    field: &ConfigField,
-) -> String {
+pub fn generate_blueprint_getter_declaration(config: &ConfigStruct, field: &ConfigField) -> String {
     let category = format!("{} Settings", config.name);
     let getter_name = format!("Get{}", field.ue5_property_name());
     let return_type = map_type_to_cpp(&field.ty);
@@ -183,9 +180,9 @@ fn is_string_type(ty: &Type) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config_ir::ConfigCategory;
     use kain_core::ast::{Field, Visibility};
     use kain_core::span::Span;
-    use crate::config_ir::ConfigCategory;
 
     fn create_test_config() -> ConfigStruct {
         ConfigStruct {
@@ -208,7 +205,12 @@ mod tests {
         }
     }
 
-    fn create_test_field(name: &str, ty_name: &str, blueprint: bool, writable: bool) -> ConfigField {
+    fn create_test_field(
+        name: &str,
+        ty_name: &str,
+        blueprint: bool,
+        writable: bool,
+    ) -> ConfigField {
         ConfigField {
             name: name.to_string(),
             ty: Type::Named {

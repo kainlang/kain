@@ -1,8 +1,5 @@
 //! Base uasset export
 
-
-
-
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use unreal_asset_base::{

@@ -1,4 +1,4 @@
-use kain_core::{Lexer, Parser, comptime, types};
+use kain_core::{comptime, types, Lexer, Parser};
 use ue5::{generate_with_context_typed, Ue5Context};
 
 #[test]
@@ -16,38 +16,76 @@ struct NetworkedTransform:
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
-    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
-    
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+        .parse()
+        .expect("Failed to parse");
+
     // Comptime evaluation
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
-    
+
     // Type check
     let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
-    
+
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
     let output = generate_with_context_typed(&typed_program, Some("TestPlugin"), None, &ctx)
         .expect("Failed to generate code");
-    
+
     // Verify header contains network sync structures
-    assert!(output.header.contains("struct FNetworkState"), "Header should contain FNetworkState struct");
-    assert!(output.header.contains("TArray<FNetworkState> StateBuffer"), "Header should contain StateBuffer");
-    assert!(output.header.contains("float InterpolationBackTime"), "Header should contain InterpolationBackTime");
-    
+    assert!(
+        output.header.contains("struct FNetworkState"),
+        "Header should contain FNetworkState struct"
+    );
+    assert!(
+        output.header.contains("TArray<FNetworkState> StateBuffer"),
+        "Header should contain StateBuffer"
+    );
+    assert!(
+        output.header.contains("float InterpolationBackTime"),
+        "Header should contain InterpolationBackTime"
+    );
+
     // Verify constructor initializes network sync
-    assert!(output.source.contains("InterpolationBackTime = 0.1f"), "Constructor should set InterpolationBackTime");
-    assert!(output.source.contains("StateBuffer.Reserve(32)"), "Constructor should reserve StateBuffer");
-    assert!(output.source.contains("SetIsReplicatedByDefault(true)"), "Constructor should enable replication");
-    
+    assert!(
+        output.source.contains("InterpolationBackTime = 0.1f"),
+        "Constructor should set InterpolationBackTime"
+    );
+    assert!(
+        output.source.contains("StateBuffer.Reserve(32)"),
+        "Constructor should reserve StateBuffer"
+    );
+    assert!(
+        output.source.contains("SetIsReplicatedByDefault(true)"),
+        "Constructor should enable replication"
+    );
+
     // Verify tick method contains interpolation logic
-    assert!(output.source.contains("Interpolation logic"), "Tick should contain interpolation logic");
-    assert!(output.source.contains("FMath::Lerp"), "Tick should use FMath::Lerp for interpolation");
-    assert!(output.source.contains("FQuat::Slerp"), "Tick should use FQuat::Slerp for rotation");
-    
+    assert!(
+        output.source.contains("Interpolation logic"),
+        "Tick should contain interpolation logic"
+    );
+    assert!(
+        output.source.contains("FMath::Lerp"),
+        "Tick should use FMath::Lerp for interpolation"
+    );
+    assert!(
+        output.source.contains("FQuat::Slerp"),
+        "Tick should use FQuat::Slerp for rotation"
+    );
+
     // Verify GetLifetimeReplicatedProps is generated
-    assert!(output.source.contains("GetLifetimeReplicatedProps"), "Should generate GetLifetimeReplicatedProps");
-    assert!(output.source.contains("DOREPLIFETIME_CONDITION"), "Should use conditional replication");
-    assert!(output.source.contains("COND_SimulatedOnly"), "Should replicate to simulated clients only");
+    assert!(
+        output.source.contains("GetLifetimeReplicatedProps"),
+        "Should generate GetLifetimeReplicatedProps"
+    );
+    assert!(
+        output.source.contains("DOREPLIFETIME_CONDITION"),
+        "Should use conditional replication"
+    );
+    assert!(
+        output.source.contains("COND_SimulatedOnly"),
+        "Should replicate to simulated clients only"
+    );
 }
 
 #[test]
@@ -62,18 +100,26 @@ struct CompressedComponent:
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
-    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+        .parse()
+        .expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
     let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
-    
+
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
     let output = generate_with_context_typed(&typed_program, Some("TestPlugin"), None, &ctx)
         .expect("Failed to generate code");
-    
+
     // Verify replication setup
-    assert!(output.source.contains("GetLifetimeReplicatedProps"), "Should generate GetLifetimeReplicatedProps");
-    assert!(output.source.contains("DOREPLIFETIME_CONDITION"), "Should use conditional replication");
+    assert!(
+        output.source.contains("GetLifetimeReplicatedProps"),
+        "Should generate GetLifetimeReplicatedProps"
+    );
+    assert!(
+        output.source.contains("DOREPLIFETIME_CONDITION"),
+        "Should use conditional replication"
+    );
 }
 
 #[test]
@@ -88,18 +134,26 @@ struct PredictedMovement:
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
-    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+        .parse()
+        .expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
     let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
-    
+
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
     let output = generate_with_context_typed(&typed_program, Some("TestPlugin"), None, &ctx)
         .expect("Failed to generate code");
-    
+
     // Verify extrapolation logic
-    assert!(output.source.contains("Extrapolation logic"), "Tick should contain extrapolation logic");
-    assert!(output.source.contains("GetLifetimeReplicatedProps"), "Should generate GetLifetimeReplicatedProps");
+    assert!(
+        output.source.contains("Extrapolation logic"),
+        "Tick should contain extrapolation logic"
+    );
+    assert!(
+        output.source.contains("GetLifetimeReplicatedProps"),
+        "Should generate GetLifetimeReplicatedProps"
+    );
 }
 
 #[test]
@@ -117,19 +171,30 @@ struct SimpleComponent:
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
-    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+        .parse()
+        .expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
     let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
-    
+
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
     let output = generate_with_context_typed(&typed_program, Some("TestPlugin"), None, &ctx)
         .expect("Failed to generate code");
-    
+
     // Verify simple replication (no interpolation structures)
-    assert!(!output.header.contains("struct FNetworkState"), "Header should NOT contain FNetworkState for simple replication");
-    assert!(output.source.contains("GetLifetimeReplicatedProps"), "Should generate GetLifetimeReplicatedProps");
-    assert!(output.source.contains("DOREPLIFETIME"), "Should use DOREPLIFETIME for simple replication");
+    assert!(
+        !output.header.contains("struct FNetworkState"),
+        "Header should NOT contain FNetworkState for simple replication"
+    );
+    assert!(
+        output.source.contains("GetLifetimeReplicatedProps"),
+        "Should generate GetLifetimeReplicatedProps"
+    );
+    assert!(
+        output.source.contains("DOREPLIFETIME"),
+        "Should use DOREPLIFETIME for simple replication"
+    );
 }
 
 #[test]
@@ -145,17 +210,28 @@ struct TeleportableTransform:
     // Parse
     let tokens = Lexer::new(source).tokenize().expect("Failed to tokenize");
     let span_mapper = kain_core::diagnostics::SpanMapper::new(source);
-    let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("Failed to parse");
+    let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+        .parse()
+        .expect("Failed to parse");
     comptime::eval_program(&mut ast).expect("Failed comptime eval");
     let typed_program = types::check(&ast, &span_mapper, "<test>").expect("Failed to type check");
-    
+
     // Generate code
     let ctx = Ue5Context::new("TestPlugin", None);
     let output = generate_with_context_typed(&typed_program, Some("TestPlugin"), None, &ctx)
         .expect("Failed to generate code");
-    
+
     // Verify snap threshold logic
-    assert!(output.source.contains("Snap threshold check"), "Tick should contain snap threshold check");
-    assert!(output.source.contains("500"), "Tick should use configured snap threshold");
-    assert!(output.source.contains("Teleportation detected"), "Tick should handle teleportation");
+    assert!(
+        output.source.contains("Snap threshold check"),
+        "Tick should contain snap threshold check"
+    );
+    assert!(
+        output.source.contains("500"),
+        "Tick should use configured snap threshold"
+    );
+    assert!(
+        output.source.contains("Teleportation detected"),
+        "Tick should handle teleportation"
+    );
 }

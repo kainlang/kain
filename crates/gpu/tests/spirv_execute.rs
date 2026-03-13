@@ -13,7 +13,9 @@ fn typed_program_for_spirv(source: &str) -> TypedProgram {
     let stdlib_src = stdlib::load_stdlib_for_target(CompileTarget::Spirv);
     let full_source = format!("{}\n{}", stdlib_src, source);
     let span_mapper = SpanMapper::new(&full_source);
-    let tokens = Lexer::new(&full_source).tokenize().expect("tokenize failed");
+    let tokens = Lexer::new(&full_source)
+        .tokenize()
+        .expect("tokenize failed");
     let mut ast = Parser::new(&tokens, &span_mapper, "<spirv-exec>")
         .parse()
         .expect("parse failed");
@@ -44,19 +46,32 @@ fn bytes_to_words(bytes: &[u8]) -> Vec<u32> {
 }
 
 fn encode_f32s(values: &[f32]) -> Vec<u8> {
-    values.iter().flat_map(|value| value.to_le_bytes()).collect()
+    values
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect()
 }
 
 fn encode_u32s(values: &[u32]) -> Vec<u8> {
-    values.iter().flat_map(|value| value.to_le_bytes()).collect()
+    values
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect()
 }
 
 fn encode_i32s(values: &[i32]) -> Vec<u8> {
-    values.iter().flat_map(|value| value.to_le_bytes()).collect()
+    values
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect()
 }
 
 fn decode_f32s(bytes: &[u8]) -> Vec<f32> {
-    assert_eq!(bytes.len() % 4, 0, "f32 byte slice length must be divisible by 4");
+    assert_eq!(
+        bytes.len() % 4,
+        0,
+        "f32 byte slice length must be divisible by 4"
+    );
     bytes
         .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
@@ -64,7 +79,11 @@ fn decode_f32s(bytes: &[u8]) -> Vec<f32> {
 }
 
 fn decode_u32s(bytes: &[u8]) -> Vec<u32> {
-    assert_eq!(bytes.len() % 4, 0, "u32 byte slice length must be divisible by 4");
+    assert_eq!(
+        bytes.len() % 4,
+        0,
+        "u32 byte slice length must be divisible by 4"
+    );
     bytes
         .chunks_exact(4)
         .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
@@ -72,7 +91,11 @@ fn decode_u32s(bytes: &[u8]) -> Vec<u32> {
 }
 
 fn decode_i32s(bytes: &[u8]) -> Vec<i32> {
-    assert_eq!(bytes.len() % 4, 0, "i32 byte slice length must be divisible by 4");
+    assert_eq!(
+        bytes.len() % 4,
+        0,
+        "i32 byte slice length must be divisible by 4"
+    );
     bytes
         .chunks_exact(4)
         .map(|chunk| i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
@@ -248,7 +271,8 @@ impl VulkanContext {
             let physical_devices = instance.enumerate_physical_devices().ok()?;
             let mut selected = None;
             for physical_device in physical_devices {
-                let queue_families = instance.get_physical_device_queue_family_properties(physical_device);
+                let queue_families =
+                    instance.get_physical_device_queue_family_properties(physical_device);
                 if let Some((index, _)) = queue_families
                     .iter()
                     .enumerate()
@@ -266,7 +290,9 @@ impl VulkanContext {
                 .queue_priorities(&priorities)
                 .build()];
             let device_info = vk::DeviceCreateInfo::builder().queue_create_infos(&queue_info);
-            let device = instance.create_device(physical_device, &device_info, None).ok()?;
+            let device = instance
+                .create_device(physical_device, &device_info, None)
+                .ok()?;
             let queue = device.get_device_queue(queue_family_index, 0);
             let pool_info = vk::CommandPoolCreateInfo::builder()
                 .queue_family_index(queue_family_index)
@@ -289,7 +315,10 @@ impl VulkanContext {
         type_bits: u32,
         required: vk::MemoryPropertyFlags,
     ) -> Option<u32> {
-        let props = unsafe { self.instance.get_physical_device_memory_properties(self.physical_device) };
+        let props = unsafe {
+            self.instance
+                .get_physical_device_memory_properties(self.physical_device)
+        };
         for index in 0..props.memory_type_count {
             let bit = 1u32 << index;
             let memory_type = props.memory_types[index as usize];
@@ -318,7 +347,9 @@ impl VulkanContext {
                     requirements.memory_type_bits,
                     vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
                 )
-                .ok_or_else(|| "no suitable HOST_VISIBLE|HOST_COHERENT memory type found".to_string())?;
+                .ok_or_else(|| {
+                    "no suitable HOST_VISIBLE|HOST_COHERENT memory type found".to_string()
+                })?;
             let alloc_info = vk::MemoryAllocateInfo::builder()
                 .allocation_size(requirements.size)
                 .memory_type_index(memory_type_index);
@@ -330,10 +361,10 @@ impl VulkanContext {
                 .bind_buffer_memory(buffer, memory, 0)
                 .map_err(|e| format!("bind_buffer_memory failed: {e:?}"))?;
 
-            let mapped = self
-                .device
-                .map_memory(memory, 0, size, vk::MemoryMapFlags::empty())
-                .map_err(|e| format!("map_memory failed: {e:?}"))? as *mut u8;
+            let mapped =
+                self.device
+                    .map_memory(memory, 0, size, vk::MemoryMapFlags::empty())
+                    .map_err(|e| format!("map_memory failed: {e:?}"))? as *mut u8;
             mapped.copy_from_nonoverlapping(bytes.as_ptr(), bytes.len());
             self.device.unmap_memory(memory);
 
@@ -349,10 +380,10 @@ impl VulkanContext {
     fn read_buffer_bytes(&self, buffer: &TestBuffer, byte_len: usize) -> Result<Vec<u8>, String> {
         unsafe {
             let read_len = byte_len.min(buffer.size as usize);
-            let mapped = self
-                .device
-                .map_memory(buffer.memory, 0, buffer.size, vk::MemoryMapFlags::empty())
-                .map_err(|e| format!("map_memory failed: {e:?}"))? as *const u8;
+            let mapped =
+                self.device
+                    .map_memory(buffer.memory, 0, buffer.size, vk::MemoryMapFlags::empty())
+                    .map_err(|e| format!("map_memory failed: {e:?}"))? as *const u8;
             let data = slice::from_raw_parts(mapped, read_len).to_vec();
             self.device.unmap_memory(buffer.memory);
             Ok(data)
@@ -394,19 +425,22 @@ impl VulkanContext {
                         .build()
                 })
                 .collect();
-            let set_layout_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&layout_bindings);
+            let set_layout_info =
+                vk::DescriptorSetLayoutCreateInfo::builder().bindings(&layout_bindings);
             let descriptor_set_layout = self
                 .device
                 .create_descriptor_set_layout(&set_layout_info, None)
                 .map_err(|e| format!("create_descriptor_set_layout failed: {e:?}"))?;
             let set_layouts = [descriptor_set_layout];
-            let pipeline_layout_info = vk::PipelineLayoutCreateInfo::builder().set_layouts(&set_layouts);
+            let pipeline_layout_info =
+                vk::PipelineLayoutCreateInfo::builder().set_layouts(&set_layouts);
             let pipeline_layout = self
                 .device
                 .create_pipeline_layout(&pipeline_layout_info, None)
                 .map_err(|e| format!("create_pipeline_layout failed: {e:?}"))?;
 
-            let entry_name = CString::new(entry_name_string).map_err(|_| "invalid shader entry name".to_string())?;
+            let entry_name = CString::new(entry_name_string)
+                .map_err(|_| "invalid shader entry name".to_string())?;
             let stage = vk::PipelineShaderStageCreateInfo::builder()
                 .stage(vk::ShaderStageFlags::COMPUTE)
                 .module(shader_module)
@@ -479,7 +513,8 @@ impl VulkanContext {
             self.device
                 .begin_command_buffer(command_buffer, &begin_info)
                 .map_err(|e| format!("begin_command_buffer failed: {e:?}"))?;
-            self.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::COMPUTE, pipeline);
+            self.device
+                .cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::COMPUTE, pipeline);
             self.device.cmd_bind_descriptor_sets(
                 command_buffer,
                 vk::PipelineBindPoint::COMPUTE,
@@ -489,7 +524,8 @@ impl VulkanContext {
                 &[],
             );
             let group_count_x = ((case.invocation_count.max(1) - 1) / 8) + 1;
-            self.device.cmd_dispatch(command_buffer, group_count_x, 1, 1);
+            self.device
+                .cmd_dispatch(command_buffer, group_count_x, 1, 1);
 
             let barrier = vk::MemoryBarrier::builder()
                 .src_access_mask(vk::AccessFlags::SHADER_WRITE)
@@ -508,7 +544,8 @@ impl VulkanContext {
                 .end_command_buffer(command_buffer)
                 .map_err(|e| format!("end_command_buffer failed: {e:?}"))?;
 
-            let submit_info = vk::SubmitInfo::builder().command_buffers(slice::from_ref(&command_buffer));
+            let submit_info =
+                vk::SubmitInfo::builder().command_buffers(slice::from_ref(&command_buffer));
             self.device
                 .queue_submit(self.queue, &[*submit_info], vk::Fence::null())
                 .map_err(|e| format!("queue_submit failed: {e:?}"))?;
@@ -516,13 +553,18 @@ impl VulkanContext {
                 .queue_wait_idle(self.queue)
                 .map_err(|e| format!("queue_wait_idle failed: {e:?}"))?;
 
-            let output = self.read_buffer_bytes(&buffers[case.output_binding], case.expected_output.byte_len())?;
+            let output = self.read_buffer_bytes(
+                &buffers[case.output_binding],
+                case.expected_output.byte_len(),
+            )?;
 
-            self.device.free_command_buffers(self.command_pool, &[command_buffer]);
+            self.device
+                .free_command_buffers(self.command_pool, &[command_buffer]);
             self.device.destroy_descriptor_pool(descriptor_pool, None);
             self.device.destroy_pipeline(pipeline, None);
             self.device.destroy_pipeline_layout(pipeline_layout, None);
-            self.device.destroy_descriptor_set_layout(descriptor_set_layout, None);
+            self.device
+                .destroy_descriptor_set_layout(descriptor_set_layout, None);
             self.device.destroy_shader_module(shader_module, None);
             for buffer in &buffers {
                 self.destroy_buffer(buffer);
@@ -641,12 +683,19 @@ shader compute builtin_group_runtime() -> Void:
 "#,
             invocation_count: 16,
             bindings: vec![
-                ExecBinding::storage_f32(&[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-                ExecBinding::storage_f32(&[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                ExecBinding::storage_f32(&[
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                ]),
+                ExecBinding::storage_f32(&[
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                ]),
             ],
             output_binding: 1,
             expected_output: ExpectedOutput::F32 {
-                values: vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0],
+                values: vec![
+                    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 100.0, 101.0, 102.0, 103.0, 104.0,
+                    105.0, 106.0, 107.0,
+                ],
                 epsilon: 0.0001,
             },
         },

@@ -11,7 +11,7 @@
 //! - Error handling across the JS/WASM boundary
 
 use kain_core::error::KainResult;
-use kain_core::types::{TypedProgram, TypedItem, TypedFunction, TypedComponent, ResolvedType};
+use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram};
 
 /// Output from hybrid compilation
 pub struct HybridOutput {
@@ -41,15 +41,18 @@ fn component_has_wasm_attr(comp: &TypedComponent) -> bool {
 
 /// Extract export metadata from a function
 fn extract_export(func: &TypedFunction) -> WasmExport {
-    let params: Vec<(String, ResolvedType)> = func.ast.params.iter()
+    let params: Vec<(String, ResolvedType)> = func
+        .ast
+        .params
+        .iter()
         .map(|p| (p.name.clone(), func.resolved_type.clone()))
         .collect();
-    
+
     let return_type = match &func.resolved_type {
         ResolvedType::Function { ret, .. } => Some((**ret).clone()),
         _ => None,
     };
-    
+
     WasmExport {
         name: func.ast.name.clone(),
         params,
@@ -62,7 +65,7 @@ pub fn generate(program: &TypedProgram) -> KainResult<HybridOutput> {
     let mut wasm_items = Vec::new();
     let mut js_items = Vec::new();
     let mut wasm_exports = Vec::new();
-    
+
     // Split items by @wasm attribute
     for item in &program.items {
         match item {
@@ -91,7 +94,7 @@ pub fn generate(program: &TypedProgram) -> KainResult<HybridOutput> {
             }
         }
     }
-    
+
     // Compile WASM items
     let wasm_program = TypedProgram { items: wasm_items };
     let wasm_bytes = if !wasm_program.items.is_empty() {
@@ -99,19 +102,19 @@ pub fn generate(program: &TypedProgram) -> KainResult<HybridOutput> {
     } else {
         Vec::new()
     };
-    
+
     // Compile JS items
     let js_program = TypedProgram { items: js_items };
     let mut js_code = crate::codegen_js::generate(&js_program)?;
     let mut ts_code = crate::codegen_ts::generate(&js_program)?;
-    
+
     // Generate complete runtime + bindings
     if !wasm_exports.is_empty() {
         let runtime = generate_hybrid_runtime(&wasm_exports);
         js_code = format!("{}\n\n{}", runtime, js_code);
         ts_code = format!("{}\n\n{}", runtime, ts_code);
     }
-    
+
     Ok(HybridOutput {
         wasm: wasm_bytes,
         js: js_code,
@@ -123,12 +126,16 @@ pub fn generate(program: &TypedProgram) -> KainResult<HybridOutput> {
 /// Generate the complete hybrid runtime with host imports and bindings
 fn generate_hybrid_runtime(exports: &[WasmExport]) -> String {
     let mut code = String::new();
-    
+
     // Header
-    code.push_str("// ══════════════════════════════════════════════════════════════════════════════\n");
+    code.push_str(
+        "// ══════════════════════════════════════════════════════════════════════════════\n",
+    );
     code.push_str("// KAIN Hybrid Runtime - Auto-generated WASM/JS bridge\n");
-    code.push_str("// ══════════════════════════════════════════════════════════════════════════════\n\n");
-    
+    code.push_str(
+        "// ══════════════════════════════════════════════════════════════════════════════\n\n",
+    );
+
     // Core state
     code.push_str("let __wasmInstance = null;\n");
     code.push_str("let __wasmMemory = null;\n");
@@ -136,23 +143,23 @@ fn generate_hybrid_runtime(exports: &[WasmExport]) -> String {
     code.push_str("let __wasmReadyPromise = null;\n");
     code.push_str("const __domNodes = new Map(); // node_id -> DOM element\n");
     code.push_str("let __nextNodeId = 1;\n\n");
-    
+
     // Memory helpers
     code.push_str(&generate_memory_helpers());
-    
+
     // Host imports
     code.push_str(&generate_host_imports());
-    
+
     // WASM loader
     code.push_str(&generate_wasm_loader());
-    
+
     // Function bindings with marshaling
     code.push_str(&generate_function_bindings(exports));
-    
+
     // Auto-init
     code.push_str("// Auto-initialize WASM on script load\n");
     code.push_str("__wasmReadyPromise = __initWasm();\n\n");
-    
+
     code
 }
 
@@ -204,7 +211,8 @@ function __wasmAlloc(size) {
     return 0;
 }
 
-"#.to_string()
+"#
+    .to_string()
 }
 
 /// Generate host import implementations
@@ -342,23 +350,31 @@ async function __ensureWasm() {
     return false;
 }
 
-"#.to_string()
+"#
+    .to_string()
 }
 
 /// Generate function bindings with type-aware marshaling
 fn generate_function_bindings(exports: &[WasmExport]) -> String {
     let mut code = String::new();
-    
-    code.push_str("// ─────────────────────────────────────────────────────────────────────────────\n");
+
+    code.push_str(
+        "// ─────────────────────────────────────────────────────────────────────────────\n",
+    );
     code.push_str("// WASM Function Bindings\n");
-    code.push_str("// ─────────────────────────────────────────────────────────────────────────────\n\n");
-    
+    code.push_str(
+        "// ─────────────────────────────────────────────────────────────────────────────\n\n",
+    );
+
     for export in exports {
         // Create sync wrapper that handles marshaling
         code.push_str(&format!("function {}(...args) {{\n", export.name));
         code.push_str("    if (!__wasmReady) {\n");
-        code.push_str(&format!("        console.warn('[KAIN] WASM not ready, {} call failed');\n", export.name));
-        
+        code.push_str(&format!(
+            "        console.warn('[KAIN] WASM not ready, {} call failed');\n",
+            export.name
+        ));
+
         // Return appropriate default based on return type
         match &export.return_type {
             Some(ResolvedType::String) => code.push_str("        return '';\n"),
@@ -366,11 +382,14 @@ fn generate_function_bindings(exports: &[WasmExport]) -> String {
             Some(ResolvedType::Array(_, _)) => code.push_str("        return [];\n"),
             _ => code.push_str("        return 0;\n"),
         }
-        
+
         code.push_str("    }\n");
         code.push_str("    try {\n");
-        code.push_str(&format!("        const result = __wasmInstance.exports.{}(...args);\n", export.name));
-        
+        code.push_str(&format!(
+            "        const result = __wasmInstance.exports.{}(...args);\n",
+            export.name
+        ));
+
         // Unmarshal result based on type
         match &export.return_type {
             Some(ResolvedType::String) => {
@@ -383,21 +402,27 @@ fn generate_function_bindings(exports: &[WasmExport]) -> String {
                 code.push_str("        return result;\n");
             }
         }
-        
+
         code.push_str("    } catch (e) {\n");
-        code.push_str(&format!("        console.error('[KAIN] Error calling {}:', e);\n", export.name));
+        code.push_str(&format!(
+            "        console.error('[KAIN] Error calling {}:', e);\n",
+            export.name
+        ));
         code.push_str("        throw new Error(`WASM function '");
         code.push_str(&export.name);
         code.push_str("' failed: ${e.message}`);\n");
         code.push_str("    }\n");
         code.push_str("}\n\n");
-        
+
         // Also create async version for when WASM isn't ready yet
-        code.push_str(&format!("async function {}_async(...args) {{\n", export.name));
+        code.push_str(&format!(
+            "async function {}_async(...args) {{\n",
+            export.name
+        ));
         code.push_str("    await __ensureWasm();\n");
         code.push_str(&format!("    return {}(...args);\n", export.name));
         code.push_str("}\n\n");
     }
-    
+
     code
 }

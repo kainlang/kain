@@ -1,7 +1,7 @@
 use crate::error::{KainError, KainResult};
 use serde::Serialize;
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -60,17 +60,8 @@ struct ImportRustFailureReport {
 }
 
 /// Import a Rust file into KAIN AST and optionally write/compile
-pub fn import_rust(
-    input: &Path,
-    output: Option<&Path>,
-    target: Option<&str>,
-) -> KainResult<()> {
-    import_rust_with_batch(
-        input,
-        output,
-        target,
-        &ImportRustBatchOptions::default(),
-    )
+pub fn import_rust(input: &Path, output: Option<&Path>, target: Option<&str>) -> KainResult<()> {
+    import_rust_with_batch(input, output, target, &ImportRustBatchOptions::default())
 }
 
 /// Import a Rust file or directory into KAIN AST and optionally write/compile.
@@ -111,7 +102,11 @@ pub fn import_rust_with_batch(
             .map_err(|e| KainError::runtime(format!("Failed to write output: {}", e)))?;
 
         generated_kain_path = Some(out_path.to_path_buf());
-        println!("✓ Generated KAIN source: {} ({} bytes)", out_path.display(), kain_source.len());
+        println!(
+            "✓ Generated KAIN source: {} ({} bytes)",
+            out_path.display(),
+            kain_source.len()
+        );
     }
 
     // If target specified, compile directly
@@ -136,7 +131,11 @@ pub fn import_rust_with_batch(
             .map_err(|e| KainError::runtime(format!("Failed to write compiled output: {}", e)))?;
 
         compiled_output_path = Some(compiled_output.clone());
-        println!("✓ Compiled output: {} ({} bytes)", compiled_output.display(), compiled.len());
+        println!(
+            "✓ Compiled output: {} ({} bytes)",
+            compiled_output.display(),
+            compiled.len()
+        );
     }
 
     // Print summary
@@ -248,9 +247,7 @@ fn import_path_to_program(
             }
             Err(err) => {
                 let compact = compact_error_message(&format!("{}", err));
-                summary
-                    .failed_files
-                    .push((file.clone(), compact));
+                summary.failed_files.push((file.clone(), compact));
                 if batch.fail_fast {
                     return Err(KainError::runtime(format!(
                         "Rust import failed: {}: {}",
@@ -392,11 +389,17 @@ fn compact_error_message(raw: &str) -> String {
 }
 
 fn collect_rust_files(root: &Path, recursive: bool, out: &mut Vec<PathBuf>) -> KainResult<()> {
-    let entries = fs::read_dir(root)
-        .map_err(|e| KainError::runtime(format!("Failed to read directory {}: {}", root.display(), e)))?;
+    let entries = fs::read_dir(root).map_err(|e| {
+        KainError::runtime(format!(
+            "Failed to read directory {}: {}",
+            root.display(),
+            e
+        ))
+    })?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| KainError::runtime(format!("Failed to read directory entry: {}", e)))?;
+        let entry = entry
+            .map_err(|e| KainError::runtime(format!("Failed to read directory entry: {}", e)))?;
         let path = entry.path();
         if path.is_dir() {
             if recursive {
@@ -426,7 +429,10 @@ fn normalize_filters(filters: &[String]) -> Vec<String> {
 }
 
 fn path_matches_filters(path: &Path, includes: &[String], excludes: &[String]) -> bool {
-    let normalized = path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    let normalized = path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_ascii_lowercase();
 
     if !includes.is_empty() && !includes.iter().any(|inc| normalized.contains(inc)) {
         return false;
@@ -461,7 +467,13 @@ fn sanitize_module_name(path: &Path) -> String {
 
         let sanitized = part
             .chars()
-            .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '_' })
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() {
+                    ch.to_ascii_lowercase()
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>();
 
         if !sanitized.is_empty() {
@@ -487,9 +499,9 @@ fn sanitize_module_name(path: &Path) -> String {
 /// Generate KAIN source code from AST
 fn generate_kain_source(program: &kain_core::ast::Program) -> KainResult<String> {
     use std::fmt::Write;
-    
+
     let mut output = String::new();
-    
+
     // Header comment
     writeln!(output, "# Generated from Rust source by kain import-rust")
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
@@ -497,12 +509,12 @@ fn generate_kain_source(program: &kain_core::ast::Program) -> KainResult<String>
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
     writeln!(output)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
-    
+
     // Generate code for each item
     for item in &program.items {
         write_item(&mut output, item, 0)?;
     }
-    
+
     Ok(output)
 }
 
@@ -524,18 +536,23 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
                     }
                 }
             }
-            writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
+            writeln!(output)
+                .map_err(|e| KainError::runtime(format!("Failed to write module: {}", e)))
         }
         _ => Ok(()),
     }
 }
 
-fn write_function(output: &mut String, func: &kain_core::ast::Function, indent: usize) -> KainResult<()> {
+fn write_function(
+    output: &mut String,
+    func: &kain_core::ast::Function,
+    indent: usize,
+) -> KainResult<()> {
     use std::fmt::Write;
-    
+
     // Function signature
     let mut signature = format!("fn {}(", func.name);
-    
+
     // Parameters
     for (i, param) in func.params.iter().enumerate() {
         if i > 0 {
@@ -543,48 +560,50 @@ fn write_function(output: &mut String, func: &kain_core::ast::Function, indent: 
         }
         signature.push_str(&format!("{}: {}", param.name, type_to_string(&param.ty)));
     }
-    
+
     signature.push(')');
-    
+
     // Return type
     if let Some(ret_ty) = &func.return_type {
         signature.push_str(&format!(" -> {}", type_to_string(ret_ty)));
     }
-    
+
     signature.push(':');
     write_line(output, indent, &signature)?;
-    
+
     write_block(output, &func.body, indent + 1)?;
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write function: {}", e)))?;
-    
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write function: {}", e)))?;
+
     Ok(())
 }
 
 fn write_struct(output: &mut String, s: &kain_core::ast::Struct, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
-    
+
     write_line(output, indent, &format!("struct {}:", s.name))?;
-    
+
     if s.fields.is_empty() {
         write_line(output, indent + 1, "pass")?;
     } else {
         for field in &s.fields {
-            write_line(output, indent + 1, &format!("{}: {}", field.name, type_to_string(&field.ty)))?;
+            write_line(
+                output,
+                indent + 1,
+                &format!("{}: {}", field.name, type_to_string(&field.ty)),
+            )?;
         }
     }
-    
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write struct: {}", e)))?;
-    
+
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write struct: {}", e)))?;
+
     Ok(())
 }
 
 fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
-    
+
     write_line(output, indent, &format!("enum {}:", e.name))?;
-    
+
     if e.variants.is_empty() {
         write_line(output, indent + 1, "pass")?;
     } else {
@@ -592,14 +611,16 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
             let variant_str = match &variant.fields {
                 kain_core::ast::VariantFields::Unit => variant.name.clone(),
                 kain_core::ast::VariantFields::Tuple(types) => {
-                    let types_str = types.iter()
+                    let types_str = types
+                        .iter()
                         .map(type_to_string)
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!("{}({})", variant.name, types_str)
                 }
                 kain_core::ast::VariantFields::Struct(fields) => {
-                    let fields_str = fields.iter()
+                    let fields_str = fields
+                        .iter()
                         .map(|field| format!("{}: {}", field.name, type_to_string(&field.ty)))
                         .collect::<Vec<_>>()
                         .join(", ");
@@ -609,14 +630,17 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
             write_line(output, indent + 1, &variant_str)?;
         }
     }
-    
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write enum: {}", e)))?;
-    
+
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write enum: {}", e)))?;
+
     Ok(())
 }
 
-fn write_trait(output: &mut String, value: &kain_core::ast::Trait, indent: usize) -> KainResult<()> {
+fn write_trait(
+    output: &mut String,
+    value: &kain_core::ast::Trait,
+    indent: usize,
+) -> KainResult<()> {
     use std::fmt::Write;
 
     write_line(output, indent, &format!("trait {}:", value.name))?;
@@ -645,8 +669,7 @@ fn write_trait(output: &mut String, value: &kain_core::ast::Trait, indent: usize
         }
     }
 
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write trait: {}", e)))?;
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write trait: {}", e)))?;
 
     Ok(())
 }
@@ -655,7 +678,11 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
     use std::fmt::Write;
 
     let header = match &value.trait_name {
-        Some(trait_name) => format!("impl {} for {}:", trait_name, type_to_string(&value.target_type)),
+        Some(trait_name) => format!(
+            "impl {} for {}:",
+            trait_name,
+            type_to_string(&value.target_type)
+        ),
         None => format!("impl {}:", type_to_string(&value.target_type)),
     };
     write_line(output, indent, &header)?;
@@ -668,13 +695,16 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
         }
     }
 
-    writeln!(output)
-        .map_err(|e| KainError::runtime(format!("Failed to write impl: {}", e)))?;
+    writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write impl: {}", e)))?;
 
     Ok(())
 }
 
-fn write_block(output: &mut String, block: &kain_core::ast::Block, indent: usize) -> KainResult<()> {
+fn write_block(
+    output: &mut String,
+    block: &kain_core::ast::Block,
+    indent: usize,
+) -> KainResult<()> {
     if block.stmts.is_empty() {
         write_line(output, indent, "pass")?;
         return Ok(());
@@ -689,7 +719,9 @@ fn write_block(output: &mut String, block: &kain_core::ast::Block, indent: usize
 
 fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -> KainResult<()> {
     match stmt {
-        kain_core::ast::Stmt::Let { pattern, ty, value, .. } => {
+        kain_core::ast::Stmt::Let {
+            pattern, ty, value, ..
+        } => {
             let mut line = format!("let {}", pattern_to_string(pattern));
             if let Some(ty) = ty {
                 line.push_str(&format!(": {}", type_to_string(ty)));
@@ -699,9 +731,7 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             }
             write_line(output, indent, &line)
         }
-        kain_core::ast::Stmt::Expr(expr) => {
-            write_line(output, indent, &expr_to_string(expr))
-        }
+        kain_core::ast::Stmt::Expr(expr) => write_line(output, indent, &expr_to_string(expr)),
         kain_core::ast::Stmt::Return(value, _) => {
             if let Some(expr) = value {
                 write_line(output, indent, &format!("return {}", expr_to_string(expr)))
@@ -754,12 +784,17 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
                 format!(
                     "{}<{}>",
                     name,
-                    generics.iter().map(type_to_string).collect::<Vec<_>>().join(", ")
+                    generics
+                        .iter()
+                        .map(type_to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             }
         }
         kain_core::ast::Type::Tuple(types, _) => {
-            let types_str = types.iter()
+            let types_str = types
+                .iter()
                 .map(type_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -785,10 +820,18 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
                 format!("Ptr<{}>", type_to_string(inner))
             }
         }
-        kain_core::ast::Type::Function { params, return_type, .. } => {
+        kain_core::ast::Type::Function {
+            params,
+            return_type,
+            ..
+        } => {
             format!(
                 "fn({}) -> {}",
-                params.iter().map(type_to_string).collect::<Vec<_>>().join(", "),
+                params
+                    .iter()
+                    .map(type_to_string)
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 type_to_string(return_type)
             )
         }
@@ -801,14 +844,22 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
         kain_core::ast::Type::Infer(_) => "_".to_string(),
         kain_core::ast::Type::Never(_) => "!".to_string(),
         kain_core::ast::Type::Unit(_) => "()".to_string(),
-        kain_core::ast::Type::Impl { trait_name, generics, .. } => {
+        kain_core::ast::Type::Impl {
+            trait_name,
+            generics,
+            ..
+        } => {
             if generics.is_empty() {
                 format!("impl {}", trait_name)
             } else {
                 format!(
                     "impl {}<{}>",
                     trait_name,
-                    generics.iter().map(type_to_string).collect::<Vec<_>>().join(", ")
+                    generics
+                        .iter()
+                        .map(type_to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             }
         }
@@ -816,13 +867,25 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
 }
 
 fn count_functions(program: &kain_core::ast::Program) -> usize {
-    program.items.iter().filter(|item| matches!(item, kain_core::ast::Item::Function(_))).count()
+    program
+        .items
+        .iter()
+        .filter(|item| matches!(item, kain_core::ast::Item::Function(_)))
+        .count()
 }
 
 fn count_structs(program: &kain_core::ast::Program) -> usize {
-    program.items.iter().filter(|item| matches!(item, kain_core::ast::Item::Struct(_))).count()
+    program
+        .items
+        .iter()
+        .filter(|item| matches!(item, kain_core::ast::Item::Struct(_)))
+        .count()
 }
 
 fn count_enums(program: &kain_core::ast::Program) -> usize {
-    program.items.iter().filter(|item| matches!(item, kain_core::ast::Item::Enum(_))).count()
+    program
+        .items
+        .iter()
+        .filter(|item| matches!(item, kain_core::ast::Item::Enum(_)))
+        .count()
 }

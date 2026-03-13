@@ -57,15 +57,15 @@ pub struct Ue5Config {
     #[serde(default = "default_plugin_dir")]
     pub plugin_dir: PathBuf,
     #[serde(default)]
-    pub sources: Vec<PathBuf>,  // Multiple .kn files - GODMODE ENABLED
+    pub sources: Vec<PathBuf>, // Multiple .kn files - GODMODE ENABLED
     #[serde(default)]
     pub shaders: Vec<String>,
     #[serde(default)]
     pub copyright: Option<String>,
     #[serde(default)]
-    pub modular_output: bool,  // Generate separate .h/.cpp per source file
+    pub modular_output: bool, // Generate separate .h/.cpp per source file
     #[serde(default)]
-    pub stdlib_path: Option<PathBuf>,  // Optional custom stdlib path
+    pub stdlib_path: Option<PathBuf>, // Optional custom stdlib path
     /// Target UE5 engine version, e.g. `"5.4"`, `"5.6"`.
     /// Drives the binary format for .uasset / AssetRegistry.bin output.
     /// Supported range: `"5.0"` – `"5.7"`. Defaults to `"5.4"` if not specified.
@@ -109,8 +109,12 @@ impl Ue5ModuleType {
     }
 }
 
-fn default_runtime_module_type() -> Ue5ModuleType { Ue5ModuleType::Runtime }
-fn default_loading_phase() -> String { "PostConfigInit".to_string() }
+fn default_runtime_module_type() -> Ue5ModuleType {
+    Ue5ModuleType::Runtime
+}
+fn default_loading_phase() -> String {
+    "PostConfigInit".to_string()
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Ue5ModuleOutputConfig {
@@ -179,20 +183,14 @@ impl Ue5Config {
                     ));
                 }
                 if dep == &module.name {
-                    return Err(format!(
-                        "Module '{}' cannot depend on itself",
-                        module.name
-                    ));
+                    return Err(format!("Module '{}' cannot depend on itself", module.name));
                 }
             }
         }
 
         // Detect cycles with DFS
-        let by_name: std::collections::HashMap<_, _> = self
-            .modules
-            .iter()
-            .map(|m| (m.name.clone(), m))
-            .collect();
+        let by_name: std::collections::HashMap<_, _> =
+            self.modules.iter().map(|m| (m.name.clone(), m)).collect();
         let mut visiting = std::collections::HashSet::new();
         let mut visited = std::collections::HashSet::new();
 
@@ -226,7 +224,9 @@ impl Ue5Config {
     }
 }
 
-fn default_plugin_dir() -> PathBuf { PathBuf::from("Plugins") }
+fn default_plugin_dir() -> PathBuf {
+    PathBuf::from("Plugins")
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildConfig {
@@ -238,8 +238,12 @@ pub struct BuildConfig {
     pub targets: Vec<String>,
 }
 
-fn default_entry() -> PathBuf { PathBuf::from("src/main.kn") }
-fn default_output() -> PathBuf { PathBuf::from("dist") }
+fn default_entry() -> PathBuf {
+    PathBuf::from("src/main.kn")
+}
+fn default_output() -> PathBuf {
+    PathBuf::from("dist")
+}
 
 impl Default for BuildConfig {
     fn default() -> Self {

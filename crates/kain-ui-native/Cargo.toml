@@ -1,0 +1,9 @@
+[package]
+name = "kain-ui-native"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.31"
+kain-core = { path = "../kain-core" }
+kain-ui = { path = "../kain-ui" }

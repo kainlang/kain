@@ -2,8 +2,8 @@
 
 use crate::diagnostic_registry::{default_code_for_kind, spec_for_code, DiagnosticCode};
 use crate::span::Span;
-use std::path::PathBuf;
 use std::fmt;
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -25,7 +25,7 @@ pub enum KainError {
 
     #[error("Codegen error at {span:?}: {message}")]
     Codegen { message: String, span: Span },
-    
+
     /// Codegen error with file:line:col location information
     #[error("{file}:{line}:{col}: {message}")]
     CodegenWithLocation {
@@ -41,7 +41,7 @@ pub enum KainError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("{}", format_enhanced_error(.kind, .code, .file, .location, .context, .message, .suggestion))]
     Enhanced {
         kind: ErrorKind,
@@ -92,10 +92,10 @@ fn format_enhanced_error(
 ) -> String {
     let spec = spec_for_code(*code);
     let mut output = String::new();
-    
+
     // Error header
     output.push_str(&format!("❌ [{}:{}] {}", kind, spec.code_str, spec.title));
-    
+
     // File and location
     if let Some(path) = file {
         output.push_str(&format!(" in {}", path.display()));
@@ -103,17 +103,17 @@ fn format_enhanced_error(
             output.push_str(&format!(":{}:{}", line, col));
         }
     }
-    
+
     output.push_str("\n\n");
-    
+
     // Context if provided
     if !context.is_empty() {
         output.push_str(&format!("   Context: {}\n", context));
     }
-    
+
     // Main error message
     output.push_str(&format!("   {}\n", message));
-    
+
     // Suggestion if provided
     if let Some(suggestion) = suggestion.as_deref().or(spec.default_suggestion) {
         output.push_str(&format!("\n   Help: {}\n", suggestion));
@@ -122,7 +122,7 @@ fn format_enhanced_error(
     if let Some(docs_key) = spec.docs_key {
         output.push_str(&format!("\n   Reference: {}\n", docs_key));
     }
-    
+
     output
 }
 
@@ -177,8 +177,14 @@ impl KainError {
             span,
         }
     }
-    
-    pub fn codegen_with_location(message: impl Into<String>, file: impl Into<String>, line: usize, col: usize, span: Span) -> Self {
+
+    pub fn codegen_with_location(
+        message: impl Into<String>,
+        file: impl Into<String>,
+        line: usize,
+        col: usize,
+        span: Span,
+    ) -> Self {
         KainError::CodegenWithLocation {
             message: message.into(),
             file: file.into(),
@@ -196,10 +202,13 @@ impl KainError {
 
     /// Create a multi-error from collected parse errors
     pub fn multi(errors: Vec<KainError>) -> Self {
-        debug_assert!(!errors.is_empty(), "Multi error must contain at least one error");
+        debug_assert!(
+            !errors.is_empty(),
+            "Multi error must contain at least one error"
+        );
         KainError::Multi(errors)
     }
-    
+
     // New enhanced error constructors
     pub fn parse_error(message: impl Into<String>) -> Self {
         KainError::Enhanced {
@@ -212,7 +221,7 @@ impl KainError {
             suggestion: None,
         }
     }
-    
+
     pub fn type_err(message: impl Into<String>) -> Self {
         KainError::Enhanced {
             kind: ErrorKind::Type,
@@ -224,7 +233,7 @@ impl KainError {
             suggestion: None,
         }
     }
-    
+
     pub fn validation_error(message: impl Into<String>) -> Self {
         KainError::Enhanced {
             kind: ErrorKind::Validation,
@@ -236,7 +245,7 @@ impl KainError {
             suggestion: None,
         }
     }
-    
+
     pub fn codegen_error(message: impl Into<String>) -> Self {
         KainError::Enhanced {
             kind: ErrorKind::Codegen,
@@ -248,7 +257,7 @@ impl KainError {
             suggestion: None,
         }
     }
-    
+
     pub fn io_error(message: impl Into<String>) -> Self {
         KainError::Enhanced {
             kind: ErrorKind::Io,
@@ -260,7 +269,7 @@ impl KainError {
             suggestion: None,
         }
     }
-    
+
     pub fn config_error(message: impl Into<String>) -> Self {
         KainError::Enhanced {
             kind: ErrorKind::Config,
@@ -345,18 +354,17 @@ impl DiagnosticBuilder {
     }
 }
 
-
 /// Trait for adding context to errors
 pub trait ErrorContext<T> {
     /// Add file path context to the error
     fn with_file(self, path: PathBuf) -> Result<T, KainError>;
-    
+
     /// Add location (line, column) context to the error
     fn with_location(self, line: usize, col: usize) -> Result<T, KainError>;
-    
+
     /// Add contextual information about what operation was being performed
     fn with_context(self, ctx: impl Into<String>) -> Result<T, KainError>;
-    
+
     /// Add a suggestion for how to fix the error
     fn with_suggestion(self, suggestion: impl Into<String>) -> Result<T, KainError>;
 }
@@ -364,202 +372,214 @@ pub trait ErrorContext<T> {
 impl<T> ErrorContext<T> for Result<T, KainError> {
     fn with_file(self, path: PathBuf) -> Result<T, KainError> {
         self.map_err(|e| match e {
-            KainError::Enhanced { kind, code, file: _, location, context, message, suggestion } => {
-                KainError::Enhanced {
-                    kind,
-                    code,
-                    file: Some(path),
-                    location,
-                    context,
-                    message,
-                    suggestion,
-                }
-            }
+            KainError::Enhanced {
+                kind,
+                code,
+                file: _,
+                location,
+                context,
+                message,
+                suggestion,
+            } => KainError::Enhanced {
+                kind,
+                code,
+                file: Some(path),
+                location,
+                context,
+                message,
+                suggestion,
+            },
             // For legacy error types, convert to Enhanced
-            KainError::Lexer { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Parse,
-                    code: default_code_for_kind(ErrorKind::Parse),
-                    file: Some(path),
-                    location: Some((span.start, span.end)),
-                    context: String::new(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Parser { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Parse,
-                    code: default_code_for_kind(ErrorKind::Parse),
-                    file: Some(path),
-                    location: Some((span.start, span.end)),
-                    context: String::new(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Type { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Type,
-                    code: default_code_for_kind(ErrorKind::Type),
-                    file: Some(path),
-                    location: Some((span.start, span.end)),
-                    context: String::new(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Codegen { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Codegen,
-                    code: default_code_for_kind(ErrorKind::Codegen),
-                    file: Some(path),
-                    location: Some((span.start, span.end)),
-                    context: String::new(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::CodegenWithLocation { message, file, line, col, span: _ } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Codegen,
-                    code: default_code_for_kind(ErrorKind::Codegen),
-                    file: Some(PathBuf::from(file)),
-                    location: Some((line, col)),
-                    context: String::new(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Io(io_err) => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Io,
-                    code: default_code_for_kind(ErrorKind::Io),
-                    file: Some(path),
-                    location: None,
-                    context: String::new(),
-                    message: io_err.to_string(),
-                    suggestion: None,
-                }
-            }
+            KainError::Lexer { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Parse,
+                code: default_code_for_kind(ErrorKind::Parse),
+                file: Some(path),
+                location: Some((span.start, span.end)),
+                context: String::new(),
+                message,
+                suggestion: None,
+            },
+            KainError::Parser { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Parse,
+                code: default_code_for_kind(ErrorKind::Parse),
+                file: Some(path),
+                location: Some((span.start, span.end)),
+                context: String::new(),
+                message,
+                suggestion: None,
+            },
+            KainError::Type { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Type,
+                code: default_code_for_kind(ErrorKind::Type),
+                file: Some(path),
+                location: Some((span.start, span.end)),
+                context: String::new(),
+                message,
+                suggestion: None,
+            },
+            KainError::Codegen { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Codegen,
+                code: default_code_for_kind(ErrorKind::Codegen),
+                file: Some(path),
+                location: Some((span.start, span.end)),
+                context: String::new(),
+                message,
+                suggestion: None,
+            },
+            KainError::CodegenWithLocation {
+                message,
+                file,
+                line,
+                col,
+                span: _,
+            } => KainError::Enhanced {
+                kind: ErrorKind::Codegen,
+                code: default_code_for_kind(ErrorKind::Codegen),
+                file: Some(PathBuf::from(file)),
+                location: Some((line, col)),
+                context: String::new(),
+                message,
+                suggestion: None,
+            },
+            KainError::Io(io_err) => KainError::Enhanced {
+                kind: ErrorKind::Io,
+                code: default_code_for_kind(ErrorKind::Io),
+                file: Some(path),
+                location: None,
+                context: String::new(),
+                message: io_err.to_string(),
+                suggestion: None,
+            },
             other => other,
         })
     }
-    
+
     fn with_location(self, line: usize, col: usize) -> Result<T, KainError> {
         self.map_err(|e| match e {
-            KainError::Enhanced { kind, code, file, location: _, context, message, suggestion } => {
-                KainError::Enhanced {
-                    kind,
-                    code,
-                    file,
-                    location: Some((line, col)),
-                    context,
-                    message,
-                    suggestion,
-                }
-            }
+            KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location: _,
+                context,
+                message,
+                suggestion,
+            } => KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location: Some((line, col)),
+                context,
+                message,
+                suggestion,
+            },
             other => other,
         })
     }
-    
+
     fn with_context(self, ctx: impl Into<String>) -> Result<T, KainError> {
         self.map_err(|e| match e {
-            KainError::Enhanced { kind, code, file, location, context: _, message, suggestion } => {
-                KainError::Enhanced {
-                    kind,
-                    code,
-                    file,
-                    location,
-                    context: ctx.into(),
-                    message,
-                    suggestion,
-                }
-            }
+            KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location,
+                context: _,
+                message,
+                suggestion,
+            } => KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location,
+                context: ctx.into(),
+                message,
+                suggestion,
+            },
             // For legacy error types, convert to Enhanced
-            KainError::Lexer { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Parse,
-                    code: default_code_for_kind(ErrorKind::Parse),
-                    file: None,
-                    location: Some((span.start, span.end)),
-                    context: ctx.into(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Parser { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Parse,
-                    code: default_code_for_kind(ErrorKind::Parse),
-                    file: None,
-                    location: Some((span.start, span.end)),
-                    context: ctx.into(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Type { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Type,
-                    code: default_code_for_kind(ErrorKind::Type),
-                    file: None,
-                    location: Some((span.start, span.end)),
-                    context: ctx.into(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Codegen { message, span } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Codegen,
-                    code: default_code_for_kind(ErrorKind::Codegen),
-                    file: None,
-                    location: Some((span.start, span.end)),
-                    context: ctx.into(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::CodegenWithLocation { message, file, line, col, span: _ } => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Codegen,
-                    code: default_code_for_kind(ErrorKind::Codegen),
-                    file: Some(PathBuf::from(file)),
-                    location: Some((line, col)),
-                    context: ctx.into(),
-                    message,
-                    suggestion: None,
-                }
-            }
-            KainError::Io(io_err) => {
-                KainError::Enhanced {
-                    kind: ErrorKind::Io,
-                    code: default_code_for_kind(ErrorKind::Io),
-                    file: None,
-                    location: None,
-                    context: ctx.into(),
-                    message: io_err.to_string(),
-                    suggestion: None,
-                }
-            }
+            KainError::Lexer { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Parse,
+                code: default_code_for_kind(ErrorKind::Parse),
+                file: None,
+                location: Some((span.start, span.end)),
+                context: ctx.into(),
+                message,
+                suggestion: None,
+            },
+            KainError::Parser { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Parse,
+                code: default_code_for_kind(ErrorKind::Parse),
+                file: None,
+                location: Some((span.start, span.end)),
+                context: ctx.into(),
+                message,
+                suggestion: None,
+            },
+            KainError::Type { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Type,
+                code: default_code_for_kind(ErrorKind::Type),
+                file: None,
+                location: Some((span.start, span.end)),
+                context: ctx.into(),
+                message,
+                suggestion: None,
+            },
+            KainError::Codegen { message, span } => KainError::Enhanced {
+                kind: ErrorKind::Codegen,
+                code: default_code_for_kind(ErrorKind::Codegen),
+                file: None,
+                location: Some((span.start, span.end)),
+                context: ctx.into(),
+                message,
+                suggestion: None,
+            },
+            KainError::CodegenWithLocation {
+                message,
+                file,
+                line,
+                col,
+                span: _,
+            } => KainError::Enhanced {
+                kind: ErrorKind::Codegen,
+                code: default_code_for_kind(ErrorKind::Codegen),
+                file: Some(PathBuf::from(file)),
+                location: Some((line, col)),
+                context: ctx.into(),
+                message,
+                suggestion: None,
+            },
+            KainError::Io(io_err) => KainError::Enhanced {
+                kind: ErrorKind::Io,
+                code: default_code_for_kind(ErrorKind::Io),
+                file: None,
+                location: None,
+                context: ctx.into(),
+                message: io_err.to_string(),
+                suggestion: None,
+            },
             other => other,
         })
     }
-    
+
     fn with_suggestion(self, suggestion: impl Into<String>) -> Result<T, KainError> {
         self.map_err(|e| match e {
-            KainError::Enhanced { kind, code, file, location, context, message, suggestion: _ } => {
-                KainError::Enhanced {
-                    kind,
-                    code,
-                    file,
-                    location,
-                    context,
-                    message,
-                    suggestion: Some(suggestion.into()),
-                }
-            }
+            KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location,
+                context,
+                message,
+                suggestion: _,
+            } => KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location,
+                context,
+                message,
+                suggestion: Some(suggestion.into()),
+            },
             other => other,
         })
     }
@@ -603,7 +623,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::True => "keyword 'true'".to_string(),
         TokenKind::False => "keyword 'false'".to_string(),
         TokenKind::None => "keyword 'none'".to_string(),
-        
+
         // Special keywords
         TokenKind::Component => "keyword 'component'".to_string(),
         TokenKind::Shader => "keyword 'shader'".to_string(),
@@ -618,7 +638,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::Vertex => "keyword 'vertex'".to_string(),
         TokenKind::Fragment => "keyword 'fragment'".to_string(),
         TokenKind::Test => "keyword 'test'".to_string(),
-        
+
         // Effect keywords
         TokenKind::Pure => "keyword 'Pure'".to_string(),
         TokenKind::Io => "keyword 'IO'".to_string(),
@@ -627,7 +647,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::Gpu => "keyword 'GPU'".to_string(),
         TokenKind::Reactive => "keyword 'Reactive'".to_string(),
         TokenKind::Unsafe => "keyword 'Unsafe'".to_string(),
-        
+
         // Literals
         TokenKind::Int(n) => format!("number {}", n),
         TokenKind::Float(f) => format!("number {}", f),
@@ -635,7 +655,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::FString(s) => format!("f-string f\"{}\"", s),
         TokenKind::Char(c) => format!("character '{}'", c),
         TokenKind::Ident(name) => format!("identifier '{}'", name),
-        
+
         // Operators
         TokenKind::PlusPlus => "'++'".to_string(),
         TokenKind::MinusMinus => "'--'".to_string(),
@@ -660,7 +680,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::Tilde => "'~'".to_string(),
         TokenKind::Shl => "'<<'".to_string(),
         TokenKind::Shr => "'>>'".to_string(),
-        
+
         // Assignment
         TokenKind::Eq => "'='".to_string(),
         TokenKind::PlusEq => "'+='".to_string(),
@@ -673,7 +693,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::CaretEq => "'^='".to_string(),
         TokenKind::ShlEq => "'<<='".to_string(),
         TokenKind::ShrEq => "'>>='".to_string(),
-        
+
         // Punctuation
         TokenKind::LParen => "'('".to_string(),
         TokenKind::RParen => "')'".to_string(),
@@ -694,10 +714,10 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::QuestionQuestion => "'??'".to_string(),
         TokenKind::QuestionDot => "'?.'".to_string(),
         TokenKind::Question => "'?'".to_string(),
-        
+
         // JSX-like
         TokenKind::LtSlash => "'</'".to_string(),
-        
+
         // Whitespace
         TokenKind::Newline(_) => "newline".to_string(),
         TokenKind::Comment => "comment".to_string(),

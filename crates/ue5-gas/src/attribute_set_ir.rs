@@ -5,7 +5,7 @@
 // Handles attribute metadata, replication, lifecycle hooks, and delegates.
 // ============================================================================
 
-use kain_core::ast::{Struct, Field, Function, Type};
+use kain_core::ast::{Field, Function, Struct, Type};
 use kain_core::error::{KainError, KainResult};
 use kain_core::span::Span;
 
@@ -60,9 +60,16 @@ impl AttributeSetIR {
     /// Convert AST struct to AttributeSetIR
     pub fn from_ast(struct_def: &Struct) -> KainResult<Self> {
         // Verify @attribute_set attribute
-        if !struct_def.attributes.iter().any(|a| a.name == "attribute_set") {
+        if !struct_def
+            .attributes
+            .iter()
+            .any(|a| a.name == "attribute_set")
+        {
             return Err(KainError::codegen(
-                format!("Struct '{}' must have @attribute_set attribute", struct_def.name),
+                format!(
+                    "Struct '{}' must have @attribute_set attribute",
+                    struct_def.name
+                ),
                 struct_def.span,
             ));
         }
@@ -87,10 +94,12 @@ impl AttributeSetIR {
         for method in &struct_def.methods {
             match method.name.as_str() {
                 "pre_gameplay_effect_execute" => {
-                    lifecycle_hooks.pre_gameplay_effect_execute = Some(FunctionIR::from_ast(method)?);
+                    lifecycle_hooks.pre_gameplay_effect_execute =
+                        Some(FunctionIR::from_ast(method)?);
                 }
                 "post_gameplay_effect_execute" => {
-                    lifecycle_hooks.post_gameplay_effect_execute = Some(FunctionIR::from_ast(method)?);
+                    lifecycle_hooks.post_gameplay_effect_execute =
+                        Some(FunctionIR::from_ast(method)?);
                 }
                 "pre_attribute_change" => {
                     lifecycle_hooks.pre_attribute_change = Some(FunctionIR::from_ast(method)?);
@@ -168,7 +177,10 @@ impl AttributeIR {
         // Validate: rep_notify requires replicated
         if rep_notify && !replicated {
             return Err(KainError::codegen(
-                format!("Attribute '{}' has rep_notify but is not replicated", field.name),
+                format!(
+                    "Attribute '{}' has rep_notify but is not replicated",
+                    field.name
+                ),
                 field.span,
             ));
         }
@@ -240,12 +252,9 @@ fn parse_bool_param(value: &str) -> KainResult<bool> {
 
 #[allow(dead_code)]
 fn parse_float_param(value: &str) -> KainResult<f32> {
-    value.parse::<f32>().map_err(|_| {
-        KainError::codegen(
-            format!("Invalid float value: {}", value),
-            Span::default(),
-        )
-    })
+    value
+        .parse::<f32>()
+        .map_err(|_| KainError::codegen(format!("Invalid float value: {}", value), Span::default()))
 }
 
 #[allow(dead_code)]

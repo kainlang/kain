@@ -6,8 +6,8 @@ use crate::low_level_abi::{
     should_apply_usual_arithmetic_conversions, usual_arithmetic_conversion_type, CAbiPolicy,
 };
 use crate::low_level_memory_metadata::{
-    attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_PACK_ALIGN_ATTR,
-    C_PACKED_ATTR, C_STORAGE_ALIGN_ATTR, C_STORAGE_BITS_ATTR, C_TYPE_ALIGN_ATTR, C_UNION_ATTR,
+    attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_PACKED_ATTR,
+    C_PACK_ALIGN_ATTR, C_STORAGE_ALIGN_ATTR, C_STORAGE_BITS_ATTR, C_TYPE_ALIGN_ATTR, C_UNION_ATTR,
 };
 use crate::monomorphize::MonomorphizedProgram;
 use crate::span::Span;
@@ -79,9 +79,12 @@ impl LayoutRegistry {
                     } else {
                         natural_align
                     };
-                    let (bit_width, bit_signed) = attr_usize_bool_args(&field.attributes, C_BITFIELD_ATTR)
-                        .map(|(width, signed)| (Some(width), signed))
-                        .unwrap_or_else(|| (attr_usize_arg(&field.attributes, C_BITFIELD_ATTR), true));
+                    let (bit_width, bit_signed) =
+                        attr_usize_bool_args(&field.attributes, C_BITFIELD_ATTR)
+                            .map(|(width, signed)| (Some(width), signed))
+                            .unwrap_or_else(|| {
+                                (attr_usize_arg(&field.attributes, C_BITFIELD_ATTR), true)
+                            });
                     max_field_size = max_field_size.max(size.max(1));
                     max_align = max_align.max(align);
                     let field_name = field.name.clone();
@@ -163,11 +166,7 @@ impl LayoutRegistry {
                 if let Some(pack) = bit_pack.take() {
                     offset = offset.max(pack.unit_offset + pack.unit_size);
                 }
-                let raw_size = if is_union {
-                    max_field_size
-                } else {
-                    offset
-                };
+                let raw_size = if is_union { max_field_size } else { offset };
                 let base_final_align = if let Some(pack_align) = pack_align {
                     max_align.min(pack_align).max(1)
                 } else if is_packed {
@@ -212,9 +211,9 @@ impl LayoutRegistry {
             Type::Tuple(types, _) => types.iter().map(|ty| self.type_size_fallback(ty)).sum(),
             Type::Ref { .. } | Type::Ptr { .. } => 8,
             Type::Option(inner, _) => self.type_size_fallback(inner),
-            Type::Result(ok, err, _) => {
-                self.type_size_fallback(ok).max(self.type_size_fallback(err))
-            }
+            Type::Result(ok, err, _) => self
+                .type_size_fallback(ok)
+                .max(self.type_size_fallback(err)),
             Type::Unit(_) | Type::Never(_) => 0,
             _ => 8,
         }
@@ -242,9 +241,9 @@ impl LayoutRegistry {
                 .unwrap_or(1),
             Type::Ref { .. } | Type::Ptr { .. } => 8,
             Type::Option(inner, _) => self.type_align_fallback(inner),
-            Type::Result(ok, err, _) => {
-                self.type_align_fallback(ok).max(self.type_align_fallback(err))
-            }
+            Type::Result(ok, err, _) => self
+                .type_align_fallback(ok)
+                .max(self.type_align_fallback(err)),
             Type::Unit(_) | Type::Never(_) => 1,
             _ => 8,
         }
@@ -503,18 +502,17 @@ fn lower_typed_item_memory(
                     .map(|variant| Variant {
                         fields: match &variant.fields {
                             VariantFields::Unit => VariantFields::Unit,
-                            VariantFields::Tuple(types) => VariantFields::Tuple(
-                                types.iter().map(lower_type_memory).collect(),
-                            ),
+                            VariantFields::Tuple(types) => {
+                                VariantFields::Tuple(types.iter().map(lower_type_memory).collect())
+                            }
                             VariantFields::Struct(fields) => VariantFields::Struct(
                                 fields
                                     .iter()
                                     .map(|field| Field {
                                         ty: lower_type_memory(&field.ty),
-                                        default: field
-                                            .default
-                                            .as_ref()
-                                            .map(|expr| lower_free_expr_memory(expr, target, layouts)),
+                                        default: field.default.as_ref().map(|expr| {
+                                            lower_free_expr_memory(expr, target, layouts)
+                                        }),
                                         ..field.clone()
                                     })
                                     .collect(),
@@ -652,7 +650,9 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
             let lowered = Stmt::Let {
                 pattern: pattern.clone(),
                 ty: ty.as_ref().map(lower_type_memory),
-                value: value.as_ref().map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
+                value: value
+                    .as_ref()
+                    .map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
                 span: *span,
             };
             if let Pattern::Binding { name, .. } = pattern {
@@ -666,11 +666,15 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
             vec![lowered]
         }
         Stmt::Return(value, span) => vec![Stmt::Return(
-            value.as_ref().map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
+            value
+                .as_ref()
+                .map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
             *span,
         )],
         Stmt::Break(value, span) => vec![Stmt::Break(
-            value.as_ref().map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
+            value
+                .as_ref()
+                .map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
             *span,
         )],
         Stmt::Continue(span) => vec![Stmt::Continue(*span)],
@@ -709,9 +713,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             load_from_pointer_binding(name, ctx.local_types.get(name), *ident_span)
         }
         Expr::AddrOf {
-            value,
-            pointee_ty,
-            ..
+            value, pointee_ty, ..
         } => lower_addr_of_memory(value, pointee_ty.as_ref(), ctx, span),
         Expr::PtrOffset {
             pointer,
@@ -731,9 +733,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             span,
         ),
         Expr::MemLoad {
-            pointer,
-            load_ty,
-            ..
+            pointer, load_ty, ..
         } => {
             let call = helper_call(
                 "__kain_mem_load",
@@ -750,11 +750,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 call
             }
         }
-        Expr::MemStore {
-            pointer,
-            value,
-            ..
-        } => helper_call(
+        Expr::MemStore { pointer, value, .. } => helper_call(
             "__kain_mem_store",
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
@@ -762,15 +758,16 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ],
             span,
         ),
-        Expr::SizeOfType { target, .. } => Expr::Int(estimate_type_size(target, ctx.layouts) as i64, span),
-        Expr::AlignOfType { target, .. } => Expr::Int(estimate_type_align(target, ctx.layouts) as i64, span),
+        Expr::SizeOfType { target, .. } => {
+            Expr::Int(estimate_type_size(target, ctx.layouts) as i64, span)
+        }
+        Expr::AlignOfType { target, .. } => {
+            Expr::Int(estimate_type_align(target, ctx.layouts) as i64, span)
+        }
         Expr::Alloca { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
         Expr::Uninit { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
         Expr::Alloc {
-            size,
-            ty,
-            zeroed,
-            ..
+            size, ty, zeroed, ..
         } => lower_heap_alloc_expr(
             &lower_expr_memory_with_ctx(size, ctx),
             ty.as_ref(),
@@ -789,7 +786,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
                 lower_expr_memory_with_ctx(size, ctx),
-                Expr::Int(memory_stride_for_type(ty.as_ref(), ctx.layouts).unwrap_or(1), span),
+                Expr::Int(
+                    memory_stride_for_type(ty.as_ref(), ctx.layouts).unwrap_or(1),
+                    span,
+                ),
                 storage_seed_expr(ty.as_ref(), ctx.layouts, span, *zeroed_new),
             ],
             span,
@@ -806,7 +806,11 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 .collect::<Vec<_>>();
             lower_aggregate_init_expr(ty, &lowered_fields, *zero_fill_rest, ctx.layouts, span)
         }
-        Expr::Assign { target, value, span } => {
+        Expr::Assign {
+            target,
+            value,
+            span,
+        } => {
             if let Expr::Ident(name, _) = target.as_ref() {
                 if should_load_from_pointer(name, ctx) {
                     return helper_call(
@@ -861,10 +865,19 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             lower_expr_memory_with_ctx(object, ctx),
                             Expr::String(field.clone(), *span),
                             Expr::String(
-                                field_ty.as_ref().map(type_key).unwrap_or_else(|| "unknown".to_string()),
+                                field_ty
+                                    .as_ref()
+                                    .map(type_key)
+                                    .unwrap_or_else(|| "unknown".to_string()),
                                 *span,
                             ),
-                            Expr::Int(field_ty.as_ref().and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts)).unwrap_or(1), *span),
+                            Expr::Int(
+                                field_ty
+                                    .as_ref()
+                                    .and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts))
+                                    .unwrap_or(1),
+                                *span,
+                            ),
                             Expr::Int(layout_size as i64, *span),
                             lower_expr_memory_with_ctx(value, ctx),
                         ],
@@ -887,9 +900,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             value: Box::new(lower_expr_memory_with_ctx(value, ctx)),
             span: *span,
         },
-        Expr::Deref(inner, inner_span) => {
-            Expr::Deref(Box::new(lower_expr_memory_with_ctx(inner, ctx)), *inner_span)
-        }
+        Expr::Deref(inner, inner_span) => Expr::Deref(
+            Box::new(lower_expr_memory_with_ctx(inner, ctx)),
+            *inner_span,
+        ),
         Expr::Binary {
             left,
             op,
@@ -905,7 +919,9 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 let common_ty = left_ty
                     .as_ref()
                     .zip(right_ty.as_ref())
-                    .and_then(|(lhs, rhs)| usual_arithmetic_conversion_type(lhs, rhs, ctx.layouts.abi));
+                    .and_then(|(lhs, rhs)| {
+                        usual_arithmetic_conversion_type(lhs, rhs, ctx.layouts.abi)
+                    });
                 return Expr::Binary {
                     left: Box::new(cast_if_needed(lowered_left, common_ty.clone(), *span)),
                     op: *op,
@@ -1029,10 +1045,19 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                         lower_expr_memory_with_ctx(object, ctx),
                         Expr::String(field.clone(), *span),
                         Expr::String(
-                            field_ty.as_ref().map(type_key).unwrap_or_else(|| "unknown".to_string()),
+                            field_ty
+                                .as_ref()
+                                .map(type_key)
+                                .unwrap_or_else(|| "unknown".to_string()),
                             *span,
                         ),
-                        Expr::Int(field_ty.as_ref().and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts)).unwrap_or(1), *span),
+                        Expr::Int(
+                            field_ty
+                                .as_ref()
+                                .and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts))
+                                .unwrap_or(1),
+                            *span,
+                        ),
                         Expr::Int(layout_size as i64, *span),
                         fallback,
                     ],
@@ -1055,18 +1080,20 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             span: *span,
         },
         Expr::Array(items, items_span) => Expr::Array(
-            items.iter().map(|item| lower_expr_memory_with_ctx(item, ctx)).collect(),
+            items
+                .iter()
+                .map(|item| lower_expr_memory_with_ctx(item, ctx))
+                .collect(),
             *items_span,
         ),
         Expr::Tuple(items, items_span) => Expr::Tuple(
-            items.iter().map(|item| lower_expr_memory_with_ctx(item, ctx)).collect(),
+            items
+                .iter()
+                .map(|item| lower_expr_memory_with_ctx(item, ctx))
+                .collect(),
             *items_span,
         ),
-        Expr::Struct {
-            name,
-            fields,
-            span,
-        } => Expr::Struct {
+        Expr::Struct { name, fields, span } => Expr::Struct {
             name: name.clone(),
             fields: fields
                 .iter()
@@ -1085,7 +1112,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             fields: match fields {
                 EnumVariantFields::Unit => EnumVariantFields::Unit,
                 EnumVariantFields::Tuple(items) => EnumVariantFields::Tuple(
-                    items.iter().map(|item| lower_expr_memory_with_ctx(item, ctx)).collect(),
+                    items
+                        .iter()
+                        .map(|item| lower_expr_memory_with_ctx(item, ctx))
+                        .collect(),
                 ),
                 EnumVariantFields::Struct(items) => EnumVariantFields::Struct(
                     items
@@ -1152,18 +1182,21 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             target: lower_type_memory(target),
             span: *span,
         },
-        Expr::Try(inner, inner_span) => {
-            Expr::Try(Box::new(lower_expr_memory_with_ctx(inner, ctx)), *inner_span)
-        }
-        Expr::Await(inner, inner_span) => {
-            Expr::Await(Box::new(lower_expr_memory_with_ctx(inner, ctx)), *inner_span)
-        }
+        Expr::Try(inner, inner_span) => Expr::Try(
+            Box::new(lower_expr_memory_with_ctx(inner, ctx)),
+            *inner_span,
+        ),
+        Expr::Await(inner, inner_span) => Expr::Await(
+            Box::new(lower_expr_memory_with_ctx(inner, ctx)),
+            *inner_span,
+        ),
         Expr::Block(block, block_span) => {
             Expr::Block(lower_block_memory_with_ctx(block, ctx), *block_span)
         }
-        Expr::Paren(inner, inner_span) => {
-            Expr::Paren(Box::new(lower_expr_memory_with_ctx(inner, ctx)), *inner_span)
-        }
+        Expr::Paren(inner, inner_span) => Expr::Paren(
+            Box::new(lower_expr_memory_with_ctx(inner, ctx)),
+            *inner_span,
+        ),
         Expr::Return(Some(inner), inner_span) => Expr::Return(
             Some(Box::new(lower_expr_memory_with_ctx(inner, ctx))),
             *inner_span,
@@ -1222,7 +1255,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             span: *span,
         },
         Expr::FString(items, items_span) => Expr::FString(
-            items.iter().map(|item| lower_expr_memory_with_ctx(item, ctx)).collect(),
+            items
+                .iter()
+                .map(|item| lower_expr_memory_with_ctx(item, ctx))
+                .collect(),
             *items_span,
         ),
         _ => expr.clone(),
@@ -1376,9 +1412,9 @@ fn collect_local_types_from_block_into(block: &Block, locals: &mut HashMap<Strin
             } => {
                 locals.insert(name.clone(), ty.clone());
             }
-            Stmt::For { body, .. }
-            | Stmt::While { body, .. }
-            | Stmt::Loop { body, .. } => collect_local_types_from_block_into(body, locals),
+            Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Loop { body, .. } => {
+                collect_local_types_from_block_into(body, locals)
+            }
             Stmt::Expr(Expr::Block(block, _)) => collect_local_types_from_block_into(block, locals),
             _ => {}
         }
@@ -1394,10 +1430,12 @@ fn collect_address_taken_roots(block: &Block) -> HashSet<String> {
 fn collect_address_taken_from_block(block: &Block, roots: &mut HashSet<String>) {
     for stmt in &block.stmts {
         match stmt {
-            Stmt::Expr(expr)
-            | Stmt::Return(Some(expr), _)
-            | Stmt::Break(Some(expr), _) => collect_address_taken_from_expr(expr, roots),
-            Stmt::Let { value: Some(expr), .. } => collect_address_taken_from_expr(expr, roots),
+            Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                collect_address_taken_from_expr(expr, roots)
+            }
+            Stmt::Let {
+                value: Some(expr), ..
+            } => collect_address_taken_from_expr(expr, roots),
             Stmt::For { iter, body, .. } => {
                 collect_address_taken_from_expr(iter, roots);
                 collect_address_taken_from_block(body, roots);
@@ -1433,9 +1471,7 @@ fn collect_address_taken_from_expr(expr: &Expr, roots: &mut HashSet<String>) {
                 collect_address_taken_from_expr(&arg.value, roots);
             }
         }
-        Expr::MethodCall {
-            receiver, args, ..
-        } => {
+        Expr::MethodCall { receiver, args, .. } => {
             collect_address_taken_from_expr(receiver, roots);
             for arg in args {
                 collect_address_taken_from_expr(&arg.value, roots);
@@ -1462,7 +1498,9 @@ fn collect_address_taken_from_expr(expr: &Expr, roots: &mut HashSet<String>) {
 fn root_ident_of_addressable(expr: &Expr) -> Option<&str> {
     match expr {
         Expr::Ident(name, _) => Some(name),
-        Expr::Field { object, .. } | Expr::Index { object, .. } => root_ident_of_addressable(object),
+        Expr::Field { object, .. } | Expr::Index { object, .. } => {
+            root_ident_of_addressable(object)
+        }
         _ => None,
     }
 }
@@ -1614,9 +1652,13 @@ fn lower_type_memory(ty: &Type) -> Type {
             generics: vec![],
             span: *span,
         },
-        Type::Array(inner, size, span) => Type::Array(Box::new(lower_type_memory(inner)), *size, *span),
+        Type::Array(inner, size, span) => {
+            Type::Array(Box::new(lower_type_memory(inner)), *size, *span)
+        }
         Type::Slice(inner, span) => Type::Slice(Box::new(lower_type_memory(inner)), *span),
-        Type::Tuple(types, span) => Type::Tuple(types.iter().map(lower_type_memory).collect(), *span),
+        Type::Tuple(types, span) => {
+            Type::Tuple(types.iter().map(lower_type_memory).collect(), *span)
+        }
         Type::Ref {
             mutable,
             inner,
@@ -1646,7 +1688,11 @@ fn lower_type_memory(ty: &Type) -> Type {
             Box::new(lower_type_memory(err)),
             *span,
         ),
-        Type::Named { name, generics, span } => Type::Named {
+        Type::Named {
+            name,
+            generics,
+            span,
+        } => Type::Named {
             name: name.clone(),
             generics: generics.iter().map(lower_type_memory).collect(),
             span: *span,
@@ -1670,7 +1716,9 @@ fn lower_resolved_type_memory(ty: &ResolvedType) -> ResolvedType {
         ResolvedType::Array(inner, size) => {
             ResolvedType::Array(Box::new(lower_resolved_type_memory(inner)), *size)
         }
-        ResolvedType::Slice(inner) => ResolvedType::Slice(Box::new(lower_resolved_type_memory(inner))),
+        ResolvedType::Slice(inner) => {
+            ResolvedType::Slice(Box::new(lower_resolved_type_memory(inner)))
+        }
         ResolvedType::Tuple(types) => {
             ResolvedType::Tuple(types.iter().map(lower_resolved_type_memory).collect())
         }
@@ -1685,7 +1733,11 @@ fn lower_resolved_type_memory(ty: &ResolvedType) -> ResolvedType {
             mutable: *mutable,
             inner: Box::new(lower_resolved_type_memory(inner)),
         },
-        ResolvedType::Function { params, ret, effects } => ResolvedType::Function {
+        ResolvedType::Function {
+            params,
+            ret,
+            effects,
+        } => ResolvedType::Function {
             params: params.iter().map(lower_resolved_type_memory).collect(),
             ret: Box::new(lower_resolved_type_memory(ret)),
             effects: effects.clone(),
@@ -1762,7 +1814,9 @@ fn estimate_type_align(ty: &Type, layouts: &LayoutRegistry) -> usize {
             .max()
             .unwrap_or(1),
         Type::Option(inner, _) => estimate_type_align(inner, layouts),
-        Type::Result(ok, err, _) => estimate_type_align(ok, layouts).max(estimate_type_align(err, layouts)),
+        Type::Result(ok, err, _) => {
+            estimate_type_align(ok, layouts).max(estimate_type_align(err, layouts))
+        }
         _ => layouts.type_align_fallback(ty),
     }
 }
@@ -1782,17 +1836,35 @@ fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span, zeroed: b
                 .collect(),
             span,
         ),
-        Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "isize" || name == "usize" => {
-            if zeroed { Expr::Int(0, span) } else { Expr::None(span) }
+        Type::Named { name, .. }
+            if name == "Int" || name == "UInt" || name == "isize" || name == "usize" =>
+        {
+            if zeroed {
+                Expr::Int(0, span)
+            } else {
+                Expr::None(span)
+            }
         }
         Type::Named { name, .. } if name == "Float" => {
-            if zeroed { Expr::Float(0.0, span) } else { Expr::None(span) }
+            if zeroed {
+                Expr::Float(0.0, span)
+            } else {
+                Expr::None(span)
+            }
         }
         Type::Named { name, .. } if name == "Bool" => {
-            if zeroed { Expr::Bool(false, span) } else { Expr::None(span) }
+            if zeroed {
+                Expr::Bool(false, span)
+            } else {
+                Expr::None(span)
+            }
         }
         Type::Named { name, .. } if name == "Char" => {
-            if zeroed { Expr::String("\0".to_string(), span) } else { Expr::None(span) }
+            if zeroed {
+                Expr::String("\0".to_string(), span)
+            } else {
+                Expr::None(span)
+            }
         }
         Type::Unit(_) => Expr::Tuple(Vec::new(), span),
         Type::Named { name, .. } if layouts.structs.contains_key(name) => {
@@ -1824,9 +1896,20 @@ fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span, zeroed: b
     }
 }
 
-fn storage_seed_expr(ty: Option<&Type>, layouts: &LayoutRegistry, span: Span, zeroed: bool) -> Expr {
+fn storage_seed_expr(
+    ty: Option<&Type>,
+    layouts: &LayoutRegistry,
+    span: Span,
+    zeroed: bool,
+) -> Expr {
     ty.map(|ty| lower_storage_expr(ty, layouts, span, zeroed))
-        .unwrap_or_else(|| if zeroed { Expr::Int(0, span) } else { Expr::None(span) })
+        .unwrap_or_else(|| {
+            if zeroed {
+                Expr::Int(0, span)
+            } else {
+                Expr::None(span)
+            }
+        })
 }
 
 fn lower_heap_alloc_expr(
@@ -1863,34 +1946,44 @@ fn lower_aggregate_init_expr(
                 .get(name)
                 .map(|info| {
                     if info.is_union {
-                        let (field_values, active_field, active_value) = lower_union_aggregate_fields(
-                            info,
-                            fields,
-                            &provided,
-                            layouts,
-                            span,
-                            zero_fill_rest,
-                        );
+                        let (field_values, active_field, active_value) =
+                            lower_union_aggregate_fields(
+                                info,
+                                fields,
+                                &provided,
+                                layouts,
+                                span,
+                                zero_fill_rest,
+                            );
                         let base_struct = Expr::Struct {
                             name: name.clone(),
                             fields: field_values,
                             span,
                         };
                         return if let Some(active_field) = active_field {
-                            let active_ty = info
-                                .fields
-                                .get(&active_field)
-                                .map(|field| field.ty.clone());
+                            let active_ty =
+                                info.fields.get(&active_field).map(|field| field.ty.clone());
                             helper_call(
                                 "__kain_union_wrap",
                                 vec![
                                     base_struct,
                                     Expr::String(active_field, span),
                                     Expr::String(
-                                        active_ty.as_ref().map(type_key).unwrap_or_else(|| "unknown".to_string()),
+                                        active_ty
+                                            .as_ref()
+                                            .map(type_key)
+                                            .unwrap_or_else(|| "unknown".to_string()),
                                         span,
                                     ),
-                                    Expr::Int(active_ty.as_ref().and_then(|ty| memory_stride_for_type(Some(ty), layouts)).unwrap_or(1), span),
+                                    Expr::Int(
+                                        active_ty
+                                            .as_ref()
+                                            .and_then(|ty| {
+                                                memory_stride_for_type(Some(ty), layouts)
+                                            })
+                                            .unwrap_or(1),
+                                        span,
+                                    ),
                                     Expr::Int(info.size as i64, span),
                                     active_value,
                                 ],
@@ -1900,17 +1993,19 @@ fn lower_aggregate_init_expr(
                             base_struct
                         };
                     } else {
-                        let field_values = info.field_order
+                        let field_values = info
+                            .field_order
                             .iter()
                             .filter_map(|field_name| {
                                 info.fields.get(field_name).map(|field| {
-                                    let value = provided.get(field_name).cloned().unwrap_or_else(|| {
-                                        if zero_fill_rest {
-                                            lower_storage_expr(&field.ty, layouts, span, true)
-                                        } else {
-                                            Expr::None(span)
-                                        }
-                                    });
+                                    let value =
+                                        provided.get(field_name).cloned().unwrap_or_else(|| {
+                                            if zero_fill_rest {
+                                                lower_storage_expr(&field.ty, layouts, span, true)
+                                            } else {
+                                                Expr::None(span)
+                                            }
+                                        });
                                     (field_name.clone(), value)
                                 })
                             })
@@ -1947,7 +2042,11 @@ fn lower_union_aggregate_fields(
     let active_name = original_fields
         .iter()
         .rev()
-        .find_map(|(field_name, _)| info.fields.contains_key(field_name).then(|| field_name.clone()))
+        .find_map(|(field_name, _)| {
+            info.fields
+                .contains_key(field_name)
+                .then(|| field_name.clone())
+        })
         .or_else(|| info.field_order.first().cloned());
 
     let Some(active_name) = active_name else {
@@ -2067,10 +2166,7 @@ fn first_unsupported_memory_context(
                     if let Some(context) =
                         first_unsupported_memory_context_in_ast_function(method, caps)
                     {
-                        return Some(format!(
-                            "Impl method '{}': {}",
-                            method.name, context
-                        ));
+                        return Some(format!("Impl method '{}': {}", method.name, context));
                     }
                 }
             }
@@ -2161,21 +2257,28 @@ fn first_memory_block_context(block: &Block, owner: String) -> Option<String> {
 
 fn first_memory_stmt_context(stmt: &Stmt, owner: &str) -> Option<String> {
     match stmt {
-        Stmt::Expr(expr) => first_memory_expr_context(expr, format!("{owner} contains a raw memory operation")),
-        Stmt::Let { value, .. } => value
-            .as_ref()
-            .and_then(|value| first_memory_expr_context(value, format!("{owner} contains a raw memory operation"))),
-        Stmt::Return(Some(expr), _) => {
-            first_memory_expr_context(expr, format!("{owner} return contains a raw memory operation"))
+        Stmt::Expr(expr) => {
+            first_memory_expr_context(expr, format!("{owner} contains a raw memory operation"))
         }
-        Stmt::For { iter, body, .. } => {
-            first_memory_expr_context(iter, format!("{owner} loop iterator contains a raw memory operation"))
-                .or_else(|| first_memory_block_context(body, owner.to_string()))
-        }
-        Stmt::While { condition, body, .. } => {
-            first_memory_expr_context(condition, format!("{owner} loop condition contains a raw memory operation"))
-                .or_else(|| first_memory_block_context(body, owner.to_string()))
-        }
+        Stmt::Let { value, .. } => value.as_ref().and_then(|value| {
+            first_memory_expr_context(value, format!("{owner} contains a raw memory operation"))
+        }),
+        Stmt::Return(Some(expr), _) => first_memory_expr_context(
+            expr,
+            format!("{owner} return contains a raw memory operation"),
+        ),
+        Stmt::For { iter, body, .. } => first_memory_expr_context(
+            iter,
+            format!("{owner} loop iterator contains a raw memory operation"),
+        )
+        .or_else(|| first_memory_block_context(body, owner.to_string())),
+        Stmt::While {
+            condition, body, ..
+        } => first_memory_expr_context(
+            condition,
+            format!("{owner} loop condition contains a raw memory operation"),
+        )
+        .or_else(|| first_memory_block_context(body, owner.to_string())),
         Stmt::Loop { body, .. } => first_memory_block_context(body, owner.to_string()),
         Stmt::Item(_) | Stmt::Return(None, _) | Stmt::Break(_, _) | Stmt::Continue(_) => None,
     }
@@ -2197,9 +2300,8 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::AggregateInit { fields, .. } => fields
             .iter()
             .find_map(|(_, value)| first_memory_expr_context(value, base.clone())),
-        Expr::Binary { left, right, .. } => {
-            first_memory_expr_context(left, base.clone()).or_else(|| first_memory_expr_context(right, base))
-        }
+        Expr::Binary { left, right, .. } => first_memory_expr_context(left, base.clone())
+            .or_else(|| first_memory_expr_context(right, base)),
         Expr::Unary { operand, .. }
         | Expr::Ref { value: operand, .. }
         | Expr::Deref(operand, _)
@@ -2210,21 +2312,21 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::Cast { value, .. } => first_memory_expr_context(value, base),
         Expr::Call { callee, args, .. } => {
             first_memory_expr_context(callee, base.clone()).or_else(|| {
-                args.iter().find_map(|arg| first_memory_expr_context(&arg.value, base.clone()))
+                args.iter()
+                    .find_map(|arg| first_memory_expr_context(&arg.value, base.clone()))
             })
         }
         Expr::MethodCall { receiver, args, .. } => {
             first_memory_expr_context(receiver, base.clone()).or_else(|| {
-                args.iter().find_map(|arg| first_memory_expr_context(&arg.value, base.clone()))
+                args.iter()
+                    .find_map(|arg| first_memory_expr_context(&arg.value, base.clone()))
             })
         }
         Expr::Field { object, .. } => first_memory_expr_context(object, base),
-        Expr::Index { object, index, .. } => {
-            first_memory_expr_context(object, base.clone()).or_else(|| first_memory_expr_context(index, base))
-        }
-        Expr::Assign { target, value, .. } => {
-            first_memory_expr_context(target, base.clone()).or_else(|| first_memory_expr_context(value, base))
-        }
+        Expr::Index { object, index, .. } => first_memory_expr_context(object, base.clone())
+            .or_else(|| first_memory_expr_context(index, base)),
+        Expr::Assign { target, value, .. } => first_memory_expr_context(target, base.clone())
+            .or_else(|| first_memory_expr_context(value, base)),
         Expr::Struct { fields, .. } => fields
             .iter()
             .find_map(|(_, value)| first_memory_expr_context(value, base.clone())),
@@ -2243,7 +2345,10 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::Range { start, end, .. } => start
             .as_deref()
             .and_then(|expr| first_memory_expr_context(expr, base.clone()))
-            .or_else(|| end.as_deref().and_then(|expr| first_memory_expr_context(expr, base))),
+            .or_else(|| {
+                end.as_deref()
+                    .and_then(|expr| first_memory_expr_context(expr, base))
+            }),
         Expr::If {
             condition,
             then_branch,
@@ -2252,22 +2357,32 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         } => first_memory_expr_context(condition, base.clone())
             .or_else(|| first_memory_block_context(then_branch, base.clone()))
             .or_else(|| match else_branch.as_deref() {
-                Some(crate::ast::ElseBranch::Else(block)) => first_memory_block_context(block, base),
+                Some(crate::ast::ElseBranch::Else(block)) => {
+                    first_memory_block_context(block, base)
+                }
                 Some(crate::ast::ElseBranch::ElseIf(cond, block, next)) => {
                     first_memory_expr_context(cond, base.clone())
                         .or_else(|| first_memory_block_context(block, base.clone()))
-                        .or_else(|| next.as_deref().and_then(|else_branch| match else_branch {
-                            crate::ast::ElseBranch::Else(block) => first_memory_block_context(block, base.clone()),
-                            crate::ast::ElseBranch::ElseIf(cond, block, _) => {
-                                first_memory_expr_context(cond, base.clone())
-                                    .or_else(|| first_memory_block_context(block, base.clone()))
-                            }
-                        }))
+                        .or_else(|| {
+                            next.as_deref().and_then(|else_branch| match else_branch {
+                                crate::ast::ElseBranch::Else(block) => {
+                                    first_memory_block_context(block, base.clone())
+                                }
+                                crate::ast::ElseBranch::ElseIf(cond, block, _) => {
+                                    first_memory_expr_context(cond, base.clone())
+                                        .or_else(|| first_memory_block_context(block, base.clone()))
+                                }
+                            })
+                        })
                 }
                 None => None,
             }),
-        Expr::Match { scrutinee, arms, .. } => first_memory_expr_context(scrutinee, base.clone())
-            .or_else(|| arms.iter().find_map(|arm| first_memory_expr_context(&arm.body, base.clone()))),
+        Expr::Match {
+            scrutinee, arms, ..
+        } => first_memory_expr_context(scrutinee, base.clone()).or_else(|| {
+            arms.iter()
+                .find_map(|arm| first_memory_expr_context(&arm.body, base.clone()))
+        }),
         Expr::Lambda { body, .. } => first_memory_expr_context(body, base),
         Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => init
             .iter()
@@ -2313,11 +2428,18 @@ fn format_type(ty: &Type) -> String {
                 format!(
                     "{}<{}>",
                     name,
-                    generics.iter().map(format_type).collect::<Vec<_>>().join(", ")
+                    generics
+                        .iter()
+                        .map(format_type)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             }
         }
-        Type::Tuple(items, _) => format!("({})", items.iter().map(format_type).collect::<Vec<_>>().join(", ")),
+        Type::Tuple(items, _) => format!(
+            "({})",
+            items.iter().map(format_type).collect::<Vec<_>>().join(", ")
+        ),
         Type::Array(inner, size, _) => format!("[{}; {}]", format_type(inner), size),
         Type::Slice(inner, _) => format!("[{}]", format_type(inner)),
         Type::Ref { mutable, inner, .. } => {
@@ -2334,9 +2456,17 @@ fn format_type(ty: &Type) -> String {
                 format!("ptr<{}>", format_type(inner))
             }
         }
-        Type::Function { params, return_type, .. } => format!(
+        Type::Function {
+            params,
+            return_type,
+            ..
+        } => format!(
             "fn({}) -> {}",
-            params.iter().map(format_type).collect::<Vec<_>>().join(", "),
+            params
+                .iter()
+                .map(format_type)
+                .collect::<Vec<_>>()
+                .join(", "),
             format_type(return_type)
         ),
         Type::Option(inner, _) => format!("{}?", format_type(inner)),
@@ -2344,14 +2474,22 @@ fn format_type(ty: &Type) -> String {
         Type::Infer(_) => "_".to_string(),
         Type::Never(_) => "!".to_string(),
         Type::Unit(_) => "()".to_string(),
-        Type::Impl { trait_name, generics, .. } => {
+        Type::Impl {
+            trait_name,
+            generics,
+            ..
+        } => {
             if generics.is_empty() {
                 format!("impl {}", trait_name)
             } else {
                 format!(
                     "impl {}<{}>",
                     trait_name,
-                    generics.iter().map(format_type).collect::<Vec<_>>().join(", ")
+                    generics
+                        .iter()
+                        .map(format_type)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             }
         }

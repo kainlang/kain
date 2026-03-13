@@ -1,7 +1,7 @@
-use kain_core::lexer::Lexer;
-use kain_core::parser::Parser;
 use kain_core::ast::Item;
 use kain_core::diagnostics::SpanMapper;
+use kain_core::lexer::Lexer;
+use kain_core::parser::Parser;
 
 #[test]
 fn test_material_graph_parsing() {
@@ -19,23 +19,24 @@ material HologramMaterial:
 "#;
 
     let tokens = Lexer::new(source).tokenize().expect("Lexer should succeed");
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Parser should succeed");
-    
+
     assert_eq!(program.items.len(), 1, "Should have 1 item");
-    
+
     match &program.items[0] {
         Item::MaterialGraph(mat) => {
             assert_eq!(mat.name, "HologramMaterial");
             assert_eq!(mat.attributes.len(), 1);
             assert_eq!(mat.attributes[0].name, "material_graph");
-            
+
             assert_eq!(mat.inputs.len(), 2);
             assert_eq!(mat.inputs[0].name, "glow_intensity");
             assert_eq!(mat.inputs[1].name, "glow_color");
-            
+
             assert_eq!(mat.body.len(), 2);
-            
+
             assert_eq!(mat.outputs.len(), 2);
             assert_eq!(mat.outputs[0].name, "base_color");
             assert_eq!(mat.outputs[1].name, "emissive");
@@ -54,11 +55,12 @@ material SimpleMaterial:
 "#;
 
     let tokens = Lexer::new(source).tokenize().expect("Lexer should succeed");
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().expect("Parser should succeed");
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     match &program.items[0] {
         Item::MaterialGraph(mat) => {
             assert_eq!(mat.name, "SimpleMaterial");

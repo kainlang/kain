@@ -3,14 +3,13 @@
 //! Generic C++ output for non-engine targets. Use `-t ue5` for Unreal Engine.
 //! Generated code uses C++17 features: structured bindings, optional, variant.
 
-use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
-use kain_core::types::{TypedProgram, TypedItem};
-use kain_core::error::KainResult;
 use kain_core::ast::{
-    Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
-    VariantFields, Impl, Param, ElseBranch, EnumVariantFields,
+    BinaryOp, Block, ElseBranch, Enum, EnumVariantFields, Expr, Function, Impl, Param, Pattern,
+    Stmt, Struct, Type, UnaryOp, VariantFields,
 };
-
+use kain_core::error::KainResult;
+use kain_core::types::{TypedItem, TypedProgram};
+use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 
 /// Generate C++ source code from a typed program
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
@@ -102,7 +101,11 @@ impl CppGen {
                 self.write_line(&format!("struct {};", st.ast.name));
             }
         }
-        if program.items.iter().any(|i| matches!(i, TypedItem::Struct(_))) {
+        if program
+            .items
+            .iter()
+            .any(|i| matches!(i, TypedItem::Struct(_)))
+        {
             self.write_blank();
         }
 
@@ -128,7 +131,9 @@ impl CppGen {
         self.push_indent();
         self.write_line("TValue result = fallback;");
         self.write_line("const auto copy_span = std::min<long long>(std::min<long long>(byte_size, union_size), std::min<long long>(sizeof(TObject), sizeof(TValue)));");
-        self.write_line("if (copy_span > 0) { std::memcpy(&result, &value, static_cast<size_t>(copy_span)); }");
+        self.write_line(
+            "if (copy_span > 0) { std::memcpy(&result, &value, static_cast<size_t>(copy_span)); }",
+        );
         self.write_line("return result;");
         self.pop_indent();
         self.write_line("}");
@@ -136,7 +141,9 @@ impl CppGen {
         self.push_indent();
         self.write_line("if (union_size > 0) { std::memset(&value, 0, static_cast<size_t>(std::min<long long>(union_size, sizeof(TObject)))); }");
         self.write_line("const auto copy_span = std::min<long long>(std::min<long long>(byte_size, union_size), std::min<long long>(sizeof(TObject), sizeof(TValue)));");
-        self.write_line("if (copy_span > 0) { std::memcpy(&value, &next, static_cast<size_t>(copy_span)); }");
+        self.write_line(
+            "if (copy_span > 0) { std::memcpy(&value, &next, static_cast<size_t>(copy_span)); }",
+        );
         self.write_line("return next;");
         self.pop_indent();
         self.write_line("}");
@@ -163,12 +170,16 @@ impl CppGen {
         self.write_line("return (1ULL << width) - 1ULL;");
         self.pop_indent();
         self.write_line("}");
-        self.write_line("inline long long __kain_sign_extend(unsigned long long value, long long width) {");
+        self.write_line(
+            "inline long long __kain_sign_extend(unsigned long long value, long long width) {",
+        );
         self.push_indent();
         self.write_line("if (width <= 0) { return 0LL; }");
         self.write_line("if (width >= 64) { return static_cast<long long>(value); }");
         self.write_line("const auto sign_bit = 1ULL << (width - 1);");
-        self.write_line("if ((value & sign_bit) == 0ULL) { return static_cast<long long>(value); }");
+        self.write_line(
+            "if ((value & sign_bit) == 0ULL) { return static_cast<long long>(value); }",
+        );
         self.write_line("const auto full_mask = ~__kain_bitfield_mask(width);");
         self.write_line("return static_cast<long long>(value | full_mask);");
         self.pop_indent();
@@ -227,7 +238,6 @@ impl CppGen {
         self.write_line("}");
     }
 
-
     fn gen_params(&self, params: &[Param]) -> String {
         let parts: Vec<String> = params
             .iter()
@@ -257,7 +267,10 @@ impl CppGen {
 
     fn gen_enum(&mut self, enum_def: &Enum) {
         // Check if this is a simple C-style enum (all Unit variants)
-        let is_simple = enum_def.variants.iter().all(|v| matches!(v.fields, VariantFields::Unit));
+        let is_simple = enum_def
+            .variants
+            .iter()
+            .all(|v| matches!(v.fields, VariantFields::Unit));
 
         if is_simple {
             self.write_line(&format!("enum class {} {{", enum_def.name));
@@ -270,12 +283,15 @@ impl CppGen {
         } else {
             // Tagged union via std::variant
             self.write_line(&format!("// Tagged union: {}", enum_def.name));
-            
+
             // Generate variant structs
             for variant in &enum_def.variants {
                 match &variant.fields {
                     VariantFields::Unit => {
-                        self.write_line(&format!("struct {}_{} {{}};", enum_def.name, variant.name));
+                        self.write_line(&format!(
+                            "struct {}_{} {{}};",
+                            enum_def.name, variant.name
+                        ));
                     }
                     VariantFields::Tuple(types) => {
                         self.write_line(&format!("struct {}_{} {{", enum_def.name, variant.name));
@@ -299,12 +315,16 @@ impl CppGen {
             }
 
             // Generate the variant typedef
-            let variant_types: Vec<String> = enum_def.variants
+            let variant_types: Vec<String> = enum_def
+                .variants
                 .iter()
                 .map(|v| format!("{}_{}", enum_def.name, v.name))
                 .collect();
-            self.write_line(&format!("using {} = std::variant<{}>;", 
-                enum_def.name, variant_types.join(", ")));
+            self.write_line(&format!(
+                "using {} = std::variant<{}>;",
+                enum_def.name,
+                variant_types.join(", ")
+            ));
         }
     }
 
@@ -312,7 +332,7 @@ impl CppGen {
         // C++ doesn't have impl blocks - generate free functions or methods
         // For now, generate as member functions via class extension pattern
         let target = self.map_type(&impl_def.target_type);
-        
+
         self.write_line(&format!("// Methods for {}", target));
         for method in &impl_def.methods {
             // Add self parameter handling here if needed
@@ -337,7 +357,10 @@ impl CppGen {
                 // Handle implicit return for last statement
                 if let Stmt::Expr(expr) = stmt {
                     // Skip explicit returns and control flow
-                    if !matches!(expr, Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)) {
+                    if !matches!(
+                        expr,
+                        Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)
+                    ) {
                         let expr_str = self.gen_expr(expr);
                         self.write_line(&format!("return {};", expr_str));
                         continue;
@@ -348,20 +371,32 @@ impl CppGen {
         }
     }
 
-
     fn gen_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { pattern, ty, value, .. } => {
+            Stmt::Let {
+                pattern, ty, value, ..
+            } => {
                 if let Pattern::Binding { name, mutable, .. } = pattern {
-                    let ty_str = ty.as_ref()
+                    let ty_str = ty
+                        .as_ref()
                         .map(|t| self.map_type(t))
                         .unwrap_or_else(|| "auto".to_string());
-                    
+
                     if let Some(val) = value {
                         if *mutable {
-                            self.write_line(&format!("{} {} = {};", ty_str, name, self.gen_expr(val)));
+                            self.write_line(&format!(
+                                "{} {} = {};",
+                                ty_str,
+                                name,
+                                self.gen_expr(val)
+                            ));
                         } else {
-                            self.write_line(&format!("const {} {} = {};", ty_str, name, self.gen_expr(val)));
+                            self.write_line(&format!(
+                                "const {} {} = {};",
+                                ty_str,
+                                name,
+                                self.gen_expr(val)
+                            ));
                         }
                     } else {
                         self.write_line(&format!("{} {};", ty_str, name));
@@ -385,7 +420,12 @@ impl CppGen {
                 self.write_line("continue;");
             }
 
-            Stmt::For { binding, iter, body, .. } => {
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 if let Pattern::Binding { name, .. } = binding {
                     self.write_line(&format!("for (auto {} : {}) {{", name, self.gen_expr(iter)));
                     self.push_indent();
@@ -395,7 +435,9 @@ impl CppGen {
                 }
             }
 
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 self.write_line(&format!("while ({}) {{", self.gen_expr(condition)));
                 self.push_indent();
                 self.gen_block(body);
@@ -412,10 +454,20 @@ impl CppGen {
             }
 
             Stmt::Expr(expr) => {
-                if let Expr::If { condition, then_branch, else_branch, .. } = expr {
+                if let Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } = expr
+                {
                     self.gen_if_stmt(condition, then_branch, else_branch);
                 } else if let Expr::Assign { target, value, .. } = expr {
-                    self.write_line(&format!("{} = {};", self.gen_expr(target), self.gen_expr(value)));
+                    self.write_line(&format!(
+                        "{} = {};",
+                        self.gen_expr(target),
+                        self.gen_expr(value)
+                    ));
                 } else {
                     let expr_str = self.gen_expr(expr);
                     if !expr_str.is_empty() {
@@ -430,12 +482,17 @@ impl CppGen {
         }
     }
 
-    fn gen_if_stmt(&mut self, condition: &Expr, then_branch: &Block, else_branch: &Option<Box<ElseBranch>>) {
+    fn gen_if_stmt(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Block,
+        else_branch: &Option<Box<ElseBranch>>,
+    ) {
         self.write_line(&format!("if ({}) {{", self.gen_expr(condition)));
         self.push_indent();
         self.gen_block(then_branch);
         self.pop_indent();
-        
+
         if let Some(else_br) = else_branch {
             match else_br.as_ref() {
                 ElseBranch::Else(block) => {
@@ -490,11 +547,19 @@ impl CppGen {
             Expr::Int(n, _) => n.to_string(),
             Expr::Float(f, _) => format!("{:.6}", f),
             Expr::String(s, _) => format!("std::string(\"{}\")", self.escape_string(s)),
-            Expr::Bool(b, _) => if *b { "true".to_string() } else { "false".to_string() },
+            Expr::Bool(b, _) => {
+                if *b {
+                    "true".to_string()
+                } else {
+                    "false".to_string()
+                }
+            }
             Expr::None(_) => "std::nullopt".to_string(),
             Expr::Ident(name, _) => name.clone(),
 
-            Expr::Binary { left, op, right, .. } => {
+            Expr::Binary {
+                left, op, right, ..
+            } => {
                 let l = self.gen_expr(left);
                 let r = self.gen_expr(right);
                 let cpp_op = self.map_binop(op);
@@ -512,9 +577,13 @@ impl CppGen {
 
                 // Handle KAIN builtins
                 if fn_name == "println" || fn_name == "print" {
-                    let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
+                    let arg_strs: Vec<String> =
+                        args.iter().map(|a| self.gen_expr(&a.value)).collect();
                     if fn_name == "println" {
-                        return format!("std::cout << {} << std::endl", arg_strs.join(" << \" \" << "));
+                        return format!(
+                            "std::cout << {} << std::endl",
+                            arg_strs.join(" << \" \" << ")
+                        );
                     } else {
                         return format!("std::cout << {}", arg_strs.join(" << \" \" << "));
                     }
@@ -524,7 +593,12 @@ impl CppGen {
                 format!("{}({})", fn_name, arg_strs.join(", "))
             }
 
-            Expr::MethodCall { receiver, method, args, .. } => {
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                ..
+            } => {
                 let recv = self.gen_expr(receiver);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!("{}.{}({})", recv, method, arg_strs.join(", "))
@@ -549,35 +623,43 @@ impl CppGen {
             }
 
             Expr::Struct { name, fields, .. } => {
-                let field_strs: Vec<String> = fields
-                    .iter()
-                    .map(|(_, fval)| self.gen_expr(fval))
-                    .collect();
+                let field_strs: Vec<String> =
+                    fields.iter().map(|(_, fval)| self.gen_expr(fval)).collect();
                 format!("{}{{{}}}", name, field_strs.join(", "))
             }
 
-            Expr::EnumVariant { enum_name, variant, fields, .. } => {
-                match fields {
-                    EnumVariantFields::Unit => format!("{}::{}", enum_name, variant),
-                    EnumVariantFields::Tuple(args) => {
-                        let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(a)).collect();
-                        format!("{}_{}{{ {} }}", enum_name, variant, arg_strs.join(", "))
-                    }
-                    EnumVariantFields::Struct(fields) => {
-                        let field_strs: Vec<String> = fields
-                            .iter()
-                            .map(|(n, v)| format!(".{} = {}", n, self.gen_expr(v)))
-                            .collect();
-                        format!("{}_{}{{ {} }}", enum_name, variant, field_strs.join(", "))
-                    }
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => match fields {
+                EnumVariantFields::Unit => format!("{}::{}", enum_name, variant),
+                EnumVariantFields::Tuple(args) => {
+                    let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(a)).collect();
+                    format!("{}_{}{{ {} }}", enum_name, variant, arg_strs.join(", "))
                 }
-            }
+                EnumVariantFields::Struct(fields) => {
+                    let field_strs: Vec<String> = fields
+                        .iter()
+                        .map(|(n, v)| format!(".{} = {}", n, self.gen_expr(v)))
+                        .collect();
+                    format!("{}_{}{{ {} }}", enum_name, variant, field_strs.join(", "))
+                }
+            },
 
-            Expr::If { condition, then_branch, else_branch, .. } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 // Ternary for simple cases
                 if then_branch.stmts.len() == 1 && else_branch.is_some() {
                     if let Stmt::Expr(then_expr) = &then_branch.stmts[0] {
-                        if let Some(ElseBranch::Else(else_block)) = else_branch.as_ref().map(|b| b.as_ref()) {
+                        if let Some(ElseBranch::Else(else_block)) =
+                            else_branch.as_ref().map(|b| b.as_ref())
+                        {
                             if else_block.stmts.len() == 1 {
                                 if let Stmt::Expr(else_expr) = &else_block.stmts[0] {
                                     let cond = self.gen_expr(condition);
@@ -592,14 +674,17 @@ impl CppGen {
                 "/* complex if expr */".to_string()
             }
 
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 // C++ doesn't have pattern matching - use std::visit for variants
                 let scrut = self.gen_expr(scrutinee);
                 format!("/* match {} */", scrut)
             }
 
             Expr::Lambda { params, body, .. } => {
-                let param_strs: Vec<String> = params.iter().map(|p| format!("auto {}", p.name)).collect();
+                let param_strs: Vec<String> =
+                    params.iter().map(|p| format!("auto {}", p.name)).collect();
                 format!("[&]({}){{{}}}", param_strs.join(", "), self.gen_expr(body))
             }
 
@@ -616,14 +701,28 @@ impl CppGen {
             }
 
             Expr::Cast { value, target, .. } => {
-                format!("static_cast<{}>({})", self.map_type(target), self.gen_expr(value))
+                format!(
+                    "static_cast<{}>({})",
+                    self.map_type(target),
+                    self.gen_expr(value)
+                )
             }
 
-            Expr::Range { start, end, inclusive, .. } => {
+            Expr::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
                 // C++ doesn't have native ranges - this would need a range library
                 let s = start.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
                 let e = end.as_ref().map(|e| self.gen_expr(e)).unwrap_or_default();
-                format!("/* range {}..{}{} */", s, if *inclusive { "=" } else { "" }, e)
+                format!(
+                    "/* range {}..{}{} */",
+                    s,
+                    if *inclusive { "=" } else { "" },
+                    e
+                )
             }
 
             Expr::Block(block, _) => {
@@ -704,20 +803,36 @@ impl CppGen {
             Type::Ptr { inner, .. } => {
                 format!("{}*", self.map_type(inner))
             }
-            Type::Function { params, return_type, .. } => {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
                 let param_strs: Vec<String> = params.iter().map(|p| self.map_type(p)).collect();
-                format!("std::function<{}({})>", self.map_type(return_type), param_strs.join(", "))
+                format!(
+                    "std::function<{}({})>",
+                    self.map_type(return_type),
+                    param_strs.join(", ")
+                )
             }
             Type::Option(inner, _) => {
                 format!("std::optional<{}>", self.map_type(inner))
             }
             Type::Result(ok, err, _) => {
-                format!("std::variant<{}, {}>", self.map_type(ok), self.map_type(err))
+                format!(
+                    "std::variant<{}, {}>",
+                    self.map_type(ok),
+                    self.map_type(err)
+                )
             }
             Type::Infer(_) => "auto".to_string(),
             Type::Never(_) => "[[noreturn]] void".to_string(),
             Type::Unit(_) => "void".to_string(),
-            Type::Impl { trait_name, generics, .. } => {
+            Type::Impl {
+                trait_name,
+                generics,
+                ..
+            } => {
                 if generics.is_empty() {
                     format!("/* impl {} */", trait_name)
                 } else {
@@ -789,7 +904,6 @@ impl CppGen {
 mod tests {
     use super::*;
     use kain_core::span::Span;
-
 
     #[test]
     fn test_type_mapping() {

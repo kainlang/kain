@@ -10,8 +10,8 @@ use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::types;
 use kain_core::types::{
-    IntSize, ResolvedType, TypedActor, TypedComponent, TypedFunction, TypedImpl, TypedItem, TypedProgram,
-    TypedStruct,
+    IntSize, ResolvedType, TypedActor, TypedComponent, TypedFunction, TypedImpl, TypedItem,
+    TypedProgram, TypedStruct,
 };
 use kain_core::Span;
 use kain_sys_codegen::generate_llvm;
@@ -149,10 +149,7 @@ fn llvm_generates_struct_array_and_fstring_paths() {
             visibility: Visibility::Public,
             span: span(),
         },
-        field_types: HashMap::from([(
-            "value".to_string(),
-            ResolvedType::Int(IntSize::I64),
-        )]),
+        field_types: HashMap::from([("value".to_string(), ResolvedType::Int(IntSize::I64))]),
     });
 
     let make_view = TypedItem::Function(TypedFunction {
@@ -179,7 +176,10 @@ fn llvm_generates_struct_array_and_fstring_paths() {
                         ty: None,
                         value: Some(Expr::Struct {
                             name: "ViewModel".to_string(),
-                            fields: vec![("value".to_string(), Expr::Ident("n".to_string(), span()))],
+                            fields: vec![(
+                                "value".to_string(),
+                                Expr::Ident("n".to_string(), span()),
+                            )],
                             span: span(),
                         }),
                         span: span(),
@@ -192,7 +192,11 @@ fn llvm_generates_struct_array_and_fstring_paths() {
                         },
                         ty: None,
                         value: Some(Expr::Array(
-                            vec![Expr::Int(1, span()), Expr::Int(2, span()), Expr::Int(3, span())],
+                            vec![
+                                Expr::Int(1, span()),
+                                Expr::Int(2, span()),
+                                Expr::Int(3, span()),
+                            ],
                             span(),
                         )),
                         span: span(),
@@ -283,10 +287,7 @@ fn llvm_generates_impl_methods_and_method_calls() {
             visibility: Visibility::Public,
             span: span(),
         },
-        field_types: HashMap::from([(
-            "value".to_string(),
-            ResolvedType::Int(IntSize::I64),
-        )]),
+        field_types: HashMap::from([("value".to_string(), ResolvedType::Int(IntSize::I64))]),
     });
 
     let typed_impl = TypedItem::Impl(TypedImpl {
@@ -372,7 +373,10 @@ fn llvm_generates_impl_methods_and_method_calls() {
             span: span(),
         },
         resolved_type: ResolvedType::Function {
-            params: vec![ResolvedType::Struct("ViewModel".to_string(), HashMap::new())],
+            params: vec![ResolvedType::Struct(
+                "ViewModel".to_string(),
+                HashMap::new(),
+            )],
             ret: Box::new(ResolvedType::Int(IntSize::I64)),
             effects: EffectSet::default(),
         },
@@ -455,10 +459,7 @@ fn llvm_generates_actor_spawn_and_send_message_paths() {
             attributes: vec![],
             span: span(),
         },
-        state_types: HashMap::from([(
-            "count".to_string(),
-            ResolvedType::Int(IntSize::I64),
-        )]),
+        state_types: HashMap::from([("count".to_string(), ResolvedType::Int(IntSize::I64))]),
     });
 
     let drive = TypedItem::Function(TypedFunction {
@@ -514,7 +515,9 @@ fn llvm_generates_actor_spawn_and_send_message_paths() {
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("define void @Printer_run(i8* %arg)"));
-    assert!(llvm.contains("call void @KAIN_spawn(i8* bitcast (void (i8*)* @default_actor_run to i8*), i8*"));
+    assert!(llvm.contains(
+        "call void @KAIN_spawn(i8* bitcast (void (i8*)* @default_actor_run to i8*), i8*"
+    ));
     assert!(llvm.contains("call void @mq_push(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));
 }
@@ -586,7 +589,10 @@ fn llvm_generates_float_arithmetic_and_comparisons() {
             span: span(),
         },
         resolved_type: ResolvedType::Function {
-            params: vec![ResolvedType::Float(kain_core::types::FloatSize::F64), ResolvedType::Float(kain_core::types::FloatSize::F64)],
+            params: vec![
+                ResolvedType::Float(kain_core::types::FloatSize::F64),
+                ResolvedType::Float(kain_core::types::FloatSize::F64),
+            ],
             ret: Box::new(ResolvedType::Float(kain_core::types::FloatSize::F64)),
             effects: EffectSet::default(),
         },
@@ -793,10 +799,13 @@ fn llvm_generates_match_patterns_for_ranges_or_and_literals() {
         effects: EffectSet::default(),
     });
 
-    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
-        items: vec![classify_int, classify_flag, classify_name],
-    }).expect("llvm generation should succeed"))
-        .expect("llvm output should be utf8");
+    let llvm = String::from_utf8(
+        generate_llvm(&TypedProgram {
+            items: vec![classify_int, classify_flag, classify_name],
+        })
+        .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
 
     assert!(llvm.contains("icmp sge i64"));
     assert!(llvm.contains("icmp sle i64"));
@@ -960,10 +969,13 @@ fn llvm_generates_struct_destructuring_patterns() {
         effects: EffectSet::default(),
     });
 
-    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
-        items: vec![point, sum_point],
-    }).expect("llvm generation should succeed"))
-        .expect("llvm output should be utf8");
+    let llvm = String::from_utf8(
+        generate_llvm(&TypedProgram {
+            items: vec![point, sum_point],
+        })
+        .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%Point = type { i64, i64 }"));
     assert!(llvm.contains("getelementptr inbounds %Point, %Point*"));
@@ -1019,10 +1031,13 @@ fn llvm_generates_raw_address_indexing_reads_and_writes() {
         effects: EffectSet::default(),
     });
 
-    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
-        items: vec![mutate_ptr],
-    }).expect("llvm generation should succeed"))
-        .expect("llvm output should be utf8");
+    let llvm = String::from_utf8(
+        generate_llvm(&TypedProgram {
+            items: vec![mutate_ptr],
+        })
+        .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
 
     assert!(llvm.contains("define i64 @mutate_ptr(i64 %arg0)"));
     assert!(llvm.contains("inttoptr i64"));
@@ -1070,10 +1085,13 @@ fn llvm_lowers_tuple_aggregate_init_without_dummy_fallback() {
         effects: EffectSet::default(),
     });
 
-    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
-        items: vec![build_pair],
-    }).expect("llvm generation should succeed"))
-        .expect("llvm output should be utf8");
+    let llvm = String::from_utf8(
+        generate_llvm(&TypedProgram {
+            items: vec![build_pair],
+        })
+        .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%__kain_tuple_i64_i64 = type { i64, i64 }"));
     assert!(llvm.contains("define %__kain_tuple_i64_i64* @build_pair()"));
@@ -1144,10 +1162,7 @@ fn llvm_lowers_typed_none_to_null_for_struct_pointer_flows() {
             visibility: Visibility::Public,
             span: span(),
         },
-        field_types: HashMap::from([(
-            "value".to_string(),
-            ResolvedType::Int(IntSize::I64),
-        )]),
+        field_types: HashMap::from([("value".to_string(), ResolvedType::Int(IntSize::I64))]),
     });
 
     let bind_none = TypedItem::Function(TypedFunction {
@@ -1216,10 +1231,13 @@ fn llvm_lowers_typed_none_to_null_for_struct_pointer_flows() {
         effects: EffectSet::default(),
     });
 
-    let llvm = String::from_utf8(generate_llvm(&TypedProgram {
-        items: vec![node, bind_none, return_none],
-    }).expect("llvm generation should succeed"))
-        .expect("llvm output should be utf8");
+    let llvm = String::from_utf8(
+        generate_llvm(&TypedProgram {
+            items: vec![node, bind_none, return_none],
+        })
+        .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%Node = type { i64 }"));
     assert!(llvm.contains("%node.addr_0 = alloca %Node*"));

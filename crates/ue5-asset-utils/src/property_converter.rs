@@ -6,28 +6,24 @@
 
 use std::io::Cursor;
 
+use ordered_float::OrderedFloat;
 use unreal_asset::Asset;
+use unreal_asset_base::types::vector::{Color, Vector};
 use unreal_asset_properties::{
-    int_property::{
-        BoolProperty, DoubleProperty, FloatProperty, Int64Property, IntProperty,
-    },
-    object_property::{ObjectProperty, SoftObjectPath, TopLevelAssetPath},
-    str_property::{NameProperty, StrProperty},
-    struct_property::StructProperty,
-    enum_property::EnumProperty,
     array_property::ArrayProperty,
     color_property::LinearColorProperty,
-    soft_path_property::{
-        SoftObjectPathProperty, SoftObjectPathPropertyValue,
-    },
-    vector_property::{VectorProperty, RotatorProperty},
+    enum_property::EnumProperty,
+    int_property::{BoolProperty, DoubleProperty, FloatProperty, Int64Property, IntProperty},
+    object_property::{ObjectProperty, SoftObjectPath, TopLevelAssetPath},
+    soft_path_property::{SoftObjectPathProperty, SoftObjectPathPropertyValue},
+    str_property::{NameProperty, StrProperty},
+    struct_property::StructProperty,
+    vector_property::{RotatorProperty, VectorProperty},
     Property,
 };
-use unreal_asset_base::types::vector::{Color, Vector};
-use ordered_float::OrderedFloat;
 
-use crate::property_types::{PropertyDef, PropertyValue};
 use crate::import_builder::ImportBuilder;
+use crate::property_types::{PropertyDef, PropertyValue};
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -310,7 +306,10 @@ pub fn convert_property_def(
             )
         }
 
-        PropertyValue::Struct { struct_type, fields } => {
+        PropertyValue::Struct {
+            struct_type,
+            fields,
+        } => {
             let st = asset.add_fname(struct_type);
             let inner = convert_property_defs(asset, fields);
             Some(

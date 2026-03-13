@@ -15,9 +15,7 @@ struct LineTraceTarget:
         .expect("Failed to tokenize target actor source");
     let span_mapper = SpanMapper::new(source);
     let mut parser = Parser::new(&tokens, &span_mapper, "<test_target_actor_minimal>");
-    let program = parser
-        .parse()
-        .expect("Failed to parse target actor source");
+    let program = parser.parse().expect("Failed to parse target actor source");
 
     assert_eq!(program.items.len(), 1);
     match &program.items[0] {
@@ -53,7 +51,11 @@ struct SphereTraceTarget:
         .tokenize()
         .expect("Failed to tokenize filtered target actor source");
     let span_mapper = SpanMapper::new(source);
-    let mut parser = Parser::new(&tokens, &span_mapper, "<test_target_actor_with_filter_arrays>");
+    let mut parser = Parser::new(
+        &tokens,
+        &span_mapper,
+        "<test_target_actor_with_filter_arrays>",
+    );
     let program = parser
         .parse()
         .expect("Failed to parse filtered target actor source");

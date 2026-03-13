@@ -20,7 +20,10 @@ fn parser_accepts_inline_mod_items() {
         ast::Item::Mod(module) => {
             assert_eq!(module.name, "math");
             assert!(matches!(module.visibility, ast::Visibility::Public));
-            let inline = module.inline.as_ref().expect("module should have inline items");
+            let inline = module
+                .inline
+                .as_ref()
+                .expect("module should have inline items");
             assert_eq!(inline.len(), 1);
             assert!(matches!(inline[0], ast::Item::Function(_)));
         }

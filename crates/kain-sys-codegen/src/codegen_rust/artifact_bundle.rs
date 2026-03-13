@@ -1,5 +1,7 @@
-use crate::codegen_rust::{collect_gpu_artifacts, collect_gpu_artifacts_json, generate, generate_gpu_host_wrappers};
 use crate::codegen_rust::gpu_artifacts::RustGpuArtifactOutput;
+use crate::codegen_rust::{
+    collect_gpu_artifacts, collect_gpu_artifacts_json, generate, generate_gpu_host_wrappers,
+};
 use kain_core::error::KainResult;
 use kain_core::types::TypedProgram;
 use serde::{Deserialize, Serialize};
@@ -39,8 +41,12 @@ pub fn generate_rust_artifact_bundle(program: &TypedProgram) -> KainResult<RustA
     let mut supplemental = Vec::new();
     if let Some(shader_metadata) = &shader_support {
         let shader_host = generate_gpu_host_wrappers(program)?;
-        let shader_reflection = collect_gpu_artifacts_json(program)
-            .map_err(|err| kain_core::error::KainError::runtime(format!("Failed to serialize Rust shader reflection bundle: {}", err)))?;
+        let shader_reflection = collect_gpu_artifacts_json(program).map_err(|err| {
+            kain_core::error::KainError::runtime(format!(
+                "Failed to serialize Rust shader reflection bundle: {}",
+                err
+            ))
+        })?;
 
         supplemental.push(RustTextArtifact {
             logical_name: "shader_host".to_string(),

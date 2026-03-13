@@ -6,12 +6,12 @@
 //! - JSX-style angle brackets for UI
 //! - Effect annotations with `with` keyword
 
-use logos::Logos;
-use crate::span::Span;
 use crate::error::{KainError, KainResult};
+use crate::span::Span;
+use logos::Logos;
 
 #[derive(Logos, Debug, Clone, PartialEq)]
-#[logos(skip r"[ \t\r]+")]  // Skip horizontal whitespace AND carriage returns
+#[logos(skip r"[ \t\r]+")] // Skip horizontal whitespace AND carriage returns
 pub enum TokenKind {
     // === Keywords ===
     #[token("fn")]
@@ -115,9 +115,9 @@ pub enum TokenKind {
     Pure,
     #[token("IO")]
     Io,
-    #[token("async")]  // lowercase for 'async fn' syntax
+    #[token("async")] // lowercase for 'async fn' syntax
     AsyncKw,
-    #[token("Async")]  // capital for 'with Async' effect syntax
+    #[token("Async")] // capital for 'with Async' effect syntax
     Async,
     #[token("GPU")]
     Gpu,
@@ -336,7 +336,10 @@ impl<'a> Lexer<'a> {
                 }
                 Err(_) => {
                     return Err(KainError::lexer(
-                        format!("Unexpected character: '{}'", &self.source[span.start..span.end]),
+                        format!(
+                            "Unexpected character: '{}'",
+                            &self.source[span.start..span.end]
+                        ),
                         span,
                     ));
                 }
@@ -365,7 +368,8 @@ impl<'a> Lexer<'a> {
                     }
 
                     // Calculate indent level (count spaces, tabs = 4 spaces)
-                    let indent: usize = ws[1..].chars().map(|c| if c == '\t' { 4 } else { 1 }).sum();
+                    let indent: usize =
+                        ws[1..].chars().map(|c| if c == '\t' { 4 } else { 1 }).sum();
                     let current = *indent_stack.last().unwrap();
 
                     if indent > current {
@@ -448,4 +452,3 @@ mod tests {
         assert!(tokens.iter().any(|t| matches!(t.kind, TokenKind::Indent)));
     }
 }
-

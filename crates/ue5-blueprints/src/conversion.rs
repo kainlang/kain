@@ -1,21 +1,20 @@
-use kain_core::ast;
-use crate::ir::{
-    BlueprintDef, ComponentDef, PropertyDef, PropertyValue,
-    EventGraphNode, KismetCall,
-};
 use crate::error::Result;
+use crate::ir::{
+    BlueprintDef, ComponentDef, EventGraphNode, KismetCall, PropertyDef, PropertyValue,
+};
+use kain_core::ast;
 
 // ─── Data-driven parent class mapping ────────────────────────────────────────
 // Maps KAIN attribute values to UE5 parent class paths.
 // Extend this table instead of adding if/else branches.
 const PARENT_CLASS_MAP: &[(&str, &str)] = &[
-    ("actor",     "/Script/Engine.Actor"),
-    ("pawn",      "/Script/Engine.Pawn"),
+    ("actor", "/Script/Engine.Actor"),
+    ("pawn", "/Script/Engine.Pawn"),
     ("character", "/Script/Engine.Character"),
-    ("gamemode",  "/Script/Engine.GameModeBase"),
+    ("gamemode", "/Script/Engine.GameModeBase"),
     ("gamestate", "/Script/Engine.GameStateBase"),
     ("playercontroller", "/Script/Engine.PlayerController"),
-    ("hud",       "/Script/Engine.HUD"),
+    ("hud", "/Script/Engine.HUD"),
     ("playerstate", "/Script/Engine.PlayerState"),
 ];
 
@@ -38,8 +37,8 @@ pub fn from_ast(actor: &ast::Actor) -> Result<BlueprintDef> {
 
         if is_component {
             let var_name = &state.name;
-            let class_name = extract_type_name(&state.ty)
-                .unwrap_or_else(|| "SceneComponent".to_string());
+            let class_name =
+                extract_type_name(&state.ty).unwrap_or_else(|| "SceneComponent".to_string());
 
             let mut comp_def = ComponentDef::new(class_name, var_name);
 
@@ -100,7 +99,8 @@ fn resolve_parent_class(attributes: &[ast::Attribute]) -> String {
                 }
                 // Short name lookup (case-insensitive)
                 let lower = value.to_lowercase();
-                if let Some((_, path)) = PARENT_CLASS_MAP.iter()
+                if let Some((_, path)) = PARENT_CLASS_MAP
+                    .iter()
                     .find(|(key, _)| *key == lower.as_str())
                 {
                     return path.to_string();
@@ -170,7 +170,11 @@ fn convert_expr_to_property(
                         let r = eval_float(&args[0].value).unwrap_or(0.0);
                         let g = eval_float(&args[1].value).unwrap_or(0.0);
                         let b = eval_float(&args[2].value).unwrap_or(0.0);
-                        let a = if args.len() >= 4 { eval_float(&args[3].value).unwrap_or(1.0) } else { 1.0 };
+                        let a = if args.len() >= 4 {
+                            eval_float(&args[3].value).unwrap_or(1.0)
+                        } else {
+                            1.0
+                        };
                         Some(PropertyDef::color(name, r, g, b, a))
                     }
                     _ => None,
@@ -180,12 +184,17 @@ fn convert_expr_to_property(
             }
         }
         // EnumType::Variant → Enum property
-        ast::Expr::EnumVariant { enum_name, variant, .. } => {
-            Some(PropertyDef::enum_val(name, enum_name, variant))
-        }
+        ast::Expr::EnumVariant {
+            enum_name, variant, ..
+        } => Some(PropertyDef::enum_val(name, enum_name, variant)),
         // Struct literal: Point { x: 1, y: 2 } → Struct property
-        ast::Expr::Struct { name: struct_name, fields, .. } => {
-            let inner: Vec<PropertyDef> = fields.iter()
+        ast::Expr::Struct {
+            name: struct_name,
+            fields,
+            ..
+        } => {
+            let inner: Vec<PropertyDef> = fields
+                .iter()
                 .filter_map(|(fname, fexpr)| convert_expr_to_property(fname, fexpr, None))
                 .collect();
             Some(PropertyDef {
@@ -205,10 +214,15 @@ fn convert_expr_to_property(
 fn extract_struct_defaults(expr: &ast::Expr) -> Option<Vec<PropertyDef>> {
     match expr {
         ast::Expr::Struct { fields, .. } => {
-            let props: Vec<PropertyDef> = fields.iter()
+            let props: Vec<PropertyDef> = fields
+                .iter()
                 .filter_map(|(name, val)| convert_expr_to_property(name, val, None))
                 .collect();
-            if props.is_empty() { None } else { Some(props) }
+            if props.is_empty() {
+                None
+            } else {
+                Some(props)
+            }
         }
         _ => None,
     }
@@ -228,9 +242,11 @@ fn eval_float(expr: &ast::Expr) -> Option<f32> {
     match expr {
         ast::Expr::Float(v, _) => Some(*v as f32),
         ast::Expr::Int(v, _) => Some(*v as f32),
-        ast::Expr::Unary { op: ast::UnaryOp::Neg, operand, .. } => {
-            eval_float(operand).map(|v| -v)
-        }
+        ast::Expr::Unary {
+            op: ast::UnaryOp::Neg,
+            operand,
+            ..
+        } => eval_float(operand).map(|v| -v),
         _ => None,
     }
 }
@@ -250,7 +266,10 @@ fn convert_block_to_calls(block: &ast::Block) -> Result<Vec<KismetCall>> {
                 }
             }
             // object.method(args) → targeted call
-            else if let ast::Expr::MethodCall { receiver, method, .. } = expr {
+            else if let ast::Expr::MethodCall {
+                receiver, method, ..
+            } = expr
+            {
                 if let ast::Expr::Ident(target_name, _) = &**receiver {
                     calls.push(KismetCall::function(method).on(target_name));
                 }

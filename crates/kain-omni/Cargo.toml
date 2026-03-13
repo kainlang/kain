@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 kain-core = { path = "../kain-core" }
+kain-driver = { path = "../kain-driver", default-features = false, features = ["ue5", "gpu", "web", "sys"] }
 kain-import = { path = "../kain-import" }
 kain-asm = { path = "../kain-asm" }
 ue5 = { path = "../ue5" }

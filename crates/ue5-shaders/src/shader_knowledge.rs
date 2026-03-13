@@ -8,8 +8,8 @@
 //! This replaces hardcoded intrinsic lists, include paths, and thread group
 //! sizes with queries against real data extracted from Epic's shader corpus.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ═══════════════════════════════════════════════════════════════════
 // Schema Types (mirrors shader_knowledge.json structure)
@@ -172,11 +172,12 @@ impl ShaderKnowledge {
         self.material_getter_set.clear();
 
         // Build function -> include map from file_provides data
-        // (This is in the includes section but we don't store that raw — 
+        // (This is in the includes section but we don't store that raw —
         //  we extract it during load from the intrinsics source field)
         for (name, info) in &self.intrinsics {
             if !info.source.is_empty() {
-                self.function_to_include.insert(name.clone(), info.source.clone());
+                self.function_to_include
+                    .insert(name.clone(), info.source.clone());
             }
         }
 
@@ -202,13 +203,15 @@ impl ShaderKnowledge {
 
     /// Check if a function is an HLSL builtin
     pub fn is_hlsl_intrinsic(&self, name: &str) -> bool {
-        self.intrinsics.get(name)
+        self.intrinsics
+            .get(name)
             .map_or(false, |i| i.category == "hlsl")
     }
 
     /// Check if a function is a UE5-defined helper
     pub fn is_ue5_function(&self, name: &str) -> bool {
-        self.intrinsics.get(name)
+        self.intrinsics
+            .get(name)
             .map_or(false, |i| i.category == "ue5" || i.category == "macro")
     }
 
@@ -222,19 +225,63 @@ impl ShaderKnowledge {
     /// This uses heuristics from the corpus data.
     pub fn infer_return_type(&self, name: &str) -> &str {
         // Functions that always return float (scalar)
-        if matches!(name, 
-            "dot" | "length" | "distance" | "determinant" |
-            "saturate" | "abs" | "sign" | "floor" | "ceil" | "round" | "trunc" |
-            "frac" | "fmod" | "fwidth" | "ddx" | "ddy" | "ddx_coarse" | "ddy_coarse" |
-            "ddx_fine" | "ddy_fine" | "rcp" | "rsqrt" | "sqrt" |
-            "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2" |
-            "sinh" | "cosh" | "tanh" |
-            "exp" | "exp2" | "log" | "log2" | "log10" |
-            "pow" | "min" | "max" |
-            "step" | "smoothstep" | "lerp" | "clamp" | "mad" |
-            "luminance" | "GetLuminance" |
-            "WaveGetLaneCount" | "WaveGetLaneIndex" | "WaveIsFirstLane" |
-            "countbits" | "firstbithigh" | "firstbitlow" | "reversebits"
+        if matches!(
+            name,
+            "dot"
+                | "length"
+                | "distance"
+                | "determinant"
+                | "saturate"
+                | "abs"
+                | "sign"
+                | "floor"
+                | "ceil"
+                | "round"
+                | "trunc"
+                | "frac"
+                | "fmod"
+                | "fwidth"
+                | "ddx"
+                | "ddy"
+                | "ddx_coarse"
+                | "ddy_coarse"
+                | "ddx_fine"
+                | "ddy_fine"
+                | "rcp"
+                | "rsqrt"
+                | "sqrt"
+                | "sin"
+                | "cos"
+                | "tan"
+                | "asin"
+                | "acos"
+                | "atan"
+                | "atan2"
+                | "sinh"
+                | "cosh"
+                | "tanh"
+                | "exp"
+                | "exp2"
+                | "log"
+                | "log2"
+                | "log10"
+                | "pow"
+                | "min"
+                | "max"
+                | "step"
+                | "smoothstep"
+                | "lerp"
+                | "clamp"
+                | "mad"
+                | "luminance"
+                | "GetLuminance"
+                | "WaveGetLaneCount"
+                | "WaveGetLaneIndex"
+                | "WaveIsFirstLane"
+                | "countbits"
+                | "firstbithigh"
+                | "firstbitlow"
+                | "reversebits"
         ) {
             // These preserve the type of their first argument, so we return
             // "passthrough" to signal the caller should use the input type
@@ -242,46 +289,78 @@ impl ShaderKnowledge {
         }
 
         // Functions that always return bool
-        if matches!(name,
-            "all" | "any" | "isfinite" | "isinf" | "isnan" |
-            "WaveActiveAllEqual"
+        if matches!(
+            name,
+            "all" | "any" | "isfinite" | "isinf" | "isnan" | "WaveActiveAllEqual"
         ) {
             return "bool";
         }
 
         // Functions that always return void
-        if matches!(name,
-            "clip" | "sincos" |
-            "InterlockedAdd" | "InterlockedAnd" | "InterlockedOr" |
-            "InterlockedXor" | "InterlockedMin" | "InterlockedMax" |
-            "InterlockedExchange" | "InterlockedCompareExchange" |
-            "InterlockedCompareStore" |
-            "GroupMemoryBarrier" | "GroupMemoryBarrierWithGroupSync" |
-            "DeviceMemoryBarrier" | "DeviceMemoryBarrierWithGroupSync" |
-            "AllMemoryBarrier" | "AllMemoryBarrierWithGroupSync"
+        if matches!(
+            name,
+            "clip"
+                | "sincos"
+                | "InterlockedAdd"
+                | "InterlockedAnd"
+                | "InterlockedOr"
+                | "InterlockedXor"
+                | "InterlockedMin"
+                | "InterlockedMax"
+                | "InterlockedExchange"
+                | "InterlockedCompareExchange"
+                | "InterlockedCompareStore"
+                | "GroupMemoryBarrier"
+                | "GroupMemoryBarrierWithGroupSync"
+                | "DeviceMemoryBarrier"
+                | "DeviceMemoryBarrierWithGroupSync"
+                | "AllMemoryBarrier"
+                | "AllMemoryBarrierWithGroupSync"
         ) {
             return "void";
         }
 
         // Texture operations return float4
-        if name.starts_with("tex") || name == "Sample" || name == "SampleLevel" ||
-           name == "SampleGrad" || name == "SampleBias" || name == "Load" ||
-           name == "GatherRed" || name == "GatherGreen" || name == "GatherBlue" || name == "GatherAlpha" {
+        if name.starts_with("tex")
+            || name == "Sample"
+            || name == "SampleLevel"
+            || name == "SampleGrad"
+            || name == "SampleBias"
+            || name == "Load"
+            || name == "GatherRed"
+            || name == "GatherGreen"
+            || name == "GatherBlue"
+            || name == "GatherAlpha"
+        {
             return "float4";
         }
 
         // Cross product preserves type
-        if name == "cross" || name == "normalize" || name == "reflect" || name == "refract" ||
-           name == "faceforward" {
+        if name == "cross"
+            || name == "normalize"
+            || name == "reflect"
+            || name == "refract"
+            || name == "faceforward"
+        {
             return "passthrough";
         }
 
         // Type cast/constructors
-        if matches!(name, "asfloat" | "float") { return "float"; }
-        if matches!(name, "asint" | "int") { return "int"; }
-        if matches!(name, "asuint" | "uint") { return "uint"; }
-        if matches!(name, "f16tof32") { return "float"; }
-        if matches!(name, "f32tof16") { return "uint"; }
+        if matches!(name, "asfloat" | "float") {
+            return "float";
+        }
+        if matches!(name, "asint" | "int") {
+            return "int";
+        }
+        if matches!(name, "asuint" | "uint") {
+            return "uint";
+        }
+        if matches!(name, "f16tof32") {
+            return "float";
+        }
+        if matches!(name, "f32tof16") {
+            return "uint";
+        }
 
         // Default: unknown, let caller decide
         "unknown"
@@ -350,7 +429,11 @@ impl ShaderKnowledge {
 
     /// Get count stats
     pub fn stats(&self) -> (usize, usize, usize) {
-        (self.intrinsics.len(), self.permutations.len(), self.bindings.thread_groups.len())
+        (
+            self.intrinsics.len(),
+            self.permutations.len(),
+            self.bindings.thread_groups.len(),
+        )
     }
 }
 
@@ -469,7 +552,10 @@ mod tests {
         let mut sk = ShaderKnowledge::new();
         sk.load(sample_json()).unwrap();
 
-        assert_eq!(sk.get_function_include("CalcSceneDepth"), Some("SceneTexturesCommon.ush"));
+        assert_eq!(
+            sk.get_function_include("CalcSceneDepth"),
+            Some("SceneTexturesCommon.ush")
+        );
         assert_eq!(sk.get_function_include("BRANCH"), Some("Common.ush"));
         assert_eq!(sk.get_function_include("lerp"), None); // HLSL builtin, no source
     }

@@ -14,32 +14,20 @@
 ///
 ///   Targeted calls (call.target set):
 ///       → ExContext { object: ExInstanceVariable(target), inner: ExVirtualFunction(name) }
-
 use std::io::Cursor;
 
 use unreal_asset::{
     exports::{
-        Export,
-        base_export::BaseExport,
-        function_export::FunctionExport,
-        struct_export::StructExport,
-        normal_export::NormalExport,
+        base_export::BaseExport, function_export::FunctionExport, normal_export::NormalExport,
+        struct_export::StructExport, Export,
     },
-    flags::{EObjectFlags, EFunctionFlags},
+    flags::{EFunctionFlags, EObjectFlags},
     types::PackageIndex,
     Asset,
 };
 use unreal_asset_kismet::{
-    EExprToken,
-    KismetExpression,
-    KismetPropertyPointer,
-    FieldPath,
-    ExVirtualFunction,
-    ExContext,
-    ExInstanceVariable,
-    ExReturn,
-    ExNothing,
-    ExEndOfScript,
+    EExprToken, ExContext, ExEndOfScript, ExInstanceVariable, ExNothing, ExReturn,
+    ExVirtualFunction, FieldPath, KismetExpression, KismetPropertyPointer,
 };
 
 use crate::ir::{EventGraphNode, KismetCall};
@@ -104,10 +92,13 @@ pub fn emit_event_graph(
         for call in calls {
             bytecode.push(emit_kismet_call(asset, call, gen_class_export));
         }
-        bytecode.push(ExReturn {
-            token: EExprToken::ExReturn,
-            return_expression: Box::new(ExNothing::default().into()),
-        }.into());
+        bytecode.push(
+            ExReturn {
+                token: EExprToken::ExReturn,
+                return_expression: Box::new(ExNothing::default().into()),
+            }
+            .into(),
+        );
         bytecode.push(ExEndOfScript::default().into());
 
         let event_fname = asset.add_fname(ue_event_name);
@@ -185,7 +176,8 @@ fn emit_kismet_call(
         token: EExprToken::ExVirtualFunction,
         virtual_function_name: fname,
         parameters: Vec::new(),
-    }.into();
+    }
+    .into();
 
     match &call.target {
         None => vfunc,
@@ -201,14 +193,18 @@ fn emit_kismet_call(
 
             ExContext {
                 token: EExprToken::ExContext,
-                object_expression: Box::new(ExInstanceVariable {
-                    token: EExprToken::ExInstanceVariable,
-                    variable: var_ptr,
-                }.into()),
+                object_expression: Box::new(
+                    ExInstanceVariable {
+                        token: EExprToken::ExInstanceVariable,
+                        variable: var_ptr,
+                    }
+                    .into(),
+                ),
                 offset: 0, // skip offset if context is null (0 = no skip, crash on null)
                 r_value_pointer: KismetPropertyPointer::default(),
                 context_expression: Box::new(vfunc),
-            }.into()
+            }
+            .into()
         }
     }
 }
@@ -265,12 +261,10 @@ mod tests {
         let func_import = make_function_class_import(&mut asset);
         let gen_class = PackageIndex::new(1);
 
-        let events = vec![
-            EventGraphNode::begin_play(vec![
-                KismetCall::function("InitAbilities"),
-                KismetCall::function("SetupHUD"),
-            ]),
-        ];
+        let events = vec![EventGraphNode::begin_play(vec![
+            KismetCall::function("InitAbilities"),
+            KismetCall::function("SetupHUD"),
+        ])];
 
         let result = emit_event_graph(&mut asset, "BP_Test", &events, gen_class, func_import);
         assert!(result.is_some());
@@ -289,16 +283,15 @@ mod tests {
         let gen_class = PackageIndex::new(1);
 
         let events = vec![
-            EventGraphNode::begin_play(vec![
-                KismetCall::function("Init"),
-            ]),
-            EventGraphNode::tick(vec![
-                KismetCall::function("UpdateMovement"),
-            ]),
-            EventGraphNode::custom("OnDamageReceived", vec![
-                KismetCall::function("PlayHitReaction"),
-                KismetCall::function("UpdateHealthBar"),
-            ]),
+            EventGraphNode::begin_play(vec![KismetCall::function("Init")]),
+            EventGraphNode::tick(vec![KismetCall::function("UpdateMovement")]),
+            EventGraphNode::custom(
+                "OnDamageReceived",
+                vec![
+                    KismetCall::function("PlayHitReaction"),
+                    KismetCall::function("UpdateHealthBar"),
+                ],
+            ),
         ];
 
         let result = emit_event_graph(&mut asset, "BP_Player", &events, gen_class, func_import);

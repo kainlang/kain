@@ -1,6 +1,8 @@
 // Tests for data-driven validation rules system
 
-use ue5::validation_rules::{ValidationRules, ValidationRule, RuleCategory, Severity, RuleCondition};
+use ue5::validation_rules::{
+    RuleCategory, RuleCondition, Severity, ValidationRule, ValidationRules,
+};
 
 #[test]
 fn test_disabled_rule_filtering() {
@@ -31,7 +33,7 @@ fn test_disabled_rule_filtering() {
             },
         ],
     };
-    
+
     let enabled = rules.enabled_rules();
     assert_eq!(enabled.len(), 1);
     assert_eq!(enabled[0].id, "enabled_rule");
@@ -52,9 +54,12 @@ fn test_custom_message_and_suggestion() {
         suggestion: Some("Custom suggestion for fixing".to_string()),
         disabled: false,
     };
-    
+
     assert_eq!(rule.message, "Custom error message");
-    assert_eq!(rule.suggestion, Some("Custom suggestion for fixing".to_string()));
+    assert_eq!(
+        rule.suggestion,
+        Some("Custom suggestion for fixing".to_string())
+    );
 }
 
 #[test]
@@ -70,7 +75,7 @@ fn test_rule_severity_levels() {
         suggestion: None,
         disabled: false,
     };
-    
+
     let warning_rule = ValidationRule {
         id: "warning_rule".to_string(),
         category: RuleCategory::Naming,
@@ -82,7 +87,7 @@ fn test_rule_severity_levels() {
         suggestion: None,
         disabled: false,
     };
-    
+
     let info_rule = ValidationRule {
         id: "info_rule".to_string(),
         category: RuleCategory::Naming,
@@ -94,7 +99,7 @@ fn test_rule_severity_levels() {
         suggestion: None,
         disabled: false,
     };
-    
+
     assert_eq!(error_rule.severity, Severity::Error);
     assert_eq!(warning_rule.severity, Severity::Warning);
     assert_eq!(info_rule.severity, Severity::Info);
@@ -129,16 +134,15 @@ fn test_rules_by_category() {
             },
         ],
     };
-    
+
     let naming_rules = rules.rules_by_category(RuleCategory::Naming);
     assert_eq!(naming_rules.len(), 1);
     assert_eq!(naming_rules[0].id, "naming_rule");
-    
+
     let replication_rules = rules.rules_by_category(RuleCategory::Replication);
     assert_eq!(replication_rules.len(), 1);
     assert_eq!(replication_rules[0].id, "replication_rule");
 }
-
 
 #[test]
 fn test_conflict_detection_type_collision() {
@@ -169,7 +173,7 @@ fn test_conflict_detection_type_collision() {
             },
         ],
     };
-    
+
     let conflicts = rules.detect_conflicts();
     assert_eq!(conflicts.len(), 1);
     assert_eq!(conflicts[0].0, "rule1");
@@ -206,7 +210,7 @@ fn test_no_conflict_same_severity() {
             },
         ],
     };
-    
+
     let conflicts = rules.detect_conflicts();
     assert_eq!(conflicts.len(), 0); // No conflict because same severity
 }
@@ -240,7 +244,7 @@ fn test_conflict_detection_disabled_rules() {
             },
         ],
     };
-    
+
     let conflicts = rules.detect_conflicts();
     assert_eq!(conflicts.len(), 0); // No conflict because rule1 is disabled
 }
@@ -255,9 +259,7 @@ fn test_conflict_detection_incompatible_attributes() {
                 category: RuleCategory::AttributeCombination,
                 severity: Severity::Error,
                 condition: RuleCondition::IncompatibleAttributes {
-                    attributes: vec![
-                        ("replicated".to_string(), "transient".to_string()),
-                    ],
+                    attributes: vec![("replicated".to_string(), "transient".to_string())],
                 },
                 message: "Rule 1".to_string(),
                 suggestion: None,
@@ -278,7 +280,7 @@ fn test_conflict_detection_incompatible_attributes() {
             },
         ],
     };
-    
+
     let conflicts = rules.detect_conflicts();
     assert_eq!(conflicts.len(), 1);
     assert_eq!(conflicts[0].0, "rule1");

@@ -2,11 +2,11 @@
 
 use crate::ast::*;
 use crate::error::{KainError, KainResult};
+use crate::language_features::runtime_supports_binary_op;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::types::TypedProgram;
+use crate::types::{TypedItem, TypedProgram};
 use crate::ui::{eval_jsx, VNode};
-use crate::language_features::runtime_supports_binary_op;
 use flume::Sender;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -74,6 +74,8 @@ pub enum Value {
     /// Future state machine: (struct_name, state_struct, poll_fn_name)
     Future(String, Arc<RwLock<HashMap<String, Value>>>),
 }
+
+pub type NativeFn = fn(&mut Env, Vec<Value>) -> KainResult<Value>;
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -266,8 +268,6 @@ impl Env {
             env.python_scope = Some(scope.into());
         });
 
-        env.register_stdlib();
-        env.register_net_stdlib();
         env.register_stdlib();
         env.register_net_stdlib();
         env.register_json_stdlib();
@@ -1704,12 +1704,198 @@ impl Env {
         });
     }
 
-    fn define_native(&mut self, name: &str, func: fn(&mut Env, Vec<Value>) -> KainResult<Value>) {
-        self.scopes[0].insert(name.to_string(), Value::NativeFn(name.to_string(), func));
+    fn define_native(&mut self, name: &str, func: NativeFn) {
+        self.register_native_fn(name, func);
+    }
+
+    pub fn register_native_fn(&mut self, name: impl Into<String>, func: NativeFn) {
+        let name = name.into();
+        self.scopes[0].insert(name.clone(), Value::NativeFn(name, func));
+    }
+
+    pub fn register_component(&mut self, component: Component) {
+        self.components.insert(component.name.clone(), component);
+    }
+
+    pub fn register_program_items(&mut self, program: &Program) -> KainResult<()> {
+        for item in &program.items {
+            self.register_item(item)?;
+        }
+        Ok(())
+    }
+
+    pub fn register_typed_program(&mut self, program: &TypedProgram) -> KainResult<()> {
+        for item in &program.items {
+            self.register_typed_item(item)?;
+        }
+        Ok(())
+    }
+
+    fn register_item(&mut self, item: &Item) -> KainResult<()> {
+        match item {
+            Item::Use(u) => load_module(self, u)?,
+            Item::Function(f) => {
+                self.functions.insert(f.name.clone(), f.clone());
+                self.define(f.name.clone(), Value::Function(f.name.clone()));
+            }
+            Item::Component(c) => self.register_component(c.clone()),
+            Item::Struct(s) => {
+                let field_names = s.fields.iter().map(|field| field.name.clone()).collect();
+                self.define(
+                    s.name.clone(),
+                    Value::StructConstructor(s.name.clone(), field_names),
+                );
+            }
+            Item::Enum(e) => {
+                for variant in &e.variants {
+                    let variant_name = format!("{}::{}", e.name, variant.name);
+                    self.define(
+                        variant_name,
+                        Value::Function(format!("{}::{}", e.name, variant.name)),
+                    );
+                }
+            }
+            Item::Actor(a) => {
+                self.actor_defs.insert(a.name.clone(), a.clone());
+            }
+            Item::Const(c) => {
+                let value = eval_expr(self, &c.value)?;
+                self.define(c.name.clone(), value);
+            }
+            Item::Impl(i) => {
+                if let Type::Named { name, .. } = &i.target_type {
+                    let lowered_fns: Vec<(String, Function)> = i
+                        .methods
+                        .iter()
+                        .map(|method| (format!("{}_{}", name, method.name), method.clone()))
+                        .collect();
+
+                    for (lowered_name, method) in lowered_fns {
+                        self.functions.insert(lowered_name.clone(), method);
+                        self.define(lowered_name.clone(), Value::Function(lowered_name));
+                    }
+
+                    let type_methods = self.methods.entry(name.clone()).or_default();
+                    for method in &i.methods {
+                        type_methods.insert(method.name.clone(), method.clone());
+                    }
+                }
+            }
+            Item::Comptime(_)
+            | Item::Macro(_)
+            | Item::Test(_)
+            | Item::Trait(_)
+            | Item::TypeAlias(_)
+            | Item::Mod(_)
+            | Item::Shader(_)
+            | Item::MaterialGraph(_)
+            | Item::MaterialFunction(_)
+            | Item::GraphEditor(_)
+            | Item::GraphRuntime(_)
+            | Item::StateMachine(_)
+            | Item::AsyncTask(_)
+            | Item::EditorModule(_)
+            | Item::GameplayTags(_)
+            | Item::GameplayAbility(_)
+            | Item::GameplayEffect(_)
+            | Item::GameplayCue(_)
+            | Item::AbilityTask(_)
+            | Item::TargetActor(_) => {}
+        }
+
+        Ok(())
+    }
+
+    fn register_typed_item(&mut self, item: &TypedItem) -> KainResult<()> {
+        match item {
+            TypedItem::Use(u) => load_module(self, &u.ast)?,
+            TypedItem::Function(f) => {
+                self.functions.insert(f.ast.name.clone(), f.ast.clone());
+                self.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
+            }
+            TypedItem::Component(c) => self.register_component(c.ast.clone()),
+            TypedItem::Struct(s) => {
+                let field_names = s.ast.fields.iter().map(|field| field.name.clone()).collect();
+                self.define(
+                    s.ast.name.clone(),
+                    Value::StructConstructor(s.ast.name.clone(), field_names),
+                );
+            }
+            TypedItem::Enum(e) => {
+                for variant in &e.ast.variants {
+                    let variant_name = format!("{}::{}", e.ast.name, variant.name);
+                    self.define(
+                        variant_name,
+                        Value::Function(format!("{}::{}", e.ast.name, variant.name)),
+                    );
+                }
+            }
+            TypedItem::Actor(a) => {
+                self.actor_defs.insert(a.ast.name.clone(), a.ast.clone());
+            }
+            TypedItem::Const(c) => {
+                let value = eval_expr(self, &c.ast.value)?;
+                self.define(c.ast.name.clone(), value);
+            }
+            TypedItem::Impl(i) => {
+                if let Type::Named { name, .. } = &i.ast.target_type {
+                    let lowered_fns: Vec<(String, Function)> = i
+                        .ast
+                        .methods
+                        .iter()
+                        .map(|method| (format!("{}_{}", name, method.name), method.clone()))
+                        .collect();
+
+                    for (lowered_name, method) in lowered_fns {
+                        self.functions.insert(lowered_name.clone(), method);
+                        self.define(lowered_name.clone(), Value::Function(lowered_name));
+                    }
+
+                    let type_methods = self.methods.entry(name.clone()).or_default();
+                    for method in &i.ast.methods {
+                        type_methods.insert(method.name.clone(), method.clone());
+                    }
+                }
+            }
+            TypedItem::Comptime(_)
+            | TypedItem::Shader(_)
+            | TypedItem::Macro(_)
+            | TypedItem::Test(_)
+            | TypedItem::TypeAlias(_)
+            | TypedItem::MaterialGraph(_)
+            | TypedItem::MaterialFunction(_)
+            | TypedItem::GraphEditor(_)
+            | TypedItem::GraphRuntime(_)
+            | TypedItem::StateMachine(_)
+            | TypedItem::AsyncTask(_)
+            | TypedItem::EditorModule(_)
+            | TypedItem::GameplayTags(_)
+            | TypedItem::GameplayAbility(_)
+            | TypedItem::GameplayEffect(_)
+            | TypedItem::GameplayCue(_) => {}
+        }
+
+        Ok(())
     }
 
     pub(crate) fn define(&mut self, name: String, value: Value) {
         self.scopes.last_mut().unwrap().insert(name, value);
+    }
+
+    pub fn define_global(&mut self, name: impl Into<String>, value: Value) {
+        self.scopes[0].insert(name.into(), value);
+    }
+
+    pub fn lookup_value(&self, name: &str) -> Option<Value> {
+        self.lookup(name).cloned()
+    }
+
+    pub fn call_named_function(&mut self, name: &str, args: Vec<Value>) -> KainResult<Value> {
+        let func = self
+            .lookup(name)
+            .cloned()
+            .ok_or_else(|| KainError::runtime(format!("Function not found: {}", name)))?;
+        call_function(self, func, args)
     }
 
     fn assign(&mut self, name: &str, value: Value) -> KainResult<()> {
@@ -1731,6 +1917,10 @@ impl Env {
         None
     }
 
+    pub(crate) fn lookup_component(&self, name: &str) -> Option<&Component> {
+        self.components.get(name)
+    }
+
     pub(crate) fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
@@ -1745,48 +1935,13 @@ impl Env {
 /// Interpret the program
 pub fn interpret(program: &TypedProgram) -> KainResult<Value> {
     let mut env = Env::new();
+    interpret_with_env(&mut env, program)
+}
 
-    // Register functions
-    for item in &program.items {
-        match item {
-            crate::types::TypedItem::Use(u) => {
-                // Handle imports first
-                load_module(&mut env, &u.ast)?;
-            }
-            crate::types::TypedItem::Function(f) => {
-                env.functions.insert(f.ast.name.clone(), f.ast.clone());
-                env.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
-            }
-            crate::types::TypedItem::Actor(a) => {
-                env.actor_defs.insert(a.ast.name.clone(), a.ast.clone());
-            }
-            crate::types::TypedItem::Component(c) => {
-                env.components.insert(c.ast.name.clone(), c.ast.clone());
-            }
-            crate::types::TypedItem::Const(c) => {
-                let val = eval_expr(&mut env, &c.ast.value)?;
-                env.define(c.ast.name.clone(), val);
-            }
-            crate::types::TypedItem::Impl(i) => {
-                // Get the type name
-                let type_name = match &i.ast.target_type {
-                    Type::Named { name, .. } => name.clone(),
-                    _ => continue,
-                };
-                // Register all methods for this type
-                let type_methods = env.methods.entry(type_name).or_insert_with(HashMap::new);
-                for method in &i.ast.methods {
-                    type_methods.insert(method.name.clone(), method.clone());
-                }
-            }
-            crate::types::TypedItem::Comptime(_) => {} // Already evaluated
-            _ => {}
-        }
-    }
-
-    // Find and run main
-    if let Some(main_fn) = env.functions.get("main").cloned() {
-        eval_block(&mut env, &main_fn.body)
+pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> KainResult<Value> {
+    env.register_typed_program(program)?;
+    if env.functions.contains_key("main") {
+        env.call_named_function("main", Vec::new())
     } else {
         Ok(Value::Unit)
     }
@@ -2452,10 +2607,16 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 }
                 "__kain_write_fmt" | "__kain_writeln_fmt" => {
                     if args.len() != 2 {
-                        return Err(KainError::runtime(format!("{name}: expected destination and message")));
+                        return Err(KainError::runtime(format!(
+                            "{name}: expected destination and message"
+                        )));
                     }
                     let message = eval_expr(env, &args[1])?;
-                    let suffix = if name == "__kain_writeln_fmt" { "\n" } else { "" };
+                    let suffix = if name == "__kain_writeln_fmt" {
+                        "\n"
+                    } else {
+                        ""
+                    };
                     Ok(Value::String(format!("{}{}", message, suffix)))
                 }
                 "type_name" => {
@@ -2884,8 +3045,16 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             Type::Ptr { .. } | Type::Ref { .. } => 8,
             Type::Array(inner, size, _) => {
                 let inner_size = match inner.as_ref() {
-                    Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "Float" => 8,
-                    Type::Named { name, .. } if name == "Bool" || name == "Byte" || name == "Char" => 1,
+                    Type::Named { name, .. }
+                        if name == "Int" || name == "UInt" || name == "Float" =>
+                    {
+                        8
+                    }
+                    Type::Named { name, .. }
+                        if name == "Bool" || name == "Byte" || name == "Char" =>
+                    {
+                        1
+                    }
                     Type::Ptr { .. } | Type::Ref { .. } => 8,
                     _ => 8,
                 };

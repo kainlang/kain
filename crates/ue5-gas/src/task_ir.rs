@@ -60,9 +60,11 @@ impl AbilityTaskIR {
                 task.span,
             ));
         }
-        
+
         // Convert delegates
-        let delegates = task.delegates.iter()
+        let delegates = task
+            .delegates
+            .iter()
             .map(|d| {
                 let delegate_type = match d.delegate_type.as_str() {
                     "AttributeChangeDelegate" => DelegateTypeIR::AttributeChange,
@@ -71,38 +73,44 @@ impl AbilityTaskIR {
                     "GameplayEventDelegate" => DelegateTypeIR::GameplayEvent,
                     other => DelegateTypeIR::Custom(other.to_string()),
                 };
-                
+
                 DelegateIR {
                     name: d.name.clone(),
                     delegate_type,
                 }
             })
             .collect();
-        
+
         // Convert state fields
-        let state_fields = task.state_fields.iter()
+        let state_fields = task
+            .state_fields
+            .iter()
             .map(|f| StateFieldIR {
                 name: f.name.clone(),
-                field_type: format!("{:?}", f.ty),  // TODO: proper type mapping
+                field_type: format!("{:?}", f.ty), // TODO: proper type mapping
             })
             .collect();
-        
+
         // Convert methods to strings (placeholder for now)
-        let activate_body = task.activate_method.as_ref().map(|_| {
-            "// TODO: Implement activate codegen".to_string()
-        });
-        
-        let on_destroy_body = task.on_destroy_method.as_ref().map(|_| {
-            "// TODO: Implement on_destroy codegen".to_string()
-        });
-        
-        let custom_methods = task.custom_methods.iter()
+        let activate_body = task
+            .activate_method
+            .as_ref()
+            .map(|_| "// TODO: Implement activate codegen".to_string());
+
+        let on_destroy_body = task
+            .on_destroy_method
+            .as_ref()
+            .map(|_| "// TODO: Implement on_destroy codegen".to_string());
+
+        let custom_methods = task
+            .custom_methods
+            .iter()
             .map(|m| MethodIR {
                 name: m.name.clone(),
                 body: "// TODO: Implement method codegen".to_string(),
             })
             .collect();
-        
+
         Ok(AbilityTaskIR {
             name: task.name.clone(),
             delegates,

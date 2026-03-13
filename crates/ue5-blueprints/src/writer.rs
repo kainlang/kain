@@ -9,32 +9,25 @@
 ///       → Asset<Cursor<Vec<u8>>>  (unreal_asset)
 ///       → Vec<u8>  (raw .uasset bytes)
 ///       → written to Content/Blueprints/BP_*.uasset
-
 use std::io::Cursor;
 
+use ue5_asset_utils::property_converter::convert_property_defs;
+use ue5_asset_utils::{ImportBuilder, PropertyDef, PropertyValue};
 use unreal_asset::{
+    containers::IndexedMap,
     engine_version::EngineVersion,
     exports::{
-        ExportBaseTrait, ExportNormalTrait, Export,
-        normal_export::NormalExport,
-        base_export::BaseExport,
-        class_export::ClassExport,
-        struct_export::StructExport,
+        base_export::BaseExport, class_export::ClassExport, normal_export::NormalExport,
+        struct_export::StructExport, Export, ExportBaseTrait, ExportNormalTrait,
     },
-    flags::{EObjectFlags, EClassFlags},
+    flags::{EClassFlags, EObjectFlags},
     types::PackageIndex,
-    containers::IndexedMap,
     Asset, Import,
 };
 use unreal_asset_properties::{
-    object_property::ObjectProperty,
-    int_property::IntProperty,
-    str_property::NameProperty,
-    array_property::ArrayProperty,
-    Property,
+    array_property::ArrayProperty, int_property::IntProperty, object_property::ObjectProperty,
+    str_property::NameProperty, Property,
 };
-use ue5_asset_utils::{ImportBuilder, PropertyDef, PropertyValue};
-use ue5_asset_utils::property_converter::convert_property_defs;
 
 use crate::{
     error::{BlueprintError, Result},
@@ -108,13 +101,13 @@ struct BlueprintBuildContext {
     function_class_import: PackageIndex,
 
     // Export indices (positive PackageIndex, 1-based)
-    blueprint_export: PackageIndex,       // The UBlueprint root object
-    bp_gen_class_export: PackageIndex,    // The UBlueprintGeneratedClass
-    cdo_export: PackageIndex,             // Default__BP_Name (ClassDefaultObject)
-    scs_export: Option<PackageIndex>,     // SimpleConstructionScript (if components exist)
-    scs_node_exports: Vec<PackageIndex>,  // SCS_Node exports
+    blueprint_export: PackageIndex,      // The UBlueprint root object
+    bp_gen_class_export: PackageIndex,   // The UBlueprintGeneratedClass
+    cdo_export: PackageIndex,            // Default__BP_Name (ClassDefaultObject)
+    scs_export: Option<PackageIndex>,    // SimpleConstructionScript (if components exist)
+    scs_node_exports: Vec<PackageIndex>, // SCS_Node exports
     comp_template_exports: Vec<PackageIndex>, // Component template exports
-    function_exports: Vec<PackageIndex>,  // UFunction exports (event graph)
+    function_exports: Vec<PackageIndex>, // UFunction exports (event graph)
 }
 
 impl BlueprintBuildContext {
@@ -150,7 +143,10 @@ impl BlueprintBuildContext {
 
         // Class import helper
         let class_fname = asset.add_fname("Class");
-        let add_class_import = |asset: &mut Asset<Cursor<Vec<u8>>>, class_name: &str, outer: PackageIndex| -> PackageIndex {
+        let add_class_import = |asset: &mut Asset<Cursor<Vec<u8>>>,
+                                class_name: &str,
+                                outer: PackageIndex|
+         -> PackageIndex {
             let cname = asset.add_fname(class_name);
             asset.imports.push(Import {
                 class_package: coreuobject_pkg_name.clone(),
@@ -165,9 +161,11 @@ impl BlueprintBuildContext {
         // Blueprint class
         let blueprint_class_import = add_class_import(&mut asset, "Blueprint", engine_import);
         // BlueprintGeneratedClass
-        let bp_gen_class_import = add_class_import(&mut asset, "BlueprintGeneratedClass", engine_import);
+        let bp_gen_class_import =
+            add_class_import(&mut asset, "BlueprintGeneratedClass", engine_import);
         // SimpleConstructionScript
-        let scs_class_import = add_class_import(&mut asset, "SimpleConstructionScript", engine_import);
+        let scs_class_import =
+            add_class_import(&mut asset, "SimpleConstructionScript", engine_import);
         // SCS_Node
         let scs_node_class_import = add_class_import(&mut asset, "SCS_Node", engine_import);
         // Function (for UFunction exports — event graph bytecode)
@@ -192,7 +190,8 @@ impl BlueprintBuildContext {
             PackageIndex::new(-(asset.imports.len() as i32))
         };
 
-        let parent_class_import = add_class_import(&mut asset, &parent_class_name, parent_pkg_import);
+        let parent_class_import =
+            add_class_import(&mut asset, &parent_class_name, parent_pkg_import);
 
         // ── Core exports ─────────────────────────────────────────────────────
 
@@ -211,7 +210,10 @@ impl BlueprintBuildContext {
             extras: Vec::new(),
             properties: Vec::new(), // filled in finalize_blueprint_export
         };
-        asset.asset_data.exports.push(Export::NormalExport(bp_export));
+        asset
+            .asset_data
+            .exports
+            .push(Export::NormalExport(bp_export));
         let blueprint_export = PackageIndex::new(asset.asset_data.exports.len() as i32);
 
         // Export 1: UBlueprintGeneratedClass (Name_C) — full ClassExport
@@ -234,13 +236,13 @@ impl BlueprintBuildContext {
                 },
                 field: Default::default(),
                 super_struct: parent_class_import,
-                children: Vec::new(),         // populated in finalize after functions added
+                children: Vec::new(), // populated in finalize after functions added
                 loaded_properties: Vec::new(),
                 script_bytecode: Some(Vec::new()), // no class-level bytecode
                 script_bytecode_size: 0,
                 script_bytecode_raw: None,
             },
-            func_map: IndexedMap::new(),      // populated in finalize after functions added
+            func_map: IndexedMap::new(), // populated in finalize after functions added
             class_flags: EClassFlags::CLASS_NONE,
             class_within: PackageIndex::new(0), // UObject (no restriction)
             class_config_name: engine_fname,
@@ -250,7 +252,10 @@ impl BlueprintBuildContext {
             cooked: Some(true),
             class_default_object: PackageIndex::new(0), // set in finalize after CDO created
         };
-        asset.asset_data.exports.push(Export::ClassExport(gen_class_export_data));
+        asset
+            .asset_data
+            .exports
+            .push(Export::ClassExport(gen_class_export_data));
         let bp_gen_class_export = PackageIndex::new(asset.asset_data.exports.len() as i32);
 
         // Export 2: ClassDefaultObject (Default__Name)
@@ -262,14 +267,19 @@ impl BlueprintBuildContext {
                 template_index: PackageIndex::new(0),
                 outer_index: PackageIndex::new(0),
                 object_name: cdo_name,
-                object_flags: EObjectFlags::RF_PUBLIC | EObjectFlags::RF_STANDALONE
-                    | EObjectFlags::RF_ARCHETYPE_OBJECT | EObjectFlags::RF_DEFAULT_SUB_OBJECT,
+                object_flags: EObjectFlags::RF_PUBLIC
+                    | EObjectFlags::RF_STANDALONE
+                    | EObjectFlags::RF_ARCHETYPE_OBJECT
+                    | EObjectFlags::RF_DEFAULT_SUB_OBJECT,
                 ..Default::default()
             },
             extras: Vec::new(),
             properties: Vec::new(), // filled in set_cdo_defaults
         };
-        asset.asset_data.exports.push(Export::NormalExport(cdo_export_data));
+        asset
+            .asset_data
+            .exports
+            .push(Export::NormalExport(cdo_export_data));
         let cdo_export = PackageIndex::new(asset.asset_data.exports.len() as i32);
 
         Ok(BlueprintBuildContext {
@@ -329,7 +339,11 @@ impl BlueprintBuildContext {
 
     // ── SCS + Component exports ──────────────────────────────────────────────
 
-    fn add_scs_exports(&mut self, components: &[ComponentDef], comp_class_imports: &[PackageIndex]) {
+    fn add_scs_exports(
+        &mut self,
+        components: &[ComponentDef],
+        comp_class_imports: &[PackageIndex],
+    ) {
         // SimpleConstructionScript export
         let scs_name = self.asset.add_fname("SimpleConstructionScript");
         let scs_export_data = NormalExport {
@@ -345,7 +359,10 @@ impl BlueprintBuildContext {
             extras: Vec::new(),
             properties: Vec::new(), // AllNodes filled after SCS_Nodes are created
         };
-        self.asset.asset_data.exports.push(Export::NormalExport(scs_export_data));
+        self.asset
+            .asset_data
+            .exports
+            .push(Export::NormalExport(scs_export_data));
         let scs_idx = PackageIndex::new(self.asset.asset_data.exports.len() as i32);
         self.scs_export = Some(scs_idx);
 
@@ -366,7 +383,10 @@ impl BlueprintBuildContext {
                 extras: Vec::new(),
                 properties: Vec::new(), // filled below
             };
-            self.asset.asset_data.exports.push(Export::NormalExport(scs_node_export));
+            self.asset
+                .asset_data
+                .exports
+                .push(Export::NormalExport(scs_node_export));
             let scs_node_idx = PackageIndex::new(self.asset.asset_data.exports.len() as i32);
             self.scs_node_exports.push(scs_node_idx);
 
@@ -385,7 +405,10 @@ impl BlueprintBuildContext {
                 extras: Vec::new(),
                 properties: Vec::new(), // component defaults filled below
             };
-            self.asset.asset_data.exports.push(Export::NormalExport(comp_template_export));
+            self.asset
+                .asset_data
+                .exports
+                .push(Export::NormalExport(comp_template_export));
             let comp_template_idx = PackageIndex::new(self.asset.asset_data.exports.len() as i32);
             self.comp_template_exports.push(comp_template_idx);
 
@@ -394,38 +417,49 @@ impl BlueprintBuildContext {
 
             // ComponentClass = import ref to the component UClass
             let cc_name = self.asset.add_fname("ComponentClass");
-            node_props.push(ObjectProperty {
-                name: cc_name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: comp_class_imports[i],
-            }.into());
+            node_props.push(
+                ObjectProperty {
+                    name: cc_name,
+                    ancestry: Default::default(),
+                    property_guid: None,
+                    duplication_index: 0,
+                    value: comp_class_imports[i],
+                }
+                .into(),
+            );
 
             // ComponentTemplate = export ref to the template
             let ct_name = self.asset.add_fname("ComponentTemplate");
-            node_props.push(ObjectProperty {
-                name: ct_name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: comp_template_idx,
-            }.into());
+            node_props.push(
+                ObjectProperty {
+                    name: ct_name,
+                    ancestry: Default::default(),
+                    property_guid: None,
+                    duplication_index: 0,
+                    value: comp_template_idx,
+                }
+                .into(),
+            );
 
             // InternalVariableName
             let ivn_name = self.asset.add_fname("InternalVariableName");
             let var_fname = self.asset.add_fname(&comp.variable_name);
-            node_props.push(NameProperty {
-                name: ivn_name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: var_fname,
-            }.into());
+            node_props.push(
+                NameProperty {
+                    name: ivn_name,
+                    ancestry: Default::default(),
+                    property_guid: None,
+                    duplication_index: 0,
+                    value: var_fname,
+                }
+                .into(),
+            );
 
             // Set SCS_Node properties
             let scs_node_export_idx = (scs_node_idx.index - 1) as usize;
-            if let Some(normal) = self.asset.asset_data.exports[scs_node_export_idx].get_normal_export_mut() {
+            if let Some(normal) =
+                self.asset.asset_data.exports[scs_node_export_idx].get_normal_export_mut()
+            {
                 normal.properties = node_props;
             }
 
@@ -433,7 +467,9 @@ impl BlueprintBuildContext {
             if !comp.defaults.is_empty() {
                 let comp_props = convert_property_defs(&mut self.asset, &comp.defaults);
                 let comp_export_idx = (comp_template_idx.index - 1) as usize;
-                if let Some(normal) = self.asset.asset_data.exports[comp_export_idx].get_normal_export_mut() {
+                if let Some(normal) =
+                    self.asset.asset_data.exports[comp_export_idx].get_normal_export_mut()
+                {
                     normal.properties = comp_props;
                 }
             }
@@ -442,15 +478,20 @@ impl BlueprintBuildContext {
         // Wire SCS AllNodes array
         let all_nodes_name = self.asset.add_fname("AllNodes");
         let obj_prop_type = self.asset.add_fname("ObjectProperty");
-        let node_refs: Vec<Property> = self.scs_node_exports.iter().map(|&idx| {
-            ObjectProperty {
-                name: all_nodes_name.clone(),
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: idx,
-            }.into()
-        }).collect();
+        let node_refs: Vec<Property> = self
+            .scs_node_exports
+            .iter()
+            .map(|&idx| {
+                ObjectProperty {
+                    name: all_nodes_name.clone(),
+                    ancestry: Default::default(),
+                    property_guid: None,
+                    duplication_index: 0,
+                    value: idx,
+                }
+                .into()
+            })
+            .collect();
 
         let all_nodes_prop = ArrayProperty {
             name: all_nodes_name,
@@ -465,7 +506,9 @@ impl BlueprintBuildContext {
         // Also need RootNodes (nodes without a parent)
         let root_nodes_name = self.asset.add_fname("RootNodes");
         let obj_prop_type2 = self.asset.add_fname("ObjectProperty");
-        let root_refs: Vec<Property> = components.iter().enumerate()
+        let root_refs: Vec<Property> = components
+            .iter()
+            .enumerate()
             .filter(|(_, c)| c.attach_parent.is_none())
             .map(|(i, _)| {
                 ObjectProperty {
@@ -474,7 +517,8 @@ impl BlueprintBuildContext {
                     property_guid: None,
                     duplication_index: 0,
                     value: self.scs_node_exports[i],
-                }.into()
+                }
+                .into()
             })
             .collect();
 
@@ -490,7 +534,8 @@ impl BlueprintBuildContext {
 
         // Set SCS export properties
         let scs_export_idx = (scs_idx.index - 1) as usize;
-        if let Some(normal) = self.asset.asset_data.exports[scs_export_idx].get_normal_export_mut() {
+        if let Some(normal) = self.asset.asset_data.exports[scs_export_idx].get_normal_export_mut()
+        {
             normal.properties = vec![all_nodes_prop.into(), root_nodes_prop.into()];
         }
 
@@ -498,7 +543,10 @@ impl BlueprintBuildContext {
         for (i, comp) in components.iter().enumerate() {
             if let Some(ref parent_name) = comp.attach_parent {
                 // Find the parent SCS_Node index
-                if let Some(parent_idx) = components.iter().position(|c| c.variable_name == *parent_name) {
+                if let Some(parent_idx) = components
+                    .iter()
+                    .position(|c| c.variable_name == *parent_name)
+                {
                     let child_nodes_name = self.asset.add_fname("ChildNodes");
                     let obj_type = self.asset.add_fname("ObjectProperty");
                     let child_ref = ObjectProperty {
@@ -519,7 +567,9 @@ impl BlueprintBuildContext {
                     };
 
                     let parent_export_idx = (self.scs_node_exports[parent_idx].index - 1) as usize;
-                    if let Some(normal) = self.asset.asset_data.exports[parent_export_idx].get_normal_export_mut() {
+                    if let Some(normal) =
+                        self.asset.asset_data.exports[parent_export_idx].get_normal_export_mut()
+                    {
                         normal.properties.push(child_arr.into());
                     }
                 }
@@ -560,45 +610,57 @@ impl BlueprintBuildContext {
 
         // ParentClass
         let parent_name = self.asset.add_fname("ParentClass");
-        props.push(ObjectProperty {
-            name: parent_name,
-            ancestry: Default::default(),
-            property_guid: None,
-            duplication_index: 0,
-            value: self.parent_class_import,
-        }.into());
+        props.push(
+            ObjectProperty {
+                name: parent_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: self.parent_class_import,
+            }
+            .into(),
+        );
 
         // GeneratedClass
         let gen_class_name = self.asset.add_fname("GeneratedClass");
-        props.push(ObjectProperty {
-            name: gen_class_name,
-            ancestry: Default::default(),
-            property_guid: None,
-            duplication_index: 0,
-            value: self.bp_gen_class_export,
-        }.into());
+        props.push(
+            ObjectProperty {
+                name: gen_class_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: self.bp_gen_class_export,
+            }
+            .into(),
+        );
 
         // SimpleConstructionScript (if we have components)
         if let Some(scs_idx) = self.scs_export {
             let scs_prop_name = self.asset.add_fname("SimpleConstructionScript");
-            props.push(ObjectProperty {
-                name: scs_prop_name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: scs_idx,
-            }.into());
+            props.push(
+                ObjectProperty {
+                    name: scs_prop_name,
+                    ancestry: Default::default(),
+                    property_guid: None,
+                    duplication_index: 0,
+                    value: scs_idx,
+                }
+                .into(),
+            );
         }
 
         // BlueprintSystemVersion
         let bsv_name = self.asset.add_fname("BlueprintSystemVersion");
-        props.push(IntProperty {
-            name: bsv_name,
-            ancestry: Default::default(),
-            property_guid: None,
-            duplication_index: 0,
-            value: 2, // UE5 blueprint system version
-        }.into());
+        props.push(
+            IntProperty {
+                name: bsv_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: 2, // UE5 blueprint system version
+            }
+            .into(),
+        );
 
         // Set on the blueprint export (export index 0)
         let bp_idx = (self.blueprint_export.index - 1) as usize;
@@ -629,13 +691,16 @@ impl BlueprintBuildContext {
         // UberGraphFunction reference (first function export = ubergraph)
         if !self.function_exports.is_empty() {
             let uber_name = self.asset.add_fname("UberGraphFunction");
-            gen_class_props.push(ObjectProperty {
-                name: uber_name,
-                ancestry: Default::default(),
-                property_guid: None,
-                duplication_index: 0,
-                value: self.function_exports[0],
-            }.into());
+            gen_class_props.push(
+                ObjectProperty {
+                    name: uber_name,
+                    ancestry: Default::default(),
+                    property_guid: None,
+                    duplication_index: 0,
+                    value: self.function_exports[0],
+                }
+                .into(),
+            );
         }
 
         // Set all fields on the ClassExport
@@ -689,11 +754,7 @@ mod tests {
 
     #[test]
     fn test_simple_blueprint_no_components() {
-        let bp = BlueprintDef::new(
-            "BP_Empty",
-            "/Game/Test",
-            "/Script/Engine.Actor",
-        );
+        let bp = BlueprintDef::new("BP_Empty", "/Game/Test", "/Script/Engine.Actor");
 
         let result = BlueprintBinaryWriter::write(&bp);
         assert!(result.is_ok(), "write failed: {:?}", result.err());
@@ -703,14 +764,10 @@ mod tests {
 
     #[test]
     fn test_blueprint_with_defaults() {
-        let bp = BlueprintDef::new(
-            "BP_WithDefaults",
-            "/Game/Test",
-            "/Script/Engine.Actor",
-        )
-        .add_default(PropertyDef::float("MaxSpeed", 600.0))
-        .add_default(PropertyDef::bool("bCanFly", true))
-        .add_default(PropertyDef::int("MaxHealth", 100));
+        let bp = BlueprintDef::new("BP_WithDefaults", "/Game/Test", "/Script/Engine.Actor")
+            .add_default(PropertyDef::float("MaxSpeed", 600.0))
+            .add_default(PropertyDef::bool("bCanFly", true))
+            .add_default(PropertyDef::int("MaxHealth", 100));
 
         let result = BlueprintBinaryWriter::write(&bp);
         assert!(result.is_ok(), "write failed: {:?}", result.err());
@@ -720,21 +777,14 @@ mod tests {
 
     #[test]
     fn test_blueprint_with_components() {
-        let bp = BlueprintDef::new(
-            "BP_WithComps",
-            "/Game/Test",
-            "/Script/Engine.Pawn",
-        )
-        .add_component(
-            ComponentDef::new("CapsuleComponent", "Capsule")
-                .with_default(PropertyDef::float("CapsuleRadius", 42.0))
-                .with_default(PropertyDef::float("CapsuleHalfHeight", 96.0)),
-        )
-        .add_component(
-            ComponentDef::new("StaticMeshComponent", "Mesh")
-                .with_parent("Capsule"),
-        )
-        .add_default(PropertyDef::float("MaxWalkSpeed", 600.0));
+        let bp = BlueprintDef::new("BP_WithComps", "/Game/Test", "/Script/Engine.Pawn")
+            .add_component(
+                ComponentDef::new("CapsuleComponent", "Capsule")
+                    .with_default(PropertyDef::float("CapsuleRadius", 42.0))
+                    .with_default(PropertyDef::float("CapsuleHalfHeight", 96.0)),
+            )
+            .add_component(ComponentDef::new("StaticMeshComponent", "Mesh").with_parent("Capsule"))
+            .add_default(PropertyDef::float("MaxWalkSpeed", 600.0));
 
         let result = BlueprintBinaryWriter::write(&bp);
         assert!(result.is_ok(), "write failed: {:?}", result.err());
@@ -751,20 +801,18 @@ mod tests {
     #[test]
     fn test_check_support_with_events_supported() {
         use crate::ir::{EventGraphNode, KismetCall};
-        let bp = BlueprintDef::new("BP_Test", "/Game/Test", "/Script/Engine.Actor")
-            .add_event(EventGraphNode::begin_play(vec![
-                KismetCall::function("Init"),
-            ]));
+        let bp = BlueprintDef::new("BP_Test", "/Game/Test", "/Script/Engine.Actor").add_event(
+            EventGraphNode::begin_play(vec![KismetCall::function("Init")]),
+        );
         assert!(BlueprintBinaryWriter::check_support(&bp).is_ok());
     }
 
     #[test]
     fn test_generate_uasset_succeeds_for_events() {
         use crate::ir::{EventGraphNode, KismetCall};
-        let bp = BlueprintDef::new("BP_Test", "/Game/Test", "/Script/Engine.Actor")
-            .add_event(EventGraphNode::begin_play(vec![
-                KismetCall::function("Init"),
-            ]));
+        let bp = BlueprintDef::new("BP_Test", "/Game/Test", "/Script/Engine.Actor").add_event(
+            EventGraphNode::begin_play(vec![KismetCall::function("Init")]),
+        );
         let result = crate::generate_uasset(&bp);
         assert!(result.is_ok());
         assert!(result.unwrap().is_some()); // binary generation now works!
@@ -783,9 +831,9 @@ mod tests {
                 KismetCall::function("InitAbilities"),
                 KismetCall::function("SetupHUD"),
             ]))
-            .add_event(EventGraphNode::tick(vec![
-                KismetCall::function("UpdateMovement"),
-            ]));
+            .add_event(EventGraphNode::tick(vec![KismetCall::function(
+                "UpdateMovement",
+            )]));
 
         let result = BlueprintBinaryWriter::write(&bp);
         assert!(result.is_ok(), "write failed: {:?}", result.err());

@@ -2,9 +2,9 @@
 // Ability IR Tests — Comprehensive test suite for GameplayAbilityIR
 // ============================================================================
 
-use ue5_gas::*;
-use kain_core::ast::{GameplayAbilityDef, Function, Attribute, Block, Param, Type};
+use kain_core::ast::{Attribute, Block, Function, GameplayAbilityDef, Param, Type};
 use kain_core::span::Span;
+use ue5_gas::*;
 
 // ============================================================================
 // Helper Functions
@@ -25,13 +25,11 @@ fn create_test_ability(name: &str) -> GameplayAbilityDef {
         cost_effect: None,
         cooldown_effect: None,
         methods: vec![],
-        attributes: vec![
-            Attribute {
-                name: "ability".to_string(),
-                args: vec![],
-                span: Span::default(),
-            }
-        ],
+        attributes: vec![Attribute {
+            name: "ability".to_string(),
+            args: vec![],
+            span: Span::default(),
+        }],
         span: Span::default(),
     }
 }
@@ -67,7 +65,10 @@ fn test_ability_with_all_policies() {
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
 
     assert_eq!(ir.name, "TestAbility");
-    assert_eq!(ir.instancing_policy, InstancingPolicy::InstancedPerExecution);
+    assert_eq!(
+        ir.instancing_policy,
+        InstancingPolicy::InstancedPerExecution
+    );
     assert_eq!(ir.replication_policy, ReplicationPolicy::ReplicateYes);
     assert_eq!(ir.net_execution_policy, NetExecutionPolicy::LocalPredicted);
 }
@@ -77,7 +78,10 @@ fn test_ability_with_default_policies() {
     let ability = create_test_ability("TestAbility");
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
 
-    assert_eq!(ir.instancing_policy, InstancingPolicy::InstancedPerExecution);
+    assert_eq!(
+        ir.instancing_policy,
+        InstancingPolicy::InstancedPerExecution
+    );
     assert_eq!(ir.replication_policy, ReplicationPolicy::ReplicateYes);
     assert_eq!(ir.net_execution_policy, NetExecutionPolicy::LocalPredicted);
 }
@@ -172,13 +176,17 @@ fn test_ability_with_tags() {
     let mut ability = create_test_ability("TestAbility");
     ability.ability_tags = vec!["Ability.Jump".to_string()];
     ability.activation_required_tags = vec!["Status.Grounded".to_string()];
-    ability.activation_blocked_tags = vec!["Status.Stunned".to_string(), "Status.Rooted".to_string()];
+    ability.activation_blocked_tags =
+        vec!["Status.Stunned".to_string(), "Status.Rooted".to_string()];
 
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
 
     assert_eq!(ir.ability_tags, vec!["Ability.Jump"]);
     assert_eq!(ir.activation_required_tags, vec!["Status.Grounded"]);
-    assert_eq!(ir.activation_blocked_tags, vec!["Status.Stunned", "Status.Rooted"]);
+    assert_eq!(
+        ir.activation_blocked_tags,
+        vec!["Status.Stunned", "Status.Rooted"]
+    );
 }
 
 #[test]
@@ -299,21 +307,31 @@ fn test_ability_with_cost_and_cooldown() {
 #[test]
 fn test_lifecycle_hook_can_activate() {
     let mut ability = create_test_ability("TestAbility");
-    ability.methods.push(create_test_function("can_activate_ability"));
+    ability
+        .methods
+        .push(create_test_function("can_activate_ability"));
 
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
     assert!(ir.lifecycle_hooks.can_activate_ability.is_some());
-    assert_eq!(ir.lifecycle_hooks.can_activate_ability.unwrap().name, "can_activate_ability");
+    assert_eq!(
+        ir.lifecycle_hooks.can_activate_ability.unwrap().name,
+        "can_activate_ability"
+    );
 }
 
 #[test]
 fn test_lifecycle_hook_activate() {
     let mut ability = create_test_ability("TestAbility");
-    ability.methods.push(create_test_function("activate_ability"));
+    ability
+        .methods
+        .push(create_test_function("activate_ability"));
 
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
     assert!(ir.lifecycle_hooks.activate_ability.is_some());
-    assert_eq!(ir.lifecycle_hooks.activate_ability.unwrap().name, "activate_ability");
+    assert_eq!(
+        ir.lifecycle_hooks.activate_ability.unwrap().name,
+        "activate_ability"
+    );
 }
 
 #[test]
@@ -365,8 +383,12 @@ fn test_lifecycle_hook_input_released() {
 #[test]
 fn test_multiple_lifecycle_hooks() {
     let mut ability = create_test_ability("TestAbility");
-    ability.methods.push(create_test_function("can_activate_ability"));
-    ability.methods.push(create_test_function("activate_ability"));
+    ability
+        .methods
+        .push(create_test_function("can_activate_ability"));
+    ability
+        .methods
+        .push(create_test_function("activate_ability"));
     ability.methods.push(create_test_function("end_ability"));
 
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
@@ -378,7 +400,9 @@ fn test_multiple_lifecycle_hooks() {
 #[test]
 fn test_unknown_method_ignored() {
     let mut ability = create_test_ability("TestAbility");
-    ability.methods.push(create_test_function("helper_function"));
+    ability
+        .methods
+        .push(create_test_function("helper_function"));
 
     let result = GameplayAbilityIR::from_ast(&ability);
     assert!(result.is_ok());
@@ -409,23 +433,34 @@ fn test_complete_ability() {
     ability.net_execution_policy = Some("LocalPredicted".to_string());
     ability.ability_tags = vec!["Ability.Jump".to_string()];
     ability.activation_required_tags = vec!["Status.Grounded".to_string()];
-    ability.activation_blocked_tags = vec!["Status.Stunned".to_string(), "Status.Rooted".to_string()];
+    ability.activation_blocked_tags =
+        vec!["Status.Stunned".to_string(), "Status.Rooted".to_string()];
     ability.activation_owned_tags = vec!["Status.Jumping".to_string()];
     ability.cost_effect = Some("StaminaCost".to_string());
     ability.cooldown_effect = Some("JumpCooldown".to_string());
-    ability.methods.push(create_test_function("can_activate_ability"));
-    ability.methods.push(create_test_function("activate_ability"));
+    ability
+        .methods
+        .push(create_test_function("can_activate_ability"));
+    ability
+        .methods
+        .push(create_test_function("activate_ability"));
     ability.methods.push(create_test_function("end_ability"));
 
     let ir = GameplayAbilityIR::from_ast(&ability).unwrap();
 
     assert_eq!(ir.name, "JumpAbility");
-    assert_eq!(ir.instancing_policy, InstancingPolicy::InstancedPerExecution);
+    assert_eq!(
+        ir.instancing_policy,
+        InstancingPolicy::InstancedPerExecution
+    );
     assert_eq!(ir.replication_policy, ReplicationPolicy::ReplicateYes);
     assert_eq!(ir.net_execution_policy, NetExecutionPolicy::LocalPredicted);
     assert_eq!(ir.ability_tags, vec!["Ability.Jump"]);
     assert_eq!(ir.activation_required_tags, vec!["Status.Grounded"]);
-    assert_eq!(ir.activation_blocked_tags, vec!["Status.Stunned", "Status.Rooted"]);
+    assert_eq!(
+        ir.activation_blocked_tags,
+        vec!["Status.Stunned", "Status.Rooted"]
+    );
     assert_eq!(ir.activation_owned_tags, vec!["Status.Jumping"]);
     assert_eq!(ir.cost_effect, Some("StaminaCost".to_string()));
     assert_eq!(ir.cooldown_effect, Some("JumpCooldown".to_string()));

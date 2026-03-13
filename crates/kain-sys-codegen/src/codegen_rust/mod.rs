@@ -8,32 +8,24 @@ pub mod artifact_bundle;
 pub mod gpu_artifacts;
 pub mod gpu_host;
 
-use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
-use kain_core::types::{TypedProgram, TypedItem};
-use kain_core::error::KainResult;
-use kain_core::effects::Effect;
 use kain_core::ast::{
-    Type, Expr, Stmt, Block, BinaryOp, UnaryOp, Pattern, Function, Struct, Enum,
-    VariantFields, Impl, Param, ElseBranch,
-    VariantPatternFields, EnumVariantFields, Component, JSXNode, JSXAttrValue, Generic,
+    BinaryOp, Block, Component, ElseBranch, Enum, EnumVariantFields, Expr, Function, Generic, Impl,
+    JSXAttrValue, JSXNode, Param, Pattern, Stmt, Struct, Type, UnaryOp, VariantFields,
+    VariantPatternFields,
 };
+use kain_core::effects::Effect;
+use kain_core::error::KainResult;
+use kain_core::types::{TypedItem, TypedProgram};
+use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 pub use artifact_bundle::{
-    generate_rust_artifact_bundle,
-    RustArtifactBundle,
-    RustArtifactKind,
-    RustTextArtifact,
+    generate_rust_artifact_bundle, RustArtifactBundle, RustArtifactKind, RustTextArtifact,
 };
 pub use gpu_artifacts::{
-    collect_gpu_artifacts,
-    collect_gpu_artifacts_json,
-    RustGpuArtifactOutput,
-    RustGpuBindingArtifact,
-    RustGpuBindingKind,
-    RustGpuInputArtifact,
+    collect_gpu_artifacts, collect_gpu_artifacts_json, RustGpuArtifactOutput,
+    RustGpuBindingArtifact, RustGpuBindingKind, RustGpuInputArtifact, RustGpuShaderArtifact,
     RustGpuShaderStage,
-    RustGpuShaderArtifact,
 };
 pub use gpu_host::generate_gpu_host;
 
@@ -41,7 +33,9 @@ pub use gpu_host::generate_gpu_host;
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Rust)?;
     let mut gen = RustGen::new();
-    Ok(postprocess_flattened_selfhost_output(&gen.gen_program(&lowered)))
+    Ok(postprocess_flattened_selfhost_output(
+        &gen.gen_program(&lowered),
+    ))
 }
 
 pub fn generate_gpu_host_wrappers(program: &TypedProgram) -> KainResult<String> {
@@ -58,8 +52,6 @@ impl StringBuilder {
     fn new() -> Self {
         Self { lines: Vec::new() }
     }
-
-
 
     fn push_line(&mut self, text: &str) {
         self.lines.push(format!("{}\n", text));
@@ -255,7 +247,11 @@ impl RustGen {
                     self.known_type_names.insert(st.ast.name.clone());
                     self.struct_fields.insert(
                         st.ast.name.clone(),
-                        st.ast.fields.iter().map(|field| field.name.clone()).collect(),
+                        st.ast
+                            .fields
+                            .iter()
+                            .map(|field| field.name.clone())
+                            .collect(),
                     );
                 }
                 TypedItem::Enum(en) => {
@@ -300,12 +296,16 @@ impl RustGen {
         self.push_indent();
         self.write_line("unsafe {");
         self.push_indent();
-        self.write_line("if zeroed { calloc(1, size) as *mut u8 } else { malloc(size) as *mut u8 }");
+        self.write_line(
+            "if zeroed { calloc(1, size) as *mut u8 } else { malloc(size) as *mut u8 }",
+        );
         self.pop_indent();
         self.write_line("}");
         self.pop_indent();
         self.write_line("}");
-        self.write_line("fn __kain_realloc_bytes(ptr: *mut u8, size: usize, _zeroed_new: bool) -> *mut u8 {");
+        self.write_line(
+            "fn __kain_realloc_bytes(ptr: *mut u8, size: usize, _zeroed_new: bool) -> *mut u8 {",
+        );
         self.push_indent();
         self.write_line("unsafe { realloc(ptr.cast::<c_void>(), size) as *mut u8 }");
         self.pop_indent();
@@ -335,7 +335,9 @@ impl RustGen {
         self.write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));");
         self.write_line("unsafe {");
         self.push_indent();
-        self.write_line("std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);");
+        self.write_line(
+            "std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);",
+        );
         self.write_line("if copy_span > 0 { std::ptr::copy_nonoverlapping((&active_value as *const TValue).cast::<u8>(), (&mut value as *mut TObject).cast::<u8>(), copy_span); }");
         self.pop_indent();
         self.write_line("}");
@@ -356,23 +358,31 @@ impl RustGen {
         self.write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));");
         self.write_line("unsafe {");
         self.push_indent();
-        self.write_line("std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);");
+        self.write_line(
+            "std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);",
+        );
         self.write_line("if copy_span > 0 { std::ptr::copy_nonoverlapping((&next as *const TValue).cast::<u8>(), (&mut value as *mut TObject).cast::<u8>(), copy_span); }");
         self.pop_indent();
         self.write_line("}");
         self.write_line("next");
         self.pop_indent();
         self.write_line("}");
-        self.write_line("fn __kain_load_bitfield_unit<T: Copy>(value: &T, unit_offset: i64) -> u64 {");
+        self.write_line(
+            "fn __kain_load_bitfield_unit<T: Copy>(value: &T, unit_offset: i64) -> u64 {",
+        );
         self.push_indent();
-        self.write_line("if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return 0; }");
+        self.write_line(
+            "if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return 0; }",
+        );
         self.write_line("let mut unit = 0u64;");
         self.write_line("let available = min(8usize, size_of::<T>() - unit_offset as usize);");
         self.write_line("unsafe { std::ptr::copy_nonoverlapping((value as *const T).cast::<u8>().add(unit_offset as usize), (&mut unit as *mut u64).cast::<u8>(), available); }");
         self.write_line("unit");
         self.pop_indent();
         self.write_line("}");
-        self.write_line("fn __kain_store_bitfield_unit<T: Copy>(value: &mut T, unit_offset: i64, unit: u64) {");
+        self.write_line(
+            "fn __kain_store_bitfield_unit<T: Copy>(value: &mut T, unit_offset: i64, unit: u64) {",
+        );
         self.push_indent();
         self.write_line("if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return; }");
         self.write_line("let available = min(8usize, size_of::<T>() - unit_offset as usize);");
@@ -387,7 +397,9 @@ impl RustGen {
         self.write_line("let unit = __kain_load_bitfield_unit(&value, unit_offset);");
         self.write_line("let shifted = if bit_offset <= 0 { unit } else { unit >> bit_offset };");
         self.write_line("let encoded = shifted & mask;");
-        self.write_line("if is_signed { __kain_sign_extend(encoded, width) } else { encoded as i64 }");
+        self.write_line(
+            "if is_signed { __kain_sign_extend(encoded, width) } else { encoded as i64 }",
+        );
         self.pop_indent();
         self.write_line("}");
         self.write_line("fn __kain_bitfield_set<T: Copy, TValue: Copy + Into<i64>>(mut value: T, _field: &str, unit_offset: i64, bit_offset: i64, width: i64, is_signed: bool, promoted_bits: i64, next: TValue) -> TValue {");
@@ -395,7 +407,9 @@ impl RustGen {
         self.write_line("let mask = __kain_bitfield_mask(width);");
         self.write_line("let mut unit = __kain_load_bitfield_unit(&value, unit_offset);");
         self.write_line("let encoded = (next.into() as u64) & mask;");
-        self.write_line("let shifted_mask = if bit_offset <= 0 { mask } else { mask << bit_offset };");
+        self.write_line(
+            "let shifted_mask = if bit_offset <= 0 { mask } else { mask << bit_offset };",
+        );
         self.write_line("unit = (unit & !shifted_mask) | if bit_offset <= 0 { encoded } else { encoded << bit_offset };");
         self.write_line("__kain_store_bitfield_unit(&mut value, unit_offset, unit);");
         self.write_line("let _ = __kain_bitfield_get(value, \"\", unit_offset, bit_offset, width, is_signed, promoted_bits);");
@@ -447,7 +461,10 @@ impl RustGen {
         visibility: kain_core::ast::Visibility,
     ) {
         let vis = self.visibility_prefix(visibility);
-        if let Type::Named { name: type_name, .. } = ty {
+        if let Type::Named {
+            name: type_name, ..
+        } = ty
+        {
             if type_name == "Lazy" || type_name.ends_with("::Lazy") {
                 self.write_line(&format!(
                     "{vis}static {name}: {} = {};",
@@ -480,15 +497,17 @@ impl RustGen {
     }
 
     fn is_simple_const(&self, ty: &Type, value: &Expr) -> bool {
-        matches!(value, Expr::Int(_, _) | Expr::Float(_, _) | Expr::Bool(_, _))
-            && matches!(ty, Type::Named { name, .. } if {
-                let mapped = self.map_named_type(name);
-                matches!(
-                    mapped.as_str(),
-                    "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-                        | "isize" | "usize" | "f32" | "f64" | "bool"
-                )
-            })
+        matches!(
+            value,
+            Expr::Int(_, _) | Expr::Float(_, _) | Expr::Bool(_, _)
+        ) && matches!(ty, Type::Named { name, .. } if {
+            let mapped = self.map_named_type(name);
+            matches!(
+                mapped.as_str(),
+                "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+                    | "isize" | "usize" | "f32" | "f64" | "bool"
+            )
+        })
     }
 
     fn map_const_type(&self, ty: &Type) -> String {
@@ -498,7 +517,8 @@ impl RustGen {
             }
             Type::Ref { inner, .. } => self.map_const_type(inner),
             Type::Tuple(items, _) => {
-                let parts: Vec<String> = items.iter().map(|item| self.map_const_type(item)).collect();
+                let parts: Vec<String> =
+                    items.iter().map(|item| self.map_const_type(item)).collect();
                 if parts.len() == 1 {
                     format!("({},)", parts[0])
                 } else {
@@ -512,13 +532,21 @@ impl RustGen {
     fn gen_const_value_expr(&self, expr: &Expr) -> String {
         match expr {
             Expr::String(value, _) => format!("{value:?}"),
-            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } => self.gen_const_value_expr(value),
+            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } => {
+                self.gen_const_value_expr(value)
+            }
             Expr::Array(items, _) => {
-                let parts: Vec<String> = items.iter().map(|item| self.gen_const_value_expr(item)).collect();
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| self.gen_const_value_expr(item))
+                    .collect();
                 format!("vec![{}]", parts.join(", "))
             }
             Expr::Tuple(items, _) => {
-                let parts: Vec<String> = items.iter().map(|item| self.gen_const_value_expr(item)).collect();
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| self.gen_const_value_expr(item))
+                    .collect();
                 if parts.len() == 1 {
                     format!("({},)", parts[0])
                 } else {
@@ -530,15 +558,30 @@ impl RustGen {
                     .iter()
                     .map(|(field, value)| format!("{field}: {}", self.gen_const_value_expr(value)))
                     .collect();
-                format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
+                format!(
+                    "{} {{ {} }}",
+                    self.normalize_runtime_path(name),
+                    field_strs.join(", ")
+                )
             }
-            Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => {
+            Expr::AggregateInit {
+                ty,
+                fields,
+                zero_fill_rest,
+                ..
+            } => {
                 if let Type::Named { name, .. } = ty {
                     if let Some((enum_name, variant)) = name.rsplit_once("__") {
-                        let head = self.normalize_variant_head(Some(&enum_name.to_string()), variant, None);
+                        let head = self.normalize_variant_head(
+                            Some(&enum_name.to_string()),
+                            variant,
+                            None,
+                        );
                         let field_strs: Vec<String> = fields
                             .iter()
-                            .map(|(field, value)| format!("{field}: {}", self.gen_const_value_expr(value)))
+                            .map(|(field, value)| {
+                                format!("{field}: {}", self.gen_const_value_expr(value))
+                            })
                             .collect();
                         return format!("{head} {{ {} }}", field_strs.join(", "));
                     }
@@ -552,24 +595,47 @@ impl RustGen {
                     if field_strs.is_empty() {
                         format!("{ty_name} {{ ..Default::default() }}")
                     } else {
-                        format!("{ty_name} {{ {}, ..Default::default() }}", field_strs.join(", "))
+                        format!(
+                            "{ty_name} {{ {}, ..Default::default() }}",
+                            field_strs.join(", ")
+                        )
                     }
                 } else {
                     format!("{ty_name} {{ {} }}", field_strs.join(", "))
                 }
             }
-            Expr::EnumVariant { enum_name, variant, fields, .. } => match fields {
-                EnumVariantFields::Unit => self.normalize_variant_head(Some(enum_name), variant, None),
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                ..
+            } => match fields {
+                EnumVariantFields::Unit => {
+                    self.normalize_variant_head(Some(enum_name), variant, None)
+                }
                 EnumVariantFields::Tuple(values) => {
-                    let parts: Vec<String> = values.iter().map(|value| self.gen_const_value_expr(value)).collect();
-                    format!("{}({})", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
+                    let parts: Vec<String> = values
+                        .iter()
+                        .map(|value| self.gen_const_value_expr(value))
+                        .collect();
+                    format!(
+                        "{}({})",
+                        self.normalize_variant_head(Some(enum_name), variant, None),
+                        parts.join(", ")
+                    )
                 }
                 EnumVariantFields::Struct(values) => {
                     let parts: Vec<String> = values
                         .iter()
-                        .map(|(field, value)| format!("{field}: {}", self.gen_const_value_expr(value)))
+                        .map(|(field, value)| {
+                            format!("{field}: {}", self.gen_const_value_expr(value))
+                        })
                         .collect();
-                    format!("{} {{ {} }}", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
+                    format!(
+                        "{} {{ {} }}",
+                        self.normalize_variant_head(Some(enum_name), variant, None),
+                        parts.join(", ")
+                    )
                 }
             },
             _ => self.gen_expr(expr),
@@ -628,7 +694,9 @@ impl RustGen {
         let return_struct = func.return_type.as_ref().and_then(|ty| match ty {
             Type::Named { name, .. } => {
                 let normalized = self.normalize_type_name(name, self_ctx_ref);
-                self.struct_fields.contains_key(&normalized).then_some(normalized)
+                self.struct_fields
+                    .contains_key(&normalized)
+                    .then_some(normalized)
             }
             _ => None,
         });
@@ -712,16 +780,12 @@ impl RustGen {
             .enumerate()
             .map(|(index, p)| {
                 let needs_mut = mutated_params.is_some_and(|names| names.contains(&p.name));
-                if index == 0
-                    && self_ctx.is_some()
-                    && matches!(p.name.as_str(), "self" | "_self")
-                {
+                if index == 0 && self_ctx.is_some() && matches!(p.name.as_str(), "self" | "_self") {
                     match &p.ty {
                         Type::Ref { mutable, inner, .. }
-                            if self
-                                .extract_named_type_name(inner)
-                                .as_deref()
-                                .is_some_and(|name| name == "Self_" || name == "Self" || Some(name) == self_ctx) =>
+                            if self.extract_named_type_name(inner).as_deref().is_some_and(
+                                |name| name == "Self_" || name == "Self" || Some(name) == self_ctx,
+                            ) =>
                         {
                             return if *mutable || p.mutable || needs_mut {
                                 "&mut self".to_string()
@@ -730,7 +794,9 @@ impl RustGen {
                             };
                         }
                         Type::Named { name, .. }
-                            if name == "Self_" || name == "Self" || Some(name.as_str()) == self_ctx =>
+                            if name == "Self_"
+                                || name == "Self"
+                                || Some(name.as_str()) == self_ctx =>
                         {
                             return if p.mutable || needs_mut {
                                 "mut self".to_string()
@@ -798,7 +864,11 @@ impl RustGen {
                 self.collect_type_generic_params(ok, out);
                 self.collect_type_generic_params(err, out);
             }
-            Type::Function { params, return_type, .. } => {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
                 for param in params {
                     self.collect_type_generic_params(param, out);
                 }
@@ -851,7 +921,10 @@ impl RustGen {
 
     fn gen_impl(&mut self, impl_def: &Impl) {
         let target = self.map_type(&impl_def.target_type);
-        let trait_name = impl_def.trait_name.as_ref().map(|name| self.map_trait_name(name));
+        let trait_name = impl_def
+            .trait_name
+            .as_ref()
+            .map(|name| self.map_trait_name(name));
 
         if let Some(trait_name) = &trait_name {
             self.write_line(&format!("impl {} for {} {{", trait_name, target));
@@ -939,7 +1012,8 @@ impl RustGen {
         let vis = self.visibility_prefix(comp.visibility);
         let modifiers = self.function_modifiers(&comp.effects);
         let props_name = self.component_props_name(&comp.name);
-        let mut prop_bindings: Vec<String> = comp.props.iter().map(|prop| prop.name.clone()).collect();
+        let mut prop_bindings: Vec<String> =
+            comp.props.iter().map(|prop| prop.name.clone()).collect();
         prop_bindings.push("children".to_string());
 
         self.gen_component_props_struct(comp);
@@ -951,14 +1025,23 @@ impl RustGen {
             props_name
         ));
         self.push_indent();
-        self.write_line(&format!("let {} {{ {} }} = props;", props_name, prop_bindings.join(", ")));
+        self.write_line(&format!(
+            "let {} {{ {} }} = props;",
+            props_name,
+            prop_bindings.join(", ")
+        ));
 
         if !comp.state.is_empty() || !comp.methods.is_empty() {
             self.write_blank();
         }
 
         for state in &comp.state {
-            self.write_line(&format!("let mut {}: {} = {};", state.name, self.map_type(&state.ty), self.gen_expr(&state.initial)));
+            self.write_line(&format!(
+                "let mut {}: {} = {};",
+                state.name,
+                self.map_type(&state.ty),
+                self.gen_expr(&state.initial)
+            ));
         }
 
         if !comp.state.is_empty() && !comp.methods.is_empty() {
@@ -1010,7 +1093,10 @@ impl RustGen {
             let is_last = i + 1 == len;
             if implicit_return && is_last {
                 if let Stmt::Expr(expr) = stmt {
-                    if !matches!(expr, Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)) {
+                    if !matches!(
+                        expr,
+                        Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_)
+                    ) {
                         self.write_line(&self.gen_expr(expr));
                         continue;
                     }
@@ -1022,11 +1108,21 @@ impl RustGen {
 
     fn gen_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { pattern, ty, value, .. } => {
+            Stmt::Let {
+                pattern, ty, value, ..
+            } => {
                 let pat_str = self.gen_pattern(pattern);
-                let ty_str = ty.as_ref().map(|t| format!(": {}", self.map_type(t))).unwrap_or_default();
+                let ty_str = ty
+                    .as_ref()
+                    .map(|t| format!(": {}", self.map_type(t)))
+                    .unwrap_or_default();
                 if let Some(val) = value {
-                    self.write_line(&format!("let {}{} = {};", pat_str, ty_str, self.gen_expr(val)));
+                    self.write_line(&format!(
+                        "let {}{} = {};",
+                        pat_str,
+                        ty_str,
+                        self.gen_expr(val)
+                    ));
                 } else {
                     self.write_line(&format!("let {}{};", pat_str, ty_str));
                 }
@@ -1048,7 +1144,12 @@ impl RustGen {
             Stmt::Continue(_) => {
                 self.write_line("continue;");
             }
-            Stmt::For { binding, iter, body, .. } => {
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
                 let pat = self.gen_pattern(binding);
                 self.write_line(&format!("for {} in {} {{", pat, self.gen_expr(iter)));
                 self.push_indent();
@@ -1056,7 +1157,9 @@ impl RustGen {
                 self.pop_indent();
                 self.write_line("}");
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 self.write_line(&format!("while {} {{", self.gen_expr(condition)));
                 self.push_indent();
                 self.gen_block(body);
@@ -1072,8 +1175,15 @@ impl RustGen {
             }
             Stmt::Expr(expr) => {
                 if let Expr::Assign { target, value, .. } = expr {
-                    self.write_line(&format!("{} = {};", self.gen_expr(target), self.gen_expr(value)));
-                } else if let Expr::Match { scrutinee, arms, .. } = expr {
+                    self.write_line(&format!(
+                        "{} = {};",
+                        self.gen_expr(target),
+                        self.gen_expr(value)
+                    ));
+                } else if let Expr::Match {
+                    scrutinee, arms, ..
+                } = expr
+                {
                     self.write_line(&self.gen_match_expr(scrutinee, arms, true));
                 } else {
                     self.write_line(&format!("{};", self.gen_expr(expr)));
@@ -1101,9 +1211,14 @@ impl RustGen {
 
     fn gen_stmt_inline(&self, stmt: &Stmt, is_last: bool) -> String {
         match stmt {
-            Stmt::Let { pattern, ty, value, .. } => {
+            Stmt::Let {
+                pattern, ty, value, ..
+            } => {
                 let pat_str = self.gen_pattern(pattern);
-                let ty_str = ty.as_ref().map(|t| format!(": {}", self.map_type(t))).unwrap_or_default();
+                let ty_str = ty
+                    .as_ref()
+                    .map(|t| format!(": {}", self.map_type(t)))
+                    .unwrap_or_default();
                 if let Some(val) = value {
                     format!("let {}{} = {};", pat_str, ty_str, self.gen_expr(val))
                 } else {
@@ -1111,12 +1226,19 @@ impl RustGen {
                 }
             }
             Stmt::Expr(expr) => {
-                let expr_str = if let Expr::Match { scrutinee, arms, .. } = expr {
+                let expr_str = if let Expr::Match {
+                    scrutinee, arms, ..
+                } = expr
+                {
                     self.gen_match_expr(scrutinee, arms, true)
                 } else {
                     self.gen_expr(expr)
                 };
-                if is_last { expr_str } else { format!("{};", expr_str) }
+                if is_last {
+                    expr_str
+                } else {
+                    format!("{};", expr_str)
+                }
             }
             Stmt::Return(maybe_expr, _) => {
                 if let Some(expr) = maybe_expr {
@@ -1133,11 +1255,27 @@ impl RustGen {
                 }
             }
             Stmt::Continue(_) => "continue;".to_string(),
-            Stmt::For { binding, iter, body, .. } => {
-                format!("for {} in {} {}", self.gen_pattern(binding), self.gen_expr(iter), self.gen_block_expr(body))
+            Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
+                format!(
+                    "for {} in {} {}",
+                    self.gen_pattern(binding),
+                    self.gen_expr(iter),
+                    self.gen_block_expr(body)
+                )
             }
-            Stmt::While { condition, body, .. } => {
-                format!("while {} {}", self.gen_expr(condition), self.gen_block_expr(body))
+            Stmt::While {
+                condition, body, ..
+            } => {
+                format!(
+                    "while {} {}",
+                    self.gen_expr(condition),
+                    self.gen_block_expr(body)
+                )
             }
             Stmt::Loop { body, .. } => format!("loop {}", self.gen_block_expr(body)),
             Stmt::Item(_) => "()".to_string(),
@@ -1148,8 +1286,16 @@ impl RustGen {
         match else_branch {
             ElseBranch::Else(block) => self.gen_block_expr(block),
             ElseBranch::ElseIf(condition, block, tail) => {
-                let else_tail = tail.as_ref().map(|next| format!(" else {}", self.gen_else_branch_expr(next))).unwrap_or_default();
-                format!("if {} {}{}", self.gen_expr(condition), self.gen_block_expr(block), else_tail)
+                let else_tail = tail
+                    .as_ref()
+                    .map(|next| format!(" else {}", self.gen_else_branch_expr(next)))
+                    .unwrap_or_default();
+                format!(
+                    "if {} {}{}",
+                    self.gen_expr(condition),
+                    self.gen_block_expr(block),
+                    else_tail
+                )
             }
         }
     }
@@ -1470,7 +1616,8 @@ impl RustGen {
         if children.is_empty() {
             "String::new()".to_string()
         } else {
-            let child_strs: Vec<String> = children.iter().map(|child| self.gen_jsx(child)).collect();
+            let child_strs: Vec<String> =
+                children.iter().map(|child| self.gen_jsx(child)).collect();
             format!("vec![{}].join(\"\")", child_strs.join(", "))
         }
     }
@@ -1480,12 +1627,25 @@ impl RustGen {
             JSXNode::Text(text, _) => format!("\"{}\".to_string()", self.escape_string(text)),
             JSXNode::Expression(expr) => format!("format!(\"{{}}\", {})", self.gen_expr(expr)),
             JSXNode::Fragment(children, _) => self.gen_jsx_children_expr(children),
-            JSXNode::Element { tag, attributes, children, .. } => {
+            JSXNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } => {
                 let attr_strs: Vec<String> = attributes
                     .iter()
                     .map(|attr| match &attr.value {
-                        JSXAttrValue::String(value) => format!("format!(\" {}=\\\"{{}}\\\"\", \"{}\")", attr.name, self.escape_string(value)),
-                        JSXAttrValue::Expr(expr) => format!("format!(\" {}=\\\"{{}}\\\"\", {})", attr.name, self.gen_expr(expr)),
+                        JSXAttrValue::String(value) => format!(
+                            "format!(\" {}=\\\"{{}}\\\"\", \"{}\")",
+                            attr.name,
+                            self.escape_string(value)
+                        ),
+                        JSXAttrValue::Expr(expr) => format!(
+                            "format!(\" {}=\\\"{{}}\\\"\", {})",
+                            attr.name,
+                            self.gen_expr(expr)
+                        ),
                         JSXAttrValue::Bool(value) => {
                             if *value {
                                 format!("\" {}\".to_string()", attr.name)
@@ -1501,31 +1661,73 @@ impl RustGen {
                     format!("vec![{}].join(\"\")", attr_strs.join(", "))
                 };
                 let children_expr = self.gen_jsx_children_expr(children);
-                format!("format!(\"<{}{{}}{{}}</{}>\", {}, {})", tag, tag, attrs_expr, children_expr)
+                format!(
+                    "format!(\"<{}{{}}{{}}</{}>\", {}, {})",
+                    tag, tag, attrs_expr, children_expr
+                )
             }
-            JSXNode::ComponentCall { name, props, children, .. } => {
+            JSXNode::ComponentCall {
+                name,
+                props,
+                children,
+                ..
+            } => {
                 let props_name = self.component_props_name(name);
                 let mut field_strs: Vec<String> = props
                     .iter()
-                    .map(|prop| format!("{}: {}", prop.name, self.gen_jsx_attr_value_expr(&prop.value)))
+                    .map(|prop| {
+                        format!(
+                            "{}: {}",
+                            prop.name,
+                            self.gen_jsx_attr_value_expr(&prop.value)
+                        )
+                    })
                     .collect();
-                field_strs.push(format!("children: {}", self.gen_jsx_children_expr(children)));
+                field_strs.push(format!(
+                    "children: {}",
+                    self.gen_jsx_children_expr(children)
+                ));
                 format!("{}({} {{ {} }})", name, props_name, field_strs.join(", "))
             }
-            JSXNode::For { binding, iter, body, .. } => {
-                format!("({}).into_iter().map(|{}| {}).collect::<Vec<String>>().join(\"\")", self.gen_expr(iter), binding, self.gen_jsx(body))
+            JSXNode::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
+                format!(
+                    "({}).into_iter().map(|{}| {}).collect::<Vec<String>>().join(\"\")",
+                    self.gen_expr(iter),
+                    binding,
+                    self.gen_jsx(body)
+                )
             }
-            JSXNode::If { condition, then_branch, else_branch, .. } => {
+            JSXNode::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 let else_expr = else_branch
                     .as_ref()
                     .map(|branch| self.gen_jsx(branch))
                     .unwrap_or_else(|| "String::new()".to_string());
-                format!("if {} {{ {} }} else {{ {} }}", self.gen_expr(condition), self.gen_jsx(then_branch), else_expr)
+                format!(
+                    "if {} {{ {} }} else {{ {} }}",
+                    self.gen_expr(condition),
+                    self.gen_jsx(then_branch),
+                    else_expr
+                )
             }
         }
     }
 
-    fn gen_match_expr(&self, scrutinee: &Expr, arms: &[kain_core::ast::MatchArm], statement_context: bool) -> String {
+    fn gen_match_expr(
+        &self,
+        scrutinee: &Expr,
+        arms: &[kain_core::ast::MatchArm],
+        statement_context: bool,
+    ) -> String {
         let enum_hint = self.enum_hint_for_expr(scrutinee);
         let mut arm_bodies: Vec<String> = arms.iter().map(|arm| self.gen_expr(&arm.body)).collect();
         let prefers_string = arm_bodies.iter().any(|body| body.contains(".to_string()"));
@@ -1558,7 +1760,11 @@ impl RustGen {
                 )
             })
             .collect();
-        format!("match {} {{ {} }}", self.gen_expr(scrutinee), arm_strs.join(", "))
+        format!(
+            "match {} {{ {} }}",
+            self.gen_expr(scrutinee),
+            arm_strs.join(", ")
+        )
     }
 
     fn gen_pattern(&self, pattern: &Pattern) -> String {
@@ -1576,15 +1782,23 @@ impl RustGen {
                     name.clone()
                 }
             }
-            Pattern::Struct { name, fields, rest, .. } => {
+            Pattern::Struct {
+                name, fields, rest, ..
+            } => {
                 let mut field_strs: Vec<String> = fields
                     .iter()
-                    .map(|(field, pat)| format!("{field}: {}", self.gen_pattern_with_hint(pat, None)))
+                    .map(|(field, pat)| {
+                        format!("{field}: {}", self.gen_pattern_with_hint(pat, None))
+                    })
                     .collect();
                 if *rest || !fields.is_empty() {
                     field_strs.push("..".to_string());
                 }
-                format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
+                format!(
+                    "{} {{ {} }}",
+                    self.normalize_runtime_path(name),
+                    field_strs.join(", ")
+                )
             }
             Pattern::Tuple(patterns, _) => {
                 let parts: Vec<String> = patterns
@@ -1607,14 +1821,18 @@ impl RustGen {
                 match fields {
                     VariantPatternFields::Unit => head,
                     VariantPatternFields::Tuple(patterns) => {
-                        let parts: Vec<String> =
-                            patterns.iter().map(|pat| self.gen_pattern_with_hint(pat, None)).collect();
+                        let parts: Vec<String> = patterns
+                            .iter()
+                            .map(|pat| self.gen_pattern_with_hint(pat, None))
+                            .collect();
                         format!("{head}({})", parts.join(", "))
                     }
                     VariantPatternFields::Struct(fields) => {
                         let mut parts: Vec<String> = fields
                             .iter()
-                            .map(|(field, pat)| format!("{field}: {}", self.gen_pattern_with_hint(pat, None)))
+                            .map(|(field, pat)| {
+                                format!("{field}: {}", self.gen_pattern_with_hint(pat, None))
+                            })
                             .collect();
                         parts.push("..".to_string());
                         format!("{head} {{ {} }}", parts.join(", "))
@@ -1622,8 +1840,10 @@ impl RustGen {
                 }
             }
             Pattern::Slice { patterns, rest, .. } => {
-                let mut parts: Vec<String> =
-                    patterns.iter().map(|pat| self.gen_pattern_with_hint(pat, None)).collect();
+                let mut parts: Vec<String> = patterns
+                    .iter()
+                    .map(|pat| self.gen_pattern_with_hint(pat, None))
+                    .collect();
                 if let Some(rest_name) = rest {
                     parts.push(format!("{rest_name} @ .."));
                 }
@@ -1660,7 +1880,10 @@ impl RustGen {
     fn collect_binding_types(&self, func: &Function) -> HashMap<String, String> {
         func.params
             .iter()
-            .filter_map(|param| self.extract_named_type_name(&param.ty).map(|name| (param.name.clone(), name)))
+            .filter_map(|param| {
+                self.extract_named_type_name(&param.ty)
+                    .map(|name| (param.name.clone(), name))
+            })
             .collect()
     }
 
@@ -1677,7 +1900,9 @@ impl RustGen {
     }
 
     fn current_impl_trait(&self) -> Option<&str> {
-        self.impl_trait_stack.last().and_then(|value| value.as_deref())
+        self.impl_trait_stack
+            .last()
+            .and_then(|value| value.as_deref())
     }
 
     fn is_selfhost_empty_block(&self, block: &Block) -> bool {
@@ -1734,11 +1959,15 @@ impl RustGen {
                     self.collect_mutated_bindings_in_expr(iter, names);
                     self.collect_mutated_bindings_in_stmts(&body.stmts, names);
                 }
-                Stmt::While { condition, body, .. } => {
+                Stmt::While {
+                    condition, body, ..
+                } => {
                     self.collect_mutated_bindings_in_expr(condition, names);
                     self.collect_mutated_bindings_in_stmts(&body.stmts, names);
                 }
-                Stmt::Loop { body, .. } => self.collect_mutated_bindings_in_stmts(&body.stmts, names),
+                Stmt::Loop { body, .. } => {
+                    self.collect_mutated_bindings_in_stmts(&body.stmts, names)
+                }
                 Stmt::Continue(_) | Stmt::Item(_) => {}
             }
         }
@@ -1763,7 +1992,9 @@ impl RustGen {
             | Expr::Comptime(operand, _)
             | Expr::Paren(operand, _)
             | Expr::Return(Some(operand), _)
-            | Expr::Break(Some(operand), _) => self.collect_mutated_bindings_in_expr(operand, names),
+            | Expr::Break(Some(operand), _) => {
+                self.collect_mutated_bindings_in_expr(operand, names)
+            }
             Expr::Call { callee, args, .. } => {
                 self.collect_mutated_bindings_in_expr(callee, names);
                 for arg in args {
@@ -1781,8 +2012,7 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(object, names);
                 self.collect_mutated_bindings_in_expr(index, names);
             }
-            Expr::Struct { fields, .. }
-            | Expr::AggregateInit { fields, .. } => {
+            Expr::Struct { fields, .. } | Expr::AggregateInit { fields, .. } => {
                 for (_, value) in fields {
                     self.collect_mutated_bindings_in_expr(value, names);
                 }
@@ -1813,14 +2043,21 @@ impl RustGen {
                     self.collect_mutated_bindings_in_expr(end, names);
                 }
             }
-            Expr::If { condition, then_branch, else_branch, .. } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 self.collect_mutated_bindings_in_expr(condition, names);
                 self.collect_mutated_bindings_in_stmts(&then_branch.stmts, names);
                 if let Some(else_branch) = else_branch {
                     self.collect_mutated_bindings_in_else_branch(else_branch, names);
                 }
             }
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 self.collect_mutated_bindings_in_expr(scrutinee, names);
                 for arm in arms {
                     if let Some(guard) = &arm.guard {
@@ -1830,7 +2067,9 @@ impl RustGen {
                 }
             }
             Expr::Lambda { body, .. } => self.collect_mutated_bindings_in_expr(body, names),
-            Expr::PtrOffset { pointer, offset, .. } => {
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(offset, names);
             }
@@ -1869,7 +2108,11 @@ impl RustGen {
         }
     }
 
-    fn collect_mutated_bindings_in_else_branch(&self, branch: &ElseBranch, names: &mut HashSet<String>) {
+    fn collect_mutated_bindings_in_else_branch(
+        &self,
+        branch: &ElseBranch,
+        names: &mut HashSet<String>,
+    ) {
         match branch {
             ElseBranch::Else(block) => self.collect_mutated_bindings_in_stmts(&block.stmts, names),
             ElseBranch::ElseIf(condition, block, next) => {
@@ -1889,7 +2132,9 @@ impl RustGen {
             }
             Expr::Field { object, .. } => self.record_assignment_target(object, names),
             Expr::Index { object, .. } => self.record_assignment_target(object, names),
-            Expr::Paren(inner, _) | Expr::Deref(inner, _) => self.record_assignment_target(inner, names),
+            Expr::Paren(inner, _) | Expr::Deref(inner, _) => {
+                self.record_assignment_target(inner, names)
+            }
             _ => {}
         }
     }
@@ -1908,18 +2153,30 @@ impl RustGen {
                 fields,
                 ..
             } => match fields {
-                EnumVariantFields::Unit => self.normalize_variant_head(Some(enum_name), variant, None),
+                EnumVariantFields::Unit => {
+                    self.normalize_variant_head(Some(enum_name), variant, None)
+                }
                 EnumVariantFields::Tuple(values) => {
-                    let parts: Vec<String> =
-                        values.iter().map(|value| self.gen_pattern_literal(value)).collect();
-                    format!("{}({})", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
+                    let parts: Vec<String> = values
+                        .iter()
+                        .map(|value| self.gen_pattern_literal(value))
+                        .collect();
+                    format!(
+                        "{}({})",
+                        self.normalize_variant_head(Some(enum_name), variant, None),
+                        parts.join(", ")
+                    )
                 }
                 EnumVariantFields::Struct(values) => {
                     let parts: Vec<String> = values
                         .iter()
                         .map(|(name, value)| format!("{name}: {}", self.gen_pattern_literal(value)))
                         .collect();
-                    format!("{} {{ {} }}", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
+                    format!(
+                        "{} {{ {} }}",
+                        self.normalize_variant_head(Some(enum_name), variant, None),
+                        parts.join(", ")
+                    )
                 }
             },
             Expr::Paren(inner, _) => format!("({})", self.gen_pattern_literal(inner)),
@@ -1947,7 +2204,11 @@ impl RustGen {
         if let Some(trait_name) = self.current_impl_trait() {
             match trait_name {
                 "Display" if emitted.ends_with("_fmt") => return "fmt".to_string(),
-                "Default" if emitted.ends_with("_default") || emitted == "default" || emitted == "default_" => {
+                "Default"
+                    if emitted.ends_with("_default")
+                        || emitted == "default"
+                        || emitted == "default_" =>
+                {
                     return "default".to_string()
                 }
                 _ => {}
@@ -2357,12 +2618,23 @@ impl RustGen {
                 }
             }
             Type::Array(inner, size, _) => {
-                format!("[{}; {}]", self.map_owned_type_in_context(inner, current_self, true), size)
+                format!(
+                    "[{}; {}]",
+                    self.map_owned_type_in_context(inner, current_self, true),
+                    size
+                )
             }
             Type::Slice(inner, _) => {
-                format!("Vec<{}>", self.map_owned_type_in_context(inner, current_self, true))
+                format!(
+                    "Vec<{}>",
+                    self.map_owned_type_in_context(inner, current_self, true)
+                )
             }
-            Type::Function { params, return_type, .. } => {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
                 let param_strs: Vec<String> = params
                     .iter()
                     .map(|p| self.map_owned_type_in_context(p, current_self, false))
@@ -2374,7 +2646,10 @@ impl RustGen {
                 )
             }
             Type::Option(inner, _) => {
-                format!("Option<{}>", self.map_owned_type_in_context(inner, current_self, true))
+                format!(
+                    "Option<{}>",
+                    self.map_owned_type_in_context(inner, current_self, true)
+                )
             }
             Type::Result(ok, err, _) => {
                 format!(
@@ -2387,7 +2662,12 @@ impl RustGen {
         }
     }
 
-    fn map_type_in_context(&self, ty: &Type, current_self: Option<&str>, recursive_slot: bool) -> String {
+    fn map_type_in_context(
+        &self,
+        ty: &Type,
+        current_self: Option<&str>,
+        recursive_slot: bool,
+    ) -> String {
         match ty {
             Type::Named { name, generics, .. } => {
                 let rust_name = self.normalize_type_name(name, current_self);
@@ -2418,26 +2698,43 @@ impl RustGen {
                 }
             }
             Type::Array(inner, size, _) => {
-                format!("[{}; {}]", self.map_type_in_context(inner, current_self, true), size)
+                format!(
+                    "[{}; {}]",
+                    self.map_type_in_context(inner, current_self, true),
+                    size
+                )
             }
             Type::Slice(inner, _) => {
                 format!("[{}]", self.map_type_in_context(inner, current_self, true))
             }
             Type::Ref { mutable, inner, .. } => {
                 if *mutable {
-                    format!("&mut {}", self.map_type_in_context(inner, current_self, false))
+                    format!(
+                        "&mut {}",
+                        self.map_type_in_context(inner, current_self, false)
+                    )
                 } else {
                     format!("&{}", self.map_type_in_context(inner, current_self, false))
                 }
             }
             Type::Ptr { mutable, inner, .. } => {
                 if *mutable {
-                    format!("*mut {}", self.map_type_in_context(inner, current_self, false))
+                    format!(
+                        "*mut {}",
+                        self.map_type_in_context(inner, current_self, false)
+                    )
                 } else {
-                    format!("*const {}", self.map_type_in_context(inner, current_self, false))
+                    format!(
+                        "*const {}",
+                        self.map_type_in_context(inner, current_self, false)
+                    )
                 }
             }
-            Type::Function { params, return_type, .. } => {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
                 let param_strs: Vec<String> = params
                     .iter()
                     .map(|p| self.map_type_in_context(p, current_self, false))
@@ -2449,7 +2746,10 @@ impl RustGen {
                 )
             }
             Type::Option(inner, _) => {
-                format!("Option<{}>", self.map_type_in_context(inner, current_self, true))
+                format!(
+                    "Option<{}>",
+                    self.map_type_in_context(inner, current_self, true)
+                )
             }
             Type::Result(ok, err, _) => {
                 format!(
@@ -2461,7 +2761,11 @@ impl RustGen {
             Type::Infer(_) => "_".to_string(),
             Type::Never(_) => "!".to_string(),
             Type::Unit(_) => "()".to_string(),
-            Type::Impl { trait_name, generics, .. } => {
+            Type::Impl {
+                trait_name,
+                generics,
+                ..
+            } => {
                 if generics.is_empty() {
                     format!("impl {}", trait_name)
                 } else {
@@ -2555,7 +2859,11 @@ impl RustGen {
 
     fn inferred_self_type<'a>(&self, fn_name: &'a str) -> Option<&'a str> {
         let (prefix, _) = fn_name.split_once('_')?;
-        if prefix.chars().next().is_some_and(|ch| ch.is_ascii_uppercase()) {
+        if prefix
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_uppercase())
+        {
             Some(prefix)
         } else {
             None
@@ -2665,7 +2973,9 @@ mod tests {
     use kain_core::ast::{Field, Visibility};
     use kain_core::effects::EffectSet;
     use kain_core::span::Span;
-    use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram, TypedStruct};
+    use kain_core::types::{
+        ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram, TypedStruct,
+    };
     use std::collections::HashMap;
 
     #[test]

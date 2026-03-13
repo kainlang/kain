@@ -15,13 +15,11 @@ pub enum IdentifierDomain {
 
 const EXTRA_LEXER_KEYWORDS: &[&str] = &[
     // These tokenize as operators and cannot appear in identifier positions.
-    "and",
-    "or",
+    "and", "or",
 ];
 
 pub fn is_reserved_identifier(name: &str) -> bool {
-    kain_core::parser::RESERVED_KEYWORDS.contains(&name)
-        || EXTRA_LEXER_KEYWORDS.contains(&name)
+    kain_core::parser::RESERVED_KEYWORDS.contains(&name) || EXTRA_LEXER_KEYWORDS.contains(&name)
 }
 
 #[derive(Debug, Clone, Default)]

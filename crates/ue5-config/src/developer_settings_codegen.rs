@@ -12,7 +12,7 @@
 use crate::config_ir::ConfigStruct;
 use kain_core::ast::{Expr, Type};
 use kain_core::error::{KainError, KainResult};
-use minijinja::{Environment, context};
+use minijinja::{context, Environment};
 
 /// Output structure for developer settings codegen
 #[derive(Debug, Clone)]
@@ -25,60 +25,71 @@ pub struct DeveloperSettingsOutput {
 pub fn generate(config: &ConfigStruct, plugin_name: &str) -> KainResult<DeveloperSettingsOutput> {
     let header = generate_developer_settings_header(config, plugin_name)?;
     let source = generate_developer_settings_cpp(config, plugin_name)?;
-    
+
     Ok(DeveloperSettingsOutput { header, source })
 }
 
 /// Generate header file (.h)
-pub fn generate_developer_settings_header(config: &ConfigStruct, plugin_name: &str) -> KainResult<String> {
+pub fn generate_developer_settings_header(
+    config: &ConfigStruct,
+    plugin_name: &str,
+) -> KainResult<String> {
     let mut env = Environment::new();
-    env.add_template("developer_settings.h", include_str!("templates/developer_settings.h.jinja"))
-        .map_err(|e| KainError::codegen_error(format!("Failed to add template: {}", e)))?;
-    
-    let template = env.get_template("developer_settings.h")
+    env.add_template(
+        "developer_settings.h",
+        include_str!("templates/developer_settings.h.jinja"),
+    )
+    .map_err(|e| KainError::codegen_error(format!("Failed to add template: {}", e)))?;
+
+    let template = env
+        .get_template("developer_settings.h")
         .map_err(|e| KainError::codegen_error(format!("Failed to get template: {}", e)))?;
-    
+
     let class_name = config.ue5_class_name();
     let api_macro = format!("{}_API", plugin_name.to_uppercase());
     let display_name = config.get_display_name();
     let config_category = config.category.uclass_specifier();
-    
+
     // Convert fields to template-friendly format
-    let fields: Vec<_> = config.fields.iter().map(|field| {
-        let property_name = field.ue5_property_name();
-        let cpp_type = map_type_to_cpp(&field.ty);
-        let category = "Settings"; // Default category
-        let display_name = field.get_display_name();
-        
-        // Build meta specifiers
-        let mut meta_parts = vec![format!("DisplayName=\"{}\"", display_name)];
-        
-        if let Some(tooltip) = &field.tooltip {
-            meta_parts.push(format!("ToolTip=\"{}\"", tooltip));
-        }
-        
-        if let Some(min) = field.min {
-            meta_parts.push(format!("ClampMin=\"{}\"", min));
-        }
-        
-        if let Some(max) = field.max {
-            meta_parts.push(format!("ClampMax=\"{}\"", max));
-        }
-        
-        let meta = if meta_parts.is_empty() {
-            String::new()
-        } else {
-            format!(", meta=({})", meta_parts.join(", "))
-        };
-        
-        context! {
-            property_name => property_name,
-            cpp_type => cpp_type,
-            category => category,
-            meta => meta,
-        }
-    }).collect();
-    
+    let fields: Vec<_> = config
+        .fields
+        .iter()
+        .map(|field| {
+            let property_name = field.ue5_property_name();
+            let cpp_type = map_type_to_cpp(&field.ty);
+            let category = "Settings"; // Default category
+            let display_name = field.get_display_name();
+
+            // Build meta specifiers
+            let mut meta_parts = vec![format!("DisplayName=\"{}\"", display_name)];
+
+            if let Some(tooltip) = &field.tooltip {
+                meta_parts.push(format!("ToolTip=\"{}\"", tooltip));
+            }
+
+            if let Some(min) = field.min {
+                meta_parts.push(format!("ClampMin=\"{}\"", min));
+            }
+
+            if let Some(max) = field.max {
+                meta_parts.push(format!("ClampMax=\"{}\"", max));
+            }
+
+            let meta = if meta_parts.is_empty() {
+                String::new()
+            } else {
+                format!(", meta=({})", meta_parts.join(", "))
+            };
+
+            context! {
+                property_name => property_name,
+                cpp_type => cpp_type,
+                category => category,
+                meta => meta,
+            }
+        })
+        .collect();
+
     let ctx = context! {
         class_name => class_name,
         api_macro => api_macro,
@@ -87,43 +98,60 @@ pub fn generate_developer_settings_header(config: &ConfigStruct, plugin_name: &s
         fields => fields,
         struct_name => &config.name,
     };
-    
-    template.render(ctx).map_err(|e| KainError::codegen_error(format!("Failed to render template: {}", e)))
+
+    template
+        .render(ctx)
+        .map_err(|e| KainError::codegen_error(format!("Failed to render template: {}", e)))
 }
 
 /// Generate implementation file (.cpp)
-pub fn generate_developer_settings_cpp(config: &ConfigStruct, _plugin_name: &str) -> KainResult<String> {
+pub fn generate_developer_settings_cpp(
+    config: &ConfigStruct,
+    _plugin_name: &str,
+) -> KainResult<String> {
     let mut env = Environment::new();
-    env.add_template("developer_settings.cpp", include_str!("templates/developer_settings.cpp.jinja"))
-        .map_err(|e| KainError::codegen_error(format!("Failed to add template: {}", e)))?;
-    
-    let template = env.get_template("developer_settings.cpp")
+    env.add_template(
+        "developer_settings.cpp",
+        include_str!("templates/developer_settings.cpp.jinja"),
+    )
+    .map_err(|e| KainError::codegen_error(format!("Failed to add template: {}", e)))?;
+
+    let template = env
+        .get_template("developer_settings.cpp")
         .map_err(|e| KainError::codegen_error(format!("Failed to get template: {}", e)))?;
-    
+
     let class_name = config.ue5_class_name();
     let display_name = config.get_display_name();
-    
+
     // Convert fields to template-friendly format with default values
-    let fields: Vec<_> = config.fields.iter().map(|field| {
-        let property_name = field.ue5_property_name();
-        let default_value = field.default.as_ref()
-            .map(|expr| format_default_value(expr, &field.ty))
-            .unwrap_or_else(|| get_default_value_for_type(&field.ty));
-        
-        context! {
-            property_name => property_name,
-            default_value => default_value,
-        }
-    }).collect();
-    
+    let fields: Vec<_> = config
+        .fields
+        .iter()
+        .map(|field| {
+            let property_name = field.ue5_property_name();
+            let default_value = field
+                .default
+                .as_ref()
+                .map(|expr| format_default_value(expr, &field.ty))
+                .unwrap_or_else(|| get_default_value_for_type(&field.ty));
+
+            context! {
+                property_name => property_name,
+                default_value => default_value,
+            }
+        })
+        .collect();
+
     let ctx = context! {
         class_name => class_name,
         display_name => display_name,
         struct_name => &config.name,
         fields => fields,
     };
-    
-    template.render(ctx).map_err(|e| KainError::codegen_error(format!("Failed to render template: {}", e)))
+
+    template
+        .render(ctx)
+        .map_err(|e| KainError::codegen_error(format!("Failed to render template: {}", e)))
 }
 
 /// Map KAIN type to C++ type
@@ -151,7 +179,7 @@ fn format_default_value(expr: &Expr, ty: &Type) -> String {
             } else {
                 format!("{}.0f", s)
             }
-        },
+        }
         Expr::Int(val, _) => val.to_string(),
         Expr::Bool(val, _) => {
             if *val {
@@ -159,7 +187,7 @@ fn format_default_value(expr: &Expr, ty: &Type) -> String {
             } else {
                 "false".to_string()
             }
-        },
+        }
         Expr::String(val, _) => format!("TEXT(\"{}\")", val),
         _ => get_default_value_for_type(ty),
     }
@@ -193,38 +221,36 @@ mod tests {
             ini_file: None,
             ini_section: None,
             display_name: None,
-            fields: vec![
-                ConfigField {
+            fields: vec![ConfigField {
+                name: "chunk_size".to_string(),
+                ty: Type::Named {
+                    name: "Float".to_string(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                default: Some(Expr::Float(100.0, Span::default())),
+                display_name: Some("Chunk Size".to_string()),
+                tooltip: Some("Size of voxel chunks in world units".to_string()),
+                cvar: Some("voxel.ChunkSize".to_string()),
+                blueprint: true,
+                min: Some(10.0),
+                max: Some(1000.0),
+                writable: false,
+                original_field: Field {
                     name: "chunk_size".to_string(),
                     ty: Type::Named {
                         name: "Float".to_string(),
                         generics: vec![],
                         span: Span::default(),
                     },
-                    default: Some(Expr::Float(100.0, Span::default())),
-                    display_name: Some("Chunk Size".to_string()),
-                    tooltip: Some("Size of voxel chunks in world units".to_string()),
-                    cvar: Some("voxel.ChunkSize".to_string()),
-                    blueprint: true,
-                    min: Some(10.0),
-                    max: Some(1000.0),
-                    writable: false,
-                    original_field: Field {
-                        name: "chunk_size".to_string(),
-                        ty: Type::Named {
-                            name: "Float".to_string(),
-                            generics: vec![],
-                            span: Span::default(),
-                        },
-                        attributes: vec![],
-                        visibility: Visibility::Public,
-                        default: None,
-                        weak: false,
-                        span: Span::default(),
-                    },
+                    attributes: vec![],
+                    visibility: Visibility::Public,
+                    default: None,
+                    weak: false,
                     span: Span::default(),
                 },
-            ],
+                span: Span::default(),
+            }],
             original_struct: Struct {
                 name: "VoxelSettings".to_string(),
                 generics: vec![],
@@ -349,7 +375,7 @@ mod tests {
         let config = create_test_config();
         let result = generate_developer_settings_header(&config, "MyPlugin");
         assert!(result.is_ok());
-        
+
         let header = result.unwrap();
         assert!(header.contains("UVoxelSettings"));
         assert!(header.contains("MYPLUGIN_API"));
@@ -367,7 +393,7 @@ mod tests {
         let config = create_test_config();
         let result = generate_developer_settings_cpp(&config, "MyPlugin");
         assert!(result.is_ok());
-        
+
         let cpp = result.unwrap();
         println!("Generated CPP:\n{}", cpp);
         assert!(cpp.contains("UVoxelSettings::UVoxelSettings()"));

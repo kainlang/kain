@@ -1,13 +1,13 @@
 //! Compile-time evaluation
-//! 
+//!
 //! When runtime feature is enabled, evaluates comptime expressions.
 //! In browser builds, comptime is skipped (no-op).
 
 use crate::ast::*;
 use crate::error::KainResult;
 
-#[cfg(feature = "runtime")]  
-use crate::runtime::{Env, eval_expr, Value};
+#[cfg(feature = "runtime")]
+use crate::runtime::{eval_expr, Env, Value};
 #[cfg(feature = "runtime")]
 use crate::span::Span;
 
@@ -15,11 +15,11 @@ use crate::span::Span;
 #[cfg(feature = "runtime")]
 pub fn eval_program(program: &mut Program) -> KainResult<()> {
     let mut env = Env::new();
-    
+
     for item in &mut program.items {
         eval_item(&mut env, item)?;
     }
-    
+
     Ok(())
 }
 
@@ -38,10 +38,10 @@ fn eval_item(env: &mut Env, item: &mut Item) -> KainResult<()> {
             crate::runtime::eval_block(env, &block.body)?;
         }
         Item::Component(c) => {
-             eval_jsx(env, &mut c.body)?;
-             for method in &mut c.methods {
-                 eval_block(env, &mut method.body)?;
-             }
+            eval_jsx(env, &mut c.body)?;
+            for method in &mut c.methods {
+                eval_block(env, &mut method.body)?;
+            }
         }
         Item::Const(c) => {
             eval_expr_in_place(env, &mut c.value)?;
@@ -82,7 +82,7 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
         *expr = value_to_expr(val, *span);
         return Ok(());
     }
-    
+
     // Otherwise recurse
     match expr {
         Expr::Binary { left, right, .. } => {
@@ -90,9 +90,9 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
             eval_expr_in_place(env, right)?;
         }
         Expr::Call { args, .. } => {
-             for arg in args {
-                 eval_expr_in_place(env, &mut arg.value)?;
-             }
+            for arg in args {
+                eval_expr_in_place(env, &mut arg.value)?;
+            }
         }
         Expr::Assign { value, .. } => eval_expr_in_place(env, value)?,
         Expr::AddrOf { value, .. } => eval_expr_in_place(env, value)?,
@@ -126,15 +126,19 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
 #[cfg(feature = "runtime")]
 fn eval_jsx(env: &mut Env, node: &mut JSXNode) -> KainResult<()> {
     match node {
-        JSXNode::Element { attributes, children, .. } => {
-             for attr in attributes {
-                 if let JSXAttrValue::Expr(e) = &mut attr.value {
-                     eval_expr_in_place(env, e)?;
-                 }
-             }
-             for child in children {
-                 eval_jsx(env, child)?;
-             }
+        JSXNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            for attr in attributes {
+                if let JSXAttrValue::Expr(e) = &mut attr.value {
+                    eval_expr_in_place(env, e)?;
+                }
+            }
+            for child in children {
+                eval_jsx(env, child)?;
+            }
         }
         JSXNode::Expression(e) => eval_expr_in_place(env, e)?,
         _ => {}
@@ -149,7 +153,13 @@ fn value_to_expr(val: Value, span: Span) -> Expr {
         Value::Float(n) => Expr::Float(n, span),
         Value::Bool(b) => Expr::Bool(b, span),
         Value::String(s) => Expr::String(s, span),
-        Value::Unit => Expr::Block(Block { stmts: vec![], span }, span),
+        Value::Unit => Expr::Block(
+            Block {
+                stmts: vec![],
+                span,
+            },
+            span,
+        ),
         _ => Expr::String(format!("<unrepresentable comptime value: {}>", val), span),
     }
 }

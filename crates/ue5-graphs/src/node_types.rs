@@ -32,10 +32,7 @@ pub fn create_exec_node(name: impl Into<String>) -> NodeType {
 }
 
 /// Create a basic math node
-pub fn create_math_node(
-    name: impl Into<String>,
-    operation: &str,
-) -> NodeType {
+pub fn create_math_node(name: impl Into<String>, operation: &str) -> NodeType {
     NodeType {
         name: name.into(),
         category: "Math".to_string(),

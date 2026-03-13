@@ -98,8 +98,14 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
         }
     }
     out.push_str(&format!("- Output dir: `{}`\n", report.output_dir));
-    out.push_str(&format!("- Final status: `{}`\n", status_label(&report.final_phase_status)));
-    out.push_str(&format!("- Crates processed: `{}`\n\n", report.crates_processed.join(", ")));
+    out.push_str(&format!(
+        "- Final status: `{}`\n",
+        status_label(&report.final_phase_status)
+    ));
+    out.push_str(&format!(
+        "- Crates processed: `{}`\n\n",
+        report.crates_processed.join(", ")
+    ));
     if let Some(path) = &report.stage2_workspace_path {
         out.push_str(&format!("- Stage2 workspace: `{}`\n", path));
     }
@@ -180,7 +186,10 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
         for summary in &report.trait_dyn_summary {
             out.push_str(&format!(
                 "- `{}`: trait defs {}, impls {}, dyn usages {}",
-                summary.crate_name, summary.trait_def_count, summary.trait_impl_count, summary.dyn_usage_count
+                summary.crate_name,
+                summary.trait_def_count,
+                summary.trait_impl_count,
+                summary.dyn_usage_count
             ));
             if !summary.dyn_usage_files.is_empty() {
                 out.push_str(&format!(" ({})", summary.dyn_usage_files.join(", ")));
@@ -193,7 +202,10 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
     for crate_result in &report.crate_results {
         out.push_str(&format!("### `{}`\n\n", crate_result.crate_name));
         out.push_str(&format!("- Crate root: `{}`\n", crate_result.crate_root));
-        out.push_str(&format!("- Import success: `{}`\n", crate_result.import_success));
+        out.push_str(&format!(
+            "- Import success: `{}`\n",
+            crate_result.import_success
+        ));
         out.push_str(&format!("- Item count: `{}`\n", crate_result.item_count));
         match &crate_result.output_kn_path {
             Some(path) => out.push_str(&format!("- Output bundle: `{}`\n", path)),
@@ -234,7 +246,10 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
             }
         }
         out.push_str("- Required direct-lower macros still preserved:\n");
-        if crate_result.required_direct_lowering_still_preserved.is_empty() {
+        if crate_result
+            .required_direct_lowering_still_preserved
+            .is_empty()
+        {
             out.push_str("  - none\n");
         } else {
             for finding in &crate_result.required_direct_lowering_still_preserved {

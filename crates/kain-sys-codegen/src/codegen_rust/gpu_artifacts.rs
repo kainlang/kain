@@ -208,8 +208,10 @@ fn is_local_size_param(name: &str) -> bool {
 fn is_specialization_constant(name: &str) -> bool {
     let uppercase = name.chars().all(|ch| !ch.is_ascii_lowercase());
     let has_separator = name.contains('_');
-    let has_known_prefix = ["CFG_", "ENABLE_", "USE_", "WITH_", "HAS_", "ALLOW_", "SUPPORT_"]
-        .iter()
-        .any(|prefix| name.starts_with(prefix));
+    let has_known_prefix = [
+        "CFG_", "ENABLE_", "USE_", "WITH_", "HAS_", "ALLOW_", "SUPPORT_",
+    ]
+    .iter()
+    .any(|prefix| name.starts_with(prefix));
     has_known_prefix || (uppercase && has_separator && name.len() >= 4)
 }

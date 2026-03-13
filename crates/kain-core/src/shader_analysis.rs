@@ -1,5 +1,5 @@
 //! Shader Analysis Module
-//! 
+//!
 //! Analyzes shader complexity and provides performance metrics.
 //! Note: This is a minimal stub implementation - full analysis is WIP.
 

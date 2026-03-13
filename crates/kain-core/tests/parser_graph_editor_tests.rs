@@ -1,14 +1,12 @@
-use kain_core::parser::Parser;
-use kain_core::lexer::Lexer;
 use kain_core::ast::*;
 use kain_core::diagnostics::SpanMapper;
+use kain_core::lexer::Lexer;
+use kain_core::parser::Parser;
 
 // Helper function to check if a Type is a simple named type
 fn is_named_type(ty: &Type, expected_name: &str) -> bool {
     match ty {
-        Type::Named { name, generics, .. } => {
-            name == expected_name && generics.is_empty()
-        }
+        Type::Named { name, generics, .. } => name == expected_name && generics.is_empty(),
         _ => false,
     }
 }
@@ -25,31 +23,31 @@ graph CombatGraph:
             Execute: Exec
             Damage: Float = 10.0
 "#;
-    
+
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
     let span_mapper = SpanMapper::new(source);
     let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     // Verify it's a GraphEditor
     match &program.items[0] {
         Item::GraphEditor(graph) => {
             assert_eq!(graph.name, "CombatGraph");
             assert_eq!(graph.node_types.len(), 1);
-            
+
             let node = &graph.node_types[0];
             assert_eq!(node.name, "InputNode");
             assert_eq!(node.category, Some("Combat/Input".to_string()));
             assert_eq!(node.outputs.len(), 2);
-            
+
             // Check Execute pin
             assert_eq!(node.outputs[0].name, "Execute");
             assert!(is_named_type(&node.outputs[0].ty, "Exec"));
             assert!(node.outputs[0].default.is_none());
-            
+
             // Check Damage pin with default
             assert_eq!(node.outputs[1].name, "Damage");
             assert!(is_named_type(&node.outputs[1].ty, "Float"));
@@ -74,23 +72,24 @@ graph TestGraph:
         inputs:
             Execute: Exec
 "#;
-    
+
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     match &program.items[0] {
         Item::GraphEditor(graph) => {
             assert_eq!(graph.name, "TestGraph");
             assert_eq!(graph.node_types.len(), 2);
-            
+
             // First node
             assert_eq!(graph.node_types[0].name, "InputNode");
             assert_eq!(graph.node_types[0].outputs.len(), 1);
-            
+
             // Second node
             assert_eq!(graph.node_types[1].name, "OutputNode");
             assert_eq!(graph.node_types[1].inputs.len(), 1);
@@ -112,26 +111,27 @@ graph PropertyGraph:
         outputs:
             Value: Float
 "#;
-    
+
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     match &program.items[0] {
         Item::GraphEditor(graph) => {
             assert_eq!(graph.node_types.len(), 1);
-            
+
             let node = &graph.node_types[0];
             assert_eq!(node.properties.len(), 2);
-            
+
             // Check Speed property
             assert_eq!(node.properties[0].name, "Speed");
             assert!(is_named_type(&node.properties[0].ty, "Float"));
             assert!(node.properties[0].default.is_some());
-            
+
             // Check Name property
             assert_eq!(node.properties[1].name, "Name");
             assert!(is_named_type(&node.properties[1].ty, "String"));
@@ -153,22 +153,23 @@ graph ArrayGraph:
         outputs:
             Result: Array<Float>
 "#;
-    
+
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     match &program.items[0] {
         Item::GraphEditor(graph) => {
             let node = &graph.node_types[0];
-            
+
             // Check input array
             assert_eq!(node.inputs[0].name, "Items");
             assert!(node.inputs[0].is_array);
-            
+
             // Check output array
             assert_eq!(node.outputs[0].name, "Result");
             assert!(node.outputs[0].is_array);
@@ -192,21 +193,22 @@ graph SchemaGraph:
         no_cycles: true
         max_depth: 10
 "#;
-    
+
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     match &program.items[0] {
         Item::GraphEditor(graph) => {
             assert!(graph.schema.is_some());
-            
+
             let schema = graph.schema.as_ref().unwrap();
             assert_eq!(schema.rules.len(), 2);
-            
+
             assert_eq!(schema.rules[0].name, "no_cycles");
             assert_eq!(schema.rules[1].name, "max_depth");
         }
@@ -246,24 +248,25 @@ graph ComplexGraph:
             Execute: Exec
             FinalValue: Float
 "#;
-    
+
     let lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    let span_mapper = SpanMapper::new(source);let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
+    let span_mapper = SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<test>");
     let program = parser.parse().unwrap();
-    
+
     assert_eq!(program.items.len(), 1);
-    
+
     match &program.items[0] {
         Item::GraphEditor(graph) => {
             assert_eq!(graph.name, "ComplexGraph");
             assert_eq!(graph.node_types.len(), 3);
-            
+
             // Verify categories
             assert_eq!(graph.node_types[0].category, Some("Input".to_string()));
             assert_eq!(graph.node_types[1].category, Some("Logic".to_string()));
             assert_eq!(graph.node_types[2].category, Some("Output".to_string()));
-            
+
             // Verify ProcessNode has both inputs, properties, and outputs
             let process_node = &graph.node_types[1];
             assert_eq!(process_node.inputs.len(), 2);

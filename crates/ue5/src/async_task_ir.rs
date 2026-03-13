@@ -10,9 +10,9 @@
 //! - Task cancellation support
 //! - Task priority support
 
-use kain_core::ast::{AsyncTaskDef, AsyncTaskCallback, AsyncTaskThread, Field, Block};
 use crate::ue5::context::Ue5Context;
 use crate::ue5::types::TypeMapper;
+use kain_core::ast::{AsyncTaskCallback, AsyncTaskDef, AsyncTaskThread, Block, Field};
 
 /// Async task intermediate representation
 /// Represents a task that can be executed on worker threads with completion callbacks
@@ -20,19 +20,19 @@ use crate::ue5::types::TypeMapper;
 pub struct AsyncTaskIR {
     /// Name of the task (without U prefix)
     pub task_name: String,
-    
+
     /// Input fields (data passed to task)
     pub input_fields: Vec<AsyncTaskFieldIR>,
-    
+
     /// Output fields (data returned from task)
     pub output_fields: Vec<AsyncTaskFieldIR>,
-    
+
     /// Optional completion callback
     pub callback: Option<AsyncTaskCallbackIR>,
-    
+
     /// Optional DoWork implementation
     pub do_work_body: Option<String>,
-    
+
     /// Task priority (higher = executed first)
     pub priority: i32,
 }
@@ -42,10 +42,10 @@ pub struct AsyncTaskIR {
 pub struct AsyncTaskFieldIR {
     /// Field name (KAIN identifier)
     pub name: String,
-    
+
     /// C++ type string (e.g., "TArray<float>", "FVector", "int32")
     pub cpp_type: String,
-    
+
     /// Whether this field is an array
     pub is_array: bool,
 }
@@ -55,13 +55,13 @@ pub struct AsyncTaskFieldIR {
 pub struct AsyncTaskCallbackIR {
     /// Callback method name
     pub name: String,
-    
+
     /// Thread to execute callback on
     pub thread: AsyncTaskThreadIR,
-    
+
     /// Callback parameters (typically output fields)
     pub params: Vec<AsyncTaskFieldIR>,
-    
+
     /// Callback body (C++ code)
     pub body: String,
 }
@@ -71,7 +71,7 @@ pub struct AsyncTaskCallbackIR {
 pub enum AsyncTaskThreadIR {
     /// Execute callback on main game thread (via AsyncTask)
     Main,
-    
+
     /// Execute callback on worker thread (same thread as DoWork)
     Worker,
 }
@@ -104,7 +104,7 @@ pub fn convert_to_async_task_ir(
 ) -> Result<AsyncTaskIR, String> {
     // Create type mapper with context knowledge
     let mut type_mapper = TypeMapper::with_knowledge(ctx.knowledge.clone());
-    
+
     // Register all known types from context
     for enum_name in &ctx.enum_names {
         type_mapper.register_enum(enum_name.clone());
@@ -121,34 +121,38 @@ pub fn convert_to_async_task_ir(
     for delegate_name in &ctx.delegate_names {
         type_mapper.register_delegate(delegate_name.clone());
     }
-    
+
     // Convert input fields
-    let input_fields = task_def.input_fields.iter()
+    let input_fields = task_def
+        .input_fields
+        .iter()
         .map(|field| convert_field(field, &type_mapper))
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     // Convert output fields
-    let output_fields = task_def.output_fields.iter()
+    let output_fields = task_def
+        .output_fields
+        .iter()
         .map(|field| convert_field(field, &type_mapper))
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     // Convert callback if present
     let callback = if let Some(cb) = &task_def.callback {
         Some(convert_callback(cb, &type_mapper, ctx)?)
     } else {
         None
     };
-    
+
     // Convert do_work body if present
     let do_work_body = if let Some(block) = &task_def.do_work {
         Some(convert_block_to_cpp(block, ctx))
     } else {
         None
     };
-    
+
     // Extract priority from attributes or use default
     let priority = task_def.priority.unwrap_or(0);
-    
+
     Ok(AsyncTaskIR {
         task_name: task_def.name.clone(),
         input_fields,
@@ -160,16 +164,13 @@ pub fn convert_to_async_task_ir(
 }
 
 /// Convert a field to AsyncTaskFieldIR
-fn convert_field(
-    field: &Field,
-    type_mapper: &TypeMapper,
-) -> Result<AsyncTaskFieldIR, String> {
+fn convert_field(field: &Field, type_mapper: &TypeMapper) -> Result<AsyncTaskFieldIR, String> {
     // Map KAIN type to C++ type
     let cpp_type = type_mapper.map_type_string(&field.ty);
-    
+
     // Check if this is an array type
     let is_array = cpp_type.starts_with("TArray<");
-    
+
     Ok(AsyncTaskFieldIR {
         name: field.name.clone(),
         cpp_type,
@@ -188,9 +189,11 @@ fn convert_callback(
         AsyncTaskThread::Main => AsyncTaskThreadIR::Main,
         AsyncTaskThread::Worker => AsyncTaskThreadIR::Worker,
     };
-    
+
     // Convert parameters
-    let params = callback.params.iter()
+    let params = callback
+        .params
+        .iter()
         .map(|param| {
             let cpp_type = type_mapper.map_type_string(&param.ty);
             let is_array = cpp_type.starts_with("TArray<");
@@ -201,10 +204,10 @@ fn convert_callback(
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
-    
+
     // Convert body to C++ code
     let body = convert_block_to_cpp(&callback.body, ctx);
-    
+
     Ok(AsyncTaskCallbackIR {
         name: callback.name.clone(),
         thread,
@@ -214,7 +217,7 @@ fn convert_callback(
 }
 
 /// Convert a KAIN block to C++ code
-/// 
+///
 /// This is a placeholder implementation that will be replaced with proper
 /// expression codegen when the full codegen pipeline is integrated.
 fn convert_block_to_cpp(block: &Block, _ctx: &Ue5Context) -> String {
@@ -230,13 +233,16 @@ fn convert_block_to_cpp(block: &Block, _ctx: &Ue5Context) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_core::ast::{AsyncTaskDef, AsyncTaskCallback, AsyncTaskThread, Field, Block, Type, Param, Visibility, Attribute};
+    use kain_core::ast::{
+        AsyncTaskCallback, AsyncTaskDef, AsyncTaskThread, Attribute, Block, Field, Param, Type,
+        Visibility,
+    };
     use kain_core::span::Span;
-    
+
     fn dummy_span() -> Span {
         Span::new(0, 0)
     }
-    
+
     fn make_simple_field(name: &str, ty: Type) -> Field {
         Field {
             name: name.to_string(),
@@ -248,7 +254,7 @@ mod tests {
             span: dummy_span(),
         }
     }
-    
+
     fn make_simple_param(name: &str, ty: Type) -> Param {
         Param {
             name: name.to_string(),
@@ -258,11 +264,11 @@ mod tests {
             span: dummy_span(),
         }
     }
-    
+
     #[test]
     fn test_convert_simple_async_task() {
         let ctx = Ue5Context::new("TestPlugin", None);
-        
+
         let task_def = AsyncTaskDef {
             name: "DataProcessingTask".to_string(),
             input_fields: vec![
@@ -276,7 +282,7 @@ mod tests {
                             span: dummy_span(),
                         }],
                         span: dummy_span(),
-                    }
+                    },
                 ),
                 make_simple_field(
                     "threshold",
@@ -284,32 +290,30 @@ mod tests {
                         name: "Float".to_string(),
                         generics: vec![],
                         span: dummy_span(),
-                    }
+                    },
                 ),
             ],
-            output_fields: vec![
-                make_simple_field(
-                    "result",
-                    Type::Named {
-                        name: "Array".to_string(),
-                        generics: vec![Type::Named {
-                            name: "Float".to_string(),
-                            generics: vec![],
-                            span: dummy_span(),
-                        }],
+            output_fields: vec![make_simple_field(
+                "result",
+                Type::Named {
+                    name: "Array".to_string(),
+                    generics: vec![Type::Named {
+                        name: "Float".to_string(),
+                        generics: vec![],
                         span: dummy_span(),
-                    }
-                ),
-            ],
+                    }],
+                    span: dummy_span(),
+                },
+            )],
             callback: None,
             do_work: None,
             priority: None,
             attributes: vec![],
             span: dummy_span(),
         };
-        
+
         let ir = convert_to_async_task_ir(&task_def, &ctx).unwrap();
-        
+
         assert_eq!(ir.task_name, "DataProcessingTask");
         assert_eq!(ir.input_fields.len(), 2);
         assert_eq!(ir.input_fields[0].name, "data");
@@ -322,37 +326,33 @@ mod tests {
         assert_eq!(ir.output_fields[0].cpp_type, "TArray<float>");
         assert_eq!(ir.priority, 0);
     }
-    
+
     #[test]
     fn test_convert_async_task_with_callback() {
         let ctx = Ue5Context::new("TestPlugin", None);
-        
+
         let task_def = AsyncTaskDef {
             name: "TestTask".to_string(),
             input_fields: vec![],
-            output_fields: vec![
-                make_simple_field(
+            output_fields: vec![make_simple_field(
+                "result",
+                Type::Named {
+                    name: "Int".to_string(),
+                    generics: vec![],
+                    span: dummy_span(),
+                },
+            )],
+            callback: Some(AsyncTaskCallback {
+                name: "on_complete".to_string(),
+                thread: AsyncTaskThread::Main,
+                params: vec![make_simple_param(
                     "result",
                     Type::Named {
                         name: "Int".to_string(),
                         generics: vec![],
                         span: dummy_span(),
-                    }
-                ),
-            ],
-            callback: Some(AsyncTaskCallback {
-                name: "on_complete".to_string(),
-                thread: AsyncTaskThread::Main,
-                params: vec![
-                    make_simple_param(
-                        "result",
-                        Type::Named {
-                            name: "Int".to_string(),
-                            generics: vec![],
-                            span: dummy_span(),
-                        }
-                    ),
-                ],
+                    },
+                )],
                 body: Block {
                     stmts: vec![],
                     span: dummy_span(),
@@ -365,13 +365,13 @@ mod tests {
             attributes: vec![],
             span: dummy_span(),
         };
-        
+
         let ir = convert_to_async_task_ir(&task_def, &ctx).unwrap();
-        
+
         assert_eq!(ir.task_name, "TestTask");
         assert_eq!(ir.priority, 10);
         assert!(ir.callback.is_some());
-        
+
         let callback = ir.callback.unwrap();
         assert_eq!(callback.name, "on_complete");
         assert_eq!(callback.thread, AsyncTaskThreadIR::Main);
@@ -379,11 +379,11 @@ mod tests {
         assert_eq!(callback.params[0].name, "result");
         assert_eq!(callback.params[0].cpp_type, "int64");
     }
-    
+
     #[test]
     fn test_convert_field_with_array() {
         let type_mapper = TypeMapper::new();
-        
+
         let field = make_simple_field(
             "values",
             Type::Named {
@@ -394,41 +394,41 @@ mod tests {
                     span: dummy_span(),
                 }],
                 span: dummy_span(),
-            }
+            },
         );
-        
+
         let field_ir = convert_field(&field, &type_mapper).unwrap();
-        
+
         assert_eq!(field_ir.name, "values");
         assert_eq!(field_ir.cpp_type, "TArray<float>");
         assert_eq!(field_ir.is_array, true);
     }
-    
+
     #[test]
     fn test_convert_field_scalar() {
         let type_mapper = TypeMapper::new();
-        
+
         let field = make_simple_field(
             "count",
             Type::Named {
                 name: "Int".to_string(),
                 generics: vec![],
                 span: dummy_span(),
-            }
+            },
         );
-        
+
         let field_ir = convert_field(&field, &type_mapper).unwrap();
-        
+
         assert_eq!(field_ir.name, "count");
         assert_eq!(field_ir.cpp_type, "int64");
         assert_eq!(field_ir.is_array, false);
     }
-    
+
     #[test]
     fn test_callback_thread_conversion() {
         let ctx = Ue5Context::new("TestPlugin", None);
         let type_mapper = TypeMapper::new();
-        
+
         let main_callback = AsyncTaskCallback {
             name: "on_complete".to_string(),
             thread: AsyncTaskThread::Main,
@@ -440,10 +440,10 @@ mod tests {
             attributes: vec![],
             span: dummy_span(),
         };
-        
+
         let callback_ir = convert_callback(&main_callback, &type_mapper, &ctx).unwrap();
         assert_eq!(callback_ir.thread, AsyncTaskThreadIR::Main);
-        
+
         let worker_callback = AsyncTaskCallback {
             name: "on_complete".to_string(),
             thread: AsyncTaskThread::Worker,
@@ -455,7 +455,7 @@ mod tests {
             attributes: vec![],
             span: dummy_span(),
         };
-        
+
         let callback_ir = convert_callback(&worker_callback, &type_mapper, &ctx).unwrap();
         assert_eq!(callback_ir.thread, AsyncTaskThreadIR::Worker);
     }

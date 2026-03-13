@@ -1,12 +1,12 @@
 //! KAIN Parser - Python-style indentation with Rust semantics
 
-use crate::lexer::{Lexer, Token, TokenKind};
 use crate::ast::*;
-use crate::span::Span;
+use crate::diagnostics::SpanMapper;
 use crate::effects::Effect;
 use crate::error::{KainError, KainResult};
-use crate::diagnostics::SpanMapper;
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
+use crate::lexer::{Lexer, Token, TokenKind};
+use crate::span::Span;
 
 /// Maximum number of errors to accumulate before bailing out.
 /// Prevents runaway error accumulation from freezing the compiler.
@@ -18,46 +18,192 @@ const MAX_ERRORS: usize = 50;
 /// as they are only keywords in specific contexts and can be used as identifiers elsewhere.
 pub const RESERVED_KEYWORDS: &[&str] = &[
     // KAIN core keywords (always reserved)
-    "fn", "let", "mut", "var", "const", "if", "else", "elif", "match", "for", "while", "loop",
-    "break", "continue", "return", "await", "in", "with", "as", "type", "struct", "enum", "trait",
-    "impl", "pub", "mod", "use", "self", "Self", "true", "false", "none",
-    "component", "actor", "spawn", "send", "receive", "emit", "comptime", "macro",
-    "vertex", "fragment", "test",
-    "Pure", "IO", "async", "Async", "GPU", "Reactive", "Unsafe",
-    
+    "fn",
+    "let",
+    "mut",
+    "var",
+    "const",
+    "if",
+    "else",
+    "elif",
+    "match",
+    "for",
+    "while",
+    "loop",
+    "break",
+    "continue",
+    "return",
+    "await",
+    "in",
+    "with",
+    "as",
+    "type",
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "pub",
+    "mod",
+    "use",
+    "self",
+    "Self",
+    "true",
+    "false",
+    "none",
+    "component",
+    "actor",
+    "spawn",
+    "send",
+    "receive",
+    "emit",
+    "comptime",
+    "macro",
+    "vertex",
+    "fragment",
+    "test",
+    "Pure",
+    "IO",
+    "async",
+    "Async",
+    "GPU",
+    "Reactive",
+    "Unsafe",
     // HLSL keywords (from ue5-shaders/src/codegen_usf.rs)
     // Note: HLSL type names like RWBuffer, Texture2D, etc. are NOT reserved keywords
     // because they are only valid as type annotations, not as variable names.
     // The type system will handle validation of type names separately.
     // Note: Shader stage abbreviations (vs, ps, gs, hs, ds, cs) are NOT reserved
     // because they are only meaningful in HLSL shader profile strings, not as variable names.
-    "line", "compile", "pass", "technique", "register", "packoffset",
-    "typedef", "sampler", "row_major", "column_major", "out", "inout", "inline",
-    "cbuffer", "tbuffer", "uniform", "precise", "volatile", "extern",
-    "shared", "groupshared", "half", "min16float", "min10float",
-    "min16int", "min12int", "min16uint", "interface", "namespace",
-    "static", "void", "bool", "int", "uint", "float", "double",
-    "float2", "float3", "float4", "int2", "int3", "int4", "uint2", "uint3", "uint4",
-    "float2x2", "float3x3", "float4x4", "matrix",
-    "numthreads", "SV_Position", "SV_Target", "SV_DispatchThreadID", "SV_GroupID", "SV_GroupThreadID",
-    
+    "line",
+    "compile",
+    "pass",
+    "technique",
+    "register",
+    "packoffset",
+    "typedef",
+    "sampler",
+    "row_major",
+    "column_major",
+    "out",
+    "inout",
+    "inline",
+    "cbuffer",
+    "tbuffer",
+    "uniform",
+    "precise",
+    "volatile",
+    "extern",
+    "shared",
+    "groupshared",
+    "half",
+    "min16float",
+    "min10float",
+    "min16int",
+    "min12int",
+    "min16uint",
+    "interface",
+    "namespace",
+    "static",
+    "void",
+    "bool",
+    "int",
+    "uint",
+    "float",
+    "double",
+    "float2",
+    "float3",
+    "float4",
+    "int2",
+    "int3",
+    "int4",
+    "uint2",
+    "uint3",
+    "uint4",
+    "float2x2",
+    "float3x3",
+    "float4x4",
+    "matrix",
+    "numthreads",
+    "SV_Position",
+    "SV_Target",
+    "SV_DispatchThreadID",
+    "SV_GroupID",
+    "SV_GroupThreadID",
     // C++ keywords
-    "class", "virtual", "override", "final", "explicit", "operator", "template", "typename",
-    "private", "protected", "public", "friend", "this", "new", "delete", "nullptr",
-    "try", "catch", "throw", "noexcept", "constexpr", "decltype", "auto",
-    "signed", "unsigned", "short", "long", "char", "wchar_t", "char16_t", "char32_t",
-    "sizeof", "alignof", "alignas", "typeid", "dynamic_cast", "static_cast", "reinterpret_cast", "const_cast",
-    "goto", "switch", "case", "default", "do", "volatile", "mutable", "register",
-    "union", "asm", "export", "thread_local", "static_assert",
-    
+    "class",
+    "virtual",
+    "override",
+    "final",
+    "explicit",
+    "operator",
+    "template",
+    "typename",
+    "private",
+    "protected",
+    "public",
+    "friend",
+    "this",
+    "new",
+    "delete",
+    "nullptr",
+    "try",
+    "catch",
+    "throw",
+    "noexcept",
+    "constexpr",
+    "decltype",
+    "auto",
+    "signed",
+    "unsigned",
+    "short",
+    "long",
+    "char",
+    "wchar_t",
+    "char16_t",
+    "char32_t",
+    "sizeof",
+    "alignof",
+    "alignas",
+    "typeid",
+    "dynamic_cast",
+    "static_cast",
+    "reinterpret_cast",
+    "const_cast",
+    "goto",
+    "switch",
+    "case",
+    "default",
+    "do",
+    "volatile",
+    "mutable",
+    "register",
+    "union",
+    "asm",
+    "export",
+    "thread_local",
+    "static_assert",
     // UE5 macros and types
     // Note: UE5 type names like FVector, TArray, etc. are NOT reserved keywords
     // because they are only valid as type annotations, not as variable names.
     // The type system will handle validation of type names separately.
-    "UCLASS", "USTRUCT", "UENUM", "UFUNCTION", "UPROPERTY", "UPARAM", "UMETA",
-    "GENERATED_BODY", "GENERATED_USTRUCT_BODY", "GENERATED_UCLASS_BODY",
-    "UINTERFACE", "RIGVM_METHOD", "FORCEINLINE", "FORCENOINLINE",
-    "TEXT", "LOCTEXT", "NSLOCTEXT", "TEXTVIEW",
+    "UCLASS",
+    "USTRUCT",
+    "UENUM",
+    "UFUNCTION",
+    "UPROPERTY",
+    "UPARAM",
+    "UMETA",
+    "GENERATED_BODY",
+    "GENERATED_USTRUCT_BODY",
+    "GENERATED_UCLASS_BODY",
+    "UINTERFACE",
+    "RIGVM_METHOD",
+    "FORCEINLINE",
+    "FORCENOINLINE",
+    "TEXT",
+    "LOCTEXT",
+    "NSLOCTEXT",
+    "TEXTVIEW",
 ];
 
 pub struct Parser<'a> {
@@ -67,13 +213,18 @@ pub struct Parser<'a> {
     span_mapper: &'a SpanMapper,
     filename: &'a str,
     capabilities: LanguageCapabilities,
-    errors: Vec<KainError>,      // Accumulated parse errors for multi-error recovery
-    synthetic_counter: usize,    // Fresh names for parser-desugared temporaries
+    errors: Vec<KainError>, // Accumulated parse errors for multi-error recovery
+    synthetic_counter: usize, // Fresh names for parser-desugared temporaries
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
-        Self::with_capabilities(tokens, span_mapper, filename, default_language_capabilities())
+        Self::with_capabilities(
+            tokens,
+            span_mapper,
+            filename,
+            default_language_capabilities(),
+        )
     }
 
     pub fn with_capabilities(
@@ -82,9 +233,9 @@ impl<'a> Parser<'a> {
         filename: &'a str,
         capabilities: LanguageCapabilities,
     ) -> Self {
-        Self { 
-            tokens, 
-            pos: 0, 
+        Self {
+            tokens,
+            pos: 0,
             injected_tokens: Vec::new(),
             span_mapper,
             filename,
@@ -93,14 +244,15 @@ impl<'a> Parser<'a> {
             synthetic_counter: 0,
         }
     }
-    
+
     /// Create a parser error with file:line:col format
     fn parser_error(&self, message: impl Into<String>, span: Span) -> KainError {
         let loc = self.span_mapper.span_to_location(span, self.filename);
-        let formatted_message = format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, message.into());
+        let formatted_message =
+            format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, message.into());
         KainError::parser(formatted_message, span)
     }
-    
+
     /// Convert a token to a user-friendly string for error messages
     fn token_to_user_string(&self, kind: &TokenKind) -> String {
         match kind {
@@ -138,7 +290,7 @@ impl<'a> Parser<'a> {
             _ => format!("{:?}", kind),
         }
     }
-    
+
     /// Generate a list of expected tokens for error messages
     fn expected_tokens_list(&self, expected: &[&str]) -> String {
         match expected.len() {
@@ -147,12 +299,12 @@ impl<'a> Parser<'a> {
             2 => format!("{} or {}", expected[0], expected[1]),
             _ => {
                 let last = expected.last().unwrap();
-                let rest = &expected[..expected.len()-1];
+                let rest = &expected[..expected.len() - 1];
                 format!("{}, or {}", rest.join(", "), last)
             }
         }
     }
-    
+
     /// Validate that an identifier is not a reserved keyword.
     /// Returns an error if the identifier conflicts with a reserved keyword.
     fn validate_identifier(&self, name: &str, span: Span) -> KainResult<()> {
@@ -175,15 +327,17 @@ impl<'a> Parser<'a> {
         let mut items = Vec::new();
         let mut top_level_stmts = Vec::new();
         let start = self.current_span();
-        
+
         while !self.at_end() {
             // Bail early if we've accumulated too many errors (prevents freeze)
             if self.errors.len() >= MAX_ERRORS {
                 break;
             }
             self.skip_newlines();
-            if self.at_end() { break; }
-            
+            if self.at_end() {
+                break;
+            }
+
             match self.peek_kind() {
                 // Visibility and attributes
                 TokenKind::Pub | 
@@ -252,7 +406,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        
+
         if !top_level_stmts.is_empty() {
             let main_fn = Item::Function(Function {
                 name: "main".to_string(),
@@ -260,21 +414,27 @@ impl<'a> Parser<'a> {
                 params: vec![],
                 return_type: None,
                 effects: vec![],
-                body: Block { stmts: top_level_stmts, span: start.merge(self.current_span()) },
+                body: Block {
+                    stmts: top_level_stmts,
+                    span: start.merge(self.current_span()),
+                },
                 visibility: Visibility::Public,
                 attributes: vec![],
                 span: start.merge(self.current_span()),
             });
             items.push(main_fn);
         }
-        
+
         // If any errors accumulated during parsing, return them all
         if !self.errors.is_empty() {
             return Err(KainError::multi(std::mem::take(&mut self.errors)));
         }
 
         let end = self.current_span();
-        Ok(Program { items, span: start.merge(end) })
+        Ok(Program {
+            items,
+            span: start.merge(end),
+        })
     }
 
     /// Skip tokens until we find a safe synchronization point (next top-level item boundary).
@@ -286,7 +446,10 @@ impl<'a> Parser<'a> {
         let mut depth: i32 = 0;
         while !self.at_end() {
             match self.peek_kind() {
-                TokenKind::Indent => { depth += 1; self.advance(); }
+                TokenKind::Indent => {
+                    depth += 1;
+                    self.advance();
+                }
                 TokenKind::Dedent => {
                     depth -= 1;
                     self.advance();
@@ -320,82 +483,95 @@ impl<'a> Parser<'a> {
 
     /// Check if the current token could start a new top-level item.
     fn is_item_start(&self) -> bool {
-        matches!(self.peek_kind(),
-            TokenKind::At | TokenKind::Fn | TokenKind::Struct | TokenKind::Enum |
-            TokenKind::Actor | TokenKind::Component | TokenKind::Shader |
-            TokenKind::Pub | TokenKind::Const | TokenKind::Mod | TokenKind::Use |
-            TokenKind::Impl | TokenKind::Macro | TokenKind::Test |
-            TokenKind::AsyncKw | TokenKind::TypeKw | TokenKind::Trait |
-            TokenKind::Comptime
+        matches!(
+            self.peek_kind(),
+            TokenKind::At
+                | TokenKind::Fn
+                | TokenKind::Struct
+                | TokenKind::Enum
+                | TokenKind::Actor
+                | TokenKind::Component
+                | TokenKind::Shader
+                | TokenKind::Pub
+                | TokenKind::Const
+                | TokenKind::Mod
+                | TokenKind::Use
+                | TokenKind::Impl
+                | TokenKind::Macro
+                | TokenKind::Test
+                | TokenKind::AsyncKw
+                | TokenKind::TypeKw
+                | TokenKind::Trait
+                | TokenKind::Comptime
         )
     }
 
     fn parse_item(&mut self) -> KainResult<Item> {
         // Collect any @attr decorators first
         let attributes = self.parse_attributes()?;
-        
+
         // Check for @material_graph attribute
         if attributes.iter().any(|a| a.name == "material_graph") {
             return self.parse_material_graph(attributes);
         }
-        
+
         // Check for @material_function attribute
         if attributes.iter().any(|a| a.name == "material_function") {
             return self.parse_material_function(attributes);
         }
-        
+
         // Check for @graph_editor attribute
         if attributes.iter().any(|a| a.name == "graph_editor") {
             return self.parse_graph_editor(attributes);
         }
-        
+
         // Check for @graph_runtime attribute
         if attributes.iter().any(|a| a.name == "graph_runtime") {
             return self.parse_graph_runtime(attributes);
         }
-        
+
         // Check for @state_machine attribute
         if attributes.iter().any(|a| a.name == "state_machine") {
             return self.parse_state_machine(attributes);
         }
-        
+
         // Check for @editor_module attribute
         if attributes.iter().any(|a| a.name == "editor_module") {
             return self.parse_editor_module(attributes);
         }
-        
+
         // Check for @gameplay_tags attribute
         if attributes.iter().any(|a| a.name == "gameplay_tags") {
             return self.parse_gameplay_tags(attributes);
         }
-        
+
         // Check for @ability attribute
         if attributes.iter().any(|a| a.name == "ability") {
             return self.parse_gameplay_ability(attributes);
         }
-        
+
         // Check for @gameplay_effect attribute
         if attributes.iter().any(|a| a.name == "gameplay_effect") {
             return self.parse_gameplay_effect(attributes);
         }
-        
+
         // Check for @gameplay_cue attribute
         if attributes.iter().any(|a| a.name == "gameplay_cue") {
             return self.parse_gameplay_cue(attributes);
         }
-        
+
         // Check for @ability_task attribute
         if attributes.iter().any(|a| a.name == "ability_task") {
             return self.parse_ability_task(attributes);
         }
-        
+
         // Check for @target_actor attribute
         if attributes.iter().any(|a| a.name == "target_actor") {
             return self.parse_target_actor(attributes);
         }
-        
+
         let vis = self.parse_visibility();
-        
+
         match self.peek_kind() {
             TokenKind::Fn => self.parse_function_with_attrs(vis, attributes),
             TokenKind::AsyncKw => self.parse_async_function(vis),
@@ -432,7 +608,7 @@ impl<'a> Parser<'a> {
         let inline = if self.check(TokenKind::Colon) {
             self.advance();
             self.skip_newlines();
-            
+
             // Check if there's an INDENT token - if not, treat as empty module
             if !self.check(TokenKind::Indent) {
                 // Empty module body (e.g., `mod name:` followed by newline or another item)
@@ -471,7 +647,7 @@ impl<'a> Parser<'a> {
             let start = self.current_span();
             self.advance(); // consume @
             let name = self.parse_attribute_name()?;
-            
+
             // Optional args: @attr(arg1, arg2) or @attr(name: value, name2: value2)
             let args = if self.check(TokenKind::LParen) {
                 self.advance();
@@ -481,12 +657,12 @@ impl<'a> Parser<'a> {
                     if let TokenKind::Ident(param_name) = self.peek_kind() {
                         let saved_pos = self.pos;
                         self.advance(); // consume identifier
-                        
+
                         if self.check(TokenKind::Colon) {
                             // This is a named argument - represent as a tuple (name, value)
                             self.advance(); // consume colon
                             let value = self.parse_expr()?;
-                            
+
                             // Create a tuple expression to represent name: value
                             let name_expr = Expr::Ident(param_name.clone(), self.current_span());
                             arg_list.push(Expr::Tuple(vec![name_expr, value], self.current_span()));
@@ -499,7 +675,7 @@ impl<'a> Parser<'a> {
                         // Not an identifier, parse as normal expression
                         arg_list.push(self.parse_expr()?);
                     }
-                    
+
                     if !self.check(TokenKind::RParen) {
                         self.expect(TokenKind::Comma)?;
                     }
@@ -509,8 +685,12 @@ impl<'a> Parser<'a> {
             } else {
                 vec![]
             };
-            
-            attrs.push(Attribute { name, args, span: start.merge(self.current_span()) });
+
+            attrs.push(Attribute {
+                name,
+                args,
+                span: start.merge(self.current_span()),
+            });
             self.skip_newlines();
         }
         Ok(attrs)
@@ -518,16 +698,49 @@ impl<'a> Parser<'a> {
 
     fn parse_attribute_name(&mut self) -> KainResult<String> {
         match self.peek_kind() {
-            TokenKind::Ident(s) => { self.advance(); Ok(s) }
-            TokenKind::Component => { self.advance(); Ok("component".to_string()) }
-            TokenKind::Shader => { self.advance(); Ok("shader".to_string()) }
-            TokenKind::Actor => { self.advance(); Ok("actor".to_string()) }
-            TokenKind::State => { self.advance(); Ok("state".to_string()) }
-            TokenKind::AsyncKw => { self.advance(); Ok("async".to_string()) }
-            TokenKind::Async => { self.advance(); Ok("Async".to_string()) }
-            TokenKind::Gpu => { self.advance(); Ok("GPU".to_string()) }
-            TokenKind::Reactive => { self.advance(); Ok("Reactive".to_string()) }
-            k => Err(self.parser_error(format!("Expected attribute name, got {}", crate::error::token_kind_to_user_string(&k)), self.current_span())),
+            TokenKind::Ident(s) => {
+                self.advance();
+                Ok(s)
+            }
+            TokenKind::Component => {
+                self.advance();
+                Ok("component".to_string())
+            }
+            TokenKind::Shader => {
+                self.advance();
+                Ok("shader".to_string())
+            }
+            TokenKind::Actor => {
+                self.advance();
+                Ok("actor".to_string())
+            }
+            TokenKind::State => {
+                self.advance();
+                Ok("state".to_string())
+            }
+            TokenKind::AsyncKw => {
+                self.advance();
+                Ok("async".to_string())
+            }
+            TokenKind::Async => {
+                self.advance();
+                Ok("Async".to_string())
+            }
+            TokenKind::Gpu => {
+                self.advance();
+                Ok("GPU".to_string())
+            }
+            TokenKind::Reactive => {
+                self.advance();
+                Ok("Reactive".to_string())
+            }
+            k => Err(self.parser_error(
+                format!(
+                    "Expected attribute name, got {}",
+                    crate::error::token_kind_to_user_string(&k)
+                ),
+                self.current_span(),
+            )),
         }
     }
 
@@ -535,37 +748,39 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect(TokenKind::Trait)?;
         let name = self.parse_ident()?;
-        
+
         // Parse generics: trait Foo<T>
         let generics = self.parse_generics()?;
-        
+
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut methods = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Parse trait method signature
             self.expect(TokenKind::Fn)?;
             let method_name = self.parse_ident()?;
-            
+
             self.expect(TokenKind::LParen)?;
             let params = self.parse_params()?;
             self.expect(TokenKind::RParen)?;
-            
+
             let return_type = if self.check(TokenKind::Arrow) {
                 self.advance();
                 Some(self.parse_type()?)
             } else {
                 None
             };
-            
+
             let effects = self.parse_effects()?;
-            
+
             // Check for default implementation
             let default_impl = if self.check(TokenKind::Colon) {
                 self.advance();
@@ -573,7 +788,7 @@ impl<'a> Parser<'a> {
             } else {
                 None
             };
-            
+
             methods.push(TraitMethod {
                 name: method_name,
                 params,
@@ -582,14 +797,14 @@ impl<'a> Parser<'a> {
                 default_impl,
                 span: self.current_span(),
             });
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::Trait(Trait {
             name,
             generics,
@@ -602,16 +817,16 @@ impl<'a> Parser<'a> {
     fn parse_impl(&mut self) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Impl)?;
-        
+
         // Parse impl-level generics: impl<T>
         let generics = self.parse_generics()?;
-        
+
         // Check for "TraitName for" pattern to support "impl Trait for Type"
         let trait_name = if matches!(self.peek_kind(), TokenKind::Ident(_)) {
             // Look ahead to see if there's a "for" keyword
             let saved_pos = self.pos;
             let potential_trait = self.parse_ident()?;
-            
+
             if self.check(TokenKind::For) {
                 // This is "impl Trait for Type" syntax
                 self.advance(); // consume "for"
@@ -624,20 +839,22 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        
+
         // Parse target type: Option<T>
         let target_type = self.parse_type()?;
-        
+
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut methods = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let vis = self.parse_visibility();
             if self.check(TokenKind::Fn) {
                 if let Item::Function(f) = self.parse_function(vis)? {
@@ -654,11 +871,11 @@ impl<'a> Parser<'a> {
             }
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::Impl(Impl {
             generics,
             trait_name,
@@ -671,28 +888,28 @@ impl<'a> Parser<'a> {
     fn parse_use(&mut self) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Use)?;
-        
+
         let mut path = Vec::new();
         path.push(self.parse_ident()?);
-        
+
         // Parse path: use foo::bar::baz OR use foo/bar/baz
         while self.check(TokenKind::ColonColon) || self.check(TokenKind::Slash) {
             self.advance();
-            
+
             // Check for glob: use foo::*
             if self.check(TokenKind::Star) {
                 self.advance();
-                return Ok(Item::Use(Use { 
-                    path, 
-                    alias: None, 
-                    glob: true, 
-                    span: start.merge(self.current_span()) 
+                return Ok(Item::Use(Use {
+                    path,
+                    alias: None,
+                    glob: true,
+                    span: start.merge(self.current_span()),
                 }));
             }
-            
+
             path.push(self.parse_ident()?);
         }
-        
+
         // Check for alias: use foo::bar as baz
         let alias = if self.check(TokenKind::As) {
             self.advance();
@@ -700,12 +917,12 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        
-        Ok(Item::Use(Use { 
-            path, 
-            alias, 
-            glob: false, 
-            span: start.merge(self.current_span()) 
+
+        Ok(Item::Use(Use {
+            path,
+            alias,
+            glob: false,
+            span: start.merge(self.current_span()),
         }))
     }
 
@@ -719,10 +936,14 @@ impl<'a> Parser<'a> {
         } else {
             self.parse_ident()?
         };
-        
+
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
-        Ok(Item::Test(TestDef { name, body, span: start.merge(self.current_span()) }))
+        Ok(Item::Test(TestDef {
+            name,
+            body,
+            span: start.merge(self.current_span()),
+        }))
     }
 
     fn parse_macro(&mut self) -> KainResult<Item> {
@@ -731,7 +952,7 @@ impl<'a> Parser<'a> {
         let name = self.parse_ident()?;
         self.expect(TokenKind::Not)?; // macro name!
         self.expect(TokenKind::LParen)?;
-        
+
         let mut params = Vec::new();
         while !self.check(TokenKind::RParen) {
             let p_name = self.parse_ident()?;
@@ -745,17 +966,21 @@ impl<'a> Parser<'a> {
                 "token" => MacroParamKind::Token,
                 _ => return Err(self.parser_error("Unknown macro param kind", self.current_span())),
             };
-            params.push(MacroParam { name: p_name, kind, span: self.current_span() });
-            
+            params.push(MacroParam {
+                name: p_name,
+                kind,
+                span: self.current_span(),
+            });
+
             if !self.check(TokenKind::RParen) {
                 self.expect(TokenKind::Comma)?;
             }
         }
         self.expect(TokenKind::RParen)?;
         self.expect(TokenKind::Colon)?;
-        
+
         let body = self.parse_block()?;
-        
+
         Ok(Item::Macro(MacroDef {
             name,
             params,
@@ -768,33 +993,45 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect(TokenKind::Fn)?;
         let name = self.parse_ident()?;
-        
+
         // Parse generics: <T, U: Bound>
         let generics = self.parse_generics()?;
-        
+
         self.expect(TokenKind::LParen)?;
         let params = self.parse_params()?;
         self.expect(TokenKind::RParen)?;
-        
+
         let return_type = if self.check(TokenKind::Arrow) {
             self.advance();
             Some(self.parse_type()?)
-        } else { None };
-        
+        } else {
+            None
+        };
+
         let effects = self.parse_effects()?;
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
         let body_span = body.span;
-        
+
         Ok(Item::Function(Function {
-            name, generics, params, return_type, effects, body, visibility: vis,
+            name,
+            generics,
+            params,
+            return_type,
+            effects,
+            body,
+            visibility: vis,
             attributes: vec![],
             span: start.merge(body_span),
         }))
     }
 
     // Wrapper to parse function with pre-collected attributes
-    fn parse_function_with_attrs(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+    fn parse_function_with_attrs(
+        &mut self,
+        vis: Visibility,
+        attrs: Vec<Attribute>,
+    ) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Fn)?;
         let name = self.parse_ident()?;
@@ -805,12 +1042,14 @@ impl<'a> Parser<'a> {
         let return_type = if self.check(TokenKind::Arrow) {
             self.advance();
             Some(self.parse_type()?)
-        } else { None };
+        } else {
+            None
+        };
         let effects = self.parse_effects()?;
-        
+
         // Check if this is an extern function (no body)
         let is_extern = attrs.iter().any(|a| a.name == "extern");
-        
+
         let body = if is_extern && !self.check(TokenKind::Colon) {
             // Extern function without body - create empty block
             Block {
@@ -822,10 +1061,16 @@ impl<'a> Parser<'a> {
             self.expect(TokenKind::Colon)?;
             self.parse_block()?
         };
-        
+
         let body_span = body.span;
         Ok(Item::Function(Function {
-            name, generics, params, return_type, effects, body, visibility: vis,
+            name,
+            generics,
+            params,
+            return_type,
+            effects,
+            body,
+            visibility: vis,
             attributes: attrs,
             span: start.merge(body_span),
         }))
@@ -834,31 +1079,39 @@ impl<'a> Parser<'a> {
     fn parse_async_function(&mut self, vis: Visibility) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::AsyncKw)?; // consume 'async'
-        self.expect(TokenKind::Fn)?;     // consume 'fn'
+        self.expect(TokenKind::Fn)?; // consume 'fn'
         let name = self.parse_ident()?;
-        
+
         // Parse generics: <T, U: Bound>
         let generics = self.parse_generics()?;
-        
+
         self.expect(TokenKind::LParen)?;
         let params = self.parse_params()?;
         self.expect(TokenKind::RParen)?;
-        
+
         let return_type = if self.check(TokenKind::Arrow) {
             self.advance();
             Some(self.parse_type()?)
-        } else { None };
-        
+        } else {
+            None
+        };
+
         // Parse other effects, then add Async
         let mut effects = self.parse_effects()?;
         effects.push(crate::effects::Effect::Async);
-        
+
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
         let body_span = body.span;
-        
+
         Ok(Item::Function(Function {
-            name, generics, params, return_type, effects, body, visibility: vis,
+            name,
+            generics,
+            params,
+            return_type,
+            effects,
+            body,
+            visibility: vis,
             attributes: vec![],
             span: start.merge(body_span),
         }))
@@ -872,19 +1125,21 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::RParen)?;
         let effects = self.parse_effects()?;
         self.expect(TokenKind::Colon)?;
-        
+
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut state = Vec::new();
         let mut methods = Vec::new();
         let mut body = None;
-        
+
         // Parse component body items
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             if self.check(TokenKind::Fn) {
                 // Parse method
                 if let Item::Function(f) = self.parse_function(Visibility::Private)? {
@@ -897,7 +1152,14 @@ impl<'a> Parser<'a> {
                 let ty = self.parse_type()?;
                 self.expect(TokenKind::Eq)?;
                 let initial = self.parse_expr()?;
-                state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
+                state.push(StateDecl {
+                    name,
+                    ty,
+                    initial,
+                    weak: false,
+                    attributes: vec![],
+                    span: self.current_span(),
+                });
             } else if let TokenKind::Ident(ref s) = self.peek_kind() {
                 if s == "state" {
                     self.advance();
@@ -906,50 +1168,67 @@ impl<'a> Parser<'a> {
                     let ty = self.parse_type()?;
                     self.expect(TokenKind::Eq)?;
                     let initial = self.parse_expr()?;
-                    state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
+                    state.push(StateDecl {
+                        name,
+                        ty,
+                        initial,
+                        weak: false,
+                        attributes: vec![],
+                        span: self.current_span(),
+                    });
                 } else if s == "weak" {
-                     self.advance();
-                     if self.check(TokenKind::State) || self.check(TokenKind::Ident("state".to_string())) { // Check specifically for state
-                         // "weak state name: Type = ..."
-                         self.advance();
-                         let name = self.parse_ident()?;
-                         self.expect(TokenKind::Colon)?;
-                         let ty = self.parse_type()?;
-                         self.expect(TokenKind::Eq)?;
-                         let initial = self.parse_expr()?;
-                         state.push(StateDecl { name, ty, initial, weak: true, attributes: vec![], span: self.current_span() });
-                     } else {
-                         return Err(self.parser_error(
+                    self.advance();
+                    if self.check(TokenKind::State)
+                        || self.check(TokenKind::Ident("state".to_string()))
+                    {
+                        // Check specifically for state
+                        // "weak state name: Type = ..."
+                        self.advance();
+                        let name = self.parse_ident()?;
+                        self.expect(TokenKind::Colon)?;
+                        let ty = self.parse_type()?;
+                        self.expect(TokenKind::Eq)?;
+                        let initial = self.parse_expr()?;
+                        state.push(StateDecl {
+                            name,
+                            ty,
+                            initial,
+                            weak: true,
+                            attributes: vec![],
+                            span: self.current_span(),
+                        });
+                    } else {
+                        return Err(self.parser_error(
                              format!(
                                  "Expected 'state' keyword after 'weak' in component (use 'weak state name: Type = value'), found {}",
                                  self.token_to_user_string(&self.peek_kind())
                              ),
                              self.current_span()
                          ));
-                     }
+                    }
                 } else if s == "render" {
-                     self.advance();
-                     if self.check(TokenKind::LBrace) {
-                         // render { jsx }
-                         self.advance();
-                         self.skip_newlines();
-                         body = Some(self.parse_jsx_element()?);
-                         self.skip_newlines();
-                         self.expect(TokenKind::RBrace)?;
-                     } else if self.check(TokenKind::Colon) {
-                         // render:
-                         //    jsx
-                         self.advance();
-                         self.skip_newlines();
-                         self.expect(TokenKind::Indent)?;
-                         self.skip_newlines();
-                         body = Some(self.parse_jsx_element()?);
-                         self.skip_newlines();
-                         self.expect(TokenKind::Dedent)?;
-                     } else {
-                         // render <jsx>
-                         body = Some(self.parse_jsx_element()?);
-                     }
+                    self.advance();
+                    if self.check(TokenKind::LBrace) {
+                        // render { jsx }
+                        self.advance();
+                        self.skip_newlines();
+                        body = Some(self.parse_jsx_element()?);
+                        self.skip_newlines();
+                        self.expect(TokenKind::RBrace)?;
+                    } else if self.check(TokenKind::Colon) {
+                        // render:
+                        //    jsx
+                        self.advance();
+                        self.skip_newlines();
+                        self.expect(TokenKind::Indent)?;
+                        self.skip_newlines();
+                        body = Some(self.parse_jsx_element()?);
+                        self.skip_newlines();
+                        self.expect(TokenKind::Dedent)?;
+                    } else {
+                        // render <jsx>
+                        body = Some(self.parse_jsx_element()?);
+                    }
                 } else {
                     return Err(self.parser_error(
                         format!(
@@ -973,20 +1252,37 @@ impl<'a> Parser<'a> {
             }
             self.skip_newlines();
         }
-        
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        
-        let body = body.ok_or_else(|| self.parser_error("Component must have a render body (JSX element)", self.current_span()))?;
-        
+
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+
+        let body = body.ok_or_else(|| {
+            self.parser_error(
+                "Component must have a render body (JSX element)",
+                self.current_span(),
+            )
+        })?;
+
         Ok(Item::Component(Component {
-            name, props, state, methods, effects, body, visibility: vis,
+            name,
+            props,
+            state,
+            methods,
+            effects,
+            body,
+            visibility: vis,
             attributes: vec![],
             span: start.merge(self.current_span()),
         }))
     }
 
-    // Wrapper to parse component with pre-collected attributes  
-    fn parse_component_with_attrs(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+    // Wrapper to parse component with pre-collected attributes
+    fn parse_component_with_attrs(
+        &mut self,
+        vis: Visibility,
+        attrs: Vec<Attribute>,
+    ) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Component)?;
         let name = self.parse_ident()?;
@@ -997,15 +1293,17 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut state = Vec::new();
         let mut methods = Vec::new();
         let mut body = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             if self.check(TokenKind::Fn) {
                 if let Item::Function(f) = self.parse_function(Visibility::Private)? {
                     methods.push(f);
@@ -1018,7 +1316,14 @@ impl<'a> Parser<'a> {
                     let ty = self.parse_type()?;
                     self.expect(TokenKind::Eq)?;
                     let initial = self.parse_expr()?;
-                    state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
+                    state.push(StateDecl {
+                        name,
+                        ty,
+                        initial,
+                        weak: false,
+                        attributes: vec![],
+                        span: self.current_span(),
+                    });
                 } else if s == "render" {
                     self.advance();
                     if self.check(TokenKind::Colon) {
@@ -1033,7 +1338,10 @@ impl<'a> Parser<'a> {
                         body = Some(self.parse_jsx_element()?);
                     }
                 } else {
-                    return Err(self.parser_error(format!("Unexpected identifier in component: {}", s), self.current_span()));
+                    return Err(self.parser_error(
+                        format!("Unexpected identifier in component: {}", s),
+                        self.current_span(),
+                    ));
                 }
             } else if self.check(TokenKind::State) {
                 self.advance();
@@ -1042,20 +1350,43 @@ impl<'a> Parser<'a> {
                 let ty = self.parse_type()?;
                 self.expect(TokenKind::Eq)?;
                 let initial = self.parse_expr()?;
-                state.push(StateDecl { name, ty, initial, weak: false, attributes: vec![], span: self.current_span() });
+                state.push(StateDecl {
+                    name,
+                    ty,
+                    initial,
+                    weak: false,
+                    attributes: vec![],
+                    span: self.current_span(),
+                });
             } else if self.check(TokenKind::Lt) {
                 body = Some(self.parse_jsx_element()?);
             } else {
-                return Err(self.parser_error(format!("Unexpected token in component: {}", crate::error::token_kind_to_user_string(&self.peek_kind())), self.current_span()));
+                return Err(self.parser_error(
+                    format!(
+                        "Unexpected token in component: {}",
+                        crate::error::token_kind_to_user_string(&self.peek_kind())
+                    ),
+                    self.current_span(),
+                ));
             }
             self.skip_newlines();
         }
-        
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        let body = body.ok_or_else(|| self.parser_error("Component must have a render body", self.current_span()))?;
-        
+
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        let body = body.ok_or_else(|| {
+            self.parser_error("Component must have a render body", self.current_span())
+        })?;
+
         Ok(Item::Component(Component {
-            name, props, state, methods, effects, body, visibility: vis,
+            name,
+            props,
+            state,
+            methods,
+            effects,
+            body,
+            visibility: vis,
             attributes: attrs,
             span: start.merge(self.current_span()),
         }))
@@ -1064,14 +1395,17 @@ impl<'a> Parser<'a> {
     fn parse_shader(&mut self) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Shader)?;
-        
+
         let stage = if self.check(TokenKind::Vertex) {
-            self.advance(); ShaderStage::Vertex
+            self.advance();
+            ShaderStage::Vertex
         } else if self.check(TokenKind::Fragment) {
-            self.advance(); ShaderStage::Fragment
+            self.advance();
+            ShaderStage::Fragment
         } else if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s == "compute" {
-                self.advance(); ShaderStage::Compute
+                self.advance();
+                ShaderStage::Compute
             } else {
                 ShaderStage::Fragment // Default
             }
@@ -1086,7 +1420,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Arrow)?;
         let outputs = self.parse_type()?;
         self.expect(TokenKind::Colon)?;
-        
+
         // Manual block parsing to support uniforms
         self.skip_newlines();
         let block_start = self.current_span();
@@ -1097,7 +1431,9 @@ impl<'a> Parser<'a> {
 
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
 
             // Check for "uniform" identifier
             let is_uniform = if let TokenKind::Ident(ref s) = self.peek_kind() {
@@ -1112,7 +1448,7 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::Colon)?;
                 let u_ty = self.parse_type()?;
                 self.expect(TokenKind::At)?;
-                
+
                 // Parse integer binding
                 let binding = if let TokenKind::Int(n) = self.peek_kind() {
                     self.advance();
@@ -1123,34 +1459,53 @@ impl<'a> Parser<'a> {
                             "Expected integer binding after '@' (e.g., '@0', '@1', '@2'), found {}",
                             self.token_to_user_string(&self.peek_kind())
                         ),
-                        self.current_span()
+                        self.current_span(),
                     ));
                 };
 
-                uniforms.push(Uniform { name: u_name, ty: u_ty, binding, span: self.current_span() });
+                uniforms.push(Uniform {
+                    name: u_name,
+                    ty: u_ty,
+                    binding,
+                    span: self.current_span(),
+                });
             } else {
                 stmts.push(self.parse_stmt()?);
             }
             self.skip_newlines();
         }
 
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        let body = Block { stmts, span: block_start.merge(self.current_span()) };
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        let body = Block {
+            stmts,
+            span: block_start.merge(self.current_span()),
+        };
         let body_span = body.span;
-        
+
         Ok(Item::Shader(Shader {
-            name, stage, inputs, outputs, uniforms, body,
+            name,
+            stage,
+            inputs,
+            outputs,
+            uniforms,
+            body,
             span: start.merge(body_span),
         }))
     }
 
-    fn parse_struct_with_attrs(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+    fn parse_struct_with_attrs(
+        &mut self,
+        vis: Visibility,
+        attrs: Vec<Attribute>,
+    ) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Struct)?;
         let name = self.parse_ident()?;
-        
+
         let generics = self.parse_generics()?;
-        
+
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
         let mut fields = Vec::new();
@@ -1171,13 +1526,15 @@ impl<'a> Parser<'a> {
             }));
         }
         self.expect(TokenKind::Indent)?;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let f_attrs = self.parse_attributes()?;
-            
+
             if self.check(TokenKind::Fn) {
                 if let Item::Function(f) = self.parse_function(Visibility::Public)? {
                     methods.push(f);
@@ -1185,19 +1542,23 @@ impl<'a> Parser<'a> {
                 self.skip_newlines();
                 continue;
             }
-            
+
             // Check for weak
             let weak = if let TokenKind::Ident(s) = self.peek_kind() {
                 if s == "weak" {
                     self.advance();
                     true
-                } else { false }
-            } else { false };
-            
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
             let fname = self.parse_ident()?;
             self.expect(TokenKind::Colon)?;
             let ty = self.parse_type()?;
-            
+
             // Check for default value
             let default = if self.check(TokenKind::Eq) {
                 self.advance();
@@ -1205,28 +1566,30 @@ impl<'a> Parser<'a> {
             } else {
                 None
             };
-            
-            fields.push(Field { 
-                name: fname, 
-                ty, 
-                attributes: f_attrs, 
-                visibility: Visibility::Public, 
-                default, 
-                weak, 
-                span: self.current_span() 
+
+            fields.push(Field {
+                name: fname,
+                ty,
+                attributes: f_attrs,
+                visibility: Visibility::Public,
+                default,
+                weak,
+                span: self.current_span(),
             });
             self.skip_newlines();
         }
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        
-        Ok(Item::Struct(Struct { 
-            name, 
-            generics, 
-            fields, 
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+
+        Ok(Item::Struct(Struct {
+            name,
+            generics,
+            fields,
             methods,
-            attributes: attrs, 
-            visibility: vis, 
-            span: start.merge(self.current_span()) 
+            attributes: attrs,
+            visibility: vis,
+            span: start.merge(self.current_span()),
         }))
     }
 
@@ -1234,21 +1597,23 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect(TokenKind::Enum)?;
         let name = self.parse_ident()?;
-        
+
         // Parse generics: enum Option<T>:
         let generics = self.parse_generics()?;
-        
+
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut variants = Vec::new();
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
             let start_span = self.current_span();
             let vname = self.parse_ident()?;
-            
+
             let fields = if self.check(TokenKind::LParen) {
                 self.advance(); // consume (
                 let mut types = Vec::new();
@@ -1263,97 +1628,127 @@ impl<'a> Parser<'a> {
             } else if self.check(TokenKind::LBrace) {
                 self.advance(); // consume {
                 self.skip_newlines();
-                let indented = if self.check(TokenKind::Indent) { self.advance(); true } else { false };
-                
+                let indented = if self.check(TokenKind::Indent) {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
+
                 let mut fields = Vec::new();
                 while !self.check(TokenKind::RBrace) && !self.at_end() {
-                    if indented && self.check(TokenKind::Dedent) { break; }
-                    if !indented && self.check(TokenKind::RBrace) { break; }
-                    
+                    if indented && self.check(TokenKind::Dedent) {
+                        break;
+                    }
+                    if !indented && self.check(TokenKind::RBrace) {
+                        break;
+                    }
+
                     self.skip_newlines();
-                    if self.check(TokenKind::RBrace) || (indented && self.check(TokenKind::Dedent)) { break; }
-                    
+                    if self.check(TokenKind::RBrace) || (indented && self.check(TokenKind::Dedent))
+                    {
+                        break;
+                    }
+
                     let f_attrs = self.parse_attributes()?;
                     let fname = self.parse_ident()?;
                     self.expect(TokenKind::Colon)?;
                     let ty = self.parse_type()?;
-                    
-                    fields.push(Field { 
-                        name: fname, 
-                        ty, 
+
+                    fields.push(Field {
+                        name: fname,
+                        ty,
                         attributes: f_attrs,
-                        visibility: Visibility::Public, 
-                        default: None, 
-                        weak: false, 
-                        span: self.current_span() 
+                        visibility: Visibility::Public,
+                        default: None,
+                        weak: false,
+                        span: self.current_span(),
                     });
-                    
+
                     if !self.check(TokenKind::RBrace) {
-                         if self.check(TokenKind::Comma) { self.advance(); }
+                        if self.check(TokenKind::Comma) {
+                            self.advance();
+                        }
                     }
                     self.skip_newlines();
                 }
-                
-                if indented { self.expect(TokenKind::Dedent)?; }
+
+                if indented {
+                    self.expect(TokenKind::Dedent)?;
+                }
                 self.expect(TokenKind::RBrace)?;
                 VariantFields::Struct(fields)
             } else {
                 VariantFields::Unit
             };
-            
+
             // If the next token is a newline/dedent, previous token end is the end of the variant
             // For now, using current_span (next token) is consistent with previous code's behavior for Unit variants
             // but for Tuple/Struct it's better to span the whole thing.
             // Let's use start_span (ident) merged with current_span (after fields).
             let span = if matches!(fields, VariantFields::Unit) {
-                 // If Unit, current_span is the one after ident. 
-                 // If we used start_span, it would be the ident.
-                 // Let's just use start_span for Unit to correct the "bug" of using next token.
-                 // But wait, start_span is the Ident span.
-                 start_span
+                // If Unit, current_span is the one after ident.
+                // If we used start_span, it would be the ident.
+                // Let's just use start_span for Unit to correct the "bug" of using next token.
+                // But wait, start_span is the Ident span.
+                start_span
             } else {
-                 // For fields, we consumed ) or }. current_span is the one after that.
-                 // We want to merge start_span with the end of the fields.
-                 // But current_span() points to the *next* token.
-                 // We can use start_span for the start.
-                 // For the end, it's a bit tricky without keeping track of the last consumed token.
-                 // We'll just use start_span.merge(self.current_span()) which covers [Ident ... NextToken].
-                 // That's acceptable.
-                 start_span.merge(self.current_span())
+                // For fields, we consumed ) or }. current_span is the one after that.
+                // We want to merge start_span with the end of the fields.
+                // But current_span() points to the *next* token.
+                // We can use start_span for the start.
+                // For the end, it's a bit tricky without keeping track of the last consumed token.
+                // We'll just use start_span.merge(self.current_span()) which covers [Ident ... NextToken].
+                // That's acceptable.
+                start_span.merge(self.current_span())
             };
 
-            variants.push(Variant { name: vname, fields, span });
+            variants.push(Variant {
+                name: vname,
+                fields,
+                span,
+            });
             self.skip_newlines();
         }
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        
-        Ok(Item::Enum(Enum { name, generics, variants, visibility: vis, span: start.merge(self.current_span()) }))
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+
+        Ok(Item::Enum(Enum {
+            name,
+            generics,
+            variants,
+            visibility: vis,
+            span: start.merge(self.current_span()),
+        }))
     }
 
     fn parse_actor(&mut self) -> KainResult<Item> {
         self.parse_actor_with_attrs(vec![])
     }
-    
+
     fn parse_actor_with_attrs(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Actor)?;
         let name = self.parse_ident()?;
         self.expect(TokenKind::Colon)?;
-        
+
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut state = Vec::new();
         let mut handlers = Vec::new();
         let mut methods = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Parse attributes first (for methods)
             let method_attributes = self.parse_attributes()?;
-            
+
             // Check for "state", "var", "on", or "fn"
             if self.check(TokenKind::State) {
                 self.advance();
@@ -1362,7 +1757,14 @@ impl<'a> Parser<'a> {
                 let ty = self.parse_type()?;
                 self.expect(TokenKind::Eq)?;
                 let initial = self.parse_expr()?;
-                state.push(StateDecl { name, ty, initial, weak: false, attributes: method_attributes, span: self.current_span() });
+                state.push(StateDecl {
+                    name,
+                    ty,
+                    initial,
+                    weak: false,
+                    attributes: method_attributes,
+                    span: self.current_span(),
+                });
             } else if self.check(TokenKind::Var) {
                 // Support 'var' as alias for 'state' in actors
                 self.advance();
@@ -1371,10 +1773,19 @@ impl<'a> Parser<'a> {
                 let ty = self.parse_type()?;
                 self.expect(TokenKind::Eq)?;
                 let initial = self.parse_expr()?;
-                state.push(StateDecl { name, ty, initial, weak: false, attributes: method_attributes, span: self.current_span() });
+                state.push(StateDecl {
+                    name,
+                    ty,
+                    initial,
+                    weak: false,
+                    attributes: method_attributes,
+                    span: self.current_span(),
+                });
             } else if self.check(TokenKind::Fn) {
                 // Parse method function with pre-parsed attributes
-                if let Item::Function(func) = self.parse_function_with_attrs(Visibility::Public, method_attributes)? {
+                if let Item::Function(func) =
+                    self.parse_function_with_attrs(Visibility::Public, method_attributes)?
+                {
                     methods.push(func);
                 }
             } else if let TokenKind::Ident(s) = self.peek_kind() {
@@ -1386,7 +1797,14 @@ impl<'a> Parser<'a> {
                     let ty = self.parse_type()?;
                     self.expect(TokenKind::Eq)?;
                     let initial = self.parse_expr()?;
-                    state.push(StateDecl { name, ty, initial, weak: true, attributes: method_attributes, span: self.current_span() });
+                    state.push(StateDecl {
+                        name,
+                        ty,
+                        initial,
+                        weak: true,
+                        attributes: method_attributes,
+                        span: self.current_span(),
+                    });
                 } else if s == "on" {
                     self.advance();
                     let message_type = self.parse_ident()?;
@@ -1395,9 +1813,14 @@ impl<'a> Parser<'a> {
                     self.expect(TokenKind::RParen)?;
                     self.expect(TokenKind::Colon)?;
                     let body = self.parse_block()?;
-                    handlers.push(MessageHandler { message_type, params, body, span: self.current_span() });
+                    handlers.push(MessageHandler {
+                        message_type,
+                        params,
+                        body,
+                        span: self.current_span(),
+                    });
                 } else {
-                     return Err(self.parser_error(
+                    return Err(self.parser_error(
                          format!(
                              "Unexpected identifier '{}' in actor. Valid keywords: 'state', 'var', 'fn', or 'on' for message handlers",
                              s
@@ -1406,21 +1829,30 @@ impl<'a> Parser<'a> {
                      ));
                 }
             } else {
-                 return Err(self.parser_error(
-                     format!(
-                         "Expected 'state', 'var', 'fn', or 'on' in actor definition, found {}",
-                         self.token_to_user_string(&self.peek_kind())
-                     ),
-                     self.current_span()
-                 ));
+                return Err(self.parser_error(
+                    format!(
+                        "Expected 'state', 'var', 'fn', or 'on' in actor definition, found {}",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
+                    self.current_span(),
+                ));
             }
-            
+
             self.skip_newlines();
         }
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+
         let span = start.merge(self.current_span());
-        Ok(Item::Actor(Actor { name, state, handlers, methods, attributes, span }))
+        Ok(Item::Actor(Actor {
+            name,
+            state,
+            handlers,
+            methods,
+            attributes,
+            span,
+        }))
     }
 
     fn parse_const(&mut self, vis: Visibility) -> KainResult<Item> {
@@ -1431,26 +1863,32 @@ impl<'a> Parser<'a> {
         let ty = self.parse_type()?;
         self.expect(TokenKind::Eq)?;
         let value = self.parse_expr()?;
-        Ok(Item::Const(Const { name, ty, value, visibility: vis, span: start.merge(self.current_span()) }))
+        Ok(Item::Const(Const {
+            name,
+            ty,
+            value,
+            visibility: vis,
+            span: start.merge(self.current_span()),
+        }))
     }
 
     fn parse_type_alias(&mut self, vis: Visibility) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::TypeKw)?;
         let name = self.parse_ident()?;
-        
+
         // Optional generics: type Foo<T>
         let generics = self.parse_generics()?;
-        
+
         self.expect(TokenKind::Eq)?;
         let target = self.parse_type()?;
-        
-        Ok(Item::TypeAlias(TypeAlias { 
-            name, 
-            generics, 
-            target, 
-            visibility: vis, 
-            span: start.merge(self.current_span()) 
+
+        Ok(Item::TypeAlias(TypeAlias {
+            name,
+            generics,
+            target,
+            visibility: vis,
+            span: start.merge(self.current_span()),
         }))
     }
 
@@ -1459,12 +1897,15 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Comptime)?;
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
-        Ok(Item::Comptime(ComptimeBlock { body, span: start.merge(self.current_span()) }))
+        Ok(Item::Comptime(ComptimeBlock {
+            body,
+            span: start.merge(self.current_span()),
+        }))
     }
 
     fn parse_material_graph(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'material' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "material" {
@@ -1483,45 +1924,47 @@ impl<'a> Parser<'a> {
                     "Expected 'material' keyword after @material_graph attribute, found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
-                self.current_span()
+                self.current_span(),
             ));
         }
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut inputs = Vec::new();
         let mut body = Vec::new();
         let mut outputs = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for "input", "let", or "output"
             if let TokenKind::Ident(ref s) = self.peek_kind() {
                 match s.as_str() {
                     "input" => {
                         self.advance(); // consume 'input'
-                        
+
                         let input_name = self.parse_ident()?;
                         self.expect(TokenKind::Colon)?;
                         let ty = self.parse_type()?;
-                        
+
                         let default = if self.check(TokenKind::Eq) {
                             self.advance();
                             Some(self.parse_expr()?)
                         } else {
                             None
                         };
-                        
+
                         inputs.push(MaterialInput {
                             name: input_name,
                             ty,
@@ -1531,11 +1974,11 @@ impl<'a> Parser<'a> {
                     }
                     "output" => {
                         self.advance(); // consume 'output'
-                        
+
                         let output_name = self.parse_ident()?;
                         self.expect(TokenKind::Eq)?;
                         let value = self.parse_expr()?;
-                        
+
                         outputs.push(MaterialOutput {
                             name: output_name,
                             value,
@@ -1554,11 +1997,11 @@ impl<'a> Parser<'a> {
                 }
             } else if self.check(TokenKind::Let) {
                 self.advance(); // consume 'let'
-                
+
                 let var_name = self.parse_ident()?;
                 self.expect(TokenKind::Eq)?;
                 let value = self.parse_expr()?;
-                
+
                 body.push(MaterialStatement::Let {
                     name: var_name,
                     value,
@@ -1570,17 +2013,17 @@ impl<'a> Parser<'a> {
                         "Expected 'input', 'let', or 'output' in material graph body, found {}",
                         self.token_to_user_string(&self.peek_kind())
                     ),
-                    self.current_span()
+                    self.current_span(),
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::MaterialGraph(MaterialGraphDef {
             name,
             attributes,
@@ -1593,70 +2036,75 @@ impl<'a> Parser<'a> {
 
     fn parse_material_function(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'fn' keyword — note: 'fn' is lexed as TokenKind::Fn, NOT Ident("fn")
         if self.check(TokenKind::Fn) {
             self.advance(); // consume 'fn'
         } else {
-            return Err(self.parser_error("Expected 'fn' keyword after @material_function", self.current_span()));
+            return Err(self.parser_error(
+                "Expected 'fn' keyword after @material_function",
+                self.current_span(),
+            ));
         }
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Expect '('
         self.expect(TokenKind::LParen)?;
-        
+
         // Parse inputs (function parameters)
         let mut inputs = Vec::new();
         while !self.check(TokenKind::RParen) && !self.at_end() {
             let input_name = self.parse_ident()?;
             self.expect(TokenKind::Colon)?;
             let ty = self.parse_type()?;
-            
+
             let default = if self.check(TokenKind::Eq) {
                 self.advance();
                 Some(self.parse_expr()?)
             } else {
                 None
             };
-            
+
             inputs.push(MaterialInput {
                 name: input_name,
                 ty,
                 default,
                 span: self.current_span(),
             });
-            
+
             if !self.check(TokenKind::RParen) {
                 self.expect(TokenKind::Comma)?;
             }
         }
-        
+
         self.expect(TokenKind::RParen)?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut body = Vec::new();
         let mut output: Option<Expr> = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for "let" or "return"
             if self.check(TokenKind::Let) {
                 self.advance(); // consume 'let'
-                
+
                 let var_name = self.parse_ident()?;
                 self.expect(TokenKind::Eq)?;
                 let value = self.parse_expr()?;
-                
+
                 body.push(MaterialStatement::Let {
                     name: var_name,
                     value,
@@ -1669,13 +2117,13 @@ impl<'a> Parser<'a> {
             } else {
                 return Err(self.parser_error(
                     "Expected 'let' or 'return' in material function body",
-                    self.current_span()
+                    self.current_span(),
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         // Drain any newlines emitted after the 'return' statement (the break
         // above skips the loop's own trailing skip_newlines call) and then
         // consume the indented block's Dedent token.
@@ -1683,11 +2131,14 @@ impl<'a> Parser<'a> {
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         let output = output.ok_or_else(|| {
-            self.parser_error("Material function must have a 'return' statement", self.current_span())
+            self.parser_error(
+                "Material function must have a 'return' statement",
+                self.current_span(),
+            )
         })?;
-        
+
         Ok(Item::MaterialFunction(MaterialFunctionDef {
             name,
             attributes,
@@ -1700,7 +2151,7 @@ impl<'a> Parser<'a> {
 
     fn parse_graph_editor(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'graph' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "graph" {
@@ -1719,31 +2170,33 @@ impl<'a> Parser<'a> {
                     "Expected 'graph' keyword after @graph_editor attribute, found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
-                self.current_span()
+                self.current_span(),
             ));
         }
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse node types and schema
         let mut node_types = Vec::new();
         let mut schema = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for @node_type or @schema
             let node_attrs = self.parse_attributes()?;
-            
+
             if node_attrs.iter().any(|a| a.name == "node_type") {
                 node_types.push(self.parse_node_type(node_attrs)?);
             } else if node_attrs.iter().any(|a| a.name == "schema") {
@@ -1757,14 +2210,14 @@ impl<'a> Parser<'a> {
                     self.current_span()
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::GraphEditor(GraphEditorDef {
             name,
             attributes,
@@ -1776,22 +2229,29 @@ impl<'a> Parser<'a> {
 
     fn parse_node_type(&mut self, attributes: Vec<Attribute>) -> KainResult<NodeTypeDef> {
         let start = self.current_span();
-        
+
         // Expect 'node' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "node" {
-                return Err(self.parser_error("Expected 'node' keyword after @node_type", self.current_span()));
+                return Err(self.parser_error(
+                    "Expected 'node' keyword after @node_type",
+                    self.current_span(),
+                ));
             }
             self.advance();
         } else {
-            return Err(self.parser_error("Expected 'node' keyword after @node_type", self.current_span()));
+            return Err(self.parser_error(
+                "Expected 'node' keyword after @node_type",
+                self.current_span(),
+            ));
         }
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Extract category from attributes
-        let category = attributes.iter()
+        let category = attributes
+            .iter()
             .find(|a| a.name == "category")
             .and_then(|a| a.args.first())
             .and_then(|arg| {
@@ -1801,23 +2261,25 @@ impl<'a> Parser<'a> {
                     None
                 }
             });
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse inputs, outputs, properties
         let mut inputs = Vec::new();
         let mut outputs = Vec::new();
         let mut properties = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for section keywords
             if let TokenKind::Ident(ref s) = self.peek_kind() {
                 match s.as_str() {
@@ -1837,18 +2299,21 @@ impl<'a> Parser<'a> {
                         properties = self.parse_property_list()?;
                     }
                     _ => {
-                        return Err(self.parser_error("Expected 'inputs', 'outputs', or 'properties'", self.current_span()));
+                        return Err(self.parser_error(
+                            "Expected 'inputs', 'outputs', or 'properties'",
+                            self.current_span(),
+                        ));
                     }
                 }
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(NodeTypeDef {
             name,
             category,
@@ -1862,30 +2327,32 @@ impl<'a> Parser<'a> {
 
     fn parse_pin_list(&mut self) -> KainResult<Vec<PinDef>> {
         let mut pins = Vec::new();
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let pin_attrs = self.parse_attributes()?;
             let pin_start = self.current_span();
-            
+
             // Parse pin name
             let name = self.parse_ident()?;
-            
+
             // Expect colon
             self.expect(TokenKind::Colon)?;
-            
+
             // Parse type
             let ty = self.parse_type()?;
-            
+
             // Check for array syntax by inspecting the Type enum
             let is_array = matches!(&ty, Type::Named { name, .. } if name == "Array");
-            
+
             // Check for default value
             let default = if self.check(TokenKind::Eq) {
                 self.advance();
@@ -1893,7 +2360,7 @@ impl<'a> Parser<'a> {
             } else {
                 None
             };
-            
+
             pins.push(PinDef {
                 name,
                 ty,
@@ -1902,40 +2369,42 @@ impl<'a> Parser<'a> {
                 attributes: pin_attrs,
                 span: pin_start.merge(self.current_span()),
             });
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(pins)
     }
 
     fn parse_property_list(&mut self) -> KainResult<Vec<PropertyDef>> {
         let mut properties = Vec::new();
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let prop_attrs = self.parse_attributes()?;
             let prop_start = self.current_span();
-            
+
             // Parse property name
             let name = self.parse_ident()?;
-            
+
             // Expect colon
             self.expect(TokenKind::Colon)?;
-            
+
             // Parse type
             let ty = self.parse_type()?;
-            
+
             // Check for default value
             let default = if self.check(TokenKind::Eq) {
                 self.advance();
@@ -1943,7 +2412,7 @@ impl<'a> Parser<'a> {
             } else {
                 None
             };
-            
+
             properties.push(PropertyDef {
                 name,
                 ty,
@@ -1951,64 +2420,69 @@ impl<'a> Parser<'a> {
                 attributes: prop_attrs,
                 span: prop_start.merge(self.current_span()),
             });
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(properties)
     }
 
     fn parse_graph_schema(&mut self, _attributes: Vec<Attribute>) -> KainResult<GraphSchemaDef> {
         let start = self.current_span();
-        
+
         // Expect 'schema' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "schema" {
-                return Err(self.parser_error("Expected 'schema' keyword after @schema", self.current_span()));
+                return Err(self.parser_error(
+                    "Expected 'schema' keyword after @schema",
+                    self.current_span(),
+                ));
             }
             self.advance();
         }
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse rules (simplified for now)
         let mut rules = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Parse rule name
             let rule_name = self.parse_ident()?;
-            
+
             // Expect colon
             self.expect(TokenKind::Colon)?;
-            
+
             // Parse condition expression
             let condition = self.parse_expr()?;
-            
+
             rules.push(SchemaRule {
                 name: rule_name,
                 condition,
                 span: start.merge(self.current_span()),
             });
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(GraphSchemaDef {
             rules,
             span: start.merge(self.current_span()),
@@ -2033,7 +2507,7 @@ impl<'a> Parser<'a> {
             } else {
                 Type::Infer(self.current_span())
             };
-            
+
             // Check for default value: param: Type = value
             let default = if self.check(TokenKind::Eq) {
                 self.advance();
@@ -2041,12 +2515,18 @@ impl<'a> Parser<'a> {
             } else {
                 None
             };
-            
-            params.push(Param { name, ty, mutable, default, span: self.current_span() });
-            
+
+            params.push(Param {
+                name,
+                ty,
+                mutable,
+                default,
+                span: self.current_span(),
+            });
+
             self.skip_newlines();
-            if !self.check(TokenKind::RParen) { 
-                self.expect(TokenKind::Comma)?; 
+            if !self.check(TokenKind::RParen) {
+                self.expect(TokenKind::Comma)?;
                 self.skip_newlines();
             }
         }
@@ -2056,36 +2536,45 @@ impl<'a> Parser<'a> {
     /// Parse generic type parameters: <T, U: Bound, V>
     fn parse_generics(&mut self) -> KainResult<Vec<Generic>> {
         let mut generics = Vec::new();
-        
+
         // Check for opening <
         if !self.check(TokenKind::Lt) {
             return Ok(generics);
         }
         self.advance(); // consume <
-        
+
         while !self.check(TokenKind::Gt) && !self.at_end() {
             let start = self.current_span();
             let name = self.parse_ident()?;
-            
+
             // Parse optional bounds: T: Bound1 + Bound2
             let mut bounds = Vec::new();
             if self.check(TokenKind::Colon) {
                 self.advance(); // consume :
                 loop {
                     let bound_name = self.parse_ident()?;
-                    bounds.push(TypeBound { trait_name: bound_name, span: self.current_span() });
-                    if !self.check(TokenKind::Plus) { break; }
+                    bounds.push(TypeBound {
+                        trait_name: bound_name,
+                        span: self.current_span(),
+                    });
+                    if !self.check(TokenKind::Plus) {
+                        break;
+                    }
                     self.advance(); // consume +
                 }
             }
-            
-            generics.push(Generic { name, bounds, span: start.merge(self.current_span()) });
-            
+
+            generics.push(Generic {
+                name,
+                bounds,
+                span: start.merge(self.current_span()),
+            });
+
             if !self.check(TokenKind::Gt) {
                 self.expect(TokenKind::Comma)?;
             }
         }
-        
+
         self.expect(TokenKind::Gt)?; // consume >
         Ok(generics)
     }
@@ -2097,12 +2586,30 @@ impl<'a> Parser<'a> {
             loop {
                 // Effects are keywords, not identifiers
                 let effect = match self.peek_kind() {
-                    TokenKind::Pure => { self.advance(); Some(Effect::Pure) }
-                    TokenKind::Io => { self.advance(); Some(Effect::IO) }
-                    TokenKind::Async => { self.advance(); Some(Effect::Async) }
-                    TokenKind::Gpu => { self.advance(); Some(Effect::GPU) }
-                    TokenKind::Reactive => { self.advance(); Some(Effect::Reactive) }
-                    TokenKind::Unsafe => { self.advance(); Some(Effect::Unsafe) }
+                    TokenKind::Pure => {
+                        self.advance();
+                        Some(Effect::Pure)
+                    }
+                    TokenKind::Io => {
+                        self.advance();
+                        Some(Effect::IO)
+                    }
+                    TokenKind::Async => {
+                        self.advance();
+                        Some(Effect::Async)
+                    }
+                    TokenKind::Gpu => {
+                        self.advance();
+                        Some(Effect::GPU)
+                    }
+                    TokenKind::Reactive => {
+                        self.advance();
+                        Some(Effect::Reactive)
+                    }
+                    TokenKind::Unsafe => {
+                        self.advance();
+                        Some(Effect::Unsafe)
+                    }
                     TokenKind::Ident(ref s) => {
                         let e = Effect::from_str(s);
                         self.advance();
@@ -2113,7 +2620,9 @@ impl<'a> Parser<'a> {
                 if let Some(e) = effect {
                     effects.push(e);
                 }
-                if !self.check(TokenKind::Comma) { break; }
+                if !self.check(TokenKind::Comma) {
+                    break;
+                }
                 self.advance();
             }
         }
@@ -2146,7 +2655,9 @@ impl<'a> Parser<'a> {
             if self.check(TokenKind::Semi) {
                 self.advance();
                 let TokenKind::Int(size) = self.peek_kind() else {
-                    return Err(self.parser_error("Expected array size integer", self.current_span()));
+                    return Err(
+                        self.parser_error("Expected array size integer", self.current_span())
+                    );
                 };
                 self.advance();
                 self.expect(TokenKind::RBracket)?;
@@ -2158,38 +2669,43 @@ impl<'a> Parser<'a> {
             }
 
             self.expect(TokenKind::RBracket)?;
-            return Ok(Type::Slice(Box::new(inner), span.merge(self.current_span())));
+            return Ok(Type::Slice(
+                Box::new(inner),
+                span.merge(self.current_span()),
+            ));
         }
-        
+
         // Handle tuple types: (A, B) or unit type: ()
         if self.check(TokenKind::LParen) {
             self.advance(); // consume (
-            
+
             // Check for unit type ()
             if self.check(TokenKind::RParen) {
                 self.advance(); // consume )
                 return Ok(Type::Unit(span.merge(self.current_span())));
             }
-            
+
             // Parse tuple elements
             let mut elements = Vec::new();
             elements.push(self.parse_type()?);
-            
+
             while self.check(TokenKind::Comma) {
                 self.advance(); // consume ,
-                if self.check(TokenKind::RParen) { break; } // trailing comma
+                if self.check(TokenKind::RParen) {
+                    break;
+                } // trailing comma
                 elements.push(self.parse_type()?);
             }
-            
+
             self.expect(TokenKind::RParen)?;
             return Ok(Type::Tuple(elements, span.merge(self.current_span())));
         }
-        
+
         // Handle impl Trait: impl Future, impl Iterator<Item = T>
         if self.check(TokenKind::Impl) {
             self.advance(); // consume impl
             let trait_name = self.parse_ident()?;
-            
+
             // Parse generic arguments if present
             let mut generics = Vec::new();
             if self.check(TokenKind::Lt) {
@@ -2200,7 +2716,7 @@ impl<'a> Parser<'a> {
                         self.expect(TokenKind::Comma)?;
                     }
                 }
-                
+
                 // Handle >> for nested generics
                 if self.check(TokenKind::Shr) {
                     self.advance();
@@ -2208,19 +2724,19 @@ impl<'a> Parser<'a> {
                     self.expect(TokenKind::Gt)?;
                 }
             }
-            
+
             return Ok(Type::Impl {
                 trait_name,
                 generics,
                 span: span.merge(self.current_span()),
             });
         }
-        
+
         // Handle function types: fn(T, U) -> R
         if self.check(TokenKind::Fn) {
             self.advance(); // consume fn
             self.expect(TokenKind::LParen)?;
-            
+
             // Parse parameter types
             let mut params = Vec::new();
             while !self.check(TokenKind::RParen) && !self.at_end() {
@@ -2230,7 +2746,7 @@ impl<'a> Parser<'a> {
                 }
             }
             self.expect(TokenKind::RParen)?;
-            
+
             // Parse return type (optional)
             let return_type = if self.check(TokenKind::Arrow) {
                 self.advance(); // consume ->
@@ -2238,7 +2754,7 @@ impl<'a> Parser<'a> {
             } else {
                 Box::new(Type::Unit(span))
             };
-            
+
             return Ok(Type::Function {
                 params,
                 return_type,
@@ -2246,15 +2762,15 @@ impl<'a> Parser<'a> {
                 span: span.merge(self.current_span()),
             });
         }
-        
+
         // Handle delegate types: delegate(T, U) - same as fn but for UE5 delegates
         // This is syntactic sugar for function types used as delegates
         let mut name = self.parse_ident()?;
-        
+
         // Check if this is delegate(...) syntax
         if name == "delegate" && self.check(TokenKind::LParen) {
             self.advance(); // consume (
-            
+
             // Parse parameter types
             let mut params = Vec::new();
             while !self.check(TokenKind::RParen) && !self.at_end() {
@@ -2264,10 +2780,10 @@ impl<'a> Parser<'a> {
                 }
             }
             self.expect(TokenKind::RParen)?;
-            
+
             // Delegates don't have return types (they're void)
             let return_type = Box::new(Type::Unit(span));
-            
+
             return Ok(Type::Function {
                 params,
                 return_type,
@@ -2275,7 +2791,7 @@ impl<'a> Parser<'a> {
                 span: span.merge(self.current_span()),
             });
         }
-        
+
         // Support Module::Type syntax
         while self.check(TokenKind::ColonColon) {
             self.advance(); // consume ::
@@ -2283,7 +2799,7 @@ impl<'a> Parser<'a> {
             name.push_str("::");
             name.push_str(&part);
         }
-        
+
         // Parse generic type arguments: Type<T, U>
         let mut type_args = Vec::new();
         if self.check(TokenKind::Lt) {
@@ -2294,7 +2810,7 @@ impl<'a> Parser<'a> {
                     self.expect(TokenKind::Comma)?;
                 }
             }
-            
+
             // Handle >> token for nested generics like Box<Box<Int>>
             // The >> is lexed as a single Shr token, but should be treated as > >
             // When we see >>, we consume it but inject a synthetic > token for the outer level
@@ -2303,7 +2819,7 @@ impl<'a> Parser<'a> {
                 // Consume the >> and replace it with a single >
                 let shr_span = self.current_span();
                 self.advance(); // consume >>
-                
+
                 // Insert a synthetic > token at the current position
                 // This allows the outer generic parser to close properly
                 self.inject_token(Token::new(TokenKind::Gt, shr_span));
@@ -2311,7 +2827,7 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::Gt)?; // consume >
             }
         }
-        
+
         if (name == "ptr" || name == "ptr_mut") && type_args.len() == 1 {
             return Ok(Type::Ptr {
                 mutable: name == "ptr_mut",
@@ -2321,26 +2837,38 @@ impl<'a> Parser<'a> {
             });
         }
 
-        Ok(Type::Named { name, generics: type_args, span })
+        Ok(Type::Named {
+            name,
+            generics: type_args,
+            span,
+        })
     }
 
     fn parse_block(&mut self) -> KainResult<Block> {
         self.skip_newlines();
         let start = self.current_span();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut stmts = Vec::new();
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) || self.check(TokenKind::Elif) || self.check(TokenKind::Else) {
+            if self.check(TokenKind::Dedent)
+                || self.check(TokenKind::Elif)
+                || self.check(TokenKind::Else)
+            {
                 break;
             }
             stmts.push(self.parse_stmt()?);
             self.skip_newlines();
         }
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        
-        Ok(Block { stmts, span: start.merge(self.current_span()) })
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+
+        Ok(Block {
+            stmts,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_stmt(&mut self) -> KainResult<Stmt> {
@@ -2361,28 +2889,56 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect(TokenKind::Let)?;
         let pattern = self.parse_pattern()?;
-        let ty = if self.check(TokenKind::Colon) { self.advance(); Some(self.parse_type()?) } else { None };
+        let ty = if self.check(TokenKind::Colon) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
         self.expect(TokenKind::Eq)?;
         let value = Some(self.parse_expr()?);
-        Ok(Stmt::Let { pattern, ty, value, span: start.merge(self.current_span()) })
+        Ok(Stmt::Let {
+            pattern,
+            ty,
+            value,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_var(&mut self) -> KainResult<Stmt> {
         let start = self.current_span();
         self.expect(TokenKind::Var)?;
         let name = self.parse_ident()?;
-        let ty = if self.check(TokenKind::Colon) { self.advance(); Some(self.parse_type()?) } else { None };
+        let ty = if self.check(TokenKind::Colon) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
         self.expect(TokenKind::Eq)?;
         let value = Some(self.parse_expr()?);
         // var x = val is effectively let mut x = val
-        let pattern = Pattern::Binding { name, mutable: true, span: start };
-        Ok(Stmt::Let { pattern, ty, value, span: start.merge(self.current_span()) })
+        let pattern = Pattern::Binding {
+            name,
+            mutable: true,
+            span: start,
+        };
+        Ok(Stmt::Let {
+            pattern,
+            ty,
+            value,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_return(&mut self) -> KainResult<Stmt> {
         let start = self.current_span();
         self.expect(TokenKind::Return)?;
-        let value = if !self.check_line_end() { Some(self.parse_expr()?) } else { None };
+        let value = if !self.check_line_end() {
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
         Ok(Stmt::Return(value, start.merge(self.current_span())))
     }
 
@@ -2394,7 +2950,16 @@ impl<'a> Parser<'a> {
         let iter = self.parse_expr()?;
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
-        Ok(Stmt::For { binding: Pattern::Binding { name, mutable: false, span: start }, iter, body, span: start.merge(self.current_span()) })
+        Ok(Stmt::For {
+            binding: Pattern::Binding {
+                name,
+                mutable: false,
+                span: start,
+            },
+            iter,
+            body,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_while(&mut self) -> KainResult<Stmt> {
@@ -2403,7 +2968,11 @@ impl<'a> Parser<'a> {
         let condition = self.parse_expr()?;
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
-        Ok(Stmt::While { condition, body, span: start.merge(self.current_span()) })
+        Ok(Stmt::While {
+            condition,
+            body,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_loop(&mut self) -> KainResult<Stmt> {
@@ -2411,7 +2980,10 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Loop)?;
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
-        Ok(Stmt::Loop { body, span: start.merge(self.current_span()) })
+        Ok(Stmt::Loop {
+            body,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_break(&mut self) -> KainResult<Stmt> {
@@ -2431,7 +3003,9 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Continue)?;
         Ok(Stmt::Continue(start.merge(self.current_span())))
     }
-    fn parse_expr(&mut self) -> KainResult<Expr> { self.parse_assignment() }
+    fn parse_expr(&mut self) -> KainResult<Expr> {
+        self.parse_assignment()
+    }
 
     fn parse_assignment(&mut self) -> KainResult<Expr> {
         let target = self.parse_conditional()?;
@@ -2510,13 +3084,20 @@ impl<'a> Parser<'a> {
 
     fn parse_binary(&mut self, min_prec: u8) -> KainResult<Expr> {
         let mut left = self.parse_unary()?;
-        
+
         while let Some((op, prec)) = self.get_binary_op() {
-            if prec < min_prec { break; }
+            if prec < min_prec {
+                break;
+            }
             self.advance();
             let right = self.parse_binary(prec + 1)?;
             let span = left.span().merge(right.span());
-            left = Expr::Binary { left: Box::new(left), op, right: Box::new(right), span };
+            left = Expr::Binary {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+                span,
+            };
         }
         Ok(left)
     }
@@ -2552,9 +3133,33 @@ impl<'a> Parser<'a> {
                 let span = start.merge(target.span());
                 self.make_incdec_expr(target, false, true, span)
             }
-            TokenKind::Minus => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::Neg, operand: Box::new(self.parse_unary()?), span: s }) }
-            TokenKind::Not => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::Not, operand: Box::new(self.parse_unary()?), span: s }) }
-            TokenKind::Tilde => { let s = self.current_span(); self.advance(); Ok(Expr::Unary { op: UnaryOp::BitNot, operand: Box::new(self.parse_unary()?), span: s }) }
+            TokenKind::Minus => {
+                let s = self.current_span();
+                self.advance();
+                Ok(Expr::Unary {
+                    op: UnaryOp::Neg,
+                    operand: Box::new(self.parse_unary()?),
+                    span: s,
+                })
+            }
+            TokenKind::Not => {
+                let s = self.current_span();
+                self.advance();
+                Ok(Expr::Unary {
+                    op: UnaryOp::Not,
+                    operand: Box::new(self.parse_unary()?),
+                    span: s,
+                })
+            }
+            TokenKind::Tilde => {
+                let s = self.current_span();
+                self.advance();
+                Ok(Expr::Unary {
+                    op: UnaryOp::BitNot,
+                    operand: Box::new(self.parse_unary()?),
+                    span: s,
+                })
+            }
             TokenKind::Star => {
                 let s = self.current_span();
                 self.advance();
@@ -2564,26 +3169,44 @@ impl<'a> Parser<'a> {
                 let start = self.current_span();
                 self.advance();
                 let expr = self.parse_unary()?; // Right-associative: await await x
-                Ok(Expr::Await(Box::new(expr), start.merge(self.current_span())))
+                Ok(Expr::Await(
+                    Box::new(expr),
+                    start.merge(self.current_span()),
+                ))
             }
             TokenKind::Send => {
                 let start = self.current_span();
                 self.advance();
                 let expr = self.parse_postfix()?;
-                
+
                 if let Expr::Call { callee, args, span } = expr {
-                    if let Expr::Field { object, field, span: _ } = *callee {
+                    if let Expr::Field {
+                        object,
+                        field,
+                        span: _,
+                    } = *callee
+                    {
                         let mut data = Vec::new();
                         for arg in args {
                             if let Some(name) = arg.name {
                                 data.push((name, arg.value));
                             } else {
-                                return Err(self.parser_error("Send requires named arguments", arg.span));
+                                return Err(
+                                    self.parser_error("Send requires named arguments", arg.span)
+                                );
                             }
                         }
-                        Ok(Expr::SendMsg { target: object, message: field, data, span: start.merge(span) })
+                        Ok(Expr::SendMsg {
+                            target: object,
+                            message: field,
+                            data,
+                            span: start.merge(span),
+                        })
                     } else {
-                        Err(self.parser_error("Expected method call after send (e.g., actor.message())", span))
+                        Err(self.parser_error(
+                            "Expected method call after send (e.g., actor.message())",
+                            span,
+                        ))
                     }
                 } else {
                     Err(self.parser_error("Expected message call after send", expr.span()))
@@ -2597,23 +3220,26 @@ impl<'a> Parser<'a> {
         let mut expr = self.parse_primary()?;
         loop {
             match self.peek_kind() {
-                TokenKind::LParen => { 
-                    self.advance(); 
-                    let args = self.parse_call_args()?; 
-                    self.expect(TokenKind::RParen)?; 
-                    let s = expr.span().merge(self.current_span()); 
-                    
+                TokenKind::LParen => {
+                    self.advance();
+                    let args = self.parse_call_args()?;
+                    self.expect(TokenKind::RParen)?;
+                    let s = expr.span().merge(self.current_span());
+
                     // Check if this looks like struct initialization with named arguments
                     // Pattern: TypeName(field = val, ...) where TypeName starts with uppercase
                     if let Expr::Ident(name, _ident_span) = &expr {
                         // Check if identifier starts with uppercase (likely a type name)
-                        let starts_with_uppercase = name.chars().next()
+                        let starts_with_uppercase = name
+                            .chars()
+                            .next()
                             .map(|c| c.is_uppercase())
                             .unwrap_or(false);
-                        
+
                         // Check if all arguments are named (using = syntax in KAIN)
-                        let all_named = !args.is_empty() && args.iter().all(|arg| arg.name.is_some());
-                        
+                        let all_named =
+                            !args.is_empty() && args.iter().all(|arg| arg.name.is_some());
+
                         if starts_with_uppercase && all_named {
                             // This looks like struct initialization - emit error
                             return Err(self.parser_error(
@@ -2631,75 +3257,117 @@ impl<'a> Parser<'a> {
                             ));
                         }
                     }
-                    
-                    if let Expr::Field { object, field, span: _ } = expr {
-                        expr = Expr::MethodCall { receiver: object, method: field, args, span: s };
+
+                    if let Expr::Field {
+                        object,
+                        field,
+                        span: _,
+                    } = expr
+                    {
+                        expr = Expr::MethodCall {
+                            receiver: object,
+                            method: field,
+                            args,
+                            span: s,
+                        };
                     } else {
                         expr = self.normalize_special_call(expr, args, s);
                     }
                 }
-                TokenKind::Dot => { self.advance(); let field = self.parse_ident()?; let s = expr.span().merge(self.current_span()); expr = Expr::Field { object: Box::new(expr), field, span: s }; }
-            TokenKind::QuestionDot => {
-                self.advance();
-                let field = self.parse_ident()?;
-                let s = expr.span().merge(self.current_span());
-                expr = self.make_safe_nav_field_expr(expr, field, s)?;
-            }
-            TokenKind::As => {
-                self.advance();
-                let target = self.parse_type()?;
-                let s = expr.span().merge(self.current_span());
-                expr = Expr::Cast { value: Box::new(expr), target, span: s };
-            }
-            TokenKind::LBracket => { self.advance(); let idx = self.parse_expr()?; self.expect(TokenKind::RBracket)?; let s = expr.span().merge(self.current_span()); expr = Expr::Index { object: Box::new(expr), index: Box::new(idx), span: s }; }
-            TokenKind::PlusPlus => {
-                let start = expr.span();
-                self.advance();
-                let span = start.merge(self.current_span());
-                expr = self.make_incdec_expr(expr, true, false, span)?;
-            }
-            TokenKind::MinusMinus => {
-                let start = expr.span();
-                self.advance();
-                let span = start.merge(self.current_span());
-                expr = self.make_incdec_expr(expr, false, false, span)?;
-            }
-            TokenKind::Question => {
-                if self.question_starts_ternary() {
-                    break;
-                }
-                self.advance();
-                let s = expr.span().merge(self.current_span());
-                expr = Expr::Try(Box::new(expr), s);
-            }
-            TokenKind::Not => {
-                // Macro invocation: ident!(args)
-                if let Expr::Ident(name, _) = &expr {
-                    self.advance(); // consume '!'
-                    self.expect(TokenKind::LParen)?;
-                    let args = if !self.check(TokenKind::RParen) {
-                        let mut args = Vec::new();
-                        args.push(self.parse_expr()?);
-                        while self.check(TokenKind::Comma) {
-                            self.advance();
-                            if self.check(TokenKind::RParen) { break; }
-                            args.push(self.parse_expr()?);
-                        }
-                        args
-                    } else {
-                        Vec::new()
-                    };
-                    self.expect(TokenKind::RParen)?;
+                TokenKind::Dot => {
+                    self.advance();
+                    let field = self.parse_ident()?;
                     let s = expr.span().merge(self.current_span());
-                    expr = Expr::MacroCall { name: name.clone(), args, span: s };
-                } else {
-                     // Maybe unary not? But we are in postfix. Unary not is handled in parse_unary.
-                     // Postfix ! usually means macro or maybe future features (like factorial?).
-                     // For now, only support macros on identifiers.
-                     return Err(self.parser_error("Macro invocation only allowed on identifiers", self.current_span()));
+                    expr = Expr::Field {
+                        object: Box::new(expr),
+                        field,
+                        span: s,
+                    };
                 }
-            }
-            _ => break,
+                TokenKind::QuestionDot => {
+                    self.advance();
+                    let field = self.parse_ident()?;
+                    let s = expr.span().merge(self.current_span());
+                    expr = self.make_safe_nav_field_expr(expr, field, s)?;
+                }
+                TokenKind::As => {
+                    self.advance();
+                    let target = self.parse_type()?;
+                    let s = expr.span().merge(self.current_span());
+                    expr = Expr::Cast {
+                        value: Box::new(expr),
+                        target,
+                        span: s,
+                    };
+                }
+                TokenKind::LBracket => {
+                    self.advance();
+                    let idx = self.parse_expr()?;
+                    self.expect(TokenKind::RBracket)?;
+                    let s = expr.span().merge(self.current_span());
+                    expr = Expr::Index {
+                        object: Box::new(expr),
+                        index: Box::new(idx),
+                        span: s,
+                    };
+                }
+                TokenKind::PlusPlus => {
+                    let start = expr.span();
+                    self.advance();
+                    let span = start.merge(self.current_span());
+                    expr = self.make_incdec_expr(expr, true, false, span)?;
+                }
+                TokenKind::MinusMinus => {
+                    let start = expr.span();
+                    self.advance();
+                    let span = start.merge(self.current_span());
+                    expr = self.make_incdec_expr(expr, false, false, span)?;
+                }
+                TokenKind::Question => {
+                    if self.question_starts_ternary() {
+                        break;
+                    }
+                    self.advance();
+                    let s = expr.span().merge(self.current_span());
+                    expr = Expr::Try(Box::new(expr), s);
+                }
+                TokenKind::Not => {
+                    // Macro invocation: ident!(args)
+                    if let Expr::Ident(name, _) = &expr {
+                        self.advance(); // consume '!'
+                        self.expect(TokenKind::LParen)?;
+                        let args = if !self.check(TokenKind::RParen) {
+                            let mut args = Vec::new();
+                            args.push(self.parse_expr()?);
+                            while self.check(TokenKind::Comma) {
+                                self.advance();
+                                if self.check(TokenKind::RParen) {
+                                    break;
+                                }
+                                args.push(self.parse_expr()?);
+                            }
+                            args
+                        } else {
+                            Vec::new()
+                        };
+                        self.expect(TokenKind::RParen)?;
+                        let s = expr.span().merge(self.current_span());
+                        expr = Expr::MacroCall {
+                            name: name.clone(),
+                            args,
+                            span: s,
+                        };
+                    } else {
+                        // Maybe unary not? But we are in postfix. Unary not is handled in parse_unary.
+                        // Postfix ! usually means macro or maybe future features (like factorial?).
+                        // For now, only support macros on identifiers.
+                        return Err(self.parser_error(
+                            "Macro invocation only allowed on identifiers",
+                            self.current_span(),
+                        ));
+                    }
+                }
+                _ => break,
             }
         }
         Ok(expr)
@@ -2708,29 +3376,40 @@ impl<'a> Parser<'a> {
     fn parse_primary(&mut self) -> KainResult<Expr> {
         let span = self.current_span();
         match self.peek_kind() {
-            TokenKind::Int(n) => { self.advance(); Ok(Expr::Int(n, span)) }
-            TokenKind::Float(n) => { self.advance(); Ok(Expr::Float(n, span)) }
-            TokenKind::String(ref s) => { let s = s.clone(); self.advance(); Ok(Expr::String(s, span)) }
+            TokenKind::Int(n) => {
+                self.advance();
+                Ok(Expr::Int(n, span))
+            }
+            TokenKind::Float(n) => {
+                self.advance();
+                Ok(Expr::Float(n, span))
+            }
+            TokenKind::String(ref s) => {
+                let s = s.clone();
+                self.advance();
+                Ok(Expr::String(s, span))
+            }
             TokenKind::FString(ref s) => {
                 let s = s.clone();
                 self.advance();
                 let mut parts = Vec::new();
                 let mut last_idx = 0;
                 let mut chars = s.char_indices().peekable();
-                
+
                 while let Some((idx, c)) = chars.next() {
                     if c == '{' {
                         if idx > last_idx {
                             parts.push(Expr::String(s[last_idx..idx].to_string(), span));
                         }
-                        
+
                         let expr_start = idx + 1;
                         let mut depth = 1;
                         let mut expr_end = expr_start;
-                        
+
                         while let Some((i, c2)) = chars.next() {
-                            if c2 == '{' { depth += 1; }
-                            else if c2 == '}' {
+                            if c2 == '{' {
+                                depth += 1;
+                            } else if c2 == '}' {
                                 depth -= 1;
                                 if depth == 0 {
                                     expr_end = i;
@@ -2738,7 +3417,7 @@ impl<'a> Parser<'a> {
                                 }
                             }
                         }
-                        
+
                         if depth == 0 {
                             let expr_str = &s[expr_start..expr_end];
                             let tokens = Lexer::new(expr_str).tokenize()?;
@@ -2748,22 +3427,31 @@ impl<'a> Parser<'a> {
                             parts.push(expr);
                             last_idx = expr_end + 1;
                         } else {
-                             return Err(self.parser_error("Unclosed '{' in f-string", span));
+                            return Err(self.parser_error("Unclosed '{' in f-string", span));
                         }
                     }
                 }
-                
+
                 if last_idx < s.len() {
                     parts.push(Expr::String(s[last_idx..].to_string(), span));
                 }
-                
+
                 Ok(Expr::FString(parts, span))
             }
-            TokenKind::True => { self.advance(); Ok(Expr::Bool(true, span)) }
-            TokenKind::False => { self.advance(); Ok(Expr::Bool(false, span)) }
-            TokenKind::None => { self.advance(); Ok(Expr::None(span)) }
-            TokenKind::Ident(ref s) => { 
-                let name = s.clone(); 
+            TokenKind::True => {
+                self.advance();
+                Ok(Expr::Bool(true, span))
+            }
+            TokenKind::False => {
+                self.advance();
+                Ok(Expr::Bool(false, span))
+            }
+            TokenKind::None => {
+                self.advance();
+                Ok(Expr::None(span))
+            }
+            TokenKind::Ident(ref s) => {
+                let name = s.clone();
                 self.advance();
 
                 if self.check(TokenKind::ColonColon) {
@@ -2812,7 +3500,9 @@ impl<'a> Parser<'a> {
                             let field_value = self.parse_expr()?;
                             fields.push((field_name, field_value));
 
-                            if !self.check(TokenKind::RBrace) && (!indented || !self.check(TokenKind::Dedent)) {
+                            if !self.check(TokenKind::RBrace)
+                                && (!indented || !self.check(TokenKind::Dedent))
+                            {
                                 if self.check(TokenKind::Comma) {
                                     self.advance();
                                 }
@@ -2836,17 +3526,19 @@ impl<'a> Parser<'a> {
                         span: span.merge(self.current_span()),
                     });
                 }
-                
+
                 // Check if this is a struct literal: Name { field: value, ... }
                 // KAIN does not support struct literals - always emit error when we see Ident {
                 // Skip formatting (newlines and indents) to handle multi-line struct literals
                 let saved_pos_for_check = self.pos;
                 self.skip_formatting();
-                
-                if self.check(TokenKind::LBrace) && !self.capabilities.supports_parser_struct_literals() {
+
+                if self.check(TokenKind::LBrace)
+                    && !self.capabilities.supports_parser_struct_literals()
+                {
                     // Restore position before emitting error
                     self.pos = saved_pos_for_check;
-                    
+
                     // This looks like a struct literal - emit error
                     return Err(self.parser_error(
                         format!(
@@ -2862,23 +3554,23 @@ impl<'a> Parser<'a> {
                         span
                     ));
                 }
-                
+
                 // Restore position if not a struct literal
                 self.pos = saved_pos_for_check;
-                
+
                 // Just an identifier
                 Ok(Expr::Ident(name, span))
             }
-            TokenKind::SelfLower => { 
-                self.advance(); 
-                Ok(Expr::Ident("self".to_string(), span)) 
+            TokenKind::SelfLower => {
+                self.advance();
+                Ok(Expr::Ident("self".to_string(), span))
             }
-            TokenKind::SelfUpper => { 
-                self.advance(); 
-                Ok(Expr::Ident("Self".to_string(), span)) 
+            TokenKind::SelfUpper => {
+                self.advance();
+                Ok(Expr::Ident("Self".to_string(), span))
             }
-            TokenKind::LParen => { 
-                self.advance(); 
+            TokenKind::LParen => {
+                self.advance();
                 if self.check(TokenKind::RParen) {
                     self.advance();
                     Ok(Expr::Tuple(vec![], span.merge(self.current_span())))
@@ -2889,20 +3581,25 @@ impl<'a> Parser<'a> {
                         let mut items = vec![first];
                         while !self.check(TokenKind::RParen) {
                             items.push(self.parse_expr()?);
-                            if !self.check(TokenKind::RParen) { self.expect(TokenKind::Comma)?; }
+                            if !self.check(TokenKind::RParen) {
+                                self.expect(TokenKind::Comma)?;
+                            }
                         }
                         self.expect(TokenKind::RParen)?;
                         Ok(Expr::Tuple(items, span.merge(self.current_span())))
                     } else {
                         self.expect(TokenKind::RParen)?;
-                        Ok(Expr::Paren(Box::new(first), span.merge(self.current_span())))
+                        Ok(Expr::Paren(
+                            Box::new(first),
+                            span.merge(self.current_span()),
+                        ))
                     }
                 }
             }
-            TokenKind::LBracket => { 
+            TokenKind::LBracket => {
                 self.advance();
                 self.skip_newlines();
-                
+
                 // Check for indent (multi-line array)
                 let indented = if self.check(TokenKind::Indent) {
                     self.advance();
@@ -2910,7 +3607,7 @@ impl<'a> Parser<'a> {
                 } else {
                     false
                 };
-                
+
                 let mut items = vec![];
                 while !self.check(TokenKind::RBracket) && !self.at_end() {
                     if indented && self.check(TokenKind::Dedent) {
@@ -2922,22 +3619,22 @@ impl<'a> Parser<'a> {
                     }
                     items.push(self.parse_expr()?);
                     self.skip_newlines();
-                    if !self.check(TokenKind::RBracket) && !self.check(TokenKind::Dedent) { 
+                    if !self.check(TokenKind::RBracket) && !self.check(TokenKind::Dedent) {
                         if self.check(TokenKind::Comma) {
                             self.advance();
                             self.skip_newlines();
                         }
                     }
                 }
-                
+
                 if indented {
                     if self.check(TokenKind::Dedent) {
                         self.advance();
                     }
                 }
                 self.skip_newlines();
-                self.expect(TokenKind::RBracket)?; 
-                Ok(Expr::Array(items, span)) 
+                self.expect(TokenKind::RBracket)?;
+                Ok(Expr::Array(items, span))
             }
             TokenKind::Comptime => {
                 self.advance();
@@ -2957,11 +3654,18 @@ impl<'a> Parser<'a> {
                         default: None,
                         span,
                     });
-                    if !self.check(TokenKind::Pipe) { self.expect(TokenKind::Comma)?; }
+                    if !self.check(TokenKind::Pipe) {
+                        self.expect(TokenKind::Comma)?;
+                    }
                 }
                 self.expect(TokenKind::Pipe)?;
                 let body = self.parse_expr()?;
-                Ok(Expr::Lambda { params, return_type: None, body: Box::new(body), span: span.merge(self.current_span()) })
+                Ok(Expr::Lambda {
+                    params,
+                    return_type: None,
+                    body: Box::new(body),
+                    span: span.merge(self.current_span()),
+                })
             }
             TokenKind::Match => self.parse_match(),
             TokenKind::Spawn => {
@@ -2970,25 +3674,29 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::LParen)?;
                 let args = self.parse_call_args()?;
                 self.expect(TokenKind::RParen)?;
-                
+
                 let mut init = Vec::new();
                 for arg in args {
                     if let Some(name) = arg.name {
                         init.push((name, arg.value));
                     } else {
-                         return Err(self.parser_error("Spawn requires named arguments", arg.span));
+                        return Err(self.parser_error("Spawn requires named arguments", arg.span));
                     }
                 }
-                Ok(Expr::Spawn { actor, init, span: span.merge(self.current_span()) })
+                Ok(Expr::Spawn {
+                    actor,
+                    init,
+                    span: span.merge(self.current_span()),
+                })
             }
             TokenKind::Return => {
                 let start = self.current_span();
                 self.advance();
-                let value = if !self.check_line_end() 
-                    && !self.check(TokenKind::Comma) 
-                    && !self.check(TokenKind::RParen) 
-                    && !self.check(TokenKind::RBrace) 
-                    && !self.check(TokenKind::RBracket) 
+                let value = if !self.check_line_end()
+                    && !self.check(TokenKind::Comma)
+                    && !self.check(TokenKind::RParen)
+                    && !self.check(TokenKind::RBrace)
+                    && !self.check(TokenKind::RBracket)
                 {
                     Some(Box::new(self.parse_expr()?))
                 } else {
@@ -3006,13 +3714,13 @@ impl<'a> Parser<'a> {
             TokenKind::Fn => {
                 self.advance(); // consume fn
                 self.expect(TokenKind::LParen)?;
-                
+
                 // Parse parameters with types
                 let mut params = Vec::new();
                 while !self.check(TokenKind::RParen) && !self.at_end() {
                     let p_span = self.current_span();
                     let name = self.parse_ident()?;
-                    
+
                     // Parse type annotation
                     let ty = if self.check(TokenKind::Colon) {
                         self.advance();
@@ -3020,7 +3728,7 @@ impl<'a> Parser<'a> {
                     } else {
                         Type::Infer(p_span)
                     };
-                    
+
                     params.push(Param {
                         name,
                         ty,
@@ -3028,13 +3736,13 @@ impl<'a> Parser<'a> {
                         default: None,
                         span: p_span,
                     });
-                    
+
                     if !self.check(TokenKind::RParen) {
                         self.expect(TokenKind::Comma)?;
                     }
                 }
                 self.expect(TokenKind::RParen)?;
-                
+
                 // Parse optional return type
                 let return_type = if self.check(TokenKind::Arrow) {
                     self.advance();
@@ -3042,9 +3750,9 @@ impl<'a> Parser<'a> {
                 } else {
                     None
                 };
-                
+
                 self.expect(TokenKind::Colon)?;
-                
+
                 // Parse body - can be a single expression or a block
                 let body = if self.check(TokenKind::Return) {
                     // Single return statement: fn(x): return x * 2
@@ -3059,12 +3767,12 @@ impl<'a> Parser<'a> {
                     // Single expression: fn(x): x * 2
                     self.parse_expr()?
                 };
-                
-                Ok(Expr::Lambda { 
-                    params, 
-                    return_type, 
-                    body: Box::new(body), 
-                    span: span.merge(self.current_span()) 
+
+                Ok(Expr::Lambda {
+                    params,
+                    return_type,
+                    body: Box::new(body),
+                    span: span.merge(self.current_span()),
                 })
             }
             // Control flow as expressions (for use in match arms, etc.)
@@ -3076,8 +3784,11 @@ impl<'a> Parser<'a> {
             TokenKind::Break => {
                 self.advance();
                 // Optional break value
-                let value = if !self.check_line_end() && !self.check(TokenKind::Dedent) 
-                    && !self.check(TokenKind::Comma) && !self.check(TokenKind::RParen) {
+                let value = if !self.check_line_end()
+                    && !self.check(TokenKind::Dedent)
+                    && !self.check(TokenKind::Comma)
+                    && !self.check(TokenKind::RParen)
+                {
                     Some(Box::new(self.parse_expr()?))
                 } else {
                     None
@@ -3101,7 +3812,13 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(Expr::Ident("state".to_string(), span))
             }
-            _ => Err(self.parser_error(format!("Unexpected token: {}", crate::error::token_kind_to_user_string(&self.peek_kind())), span)),
+            _ => Err(self.parser_error(
+                format!(
+                    "Unexpected token: {}",
+                    crate::error::token_kind_to_user_string(&self.peek_kind())
+                ),
+                span,
+            )),
         }
     }
 
@@ -3124,7 +3841,10 @@ impl<'a> Parser<'a> {
                     ("ptr_offset", 2 | 3) => {
                         let mut values = args.into_iter();
                         let pointer = values.next().expect("ptr_offset must have first arg").value;
-                        let offset = values.next().expect("ptr_offset must have second arg").value;
+                        let offset = values
+                            .next()
+                            .expect("ptr_offset must have second arg")
+                            .value;
                         let element_ty = values
                             .next()
                             .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
@@ -3213,10 +3933,7 @@ impl<'a> Parser<'a> {
                             .next()
                             .expect("realloc_mem must have pointer arg")
                             .value;
-                        let size = values
-                            .next()
-                            .expect("realloc_mem must have size arg")
-                            .value;
+                        let size = values.next().expect("realloc_mem must have size arg").value;
                         let ty = values
                             .next()
                             .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
@@ -3294,9 +4011,17 @@ impl<'a> Parser<'a> {
                     .collect(),
                 span,
             },
-            Type::Array(inner, size, _) => Type::Array(Box::new(Self::re_span_type(*inner, span)), size, span),
+            Type::Array(inner, size, _) => {
+                Type::Array(Box::new(Self::re_span_type(*inner, span)), size, span)
+            }
             Type::Slice(inner, _) => Type::Slice(Box::new(Self::re_span_type(*inner, span)), span),
-            Type::Tuple(types, _) => Type::Tuple(types.into_iter().map(|t| Self::re_span_type(t, span)).collect(), span),
+            Type::Tuple(types, _) => Type::Tuple(
+                types
+                    .into_iter()
+                    .map(|t| Self::re_span_type(t, span))
+                    .collect(),
+                span,
+            ),
             Type::Ref {
                 mutable,
                 inner,
@@ -3308,19 +4033,34 @@ impl<'a> Parser<'a> {
                 lifetime,
                 span,
             },
-            Type::Ptr { mutable, inner, provenance, .. } => Type::Ptr {
+            Type::Ptr {
+                mutable,
+                inner,
+                provenance,
+                ..
+            } => Type::Ptr {
                 mutable,
                 inner: Box::new(Self::re_span_type(*inner, span)),
                 provenance,
                 span,
             },
-            Type::Function { params, return_type, effects, .. } => Type::Function {
-                params: params.into_iter().map(|p| Self::re_span_type(p, span)).collect(),
+            Type::Function {
+                params,
+                return_type,
+                effects,
+                ..
+            } => Type::Function {
+                params: params
+                    .into_iter()
+                    .map(|p| Self::re_span_type(p, span))
+                    .collect(),
                 return_type: Box::new(Self::re_span_type(*return_type, span)),
                 effects,
                 span,
             },
-            Type::Option(inner, _) => Type::Option(Box::new(Self::re_span_type(*inner, span)), span),
+            Type::Option(inner, _) => {
+                Type::Option(Box::new(Self::re_span_type(*inner, span)), span)
+            }
             Type::Result(ok, err, _) => Type::Result(
                 Box::new(Self::re_span_type(*ok, span)),
                 Box::new(Self::re_span_type(*err, span)),
@@ -3354,32 +4094,36 @@ impl<'a> Parser<'a> {
         let mut arms = Vec::new();
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
             let arm_start = self.current_span();
             let pattern = self.parse_pattern()?;
             self.expect(TokenKind::FatArrow)?;
-            
+
             // Parse arm body - check if it starts with newline (multi-line body)
             let body = if matches!(self.peek_kind(), TokenKind::Newline(_)) {
                 // Multi-line match arm body
                 self.skip_newlines();
-                
+
                 if self.check(TokenKind::Indent) {
                     // It's an indented block - parse statements until dedent
                     self.advance(); // consume Indent
                     let mut stmts = Vec::new();
-                    
+
                     while !self.check(TokenKind::Dedent) && !self.at_end() {
                         self.skip_newlines();
-                        if self.check(TokenKind::Dedent) { break; }
+                        if self.check(TokenKind::Dedent) {
+                            break;
+                        }
                         stmts.push(self.parse_stmt()?);
                         self.skip_newlines();
                     }
-                    
-                    if self.check(TokenKind::Dedent) { 
+
+                    if self.check(TokenKind::Dedent) {
                         self.advance(); // consume Dedent for arm body
                     }
-                    
+
                     // Convert stmts to expression
                     if stmts.len() == 1 {
                         if let Stmt::Expr(e) = &stmts[0] {
@@ -3387,11 +4131,17 @@ impl<'a> Parser<'a> {
                         } else if let Stmt::Return(Some(ref e), _) = &stmts[0] {
                             e.clone()
                         } else {
-                            let block = Block { stmts, span: arm_start.merge(self.current_span()) };
+                            let block = Block {
+                                stmts,
+                                span: arm_start.merge(self.current_span()),
+                            };
                             Expr::Block(block, arm_start.merge(self.current_span()))
                         }
                     } else {
-                        let block = Block { stmts, span: arm_start.merge(self.current_span()) };
+                        let block = Block {
+                            stmts,
+                            span: arm_start.merge(self.current_span()),
+                        };
                         Expr::Block(block, arm_start.merge(self.current_span()))
                     }
                 } else {
@@ -3402,12 +4152,23 @@ impl<'a> Parser<'a> {
                 // Inline expression (same line as =>)
                 self.parse_expr()?
             };
-            
-            arms.push(MatchArm { pattern, guard: None, body, span: self.current_span() });
+
+            arms.push(MatchArm {
+                pattern,
+                guard: None,
+                body,
+                span: self.current_span(),
+            });
             self.skip_newlines();
         }
-        if self.check(TokenKind::Dedent) { self.advance(); }
-        Ok(Expr::Match { scrutinee, arms, span: start.merge(self.current_span()) })
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
+        Ok(Expr::Match {
+            scrutinee,
+            arms,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_if(&mut self) -> KainResult<Expr> {
@@ -3415,7 +4176,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::If)?;
         let condition = Box::new(self.parse_expr()?);
         self.expect(TokenKind::Colon)?;
-        
+
         // Check if this is an inline if (no newline/indent) or block if
         let is_block = matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Indent);
         let then_branch = if is_block {
@@ -3423,11 +4184,19 @@ impl<'a> Parser<'a> {
         } else {
             // Inline if: parse single statement
             let stmt = self.parse_stmt()?;
-            Block { stmts: vec![stmt], span: start.merge(self.current_span()) }
+            Block {
+                stmts: vec![stmt],
+                span: start.merge(self.current_span()),
+            }
         };
-        
+
         let else_branch = self.parse_if_tail(start)?;
-        Ok(Expr::If { condition, then_branch, else_branch, span: start.merge(self.current_span()) })
+        Ok(Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_if_tail(&mut self, start: Span) -> KainResult<Option<Box<ElseBranch>>> {
@@ -3442,11 +4211,18 @@ impl<'a> Parser<'a> {
                 self.parse_block()?
             } else {
                 let stmt = self.parse_stmt()?;
-                Block { stmts: vec![stmt], span: start.merge(self.current_span()) }
+                Block {
+                    stmts: vec![stmt],
+                    span: start.merge(self.current_span()),
+                }
             };
 
             let nested_else = self.parse_if_tail(start)?;
-            return Ok(Some(Box::new(ElseBranch::ElseIf(condition, then_branch, nested_else))));
+            return Ok(Some(Box::new(ElseBranch::ElseIf(
+                condition,
+                then_branch,
+                nested_else,
+            ))));
         }
 
         if self.check(TokenKind::Else) {
@@ -3458,12 +4234,24 @@ impl<'a> Parser<'a> {
                 let elif_expr = self.parse_if()?;
 
                 // Extract the condition, then_branch, and else_branch from the If expression
-                if let Expr::If { condition, then_branch, else_branch: nested_else, .. } = elif_expr {
-                    return Ok(Some(Box::new(ElseBranch::ElseIf(condition, then_branch, nested_else))));
+                if let Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch: nested_else,
+                    ..
+                } = elif_expr
+                {
+                    return Ok(Some(Box::new(ElseBranch::ElseIf(
+                        condition,
+                        then_branch,
+                        nested_else,
+                    ))));
                 }
 
                 // Shouldn't happen, but fallback
-                return Err(self.parser_error("Expected if expression after else", self.current_span()));
+                return Err(
+                    self.parser_error("Expected if expression after else", self.current_span())
+                );
             }
 
             self.expect(TokenKind::Colon)?;
@@ -3485,19 +4273,22 @@ impl<'a> Parser<'a> {
     fn parse_pattern(&mut self) -> KainResult<Pattern> {
         let span = self.current_span();
         match self.peek_kind() {
-            TokenKind::Ident(ref s) if s == "_" => { self.advance(); Ok(Pattern::Wildcard(span)) }
-            TokenKind::Ident(ref s) => { 
-                let name = s.clone(); 
+            TokenKind::Ident(ref s) if s == "_" => {
                 self.advance();
-                
+                Ok(Pattern::Wildcard(span))
+            }
+            TokenKind::Ident(ref s) => {
+                let name = s.clone();
+                self.advance();
+
                 // Validate identifier if it's used as a binding (not an enum name)
                 // We'll validate after determining if it's a binding or enum reference
-                
+
                 if self.check(TokenKind::ColonColon) {
                     // This is an enum name, not a binding, so no validation needed here
                     self.advance(); // consume ::
                     let variant = self.parse_ident()?;
-                    
+
                     let fields = if self.check(TokenKind::LParen) {
                         self.advance();
                         let mut patterns = Vec::new();
@@ -3526,7 +4317,7 @@ impl<'a> Parser<'a> {
                     } else {
                         VariantPatternFields::Unit
                     };
-                    
+
                     Ok(Pattern::Variant {
                         enum_name: Some(name),
                         variant,
@@ -3545,7 +4336,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                     self.expect(TokenKind::RParen)?;
-                    
+
                     Ok(Pattern::Variant {
                         enum_name: None, // Unqualified - will be resolved at type-check time
                         variant: name,
@@ -3555,28 +4346,47 @@ impl<'a> Parser<'a> {
                 } else {
                     // This is a binding, validate it
                     self.validate_identifier(&name, span)?;
-                    Ok(Pattern::Binding { name, mutable: false, span }) 
+                    Ok(Pattern::Binding {
+                        name,
+                        mutable: false,
+                        span,
+                    })
                 }
             }
             TokenKind::Mut => {
                 self.advance();
                 let name = self.parse_ident()?;
-                Ok(Pattern::Binding { name, mutable: true, span: span.merge(self.current_span()) })
+                Ok(Pattern::Binding {
+                    name,
+                    mutable: true,
+                    span: span.merge(self.current_span()),
+                })
             }
-            TokenKind::Int(n) => { self.advance(); Ok(Pattern::Literal(Expr::Int(n, span))) }
-            TokenKind::String(ref s) => { 
+            TokenKind::Int(n) => {
+                self.advance();
+                Ok(Pattern::Literal(Expr::Int(n, span)))
+            }
+            TokenKind::String(ref s) => {
                 let string_val = s.clone();
-                self.advance(); 
-                Ok(Pattern::Literal(Expr::String(string_val, span))) 
+                self.advance();
+                Ok(Pattern::Literal(Expr::String(string_val, span)))
             }
-            TokenKind::True => { self.advance(); Ok(Pattern::Literal(Expr::Bool(true, span))) }
-            TokenKind::False => { self.advance(); Ok(Pattern::Literal(Expr::Bool(false, span))) }
+            TokenKind::True => {
+                self.advance();
+                Ok(Pattern::Literal(Expr::Bool(true, span)))
+            }
+            TokenKind::False => {
+                self.advance();
+                Ok(Pattern::Literal(Expr::Bool(false, span)))
+            }
             TokenKind::LParen => {
                 self.advance();
                 let mut patterns = Vec::new();
                 while !self.check(TokenKind::RParen) {
                     patterns.push(self.parse_pattern()?);
-                    if !self.check(TokenKind::RParen) { self.expect(TokenKind::Comma)?; }
+                    if !self.check(TokenKind::RParen) {
+                        self.expect(TokenKind::Comma)?;
+                    }
                 }
                 self.expect(TokenKind::RParen)?;
                 Ok(Pattern::Tuple(patterns, span.merge(self.current_span())))
@@ -3586,17 +4396,23 @@ impl<'a> Parser<'a> {
                 let mut patterns = Vec::new();
                 while !self.check(TokenKind::RBracket) {
                     patterns.push(self.parse_pattern()?);
-                    if !self.check(TokenKind::RBracket) { self.expect(TokenKind::Comma)?; }
+                    if !self.check(TokenKind::RBracket) {
+                        self.expect(TokenKind::Comma)?;
+                    }
                 }
                 self.expect(TokenKind::RBracket)?;
-                Ok(Pattern::Slice { patterns, rest: None, span: span.merge(self.current_span()) })
+                Ok(Pattern::Slice {
+                    patterns,
+                    rest: None,
+                    span: span.merge(self.current_span()),
+                })
             }
             _ => Err(self.parser_error(
                 format!(
                     "Expected pattern (identifier, integer, string, tuple, or array), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
-                span
+                span,
             )),
         }
     }
@@ -3608,7 +4424,9 @@ impl<'a> Parser<'a> {
         self.skip_newlines();
         let result = self.parse_jsx_element()?;
         self.skip_newlines();
-        if self.check(TokenKind::Dedent) { self.advance(); }
+        if self.check(TokenKind::Dedent) {
+            self.advance();
+        }
         Ok(result)
     }
 
@@ -3636,26 +4454,34 @@ impl<'a> Parser<'a> {
             } else {
                 return Err(self.parser_error("Expected attribute value", self.current_span()));
             };
-            attrs.push(JSXAttribute { name, value, span: self.current_span() });
+            attrs.push(JSXAttribute {
+                name,
+                value,
+                span: self.current_span(),
+            });
         }
-        
+
         if self.check(TokenKind::Slash) {
             self.advance();
             self.expect(TokenKind::Gt)?;
             return Ok(self.finish_jsx_node(tag, attrs, vec![], start.merge(self.current_span())));
         }
-        
+
         self.expect(TokenKind::Gt)?;
-        
+
         let mut children = Vec::new();
         // Track the end of the previous token to detect gaps (whitespace)
-        let mut last_end = self.tokens.get(self.pos - 1).map(|t| t.span.end).unwrap_or(0);
+        let mut last_end = self
+            .tokens
+            .get(self.pos - 1)
+            .map(|t| t.span.end)
+            .unwrap_or(0);
         let mut text_buffer = String::new();
         let mut text_start = self.current_span();
 
         while !self.check(TokenKind::LtSlash) && !self.at_end() {
             let current_span = self.current_span();
-            
+
             // Check for gap (whitespace)
             if current_span.start > last_end {
                 // If we have text in buffer, append space. If buffer empty, maybe leading space?
@@ -3671,136 +4497,166 @@ impl<'a> Parser<'a> {
 
             if self.check(TokenKind::LBrace) {
                 if !text_buffer.is_empty() {
-                    children.push(JSXNode::Text(text_buffer.clone(), text_start.merge(Span::new(last_end, last_end))));
+                    children.push(JSXNode::Text(
+                        text_buffer.clone(),
+                        text_start.merge(Span::new(last_end, last_end)),
+                    ));
                     text_buffer.clear();
                 }
 
                 children.push(self.parse_jsx_braced_child()?);
-                
-                last_end = self.tokens.get(self.pos - 1).map(|t| t.span.end).unwrap_or(0);
+
+                last_end = self
+                    .tokens
+                    .get(self.pos - 1)
+                    .map(|t| t.span.end)
+                    .unwrap_or(0);
                 text_start = self.current_span(); // Reset text start for next text run
             } else if self.check(TokenKind::Lt) {
-                 if !text_buffer.is_empty() {
-                    children.push(JSXNode::Text(text_buffer.clone(), text_start.merge(Span::new(last_end, last_end))));
+                if !text_buffer.is_empty() {
+                    children.push(JSXNode::Text(
+                        text_buffer.clone(),
+                        text_start.merge(Span::new(last_end, last_end)),
+                    ));
                     text_buffer.clear();
                 }
 
-                 children.push(self.parse_jsx_element()?);
-                 
-                 last_end = self.tokens.get(self.pos - 1).map(|t| t.span.end).unwrap_or(0);
-                 text_start = self.current_span();
+                children.push(self.parse_jsx_element()?);
+
+                last_end = self
+                    .tokens
+                    .get(self.pos - 1)
+                    .map(|t| t.span.end)
+                    .unwrap_or(0);
+                text_start = self.current_span();
             } else {
-                 let mut consumed_text = None;
-                 match self.peek_kind() {
-                     TokenKind::String(s) => consumed_text = Some(s),
-                     TokenKind::Ident(s) => consumed_text = Some(s),
-                     TokenKind::Int(n) => consumed_text = Some(n.to_string()),
-                     TokenKind::Newline(_) | TokenKind::Indent | TokenKind::Dedent => {
-                         // Treat newline/indent as whitespace
-                         if !text_buffer.is_empty() && !text_buffer.ends_with(' ') {
-                             text_buffer.push(' ');
-                         }
-                         self.advance();
-                     }
-                     TokenKind::Colon => consumed_text = Some(":".to_string()),
-                     TokenKind::Comma => consumed_text = Some(",".to_string()),
-                     TokenKind::Dot => consumed_text = Some(".".to_string()),
-                     TokenKind::Question => consumed_text = Some("?".to_string()),
-                     TokenKind::QuestionQuestion => consumed_text = Some("??".to_string()),
-                     TokenKind::QuestionDot => consumed_text = Some("?.".to_string()),
-                     TokenKind::Not => consumed_text = Some("!".to_string()),
-                     TokenKind::Minus => consumed_text = Some("-".to_string()),
-                     TokenKind::PlusPlus => consumed_text = Some("++".to_string()),
-                     TokenKind::MinusMinus => consumed_text = Some("--".to_string()),
-                     TokenKind::Eq => consumed_text = Some("=".to_string()),
-                     TokenKind::Plus => consumed_text = Some("+".to_string()),
-                     TokenKind::Star => consumed_text = Some("*".to_string()),
-                     TokenKind::Slash => consumed_text = Some("/".to_string()),
-                     TokenKind::Percent => consumed_text = Some("%".to_string()),
-                     TokenKind::Amp => consumed_text = Some("&".to_string()),
-                     TokenKind::Pipe => consumed_text = Some("|".to_string()),
-                     TokenKind::At => consumed_text = Some("@".to_string()),
-                     TokenKind::Tilde => consumed_text = Some("~".to_string()),
-                     TokenKind::Caret => consumed_text = Some("^".to_string()),
-                     TokenKind::LParen => consumed_text = Some("(".to_string()),
-                     TokenKind::RParen => consumed_text = Some(")".to_string()),
-                     TokenKind::LBracket => consumed_text = Some("[".to_string()),
-                     TokenKind::RBracket => consumed_text = Some("]".to_string()),
-                     TokenKind::Arrow => consumed_text = Some("->".to_string()),
-                     TokenKind::FatArrow => consumed_text = Some("=>".to_string()),
-                     TokenKind::ColonColon => consumed_text = Some("::".to_string()),
-                     TokenKind::And => consumed_text = Some("and".to_string()),
-                     TokenKind::Or => consumed_text = Some("or".to_string()),
-                     // Keywords that can appear as text in JSX
-                     TokenKind::Gpu => consumed_text = Some("GPU".to_string()),
-                     TokenKind::Io => consumed_text = Some("IO".to_string()),
-                     TokenKind::Fn => consumed_text = Some("fn".to_string()),
-                     TokenKind::Let => consumed_text = Some("let".to_string()),
-                     TokenKind::Mut => consumed_text = Some("mut".to_string()),
-                     TokenKind::Var => consumed_text = Some("var".to_string()),
-                     TokenKind::Const => consumed_text = Some("const".to_string()),
-                     TokenKind::If => consumed_text = Some("if".to_string()),
-                     TokenKind::Else => consumed_text = Some("else".to_string()),
-                     TokenKind::Match => consumed_text = Some("match".to_string()),
-                     TokenKind::For => consumed_text = Some("for".to_string()),
-                     TokenKind::While => consumed_text = Some("while".to_string()),
-                     TokenKind::Loop => consumed_text = Some("loop".to_string()),
-                     TokenKind::Break => consumed_text = Some("break".to_string()),
-                     TokenKind::Continue => consumed_text = Some("continue".to_string()),
-                     TokenKind::Return => consumed_text = Some("return".to_string()),
-                     TokenKind::Await => consumed_text = Some("await".to_string()),
-                     TokenKind::In => consumed_text = Some("in".to_string()),
-                     TokenKind::With => consumed_text = Some("with".to_string()),
-                     TokenKind::As => consumed_text = Some("as".to_string()),
-                     TokenKind::TypeKw => consumed_text = Some("type".to_string()),
-                     TokenKind::Struct => consumed_text = Some("struct".to_string()),
-                     TokenKind::Enum => consumed_text = Some("enum".to_string()),
-                     TokenKind::Trait => consumed_text = Some("trait".to_string()),
-                     TokenKind::Impl => consumed_text = Some("impl".to_string()),
-                     TokenKind::Pub => consumed_text = Some("pub".to_string()),
-                     TokenKind::Mod => consumed_text = Some("mod".to_string()),
-                     TokenKind::Use => consumed_text = Some("use".to_string()),
-                     TokenKind::True => consumed_text = Some("true".to_string()),
-                     TokenKind::False => consumed_text = Some("false".to_string()),
-                     TokenKind::Pure => consumed_text = Some("Pure".to_string()),
-                     TokenKind::Async => consumed_text = Some("Async".to_string()),
-                     TokenKind::Component => consumed_text = Some("component".to_string()),
-                     TokenKind::Shader => consumed_text = Some("shader".to_string()),
-                     TokenKind::Actor => consumed_text = Some("actor".to_string()),
-                     TokenKind::Spawn => consumed_text = Some("spawn".to_string()),
-                     TokenKind::Test => consumed_text = Some("test".to_string()),
-                     TokenKind::Reactive => consumed_text = Some("Reactive".to_string()),
-                     TokenKind::Unsafe => consumed_text = Some("Unsafe".to_string()),
-                     TokenKind::Vertex => consumed_text = Some("vertex".to_string()),
-                     TokenKind::Fragment => consumed_text = Some("fragment".to_string()),
-                     _ => {
-                         return Err(self.parser_error(format!("Unexpected token in JSX child: {}. Use strings or {{}} for text.", crate::error::token_kind_to_user_string(&self.peek_kind())), self.current_span()));
-                     }
-                 }
-                 
-                 if let Some(t) = consumed_text {
-                     if text_buffer.is_empty() {
-                         text_start = self.current_span();
-                     }
-                     text_buffer.push_str(&t);
-                     self.advance();
-                 }
-                 
-                 last_end = self.tokens.get(self.pos - 1).map(|t| t.span.end).unwrap_or(0);
+                let mut consumed_text = None;
+                match self.peek_kind() {
+                    TokenKind::String(s) => consumed_text = Some(s),
+                    TokenKind::Ident(s) => consumed_text = Some(s),
+                    TokenKind::Int(n) => consumed_text = Some(n.to_string()),
+                    TokenKind::Newline(_) | TokenKind::Indent | TokenKind::Dedent => {
+                        // Treat newline/indent as whitespace
+                        if !text_buffer.is_empty() && !text_buffer.ends_with(' ') {
+                            text_buffer.push(' ');
+                        }
+                        self.advance();
+                    }
+                    TokenKind::Colon => consumed_text = Some(":".to_string()),
+                    TokenKind::Comma => consumed_text = Some(",".to_string()),
+                    TokenKind::Dot => consumed_text = Some(".".to_string()),
+                    TokenKind::Question => consumed_text = Some("?".to_string()),
+                    TokenKind::QuestionQuestion => consumed_text = Some("??".to_string()),
+                    TokenKind::QuestionDot => consumed_text = Some("?.".to_string()),
+                    TokenKind::Not => consumed_text = Some("!".to_string()),
+                    TokenKind::Minus => consumed_text = Some("-".to_string()),
+                    TokenKind::PlusPlus => consumed_text = Some("++".to_string()),
+                    TokenKind::MinusMinus => consumed_text = Some("--".to_string()),
+                    TokenKind::Eq => consumed_text = Some("=".to_string()),
+                    TokenKind::Plus => consumed_text = Some("+".to_string()),
+                    TokenKind::Star => consumed_text = Some("*".to_string()),
+                    TokenKind::Slash => consumed_text = Some("/".to_string()),
+                    TokenKind::Percent => consumed_text = Some("%".to_string()),
+                    TokenKind::Amp => consumed_text = Some("&".to_string()),
+                    TokenKind::Pipe => consumed_text = Some("|".to_string()),
+                    TokenKind::At => consumed_text = Some("@".to_string()),
+                    TokenKind::Tilde => consumed_text = Some("~".to_string()),
+                    TokenKind::Caret => consumed_text = Some("^".to_string()),
+                    TokenKind::LParen => consumed_text = Some("(".to_string()),
+                    TokenKind::RParen => consumed_text = Some(")".to_string()),
+                    TokenKind::LBracket => consumed_text = Some("[".to_string()),
+                    TokenKind::RBracket => consumed_text = Some("]".to_string()),
+                    TokenKind::Arrow => consumed_text = Some("->".to_string()),
+                    TokenKind::FatArrow => consumed_text = Some("=>".to_string()),
+                    TokenKind::ColonColon => consumed_text = Some("::".to_string()),
+                    TokenKind::And => consumed_text = Some("and".to_string()),
+                    TokenKind::Or => consumed_text = Some("or".to_string()),
+                    // Keywords that can appear as text in JSX
+                    TokenKind::Gpu => consumed_text = Some("GPU".to_string()),
+                    TokenKind::Io => consumed_text = Some("IO".to_string()),
+                    TokenKind::Fn => consumed_text = Some("fn".to_string()),
+                    TokenKind::Let => consumed_text = Some("let".to_string()),
+                    TokenKind::Mut => consumed_text = Some("mut".to_string()),
+                    TokenKind::Var => consumed_text = Some("var".to_string()),
+                    TokenKind::Const => consumed_text = Some("const".to_string()),
+                    TokenKind::If => consumed_text = Some("if".to_string()),
+                    TokenKind::Else => consumed_text = Some("else".to_string()),
+                    TokenKind::Match => consumed_text = Some("match".to_string()),
+                    TokenKind::For => consumed_text = Some("for".to_string()),
+                    TokenKind::While => consumed_text = Some("while".to_string()),
+                    TokenKind::Loop => consumed_text = Some("loop".to_string()),
+                    TokenKind::Break => consumed_text = Some("break".to_string()),
+                    TokenKind::Continue => consumed_text = Some("continue".to_string()),
+                    TokenKind::Return => consumed_text = Some("return".to_string()),
+                    TokenKind::Await => consumed_text = Some("await".to_string()),
+                    TokenKind::In => consumed_text = Some("in".to_string()),
+                    TokenKind::With => consumed_text = Some("with".to_string()),
+                    TokenKind::As => consumed_text = Some("as".to_string()),
+                    TokenKind::TypeKw => consumed_text = Some("type".to_string()),
+                    TokenKind::Struct => consumed_text = Some("struct".to_string()),
+                    TokenKind::Enum => consumed_text = Some("enum".to_string()),
+                    TokenKind::Trait => consumed_text = Some("trait".to_string()),
+                    TokenKind::Impl => consumed_text = Some("impl".to_string()),
+                    TokenKind::Pub => consumed_text = Some("pub".to_string()),
+                    TokenKind::Mod => consumed_text = Some("mod".to_string()),
+                    TokenKind::Use => consumed_text = Some("use".to_string()),
+                    TokenKind::True => consumed_text = Some("true".to_string()),
+                    TokenKind::False => consumed_text = Some("false".to_string()),
+                    TokenKind::Pure => consumed_text = Some("Pure".to_string()),
+                    TokenKind::Async => consumed_text = Some("Async".to_string()),
+                    TokenKind::Component => consumed_text = Some("component".to_string()),
+                    TokenKind::Shader => consumed_text = Some("shader".to_string()),
+                    TokenKind::Actor => consumed_text = Some("actor".to_string()),
+                    TokenKind::Spawn => consumed_text = Some("spawn".to_string()),
+                    TokenKind::Test => consumed_text = Some("test".to_string()),
+                    TokenKind::Reactive => consumed_text = Some("Reactive".to_string()),
+                    TokenKind::Unsafe => consumed_text = Some("Unsafe".to_string()),
+                    TokenKind::Vertex => consumed_text = Some("vertex".to_string()),
+                    TokenKind::Fragment => consumed_text = Some("fragment".to_string()),
+                    _ => {
+                        return Err(self.parser_error(
+                            format!(
+                                "Unexpected token in JSX child: {}. Use strings or {{}} for text.",
+                                crate::error::token_kind_to_user_string(&self.peek_kind())
+                            ),
+                            self.current_span(),
+                        ));
+                    }
+                }
+
+                if let Some(t) = consumed_text {
+                    if text_buffer.is_empty() {
+                        text_start = self.current_span();
+                    }
+                    text_buffer.push_str(&t);
+                    self.advance();
+                }
+
+                last_end = self
+                    .tokens
+                    .get(self.pos - 1)
+                    .map(|t| t.span.end)
+                    .unwrap_or(0);
             }
         }
-        
+
         if !text_buffer.is_empty() {
-            children.push(JSXNode::Text(text_buffer, text_start.merge(Span::new(last_end, last_end))));
+            children.push(JSXNode::Text(
+                text_buffer,
+                text_start.merge(Span::new(last_end, last_end)),
+            ));
         }
-        
+
         self.expect(TokenKind::LtSlash)?;
         let closing_tag = self.parse_jsx_tag_name()?;
         if closing_tag != tag {
-            return Err(self.parser_error(format!("Expected closing tag </{}>, found </{}>", tag, closing_tag), self.current_span()));
+            return Err(self.parser_error(
+                format!("Expected closing tag </{}>, found </{}>", tag, closing_tag),
+                self.current_span(),
+            ));
         }
         self.expect(TokenKind::Gt)?;
-        
+
         Ok(self.finish_jsx_node(tag, attrs, children, start.merge(self.current_span())))
     }
 
@@ -3845,10 +4701,13 @@ impl<'a> Parser<'a> {
                 };
 
                 if !text.is_empty()
-                    && text
-                        .chars()
-                        .enumerate()
-                        .all(|(i, c)| if i == 0 { c.is_ascii_alphabetic() || c == '_' } else { c.is_ascii_alphanumeric() || c == '_' })
+                    && text.chars().enumerate().all(|(i, c)| {
+                        if i == 0 {
+                            c.is_ascii_alphabetic() || c == '_'
+                        } else {
+                            c.is_ascii_alphanumeric() || c == '_'
+                        }
+                    })
                 {
                     self.advance();
                     Ok(text.to_string())
@@ -3955,19 +4814,28 @@ impl<'a> Parser<'a> {
             // Check for named argument: ident = expr
             if let TokenKind::Ident(s) = self.peek_kind() {
                 // Look ahead for '='
-                if self.tokens.get(self.pos + 1).map(|t| t.kind == TokenKind::Eq).unwrap_or(false) {
+                if self
+                    .tokens
+                    .get(self.pos + 1)
+                    .map(|t| t.kind == TokenKind::Eq)
+                    .unwrap_or(false)
+                {
                     name = Some(s);
                     self.advance(); // eat ident
                     self.advance(); // eat =
                 }
             }
-            
+
             let value = self.parse_expr()?;
-            args.push(CallArg { name, value, span: self.current_span() });
-            
+            args.push(CallArg {
+                name,
+                value,
+                span: self.current_span(),
+            });
+
             self.skip_formatting();
-            if !self.check(TokenKind::RParen) { 
-                self.expect(TokenKind::Comma)?; 
+            if !self.check(TokenKind::RParen) {
+                self.expect(TokenKind::Comma)?;
                 self.skip_formatting();
             }
         }
@@ -3975,7 +4843,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_visibility(&mut self) -> Visibility {
-        if self.check(TokenKind::Pub) { self.advance(); Visibility::Public } else { Visibility::Private }
+        if self.check(TokenKind::Pub) {
+            self.advance();
+            Visibility::Public
+        } else {
+            Visibility::Private
+        }
     }
 
     fn parse_ident(&mut self) -> KainResult<String> {
@@ -4065,7 +4938,10 @@ impl<'a> Parser<'a> {
         prefix: bool,
         span: Span,
     ) -> KainResult<Expr> {
-        if !matches!(target, Expr::Ident(_, _) | Expr::Field { .. } | Expr::Index { .. } | Expr::Deref(_, _)) {
+        if !matches!(
+            target,
+            Expr::Ident(_, _) | Expr::Field { .. } | Expr::Index { .. } | Expr::Deref(_, _)
+        ) {
             return Err(self.parser_error(
                 "Increment/decrement target must be assignable (identifier, field, index, or dereference)",
                 span,
@@ -4074,7 +4950,11 @@ impl<'a> Parser<'a> {
 
         let binding = self.fresh_temp("__kain_incdec");
         let bound_ident = Expr::Ident(binding.clone(), span);
-        let op = if increment { BinaryOp::Add } else { BinaryOp::Sub };
+        let op = if increment {
+            BinaryOp::Add
+        } else {
+            BinaryOp::Sub
+        };
 
         let updated = Expr::Binary {
             left: Box::new(bound_ident.clone()),
@@ -4138,7 +5018,12 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn make_safe_nav_field_expr(&mut self, object: Expr, field: String, span: Span) -> KainResult<Expr> {
+    fn make_safe_nav_field_expr(
+        &mut self,
+        object: Expr,
+        field: String,
+        span: Span,
+    ) -> KainResult<Expr> {
         let binding = self.fresh_temp("__kain_safe");
         Ok(Expr::Match {
             scrutinee: Box::new(object),
@@ -4203,7 +5088,11 @@ impl<'a> Parser<'a> {
                 | TokenKind::Semi
                 | TokenKind::Eof
                 | TokenKind::Dedent
-                | TokenKind::Newline(_) if at_top_level => return false,
+                | TokenKind::Newline(_)
+                    if at_top_level =>
+                {
+                    return false
+                }
                 _ => {}
             }
             offset += 1;
@@ -4224,87 +5113,128 @@ impl<'a> Parser<'a> {
             return Some(self.injected_tokens[offset].kind.clone());
         }
         let base_offset = offset.saturating_sub(self.injected_tokens.len());
-        self.tokens.get(self.pos + base_offset).map(|t| t.kind.clone())
+        self.tokens
+            .get(self.pos + base_offset)
+            .map(|t| t.kind.clone())
     }
 
-    fn peek_kind(&self) -> TokenKind { 
+    fn peek_kind(&self) -> TokenKind {
         // Check injected tokens first
         if !self.injected_tokens.is_empty() {
             return self.injected_tokens[0].kind.clone();
         }
-        self.tokens.get(self.pos).map(|t| t.kind.clone()).unwrap_or(TokenKind::Eof) 
+        self.tokens
+            .get(self.pos)
+            .map(|t| t.kind.clone())
+            .unwrap_or(TokenKind::Eof)
     }
-    
-    fn current_span(&self) -> Span { 
+
+    fn current_span(&self) -> Span {
         // Check injected tokens first
         if !self.injected_tokens.is_empty() {
             return self.injected_tokens[0].span;
         }
-        self.tokens.get(self.pos).map(|t| t.span).unwrap_or(Span::new(0, 0)) 
+        self.tokens
+            .get(self.pos)
+            .map(|t| t.span)
+            .unwrap_or(Span::new(0, 0))
     }
-    
-    fn at_end(&self) -> bool { matches!(self.peek_kind(), TokenKind::Eof) }
-    fn check(&self, k: TokenKind) -> bool { std::mem::discriminant(&self.peek_kind()) == std::mem::discriminant(&k) }
-    fn check_line_end(&self) -> bool { matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Dedent | TokenKind::Eof) }
-    
-    fn advance(&mut self) { 
+
+    fn at_end(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Eof)
+    }
+    fn check(&self, k: TokenKind) -> bool {
+        std::mem::discriminant(&self.peek_kind()) == std::mem::discriminant(&k)
+    }
+    fn check_line_end(&self) -> bool {
+        matches!(
+            self.peek_kind(),
+            TokenKind::Newline(_) | TokenKind::Dedent | TokenKind::Eof
+        )
+    }
+
+    fn advance(&mut self) {
         // Consume injected tokens first
         if !self.injected_tokens.is_empty() {
             self.injected_tokens.remove(0);
             return;
         }
-        if !self.at_end() { self.pos += 1; } 
+        if !self.at_end() {
+            self.pos += 1;
+        }
     }
-    
-    fn skip_newlines(&mut self) { while let TokenKind::Newline(_) = self.peek_kind() { self.advance(); } }
-    fn check_newline(&self) -> bool { matches!(self.peek_kind(), TokenKind::Newline(_)) }
-    fn skip_formatting(&mut self) {
-        while matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Indent | TokenKind::Dedent) {
+
+    fn skip_newlines(&mut self) {
+        while let TokenKind::Newline(_) = self.peek_kind() {
             self.advance();
         }
     }
-    
+    fn check_newline(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Newline(_))
+    }
+    fn skip_formatting(&mut self) {
+        while matches!(
+            self.peek_kind(),
+            TokenKind::Newline(_) | TokenKind::Indent | TokenKind::Dedent
+        ) {
+            self.advance();
+        }
+    }
+
     fn inject_token(&mut self, token: Token) {
         self.injected_tokens.push(token);
     }
 
     fn expect(&mut self, k: TokenKind) -> KainResult<()> {
-        if self.check(k.clone()) { self.advance(); Ok(()) }
-        else { Err(self.parser_error(format!("Expected {}, got {}", crate::error::token_kind_to_user_string(&k), crate::error::token_kind_to_user_string(&self.peek_kind())), self.current_span())) }
+        if self.check(k.clone()) {
+            self.advance();
+            Ok(())
+        } else {
+            Err(self.parser_error(
+                format!(
+                    "Expected {}, got {}",
+                    crate::error::token_kind_to_user_string(&k),
+                    crate::error::token_kind_to_user_string(&self.peek_kind())
+                ),
+                self.current_span(),
+            ))
+        }
     }
 
     // ===== GRAPH RUNTIME PARSING =====
-    
+
     /// Parse @graph_runtime struct definition
     fn parse_graph_runtime(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse graph data, node types, instance, and pin config
         let mut graph_data = None;
         let mut node_types = Vec::new();
         let mut instance = None;
         let mut pin_config = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for nested attributes
             let nested_attrs = self.parse_attributes()?;
-            
+
             if nested_attrs.iter().any(|a| a.name == "graph_data") {
                 graph_data = Some(self.parse_graph_data(nested_attrs)?);
             } else if nested_attrs.iter().any(|a| a.name == "node_data") {
@@ -4322,14 +5252,14 @@ impl<'a> Parser<'a> {
                     self.current_span()
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::GraphRuntime(GraphRuntimeDef {
             name,
             attributes,
@@ -4340,34 +5270,36 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         }))
     }
-    
+
     /// Parse @graph_data struct definition
     fn parse_graph_data(&mut self, attributes: Vec<Attribute>) -> KainResult<GraphDataDef> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Skip name (it's implicit)
         let _ = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse properties and methods
         let mut properties = Vec::new();
         let mut methods = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let field_attrs = self.parse_attributes()?;
-            
+
             if self.check(TokenKind::Fn) {
                 if let Item::Function(f) = self.parse_function(Visibility::Public)? {
                     methods.push(f);
@@ -4377,14 +5309,14 @@ impl<'a> Parser<'a> {
                 let prop_name = self.parse_ident()?;
                 self.expect(TokenKind::Colon)?;
                 let prop_ty = self.parse_type()?;
-                
+
                 let default = if self.check(TokenKind::Eq) {
                     self.advance();
                     Some(self.parse_expr()?)
                 } else {
                     None
                 };
-                
+
                 properties.push(Field {
                     name: prop_name,
                     ty: prop_ty,
@@ -4395,14 +5327,14 @@ impl<'a> Parser<'a> {
                     span: self.current_span(),
                 });
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(GraphDataDef {
             properties,
             methods,
@@ -4410,17 +5342,17 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse @node_data struct definition
     fn parse_node_data(&mut self, attributes: Vec<Attribute>) -> KainResult<NodeDataDef> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Check for base class (optional inheritance syntax)
         let base_class = if self.check(TokenKind::LParen) {
             self.advance();
@@ -4430,27 +5362,29 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse input pins, output pins, properties, methods, and execute logic
         let mut input_pins = Vec::new();
         let mut output_pins = Vec::new();
         let mut properties = Vec::new();
         let mut methods = Vec::new();
         let mut execute_logic = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let field_attrs = self.parse_attributes()?;
-            
+
             if field_attrs.iter().any(|a| a.name == "input_pin") {
                 input_pins.push(self.parse_pin_def(field_attrs)?);
             } else if field_attrs.iter().any(|a| a.name == "output_pin") {
@@ -4460,14 +5394,14 @@ impl<'a> Parser<'a> {
                 let prop_name = self.parse_ident()?;
                 self.expect(TokenKind::Colon)?;
                 let prop_ty = self.parse_type()?;
-                
+
                 let default = if self.check(TokenKind::Eq) {
                     self.advance();
                     Some(self.parse_expr()?)
                 } else {
                     None
                 };
-                
+
                 properties.push(Field {
                     name: prop_name,
                     ty: prop_ty,
@@ -4496,14 +5430,14 @@ impl<'a> Parser<'a> {
                     self.current_span()
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(NodeDataDef {
             name,
             base_class,
@@ -4516,23 +5450,23 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse pin definition (@input_pin or @output_pin)
     fn parse_pin_def(&mut self, attributes: Vec<Attribute>) -> KainResult<PinDef> {
         let start = self.current_span();
-        
+
         // Parse pin name
         let name = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse type
         let ty = self.parse_type()?;
-        
+
         // Check for array syntax
         let is_array = matches!(&ty, Type::Named { name, .. } if name == "Array");
-        
+
         // Check for default value
         let default = if self.check(TokenKind::Eq) {
             self.advance();
@@ -4540,7 +5474,7 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        
+
         Ok(PinDef {
             name,
             ty,
@@ -4550,35 +5484,37 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse @instance struct definition
     fn parse_graph_instance(&mut self, attributes: Vec<Attribute>) -> KainResult<GraphInstanceDef> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Skip name (it's implicit)
         let _ = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse state fields, methods, and delegates
         let mut state = Vec::new();
         let mut methods = Vec::new();
         let mut delegates = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let field_attrs = self.parse_attributes()?;
-            
+
             if self.check(TokenKind::Fn) {
                 if let Item::Function(f) = self.parse_function(Visibility::Public)? {
                     methods.push(f);
@@ -4591,14 +5527,14 @@ impl<'a> Parser<'a> {
                     let field_name = self.parse_ident()?;
                     self.expect(TokenKind::Colon)?;
                     let field_ty = self.parse_type()?;
-                    
+
                     let default = if self.check(TokenKind::Eq) {
                         self.advance();
                         Some(self.parse_expr()?)
                     } else {
                         None
                     };
-                    
+
                     state.push(Field {
                         name: field_name,
                         ty: field_ty,
@@ -4612,17 +5548,17 @@ impl<'a> Parser<'a> {
             } else {
                 return Err(self.parser_error(
                     "Expected fn, delegate, or field in instance",
-                    self.current_span()
+                    self.current_span(),
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(GraphInstanceDef {
             state,
             methods,
@@ -4631,11 +5567,11 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse delegate definition
     fn parse_delegate_def(&mut self, attributes: Vec<Attribute>) -> KainResult<DelegateDef> {
         let start = self.current_span();
-        
+
         // Expect 'delegate' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "delegate" {
@@ -4643,19 +5579,19 @@ impl<'a> Parser<'a> {
             }
             self.advance();
         }
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Expect LParen
         self.expect(TokenKind::LParen)?;
-        
+
         // Parse parameters
         let params = self.parse_params()?;
-        
+
         // Expect RParen
         self.expect(TokenKind::RParen)?;
-        
+
         Ok(DelegateDef {
             name,
             params,
@@ -4663,34 +5599,36 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse @pin_config struct definition
     fn parse_pin_config(&mut self, attributes: Vec<Attribute>) -> KainResult<PinConfigDef> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Skip name (it's implicit)
         let _ = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse properties and methods
         let mut properties = Vec::new();
         let mut methods = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let field_attrs = self.parse_attributes()?;
-            
+
             if self.check(TokenKind::Fn) {
                 if let Item::Function(f) = self.parse_function(Visibility::Public)? {
                     methods.push(f);
@@ -4700,14 +5638,14 @@ impl<'a> Parser<'a> {
                 let prop_name = self.parse_ident()?;
                 self.expect(TokenKind::Colon)?;
                 let prop_ty = self.parse_type()?;
-                
+
                 let default = if self.check(TokenKind::Eq) {
                     self.advance();
                     Some(self.parse_expr()?)
                 } else {
                     None
                 };
-                
+
                 properties.push(Field {
                     name: prop_name,
                     ty: prop_ty,
@@ -4718,14 +5656,14 @@ impl<'a> Parser<'a> {
                     span: self.current_span(),
                 });
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(PinConfigDef {
             properties,
             methods,
@@ -4735,55 +5673,57 @@ impl<'a> Parser<'a> {
     }
 
     // ===== STATE MACHINE PARSING =====
-    
+
     /// Parse @state_machine struct definition
     fn parse_state_machine(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse name
         let name = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse states
         let mut states = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             let loop_pos = self.pos;
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for @state attribute
             let state_attrs = self.parse_attributes()?;
-            
+
             if state_attrs.iter().any(|a| a.name == "state") {
                 states.push(self.parse_state(state_attrs)?);
             } else {
                 return Err(self.parser_error(
                     "Expected @state in state machine definition",
-                    self.current_span()
+                    self.current_span(),
                 ));
             }
-            
+
             self.skip_newlines();
             // Guard against no-progress loops
             if self.pos == loop_pos && !self.at_end() {
                 self.advance();
             }
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::StateMachine(StateMachineDef {
             name,
             states,
@@ -4791,11 +5731,11 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         }))
     }
-    
+
     /// Parse @state struct definition
     fn parse_state(&mut self, attributes: Vec<Attribute>) -> KainResult<StateDef> {
         let start = self.current_span();
-        
+
         // Check if this is an entry state by looking for entry: true in @state attribute
         let is_entry = attributes.iter().any(|attr| {
             if attr.name == "state" {
@@ -4803,7 +5743,9 @@ impl<'a> Parser<'a> {
                 attr.args.iter().any(|arg| {
                     if let Expr::Tuple(parts, _) = arg {
                         if parts.len() == 2 {
-                            if let (Expr::Ident(name, _), Expr::Bool(true, _)) = (&parts[0], &parts[1]) {
+                            if let (Expr::Ident(name, _), Expr::Bool(true, _)) =
+                                (&parts[0], &parts[1])
+                            {
                                 return name == "entry";
                             }
                         }
@@ -4814,44 +5756,46 @@ impl<'a> Parser<'a> {
                 false
             }
         });
-        
+
         // State name: bare `idle:` syntax (no `struct` keyword needed, but tolerate it)
         if self.check(TokenKind::Struct) {
             self.advance(); // consume optional `struct`
         }
-        
+
         // Parse state name
         let name = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Expect indent
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Parse state body (properties, transitions, on_enter, on_exit)
         let mut animation = None;
         let mut properties = Vec::new();
         let mut transitions = Vec::new();
         let mut on_enter = None;
         let mut on_exit = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             let loop_pos = self.pos;
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for attributes
             let field_attrs = self.parse_attributes()?;
-            
+
             // Check for @transition
             if field_attrs.iter().any(|a| a.name == "transition") {
                 transitions.push(self.parse_transition(field_attrs)?);
             } else if self.check(TokenKind::Fn) {
                 // Parse method (on_enter, on_exit, or transition condition)
                 let method_name = self.peek_next_ident()?;
-                
+
                 if method_name == "on_enter" {
                     self.advance(); // consume 'fn'
                     self.advance(); // consume 'on_enter'
@@ -4870,14 +5814,14 @@ impl<'a> Parser<'a> {
                     // Regular property or unknown method
                     return Err(self.parser_error(
                         "Unexpected method in state definition. Use @transition for transitions.",
-                        self.current_span()
+                        self.current_span(),
                     ));
                 }
             } else {
                 // Parse property (like animation: "Idle_Anim")
                 let prop_name = self.parse_ident()?;
                 self.expect(TokenKind::Colon)?;
-                
+
                 if prop_name == "animation" {
                     // Parse animation string
                     if let Expr::String(anim_name, _) = self.parse_expr()? {
@@ -4885,7 +5829,7 @@ impl<'a> Parser<'a> {
                     } else {
                         return Err(self.parser_error(
                             "Expected string literal for animation property",
-                            self.current_span()
+                            self.current_span(),
                         ));
                     }
                 } else {
@@ -4897,7 +5841,7 @@ impl<'a> Parser<'a> {
                     } else {
                         None
                     };
-                    
+
                     properties.push(Field {
                         name: prop_name,
                         ty: prop_ty,
@@ -4909,18 +5853,18 @@ impl<'a> Parser<'a> {
                     });
                 }
             }
-            
+
             self.skip_newlines();
             // Guard against no-progress loops
             if self.pos == loop_pos && !self.at_end() {
                 self.advance();
             }
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(StateDef {
             name,
             is_entry,
@@ -4933,21 +5877,24 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse @transition function definition
     fn parse_transition(&mut self, attributes: Vec<Attribute>) -> KainResult<TransitionDef> {
         let start = self.current_span();
-        
+
         // Extract 'to' parameter from @transition(to: "StateName")
         // The parameter is represented as Tuple(Ident("to"), String("StateName"))
-        let to_state = attributes.iter()
+        let to_state = attributes
+            .iter()
             .find(|a| a.name == "transition")
             .and_then(|attr| {
                 // Look for 'to' parameter
                 attr.args.iter().find_map(|arg| {
                     if let Expr::Tuple(parts, _) = arg {
                         if parts.len() == 2 {
-                            if let (Expr::Ident(param_name, _), Expr::String(state_name, _)) = (&parts[0], &parts[1]) {
+                            if let (Expr::Ident(param_name, _), Expr::String(state_name, _)) =
+                                (&parts[0], &parts[1])
+                            {
                                 if param_name == "to" {
                                     return Some(state_name.clone());
                                 }
@@ -4957,31 +5904,33 @@ impl<'a> Parser<'a> {
                     None
                 })
             })
-            .ok_or_else(|| self.parser_error(
-                "Expected 'to' parameter in @transition attribute",
-                self.current_span()
-            ))?;
-        
+            .ok_or_else(|| {
+                self.parser_error(
+                    "Expected 'to' parameter in @transition attribute",
+                    self.current_span(),
+                )
+            })?;
+
         // Expect 'fn' keyword
         self.expect(TokenKind::Fn)?;
-        
+
         // Parse function name (condition name)
         let _condition_name = self.parse_ident()?;
-        
+
         // Parse parameters (should be empty or just self)
         self.expect(TokenKind::LParen)?;
         self.expect(TokenKind::RParen)?;
-        
+
         // Parse return type (should be Bool)
         self.expect(TokenKind::Arrow)?;
         let _return_type = self.parse_type()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse condition body
         let condition = Some(self.parse_block()?);
-        
+
         Ok(TransitionDef {
             to_state,
             condition,
@@ -4990,7 +5939,7 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Helper to peek at the next identifier without consuming tokens
     fn peek_next_ident(&self) -> KainResult<String> {
         if self.pos + 1 < self.tokens.len() {
@@ -5003,7 +5952,7 @@ impl<'a> Parser<'a> {
             Err(self.parser_error("Unexpected end of input", self.current_span()))
         }
     }
-    
+
     /// Parse @editor_module struct definition
     /// Syntax:
     /// ```kain
@@ -5019,37 +5968,39 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_editor_module(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse module name
         let name = self.parse_ident()?;
-        
+
         // Expect colon
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let mut menu_entries = Vec::new();
         let mut toolbar_buttons = Vec::new();
         let mut toolbar_widgets = Vec::new();
         let mut methods = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Parse attributes for the method
             let method_attrs = self.parse_attributes()?;
-            
+
             // Check if this is a menu entry, toolbar button, or toolbar widget
             let is_menu_entry = method_attrs.iter().any(|a| a.name == "menu_entry");
             let is_toolbar_button = method_attrs.iter().any(|a| a.name == "toolbar_button");
             let is_toolbar_widget = method_attrs.iter().any(|a| a.name == "toolbar_widget");
-            
+
             if is_menu_entry {
                 // Parse menu entry method
                 let menu_entry = self.parse_menu_entry(method_attrs)?;
@@ -5064,7 +6015,9 @@ impl<'a> Parser<'a> {
                 toolbar_widgets.push(toolbar_widget);
             } else if self.check(TokenKind::Fn) {
                 // Regular method
-                if let Item::Function(func) = self.parse_function_with_attrs(Visibility::Public, method_attrs)? {
+                if let Item::Function(func) =
+                    self.parse_function_with_attrs(Visibility::Public, method_attrs)?
+                {
                     methods.push(func);
                 }
             } else {
@@ -5073,14 +6026,14 @@ impl<'a> Parser<'a> {
                     self.current_span()
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::EditorModule(EditorModuleDef {
             name,
             menu_entries,
@@ -5091,26 +6044,31 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         }))
     }
-    
+
     /// Parse @menu_entry method
     fn parse_menu_entry(&mut self, attributes: Vec<Attribute>) -> KainResult<MenuEntryDef> {
         let start = self.current_span();
-        
+
         // Extract parameters from @menu_entry attribute
-        let menu_attr = attributes.iter()
+        let menu_attr = attributes
+            .iter()
             .find(|a| a.name == "menu_entry")
-            .ok_or_else(|| self.parser_error("Expected @menu_entry attribute", self.current_span()))?;
-        
+            .ok_or_else(|| {
+                self.parser_error("Expected @menu_entry attribute", self.current_span())
+            })?;
+
         let mut path = None;
         let mut label = None;
         let mut icon = None;
         let mut tooltip = None;
-        
+
         // Parse named arguments from attribute
         for arg in &menu_attr.args {
             if let Expr::Tuple(parts, _) = arg {
                 if parts.len() == 2 {
-                    if let (Expr::Ident(param_name, _), Expr::String(value, _)) = (&parts[0], &parts[1]) {
+                    if let (Expr::Ident(param_name, _), Expr::String(value, _)) =
+                        (&parts[0], &parts[1])
+                    {
                         match param_name.as_str() {
                             "path" => path = Some(value.clone()),
                             "label" => label = Some(value.clone()),
@@ -5122,12 +6080,21 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        
-        let path = path.ok_or_else(|| self.parser_error("@menu_entry requires 'path' parameter", self.current_span()))?;
-        let label = label.ok_or_else(|| self.parser_error("@menu_entry requires 'label' parameter", self.current_span()))?;
-        
+
+        let path = path.ok_or_else(|| {
+            self.parser_error("@menu_entry requires 'path' parameter", self.current_span())
+        })?;
+        let label = label.ok_or_else(|| {
+            self.parser_error(
+                "@menu_entry requires 'label' parameter",
+                self.current_span(),
+            )
+        })?;
+
         // Parse the method
-        if let Item::Function(method) = self.parse_function_with_attrs(Visibility::Public, vec![])? {
+        if let Item::Function(method) =
+            self.parse_function_with_attrs(Visibility::Public, vec![])?
+        {
             Ok(MenuEntryDef {
                 path,
                 label,
@@ -5141,26 +6108,31 @@ impl<'a> Parser<'a> {
             Err(self.parser_error("Expected function after @menu_entry", self.current_span()))
         }
     }
-    
+
     /// Parse @toolbar_button method
     fn parse_toolbar_button(&mut self, attributes: Vec<Attribute>) -> KainResult<ToolbarButtonDef> {
         let start = self.current_span();
-        
+
         // Extract parameters from @toolbar_button attribute
-        let toolbar_attr = attributes.iter()
+        let toolbar_attr = attributes
+            .iter()
             .find(|a| a.name == "toolbar_button")
-            .ok_or_else(|| self.parser_error("Expected @toolbar_button attribute", self.current_span()))?;
-        
+            .ok_or_else(|| {
+                self.parser_error("Expected @toolbar_button attribute", self.current_span())
+            })?;
+
         let mut section = None;
         let mut label = None;
         let mut icon = None;
         let mut tooltip = None;
-        
+
         // Parse named arguments from attribute
         for arg in &toolbar_attr.args {
             if let Expr::Tuple(parts, _) = arg {
                 if parts.len() == 2 {
-                    if let (Expr::Ident(param_name, _), Expr::String(value, _)) = (&parts[0], &parts[1]) {
+                    if let (Expr::Ident(param_name, _), Expr::String(value, _)) =
+                        (&parts[0], &parts[1])
+                    {
                         match param_name.as_str() {
                             "section" => section = Some(value.clone()),
                             "label" => label = Some(value.clone()),
@@ -5172,12 +6144,24 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        
-        let section = section.ok_or_else(|| self.parser_error("@toolbar_button requires 'section' parameter", self.current_span()))?;
-        let icon = icon.ok_or_else(|| self.parser_error("@toolbar_button requires 'icon' parameter", self.current_span()))?;
-        
+
+        let section = section.ok_or_else(|| {
+            self.parser_error(
+                "@toolbar_button requires 'section' parameter",
+                self.current_span(),
+            )
+        })?;
+        let icon = icon.ok_or_else(|| {
+            self.parser_error(
+                "@toolbar_button requires 'icon' parameter",
+                self.current_span(),
+            )
+        })?;
+
         // Parse the method
-        if let Item::Function(method) = self.parse_function_with_attrs(Visibility::Public, vec![])? {
+        if let Item::Function(method) =
+            self.parse_function_with_attrs(Visibility::Public, vec![])?
+        {
             Ok(ToolbarButtonDef {
                 section,
                 label,
@@ -5188,23 +6172,29 @@ impl<'a> Parser<'a> {
                 span: start.merge(self.current_span()),
             })
         } else {
-            Err(self.parser_error("Expected function after @toolbar_button", self.current_span()))
+            Err(self.parser_error(
+                "Expected function after @toolbar_button",
+                self.current_span(),
+            ))
         }
     }
-    
+
     /// Parse @toolbar_widget
     fn parse_toolbar_widget(&mut self, attributes: Vec<Attribute>) -> KainResult<ToolbarWidgetDef> {
         let start = self.current_span();
-        
+
         // Extract parameters from @toolbar_widget attribute
-        let widget_attr = attributes.iter()
+        let widget_attr = attributes
+            .iter()
             .find(|a| a.name == "toolbar_widget")
-            .ok_or_else(|| self.parser_error("Expected @toolbar_widget attribute", self.current_span()))?;
-        
+            .ok_or_else(|| {
+                self.parser_error("Expected @toolbar_widget attribute", self.current_span())
+            })?;
+
         let mut section = None;
         let mut position = None;
         let mut widget_type = None;
-        
+
         // Parse named arguments from attribute
         for arg in &widget_attr.args {
             if let Expr::Tuple(parts, _) = arg {
@@ -5238,11 +6228,21 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        
-        let section = section.ok_or_else(|| self.parser_error("@toolbar_widget requires 'section' parameter", self.current_span()))?;
+
+        let section = section.ok_or_else(|| {
+            self.parser_error(
+                "@toolbar_widget requires 'section' parameter",
+                self.current_span(),
+            )
+        })?;
         let position = position.unwrap_or(ToolbarPosition::After);
-        let widget_type = widget_type.ok_or_else(|| self.parser_error("@toolbar_widget requires 'widget_type' parameter", self.current_span()))?;
-        
+        let widget_type = widget_type.ok_or_else(|| {
+            self.parser_error(
+                "@toolbar_widget requires 'widget_type' parameter",
+                self.current_span(),
+            )
+        })?;
+
         Ok(ToolbarWidgetDef {
             section,
             position,
@@ -5251,9 +6251,9 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         })
     }
-    
+
     /// Parse @gameplay_tags namespace definition
-    /// 
+    ///
     /// Syntax:
     /// ```kain
     /// @gameplay_tags
@@ -5268,77 +6268,85 @@ impl<'a> Parser<'a> {
     fn parse_gameplay_tags(&mut self, _attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
         self.skip_formatting();
-        
+
         // Expect 'namespace' keyword
         if let TokenKind::Ident(ref s) = self.peek_kind() {
             if s != "namespace" {
-                return Err(self.parser_error("Expected 'namespace' keyword after @gameplay_tags", self.current_span()));
+                return Err(self.parser_error(
+                    "Expected 'namespace' keyword after @gameplay_tags",
+                    self.current_span(),
+                ));
             }
             self.advance(); // consume 'namespace'
         } else {
-            return Err(self.parser_error("Expected 'namespace' keyword after @gameplay_tags", self.current_span()));
+            return Err(self.parser_error(
+                "Expected 'namespace' keyword after @gameplay_tags",
+                self.current_span(),
+            ));
         }
-        
+
         // Parse namespace name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse tag hierarchy (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         let children = self.parse_tag_hierarchy(&name)?;
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::GameplayTags(GameplayTagsNamespace {
             name,
             children,
             span: start.merge(self.current_span()),
         }))
     }
-    
+
     /// Parse tag hierarchy recursively
     /// Returns a list of tag nodes at the current indentation level
     fn parse_tag_hierarchy(&mut self, parent_path: &str) -> KainResult<Vec<GameplayTagNode>> {
         let mut nodes = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             let start = self.current_span();
-            
+
             // Parse tag name
             let tag_name = self.parse_tag_name()?;
-            
+
             // Build full path
             let full_path = if parent_path.is_empty() {
                 tag_name.clone()
             } else {
                 format!("{}.{}", parent_path, tag_name)
             };
-            
+
             // Check for optional comment (after tag name, before colon or newline)
             let comment = None; // TODO: Support inline comments if needed
-            
+
             // Check if this tag has children (colon + indent)
             let children = if self.check(TokenKind::Colon) {
                 self.advance(); // consume ':'
                 self.skip_newlines();
-                
+
                 if self.check(TokenKind::Indent) {
                     self.advance(); // consume indent
                     let child_nodes = self.parse_tag_hierarchy(&full_path)?;
-                    
+
                     if self.check(TokenKind::Dedent) {
                         self.advance();
                     }
-                    
+
                     child_nodes
                 } else {
                     // Colon without indent - empty children
@@ -5348,7 +6356,7 @@ impl<'a> Parser<'a> {
                 // No colon - leaf tag
                 Vec::new()
             };
-            
+
             nodes.push(GameplayTagNode {
                 name: tag_name,
                 full_path,
@@ -5356,10 +6364,10 @@ impl<'a> Parser<'a> {
                 children,
                 span: start.merge(self.current_span()),
             });
-            
+
             self.skip_newlines();
         }
-        
+
         Ok(nodes)
     }
 
@@ -5410,12 +6418,18 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok("none".to_string())
             }
-            k => Err(self.parser_error(format!("Expected gameplay tag name, got {}", crate::error::token_kind_to_user_string(&k)), span)),
+            k => Err(self.parser_error(
+                format!(
+                    "Expected gameplay tag name, got {}",
+                    crate::error::token_kind_to_user_string(&k)
+                ),
+                span,
+            )),
         }
     }
-    
+
     /// Parse gameplay ability definition
-    /// 
+    ///
     /// Syntax:
     /// ```kain
     /// @ability
@@ -5441,20 +6455,20 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_gameplay_ability(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse ability name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse ability body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Initialize fields
         let mut instancing_policy: Option<String> = None;
         let mut replication_policy: Option<String> = None;
@@ -5468,221 +6482,298 @@ impl<'a> Parser<'a> {
         let mut cost_effect: Option<String> = None;
         let mut cooldown_effect: Option<String> = None;
         let mut methods: Vec<Function> = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for attributes or methods
             if self.check(TokenKind::At) {
                 // Parse attribute
                 let attr_start = self.current_span();
                 self.advance(); // consume '@'
                 let attr_name = self.parse_attribute_name()?;
-                
+
                 match attr_name.as_str() {
                     "instancing" => {
                         // @instancing(policy: "InstancedPerExecution")
                         self.expect(TokenKind::LParen)?;
-                        
+
                         // Expect "policy:"
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "policy" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse policy value (string)
                                 if let TokenKind::String(policy_str) = self.peek_kind() {
                                     instancing_policy = Some(policy_str);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected string value for instancing policy", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected string value for instancing policy",
+                                        self.current_span(),
+                                    ));
                                 }
                             } else {
-                                return Err(self.parser_error("Expected 'policy' parameter in @instancing", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'policy' parameter in @instancing",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'policy' parameter in @instancing", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'policy' parameter in @instancing",
+                                self.current_span(),
+                            ));
                         }
-                        
+
                         self.expect(TokenKind::RParen)?;
                     }
                     "replication" => {
                         // @replication(policy: "ReplicateYes")
                         self.expect(TokenKind::LParen)?;
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "policy" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 if let TokenKind::String(policy_str) = self.peek_kind() {
                                     replication_policy = Some(policy_str);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected string value for replication policy", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected string value for replication policy",
+                                        self.current_span(),
+                                    ));
                                 }
                             } else {
-                                return Err(self.parser_error("Expected 'policy' parameter in @replication", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'policy' parameter in @replication",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'policy' parameter in @replication", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'policy' parameter in @replication",
+                                self.current_span(),
+                            ));
                         }
-                        
+
                         self.expect(TokenKind::RParen)?;
                     }
                     "net_execution" => {
                         // @net_execution(policy: "LocalPredicted")
                         self.expect(TokenKind::LParen)?;
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "policy" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 if let TokenKind::String(policy_str) = self.peek_kind() {
                                     net_execution_policy = Some(policy_str);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected string value for net_execution policy", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected string value for net_execution policy",
+                                        self.current_span(),
+                                    ));
                                 }
                             } else {
-                                return Err(self.parser_error("Expected 'policy' parameter in @net_execution", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'policy' parameter in @net_execution",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'policy' parameter in @net_execution", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'policy' parameter in @net_execution",
+                                self.current_span(),
+                            ));
                         }
-                        
+
                         self.expect(TokenKind::RParen)?;
                     }
                     "ability_tags" => {
                         // @ability_tags
                         // tags: ["Ability.Jump"]
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "tags" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 ability_tags = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'tags' field after @ability_tags", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'tags' field after @ability_tags",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'tags' field after @ability_tags", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'tags' field after @ability_tags",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "activation_required_tags" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "required" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 activation_required_tags = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'required' field after @activation_required_tags", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'required' field after @activation_required_tags",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'required' field after @activation_required_tags", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'required' field after @activation_required_tags",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "activation_blocked_tags" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "blocked" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 activation_blocked_tags = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'blocked' field after @activation_blocked_tags", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'blocked' field after @activation_blocked_tags",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'blocked' field after @activation_blocked_tags", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'blocked' field after @activation_blocked_tags",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "activation_owned_tags" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "owned" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 activation_owned_tags = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'owned' field after @activation_owned_tags", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'owned' field after @activation_owned_tags",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'owned' field after @activation_owned_tags", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'owned' field after @activation_owned_tags",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "cancel_abilities_with_tag" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "cancel" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 cancel_abilities_with_tag = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'cancel' field after @cancel_abilities_with_tag", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'cancel' field after @cancel_abilities_with_tag",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'cancel' field after @cancel_abilities_with_tag", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'cancel' field after @cancel_abilities_with_tag",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "block_abilities_with_tag" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "block" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 block_abilities_with_tag = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'block' field after @block_abilities_with_tag", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'block' field after @block_abilities_with_tag",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'block' field after @block_abilities_with_tag", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'block' field after @block_abilities_with_tag",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "cost" => {
                         // @cost
                         // effect: StaminaCostEffect
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "effect" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse effect name (identifier)
                                 cost_effect = Some(self.parse_ident()?);
                             } else {
-                                return Err(self.parser_error("Expected 'effect' field after @cost", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'effect' field after @cost",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'effect' field after @cost", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'effect' field after @cost",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "cooldown" => {
                         // @cooldown
                         // effect: JumpCooldownEffect
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "effect" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse effect name (identifier)
                                 cooldown_effect = Some(self.parse_ident()?);
                             } else {
-                                return Err(self.parser_error("Expected 'effect' field after @cooldown", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'effect' field after @cooldown",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'effect' field after @cooldown", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'effect' field after @cooldown",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "net_security" => {
@@ -5699,7 +6790,7 @@ impl<'a> Parser<'a> {
                     _ => {
                         return Err(self.parser_error(
                             format!("Unknown attribute in @ability: @{}", attr_name),
-                            attr_start
+                            attr_start,
                         ));
                     }
                 }
@@ -5714,14 +6805,14 @@ impl<'a> Parser<'a> {
                     self.current_span()
                 ));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::GameplayAbility(GameplayAbilityDef {
             name,
             instancing_policy,
@@ -5740,13 +6831,13 @@ impl<'a> Parser<'a> {
             span: start.merge(self.current_span()),
         }))
     }
-    
+
     /// Parse string array: ["tag1", "tag2", "tag3"]
     fn parse_string_array(&mut self) -> KainResult<Vec<String>> {
         self.expect(TokenKind::LBracket)?;
-        
+
         let mut strings = Vec::new();
-        
+
         while !self.check(TokenKind::RBracket) && !self.at_end() {
             if let TokenKind::String(s) = self.peek_kind() {
                 strings.push(s);
@@ -5754,14 +6845,14 @@ impl<'a> Parser<'a> {
             } else {
                 return Err(self.parser_error("Expected string in array", self.current_span()));
             }
-            
+
             if !self.check(TokenKind::RBracket) {
                 self.expect(TokenKind::Comma)?;
             }
         }
-        
+
         self.expect(TokenKind::RBracket)?;
-        
+
         Ok(strings)
     }
 
@@ -5796,20 +6887,20 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_gameplay_effect(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse effect name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse effect body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Initialize fields
         let mut duration_policy: Option<String> = None;
         let mut duration_magnitude: Option<f32> = None;
@@ -5826,50 +6917,58 @@ impl<'a> Parser<'a> {
         let mut ongoing_ignored_tags: Vec<String> = Vec::new();
         let mut removal_required_tags: Vec<String> = Vec::new();
         let mut removal_ignored_tags: Vec<String> = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for attributes or fields
             if self.check(TokenKind::At) {
                 // Parse attribute
                 let attr_start = self.current_span();
                 self.advance(); // consume '@'
                 let attr_name = self.parse_attribute_name()?;
-                
+
                 match attr_name.as_str() {
                     "duration" => {
                         // @duration(type: "HasDuration")
                         self.expect(TokenKind::LParen)?;
-                        
+
                         // Expect "type:"
                         if matches!(self.peek_kind(), TokenKind::TypeKw)
                             || matches!(self.peek_kind(), TokenKind::Ident(ref s) if s == "type")
                         {
                             self.advance();
                             self.expect(TokenKind::Colon)?;
-                            
+
                             // Parse type value (string)
                             if let TokenKind::String(policy_str) = self.peek_kind() {
                                 duration_policy = Some(policy_str);
                                 self.advance();
                             } else {
-                                return Err(self.parser_error("Expected string value for duration type", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected string value for duration type",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'type' parameter in @duration", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'type' parameter in @duration",
+                                self.current_span(),
+                            ));
                         }
-                        
+
                         self.expect(TokenKind::RParen)?;
-                        
+
                         // Next line should be duration: 5.0
                         self.skip_newlines();
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "duration" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse float value
                                 if let TokenKind::Float(val) = self.peek_kind() {
                                     duration_magnitude = Some(val as f32);
@@ -5878,7 +6977,10 @@ impl<'a> Parser<'a> {
                                     duration_magnitude = Some(val as f32);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected numeric value for duration", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected numeric value for duration",
+                                        self.current_span(),
+                                    ));
                                 }
                             }
                         }
@@ -5888,12 +6990,12 @@ impl<'a> Parser<'a> {
                         // period: 1.0
                         // execute_on_application: true
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "period" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse float value
                                 if let TokenKind::Float(val) = self.peek_kind() {
                                     period = Some(val as f32);
@@ -5902,18 +7004,21 @@ impl<'a> Parser<'a> {
                                     period = Some(val as f32);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected numeric value for period", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected numeric value for period",
+                                        self.current_span(),
+                                    ));
                                 }
                             }
                         }
-                        
+
                         // Check for execute_on_application
                         self.skip_newlines();
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "execute_on_application" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse bool value
                                 if let TokenKind::True = self.peek_kind() {
                                     execute_on_application = true;
@@ -5922,7 +7027,10 @@ impl<'a> Parser<'a> {
                                     execute_on_application = false;
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected boolean value for execute_on_application", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected boolean value for execute_on_application",
+                                        self.current_span(),
+                                    ));
                                 }
                             }
                         }
@@ -5931,49 +7039,55 @@ impl<'a> Parser<'a> {
                         // @modifier(attribute: "Health", operation: "Add")
                         // damage_per_tick: -10.0
                         self.expect(TokenKind::LParen)?;
-                        
+
                         let mut modifier_attribute: Option<String> = None;
                         let mut modifier_operation: Option<String> = None;
-                        
+
                         // Parse attribute parameter
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "attribute" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 if let TokenKind::String(attr_str) = self.peek_kind() {
                                     modifier_attribute = Some(attr_str);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected string value for attribute", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected string value for attribute",
+                                        self.current_span(),
+                                    ));
                                 }
                             }
                         }
-                        
+
                         self.expect(TokenKind::Comma)?;
-                        
+
                         // Parse operation parameter
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "operation" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 if let TokenKind::String(op_str) = self.peek_kind() {
                                     modifier_operation = Some(op_str);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected string value for operation", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected string value for operation",
+                                        self.current_span(),
+                                    ));
                                 }
                             }
                         }
-                        
+
                         self.expect(TokenKind::RParen)?;
-                        
+
                         // Next line should be magnitude field
                         self.skip_newlines();
                         let _field_name = self.parse_ident()?;
                         self.expect(TokenKind::Colon)?;
-                        
+
                         // Parse magnitude value
                         let magnitude = if let TokenKind::Float(val) = self.peek_kind() {
                             self.advance();
@@ -5990,12 +7104,18 @@ impl<'a> Parser<'a> {
                                 self.advance();
                                 -(val as f32)
                             } else {
-                                return Err(self.parser_error("Expected numeric value after minus", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected numeric value after minus",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected numeric value for magnitude", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected numeric value for magnitude",
+                                self.current_span(),
+                            ));
                         };
-                        
+
                         if let (Some(attr), Some(op)) = (modifier_attribute, modifier_operation) {
                             modifiers.push(GameplayEffectModifier {
                                 attribute: attr,
@@ -6010,71 +7130,92 @@ impl<'a> Parser<'a> {
                         // type: "AggregateBySource"
                         // limit: 5
                         self.skip_newlines();
-                        
+
                         if matches!(self.peek_kind(), TokenKind::TypeKw)
                             || matches!(self.peek_kind(), TokenKind::Ident(ref s) if s == "type")
                         {
                             self.advance();
                             self.expect(TokenKind::Colon)?;
-                            
+
                             if let TokenKind::String(type_str) = self.peek_kind() {
                                 stacking_type = Some(type_str);
                                 self.advance();
                             } else {
-                                return Err(self.parser_error("Expected string value for stacking type", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected string value for stacking type",
+                                    self.current_span(),
+                                ));
                             }
                         }
-                        
+
                         self.skip_newlines();
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "limit" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 if let TokenKind::Int(val) = self.peek_kind() {
                                     stacking_limit = Some(val as i32);
                                     self.advance();
                                 } else {
-                                    return Err(self.parser_error("Expected integer value for stacking limit", self.current_span()));
+                                    return Err(self.parser_error(
+                                        "Expected integer value for stacking limit",
+                                        self.current_span(),
+                                    ));
                                 }
                             }
                         }
                     }
                     "owned_tags" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "tags" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 owned_tags = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'tags' field after @owned_tags", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'tags' field after @owned_tags",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'tags' field after @owned_tags", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'tags' field after @owned_tags",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "granted_tags" => {
                         self.skip_newlines();
-                        
+
                         if let TokenKind::Ident(ref s) = self.peek_kind() {
                             if s == "tags" {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
                                 granted_tags = self.parse_string_array()?;
                             } else {
-                                return Err(self.parser_error("Expected 'tags' field after @granted_tags", self.current_span()));
+                                return Err(self.parser_error(
+                                    "Expected 'tags' field after @granted_tags",
+                                    self.current_span(),
+                                ));
                             }
                         } else {
-                            return Err(self.parser_error("Expected 'tags' field after @granted_tags", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected 'tags' field after @granted_tags",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "application_tag_requirements" => {
                         self.skip_newlines();
-                        
+
                         // Parse require and ignore arrays
-                        while !self.check(TokenKind::At) && !self.check(TokenKind::Dedent) && !self.at_end() {
+                        while !self.check(TokenKind::At)
+                            && !self.check(TokenKind::Dedent)
+                            && !self.at_end()
+                        {
                             if let TokenKind::Ident(ref s) = self.peek_kind() {
                                 if s == "require" {
                                     self.advance();
@@ -6095,8 +7236,11 @@ impl<'a> Parser<'a> {
                     }
                     "ongoing_tag_requirements" => {
                         self.skip_newlines();
-                        
-                        while !self.check(TokenKind::At) && !self.check(TokenKind::Dedent) && !self.at_end() {
+
+                        while !self.check(TokenKind::At)
+                            && !self.check(TokenKind::Dedent)
+                            && !self.at_end()
+                        {
                             if let TokenKind::Ident(ref s) = self.peek_kind() {
                                 if s == "require" {
                                     self.advance();
@@ -6117,8 +7261,11 @@ impl<'a> Parser<'a> {
                     }
                     "removal_tag_requirements" => {
                         self.skip_newlines();
-                        
-                        while !self.check(TokenKind::At) && !self.check(TokenKind::Dedent) && !self.at_end() {
+
+                        while !self.check(TokenKind::At)
+                            && !self.check(TokenKind::Dedent)
+                            && !self.at_end()
+                        {
                             if let TokenKind::Ident(ref s) = self.peek_kind() {
                                 if s == "require" {
                                     self.advance();
@@ -6155,14 +7302,14 @@ impl<'a> Parser<'a> {
                 // Skip unknown fields for now
                 self.advance();
             }
-            
+
             self.skip_newlines();
         }
-        
+
         if self.check(TokenKind::Dedent) {
             self.advance();
         }
-        
+
         Ok(Item::GameplayEffect(GameplayEffectDef {
             name,
             duration_policy,
@@ -6210,20 +7357,20 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_gameplay_cue(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse cue name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse cue body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Initialize fields
         let mut tag: Option<String> = None;
         let mut cue_type = CueType::default();
@@ -6233,11 +7380,13 @@ impl<'a> Parser<'a> {
         let mut on_add: Option<Function> = None;
         let mut on_remove: Option<Function> = None;
         let mut while_active: Option<Function> = None;
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for field or lifecycle method
             let field_name = match self.peek_kind() {
                 TokenKind::Ident(name) => {
@@ -6253,131 +7402,146 @@ impl<'a> Parser<'a> {
                 }
             };
             self.expect(TokenKind::Colon)?;
-            
+
             match field_name.as_str() {
-                    "tag" => {
-                        // Parse tag string
-                        if let TokenKind::String(tag_str) = self.peek_kind() {
-                            tag = Some(tag_str);
-                            self.advance();
-                        } else {
-                            return Err(self.parser_error("Expected string for tag", self.current_span()));
-                        }
+                "tag" => {
+                    // Parse tag string
+                    if let TokenKind::String(tag_str) = self.peek_kind() {
+                        tag = Some(tag_str);
+                        self.advance();
+                    } else {
+                        return Err(
+                            self.parser_error("Expected string for tag", self.current_span())
+                        );
                     }
-                    "type" => {
-                        // Parse cue type
-                        if let TokenKind::String(type_str) = self.peek_kind() {
-                            cue_type = match type_str.as_str() {
-                                "Static" => CueType::Static,
-                                "Actor" => CueType::Actor,
-                                _ => return Err(self.parser_error(
-                                    format!("Invalid cue type '{}'. Valid: Static, Actor", type_str),
-                                    self.current_span()
-                                )),
-                            };
-                            self.advance();
-                        } else {
-                            return Err(self.parser_error("Expected string for type", self.current_span()));
-                        }
+                }
+                "type" => {
+                    // Parse cue type
+                    if let TokenKind::String(type_str) = self.peek_kind() {
+                        cue_type = match type_str.as_str() {
+                            "Static" => CueType::Static,
+                            "Actor" => CueType::Actor,
+                            _ => {
+                                return Err(self.parser_error(
+                                    format!(
+                                        "Invalid cue type '{}'. Valid: Static, Actor",
+                                        type_str
+                                    ),
+                                    self.current_span(),
+                                ))
+                            }
+                        };
+                        self.advance();
+                    } else {
+                        return Err(
+                            self.parser_error("Expected string for type", self.current_span())
+                        );
                     }
-                    "auto_destroy" => {
-                        // Parse boolean
-                        if let TokenKind::True = self.peek_kind() {
-                            auto_destroy = true;
-                            self.advance();
-                        } else if let TokenKind::False = self.peek_kind() {
-                            auto_destroy = false;
-                            self.advance();
-                        } else {
-                            return Err(self.parser_error("Expected true or false", self.current_span()));
-                        }
+                }
+                "auto_destroy" => {
+                    // Parse boolean
+                    if let TokenKind::True = self.peek_kind() {
+                        auto_destroy = true;
+                        self.advance();
+                    } else if let TokenKind::False = self.peek_kind() {
+                        auto_destroy = false;
+                        self.advance();
+                    } else {
+                        return Err(
+                            self.parser_error("Expected true or false", self.current_span())
+                        );
                     }
-                    "state" => {
-                        // Parse state field: state field_name: Type
-                        let state_field_name = self.parse_ident()?;
-                        self.expect(TokenKind::Colon)?;
-                        let field_type = self.parse_type()?;
-                        
-                        state_fields.push(Field {
-                            name: state_field_name,
-                            ty: field_type,
-                            attributes: vec![],
-                            visibility: Visibility::Private,
-                            default: None,
-                            weak: false,
-                            span: self.current_span(),
-                        });
-                    }
-                    "on_execute" | "on_add" | "on_remove" | "while_active" => {
-                        // Parse lifecycle method
+                }
+                "state" => {
+                    // Parse state field: state field_name: Type
+                    let state_field_name = self.parse_ident()?;
+                    self.expect(TokenKind::Colon)?;
+                    let field_type = self.parse_type()?;
+
+                    state_fields.push(Field {
+                        name: state_field_name,
+                        ty: field_type,
+                        attributes: vec![],
+                        visibility: Visibility::Private,
+                        default: None,
+                        weak: false,
+                        span: self.current_span(),
+                    });
+                }
+                "on_execute" | "on_add" | "on_remove" | "while_active" => {
+                    // Parse lifecycle method
+                    self.skip_newlines();
+                    self.expect(TokenKind::Indent)?;
+
+                    // Parse function body (statements)
+                    let mut body_stmts = Vec::new();
+                    while !self.check(TokenKind::Dedent) && !self.at_end() {
                         self.skip_newlines();
-                        self.expect(TokenKind::Indent)?;
-                        
-                        // Parse function body (statements)
-                        let mut body_stmts = Vec::new();
-                        while !self.check(TokenKind::Dedent) && !self.at_end() {
-                            self.skip_newlines();
-                            if self.check(TokenKind::Dedent) { break; }
-                            body_stmts.push(self.parse_stmt()?);
+                        if self.check(TokenKind::Dedent) {
+                            break;
                         }
-                        
-                        self.expect(TokenKind::Dedent)?;
-                        
-                        // Create function def
-                        let params = if field_name == "while_active" {
-                            vec![Param {
-                                name: "delta_time".to_string(),
-                                ty: Type::Named {
-                                    name: "Float".to_string(),
-                                    generics: vec![],
-                                    span: self.current_span(),
-                                },
-                                mutable: false,
-                                default: None,
+                        body_stmts.push(self.parse_stmt()?);
+                    }
+
+                    self.expect(TokenKind::Dedent)?;
+
+                    // Create function def
+                    let params = if field_name == "while_active" {
+                        vec![Param {
+                            name: "delta_time".to_string(),
+                            ty: Type::Named {
+                                name: "Float".to_string(),
+                                generics: vec![],
                                 span: self.current_span(),
-                            }]
-                        } else {
-                            vec![]
-                        };
-                        
-                        let func_def = Function {
-                            name: field_name.clone(),
-                            generics: vec![],
-                            params,
-                            return_type: None,
-                            effects: vec![],
-                            body: Block { stmts: body_stmts, span: self.current_span() },
-                            visibility: Visibility::Private,
-                            attributes: vec![],
+                            },
+                            mutable: false,
+                            default: None,
                             span: self.current_span(),
-                        };
-                        
-                        match field_name.as_str() {
-                            "on_execute" => on_execute = Some(func_def),
-                            "on_add" => on_add = Some(func_def),
-                            "on_remove" => on_remove = Some(func_def),
-                            "while_active" => while_active = Some(func_def),
-                            _ => {}
-                        }
+                        }]
+                    } else {
+                        vec![]
+                    };
+
+                    let func_def = Function {
+                        name: field_name.clone(),
+                        generics: vec![],
+                        params,
+                        return_type: None,
+                        effects: vec![],
+                        body: Block {
+                            stmts: body_stmts,
+                            span: self.current_span(),
+                        },
+                        visibility: Visibility::Private,
+                        attributes: vec![],
+                        span: self.current_span(),
+                    };
+
+                    match field_name.as_str() {
+                        "on_execute" => on_execute = Some(func_def),
+                        "on_add" => on_add = Some(func_def),
+                        "on_remove" => on_remove = Some(func_def),
+                        "while_active" => while_active = Some(func_def),
+                        _ => {}
                     }
-                    _ => {
-                        return Err(self.parser_error(
-                            format!("Unknown gameplay cue field: {}", field_name),
-                            self.current_span()
-                        ));
-                    }
+                }
+                _ => {
+                    return Err(self.parser_error(
+                        format!("Unknown gameplay cue field: {}", field_name),
+                        self.current_span(),
+                    ));
+                }
             }
-            
+
             self.skip_newlines();
         }
-        
+
         self.expect(TokenKind::Dedent)?;
-        
+
         // Validate required fields
-        let tag = tag.ok_or_else(|| {
-            self.parser_error("Gameplay cue must have 'tag' field", start)
-        })?;
-        
+        let tag =
+            tag.ok_or_else(|| self.parser_error("Gameplay cue must have 'tag' field", start))?;
+
         Ok(Item::GameplayCue(GameplayCueDef {
             name,
             attributes,
@@ -6417,31 +7581,33 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_ability_task(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse task name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse task body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Initialize fields
         let mut delegates: Vec<TaskDelegateDef> = Vec::new();
         let mut state_fields: Vec<Field> = Vec::new();
         let mut activate_method: Option<Function> = None;
         let mut on_destroy_method: Option<Function> = None;
         let mut custom_methods: Vec<Function> = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for @delegate attribute
             if self.check(TokenKind::At) {
                 let attr_start = self.current_span();
@@ -6450,41 +7616,41 @@ impl<'a> Parser<'a> {
                     if attr_name == "delegate" {
                         self.advance();
                         self.skip_newlines();
-                        
+
                         // Parse delegate: name: Type
                         let delegate_name = self.parse_ident()?;
                         self.expect(TokenKind::Colon)?;
                         let delegate_type = self.parse_ident()?;
-                        
+
                         delegates.push(TaskDelegateDef {
                             name: delegate_name,
                             delegate_type,
                             span: attr_start.merge(self.current_span()),
                         });
-                        
+
                         self.skip_newlines();
                         continue;
                     }
                 }
             }
-            
+
             // Check for 'state' keyword
             if let TokenKind::Ident(keyword) = self.peek_kind() {
                 if keyword == "state" {
                     self.advance();
-                    
+
                     // Parse state field: state field_name: Type = default
                     let field_name = self.parse_ident()?;
                     self.expect(TokenKind::Colon)?;
                     let field_type = self.parse_type()?;
-                    
+
                     let default = if self.check(TokenKind::Eq) {
                         self.advance();
                         Some(self.parse_expr()?)
                     } else {
                         None
                     };
-                    
+
                     state_fields.push(Field {
                         name: field_name,
                         ty: field_type,
@@ -6494,19 +7660,19 @@ impl<'a> Parser<'a> {
                         weak: false,
                         span: self.current_span(),
                     });
-                    
+
                     self.skip_newlines();
                     continue;
                 }
             }
-            
+
             // Check for 'fn' keyword (methods)
             if self.check(TokenKind::Fn) {
                 self.advance(); // consume 'fn'
-                
+
                 // Parse method name
                 let method_name = self.parse_ident()?;
-                
+
                 // Parse parameters (optional)
                 let params = if self.check(TokenKind::LParen) {
                     self.advance();
@@ -6531,23 +7697,25 @@ impl<'a> Parser<'a> {
                 } else {
                     vec![]
                 };
-                
+
                 // Expect ':'
                 self.expect(TokenKind::Colon)?;
-                
+
                 // Parse method body (indented block)
                 self.skip_newlines();
                 self.expect(TokenKind::Indent)?;
-                
+
                 let mut body_stmts = Vec::new();
                 while !self.check(TokenKind::Dedent) && !self.at_end() {
                     self.skip_newlines();
-                    if self.check(TokenKind::Dedent) { break; }
+                    if self.check(TokenKind::Dedent) {
+                        break;
+                    }
                     body_stmts.push(self.parse_stmt()?);
                 }
-                
+
                 self.expect(TokenKind::Dedent)?;
-                
+
                 // Create function def
                 let func_def = Function {
                     name: method_name.clone(),
@@ -6555,31 +7723,37 @@ impl<'a> Parser<'a> {
                     params,
                     return_type: None,
                     effects: vec![],
-                    body: Block { stmts: body_stmts, span: self.current_span() },
+                    body: Block {
+                        stmts: body_stmts,
+                        span: self.current_span(),
+                    },
                     visibility: Visibility::Private,
                     attributes: vec![],
                     span: self.current_span(),
                 };
-                
+
                 match method_name.as_str() {
                     "activate" => activate_method = Some(func_def),
                     "on_destroy" => on_destroy_method = Some(func_def),
                     _ => custom_methods.push(func_def),
                 }
-                
+
                 self.skip_newlines();
                 continue;
             }
-            
+
             // Unknown token
             return Err(self.parser_error(
-                format!("Unexpected token in ability task: {}", crate::error::token_kind_to_user_string(&self.peek_kind())),
-                self.current_span()
+                format!(
+                    "Unexpected token in ability task: {}",
+                    crate::error::token_kind_to_user_string(&self.peek_kind())
+                ),
+                self.current_span(),
             ));
         }
-        
+
         self.expect(TokenKind::Dedent)?;
-        
+
         Ok(Item::AbilityTask(AbilityTaskDef {
             name,
             attributes,
@@ -6611,20 +7785,20 @@ impl<'a> Parser<'a> {
     /// ```
     fn parse_target_actor(&mut self, attributes: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
-        
+
         // Expect 'struct' keyword
         self.expect(TokenKind::Struct)?;
-        
+
         // Parse target actor name
         let name = self.parse_ident()?;
-        
+
         // Expect ':'
         self.expect(TokenKind::Colon)?;
-        
+
         // Parse target actor body (indented block)
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
-        
+
         // Initialize fields
         let mut trace_type = TraceType::default();
         let mut max_range: Option<f64> = None;
@@ -6632,16 +7806,18 @@ impl<'a> Parser<'a> {
         let mut filter: Option<TargetFilter> = None;
         let mut reticle_class: Option<String> = None;
         let mut custom_methods: Vec<Function> = Vec::new();
-        
+
         while !self.check(TokenKind::Dedent) && !self.at_end() {
             self.skip_newlines();
-            if self.check(TokenKind::Dedent) { break; }
-            
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
             // Check for field name
             if let TokenKind::Ident(field_name) = self.peek_kind() {
                 self.advance();
                 self.expect(TokenKind::Colon)?;
-                
+
                 match field_name.as_str() {
                     "trace_type" => {
                         // Parse trace type string
@@ -6659,7 +7835,10 @@ impl<'a> Parser<'a> {
                             };
                             self.advance();
                         } else {
-                            return Err(self.parser_error("Expected string for trace_type", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected string for trace_type",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "max_range" => {
@@ -6671,7 +7850,10 @@ impl<'a> Parser<'a> {
                             max_range = Some(val as f64);
                             self.advance();
                         } else {
-                            return Err(self.parser_error("Expected number for max_range", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected number for max_range",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "trace_channel" => {
@@ -6680,7 +7862,10 @@ impl<'a> Parser<'a> {
                             trace_channel = Some(channel);
                             self.advance();
                         } else {
-                            return Err(self.parser_error("Expected string for trace_channel", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected string for trace_channel",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "reticle_class" => {
@@ -6689,28 +7874,33 @@ impl<'a> Parser<'a> {
                             reticle_class = Some(class);
                             self.advance();
                         } else {
-                            return Err(self.parser_error("Expected string for reticle_class", self.current_span()));
+                            return Err(self.parser_error(
+                                "Expected string for reticle_class",
+                                self.current_span(),
+                            ));
                         }
                     }
                     "filter" => {
                         // Parse filter block (indented)
                         self.skip_newlines();
                         self.expect(TokenKind::Indent)?;
-                        
+
                         let mut self_filter: Option<String> = None;
                         let mut required_actor_class: Option<String> = None;
                         let mut require_tags: Vec<String> = Vec::new();
                         let mut ignore_tags: Vec<String> = Vec::new();
                         let mut custom_filter_method: Option<Function> = None;
-                        
+
                         while !self.check(TokenKind::Dedent) && !self.at_end() {
                             self.skip_newlines();
-                            if self.check(TokenKind::Dedent) { break; }
-                            
+                            if self.check(TokenKind::Dedent) {
+                                break;
+                            }
+
                             if let TokenKind::Ident(filter_field) = self.peek_kind() {
                                 self.advance();
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 match filter_field.as_str() {
                                     "self_filter" => {
                                         if let TokenKind::String(val) = self.peek_kind() {
@@ -6735,7 +7925,7 @@ impl<'a> Parser<'a> {
                                     _ => {
                                         return Err(self.parser_error(
                                             format!("Unknown filter field: {}", filter_field),
-                                            self.current_span()
+                                            self.current_span(),
                                         ));
                                     }
                                 }
@@ -6743,7 +7933,7 @@ impl<'a> Parser<'a> {
                                 // Custom filter method
                                 self.advance();
                                 let method_name = self.parse_ident()?;
-                                
+
                                 // Parse parameters
                                 let params = if self.check(TokenKind::LParen) {
                                     self.advance();
@@ -6768,41 +7958,46 @@ impl<'a> Parser<'a> {
                                 } else {
                                     vec![]
                                 };
-                                
+
                                 // Expect ':'
                                 self.expect(TokenKind::Colon)?;
-                                
+
                                 // Parse method body
                                 self.skip_newlines();
                                 self.expect(TokenKind::Indent)?;
-                                
+
                                 let mut body_stmts = Vec::new();
                                 while !self.check(TokenKind::Dedent) && !self.at_end() {
                                     self.skip_newlines();
-                                    if self.check(TokenKind::Dedent) { break; }
+                                    if self.check(TokenKind::Dedent) {
+                                        break;
+                                    }
                                     body_stmts.push(self.parse_stmt()?);
                                 }
-                                
+
                                 self.expect(TokenKind::Dedent)?;
-                                
+
                                 custom_filter_method = Some(Function {
                                     name: method_name,
                                     generics: vec![],
                                     params,
                                     return_type: None,
                                     effects: vec![],
-                                    body: Block { stmts: body_stmts, span: self.current_span() },
+                                    body: Block {
+                                        stmts: body_stmts,
+                                        span: self.current_span(),
+                                    },
                                     visibility: Visibility::Private,
                                     attributes: vec![],
                                     span: self.current_span(),
                                 });
                             }
-                            
+
                             self.skip_newlines();
                         }
-                        
+
                         self.expect(TokenKind::Dedent)?;
-                        
+
                         filter = Some(TargetFilter {
                             self_filter,
                             required_actor_class,
@@ -6815,7 +8010,7 @@ impl<'a> Parser<'a> {
                     _ => {
                         return Err(self.parser_error(
                             format!("Unknown target actor field: {}", field_name),
-                            self.current_span()
+                            self.current_span(),
                         ));
                     }
                 }
@@ -6823,7 +8018,7 @@ impl<'a> Parser<'a> {
                 // Custom method
                 self.advance();
                 let method_name = self.parse_ident()?;
-                
+
                 // Parse parameters
                 let params = if self.check(TokenKind::LParen) {
                     self.advance();
@@ -6848,30 +8043,35 @@ impl<'a> Parser<'a> {
                 } else {
                     vec![]
                 };
-                
+
                 // Expect ':'
                 self.expect(TokenKind::Colon)?;
-                
+
                 // Parse method body
                 self.skip_newlines();
                 self.expect(TokenKind::Indent)?;
-                
+
                 let mut body_stmts = Vec::new();
                 while !self.check(TokenKind::Dedent) && !self.at_end() {
                     self.skip_newlines();
-                    if self.check(TokenKind::Dedent) { break; }
+                    if self.check(TokenKind::Dedent) {
+                        break;
+                    }
                     body_stmts.push(self.parse_stmt()?);
                 }
-                
+
                 self.expect(TokenKind::Dedent)?;
-                
+
                 custom_methods.push(Function {
                     name: method_name,
                     generics: vec![],
                     params,
                     return_type: None,
                     effects: vec![],
-                    body: Block { stmts: body_stmts, span: self.current_span() },
+                    body: Block {
+                        stmts: body_stmts,
+                        span: self.current_span(),
+                    },
                     visibility: Visibility::Private,
                     attributes: vec![],
                     span: self.current_span(),
@@ -6879,12 +8079,12 @@ impl<'a> Parser<'a> {
             } else {
                 return Err(self.parser_error("Expected field name or fn", self.current_span()));
             }
-            
+
             self.skip_newlines();
         }
-        
+
         self.expect(TokenKind::Dedent)?;
-        
+
         Ok(Item::TargetActor(TargetActorDef {
             name,
             attributes,
@@ -6959,8 +8159,12 @@ mod tests {
                 else_branch,
                 ..
             } => {
-                assert!(matches!(then_branch.as_ref(), JSXNode::ComponentCall { name, .. } if name == "Spinner"));
-                assert!(matches!(else_branch.as_deref(), Some(JSXNode::ComponentCall { name, .. }) if name == "Empty"));
+                assert!(
+                    matches!(then_branch.as_ref(), JSXNode::ComponentCall { name, .. } if name == "Spinner")
+                );
+                assert!(
+                    matches!(else_branch.as_deref(), Some(JSXNode::ComponentCall { name, .. }) if name == "Empty")
+                );
             }
             other => panic!("expected if child, got {other:?}"),
         }
@@ -6968,7 +8172,9 @@ mod tests {
         match &children[1] {
             JSXNode::For { binding, body, .. } => {
                 assert_eq!(binding, "item");
-                assert!(matches!(body.as_ref(), JSXNode::ComponentCall { name, .. } if name == "Row"));
+                assert!(
+                    matches!(body.as_ref(), JSXNode::ComponentCall { name, .. } if name == "Row")
+                );
             }
             other => panic!("expected for child, got {other:?}"),
         }

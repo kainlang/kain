@@ -17,6 +17,7 @@ once_cell = { workspace = true }
 flume = { workspace = true }
 pyo3 = { workspace = true }
 reqwest = { workspace = true }
+kain-ui = { path = "../kain-ui" }
 
 [features]
 default = ["runtime"]

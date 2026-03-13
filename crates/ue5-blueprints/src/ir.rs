@@ -79,7 +79,11 @@ pub struct KismetCall {
 
 impl KismetCall {
     pub fn function(name: impl Into<String>) -> Self {
-        Self { function_name: name.into(), target: None, is_pure: false }
+        Self {
+            function_name: name.into(),
+            target: None,
+            is_pure: false,
+        }
     }
 
     pub fn on(mut self, target: impl Into<String>) -> Self {
@@ -102,7 +106,10 @@ pub enum EventGraphNode {
     /// Event Tick → sequence of calls (marks material as dynamic)
     Tick { calls: Vec<KismetCall> },
     /// Custom event with a name
-    CustomEvent { event_name: String, calls: Vec<KismetCall> },
+    CustomEvent {
+        event_name: String,
+        calls: Vec<KismetCall>,
+    },
 }
 
 impl EventGraphNode {
@@ -113,7 +120,10 @@ impl EventGraphNode {
         Self::Tick { calls }
     }
     pub fn custom(event_name: impl Into<String>, calls: Vec<KismetCall>) -> Self {
-        Self::CustomEvent { event_name: event_name.into(), calls }
+        Self::CustomEvent {
+            event_name: event_name.into(),
+            calls,
+        }
     }
 }
 

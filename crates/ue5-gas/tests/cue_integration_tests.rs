@@ -2,10 +2,8 @@
 // Gameplay Cue Integration Tests — Test codegen output
 // ============================================================================
 
-use ue5_gas::{
-    GameplayCueIR, CueTypeIR, generate_cue,
-};
 use ue5_gas::cue_ir::StateFieldIR;
+use ue5_gas::{generate_cue, CueTypeIR, GameplayCueIR};
 
 // ============================================================================
 // Helper Functions
@@ -32,7 +30,9 @@ fn create_simple_burn_cue() -> GameplayCueIR {
         cue_type: CueTypeIR::Static,
         auto_destroy: false,
         state_fields: vec![],
-        on_execute_body: Some("// Spawn burn particle\nUE_LOG(LogTemp, Log, TEXT(\"Burn effect!\"));".to_string()),
+        on_execute_body: Some(
+            "// Spawn burn particle\nUE_LOG(LogTemp, Log, TEXT(\"Burn effect!\"));".to_string(),
+        ),
         on_add_body: None,
         on_remove_body: None,
         while_active_body: None,
@@ -47,7 +47,7 @@ fn create_simple_burn_cue() -> GameplayCueIR {
 fn test_static_cue_header_structure() {
     let cue_ir = create_simple_burn_cue();
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("#pragma once"));
     assert!(output.header.contains("class UBurnCue"));
     assert!(output.header.contains("UGameplayCueNotify_Static"));
@@ -59,9 +59,11 @@ fn test_static_cue_header_structure() {
 fn test_static_cue_source_structure() {
     let cue_ir = create_simple_burn_cue();
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.source.contains("UBurnCue::UBurnCue()"));
-    assert!(output.source.contains("GameplayCueTag = FGameplayTag::RequestGameplayTag"));
+    assert!(output
+        .source
+        .contains("GameplayCueTag = FGameplayTag::RequestGameplayTag"));
     assert!(output.source.contains("GameplayCue.Effect.Burn"));
     assert!(output.source.contains("OnExecute_Implementation"));
 }
@@ -70,12 +72,14 @@ fn test_static_cue_source_structure() {
 fn test_static_cue_includes() {
     let cue_ir = create_empty_cue("TestCue");
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     // Header includes
     assert!(output.header.contains("#include \"CoreMinimal.h\""));
-    assert!(output.header.contains("#include \"GameplayCueNotify_Static.h\""));
+    assert!(output
+        .header
+        .contains("#include \"GameplayCueNotify_Static.h\""));
     assert!(output.header.contains("#include \"TestCue.generated.h\""));
-    
+
     // Source includes
     assert!(output.source.contains("#include \"Cues/TestCue.h\""));
     assert!(output.source.contains("#include \"GameplayTags.h\""));
@@ -85,7 +89,7 @@ fn test_static_cue_includes() {
 fn test_static_cue_uclass_specifiers() {
     let cue_ir = create_empty_cue("TestCue");
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("UCLASS()"));
 }
 
@@ -97,9 +101,9 @@ fn test_static_cue_uclass_specifiers() {
 fn test_actor_cue_base_class() {
     let mut cue_ir = create_empty_cue("ActorCue");
     cue_ir.cue_type = CueTypeIR::Actor;
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("class AActorCue"));
     assert!(output.header.contains("AGameplayCueNotify_Actor"));
     assert!(output.source.contains("AActorCue::AActorCue()"));
@@ -110,9 +114,9 @@ fn test_actor_cue_with_auto_destroy() {
     let mut cue_ir = create_empty_cue("AutoDestroyCue");
     cue_ir.cue_type = CueTypeIR::Actor;
     cue_ir.auto_destroy = true;
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.source.contains("bAutoDestroyOnRemove = true"));
 }
 
@@ -121,9 +125,9 @@ fn test_actor_cue_without_auto_destroy() {
     let mut cue_ir = create_empty_cue("NoAutoDestroyCue");
     cue_ir.cue_type = CueTypeIR::Actor;
     cue_ir.auto_destroy = false;
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(!output.source.contains("bAutoDestroyOnRemove"));
 }
 
@@ -131,10 +135,12 @@ fn test_actor_cue_without_auto_destroy() {
 fn test_actor_cue_includes() {
     let mut cue_ir = create_empty_cue("ActorCue");
     cue_ir.cue_type = CueTypeIR::Actor;
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
-    assert!(output.header.contains("#include \"GameplayCueNotify_Actor.h\""));
+
+    assert!(output
+        .header
+        .contains("#include \"GameplayCueNotify_Actor.h\""));
 }
 
 // ============================================================================
@@ -145,12 +151,16 @@ fn test_actor_cue_includes() {
 fn test_on_execute_implementation() {
     let mut cue_ir = create_empty_cue("ExecuteCue");
     cue_ir.on_execute_body = Some("UE_LOG(LogTemp, Log, TEXT(\"Execute!\"));".to_string());
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("OnExecute_Implementation"));
-    assert!(output.source.contains("bool UExecuteCue::OnExecute_Implementation"));
-    assert!(output.source.contains("UE_LOG(LogTemp, Log, TEXT(\"Execute!\"));"));
+    assert!(output
+        .source
+        .contains("bool UExecuteCue::OnExecute_Implementation"));
+    assert!(output
+        .source
+        .contains("UE_LOG(LogTemp, Log, TEXT(\"Execute!\"));"));
 }
 
 #[test]
@@ -158,12 +168,16 @@ fn test_on_add_implementation() {
     let mut cue_ir = create_empty_cue("AddCue");
     cue_ir.cue_type = CueTypeIR::Actor;
     cue_ir.on_add_body = Some("UE_LOG(LogTemp, Log, TEXT(\"Added!\"));".to_string());
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("OnActive_Implementation"));
-    assert!(output.source.contains("bool AAddCue::OnActive_Implementation"));
-    assert!(output.source.contains("UE_LOG(LogTemp, Log, TEXT(\"Added!\"));"));
+    assert!(output
+        .source
+        .contains("bool AAddCue::OnActive_Implementation"));
+    assert!(output
+        .source
+        .contains("UE_LOG(LogTemp, Log, TEXT(\"Added!\"));"));
 }
 
 #[test]
@@ -171,12 +185,16 @@ fn test_on_remove_implementation() {
     let mut cue_ir = create_empty_cue("RemoveCue");
     cue_ir.cue_type = CueTypeIR::Actor;
     cue_ir.on_remove_body = Some("UE_LOG(LogTemp, Log, TEXT(\"Removed!\"));".to_string());
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("OnRemove_Implementation"));
-    assert!(output.source.contains("bool ARemoveCue::OnRemove_Implementation"));
-    assert!(output.source.contains("UE_LOG(LogTemp, Log, TEXT(\"Removed!\"));"));
+    assert!(output
+        .source
+        .contains("bool ARemoveCue::OnRemove_Implementation"));
+    assert!(output
+        .source
+        .contains("UE_LOG(LogTemp, Log, TEXT(\"Removed!\"));"));
 }
 
 #[test]
@@ -184,12 +202,16 @@ fn test_while_active_implementation() {
     let mut cue_ir = create_empty_cue("ActiveCue");
     cue_ir.cue_type = CueTypeIR::Actor;
     cue_ir.while_active_body = Some("UE_LOG(LogTemp, Log, TEXT(\"Active!\"));".to_string());
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("WhileActive_Implementation"));
-    assert!(output.source.contains("bool AActiveCue::WhileActive_Implementation"));
-    assert!(output.source.contains("UE_LOG(LogTemp, Log, TEXT(\"Active!\"));"));
+    assert!(output
+        .source
+        .contains("bool AActiveCue::WhileActive_Implementation"));
+    assert!(output
+        .source
+        .contains("UE_LOG(LogTemp, Log, TEXT(\"Active!\"));"));
 }
 
 // ============================================================================
@@ -204,11 +226,13 @@ fn test_state_field_generation() {
         name: "ParticleSystem".to_string(),
         field_type: "UParticleSystemComponent*".to_string(),
     });
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.header.contains("UPROPERTY()"));
-    assert!(output.header.contains("UParticleSystemComponent* ParticleSystem"));
+    assert!(output
+        .header
+        .contains("UParticleSystemComponent* ParticleSystem"));
 }
 
 #[test]
@@ -223,12 +247,14 @@ fn test_multiple_state_fields() {
         name: "AudioComponent".to_string(),
         field_type: "UAudioComponent*".to_string(),
     });
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
-    assert!(output.header.contains("UParticleSystemComponent* ParticleSystem"));
+
+    assert!(output
+        .header
+        .contains("UParticleSystemComponent* ParticleSystem"));
     assert!(output.header.contains("UAudioComponent* AudioComponent"));
-    
+
     // Count UPROPERTY macros
     let uproperty_count = output.header.matches("UPROPERTY()").count();
     assert_eq!(uproperty_count, 2);
@@ -242,10 +268,12 @@ fn test_multiple_state_fields() {
 fn test_tag_initialization() {
     let mut cue_ir = create_empty_cue("TagCue");
     cue_ir.tag = "GameplayCue.Effect.Fire.Burn".to_string();
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
-    assert!(output.source.contains("GameplayCueTag = FGameplayTag::RequestGameplayTag"));
+
+    assert!(output
+        .source
+        .contains("GameplayCueTag = FGameplayTag::RequestGameplayTag"));
     assert!(output.source.contains("GameplayCue.Effect.Fire.Burn"));
 }
 
@@ -253,9 +281,9 @@ fn test_tag_initialization() {
 fn test_tag_with_special_characters() {
     let mut cue_ir = create_empty_cue("SpecialCue");
     cue_ir.tag = "GameplayCue.Status.CC.Stunned".to_string();
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.source.contains("GameplayCue.Status.CC.Stunned"));
 }
 
@@ -276,9 +304,9 @@ fn test_complete_static_cue() {
         on_remove_body: None,
         while_active_body: None,
     };
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     // Verify all features
     assert!(output.header.contains("class UCompleteBurnCue"));
     assert!(output.header.contains("UGameplayCueNotify_Static"));
@@ -294,24 +322,24 @@ fn test_complete_actor_cue() {
         tag: "GameplayCue.Effect.Heal".to_string(),
         cue_type: CueTypeIR::Actor,
         auto_destroy: true,
-        state_fields: vec![
-            StateFieldIR {
-                name: "ParticleSystem".to_string(),
-                field_type: "UParticleSystemComponent*".to_string(),
-            },
-        ],
+        state_fields: vec![StateFieldIR {
+            name: "ParticleSystem".to_string(),
+            field_type: "UParticleSystemComponent*".to_string(),
+        }],
         on_execute_body: None,
         on_add_body: Some("// Spawn attached particle".to_string()),
         on_remove_body: Some("// Cleanup".to_string()),
         while_active_body: Some("// Update effect".to_string()),
     };
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     // Verify all features
     assert!(output.header.contains("class ACompleteHealCue"));
     assert!(output.header.contains("AGameplayCueNotify_Actor"));
-    assert!(output.header.contains("UParticleSystemComponent* ParticleSystem"));
+    assert!(output
+        .header
+        .contains("UParticleSystemComponent* ParticleSystem"));
     assert!(output.source.contains("bAutoDestroyOnRemove = true"));
     assert!(output.source.contains("GameplayCue.Effect.Heal"));
     assert!(output.source.contains("// Spawn attached particle"));
@@ -327,11 +355,15 @@ fn test_complete_actor_cue() {
 fn test_minimal_cue_compression() {
     let cue_ir = create_empty_cue("MinimalCue");
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     let total_lines = output.header.lines().count() + output.source.lines().count();
-    
+
     // Minimal cue should generate at least 20 lines
-    assert!(total_lines > 20, "Generated {} lines, expected > 20", total_lines);
+    assert!(
+        total_lines > 20,
+        "Generated {} lines, expected > 20",
+        total_lines
+    );
 }
 
 #[test]
@@ -356,15 +388,19 @@ fn test_complex_cue_compression() {
         on_remove_body: Some("// Remove logic".to_string()),
         while_active_body: Some("// Active logic".to_string()),
     };
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     let total_lines = output.header.lines().count() + output.source.lines().count();
-    
+
     println!("Complex cue compression: {} C++ lines", total_lines);
-    
+
     // Complex cue should generate 50+ lines
-    assert!(total_lines > 50, "Generated {} lines, expected > 50", total_lines);
+    assert!(
+        total_lines > 50,
+        "Generated {} lines, expected > 50",
+        total_lines
+    );
 }
 
 // ============================================================================
@@ -375,20 +411,22 @@ fn test_complex_cue_compression() {
 fn test_empty_lifecycle_body() {
     let mut cue_ir = create_empty_cue("EmptyCue");
     cue_ir.on_execute_body = Some("".to_string());
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     // Should still generate valid C++
-    assert!(output.source.contains("bool UEmptyCue::OnExecute_Implementation"));
+    assert!(output
+        .source
+        .contains("bool UEmptyCue::OnExecute_Implementation"));
 }
 
 #[test]
 fn test_multiline_lifecycle_body() {
     let mut cue_ir = create_empty_cue("MultilineCue");
     cue_ir.on_execute_body = Some("// Line 1\n// Line 2\n// Line 3".to_string());
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     assert!(output.source.contains("// Line 1"));
     assert!(output.source.contains("// Line 2"));
     assert!(output.source.contains("// Line 3"));
@@ -398,7 +436,7 @@ fn test_multiline_lifecycle_body() {
 fn test_naming_conventions() {
     let cue_ir = create_empty_cue("TestCue");
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     // Static cues should use U prefix
     assert!(output.header.contains("class UTestCue"));
     assert!(output.source.contains("UTestCue::UTestCue()"));
@@ -408,9 +446,9 @@ fn test_naming_conventions() {
 fn test_actor_naming_conventions() {
     let mut cue_ir = create_empty_cue("TestCue");
     cue_ir.cue_type = CueTypeIR::Actor;
-    
+
     let output = generate_cue(&cue_ir, "TestPlugin").unwrap();
-    
+
     // Actor cues should use A prefix
     assert!(output.header.contains("class ATestCue"));
     assert!(output.source.contains("ATestCue::ATestCue()"));

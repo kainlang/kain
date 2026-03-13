@@ -51,7 +51,9 @@ impl TypeMapper {
             ts::TsType::TsOptionalType(optional) => {
                 Type::Option(Box::new(self.map_type(&optional.type_ann, span)?), span)
             }
-            ts::TsType::TsFnOrConstructorType(function) => self.map_function_type(function, span)?,
+            ts::TsType::TsFnOrConstructorType(function) => {
+                self.map_function_type(function, span)?
+            }
             ts::TsType::TsParenthesizedType(paren) => self.map_type(&paren.type_ann, span)?,
             ts::TsType::TsLitType(lit) => match &lit.lit {
                 ts::TsLit::Number(_) => Type::Named {
@@ -135,7 +137,11 @@ impl TypeMapper {
             "ReadonlyArray" if generics.len() == 1 => {
                 Ok(Type::Slice(Box::new(generics[0].clone()), span))
             }
-            _ => Ok(Type::Named { name, generics, span }),
+            _ => Ok(Type::Named {
+                name,
+                generics,
+                span,
+            }),
         }
     }
 

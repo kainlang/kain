@@ -1,0 +1,13 @@
+[package]
+name = "kain-host"
+version = "0.1.0"
+edition = "2021"
+description = "Native Rust host runtime for calling KAIN and exposing Rust functions to KAIN"
+license = "MIT"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+kain-driver = { path = "../kain-driver", default-features = false }
+
+[dev-dependencies]
+tempfile = "3.8"

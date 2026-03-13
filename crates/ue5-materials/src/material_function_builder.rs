@@ -1,28 +1,26 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
+use ordered_float::OrderedFloat;
+use ue5_asset_utils::ImportBuilder;
+use ue5_asset_utils::KainEngineTarget;
 use unreal_asset::{
     exports::{BaseExport, Export, ExportBaseTrait, NormalExport},
     flags::EObjectFlags,
     types::PackageIndex,
     Asset, Import,
 };
-use ue5_asset_utils::ImportBuilder;
-use ue5_asset_utils::KainEngineTarget;
+use unreal_asset_base::types::vector::Color;
 use unreal_asset_properties::{
+    array_property::ArrayProperty,
+    color_property::LinearColorProperty,
     int_property::{BoolProperty, FloatProperty, IntProperty},
+    material_input_property::{ExpressionInputProperty, MaterialExpression},
     object_property::ObjectProperty,
     str_property::StrProperty,
     struct_property::StructProperty,
-    array_property::ArrayProperty,
-    color_property::LinearColorProperty,
-    material_input_property::{
-        ExpressionInputProperty, MaterialExpression,
-    },
     Property,
 };
-use unreal_asset_base::types::vector::Color;
-use ordered_float::OrderedFloat;
 
 use crate::material_graph::*;
 
@@ -74,9 +72,11 @@ impl MaterialFunctionBuilder {
         let mut asset = Asset::new_empty(engine_target.as_serializer_version());
 
         // Core imports every material function needs
-        let core_uobject_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
+        let core_uobject_import =
+            ImportBuilder::get_or_add_package(&mut asset, "/Script/CoreUObject");
         let engine_import = ImportBuilder::get_or_add_package(&mut asset, "/Script/Engine");
-        let function_class_import = ImportBuilder::get_or_add_class(&mut asset, "MaterialFunction", engine_import);
+        let function_class_import =
+            ImportBuilder::get_or_add_class(&mut asset, "MaterialFunction", engine_import);
 
         let mut builder = MaterialFunctionBuilder {
             asset,
@@ -105,11 +105,7 @@ impl MaterialFunctionBuilder {
             return idx;
         }
 
-        let idx = ImportBuilder::get_or_add_class(
-            &mut self.asset,
-            class_name,
-            self.engine_import,
-        );
+        let idx = ImportBuilder::get_or_add_class(&mut self.asset, class_name, self.engine_import);
 
         self.class_imports.insert(class_name.to_string(), idx);
         idx
@@ -158,11 +154,7 @@ impl MaterialFunctionBuilder {
     // ── Generic expression node creation ───────────────────────────────────
 
     /// Create an expression export and return its node_id (0-based index into node_exports).
-    fn add_expression_export(
-        &mut self,
-        ue_class: &str,
-        properties: Vec<Property>,
-    ) -> usize {
+    fn add_expression_export(&mut self, ue_class: &str, properties: Vec<Property>) -> usize {
         let node_id = self.node_exports.len();
         let class_import = self.get_expression_class_import(ue_class);
 
@@ -300,12 +292,12 @@ impl MaterialFunctionBuilder {
 
         // Map MaterialInputType to UE5's EFunctionInputType enum
         let input_type_value = match input_type {
-            MaterialInputType::Float => 0u8,      // FunctionInput_Scalar
-            MaterialInputType::Vec2 => 1u8,       // FunctionInput_Vector2
-            MaterialInputType::Vec3 => 2u8,       // FunctionInput_Vector3
-            MaterialInputType::Vec4 => 3u8,       // FunctionInput_Vector4
-            MaterialInputType::Texture2D => 4u8,  // FunctionInput_Texture2D
-            MaterialInputType::Color => 2u8,      // Same as Vec3
+            MaterialInputType::Float => 0u8,     // FunctionInput_Scalar
+            MaterialInputType::Vec2 => 1u8,      // FunctionInput_Vector2
+            MaterialInputType::Vec3 => 2u8,      // FunctionInput_Vector3
+            MaterialInputType::Vec4 => 3u8,      // FunctionInput_Vector4
+            MaterialInputType::Texture2D => 4u8, // FunctionInput_Texture2D
+            MaterialInputType::Color => 2u8,     // Same as Vec3
         };
 
         props.push(
@@ -326,9 +318,9 @@ impl MaterialFunctionBuilder {
     /// This connects the function's output to a specific node.
     pub fn add_function_output(&mut self, node_id: usize) {
         let output_name_fname = self.asset.add_fname("OutputName");
-        
+
         let mut props = Vec::new();
-        
+
         // Set output name (default to "Result")
         props.push(
             StrProperty {
@@ -390,7 +382,10 @@ impl MaterialFunctionBuilder {
             .into()],
         };
 
-        self.add_expression_export("MaterialExpressionConstant3Vector", vec![color_struct.into()])
+        self.add_expression_export(
+            "MaterialExpressionConstant3Vector",
+            vec![color_struct.into()],
+        )
     }
 
     fn add_binary_op_node(&mut self, ue_class: &str, a: usize, b: usize) -> usize {
@@ -510,7 +505,10 @@ impl MaterialFunctionBuilder {
         let input_prop = self.make_input_property("Input", input, 0);
         let min_prop = self.make_input_property("Min", min, 0);
         let max_prop = self.make_input_property("Max", max, 0);
-        self.add_expression_export("MaterialExpressionClamp", vec![input_prop, min_prop, max_prop])
+        self.add_expression_export(
+            "MaterialExpressionClamp",
+            vec![input_prop, min_prop, max_prop],
+        )
     }
 
     pub fn add_constant4_node(&mut self, r: f32, g: f32, b: f32, a: f32) -> usize {
@@ -540,7 +538,10 @@ impl MaterialFunctionBuilder {
             .into()],
         };
 
-        self.add_expression_export("MaterialExpressionConstant4Vector", vec![color_struct.into()])
+        self.add_expression_export(
+            "MaterialExpressionConstant4Vector",
+            vec![color_struct.into()],
+        )
     }
 
     pub fn add_time_node(&mut self) -> usize {
@@ -560,7 +561,14 @@ impl MaterialFunctionBuilder {
         self.add_expression_export("MaterialExpressionTextureCoordinate", props)
     }
 
-    pub fn add_component_mask_node(&mut self, input: usize, r: bool, g: bool, b: bool, a: bool) -> usize {
+    pub fn add_component_mask_node(
+        &mut self,
+        input: usize,
+        r: bool,
+        g: bool,
+        b: bool,
+        a: bool,
+    ) -> usize {
         let input_prop = self.make_input_property("Input", input, 0);
         let r_name = self.asset.add_fname("R");
         let g_name = self.asset.add_fname("G");
@@ -568,10 +576,38 @@ impl MaterialFunctionBuilder {
         let a_name = self.asset.add_fname("A");
         let props = vec![
             input_prop,
-            BoolProperty { name: r_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: r }.into(),
-            BoolProperty { name: g_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: g }.into(),
-            BoolProperty { name: b_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: b }.into(),
-            BoolProperty { name: a_name, ancestry: Default::default(), property_guid: None, duplication_index: 0, value: a }.into(),
+            BoolProperty {
+                name: r_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: r,
+            }
+            .into(),
+            BoolProperty {
+                name: g_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: g,
+            }
+            .into(),
+            BoolProperty {
+                name: b_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: b,
+            }
+            .into(),
+            BoolProperty {
+                name: a_name,
+                ancestry: Default::default(),
+                property_guid: None,
+                duplication_index: 0,
+                value: a,
+            }
+            .into(),
         ];
         self.add_expression_export("MaterialExpressionComponentMask", props)
     }
@@ -648,7 +684,7 @@ pub struct MaterialFunction {
     pub name: String,
     pub inputs: Vec<MaterialFunctionInput>,
     pub nodes: Vec<MaterialNode>,
-    pub output: String,  // node_id of output
+    pub output: String, // node_id of output
     pub description: String,
 }
 
@@ -661,7 +697,8 @@ pub struct MaterialFunctionInput {
 
 /// Convert a MaterialFunction IR to .uasset bytes.
 pub fn serialize_material_function(func: &MaterialFunction) -> Result<Vec<u8>, String> {
-    let mut builder = MaterialFunctionBuilder::new(&format!("MF_{}", func.name), KainEngineTarget::default());
+    let mut builder =
+        MaterialFunctionBuilder::new(&format!("MF_{}", func.name), KainEngineTarget::default());
 
     // Map graph node IDs → builder node IDs
     let mut node_map: HashMap<String, usize> = HashMap::new();
@@ -714,30 +751,20 @@ fn convert_function_node(
         }
 
         // Arithmetic (binary)
-        MaterialNodeType::Add { a, b } => {
-            Ok(builder.add_add_node(resolve(a)?, resolve(b)?))
-        }
+        MaterialNodeType::Add { a, b } => Ok(builder.add_add_node(resolve(a)?, resolve(b)?)),
         MaterialNodeType::Subtract { a, b } => {
             Ok(builder.add_subtract_node(resolve(a)?, resolve(b)?))
         }
         MaterialNodeType::Multiply { a, b } => {
             Ok(builder.add_multiply_node(resolve(a)?, resolve(b)?))
         }
-        MaterialNodeType::Divide { a, b } => {
-            Ok(builder.add_divide_node(resolve(a)?, resolve(b)?))
-        }
+        MaterialNodeType::Divide { a, b } => Ok(builder.add_divide_node(resolve(a)?, resolve(b)?)),
         MaterialNodeType::Dot { a, b } | MaterialNodeType::DotProduct { a, b } => {
             Ok(builder.add_dot_node(resolve(a)?, resolve(b)?))
         }
-        MaterialNodeType::Cross { a, b } => {
-            Ok(builder.add_cross_node(resolve(a)?, resolve(b)?))
-        }
-        MaterialNodeType::Min { a, b } => {
-            Ok(builder.add_min_node(resolve(a)?, resolve(b)?))
-        }
-        MaterialNodeType::Max { a, b } => {
-            Ok(builder.add_max_node(resolve(a)?, resolve(b)?))
-        }
+        MaterialNodeType::Cross { a, b } => Ok(builder.add_cross_node(resolve(a)?, resolve(b)?)),
+        MaterialNodeType::Min { a, b } => Ok(builder.add_min_node(resolve(a)?, resolve(b)?)),
+        MaterialNodeType::Max { a, b } => Ok(builder.add_max_node(resolve(a)?, resolve(b)?)),
         MaterialNodeType::Distance { a, b } => {
             Ok(builder.add_distance_node(resolve(a)?, resolve(b)?))
         }
@@ -757,16 +784,10 @@ fn convert_function_node(
         }
 
         // Unary
-        MaterialNodeType::Normalize { input } => {
-            Ok(builder.add_normalize_node(resolve(input)?))
-        }
-        MaterialNodeType::Length { input } => {
-            Ok(builder.add_length_node(resolve(input)?))
-        }
+        MaterialNodeType::Normalize { input } => Ok(builder.add_normalize_node(resolve(input)?)),
+        MaterialNodeType::Length { input } => Ok(builder.add_length_node(resolve(input)?)),
         MaterialNodeType::Abs { input } => Ok(builder.add_abs_node(resolve(input)?)),
-        MaterialNodeType::Saturate { input } => {
-            Ok(builder.add_saturate_node(resolve(input)?))
-        }
+        MaterialNodeType::Saturate { input } => Ok(builder.add_saturate_node(resolve(input)?)),
         MaterialNodeType::Frac { input } => Ok(builder.add_frac_node(resolve(input)?)),
         MaterialNodeType::Floor { input } => Ok(builder.add_floor_node(resolve(input)?)),
         MaterialNodeType::Ceil { input } => Ok(builder.add_ceil_node(resolve(input)?)),
@@ -804,7 +825,10 @@ fn convert_function_node(
                 // MaterialNodeType::CallShader { .. } => "CallShader",  // TODO: Add CallShader variant to MaterialNodeType enum
                 _ => "unknown node type",
             };
-            Err(format!("Node type '{}' not yet supported in material functions", node_desc))
+            Err(format!(
+                "Node type '{}' not yet supported in material functions",
+                node_desc
+            ))
         }
     }
 }
@@ -874,16 +898,14 @@ mod tests {
                     default_value: None,
                 },
             ],
-            nodes: vec![
-                MaterialNode {
-                    id: "mul".to_string(),
-                    node_type: MaterialNodeType::Multiply {
-                        a: "A".to_string(),
-                        b: "B".to_string(),
-                    },
-                    position: (0, 0),
+            nodes: vec![MaterialNode {
+                id: "mul".to_string(),
+                node_type: MaterialNodeType::Multiply {
+                    a: "A".to_string(),
+                    b: "B".to_string(),
                 },
-            ],
+                position: (0, 0),
+            }],
             output: "mul".to_string(),
             description: "Multiplies two floats".to_string(),
         };

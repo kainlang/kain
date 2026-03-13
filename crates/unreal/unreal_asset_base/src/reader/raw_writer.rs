@@ -17,7 +17,6 @@ use crate::types::{FName, PackageIndex, PackageIndexTrait};
 use crate::unversioned::Usmap;
 use crate::Error;
 
-
 /// A binary writer
 pub struct RawWriter<'cursor, Index: PackageIndexTrait, W: Write + Seek> {
     /// Writer cursor

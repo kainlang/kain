@@ -1,10 +1,9 @@
 /// Test that .uplugin generation correctly sets CanContainContent based on shader presence
-/// 
+///
 /// This test validates Requirements 11.1, 11.2, 11.3:
 /// - 11.1: Shaders/ directory is created in plugin root
 /// - 11.2: .usf files are written to correct location
 /// - 11.3: .uplugin includes CanContainContent: true when shaders present
-
 use cli::packager::uplugin_gen::generate_uplugin_file;
 
 #[test]
@@ -15,12 +14,14 @@ fn test_uplugin_without_shaders() {
         false,
         false,
         false, // no shaders
-        &[], // no plugin dependencies
+        &[],   // no plugin dependencies
     );
 
     // Should have CanContainContent: false
-    assert!(uplugin.contains(r#""CanContainContent": false"#),
-        "Plugin without shaders should have CanContainContent: false");
+    assert!(
+        uplugin.contains(r#""CanContainContent": false"#),
+        "Plugin without shaders should have CanContainContent: false"
+    );
 }
 
 #[test]
@@ -31,12 +32,14 @@ fn test_uplugin_with_shaders() {
         false,
         false,
         true, // has shaders
-        &[], // no plugin dependencies
+        &[],  // no plugin dependencies
     );
 
     // Should have CanContainContent: true
-    assert!(uplugin.contains(r#""CanContainContent": true"#),
-        "Plugin with shaders should have CanContainContent: true");
+    assert!(
+        uplugin.contains(r#""CanContainContent": true"#),
+        "Plugin with shaders should have CanContainContent: true"
+    );
 }
 
 #[test]
@@ -47,18 +50,24 @@ fn test_uplugin_split_mode_with_shaders() {
         true,
         true, // split mode
         true, // has shaders
-        &[], // no plugin dependencies
+        &[],  // no plugin dependencies
     );
 
     // Should have CanContainContent: true
-    assert!(uplugin.contains(r#""CanContainContent": true"#),
-        "Split mode plugin with shaders should have CanContainContent: true");
-    
+    assert!(
+        uplugin.contains(r#""CanContainContent": true"#),
+        "Split mode plugin with shaders should have CanContainContent: true"
+    );
+
     // Should have both modules
-    assert!(uplugin.contains(r#""Name": "TestPlugin""#),
-        "Should have runtime module");
-    assert!(uplugin.contains(r#""Name": "TestPluginEditor""#),
-        "Should have editor module");
+    assert!(
+        uplugin.contains(r#""Name": "TestPlugin""#),
+        "Should have runtime module"
+    );
+    assert!(
+        uplugin.contains(r#""Name": "TestPluginEditor""#),
+        "Should have editor module"
+    );
 }
 
 #[test]
@@ -69,16 +78,20 @@ fn test_uplugin_editor_only_with_shaders() {
         true,  // has editor items
         false, // no split
         true,  // has shaders
-        &[], // no plugin dependencies
+        &[],   // no plugin dependencies
     );
 
     // Should have CanContainContent: true
-    assert!(uplugin.contains(r#""CanContainContent": true"#),
-        "Editor plugin with shaders should have CanContainContent: true");
-    
+    assert!(
+        uplugin.contains(r#""CanContainContent": true"#),
+        "Editor plugin with shaders should have CanContainContent: true"
+    );
+
     // Should be Editor type
-    assert!(uplugin.contains(r#""Type": "Editor""#),
-        "Should be Editor type module");
+    assert!(
+        uplugin.contains(r#""Type": "Editor""#),
+        "Should be Editor type module"
+    );
 }
 
 #[test]

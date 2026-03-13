@@ -8,8 +8,8 @@
 //! This replaces hardcoded delegate mappings in slate.rs with queries
 //! against real data extracted from actual Slate widget headers.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ═══════════════════════════════════════════════════════════════════
 // Schema Types (mirrors widget_registry.json structure)
@@ -189,7 +189,8 @@ impl WidgetRegistry {
 
         for widget in self.widgets.values() {
             for (event_name, event_info) in &widget.events {
-                *freq.entry(event_name.clone())
+                *freq
+                    .entry(event_name.clone())
                     .or_default()
                     .entry(event_info.delegate_type.clone())
                     .or_insert(0) += 1;
@@ -218,8 +219,10 @@ impl WidgetRegistry {
     /// delegate type SSlider::OnValueChanged expects.
     /// Example: get_event_delegate("SSlider", "OnValueChanged") -> Some("FOnFloatValueChanged")
     pub fn get_event_delegate(&self, widget_name: &str, event_name: &str) -> Option<&str> {
-        self.widgets.get(widget_name)?
-            .events.get(event_name)
+        self.widgets
+            .get(widget_name)?
+            .events
+            .get(event_name)
             .map(|e| e.delegate_type.as_str())
     }
 
@@ -233,28 +236,33 @@ impl WidgetRegistry {
     /// Get the property type for a specific widget property.
     /// Example: get_property_type("SSlider", "MinValue") -> Some("float")
     pub fn get_property_type(&self, widget_name: &str, property_name: &str) -> Option<&str> {
-        self.widgets.get(widget_name)?
-            .properties.get(property_name)
+        self.widgets
+            .get(widget_name)?
+            .properties
+            .get(property_name)
             .map(|p| p.prop_type.as_str())
     }
 
     /// Get the include header for a widget.
     /// Example: get_widget_header("SButton") -> Some("Widgets/Input/SButton.h")
     pub fn get_widget_header(&self, widget_name: &str) -> Option<&str> {
-        self.widgets.get(widget_name)
+        self.widgets
+            .get(widget_name)
             .map(|w| w.header.as_str())
             .filter(|h| !h.is_empty())
     }
 
     /// Check if a widget has a default content slot ([] syntax)
     pub fn has_default_slot(&self, widget_name: &str) -> bool {
-        self.widgets.get(widget_name)
+        self.widgets
+            .get(widget_name)
             .map_or(false, |w| w.slots.iter().any(|s| s.kind == "default"))
     }
 
     /// Check if a widget supports multi-child slots (+Slot() syntax)
     pub fn has_multi_slot(&self, widget_name: &str) -> bool {
-        self.widgets.get(widget_name)
+        self.widgets
+            .get(widget_name)
             .map_or(false, |w| w.slots.iter().any(|s| s.kind == "multi"))
     }
 
@@ -270,21 +278,24 @@ impl WidgetRegistry {
 
     /// Get the parent widget class
     pub fn get_parent(&self, widget_name: &str) -> Option<&str> {
-        self.widgets.get(widget_name)
+        self.widgets
+            .get(widget_name)
             .map(|w| w.parent.as_str())
             .filter(|p| !p.is_empty())
     }
 
     /// Get all event names for a widget
     pub fn get_widget_events(&self, widget_name: &str) -> Vec<&str> {
-        self.widgets.get(widget_name)
-            .map_or(Vec::new(), |w| w.events.keys().map(|k| k.as_str()).collect())
+        self.widgets.get(widget_name).map_or(Vec::new(), |w| {
+            w.events.keys().map(|k| k.as_str()).collect()
+        })
     }
 
     /// Get all property names for a widget
     pub fn get_widget_properties(&self, widget_name: &str) -> Vec<&str> {
-        self.widgets.get(widget_name)
-            .map_or(Vec::new(), |w| w.properties.keys().map(|k| k.as_str()).collect())
+        self.widgets.get(widget_name).map_or(Vec::new(), |w| {
+            w.properties.keys().map(|k| k.as_str()).collect()
+        })
     }
 
     /// Get count stats
@@ -299,27 +310,42 @@ impl WidgetRegistry {
 
     /// Get slot requirements for a widget
     pub fn get_slot_requirements(&self, widget_name: &str) -> Option<&SlotRequirement> {
-        self.composition_rules.as_ref()?
-            .slot_requirements.get(widget_name)
+        self.composition_rules
+            .as_ref()?
+            .slot_requirements
+            .get(widget_name)
     }
 
     /// Get property dependencies for a widget property
-    pub fn get_property_dependencies(&self, widget_name: &str, property_name: &str) -> Option<&PropertyDependency> {
-        self.composition_rules.as_ref()?
-            .property_dependencies.get(widget_name)?
+    pub fn get_property_dependencies(
+        &self,
+        widget_name: &str,
+        property_name: &str,
+    ) -> Option<&PropertyDependency> {
+        self.composition_rules
+            .as_ref()?
+            .property_dependencies
+            .get(widget_name)?
             .get(property_name)
     }
 
     /// Get property exclusions for a widget
     pub fn get_property_exclusions(&self, widget_name: &str) -> Option<&PropertyExclusion> {
-        self.composition_rules.as_ref()?
-            .property_exclusions.get(widget_name)
+        self.composition_rules
+            .as_ref()?
+            .property_exclusions
+            .get(widget_name)
     }
 
     /// Get parent-child compatibility rules for a widget class
-    pub fn get_parent_child_compatibility(&self, widget_class: &str) -> Option<&ParentChildCompatibility> {
-        self.composition_rules.as_ref()?
-            .parent_child_compatibility.get(widget_class)
+    pub fn get_parent_child_compatibility(
+        &self,
+        widget_class: &str,
+    ) -> Option<&ParentChildCompatibility> {
+        self.composition_rules
+            .as_ref()?
+            .parent_child_compatibility
+            .get(widget_class)
     }
 
     /// Get property constraint for a type
@@ -335,7 +361,8 @@ impl WidgetRegistry {
         }
 
         // Fall back to checking if widget has slots
-        self.widgets.get(widget_name)
+        self.widgets
+            .get(widget_name)
             .map_or(false, |w| !w.slots.is_empty())
     }
 
@@ -358,7 +385,11 @@ impl WidgetRegistry {
                 }
                 "is_enum" => {
                     if !constraint.values.contains(&value.to_string()) {
-                        return Err(format!("{} must be one of: {}", type_name, constraint.values.join(", ")));
+                        return Err(format!(
+                            "{} must be one of: {}",
+                            type_name,
+                            constraint.values.join(", ")
+                        ));
                     }
                 }
                 _ => {}
@@ -449,13 +480,25 @@ mod tests {
         reg.load(sample_registry_json()).unwrap();
 
         // Widget-specific lookup
-        assert_eq!(reg.get_event_delegate("SButton", "OnClicked"), Some("FOnClicked"));
-        assert_eq!(reg.get_event_delegate("SSlider", "OnValueChanged"), Some("FOnFloatValueChanged"));
-        assert_eq!(reg.get_event_delegate("SCheckBox", "OnCheckStateChanged"), Some("FOnCheckStateChanged"));
+        assert_eq!(
+            reg.get_event_delegate("SButton", "OnClicked"),
+            Some("FOnClicked")
+        );
+        assert_eq!(
+            reg.get_event_delegate("SSlider", "OnValueChanged"),
+            Some("FOnFloatValueChanged")
+        );
+        assert_eq!(
+            reg.get_event_delegate("SCheckBox", "OnCheckStateChanged"),
+            Some("FOnCheckStateChanged")
+        );
 
         // Global event name lookup
         assert_eq!(reg.get_event_delegate_any("OnClicked"), Some("FOnClicked"));
-        assert_eq!(reg.get_event_delegate_any("OnValueChanged"), Some("FOnFloatValueChanged"));
+        assert_eq!(
+            reg.get_event_delegate_any("OnValueChanged"),
+            Some("FOnFloatValueChanged")
+        );
     }
 
     #[test]
@@ -465,7 +508,10 @@ mod tests {
 
         assert_eq!(reg.get_property_type("SSlider", "MinValue"), Some("float"));
         assert_eq!(reg.get_property_type("SSlider", "Value"), Some("float"));
-        assert_eq!(reg.get_property_type("SButton", "ContentPadding"), Some("FMargin"));
+        assert_eq!(
+            reg.get_property_type("SButton", "ContentPadding"),
+            Some("FMargin")
+        );
     }
 
     #[test]
@@ -483,8 +529,14 @@ mod tests {
         let mut reg = WidgetRegistry::new();
         reg.load(sample_registry_json()).unwrap();
 
-        assert_eq!(reg.get_widget_header("SButton"), Some("Widgets/Input/SButton.h"));
-        assert_eq!(reg.get_widget_header("SSlider"), Some("Widgets/Input/SSlider.h"));
+        assert_eq!(
+            reg.get_widget_header("SButton"),
+            Some("Widgets/Input/SButton.h")
+        );
+        assert_eq!(
+            reg.get_widget_header("SSlider"),
+            Some("Widgets/Input/SSlider.h")
+        );
     }
 
     #[test]

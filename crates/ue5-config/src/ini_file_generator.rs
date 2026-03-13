@@ -16,10 +16,7 @@ use anyhow::Result;
 /// MaxLod=4
 /// DebugVis=False
 /// ```
-pub fn generate_ini_section(
-    config: &ConfigStruct,
-    plugin_name: &str,
-) -> Result<String> {
+pub fn generate_ini_section(config: &ConfigStruct, plugin_name: &str) -> Result<String> {
     let mut lines = Vec::new();
 
     // Section header: [/Script/PluginName.ClassName]
@@ -63,15 +60,15 @@ fn format_ini_value(field: &ConfigField) -> Result<String> {
                 _ => anyhow::bail!("Unsupported .ini type for field: {}", field.name),
             }
         }
-        _ => anyhow::bail!("Unsupported default value expression for field: {}", field.name),
+        _ => anyhow::bail!(
+            "Unsupported default value expression for field: {}",
+            field.name
+        ),
     }
 }
 
 /// Generate complete .ini file content with header comment
-pub fn generate_ini_file(
-    config: &ConfigStruct,
-    plugin_name: &str,
-) -> Result<String> {
+pub fn generate_ini_file(config: &ConfigStruct, plugin_name: &str) -> Result<String> {
     let mut content = String::new();
 
     // Add header comment
@@ -189,42 +186,26 @@ mod tests {
 
     #[test]
     fn test_format_ini_value_float() {
-        let field = make_test_field(
-            "test",
-            "Float",
-            Some(Expr::Float(123.45, Span::default())),
-        );
+        let field = make_test_field("test", "Float", Some(Expr::Float(123.45, Span::default())));
         assert_eq!(format_ini_value(&field).unwrap(), "123.45");
     }
 
     #[test]
     fn test_format_ini_value_int() {
-        let field = make_test_field(
-            "test",
-            "Int",
-            Some(Expr::Int(42, Span::default())),
-        );
+        let field = make_test_field("test", "Int", Some(Expr::Int(42, Span::default())));
         assert_eq!(format_ini_value(&field).unwrap(), "42");
     }
 
     #[test]
     fn test_format_ini_value_bool_true() {
-        let field = make_test_field(
-            "test",
-            "Bool",
-            Some(Expr::Bool(true, Span::default())),
-        );
+        let field = make_test_field("test", "Bool", Some(Expr::Bool(true, Span::default())));
         // CRITICAL: Must be capital T
         assert_eq!(format_ini_value(&field).unwrap(), "True");
     }
 
     #[test]
     fn test_format_ini_value_bool_false() {
-        let field = make_test_field(
-            "test",
-            "Bool",
-            Some(Expr::Bool(false, Span::default())),
-        );
+        let field = make_test_field("test", "Bool", Some(Expr::Bool(false, Span::default())));
         // CRITICAL: Must be capital F
         assert_eq!(format_ini_value(&field).unwrap(), "False");
     }

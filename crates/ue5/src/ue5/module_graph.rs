@@ -10,8 +10,8 @@
 //!
 //! Loaded from `unreal/metadata/module_graph.json` at compile time via `Ue5Context`.
 
-use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 // ═══════════════════════════════════════════════════════════════════
 // Schema Types — mirrors module_graph.json structure
@@ -188,21 +188,24 @@ impl ModuleGraph {
 
     /// Get public dependencies for a module
     pub fn public_deps(&self, module: &str) -> &[String] {
-        self.modules.get(module)
+        self.modules
+            .get(module)
             .map(|m| m.public_deps.as_slice())
             .unwrap_or(&[])
     }
 
     /// Get private dependencies for a module
     pub fn private_deps(&self, module: &str) -> &[String] {
-        self.modules.get(module)
+        self.modules
+            .get(module)
             .map(|m| m.private_deps.as_slice())
             .unwrap_or(&[])
     }
 
     /// Get the transitive public dependency closure for a module
     pub fn transitive_public_deps(&self, module: &str) -> &[String] {
-        self.transitive_deps.get(module)
+        self.transitive_deps
+            .get(module)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
     }
@@ -283,7 +286,8 @@ impl ModuleGraph {
             }
         }
 
-        let mut result: Vec<String> = needed.into_iter()
+        let mut result: Vec<String> = needed
+            .into_iter()
             .filter(|m| !redundant.contains(m))
             .collect();
         result.sort();
@@ -304,7 +308,8 @@ impl ModuleGraph {
 
     /// Get all modules in a specific category
     pub fn modules_in_category(&self, category: &str) -> Vec<&str> {
-        self.modules.values()
+        self.modules
+            .values()
             .filter(|m| m.category == category)
             .map(|m| m.name.as_str())
             .collect()
@@ -453,8 +458,14 @@ mod tests {
     #[test]
     fn test_module_for_api() {
         let g = make_test_graph();
-        assert_eq!(g.module_for_api("AddShaderSourceDirectoryMapping"), Some("RenderCore"));
-        assert_eq!(g.module_for_api("AllShaderSourceDirectoryMappings"), Some("RenderCore"));
+        assert_eq!(
+            g.module_for_api("AddShaderSourceDirectoryMapping"),
+            Some("RenderCore")
+        );
+        assert_eq!(
+            g.module_for_api("AllShaderSourceDirectoryMappings"),
+            Some("RenderCore")
+        );
         assert_eq!(g.module_for_api("UnknownFunction"), None);
     }
 
