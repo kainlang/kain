@@ -198,7 +198,7 @@ fn render_main_rs(
     let root_component = rust_string_literal(root_component);
 
     format!(
-        "use kain_ui_native::{{run_app, KainUiNativeAppConfig}};\n\nconst KAIN_SOURCE: &str = include_str!({source_file_name});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_app(KainUiNativeAppConfig {{\n        window_title: {window_title}.to_string(),\n        root_component: {root_component}.to_string(),\n        source: KAIN_SOURCE.to_string(),\n        initial_window_size: [{}, {}],\n    }})\n}}\n",
+        "use kain_ui_native::{{run_app, KainUiNativeAppConfig}};\n\nconst KAIN_SOURCE: &str = include_str!({source_file_name});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_app(KainUiNativeAppConfig {{\n        window_title: {window_title}.to_string(),\n        root_component: {root_component}.to_string(),\n        source: KAIN_SOURCE.to_string(),\n        initial_window_size: [{:?}, {:?}],\n    }})\n}}\n",
         initial_window_size[0], initial_window_size[1]
     )
 }

@@ -6,11 +6,17 @@
 //! - call KAIN functions directly from Rust
 //! - move common primitive values across the boundary without codegen
 
-use std::collections::BTreeMap;
+extern crate self as kain_host;
 
-use kain_core::error::KainError;
-use kain_core::runtime::{Env, NativeFn, Value};
-use kain_core::{CompileTarget, TypedProgram};
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{Arc, RwLock};
+
+pub use kain_core::error::KainError;
+pub use kain_core::runtime::{Env, NativeFn, Value};
+pub use kain_core::{CompileTarget, TypedProgram};
+
+#[cfg(feature = "derive")]
+pub use kain_host_derive::{FromKainValue, ToKainValue};
 
 pub type HostResult<T> = Result<T, KainError>;
 
@@ -90,6 +96,91 @@ impl NativeFunction {
     }
 }
 
+pub mod bridge {
+    use super::*;
+
+    pub fn struct_value<K, I>(name: impl Into<String>, fields: I) -> Value
+    where
+        K: Into<String>,
+        I: IntoIterator<Item = (K, Value)>,
+    {
+        let fields = fields
+            .into_iter()
+            .map(|(name, value)| (name.into(), value))
+            .collect::<HashMap<_, _>>();
+        Value::Struct(name.into(), Arc::new(RwLock::new(fields)))
+    }
+
+    pub fn expect_struct(value: Value, expected_name: &str) -> HostResult<HashMap<String, Value>> {
+        match value {
+            Value::Struct(name, fields) => {
+                if name != expected_name {
+                    return Err(KainError::runtime(format!(
+                        "Expected struct {expected_name}, got struct {name}"
+                    )));
+                }
+                let fields = fields
+                    .read()
+                    .map_err(|_| KainError::runtime("Failed to read struct fields"))?
+                    .clone();
+                Ok(fields)
+            }
+            other => Err(super::type_mismatch(expected_name, &other)),
+        }
+    }
+
+    pub fn take_struct_field<T>(
+        fields: &mut HashMap<String, Value>,
+        field_name: &str,
+    ) -> HostResult<T>
+    where
+        T: FromKainValue,
+    {
+        let value = fields
+            .remove(field_name)
+            .ok_or_else(|| KainError::runtime(format!("Missing struct field '{field_name}'")))?;
+        T::from_kain_value(value)
+    }
+
+    pub fn enum_variant_value(
+        enum_name: impl Into<String>,
+        variant_name: impl Into<String>,
+        fields: Vec<Value>,
+    ) -> Value {
+        Value::EnumVariant(enum_name.into(), variant_name.into(), fields)
+    }
+
+    pub fn expect_enum(value: Value, expected_name: &str) -> HostResult<(String, Vec<Value>)> {
+        match value {
+            Value::EnumVariant(enum_name, variant, fields) => {
+                if enum_name != expected_name {
+                    return Err(KainError::runtime(format!(
+                        "Expected enum {expected_name}, got enum {enum_name}"
+                    )));
+                }
+                Ok((variant, fields))
+            }
+            other => Err(super::type_mismatch(expected_name, &other)),
+        }
+    }
+
+    pub fn expect_variant_len(
+        fields: Vec<Value>,
+        expected_len: usize,
+        enum_name: &str,
+        variant_name: &str,
+    ) -> HostResult<Vec<Value>> {
+        if fields.len() == expected_len {
+            Ok(fields)
+        } else {
+            Err(KainError::runtime(format!(
+                "Enum variant {enum_name}::{variant_name} expected {expected_len} field(s), got {}",
+                fields.len()
+            )))
+        }
+    }
+}
+
 pub trait ToKainValue {
     fn to_kain_value(self) -> Value;
 }
@@ -128,7 +219,31 @@ impl ToKainValue for i32 {
     }
 }
 
+impl ToKainValue for i16 {
+    fn to_kain_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+
+impl ToKainValue for i8 {
+    fn to_kain_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+
 impl ToKainValue for u32 {
+    fn to_kain_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+
+impl ToKainValue for u16 {
+    fn to_kain_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+
+impl ToKainValue for u8 {
     fn to_kain_value(self) -> Value {
         Value::Int(self as i64)
     }
@@ -220,10 +335,38 @@ impl FromKainValue for i32 {
     }
 }
 
+impl FromKainValue for i16 {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        let value = i64::from_kain_value(value)?;
+        i16::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into i16"))
+    }
+}
+
+impl FromKainValue for i8 {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        let value = i64::from_kain_value(value)?;
+        i8::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into i8"))
+    }
+}
+
 impl FromKainValue for u32 {
     fn from_kain_value(value: Value) -> HostResult<Self> {
         let value = i64::from_kain_value(value)?;
         u32::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into u32"))
+    }
+}
+
+impl FromKainValue for u16 {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        let value = i64::from_kain_value(value)?;
+        u16::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into u16"))
+    }
+}
+
+impl FromKainValue for u8 {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        let value = i64::from_kain_value(value)?;
+        u8::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into u8"))
     }
 }
 
@@ -234,6 +377,12 @@ impl FromKainValue for f64 {
             Value::Int(value) => Ok(value as f64),
             other => Err(type_mismatch("Float", &other)),
         }
+    }
+}
+
+impl FromKainValue for f32 {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        Ok(f64::from_kain_value(value)? as f32)
     }
 }
 
