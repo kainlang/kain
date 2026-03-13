@@ -2448,5 +2448,42 @@ mod tests {
             .iter()
             .any(|diag| diag.contains("class:unsupported_expr_lowering")));
     }
+
+    #[test]
+    fn records_unsupported_literal_lowering_class_marker() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo() {
+                let _value = c"hello";
+            }
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:unsupported_literal_lowering")));
+    }
+
+    #[test]
+    fn records_unsupported_pattern_lowering_class_marker() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            macro_rules! pat {
+                () => { _ };
+            }
+
+            fn demo() {
+                let value = 1;
+                match value {
+                    pat!() => {}
+                }
+            }
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:unsupported_pattern_lowering")));
+    }
 }
 

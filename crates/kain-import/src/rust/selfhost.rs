@@ -611,4 +611,28 @@ mod tests {
         let diag = "SELFHOST_STRICT [class:unsupported_expr_lowering]: unsupported expression kind";
         assert!(is_allowed_diagnostic(diag, &options));
     }
+
+    #[test]
+    fn supports_unsupported_literal_class_marker_matching() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:unsupported_literal_lowering".to_string());
+        let diag =
+            "SELFHOST_STRICT [class:unsupported_literal_lowering]: unsupported literal lowered to none";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn supports_unsupported_pattern_class_marker_matching() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:unsupported_pattern_lowering".to_string());
+        let diag =
+            "SELFHOST_STRICT [class:unsupported_pattern_lowering]: unsupported pattern lowered to wildcard";
+        assert!(is_allowed_diagnostic(diag, &options));
+    }
 }

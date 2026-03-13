@@ -48,6 +48,16 @@ pub struct InventoryInputEvidence {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct Stage2WorkspaceCrateEvidence {
+    pub crate_name: String,
+    pub source_roundtrip_path: String,
+    pub source_roundtrip_byte_size: u64,
+    pub manifest_path: String,
+    pub lib_rs_path: String,
+    pub main_rs_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct SelfHostPhase1Report {
     pub generated_at_utc: String,
     pub repo_root: String,
@@ -62,6 +72,7 @@ pub struct SelfHostPhase1Report {
     pub trait_dyn_summary: Vec<TraitDynSummary>,
     pub crate_results: Vec<CratePhase1Result>,
     pub stage2_workspace_path: Option<String>,
+    pub stage2_workspace_crates: Vec<Stage2WorkspaceCrateEvidence>,
     pub stage2_build_artifact: Option<String>,
     pub stage2_build_log_path: Option<String>,
     pub stage2_build_success: Option<bool>,
@@ -91,6 +102,25 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
     out.push_str(&format!("- Crates processed: `{}`\n\n", report.crates_processed.join(", ")));
     if let Some(path) = &report.stage2_workspace_path {
         out.push_str(&format!("- Stage2 workspace: `{}`\n", path));
+    }
+    if report.stage2_workspace_crates.is_empty() {
+        out.push_str("- Stage2 workspace crates: `none`\n");
+    } else {
+        out.push_str("- Stage2 workspace crates:\n");
+        for crate_evidence in &report.stage2_workspace_crates {
+            out.push_str(&format!(
+                "  - `{}` source `{}` ({} bytes), manifest `{}`, lib `{}`",
+                crate_evidence.crate_name,
+                crate_evidence.source_roundtrip_path,
+                crate_evidence.source_roundtrip_byte_size,
+                crate_evidence.manifest_path,
+                crate_evidence.lib_rs_path
+            ));
+            if let Some(main_rs_path) = &crate_evidence.main_rs_path {
+                out.push_str(&format!(", main `{}`", main_rs_path));
+            }
+            out.push('\n');
+        }
     }
     if let Some(path) = &report.stage2_build_artifact {
         out.push_str(&format!("- Stage2 artifact: `{}`\n", path));

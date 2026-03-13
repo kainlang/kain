@@ -1,7 +1,7 @@
 use crate::error::{KainError, KainResult};
 use crate::selfhost_report::{
     render_phase_markdown, CratePhase1Result, InventoryInputEvidence, MacroFinding, SelfHostPhase1Report,
-    SelfHostPhaseStatus, TraitDynSummary,
+    SelfHostPhaseStatus, Stage2WorkspaceCrateEvidence, TraitDynSummary,
 };
 use chrono::Utc;
 use clap::Subcommand;
@@ -286,22 +286,24 @@ fn run_phase(
     let trait_dyn_summary = build_trait_dyn_summary(&inventories.trait_inventory, &crates_processed);
     let mut final_phase_status = determine_phase_status(&crate_results, &all_required_preserved);
     let mut stage2_workspace_path = None;
+    let mut stage2_workspace_crates = Vec::new();
     let mut stage2_build_artifact = None;
     let mut stage2_build_log_path = None;
     let mut stage2_build_success = None;
     let mut stage2_build_exit_code = None;
 
     if assemble_stage2 {
-        let stage2_workspace = assemble_stage2_workspace(
+        let stage2_assembly = assemble_stage2_workspace(
             &repo_root,
             &output_dir.join("stage2_workspace"),
             &crates_processed,
             &roundtrip_rust_outputs,
         )?;
-        stage2_workspace_path = Some(stage2_workspace.display().to_string());
+        stage2_workspace_path = Some(stage2_assembly.workspace_path.display().to_string());
+        stage2_workspace_crates = stage2_assembly.crates;
 
         if build_stage2 {
-            let build_result = build_stage2_workspace(&stage2_workspace)?;
+            let build_result = build_stage2_workspace(&stage2_assembly.workspace_path)?;
             stage2_build_success = Some(build_result.success);
             stage2_build_artifact = build_result.artifact_path.map(|path| path.display().to_string());
             stage2_build_log_path = Some(build_result.log_path.display().to_string());
@@ -326,6 +328,7 @@ fn run_phase(
         trait_dyn_summary,
         crate_results,
         stage2_workspace_path,
+        stage2_workspace_crates,
         stage2_build_artifact,
         stage2_build_log_path,
         stage2_build_success,
@@ -931,6 +934,11 @@ struct Stage2BuildResult {
     exit_code: Option<i32>,
 }
 
+struct Stage2WorkspaceAssembly {
+    workspace_path: PathBuf,
+    crates: Vec<Stage2WorkspaceCrateEvidence>,
+}
+
 fn write_report_files(phase_name: &str, output_dir: &Path, report: &SelfHostPhase1Report) -> KainResult<()> {
     let json_path = output_dir.join(format!("{phase_name}_report.json"));
     let markdown_path = output_dir.join(format!("{phase_name}_report.md"));
@@ -994,7 +1002,7 @@ fn assemble_stage2_workspace(
     workspace_dir: &Path,
     crates_processed: &[String],
     roundtrip_rust_outputs: &BTreeMap<String, PathBuf>,
-) -> KainResult<PathBuf> {
+) -> KainResult<Stage2WorkspaceAssembly> {
     let workspace_dir = prepare_stage2_workspace_dir(workspace_dir)?;
     fs::create_dir_all(workspace_dir.join("crates")).map_err(|err| {
         KainError::runtime(format!("Failed to create stage2 workspace {}: {}", workspace_dir.display(), err))
@@ -1018,6 +1026,8 @@ fn assemble_stage2_workspace(
         KainError::runtime(format!("Failed to write stage2 workspace Cargo.toml: {}", err))
     })?;
 
+    let mut stage2_workspace_crates = Vec::with_capacity(crates_processed.len());
+
     for crate_name in crates_processed {
         let roundtrip_path = roundtrip_rust_outputs.get(crate_name).ok_or_else(|| {
             KainError::runtime(format!("Missing roundtrip Rust output for stage2 crate {crate_name}"))
@@ -1038,24 +1048,40 @@ fn assemble_stage2_workspace(
             crate_name,
             &stage2_set,
         )?;
-        fs::write(crate_dir.join("Cargo.toml"), rewritten_manifest).map_err(|err| {
+        let stage2_manifest_path = crate_dir.join("Cargo.toml");
+        fs::write(&stage2_manifest_path, rewritten_manifest).map_err(|err| {
             KainError::runtime(format!("Failed to write stage2 crate manifest for {}: {}", crate_name, err))
         })?;
 
         let rust_source = fs::read_to_string(roundtrip_path).map_err(|err| {
             KainError::runtime(format!("Failed to read roundtrip Rust {}: {}", roundtrip_path.display(), err))
         })?;
-        fs::write(src_dir.join("lib.rs"), &rust_source).map_err(|err| {
+        let lib_rs_path = src_dir.join("lib.rs");
+        fs::write(&lib_rs_path, &rust_source).map_err(|err| {
             KainError::runtime(format!("Failed to write stage2 lib.rs for {}: {}", crate_name, err))
         })?;
+        let mut main_rs_path = None;
         if crate_name == "cli" {
-            fs::write(src_dir.join("main.rs"), "include!(\"lib.rs\");\n").map_err(|err| {
+            let main_path = src_dir.join("main.rs");
+            fs::write(&main_path, "include!(\"lib.rs\");\n").map_err(|err| {
                 KainError::runtime(format!("Failed to write stage2 main.rs for cli: {}", err))
             })?;
+            main_rs_path = Some(main_path.display().to_string());
         }
+        stage2_workspace_crates.push(Stage2WorkspaceCrateEvidence {
+            crate_name: crate_name.clone(),
+            source_roundtrip_path: roundtrip_path.display().to_string(),
+            source_roundtrip_byte_size: rust_source.len() as u64,
+            manifest_path: stage2_manifest_path.display().to_string(),
+            lib_rs_path: lib_rs_path.display().to_string(),
+            main_rs_path,
+        });
     }
 
-    Ok(workspace_dir)
+    Ok(Stage2WorkspaceAssembly {
+        workspace_path: workspace_dir,
+        crates: stage2_workspace_crates,
+    })
 }
 
 fn prepare_stage2_workspace_dir(base_dir: &Path) -> KainResult<PathBuf> {
