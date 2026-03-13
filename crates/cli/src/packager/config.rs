@@ -26,11 +26,31 @@ pub enum RustBuildArtifact {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RustNativeUiAppConfig {
+    #[serde(default)]
+    pub root_component: Option<String>,
+    #[serde(default)]
+    pub window_title: Option<String>,
+    #[serde(default)]
+    pub app_name: Option<String>,
+    #[serde(default)]
+    pub output: Option<PathBuf>,
+    #[serde(default = "default_native_ui_window_size")]
+    pub initial_window_size: [f32; 2],
+    #[serde(default = "default_true")]
+    pub build_executable: bool,
+    #[serde(default)]
+    pub release: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RustBuildConfig {
     #[serde(default)]
     pub output: Option<PathBuf>,
     #[serde(default = "default_rust_build_artifacts")]
     pub artifacts: Vec<RustBuildArtifact>,
+    #[serde(default)]
+    pub native_ui: Option<RustNativeUiAppConfig>,
 }
 
 fn default_rust_build_artifacts() -> Vec<RustBuildArtifact> {
@@ -42,11 +62,20 @@ fn default_rust_build_artifacts() -> Vec<RustBuildArtifact> {
     ]
 }
 
+fn default_native_ui_window_size() -> [f32; 2] {
+    [1440.0, 920.0]
+}
+
+fn default_true() -> bool {
+    true
+}
+
 impl Default for RustBuildConfig {
     fn default() -> Self {
         Self {
             output: None,
             artifacts: default_rust_build_artifacts(),
+            native_ui: None,
         }
     }
 }

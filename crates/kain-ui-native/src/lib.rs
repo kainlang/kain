@@ -23,14 +23,16 @@ component App():
 "#;
 
 #[derive(Clone, Debug)]
-pub struct KainUiNativeDemoConfig {
+pub struct KainUiNativeAppConfig {
     pub window_title: String,
     pub root_component: String,
     pub source: String,
     pub initial_window_size: [f32; 2],
 }
 
-impl Default for KainUiNativeDemoConfig {
+pub type KainUiNativeDemoConfig = KainUiNativeAppConfig;
+
+impl Default for KainUiNativeAppConfig {
     fn default() -> Self {
         Self {
             window_title: "KAIN UI Native Demo".to_string(),
@@ -41,14 +43,18 @@ impl Default for KainUiNativeDemoConfig {
     }
 }
 
-pub fn build_demo_output(
-    config: &KainUiNativeDemoConfig,
-) -> Result<UiBuildOutput, kain_core::KainError> {
+pub fn build_output(config: &KainUiNativeAppConfig) -> Result<UiBuildOutput, kain_core::KainError> {
     build_ui_output_from_source(&config.source, &config.root_component)
 }
 
-pub fn run_demo(config: KainUiNativeDemoConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let output = build_demo_output(&config)?;
+pub fn build_demo_output(
+    config: &KainUiNativeDemoConfig,
+) -> Result<UiBuildOutput, kain_core::KainError> {
+    build_output(config)
+}
+
+pub fn run_app(config: KainUiNativeAppConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let output = build_output(&config)?;
     let window_title = config.window_title.clone();
     let initial_window_size = config.initial_window_size;
 
@@ -73,15 +79,19 @@ pub fn run_demo(config: KainUiNativeDemoConfig) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+pub fn run_demo(config: KainUiNativeDemoConfig) -> Result<(), Box<dyn std::error::Error>> {
+    run_app(config)
+}
+
 #[derive(Clone)]
 struct KainUiNativeApp {
-    config: KainUiNativeDemoConfig,
+    config: KainUiNativeAppConfig,
     output: UiBuildOutput,
     debug_tree: String,
 }
 
 impl KainUiNativeApp {
-    fn new(config: KainUiNativeDemoConfig, output: UiBuildOutput) -> Self {
+    fn new(config: KainUiNativeAppConfig, output: UiBuildOutput) -> Self {
         let debug_tree = render_ui_output_debug(&output);
         Self {
             config,

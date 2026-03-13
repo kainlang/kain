@@ -277,7 +277,6 @@ where
     }
 }
 
-#[derive(Default)]
 pub struct HostSession {
     env: Env,
     native_functions: BTreeMap<String, NativeFunction>,
@@ -394,6 +393,12 @@ impl HostSession {
     }
 }
 
+impl Default for HostSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn type_mismatch(expected: &str, value: &Value) -> KainError {
     KainError::runtime(format!("Expected {expected}, got {}", value_kind(value)))
 }
@@ -432,7 +437,11 @@ mod tests {
     fn host_double(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
         let value = match args.as_slice() {
             [Value::Int(value)] => *value,
-            _ => return Err(KainError::runtime("host_double expected a single Int argument")),
+            _ => {
+                return Err(KainError::runtime(
+                    "host_double expected a single Int argument",
+                ))
+            }
         };
         Ok(Value::Int(value * 2))
     }
@@ -443,7 +452,7 @@ mod tests {
         host.load_source(
             r#"
 fn add(a: Int, b: Int) -> Int:
-    a + b
+    return a + b
 "#,
         )
         .expect("load source");
@@ -468,7 +477,7 @@ fn add(a: Int, b: Int) -> Int:
         host.load_source(
             r#"
 fn run(value: Int) -> Int:
-    host_double(value)
+    return host_double(value)
 "#,
         )
         .expect("load source");

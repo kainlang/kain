@@ -1815,7 +1815,12 @@ impl Env {
             }
             TypedItem::Component(c) => self.register_component(c.ast.clone()),
             TypedItem::Struct(s) => {
-                let field_names = s.ast.fields.iter().map(|field| field.name.clone()).collect();
+                let field_names = s
+                    .ast
+                    .fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect();
                 self.define(
                     s.ast.name.clone(),
                     Value::StructConstructor(s.ast.name.clone(), field_names),

@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::packager::config::{RustBuildArtifact, RustBuildConfig};
+use crate::rust_native_ui::{default_file_build_native_ui_config, generate_native_ui_app};
 use crate::{frontend_to_typed_program, CompileTarget};
 use kain_core::error::KainError;
 
@@ -61,7 +62,11 @@ pub fn run_rust_build_pipeline(
     output: Option<&PathBuf>,
     config: Option<&RustBuildConfig>,
 ) -> Result<Vec<PathBuf>, KainError> {
-    let config = config.cloned().unwrap_or_default();
+    let should_auto_configure_native_ui = config.is_none();
+    let native_ui_was_explicit = config
+        .and_then(|config| config.native_ui.as_ref())
+        .is_some();
+    let mut config = config.cloned().unwrap_or_default();
     let source = fs::read_to_string(input).map_err(|err| {
         KainError::runtime(format!("Failed to read {}: {}", input.display(), err))
     })?;
@@ -72,7 +77,33 @@ pub fn run_rust_build_pipeline(
         .unwrap_or("kain")
         .to_string();
     let output_root = resolve_file_mode_output_root(input, output, config.output.as_ref());
-    write_rust_build_outputs(&output_root, &base_name, &config, &compiled)
+
+    if config.native_ui.is_none() && should_auto_configure_native_ui {
+        config.native_ui = Some(default_file_build_native_ui_config(&base_name));
+    }
+
+    let mut written = write_rust_build_outputs(&output_root, &base_name, &config, &compiled)?;
+
+    if let Some(native_ui) = &config.native_ui {
+        if let Some(generated) =
+            generate_native_ui_app(&source, input, &output_root, &base_name, native_ui)?
+        {
+            written.push(generated.paths.project_dir);
+            written.push(generated.paths.manifest_path);
+            written.push(generated.paths.main_rs_path);
+            written.push(generated.paths.source_copy_path);
+            if let Some(executable_path) = generated.paths.executable_path {
+                written.push(executable_path);
+            }
+        } else if native_ui_was_explicit {
+            return Err(KainError::runtime(format!(
+                "Rust native UI build was requested for {} but no components were found",
+                input.display()
+            )));
+        }
+    }
+
+    Ok(written)
 }
 
 pub fn write_rust_build_outputs(

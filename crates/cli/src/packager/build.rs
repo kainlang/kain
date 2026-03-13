@@ -36,8 +36,6 @@ pub fn build_rust_project() -> KainResult<()> {
         )));
     }
 
-    let source = fs::read_to_string(&entry_path).map_err(KainError::Io)?;
-    let compiled = rust_build::compile_rust_build(&source, &config)?;
     let output_root = config
         .output
         .clone()
@@ -50,12 +48,8 @@ pub fn build_rust_project() -> KainResult<()> {
         })
         .unwrap_or_else(|| cwd.join(&manifest.build.output).join("rust"));
 
-    let written = rust_build::write_rust_build_outputs(
-        &output_root,
-        &manifest.package.name,
-        &config,
-        &compiled,
-    )?;
+    let written =
+        rust_build::run_rust_build_pipeline(&entry_path, Some(&output_root), Some(&config))?;
 
     for path in written {
         println!("   ✓ {}", path.display());

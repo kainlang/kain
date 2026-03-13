@@ -1002,6 +1002,7 @@ fn main() {
                             packager::RustBuildArtifact::ShaderReflection,
                             packager::RustBuildArtifact::Spirv,
                         ],
+                        native_ui: None,
                     };
 
                     match rust_build::run_rust_build_pipeline(

@@ -5914,7 +5914,7 @@ impl Ue5Gen {
                             } else {
                                 format!("FVector::DotProduct({})", arg_strs.join(", "))
                             }
-                        }
+                        };
                     }
                     "cross" => "FVector::CrossProduct",
                     "normalize" => {
@@ -5943,7 +5943,7 @@ impl Ue5Gen {
                             } else {
                                 format!("FVector::Dist({})", arg_strs.join(", "))
                             }
-                        }
+                        };
                     }
 
                     // Interp functions
@@ -5972,7 +5972,7 @@ impl Ue5Gen {
                                 // Fallback: assume mesh_component exists
                                 "mesh_component->CreateDynamicMaterialInstance(0)".to_string()
                             }
-                        }
+                        };
                     }
 
                     // UE5 specific mappings from stdlib extern functions
