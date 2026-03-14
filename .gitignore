@@ -17,6 +17,9 @@
 /target_selfhost_probe
 /kain/Final5_7
 # LLVM/Compiler output
+/_codex_smoke
+/_codex_smoke/
+_codex_smoke/out
 *.ll
 
 # IDE
@@ -50,4 +53,3 @@ target_selfhost_probe/*
 *target_selfhost_probe\*
 target_selfhost_probe\
 target_selfhost_probe\**
-
