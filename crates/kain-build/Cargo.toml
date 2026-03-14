@@ -1,0 +1,9 @@
+[package]
+name = "kain-build"
+version = "0.1.0"
+edition = "2021"
+description = "Cargo build.rs helpers for exporting stable KAIN engine modules from Rust projects"
+license = "MIT"
+
+[dependencies]
+kain-host = { path = "../kain-host", default-features = false }

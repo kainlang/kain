@@ -1,0 +1,8 @@
+[package]
+name = "kain-reflect"
+version = "0.1.0"
+edition = "2021"
+description = "Reflection and schema metadata for Rust <-> KAIN interop"
+license = "MIT"
+
+[dependencies]

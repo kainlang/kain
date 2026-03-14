@@ -231,6 +231,7 @@ pub struct Env {
     scopes: Vec<HashMap<String, Value>>,
     functions: HashMap<String, Function>,
     components: HashMap<String, Component>,
+    inline_modules: HashMap<String, Vec<Item>>,
     /// Methods: type_name -> method_name -> function
     methods: HashMap<String, HashMap<String, Function>>,
     #[allow(dead_code)]
@@ -250,6 +251,7 @@ impl Env {
             scopes: vec![HashMap::new()],
             functions: HashMap::new(),
             components: HashMap::new(),
+            inline_modules: HashMap::new(),
             methods: HashMap::new(),
             actors: HashMap::new(),
             next_actor_id: 1,
@@ -1734,6 +1736,7 @@ impl Env {
     fn register_item(&mut self, item: &Item) -> KainResult<()> {
         match item {
             Item::Use(u) => load_module(self, u)?,
+            Item::Mod(module) => self.register_inline_module(module, &[])?,
             Item::Function(f) => {
                 self.functions.insert(f.name.clone(), f.clone());
                 self.define(f.name.clone(), Value::Function(f.name.clone()));
@@ -1786,7 +1789,6 @@ impl Env {
             | Item::Test(_)
             | Item::Trait(_)
             | Item::TypeAlias(_)
-            | Item::Mod(_)
             | Item::Shader(_)
             | Item::MaterialGraph(_)
             | Item::MaterialFunction(_)
@@ -1887,6 +1889,24 @@ impl Env {
         self.scopes.last_mut().unwrap().insert(name, value);
     }
 
+    fn register_inline_module(&mut self, module: &Mod, parent_path: &[String]) -> KainResult<()> {
+        let mut full_path = parent_path.to_vec();
+        full_path.push(module.name.clone());
+        let module_key = full_path.join("/");
+
+        if let Some(children) = &module.inline {
+            self.inline_modules.insert(module_key, children.clone());
+
+            for child in children {
+                if let Item::Mod(nested) = child {
+                    self.register_inline_module(nested, &full_path)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn define_global(&mut self, name: impl Into<String>, value: Value) {
         self.scopes[0].insert(name.into(), value);
     }
@@ -1985,6 +2005,13 @@ fn find_stdlib_roots() -> Vec<std::path::PathBuf> {
 
 fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     let path = u.path.join("/");
+
+    if let Some(items) = load_inline_module(env, u)? {
+        for item in items {
+            env.register_item(&item)?;
+        }
+        return Ok(());
+    }
 
     // Check if it's core stdlib (already loaded)
     if path == "stdlib" {
@@ -2111,6 +2138,82 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     }
 
     Ok(())
+}
+
+fn load_inline_module(env: &mut Env, u: &Use) -> KainResult<Option<Vec<Item>>> {
+    let direct_path = u.path.join("/");
+
+    if u.glob {
+        return Ok(env.inline_modules.get(&direct_path).cloned());
+    }
+
+    if let Some(items) = env.inline_modules.get(&direct_path).cloned() {
+        return Ok(Some(items));
+    }
+
+    if u.path.len() < 2 {
+        return Ok(None);
+    }
+
+    let module_path = u.path[..u.path.len() - 1].join("/");
+    let item_name = u.path.last().unwrap();
+    let Some(items) = env.inline_modules.get(&module_path) else {
+        return Ok(None);
+    };
+
+    let selected = items
+        .iter()
+        .find(|item| inline_item_name(item).is_some_and(|name| name == item_name))
+        .cloned();
+
+    match selected {
+        Some(item) => Ok(Some(vec![apply_use_alias(item, u.alias.as_deref())?])),
+        None => Err(KainError::runtime(format!(
+            "Inline module item not found: {}",
+            direct_path
+        ))),
+    }
+}
+
+fn inline_item_name(item: &Item) -> Option<&str> {
+    match item {
+        Item::Function(f) => Some(&f.name),
+        Item::Component(c) => Some(&c.name),
+        Item::Struct(s) => Some(&s.name),
+        Item::Enum(e) => Some(&e.name),
+        Item::Actor(a) => Some(&a.name),
+        Item::Const(c) => Some(&c.name),
+        Item::Macro(m) => Some(&m.name),
+        Item::TypeAlias(alias) => Some(&alias.name),
+        Item::Mod(module) => Some(&module.name),
+        _ => None,
+    }
+}
+
+fn apply_use_alias(mut item: Item, alias: Option<&str>) -> KainResult<Item> {
+    let Some(alias) = alias else {
+        return Ok(item);
+    };
+
+    match &mut item {
+        Item::Function(f) => f.name = alias.to_string(),
+        Item::Component(c) => c.name = alias.to_string(),
+        Item::Struct(s) => s.name = alias.to_string(),
+        Item::Enum(e) => e.name = alias.to_string(),
+        Item::Actor(a) => a.name = alias.to_string(),
+        Item::Const(c) => c.name = alias.to_string(),
+        Item::Macro(m) => m.name = alias.to_string(),
+        Item::TypeAlias(t) => t.name = alias.to_string(),
+        Item::Mod(m) => m.name = alias.to_string(),
+        other => {
+            return Err(KainError::runtime(format!(
+                "Inline alias is not supported for item: {:?}",
+                other
+            )))
+        }
+    }
+
+    Ok(item)
 }
 
 pub fn eval_block(env: &mut Env, block: &Block) -> KainResult<Value> {
@@ -2886,6 +2989,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let functions = env.functions.clone();
             let components = env.components.clone();
             let actor_defs = env.actor_defs.clone();
+            let inline_modules = env.inline_modules.clone();
             let methods = env.methods.clone();
             let global_scope = env.scopes.first().cloned().unwrap_or_default();
             let actor_name = actor.clone();
@@ -2896,6 +3000,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     scopes: vec![global_scope],
                     functions,
                     components,
+                    inline_modules,
                     methods,
                     actors: HashMap::new(),
                     next_actor_id: 0,

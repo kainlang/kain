@@ -13,6 +13,7 @@ derive = ["dep:kain-host-derive"]
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
 kain-host-derive = { path = "../kain-host-derive", optional = true }
+kain-reflect = { path = "../kain-reflect" }
 
 [dev-dependencies]
 tempfile = "3.8"

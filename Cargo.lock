@@ -2634,6 +2634,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-build"
+version = "0.1.0"
+dependencies = [
+ "kain-host",
+]
+
+[[package]]
 name = "kain-core"
 version = "0.1.0"
 dependencies = [
@@ -2662,6 +2669,8 @@ dependencies = [
  "kain-core",
  "kain-sys-codegen",
  "kain-ui",
+ "serde",
+ "serde_json",
  "tempfile",
  "ue5",
  "ue5-editor",
@@ -2676,6 +2685,7 @@ dependencies = [
  "kain-core",
  "kain-driver",
  "kain-host-derive",
+ "kain-reflect",
  "tempfile",
 ]
 
@@ -2729,6 +2739,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-reflect"
+version = "0.1.0"
+
+[[package]]
+name = "kain-sdk"
+version = "0.1.0"
+dependencies = [
+ "kain-build",
+ "kain-host",
+ "kain-reflect",
+]
+
+[[package]]
 name = "kain-selfhost"
 version = "0.1.0"
 dependencies = [
@@ -2749,6 +2772,9 @@ dependencies = [
 [[package]]
 name = "kain-ui"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "kain-ui-native"
@@ -2758,6 +2784,8 @@ dependencies = [
  "kain-3d",
  "kain-core",
  "kain-ui",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

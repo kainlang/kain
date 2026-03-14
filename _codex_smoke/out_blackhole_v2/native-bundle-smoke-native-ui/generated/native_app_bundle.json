@@ -1,0 +1,596 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "app_name": "native-bundle-smoke",
+    "window_title": "native_bundle_smoke",
+    "root_component": "App",
+    "source_file_name": "native_bundle_smoke.kn",
+    "initial_window_size": [
+      1440.0,
+      920.0
+    ]
+  },
+  "output": {
+    "tree": {
+      "root": 9,
+      "nodes": {
+        "1": {
+          "id": 1,
+          "kind": "Text",
+          "props": {
+            "text": {
+              "String": "Kerr black hole viewport Native Kain bundle boot "
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "2": {
+          "id": 2,
+          "kind": "Inspector",
+          "props": {
+            "tag": {
+              "String": "inspector"
+            },
+            "title": {
+              "String": "Selection"
+            }
+          },
+          "children": [
+            1
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "3": {
+          "id": 3,
+          "kind": "Text",
+          "props": {
+            "text": {
+              "String": "scenes/ kerr_black_hole.scene particles/accretion_ring.sim "
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "4": {
+          "id": 4,
+          "kind": "Tree",
+          "props": {
+            "tag": {
+              "String": "tree"
+            },
+            "title": {
+              "String": "Assets"
+            }
+          },
+          "children": [
+            3
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "5": {
+          "id": 5,
+          "kind": "Panel",
+          "props": {
+            "gap": {
+              "Int": 12
+            },
+            "layout": {
+              "String": "row"
+            },
+            "tag": {
+              "String": "panel"
+            },
+            "title": {
+              "String": "Flight Deck"
+            }
+          },
+          "children": [
+            2,
+            4
+          ],
+          "layout": {
+            "kind": "FlexRow",
+            "gap": 12.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "6": {
+          "id": 6,
+          "kind": "Timeline",
+          "props": {
+            "tag": {
+              "String": "timeline"
+            },
+            "title": {
+              "String": "Relativistic Timeline"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "7": {
+          "id": 7,
+          "kind": "Viewport3D",
+          "props": {
+            "scene": {
+              "String": "kerr_black_hole"
+            },
+            "tag": {
+              "String": "viewport3d"
+            },
+            "title": {
+              "String": "Singularity Preview"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Absolute",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "8": {
+          "id": 8,
+          "kind": "Panel",
+          "props": {
+            "gap": {
+              "Int": 12
+            },
+            "layout": {
+              "String": "dock"
+            },
+            "padding": {
+              "Int": 12
+            },
+            "tag": {
+              "String": "panel"
+            },
+            "title": {
+              "String": "Kain Native Singularity Lab"
+            }
+          },
+          "children": [
+            5,
+            6,
+            7
+          ],
+          "layout": {
+            "kind": "Dock",
+            "gap": 12.0,
+            "padding": 12.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        },
+        "9": {
+          "id": 9,
+          "kind": {
+            "ComponentRef": "App"
+          },
+          "props": {},
+          "children": [
+            8
+          ],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {}
+          },
+          "watches": []
+        }
+      }
+    },
+    "patches": [
+      {
+        "CreateNode": {
+          "node": {
+            "id": 1,
+            "kind": "Text",
+            "props": {
+              "text": {
+                "String": "Kerr black hole viewport Native Kain bundle boot "
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 2,
+            "kind": "Inspector",
+            "props": {
+              "tag": {
+                "String": "inspector"
+              },
+              "title": {
+                "String": "Selection"
+              }
+            },
+            "children": [
+              1
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 2,
+          "children": [
+            1
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 3,
+            "kind": "Text",
+            "props": {
+              "text": {
+                "String": "scenes/ kerr_black_hole.scene particles/accretion_ring.sim "
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 4,
+            "kind": "Tree",
+            "props": {
+              "tag": {
+                "String": "tree"
+              },
+              "title": {
+                "String": "Assets"
+              }
+            },
+            "children": [
+              3
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 4,
+          "children": [
+            3
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 5,
+            "kind": "Panel",
+            "props": {
+              "gap": {
+                "Int": 12
+              },
+              "layout": {
+                "String": "row"
+              },
+              "tag": {
+                "String": "panel"
+              },
+              "title": {
+                "String": "Flight Deck"
+              }
+            },
+            "children": [
+              2,
+              4
+            ],
+            "layout": {
+              "kind": "FlexRow",
+              "gap": 12.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 5,
+          "children": [
+            2,
+            4
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 6,
+            "kind": "Timeline",
+            "props": {
+              "tag": {
+                "String": "timeline"
+              },
+              "title": {
+                "String": "Relativistic Timeline"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 7,
+            "kind": "Viewport3D",
+            "props": {
+              "scene": {
+                "String": "kerr_black_hole"
+              },
+              "tag": {
+                "String": "viewport3d"
+              },
+              "title": {
+                "String": "Singularity Preview"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Absolute",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 8,
+            "kind": "Panel",
+            "props": {
+              "gap": {
+                "Int": 12
+              },
+              "layout": {
+                "String": "dock"
+              },
+              "padding": {
+                "Int": 12
+              },
+              "tag": {
+                "String": "panel"
+              },
+              "title": {
+                "String": "Kain Native Singularity Lab"
+              }
+            },
+            "children": [
+              5,
+              6,
+              7
+            ],
+            "layout": {
+              "kind": "Dock",
+              "gap": 12.0,
+              "padding": 12.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 8,
+          "children": [
+            5,
+            6,
+            7
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 9,
+            "kind": {
+              "ComponentRef": "App"
+            },
+            "props": {},
+            "children": [
+              8
+            ],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {}
+            },
+            "watches": []
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 9,
+          "children": [
+            8
+          ]
+        }
+      },
+      {
+        "SetRoot": {
+          "id": 9
+        }
+      }
+    ]
+  }
+}

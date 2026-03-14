@@ -1,0 +1,16 @@
+component App():
+    render <panel title="Kain Native Singularity Lab" layout="dock" gap={12} padding={12}>
+        <panel title="Flight Deck" layout="row" gap={12}>
+            <inspector title="Selection">
+                Kerr black hole viewport
+                Native Kain bundle boot
+            </inspector>
+            <tree title="Assets">
+                scenes/
+                kerr_black_hole.scene
+                particles/accretion_ring.sim
+            </tree>
+        </panel>
+        <timeline title="Relativistic Timeline" />
+        <viewport3d title="Singularity Preview" scene="kerr_black_hole" />
+    </panel>

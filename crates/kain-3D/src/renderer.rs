@@ -1,4 +1,4 @@
-use crate::{ColorRgb, Mat4, SceneCatalog, SceneDescription, Vec3};
+use crate::{BlackHole, CameraPose, ColorRgb, Mat4, ParticleEmitter, SceneCatalog, SceneDescription, Vec3};
 use crate::{DirectionalLight, LightingRig, Material, PointLight};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,10 +25,15 @@ pub struct SoftwareRendererConfig {
 impl Default for SoftwareRendererConfig {
     fn default() -> Self {
         Self {
-            wireframe_overlay: true,
+            wireframe_overlay: false,
             rim_light_strength: 0.18,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RenderViewSettings {
+    pub camera: Option<CameraPose>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -36,6 +41,8 @@ pub struct RenderStats {
     pub triangles_submitted: usize,
     pub triangles_rasterized: usize,
     pub pixels_shaded: usize,
+    pub particles_submitted: usize,
+    pub particles_shaded: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,52 +75,93 @@ impl std::error::Error for RenderError {}
 #[derive(Clone, Debug)]
 pub struct SoftwareRenderer {
     pub config: SoftwareRendererConfig,
+    scratch_rgba: Vec<u8>,
+    scratch_depth: Vec<f32>,
 }
 
 impl Default for SoftwareRenderer {
     fn default() -> Self {
         Self {
             config: SoftwareRendererConfig::default(),
+            scratch_rgba: Vec::new(),
+            scratch_depth: Vec::new(),
         }
     }
 }
 
 impl SoftwareRenderer {
     pub fn render_catalog_scene(
-        &self,
+        &mut self,
         catalog: &SceneCatalog,
         scene_name: &str,
         time_seconds: f32,
         resolution: RenderResolution,
     ) -> Result<RenderFrame, RenderError> {
+        self.render_catalog_scene_with_view(
+            catalog,
+            scene_name,
+            time_seconds,
+            resolution,
+            &RenderViewSettings::default(),
+        )
+    }
+
+    pub fn render_catalog_scene_with_view(
+        &mut self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+    ) -> Result<RenderFrame, RenderError> {
         let scene = catalog
             .scene(scene_name)
             .ok_or_else(|| RenderError::MissingScene(scene_name.to_string()))?;
-        self.render_scene(scene, time_seconds, resolution)
+        self.render_scene_with_view(scene, time_seconds, resolution, view)
     }
 
     pub fn render_scene(
-        &self,
+        &mut self,
         scene: &SceneDescription,
         time_seconds: f32,
         resolution: RenderResolution,
     ) -> Result<RenderFrame, RenderError> {
-        let mut rgba = vec![0_u8; resolution.width * resolution.height * 4];
-        let mut depth = vec![f32::INFINITY; resolution.width * resolution.height];
+        self.render_scene_with_view(scene, time_seconds, resolution, &RenderViewSettings::default())
+    }
+
+    pub fn render_scene_with_view(
+        &mut self,
+        scene: &SceneDescription,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+    ) -> Result<RenderFrame, RenderError> {
+        self.ensure_framebuffers(resolution);
+
+        let config = self.config;
+        let rgba = &mut self.scratch_rgba;
+        let depth = &mut self.scratch_depth;
         let mut stats = RenderStats::default();
 
-        fill_background(&mut rgba, resolution, scene.background.top, scene.background.bottom);
+        fill_background(rgba, resolution, scene.background.top, scene.background.bottom);
+        depth.fill(f32::INFINITY);
 
         let aspect_ratio = resolution.width as f32 / resolution.height as f32;
-        let camera_position = scene.camera.position_at(time_seconds);
-        let view = Mat4::look_at(camera_position, scene.camera.target, scene.camera.up);
+        let default_camera_pose;
+        let camera = if let Some(camera) = view.camera.as_ref() {
+            camera
+        } else {
+            default_camera_pose = scene.camera.pose_at(time_seconds);
+            &default_camera_pose
+        };
+        let view_matrix = Mat4::look_at(camera.position, camera.target, camera.up);
         let projection = Mat4::perspective(
-            scene.camera.fov_y_degrees.to_radians(),
+            camera.fov_y_degrees.to_radians(),
             aspect_ratio,
-            scene.camera.near_plane,
-            scene.camera.far_plane,
+            camera.near_plane,
+            camera.far_plane,
         );
-        let view_projection = projection.mul_mat4(view);
+        let view_projection = projection.mul_mat4(view_matrix);
 
         for instance in scene.animated_instances(time_seconds) {
             let mesh = scene
@@ -156,26 +204,51 @@ impl SoftwareRenderer {
 
                 stats.triangles_rasterized += 1;
                 rasterize_triangle(
-                    &mut rgba,
-                    &mut depth,
+                    rgba,
+                    depth,
                     resolution,
                     &mut stats,
                     material,
                     &scene.lighting,
-                    camera_position,
+                    camera.position,
                     screen,
                     transformed,
-                    self.config,
+                    config,
                 );
             }
+        }
+
+        render_particles(
+            rgba,
+            depth,
+            resolution,
+            &mut stats,
+            &scene.particle_emitters,
+            time_seconds,
+            camera,
+            view_projection,
+        );
+        if let Some(black_hole) = scene.black_hole.as_ref() {
+            render_black_hole_overlay(rgba, resolution, camera, black_hole, view_projection);
         }
 
         Ok(RenderFrame {
             width: resolution.width,
             height: resolution.height,
-            rgba,
+            rgba: rgba.clone(),
             stats,
         })
+    }
+
+    fn ensure_framebuffers(&mut self, resolution: RenderResolution) {
+        let pixel_count = resolution.width * resolution.height;
+        let rgba_len = pixel_count * 4;
+        if self.scratch_rgba.len() != rgba_len {
+            self.scratch_rgba.resize(rgba_len, 0);
+        }
+        if self.scratch_depth.len() != pixel_count {
+            self.scratch_depth.resize(pixel_count, f32::INFINITY);
+        }
     }
 }
 
@@ -191,6 +264,16 @@ struct ScreenVertex {
     x: f32,
     y: f32,
     depth: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ParticleSample {
+    world_position: Vec3,
+    color: ColorRgb,
+    radius: f32,
+    softness: f32,
+    emissive_strength: f32,
+    depth_test: bool,
 }
 
 fn fill_background(rgba: &mut [u8], resolution: RenderResolution, top: ColorRgb, bottom: ColorRgb) {
@@ -321,6 +404,272 @@ fn rasterize_triangle(
     }
 }
 
+fn render_particles(
+    rgba: &mut [u8],
+    depth: &mut [f32],
+    resolution: RenderResolution,
+    stats: &mut RenderStats,
+    emitters: &[ParticleEmitter],
+    time_seconds: f32,
+    camera: &CameraPose,
+    view_projection: Mat4,
+) {
+    for emitter in emitters {
+        let axis = emitter.axis_or_up();
+        let (basis_u, basis_v) = orthonormal_basis(axis);
+        for index in 0..emitter.particle_count {
+            stats.particles_submitted += 1;
+            let sample = sample_particle(emitter, index, time_seconds, axis, basis_u, basis_v);
+            let clip_position = view_projection.transform_point(sample.world_position);
+            if clip_position[3] <= 0.001 {
+                continue;
+            }
+
+            let screen = project_vertex(clip_position, resolution);
+            if !(0.0..=1.0).contains(&screen.depth) {
+                continue;
+            }
+
+            draw_particle(
+                rgba,
+                depth,
+                resolution,
+                stats,
+                camera,
+                screen,
+                clip_position[3],
+                sample,
+            );
+        }
+    }
+}
+
+fn render_black_hole_overlay(
+    rgba: &mut [u8],
+    resolution: RenderResolution,
+    camera: &CameraPose,
+    black_hole: &BlackHole,
+    view_projection: Mat4,
+) {
+    let clip_position = view_projection.transform_point(black_hole.center);
+    if clip_position[3] <= 0.001 {
+        return;
+    }
+    let screen = project_vertex(clip_position, resolution);
+    let distance = (black_hole.center - camera.position).length().max(0.001);
+    let horizon_radius = (black_hole.radius * resolution.height as f32 / distance * 0.34).clamp(6.0, 96.0);
+    let lens_radius = (black_hole.lens_radius * resolution.height as f32 / distance * 0.34)
+        .clamp(horizon_radius + 4.0, 132.0);
+
+    draw_glow_ring(
+        rgba,
+        resolution,
+        screen.x,
+        screen.y,
+        lens_radius,
+        black_hole.lens_color,
+        0.32,
+    );
+    draw_glow_ring(
+        rgba,
+        resolution,
+        screen.x,
+        screen.y,
+        lens_radius * 0.82,
+        black_hole.disk_color,
+        0.18,
+    );
+    draw_solid_disc(
+        rgba,
+        resolution,
+        screen.x,
+        screen.y,
+        horizon_radius,
+        black_hole.inner_color,
+    );
+}
+
+fn sample_particle(
+    emitter: &ParticleEmitter,
+    index: usize,
+    time_seconds: f32,
+    axis: Vec3,
+    basis_u: Vec3,
+    basis_v: Vec3,
+) -> ParticleSample {
+    let seed = index as f32 + 1.0;
+    let phase = hash01(seed * 0.73) * std::f32::consts::TAU;
+    let radius = lerp(
+        emitter.radial_range[0],
+        emitter.radial_range[1],
+        hash01(seed * 1.31),
+    );
+    let vertical_extent = lerp(
+        emitter.vertical_range[0],
+        emitter.vertical_range[1],
+        hash01(seed * 2.17),
+    );
+    let size = lerp(
+        emitter.particle_size_range[0],
+        emitter.particle_size_range[1],
+        hash01(seed * 2.81),
+    );
+    let color_mix = hash01(seed * 3.61);
+    let color = emitter.color_start * (1.0 - color_mix) + emitter.color_end * color_mix;
+    let angular_velocity = emitter.orbit_radians_per_second
+        * (1.0 + emitter.swirl * (hash01(seed * 4.73) * 2.0 - 1.0));
+    let angle = phase + time_seconds * angular_velocity;
+    let vertical_wave = vertical_extent * (time_seconds * (0.55 + hash01(seed * 5.11)) + phase).sin();
+    let drift_cycle = hash01(seed * 6.07) + time_seconds * (0.08 + emitter.orbit_radians_per_second.abs() * 0.025);
+    let drift_t = fract01(drift_cycle) * 2.0 - 1.0;
+
+    ParticleSample {
+        world_position: emitter.center
+            + basis_u * angle.cos() * radius
+            + basis_v * angle.sin() * radius
+            + axis * vertical_wave
+            + emitter.drift * drift_t,
+        color,
+        radius: size,
+        softness: emitter.softness.max(0.8),
+        emissive_strength: emitter.emissive_strength.max(0.0),
+        depth_test: emitter.depth_test,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_particle(
+    rgba: &mut [u8],
+    depth: &[f32],
+    resolution: RenderResolution,
+    stats: &mut RenderStats,
+    camera: &CameraPose,
+    screen: ScreenVertex,
+    clip_w: f32,
+    particle: ParticleSample,
+) {
+    let distance = (particle.world_position - camera.position).length().max(0.001);
+    let perspective_scale = (resolution.height as f32 / clip_w.max(0.001)) * 0.22;
+    let particle_radius = (particle.radius * perspective_scale * (1.0 + 0.05 / distance))
+        .clamp(1.0, resolution.height as f32 * 0.16);
+
+    let min_x = (screen.x - particle_radius)
+        .floor()
+        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
+    let max_x = (screen.x + particle_radius)
+        .ceil()
+        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
+    let min_y = (screen.y - particle_radius)
+        .floor()
+        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
+    let max_y = (screen.y + particle_radius)
+        .ceil()
+        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
+
+    let inverse_radius = 1.0 / particle_radius.max(1.0);
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = (x as f32 + 0.5 - screen.x) * inverse_radius;
+            let dy = (y as f32 + 0.5 - screen.y) * inverse_radius;
+            let radial = dx * dx + dy * dy;
+            if radial >= 1.0 {
+                continue;
+            }
+
+            let pixel_index = y * resolution.width + x;
+            if particle.depth_test && screen.depth >= depth[pixel_index] {
+                continue;
+            }
+
+            let intensity = (1.0 - radial).powf(particle.softness) * particle.emissive_strength;
+            if intensity <= 0.002 {
+                continue;
+            }
+
+            blend_additive(rgba, pixel_index, particle.color * intensity);
+            stats.particles_shaded += 1;
+        }
+    }
+}
+
+fn draw_solid_disc(
+    rgba: &mut [u8],
+    resolution: RenderResolution,
+    center_x: f32,
+    center_y: f32,
+    radius: f32,
+    color: ColorRgb,
+) {
+    let min_x = (center_x - radius)
+        .floor()
+        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
+    let max_x = (center_x + radius)
+        .ceil()
+        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
+    let min_y = (center_y - radius)
+        .floor()
+        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
+    let max_y = (center_y + radius)
+        .ceil()
+        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
+    let radius_sq = radius * radius;
+    let pixel = color.to_rgba8();
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = x as f32 + 0.5 - center_x;
+            let dy = y as f32 + 0.5 - center_y;
+            if dx * dx + dy * dy > radius_sq {
+                continue;
+            }
+            let rgba_index = (y * resolution.width + x) * 4;
+            rgba[rgba_index..rgba_index + 4].copy_from_slice(&pixel);
+        }
+    }
+}
+
+fn draw_glow_ring(
+    rgba: &mut [u8],
+    resolution: RenderResolution,
+    center_x: f32,
+    center_y: f32,
+    radius: f32,
+    color: ColorRgb,
+    intensity: f32,
+) {
+    let ring_width = (radius * 0.22).max(3.0);
+    let outer = radius + ring_width;
+    let min_x = (center_x - outer)
+        .floor()
+        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
+    let max_x = (center_x + outer)
+        .ceil()
+        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
+    let min_y = (center_y - outer)
+        .floor()
+        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
+    let max_y = (center_y + outer)
+        .ceil()
+        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = x as f32 + 0.5 - center_x;
+            let dy = y as f32 + 0.5 - center_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let falloff = 1.0 - ((distance - radius).abs() / ring_width);
+            if falloff <= 0.0 {
+                continue;
+            }
+            blend_additive(
+                rgba,
+                y * resolution.width + x,
+                color * (falloff * falloff * intensity),
+            );
+        }
+    }
+}
+
 fn shade_pixel(
     material: &Material,
     lighting: &LightingRig,
@@ -442,6 +791,41 @@ fn edge_function(a: ScreenVertex, b: ScreenVertex, x: f32, y: f32) -> f32 {
     (x - a.x) * (b.y - a.y) - (y - a.y) * (b.x - a.x)
 }
 
+fn orthonormal_basis(axis: Vec3) -> (Vec3, Vec3) {
+    let helper = if axis.y.abs() > 0.92 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::UP
+    };
+    let basis_u = axis.cross(helper).normalize();
+    let basis_v = axis.cross(basis_u).normalize();
+    (basis_u, basis_v)
+}
+
+fn blend_additive(rgba: &mut [u8], pixel_index: usize, color: ColorRgb) {
+    let rgba_index = pixel_index * 4;
+    let existing = Vec3::new(
+        rgba[rgba_index] as f32 / 255.0,
+        rgba[rgba_index + 1] as f32 / 255.0,
+        rgba[rgba_index + 2] as f32 / 255.0,
+    );
+    let blended = existing + color.to_vec3();
+    let pixel = ColorRgb::from_vec3(blended).to_rgba8();
+    rgba[rgba_index..rgba_index + 4].copy_from_slice(&pixel);
+}
+
+fn hash01(seed: f32) -> f32 {
+    fract01((seed * 12.9898).sin() * 43_758.547)
+}
+
+fn fract01(value: f32) -> f32 {
+    value - value.floor()
+}
+
+fn lerp(start: f32, end: f32, t: f32) -> f32 {
+    start + (end - start) * t
+}
+
 fn to_vec3(point: [f32; 4]) -> Vec3 {
     Vec3::new(point[0], point[1], point[2])
 }
@@ -453,7 +837,7 @@ mod tests {
     #[test]
     fn retirement_demo_renders_non_empty_frame() {
         let catalog = SceneCatalog::default();
-        let renderer = SoftwareRenderer::default();
+        let mut renderer = SoftwareRenderer::default();
         let frame = renderer
             .render_catalog_scene(&catalog, "retirement_demo", 1.25, RenderResolution::new(192, 128))
             .expect("demo scene should render");
@@ -462,5 +846,17 @@ mod tests {
         assert!(frame.stats.triangles_submitted > 0);
         assert!(frame.stats.triangles_rasterized > 0);
         assert!(frame.stats.pixels_shaded > 0);
+    }
+
+    #[test]
+    fn black_hole_scene_renders_particles() {
+        let catalog = SceneCatalog::default();
+        let mut renderer = SoftwareRenderer::default();
+        let frame = renderer
+            .render_catalog_scene(&catalog, "kerr_black_hole", 2.0, RenderResolution::new(256, 160))
+            .expect("black hole scene should render");
+
+        assert!(frame.stats.particles_submitted > 0);
+        assert!(frame.stats.particles_shaded > 0);
     }
 }

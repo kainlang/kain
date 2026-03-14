@@ -9,14 +9,19 @@
 extern crate self as kain_host;
 
 use std::collections::{BTreeMap, HashMap};
+use std::fs;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
+pub use kain_core::ast::Program;
 pub use kain_core::error::KainError;
 pub use kain_core::runtime::{Env, NativeFn, Value};
 pub use kain_core::{CompileTarget, TypedProgram};
+pub use kain_reflect as reflect;
+pub use kain_reflect::{KainReflect, StaticTypeRef, TypeRegistry, TypeSchema};
 
 #[cfg(feature = "derive")]
-pub use kain_host_derive::{FromKainValue, ToKainValue};
+pub use kain_host_derive::{FromKainValue, KainReflect, ToKainValue};
 
 pub type HostResult<T> = Result<T, KainError>;
 
@@ -94,6 +99,93 @@ impl NativeFunction {
             func,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostPreludeConfig {
+    pub module_name: String,
+    pub auto_use_glob: bool,
+}
+
+impl Default for HostPreludeConfig {
+    fn default() -> Self {
+        Self {
+            module_name: "engine".to_string(),
+            auto_use_glob: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EngineModuleExportConfig {
+    pub output_dir: PathBuf,
+    pub module_name: String,
+    pub module_file_name: String,
+    pub import_shim_file_name: Option<String>,
+    pub include_banner: bool,
+}
+
+impl EngineModuleExportConfig {
+    pub fn for_module(module_name: impl Into<String>) -> Self {
+        let module_name = module_name.into();
+        Self {
+            output_dir: PathBuf::from("."),
+            module_file_name: format!("{module_name}.kn"),
+            import_shim_file_name: Some(format!("{module_name}_prelude.kn")),
+            module_name,
+            include_banner: true,
+        }
+    }
+
+    pub fn with_output_dir(mut self, output_dir: impl Into<PathBuf>) -> Self {
+        self.output_dir = output_dir.into();
+        self
+    }
+
+    pub fn with_module_file_name(mut self, file_name: impl Into<String>) -> Self {
+        self.module_file_name = file_name.into();
+        self
+    }
+
+    pub fn with_import_shim_file_name(mut self, file_name: impl Into<String>) -> Self {
+        self.import_shim_file_name = Some(file_name.into());
+        self
+    }
+
+    pub fn without_import_shim(mut self) -> Self {
+        self.import_shim_file_name = None;
+        self
+    }
+
+    pub fn with_banner(mut self, include_banner: bool) -> Self {
+        self.include_banner = include_banner;
+        self
+    }
+
+    pub fn module_path(&self) -> PathBuf {
+        self.output_dir.join(&self.module_file_name)
+    }
+
+    pub fn import_shim_path(&self) -> Option<PathBuf> {
+        self.import_shim_file_name
+            .as_ref()
+            .map(|file_name| self.output_dir.join(file_name))
+    }
+}
+
+impl Default for EngineModuleExportConfig {
+    fn default() -> Self {
+        Self::for_module("engine")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EngineModuleExport {
+    pub module_name: String,
+    pub module_path: PathBuf,
+    pub module_source: String,
+    pub import_shim_path: Option<PathBuf>,
+    pub import_shim_source: Option<String>,
 }
 
 pub mod bridge {
@@ -237,6 +329,12 @@ impl ToKainValue for u32 {
     }
 }
 
+impl ToKainValue for u64 {
+    fn to_kain_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+
 impl ToKainValue for u16 {
     fn to_kain_value(self) -> Value {
         Value::Int(self as i64)
@@ -244,6 +342,12 @@ impl ToKainValue for u16 {
 }
 
 impl ToKainValue for u8 {
+    fn to_kain_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+
+impl ToKainValue for usize {
     fn to_kain_value(self) -> Value {
         Value::Int(self as i64)
     }
@@ -356,6 +460,13 @@ impl FromKainValue for u32 {
     }
 }
 
+impl FromKainValue for u64 {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        let value = i64::from_kain_value(value)?;
+        u64::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into u64"))
+    }
+}
+
 impl FromKainValue for u16 {
     fn from_kain_value(value: Value) -> HostResult<Self> {
         let value = i64::from_kain_value(value)?;
@@ -367,6 +478,13 @@ impl FromKainValue for u8 {
     fn from_kain_value(value: Value) -> HostResult<Self> {
         let value = i64::from_kain_value(value)?;
         u8::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into u8"))
+    }
+}
+
+impl FromKainValue for usize {
+    fn from_kain_value(value: Value) -> HostResult<Self> {
+        let value = i64::from_kain_value(value)?;
+        usize::try_from(value).map_err(|_| KainError::runtime("Int value did not fit into usize"))
     }
 }
 
@@ -429,6 +547,8 @@ where
 pub struct HostSession {
     env: Env,
     native_functions: BTreeMap<String, NativeFunction>,
+    type_registry: TypeRegistry,
+    prelude_config: HostPreludeConfig,
 }
 
 impl HostSession {
@@ -436,6 +556,8 @@ impl HostSession {
         Self {
             env: Env::new(),
             native_functions: BTreeMap::new(),
+            type_registry: TypeRegistry::new(),
+            prelude_config: HostPreludeConfig::default(),
         }
     }
 
@@ -464,6 +586,134 @@ impl HostSession {
         self.register_native_function(NativeFunction::new(name, params, return_type, func))
     }
 
+    pub fn declare_native_fn(
+        &mut self,
+        name: impl Into<String>,
+        params: Vec<NativeParam>,
+        return_type: HostType,
+    ) -> &mut Self {
+        let native = NativeFunction::new(name, params, return_type, unresolved_native_stub);
+        self.native_functions.insert(native.name.clone(), native);
+        self
+    }
+
+    pub fn prelude_config(&self) -> &HostPreludeConfig {
+        &self.prelude_config
+    }
+
+    pub fn prelude_config_mut(&mut self) -> &mut HostPreludeConfig {
+        &mut self.prelude_config
+    }
+
+    pub fn set_prelude_module_name(&mut self, module_name: impl Into<String>) -> &mut Self {
+        self.prelude_config.module_name = module_name.into();
+        self
+    }
+
+    pub fn set_auto_use_prelude(&mut self, enabled: bool) -> &mut Self {
+        self.prelude_config.auto_use_glob = enabled;
+        self
+    }
+
+    pub fn type_registry(&self) -> &TypeRegistry {
+        &self.type_registry
+    }
+
+    pub fn type_registry_mut(&mut self) -> &mut TypeRegistry {
+        &mut self.type_registry
+    }
+
+    pub fn register_type<T>(&mut self) -> &mut Self
+    where
+        T: KainReflect,
+    {
+        self.type_registry.register::<T>();
+        self
+    }
+
+    pub fn register_schema(&mut self, schema: TypeSchema) -> &mut Self {
+        self.type_registry.register_schema(schema);
+        self
+    }
+
+    pub fn emit_type_prelude(&self) -> String {
+        self.type_registry.render_kain_prelude()
+    }
+
+    pub fn emit_engine_module_source(&self) -> String {
+        let mut body_sections = Vec::new();
+        let type_prelude = self.emit_type_prelude();
+        if !type_prelude.trim().is_empty() {
+            body_sections.push(type_prelude.trim().to_string());
+        }
+        let native_prelude = self.emit_native_prelude();
+        if !native_prelude.trim().is_empty() {
+            body_sections.push(native_prelude.trim().to_string());
+        }
+        if body_sections.is_empty() {
+            return String::new();
+        }
+
+        let mut output = body_sections.join("\n\n");
+        if !output.ends_with('\n') {
+            output.push('\n');
+        }
+        output
+    }
+
+    pub fn emit_engine_import_source(&self) -> String {
+        format!("use {}::*\n", self.prelude_config.module_name)
+    }
+
+    pub fn emit_engine_prelude(&self) -> String {
+        let module_source = self.emit_engine_module_source();
+        if module_source.trim().is_empty() {
+            return String::new();
+        }
+
+        let body = indent_block(module_source.trim_end(), 4);
+        let mut output = format!("mod {}:\n{}\n", self.prelude_config.module_name, body);
+        if self.prelude_config.auto_use_glob {
+            output.push_str(&self.emit_engine_import_source());
+        }
+        output
+    }
+
+    pub fn export_engine_module(
+        &self,
+        config: &EngineModuleExportConfig,
+    ) -> HostResult<EngineModuleExport> {
+        fs::create_dir_all(&config.output_dir).map_err(io_to_host_error)?;
+
+        let mut module_source = self.emit_engine_module_source();
+        if config.include_banner {
+            module_source = format!(
+                "# Generated by kain-host for module {}\n# Regenerate from Rust reflection/native registrations.\n\n{}",
+                config.module_name, module_source
+            );
+        }
+
+        let module_path = config.module_path();
+        fs::write(&module_path, &module_source).map_err(io_to_host_error)?;
+
+        let import_shim = config.import_shim_path().map(|path| {
+            let source = format!("use {}::*\n", config.module_name);
+            (path, source)
+        });
+
+        if let Some((path, source)) = &import_shim {
+            fs::write(path, source).map_err(io_to_host_error)?;
+        }
+
+        Ok(EngineModuleExport {
+            module_name: config.module_name.clone(),
+            module_path,
+            module_source,
+            import_shim_path: import_shim.as_ref().map(|(path, _)| path.clone()),
+            import_shim_source: import_shim.map(|(_, source)| source),
+        })
+    }
+
     pub fn set_global<V>(&mut self, name: impl Into<String>, value: V) -> &mut Self
     where
         V: ToKainValue,
@@ -473,12 +723,24 @@ impl HostSession {
     }
 
     pub fn compile_source(&self, source: &str) -> HostResult<TypedProgram> {
-        let augmented = if self.native_functions.is_empty() {
-            source.to_string()
-        } else {
-            format!("{}\n{}", self.emit_native_prelude(), source)
-        };
-        kain_driver::frontend_to_typed_program(&augmented, CompileTarget::Interpret)
+        Ok(self.compile_checked_source(source)?.typed)
+    }
+
+    pub fn compile_checked_source(&self, source: &str) -> HostResult<kain_driver::CheckedFrontend> {
+        let mut sections = Vec::new();
+        let engine_prelude = self.emit_engine_prelude();
+        if !engine_prelude.trim().is_empty() {
+            sections.push(engine_prelude);
+        }
+        sections.push(source.to_string());
+        let augmented = sections.join("\n");
+        kain_driver::frontend_to_checked_program(&augmented, CompileTarget::Interpret)
+    }
+
+    pub fn load_program(&mut self, program: &Program) -> HostResult<&mut Self> {
+        self.env.register_program_items(program)?;
+        self.rebind_natives();
+        Ok(self)
     }
 
     pub fn load_typed_program(&mut self, program: &TypedProgram) -> HostResult<&mut Self> {
@@ -488,8 +750,8 @@ impl HostSession {
     }
 
     pub fn load_source(&mut self, source: &str) -> HostResult<&mut Self> {
-        let program = self.compile_source(source)?;
-        self.load_typed_program(&program)
+        let checked = self.compile_checked_source(source)?;
+        self.load_program(&checked.ast)
     }
 
     pub fn run_main_value(&mut self) -> HostResult<Value> {
@@ -552,6 +814,31 @@ fn type_mismatch(expected: &str, value: &Value) -> KainError {
     KainError::runtime(format!("Expected {expected}, got {}", value_kind(value)))
 }
 
+fn indent_block(input: &str, spaces: usize) -> String {
+    let prefix = " ".repeat(spaces);
+    input
+        .lines()
+        .map(|line| {
+            if line.trim().is_empty() {
+                String::new()
+            } else {
+                format!("{prefix}{line}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn io_to_host_error(error: std::io::Error) -> KainError {
+    KainError::runtime(format!("I/O error: {error}"))
+}
+
+fn unresolved_native_stub(_env: &mut Env, _args: Vec<Value>) -> HostResult<Value> {
+    Err(KainError::runtime(
+        "Native function was declared for Kain export but not bound to a Rust implementation",
+    ))
+}
+
 fn value_kind(value: &Value) -> &'static str {
     match value {
         Value::Unit => "Unit",
@@ -582,6 +869,8 @@ fn value_kind(value: &Value) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::reflect::{TypeKind, TypeRef};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn host_double(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
         let value = match args.as_slice() {
@@ -636,5 +925,130 @@ fn run(value: Int) -> Int:
             .expect("call run");
 
         assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn reflected_type_prelude_is_generated() {
+        #[derive(Clone)]
+        struct LocalVec3;
+
+        impl KainReflect for LocalVec3 {
+            fn schema() -> TypeSchema {
+                TypeSchema::new(
+                    "Vec3",
+                    "LocalVec3",
+                    TypeKind::Struct {
+                        fields: vec![
+                            reflect::FieldSchema::new(
+                                "x",
+                                TypeRef::Primitive(reflect::PrimitiveType::Float),
+                            ),
+                            reflect::FieldSchema::new(
+                                "y",
+                                TypeRef::Primitive(reflect::PrimitiveType::Float),
+                            ),
+                        ],
+                    },
+                )
+            }
+        }
+
+        let mut host = HostSession::new();
+        host.register_type::<LocalVec3>();
+        let prelude = host.emit_type_prelude();
+
+        assert!(prelude.contains("struct Vec3:"));
+        assert!(prelude.contains("x: Float"));
+    }
+
+    #[test]
+    fn engine_prelude_wraps_declarations_in_module() {
+        #[derive(Clone)]
+        struct LocalId;
+
+        impl KainReflect for LocalId {
+            fn schema() -> TypeSchema {
+                TypeSchema::new(
+                    "EntityId",
+                    "LocalId",
+                    TypeKind::Transparent {
+                        inner: TypeRef::Primitive(reflect::PrimitiveType::Int),
+                    },
+                )
+            }
+        }
+
+        let mut host = HostSession::new();
+        host.register_type::<LocalId>();
+        host.register_native_fn(
+            "host_double",
+            vec![NativeParam::new("value", HostType::Int)],
+            HostType::Int,
+            host_double,
+        );
+
+        let prelude = host.emit_engine_prelude();
+        assert!(prelude.contains("mod engine:"));
+        assert!(prelude.contains("use engine::*"));
+        assert!(prelude.contains("type EntityId = Int"));
+        assert!(prelude.contains("fn host_double(value: Int) -> Int:"));
+    }
+
+    #[test]
+    fn engine_module_export_writes_physical_module_and_import_shim() {
+        #[derive(Clone)]
+        struct LocalVec3;
+
+        impl KainReflect for LocalVec3 {
+            fn schema() -> TypeSchema {
+                TypeSchema::new(
+                    "Vec3",
+                    "LocalVec3",
+                    TypeKind::Struct {
+                        fields: vec![
+                            reflect::FieldSchema::new(
+                                "x",
+                                TypeRef::Primitive(reflect::PrimitiveType::Float),
+                            ),
+                            reflect::FieldSchema::new(
+                                "y",
+                                TypeRef::Primitive(reflect::PrimitiveType::Float),
+                            ),
+                        ],
+                    },
+                )
+            }
+        }
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let export_dir = std::env::temp_dir().join(format!("kain_host_export_{unique}"));
+
+        let mut host = HostSession::new();
+        host.register_type::<LocalVec3>();
+        host.register_native_fn(
+            "host_double",
+            vec![NativeParam::new("value", HostType::Int)],
+            HostType::Int,
+            host_double,
+        );
+
+        let config = EngineModuleExportConfig::for_module("engine").with_output_dir(&export_dir);
+        let export = host
+            .export_engine_module(&config)
+            .expect("export engine module");
+
+        let module_text = std::fs::read_to_string(&export.module_path).expect("read module");
+        let shim_path = export.import_shim_path.clone().expect("import shim path");
+        let shim_text = std::fs::read_to_string(&shim_path).expect("read import shim");
+
+        assert!(module_text.contains("struct Vec3:"));
+        assert!(module_text.contains("fn host_double(value: Int) -> Int:"));
+        assert!(!module_text.contains("mod engine:"));
+        assert_eq!(shim_text, "use engine::*\n");
+
+        std::fs::remove_dir_all(export_dir).expect("cleanup export dir");
     }
 }

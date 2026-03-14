@@ -1,0 +1,1 @@
+{"rustc":2490638836439573635,"features":"[]","declared_features":"[]","target":8726396592336845528,"profile":8805429286780026797,"path":18137510062054635947,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug\\.fingerprint\\indoc-e6ac3cf005be7fdd\\dep-lib-indoc","checksum":false}}],"rustflags":["-C","link-arg=-fuse-ld=lld"],"config":2069994364910194474,"compile_kind":0}

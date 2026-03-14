@@ -6,16 +6,20 @@
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 /// Stable identifier for a node within a retained UI tree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct UiNodeId(pub u64);
 
 /// Stable identifier for a reactive signal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct UiSignalId(pub u64);
 
 /// Supported renderer families for KAIN UI.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum UiRendererKind {
     Native,
     Web,
@@ -24,7 +28,7 @@ pub enum UiRendererKind {
 }
 
 /// Declarative backend capability profile.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiBackendCapabilities {
     pub renderer: UiRendererKind,
     pub supports_real_windowing: bool,
@@ -88,7 +92,7 @@ pub fn backend_capabilities(renderer: UiRendererKind) -> &'static UiBackendCapab
 }
 
 /// Scalar runtime value used by UI props and patch payloads.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum UiValue {
     Null,
     Bool(bool),
@@ -137,7 +141,7 @@ impl From<f64> for UiValue {
 }
 
 /// Semantic widgets the runtime understands before lowering to any host API.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UiWidgetKind {
     Element(String),
     ComponentRef(String),
@@ -155,7 +159,7 @@ pub enum UiWidgetKind {
 }
 
 /// Core layout strategies supported by the semantic UI graph.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UiLayoutKind {
     Flow,
     FlexRow,
@@ -168,7 +172,7 @@ pub enum UiLayoutKind {
 
 /// Semantic layout specification. Values remain data so backends can map them
 /// to the host layout engine without changing authoring semantics.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiLayoutSpec {
     pub kind: UiLayoutKind,
     pub gap: f32,
@@ -191,7 +195,7 @@ impl Default for UiLayoutSpec {
 
 /// Named semantic widgets that map authoring tags into explicit runtime
 /// widget kinds without baking the mapping into renderer code.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UiSemanticWidget {
     Panel,
     Inspector,
@@ -206,7 +210,7 @@ pub enum UiSemanticWidget {
 }
 
 /// Declarative tag-to-widget mapping for semantic authoring tags.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiSemanticTagProfile {
     pub tag: &'static str,
     pub widget: UiSemanticWidget,
@@ -304,14 +308,14 @@ pub fn default_layout_for_tag(tag: &str) -> UiLayoutSpec {
 
 /// Style tokens and literal overrides. Higher-level styling should compile
 /// into this shape rather than coupling authoring to a specific renderer.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiStyleSpec {
     pub tokens: Vec<String>,
     pub values: BTreeMap<String, UiValue>,
 }
 
 /// Declarative node in the retained semantic tree.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiNode {
     pub id: UiNodeId,
     pub kind: UiWidgetKind,
@@ -338,7 +342,7 @@ impl UiNode {
 
 /// Retained tree state. The runtime owns this graph and emits patches when it
 /// changes instead of rebuilding a fresh virtual tree every update.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiTree {
     pub root: Option<UiNodeId>,
     pub nodes: BTreeMap<UiNodeId, UiNode>,
@@ -360,7 +364,7 @@ impl UiTree {
 
 /// Patch stream emitted by the UI runtime. Backends consume these commands and
 /// translate them into minimal host updates.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum UiPatch {
     SetRoot {
         id: UiNodeId,
@@ -401,7 +405,7 @@ pub enum UiPatch {
 
 /// Build result used when lowering authoring/runtime structures into a
 /// retained `UiTree`.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiBuildOutput {
     pub tree: UiTree,
     pub patches: Vec<UiPatch>,

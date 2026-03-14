@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 
+use kain_core::ast::Program;
 use kain_core::error::KainError;
 use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::{
@@ -140,6 +141,12 @@ pub struct GpuArtifactOutput {
     pub reflection_json: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct CheckedFrontend {
+    pub ast: Program,
+    pub typed: TypedProgram,
+}
+
 #[cfg(feature = "sys")]
 #[derive(Debug, Clone)]
 pub struct RustBundleOutput {
@@ -161,11 +168,11 @@ impl DriverSession {
         self.ue5_metadata_dir = Some(path.into());
     }
 
-    pub fn frontend_to_monomorphized_program(
+    pub fn frontend_to_checked_program(
         &self,
         source: &str,
         target: CompileTarget,
-    ) -> Result<MonomorphizedProgram, KainError> {
+    ) -> Result<CheckedFrontend, KainError> {
         let stdlib_source = stdlib::load_stdlib_for_target(target);
         let full_source = format!("{stdlib_source}\n{source}");
 
@@ -173,8 +180,17 @@ impl DriverSession {
         let span_mapper = diagnostics::SpanMapper::new(&full_source);
         let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
         comptime::eval_program(&mut ast)?;
-        let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
-        monomorphize::monomorphize(&typed_ast)
+        let typed = types::check(&ast, &span_mapper, "<input>")?;
+        Ok(CheckedFrontend { ast, typed })
+    }
+
+    pub fn frontend_to_monomorphized_program(
+        &self,
+        source: &str,
+        target: CompileTarget,
+    ) -> Result<MonomorphizedProgram, KainError> {
+        let checked = self.frontend_to_checked_program(source, target)?;
+        monomorphize::monomorphize(&checked.typed)
     }
 
     pub fn frontend_to_typed_program(
@@ -182,10 +198,7 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<TypedProgram, KainError> {
-        let mono_ast = self.frontend_to_monomorphized_program(source, target)?;
-        Ok(TypedProgram {
-            items: mono_ast.items,
-        })
+        Ok(self.frontend_to_checked_program(source, target)?.typed)
     }
 
     pub fn compile(&self, source: &str, target: CompileTarget) -> Result<String, KainError> {
@@ -518,6 +531,13 @@ pub fn frontend_to_monomorphized_program(
     target: CompileTarget,
 ) -> Result<MonomorphizedProgram, KainError> {
     DriverSession::default().frontend_to_monomorphized_program(source, target)
+}
+
+pub fn frontend_to_checked_program(
+    source: &str,
+    target: CompileTarget,
+) -> Result<CheckedFrontend, KainError> {
+    DriverSession::default().frontend_to_checked_program(source, target)
 }
 
 pub fn frontend_to_typed_program(

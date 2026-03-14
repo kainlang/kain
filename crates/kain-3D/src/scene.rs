@@ -14,6 +14,26 @@ pub struct Camera {
     pub far_plane: f32,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct CameraPose {
+    pub position: Vec3,
+    pub target: Vec3,
+    pub up: Vec3,
+    pub fov_y_degrees: f32,
+    pub near_plane: f32,
+    pub far_plane: f32,
+}
+
+impl CameraPose {
+    pub fn forward(&self) -> Vec3 {
+        (self.target - self.position).normalize()
+    }
+
+    pub fn right(&self) -> Vec3 {
+        self.forward().cross(self.up).normalize()
+    }
+}
+
 impl Camera {
     pub fn position_at(&self, time_seconds: f32) -> Vec3 {
         let angle = time_seconds * self.orbit_speed_radians_per_second;
@@ -22,6 +42,17 @@ impl Camera {
             self.target.y + self.orbit_height,
             self.target.z + angle.sin() * self.orbit_radius,
         )
+    }
+
+    pub fn pose_at(&self, time_seconds: f32) -> CameraPose {
+        CameraPose {
+            position: self.position_at(time_seconds),
+            target: self.target,
+            up: self.up,
+            fov_y_degrees: self.fov_y_degrees,
+            near_plane: self.near_plane,
+            far_plane: self.far_plane,
+        }
     }
 }
 
@@ -98,6 +129,47 @@ pub enum SceneAnimation {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ParticleEmitter {
+    pub id: String,
+    pub center: Vec3,
+    pub axis: Vec3,
+    pub radial_range: [f32; 2],
+    pub vertical_range: [f32; 2],
+    pub particle_size_range: [f32; 2],
+    pub particle_count: usize,
+    pub orbit_radians_per_second: f32,
+    pub swirl: f32,
+    pub drift: Vec3,
+    pub color_start: ColorRgb,
+    pub color_end: ColorRgb,
+    pub emissive_strength: f32,
+    pub softness: f32,
+    pub depth_test: bool,
+}
+
+impl ParticleEmitter {
+    pub fn axis_or_up(&self) -> Vec3 {
+        let axis = self.axis.normalize();
+        if axis.length() <= f32::EPSILON {
+            Vec3::UP
+        } else {
+            axis
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlackHole {
+    pub center: Vec3,
+    pub radius: f32,
+    pub lens_radius: f32,
+    pub spin_axis: Vec3,
+    pub inner_color: ColorRgb,
+    pub lens_color: ColorRgb,
+    pub disk_color: ColorRgb,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct SceneDescription {
     pub name: String,
     pub background: BackgroundGradient,
@@ -107,6 +179,8 @@ pub struct SceneDescription {
     pub materials: BTreeMap<String, Material>,
     pub instances: Vec<SceneInstance>,
     pub animations: Vec<SceneAnimation>,
+    pub particle_emitters: Vec<ParticleEmitter>,
+    pub black_hole: Option<BlackHole>,
 }
 
 impl SceneDescription {
@@ -151,11 +225,13 @@ pub struct SceneCatalog {
 impl Default for SceneCatalog {
     fn default() -> Self {
         let retirement_demo = build_retirement_demo_scene();
+        let kerr_black_hole = build_kerr_black_hole_scene();
         let mut scenes = BTreeMap::new();
         scenes.insert(retirement_demo.name.clone(), retirement_demo);
+        scenes.insert(kerr_black_hole.name.clone(), kerr_black_hole);
 
         Self {
-            default_scene: "retirement_demo".to_string(),
+            default_scene: "kerr_black_hole".to_string(),
             scenes,
         }
     }
@@ -163,7 +239,9 @@ impl Default for SceneCatalog {
 
 impl SceneCatalog {
     pub fn scene(&self, name: &str) -> Option<&SceneDescription> {
-        self.scenes.get(name).or_else(|| self.scenes.get(&self.default_scene))
+        self.scenes
+            .get(name)
+            .or_else(|| self.scenes.get(&self.default_scene))
     }
 }
 
@@ -310,6 +388,159 @@ fn build_retirement_demo_scene() -> SceneDescription {
                 axis_radians_per_second: Vec3::new(0.0, 0.50, 0.0),
             },
         ],
+        particle_emitters: Vec::new(),
+        black_hole: None,
+    }
+}
+
+fn build_kerr_black_hole_scene() -> SceneDescription {
+    let spin_axis = Vec3::new(0.35, 1.0, 0.18).normalize();
+    SceneDescription {
+        name: "kerr_black_hole".to_string(),
+        background: BackgroundGradient {
+            top: ColorRgb::new(0.01, 0.02, 0.05),
+            bottom: ColorRgb::new(0.0, 0.0, 0.01),
+        },
+        camera: Camera {
+            target: Vec3::new(0.0, 0.2, 0.0),
+            up: Vec3::UP,
+            orbit_radius: 10.0,
+            orbit_height: 2.8,
+            orbit_speed_radians_per_second: 0.18,
+            fov_y_degrees: 58.0,
+            near_plane: 0.05,
+            far_plane: 220.0,
+        },
+        lighting: LightingRig {
+            ambient_color: ColorRgb::new(0.55, 0.58, 0.82),
+            ambient_intensity: 0.12,
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: Vec3::new(-0.15, -1.0, -0.35).normalize(),
+                    color: ColorRgb::new(0.28, 0.42, 0.95),
+                    intensity: 0.42,
+                },
+                DirectionalLight {
+                    direction: Vec3::new(0.45, -0.25, 0.05).normalize(),
+                    color: ColorRgb::new(0.98, 0.62, 0.20),
+                    intensity: 0.26,
+                },
+            ],
+            point_lights: vec![
+                PointLight {
+                    position: Vec3::new(2.5, 0.7, 0.0),
+                    color: ColorRgb::new(1.0, 0.62, 0.22),
+                    intensity: 1.85,
+                    range: 10.0,
+                },
+                PointLight {
+                    position: Vec3::new(-2.0, 1.3, -1.4),
+                    color: ColorRgb::new(0.48, 0.72, 1.0),
+                    intensity: 1.15,
+                    range: 12.0,
+                },
+            ],
+        },
+        meshes: BTreeMap::new(),
+        materials: BTreeMap::new(),
+        instances: Vec::new(),
+        animations: Vec::new(),
+        particle_emitters: vec![
+            ParticleEmitter {
+                id: "accretion_inner".to_string(),
+                center: Vec3::new(0.0, 0.0, 0.0),
+                axis: spin_axis,
+                radial_range: [1.55, 2.75],
+                vertical_range: [-0.18, 0.18],
+                particle_size_range: [0.10, 0.28],
+                particle_count: 60,
+                orbit_radians_per_second: 1.90,
+                swirl: 0.55,
+                drift: Vec3::new(0.0, 0.16, 0.0),
+                color_start: ColorRgb::new(1.0, 0.62, 0.18),
+                color_end: ColorRgb::new(1.0, 0.92, 0.58),
+                emissive_strength: 0.78,
+                softness: 1.8,
+                depth_test: true,
+            },
+            ParticleEmitter {
+                id: "accretion_outer".to_string(),
+                center: Vec3::new(0.0, 0.0, 0.0),
+                axis: spin_axis,
+                radial_range: [2.6, 4.8],
+                vertical_range: [-0.34, 0.34],
+                particle_size_range: [0.08, 0.22],
+                particle_count: 72,
+                orbit_radians_per_second: 1.05,
+                swirl: 0.35,
+                drift: Vec3::new(0.0, 0.22, 0.0),
+                color_start: ColorRgb::new(0.34, 0.56, 1.0),
+                color_end: ColorRgb::new(1.0, 0.52, 0.15),
+                emissive_strength: 0.62,
+                softness: 2.0,
+                depth_test: true,
+            },
+            ParticleEmitter {
+                id: "north_jet".to_string(),
+                center: spin_axis * 0.9,
+                axis: spin_axis,
+                radial_range: [0.08, 0.46],
+                vertical_range: [-0.05, 0.05],
+                particle_size_range: [0.06, 0.18],
+                particle_count: 24,
+                orbit_radians_per_second: 3.5,
+                swirl: 0.90,
+                drift: spin_axis * 11.5,
+                color_start: ColorRgb::new(0.72, 0.88, 1.0),
+                color_end: ColorRgb::new(0.34, 0.72, 1.0),
+                emissive_strength: 0.85,
+                softness: 1.4,
+                depth_test: false,
+            },
+            ParticleEmitter {
+                id: "south_jet".to_string(),
+                center: spin_axis * -0.9,
+                axis: spin_axis,
+                radial_range: [0.08, 0.42],
+                vertical_range: [-0.05, 0.05],
+                particle_size_range: [0.06, 0.18],
+                particle_count: 24,
+                orbit_radians_per_second: -3.5,
+                swirl: 0.90,
+                drift: spin_axis * -11.5,
+                color_start: ColorRgb::new(0.55, 0.78, 1.0),
+                color_end: ColorRgb::new(0.92, 0.98, 1.0),
+                emissive_strength: 0.80,
+                softness: 1.35,
+                depth_test: false,
+            },
+            ParticleEmitter {
+                id: "star_halo".to_string(),
+                center: Vec3::new(0.0, 0.0, 0.0),
+                axis: Vec3::UP,
+                radial_range: [8.0, 18.0],
+                vertical_range: [-7.5, 7.5],
+                particle_size_range: [0.03, 0.10],
+                particle_count: 64,
+                orbit_radians_per_second: 0.08,
+                swirl: 0.05,
+                drift: Vec3::ZERO,
+                color_start: ColorRgb::new(0.55, 0.70, 1.0),
+                color_end: ColorRgb::new(1.0, 1.0, 1.0),
+                emissive_strength: 0.28,
+                softness: 1.1,
+                depth_test: false,
+            },
+        ],
+        black_hole: Some(BlackHole {
+            center: Vec3::ZERO,
+            radius: 1.28,
+            lens_radius: 2.15,
+            spin_axis,
+            inner_color: ColorRgb::new(0.01, 0.01, 0.02),
+            lens_color: ColorRgb::new(0.25, 0.55, 1.0),
+            disk_color: ColorRgb::new(1.0, 0.64, 0.18),
+        }),
     }
 }
 
@@ -408,4 +639,56 @@ fn mesh_pyramid() -> Mesh {
     triangles.push([base_index, base_index + 3, base_index + 2]);
 
     Mesh { vertices, triangles }
+}
+
+fn mesh_uv_sphere(latitude_segments: usize, longitude_segments: usize) -> Mesh {
+    let latitude_segments = latitude_segments.max(3);
+    let longitude_segments = longitude_segments.max(4);
+    let mut vertices = Vec::new();
+    let mut triangles = Vec::new();
+
+    for latitude in 0..=latitude_segments {
+        let v = latitude as f32 / latitude_segments as f32;
+        let phi = v * std::f32::consts::PI;
+        let y = phi.cos();
+        let ring_radius = phi.sin();
+        for longitude in 0..=longitude_segments {
+            let u = longitude as f32 / longitude_segments as f32;
+            let theta = u * std::f32::consts::TAU;
+            let normal = Vec3::new(theta.cos() * ring_radius, y, theta.sin() * ring_radius);
+            vertices.push(Vertex {
+                position: normal,
+                normal: normal.normalize(),
+            });
+        }
+    }
+
+    let stride = longitude_segments + 1;
+    for latitude in 0..latitude_segments {
+        for longitude in 0..longitude_segments {
+            let current = latitude * stride + longitude;
+            let next = current + stride;
+            triangles.push([current, next, current + 1]);
+            triangles.push([current + 1, next, next + 1]);
+        }
+    }
+
+    Mesh { vertices, triangles }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_catalog_contains_black_hole_scene() {
+        let catalog = SceneCatalog::default();
+        let scene = catalog
+            .scene("kerr_black_hole")
+            .expect("black hole scene should be registered");
+
+        assert_eq!(scene.name, "kerr_black_hole");
+        assert!(!scene.particle_emitters.is_empty());
+        assert!(scene.black_hole.is_some());
+    }
 }

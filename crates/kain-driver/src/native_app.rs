@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 use crate::{DriverSession, RustBundleOutput};
@@ -9,6 +9,10 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::{build_ui_output_from_source, Lexer, Parser};
 use kain_ui::UiBuildOutput;
+use serde::Serialize;
+
+const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
+const NATIVE_APP_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -76,6 +80,22 @@ pub struct NativeAppMaterializedPaths {
     pub executable_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Serialize)]
+struct NativeAppRuntimeBundleDocument<'a> {
+    schema_version: u32,
+    metadata: NativeAppRuntimeMetadataDocument<'a>,
+    output: &'a UiBuildOutput,
+}
+
+#[derive(Debug, Serialize)]
+struct NativeAppRuntimeMetadataDocument<'a> {
+    app_name: &'a str,
+    window_title: &'a str,
+    root_component: &'a str,
+    source_file_name: &'a str,
+    initial_window_size: [f32; 2],
+}
+
 impl DriverSession {
     pub fn compile_native_app_bundle(
         &self,
@@ -131,26 +151,6 @@ impl DriverSession {
         fs::write(&source_copy_path, source.as_bytes())
             .map_err(io_error("write embedded native app Kain source"))?;
 
-        let manifest_path = project_dir.join("Cargo.toml");
-        let manifest = render_manifest(
-            &bundle.metadata.app_name,
-            &config.runtime_crate_name,
-            &config.runtime_dependency,
-        );
-        fs::write(&manifest_path, manifest.as_bytes())
-            .map_err(io_error("write native app Cargo manifest"))?;
-
-        let main_rs_path = project_dir.join("src").join("main.rs");
-        let main_rs = render_main_rs(
-            &bundle.metadata.source_file_name,
-            &bundle.metadata.window_title,
-            &bundle.metadata.root_component,
-            bundle.metadata.initial_window_size,
-            &config.runtime_crate_name,
-        );
-        fs::write(&main_rs_path, main_rs.as_bytes())
-            .map_err(io_error("write native app entrypoint"))?;
-
         let artifact_root = if config.artifact_output_dir.is_absolute() {
             config.artifact_output_dir.clone()
         } else {
@@ -160,6 +160,12 @@ impl DriverSession {
             .map_err(io_error("create native app artifact directory"))?;
 
         let mut artifact_paths = Vec::new();
+        let runtime_bundle_path = artifact_root.join(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME);
+        let runtime_bundle_json = render_runtime_bundle_json(bundle)?;
+        fs::write(&runtime_bundle_path, runtime_bundle_json.as_bytes())
+            .map_err(io_error("write native app runtime bundle"))?;
+        artifact_paths.push(runtime_bundle_path.clone());
+
         let primary_path = artifact_root.join(&bundle.rust.bundle.primary.suggested_file_name);
         fs::write(
             &primary_path,
@@ -180,6 +186,25 @@ impl DriverSession {
             fs::write(&spirv_path, spirv).map_err(io_error("write native app SPIR-V artifact"))?;
             artifact_paths.push(spirv_path);
         }
+
+        let manifest_path = project_dir.join("Cargo.toml");
+        let manifest = render_manifest(
+            &bundle.metadata.app_name,
+            &config.runtime_crate_name,
+            &config.runtime_dependency,
+        );
+        fs::write(&manifest_path, manifest.as_bytes())
+            .map_err(io_error("write native app Cargo manifest"))?;
+
+        let main_rs_path = project_dir.join("src").join("main.rs");
+        let runtime_bundle_include_path = relative_path_from_directory(
+            main_rs_path.parent().unwrap_or(project_dir),
+            &runtime_bundle_path,
+        )
+        .unwrap_or_else(|| runtime_bundle_path.clone());
+        let main_rs = render_main_rs(&runtime_bundle_include_path, &config.runtime_crate_name);
+        fs::write(&main_rs_path, main_rs.as_bytes())
+            .map_err(io_error("write native app entrypoint"))?;
 
         let executable_path = if config.build_executable {
             Some(build_native_app_executable(
@@ -275,21 +300,13 @@ fn render_manifest(
     )
 }
 
-fn render_main_rs(
-    source_file_name: &str,
-    window_title: &str,
-    root_component: &str,
-    initial_window_size: [f32; 2],
-    runtime_crate_name: &str,
-) -> String {
-    let source_file_name = rust_string_literal(&format!("../{source_file_name}"));
-    let window_title = rust_string_literal(window_title);
-    let root_component = rust_string_literal(root_component);
+fn render_main_rs(runtime_bundle_include_path: &Path, runtime_crate_name: &str) -> String {
+    let runtime_bundle_include_path =
+        rust_string_literal(&path_for_toml(runtime_bundle_include_path));
     let runtime_module_name = runtime_crate_name.replace('-', "_");
 
     format!(
-        "use {runtime_module_name}::{{run_app, KainUiNativeAppConfig}};\n\nconst KAIN_SOURCE: &str = include_str!({source_file_name});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_app(KainUiNativeAppConfig {{\n        window_title: {window_title}.to_string(),\n        root_component: {root_component}.to_string(),\n        source: KAIN_SOURCE.to_string(),\n        initial_window_size: [{:?}, {:?}],\n    }})\n}}\n",
-        initial_window_size[0], initial_window_size[1]
+        "#![cfg_attr(target_os = \"windows\", windows_subsystem = \"windows\")]\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
 }
 
@@ -421,6 +438,74 @@ fn rust_string_literal(value: &str) -> String {
     format!("{value:?}")
 }
 
+fn render_runtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
+    let document = NativeAppRuntimeBundleDocument {
+        schema_version: NATIVE_APP_RUNTIME_BUNDLE_SCHEMA_VERSION,
+        metadata: NativeAppRuntimeMetadataDocument {
+            app_name: &bundle.metadata.app_name,
+            window_title: &bundle.metadata.window_title,
+            root_component: &bundle.metadata.root_component,
+            source_file_name: &bundle.metadata.source_file_name,
+            initial_window_size: bundle.metadata.initial_window_size,
+        },
+        output: &bundle.ui,
+    };
+
+    serde_json::to_string_pretty(&document).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to serialize native app runtime bundle for {}: {err}",
+            bundle.metadata.app_name
+        ))
+    })
+}
+
+fn relative_path_from_directory(from_dir: &Path, to_path: &Path) -> Option<PathBuf> {
+    let from_components: Vec<_> = from_dir.components().collect();
+    let to_components: Vec<_> = to_path.components().collect();
+
+    if from_components.is_empty() || to_components.is_empty() {
+        return None;
+    }
+
+    if !components_share_prefix(&from_components, &to_components) {
+        return None;
+    }
+
+    let shared_prefix_len = from_components
+        .iter()
+        .zip(&to_components)
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let mut relative = PathBuf::new();
+    for _ in shared_prefix_len..from_components.len() {
+        relative.push("..");
+    }
+    for component in &to_components[shared_prefix_len..] {
+        relative.push(component.as_os_str());
+    }
+
+    if relative.as_os_str().is_empty() {
+        None
+    } else {
+        Some(relative)
+    }
+}
+
+fn components_share_prefix(left: &[Component<'_>], right: &[Component<'_>]) -> bool {
+    match (left.first(), right.first()) {
+        (Some(Component::Prefix(left_prefix)), Some(Component::Prefix(right_prefix))) => {
+            left_prefix.kind() == right_prefix.kind()
+        }
+        (Some(Component::RootDir), Some(Component::RootDir)) => true,
+        (Some(Component::Normal(left_normal)), Some(Component::Normal(right_normal))) => {
+            left_normal == right_normal
+        }
+        (Some(Component::CurDir), Some(Component::CurDir)) => true,
+        _ => false,
+    }
+}
+
 fn path_for_toml(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
@@ -517,6 +602,10 @@ component App():
         let manifest = fs::read_to_string(&materialized.manifest_path).expect("manifest");
         assert!(manifest.contains("kain-ui-native"));
         let main_rs = fs::read_to_string(&materialized.main_rs_path).expect("main.rs");
-        assert!(main_rs.contains("root_component: \"App\""));
+        assert!(main_rs.contains("run_bundled_app_json"));
+        assert!(materialized
+            .artifact_paths
+            .iter()
+            .any(|path| path.ends_with(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME)));
     }
 }

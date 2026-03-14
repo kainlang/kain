@@ -19,6 +19,7 @@
         └── 📂 src
         └── 📂 tests
     └── 📂 kain-3D
+        └── 📂 src
     └── 📂 kain-asm
         └── 📂 generated
         └── 📂 Research
@@ -29,6 +30,8 @@
                 └── 📂 furby_6502
                 └── 📂 gameboy_lr35902
                 └── 📂 z80
+    └── 📂 kain-build
+        └── 📂 src
     └── 📂 kain-core
         └── 📂 src
         └── 📂 tests
@@ -36,6 +39,9 @@
     └── 📂 kain-driver
         └── 📂 src
     └── 📂 kain-host
+        └── 📂 src
+        └── 📂 tests
+    └── 📂 kain-host-derive
         └── 📂 src
     └── 📂 kain-import
         └── 📂 src
@@ -49,6 +55,10 @@
             └── 📂 abi_corpus
                 └── 📂 fixtures
     └── 📂 kain-omni
+        └── 📂 src
+    └── 📂 kain-reflect
+        └── 📂 src
+    └── 📂 kain-sdk
         └── 📂 src
     └── 📂 kain-selfhost
         └── 📂 src
