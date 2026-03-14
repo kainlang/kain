@@ -294,6 +294,7 @@ impl RustTypeMapper {
                 .iter()
                 .filter_map(|arg| match arg {
                     syn::GenericArgument::Type(ty) => Some(self.map_type(ty)),
+                    syn::GenericArgument::Lifetime(lt) => Some(named(&lt.ident.to_string())),
                     _ => None,
                 })
                 .collect(),
@@ -320,7 +321,11 @@ impl RustTypeMapper {
                     bounds: Vec::new(),
                     span: S,
                 }),
-                syn::GenericParam::Lifetime(_) => None, // lifetimes erased
+                syn::GenericParam::Lifetime(lt) => Some(kain_core::ast::Generic {
+                    name: lt.lifetime.ident.to_string(),
+                    bounds: Vec::new(),
+                    span: S,
+                }),
             })
             .collect()
     }

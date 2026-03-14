@@ -1,0 +1,20 @@
+name = "kain-native-runtime"
+sources = [
+    "native/src/core/kain_runtime_core.c",
+    "native/src/asset/kain_asset_gltf.c",
+    "native/src/gfx/opengl/kain_gl_win32_host.c",
+    "native/src/platform/win32/kain_win32_app_host.c",
+    "native/src/platform/win32/kain_win32_input_host.c",
+    "native/src/platform/win32/kain_runtime_win32_shared.c",
+    "native/src/ui/kain_ui_compiled_bundle.c",
+    "native/src/ui/kain_ui_compiled_overlay.c",
+    "native/src/ui/kain_ui_overlay.c",
+    "native/src/platform/win32/kain_runtime_viewport_win32.c",
+    "native/src/platform/win32/kain_runtime_sculpt_win32.c",
+]
+include_dirs = ["native/include"]
+
+[link]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32"]
+linux = []
+macos = []

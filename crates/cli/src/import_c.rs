@@ -1127,6 +1127,9 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         }
         kain_core::ast::Expr::Try(value, _) => format!("({}?)", expr_to_string(value)),
         kain_core::ast::Expr::Await(value, _) => format!("(await {})", expr_to_string(value)),
+        kain_core::ast::Expr::AsyncBlock(value, _) => {
+            format!("(async {})", expr_to_string(value))
+        }
         kain_core::ast::Expr::Spawn { actor, init, .. } => {
             let args = init
                 .iter()

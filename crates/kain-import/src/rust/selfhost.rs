@@ -6,7 +6,7 @@
 use super::{parser, RustTransformer};
 use crate::common::language_schema::KainLanguageSchema;
 use crate::{ImportError, Result};
-use kain_core::ast::Program;
+use kain_core::ast::{Item, Mod, Program, Visibility};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -131,7 +131,7 @@ pub fn import_rust_selfhost_dir_detailed(
     options: &RustSelfHostOptions,
 ) -> Result<RustSelfHostImportResult> {
     let graph = RustCrateGraph::discover(crate_root, options)?;
-    let mut all_items = Vec::new();
+    let mut module_programs = Vec::new();
     let mut diagnostics = Vec::new();
 
     for module in &graph.modules {
@@ -144,14 +144,11 @@ pub fn import_rust_selfhost_dir_detailed(
                 .into_iter()
                 .filter(|diag| !is_allowed_diagnostic(diag, options)),
         );
-        all_items.extend(program.items);
+        module_programs.push((module.clone(), program));
     }
 
     Ok(RustSelfHostImportResult {
-        program: Program {
-            items: all_items,
-            span: kain_core::span::Span::default(),
-        },
+        program: build_selfhost_program(crate_root, &module_programs),
         rejected: !diagnostics.is_empty(),
         diagnostics,
         graph,
@@ -286,6 +283,79 @@ fn collect_modules_from_spec(
         collect_modules(crate_root, crate_root, options, modules, entry_points)?;
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct SelfHostModuleTree {
+    items: Vec<Item>,
+    children: BTreeMap<String, SelfHostModuleTree>,
+}
+
+fn build_selfhost_program(
+    crate_root: &Path,
+    module_programs: &[(RustModuleNode, Program)],
+) -> Program {
+    let mut root = SelfHostModuleTree::default();
+
+    for (module, program) in module_programs {
+        let path = module_path_segments(crate_root, &module.file_path);
+        insert_module_items(&mut root, &path, program.items.clone());
+    }
+
+    Program {
+        items: module_tree_into_items(root),
+        span: kain_core::span::Span::default(),
+    }
+}
+
+fn module_path_segments(crate_root: &Path, file_path: &Path) -> Vec<String> {
+    let preferred_root = crate_root.join("src");
+    let relative = file_path
+        .strip_prefix(&preferred_root)
+        .or_else(|_| file_path.strip_prefix(crate_root))
+        .unwrap_or(file_path);
+    let mut segments = relative
+        .iter()
+        .filter_map(|part| part.to_str())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    if let Some(last) = segments.last_mut() {
+        match last.as_str() {
+            "lib.rs" | "main.rs" | "mod.rs" => {
+                segments.pop();
+            }
+            _ if last.ends_with(".rs") => {
+                *last = last.trim_end_matches(".rs").to_string();
+            }
+            _ => {}
+        }
+    }
+
+    segments
+}
+
+fn insert_module_items(tree: &mut SelfHostModuleTree, path: &[String], items: Vec<Item>) {
+    if path.is_empty() {
+        tree.items.extend(items);
+        return;
+    }
+
+    let child = tree.children.entry(path[0].clone()).or_default();
+    insert_module_items(child, &path[1..], items);
+}
+
+fn module_tree_into_items(tree: SelfHostModuleTree) -> Vec<Item> {
+    let mut items = tree.items;
+    for (name, child) in tree.children {
+        items.push(Item::Mod(Mod {
+            name,
+            inline: Some(module_tree_into_items(child)),
+            visibility: Visibility::Public,
+            span: kain_core::span::Span::default(),
+        }));
+    }
+    items
 }
 
 fn module_name_for(root: &Path, file: &Path) -> String {

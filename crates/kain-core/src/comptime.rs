@@ -101,6 +101,7 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
             eval_expr_in_place(env, pointer)?;
             eval_expr_in_place(env, value)?;
         }
+        Expr::AsyncBlock(body, _) => eval_expr_in_place(env, body)?,
         Expr::SizeOfType { .. }
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }

@@ -639,9 +639,12 @@ fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, ResolvedType>) {
             substitute_expr(object, mapping);
             substitute_expr(index, mapping);
         }
-        Expr::Struct { fields, .. } => {
+        Expr::Struct { fields, rest, .. } => {
             for (_, v) in fields {
                 substitute_expr(v, mapping);
+            }
+            if let Some(rest) = rest {
+                substitute_expr(rest, mapping);
             }
         }
         Expr::Array(items, _) => {
@@ -696,7 +699,7 @@ fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, ResolvedType>) {
             }
             substitute_expr(body, mapping);
         }
-        Expr::Await(inner, _) => {
+        Expr::Await(inner, _) | Expr::AsyncBlock(inner, _) => {
             substitute_expr(inner, mapping);
         }
         _ => {}
@@ -1030,6 +1033,7 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
     let body_expr = Expr::Struct {
         name: state_machine_name.clone(),
         fields: init_fields,
+        rest: None,
         span: func.ast.span,
     };
 
@@ -1142,7 +1146,7 @@ fn rewrite_expr(expr: &mut Expr, fields: &HashMap<String, ResolvedType>) {
             }
         }
         Expr::Field { object, .. } => rewrite_expr(object, fields),
-        Expr::Await(inner, _) => rewrite_expr(inner, fields),
+        Expr::Await(inner, _) | Expr::AsyncBlock(inner, _) => rewrite_expr(inner, fields),
         Expr::Block(b, _) => rewrite_access_to_self(b, fields),
         // Add other recursive cases...
         _ => {}
@@ -1240,6 +1244,7 @@ fn collect_awaits_from_expr(expr: &Expr, points: &mut Vec<AwaitPoint>) {
                 index: points.len(),
             });
         }
+        Expr::AsyncBlock(inner, _) => collect_awaits_from_expr(inner, points),
         Expr::Binary { left, right, .. } => {
             collect_awaits_from_expr(left, points);
             collect_awaits_from_expr(right, points);
@@ -1742,12 +1747,17 @@ fn scan_expr(
                 }
             }
         }
-        Expr::Struct { name, fields, .. } => {
+        Expr::Struct {
+            name, fields, rest, ..
+        } => {
             // Scan field values first to get their types
             let mut field_types = HashMap::new();
             for (field_name, val) in fields {
                 let val_ty = scan_expr(ctx, env, val)?;
                 field_types.insert(field_name.clone(), val_ty);
+            }
+            if let Some(rest) = rest {
+                let _ = scan_expr(ctx, env, rest)?;
             }
 
             // Check if this struct is generic and needs instantiation

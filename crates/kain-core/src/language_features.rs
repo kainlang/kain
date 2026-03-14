@@ -31,7 +31,7 @@ pub struct CapabilitySpec {
 pub const LANGUAGE_CAPABILITY_SPECS: &[CapabilitySpec] = &[
     CapabilitySpec {
         capability: LanguageCapability::ParserStructLiterals,
-        enabled_by_default: false,
+        enabled_by_default: true,
         description: "Parser support for struct literal syntax: Type { field: value }",
     },
     CapabilitySpec {

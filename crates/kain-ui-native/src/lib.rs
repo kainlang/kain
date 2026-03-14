@@ -1,19 +1,31 @@
 use std::{
     collections::BTreeMap,
-    io::{Error as IoError, ErrorKind},
-    time::Instant,
+    fs::OpenOptions,
+    io::Write,
+    path::PathBuf,
+    time::{Duration, Instant},
 };
 
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use kain_3d::{
-    CameraPose, RenderResolution, RenderViewSettings, SceneCatalog, SceneDescription,
-    SoftwareRenderer, Vec3,
+    CameraPose, RenderResolution, RenderStats, RenderViewSettings, SceneCatalog, SoftwareRenderer,
+    Vec3,
 };
 use kain_core::{build_ui_output_from_source, render_ui_output_debug};
-use kain_ui::{UiBuildOutput, UiLayoutKind, UiNode, UiPatch, UiTree, UiValue, UiWidgetKind};
-use serde::{Deserialize, Serialize};
+use kain_ui::{
+    ui_runtime_bundle_from_json, ui_runtime_bundle_from_output, ui_runtime_bundle_to_json,
+    validate_ui_runtime_bundle, UiBuildOutput, UiLayoutKind, UiNode, UiPatch, UiRuntimeBundle,
+    UiRuntimeMetadata, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
+};
 
-pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = 1;
+pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = UI_RUNTIME_BUNDLE_SCHEMA_VERSION;
+pub type KainUiNativeRuntimeMetadata = UiRuntimeMetadata;
+pub type KainUiNativeRuntimeBundle = UiRuntimeBundle;
+
+const DEFAULT_REPAINT_INTERVAL_MS: u64 = 33;
+const DEFAULT_VIEWPORT_RENDER_INTERVAL_IDLE_MS: u64 = 180;
+const DEFAULT_VIEWPORT_RENDER_INTERVAL_INTERACTIVE_MS: u64 = 66;
+const DEFAULT_VIEWPORT_STARTUP_DELAY_MS: u64 = 350;
 
 pub const KAIN_UI_NATIVE_DEMO_SOURCE: &str = r#"
 component App():
@@ -31,7 +43,7 @@ component App():
         </panel>
         <graph title="Material Graph" />
         <timeline title="Sequencer" />
-        <viewport3d title="Kerr Singularity Viewport" scene="kerr_black_hole" />
+        <viewport3d title="Luminous Port Viewport" scene="luminous_port" />
     </panel>
 "#;
 
@@ -43,23 +55,132 @@ pub struct KainUiNativeAppConfig {
     pub initial_window_size: [f32; 2],
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct KainUiNativeRuntimeMetadata {
-    pub app_name: Option<String>,
-    pub window_title: String,
-    pub root_component: String,
-    pub source_file_name: Option<String>,
-    pub initial_window_size: [f32; 2],
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct KainUiNativeRuntimeBundle {
-    pub schema_version: u32,
-    pub metadata: KainUiNativeRuntimeMetadata,
-    pub output: UiBuildOutput,
-}
-
 pub type KainUiNativeDemoConfig = KainUiNativeAppConfig;
+
+fn trace_enabled() -> bool {
+    std::env::var("KAIN_UI_NATIVE_TRACE")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+fn trace_path() -> PathBuf {
+    std::env::temp_dir().join("kain-ui-native-trace.log")
+}
+
+fn trace_runtime(message: impl AsRef<str>) {
+    if !trace_enabled() {
+        return;
+    }
+
+    let line = format!("{}\n", message.as_ref());
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(trace_path())
+    {
+        let _ = file.write_all(line.as_bytes());
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeRendererPreference {
+    Glow,
+    Wgpu,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct KainUiNativeRuntimeSettings {
+    renderer: NativeRendererPreference,
+    show_runtime_inspector: bool,
+    enable_viewports: bool,
+    repaint_interval_ms: u64,
+    viewport_render_interval_idle_ms: u64,
+    viewport_render_interval_interactive_ms: u64,
+    viewport_startup_delay_ms: u64,
+}
+
+impl Default for KainUiNativeRuntimeSettings {
+    fn default() -> Self {
+        Self {
+            renderer: NativeRendererPreference::Glow,
+            show_runtime_inspector: true,
+            enable_viewports: true,
+            repaint_interval_ms: DEFAULT_REPAINT_INTERVAL_MS,
+            viewport_render_interval_idle_ms: DEFAULT_VIEWPORT_RENDER_INTERVAL_IDLE_MS,
+            viewport_render_interval_interactive_ms:
+                DEFAULT_VIEWPORT_RENDER_INTERVAL_INTERACTIVE_MS,
+            viewport_startup_delay_ms: DEFAULT_VIEWPORT_STARTUP_DELAY_MS,
+        }
+    }
+}
+
+impl KainUiNativeRuntimeSettings {
+    fn from_env() -> Self {
+        let mut settings = Self::default();
+        if let Some(renderer) = env_var_trimmed("KAIN_UI_NATIVE_RENDERER") {
+            settings.renderer = match renderer.to_ascii_lowercase().as_str() {
+                "wgpu" => NativeRendererPreference::Wgpu,
+                _ => NativeRendererPreference::Glow,
+            };
+        }
+        if let Some(value) = env_bool("KAIN_UI_NATIVE_SHOW_INSPECTOR") {
+            settings.show_runtime_inspector = value;
+        }
+        if let Some(value) = env_bool("KAIN_UI_NATIVE_ENABLE_VIEWPORTS") {
+            settings.enable_viewports = value;
+        }
+        if let Some(value) = env_u64("KAIN_UI_NATIVE_REPAINT_MS") {
+            settings.repaint_interval_ms = value.max(1);
+        }
+        if let Some(value) = env_u64("KAIN_UI_NATIVE_VIEWPORT_IDLE_MS") {
+            settings.viewport_render_interval_idle_ms = value.max(1);
+        }
+        if let Some(value) = env_u64("KAIN_UI_NATIVE_VIEWPORT_INTERACTIVE_MS") {
+            settings.viewport_render_interval_interactive_ms = value.max(1);
+        }
+        if let Some(value) = env_u64("KAIN_UI_NATIVE_VIEWPORT_STARTUP_MS") {
+            settings.viewport_startup_delay_ms = value;
+        }
+        settings
+    }
+
+    fn eframe_renderer(self) -> eframe::Renderer {
+        eframe::Renderer::Glow
+    }
+
+    fn renderer_label(self) -> &'static str {
+        match self.renderer {
+            NativeRendererPreference::Glow => "glow",
+            NativeRendererPreference::Wgpu => "wgpu-requested",
+        }
+    }
+
+    fn effective_renderer_label(self) -> &'static str {
+        match self.renderer {
+            NativeRendererPreference::Glow => "glow",
+            NativeRendererPreference::Wgpu => "glow-fallback",
+        }
+    }
+}
+
+fn env_var_trimmed(key: &str) -> Option<String> {
+    std::env::var(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn env_bool(key: &str) -> Option<bool> {
+    env_var_trimmed(key).and_then(|value| match value.to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    })
+}
+
+fn env_u64(key: &str) -> Option<u64> {
+    env_var_trimmed(key).and_then(|value| value.parse::<u64>().ok())
+}
 
 impl Default for KainUiNativeAppConfig {
     fn default() -> Self {
@@ -87,9 +208,8 @@ pub fn runtime_bundle_from_output(
     config: &KainUiNativeAppConfig,
     output: UiBuildOutput,
 ) -> KainUiNativeRuntimeBundle {
-    KainUiNativeRuntimeBundle {
-        schema_version: KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION,
-        metadata: KainUiNativeRuntimeMetadata {
+    ui_runtime_bundle_from_output(
+        KainUiNativeRuntimeMetadata {
             app_name: None,
             window_title: config.window_title.clone(),
             root_component: config.root_component.clone(),
@@ -97,19 +217,19 @@ pub fn runtime_bundle_from_output(
             initial_window_size: config.initial_window_size,
         },
         output,
-    }
+    )
 }
 
 pub fn runtime_bundle_to_json(
     bundle: &KainUiNativeRuntimeBundle,
 ) -> Result<String, serde_json::Error> {
-    serde_json::to_string_pretty(bundle)
+    ui_runtime_bundle_to_json(bundle)
 }
 
 pub fn runtime_bundle_from_json(
     json: &str,
 ) -> Result<KainUiNativeRuntimeBundle, serde_json::Error> {
-    serde_json::from_str(json)
+    ui_runtime_bundle_from_json(json)
 }
 
 pub fn build_demo_output(
@@ -148,24 +268,7 @@ pub fn run_demo(config: KainUiNativeDemoConfig) -> Result<(), Box<dyn std::error
 fn validate_runtime_bundle(
     bundle: &KainUiNativeRuntimeBundle,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if bundle.schema_version != KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION {
-        return Err(Box::new(IoError::new(
-            ErrorKind::InvalidData,
-            format!(
-                "Unsupported Kain UI native runtime bundle schema version {} (expected {})",
-                bundle.schema_version, KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION
-            ),
-        )));
-    }
-
-    if bundle.output.tree.root.is_none() {
-        return Err(Box::new(IoError::new(
-            ErrorKind::InvalidData,
-            "Compiled Kain UI runtime bundle did not contain a root node",
-        )));
-    }
-
-    Ok(())
+    validate_ui_runtime_bundle(bundle).map_err(|err| Box::new(err) as Box<dyn std::error::Error>)
 }
 
 fn run_output(
@@ -173,10 +276,21 @@ fn run_output(
     output: UiBuildOutput,
     boot_mode: AppBootMode,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let runtime_settings = KainUiNativeRuntimeSettings::from_env();
+    trace_runtime(format!(
+        "run_output: window_title={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={}",
+        config.window_title,
+        boot_mode.label(),
+        runtime_settings.renderer_label(),
+        runtime_settings.effective_renderer_label(),
+        runtime_settings.show_runtime_inspector,
+        runtime_settings.enable_viewports,
+    ));
     let window_title = config.window_title.clone();
     let initial_window_size = config.initial_window_size;
 
     let options = eframe::NativeOptions {
+        renderer: runtime_settings.eframe_renderer(),
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(initial_window_size)
             .with_min_inner_size([960.0, 640.0]),
@@ -187,10 +301,12 @@ fn run_output(
         &window_title,
         options,
         Box::new(move |_cc| {
+            trace_runtime("run_native: creation_context received");
             Ok(Box::new(KainUiNativeApp::new(
                 config.clone(),
                 output.clone(),
                 boot_mode,
+                runtime_settings,
             )))
         }),
     )?;
@@ -217,6 +333,8 @@ struct ViewportSurfaceState {
     texture: Option<egui::TextureHandle>,
     scene_name: String,
     controller: ViewportCameraController,
+    last_render_at: Option<Instant>,
+    last_stats: RenderStats,
 }
 
 struct ViewportCameraController {
@@ -224,6 +342,20 @@ struct ViewportCameraController {
     yaw: f32,
     pitch: f32,
     move_speed: f32,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ViewportInputSnapshot {
+    scroll_delta_y: f32,
+    pointer_delta: Vec2,
+    move_forward: bool,
+    move_backward: bool,
+    move_right: bool,
+    move_left: bool,
+    move_up: bool,
+    move_down: bool,
+    speed_boost: bool,
+    recenter: bool,
 }
 
 impl ViewportCameraController {
@@ -268,11 +400,13 @@ impl ViewportCameraController {
 
 struct KainUiNativeApp {
     config: KainUiNativeAppConfig,
+    runtime_settings: KainUiNativeRuntimeSettings,
     output: UiBuildOutput,
     debug_tree: String,
     scene_catalog: SceneCatalog,
     renderer: SoftwareRenderer,
     viewport_surfaces: BTreeMap<kain_ui::UiNodeId, ViewportSurfaceState>,
+    viewport_input: ViewportInputSnapshot,
     start_time: Instant,
     last_frame_instant: Instant,
     frame_dt_seconds: f32,
@@ -280,15 +414,32 @@ struct KainUiNativeApp {
 }
 
 impl KainUiNativeApp {
-    fn new(config: KainUiNativeAppConfig, output: UiBuildOutput, boot_mode: AppBootMode) -> Self {
+    fn new(
+        config: KainUiNativeAppConfig,
+        output: UiBuildOutput,
+        boot_mode: AppBootMode,
+        runtime_settings: KainUiNativeRuntimeSettings,
+    ) -> Self {
+        trace_runtime(format!(
+            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={}",
+            config.window_title,
+            config.root_component,
+            boot_mode.label(),
+            runtime_settings.renderer_label(),
+            runtime_settings.effective_renderer_label(),
+            runtime_settings.show_runtime_inspector,
+            runtime_settings.enable_viewports,
+        ));
         let debug_tree = render_ui_output_debug(&output);
         Self {
             config,
+            runtime_settings,
             output,
             debug_tree,
             scene_catalog: SceneCatalog::default(),
             renderer: SoftwareRenderer::default(),
             viewport_surfaces: BTreeMap::new(),
+            viewport_input: ViewportInputSnapshot::default(),
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
             frame_dt_seconds: 1.0 / 60.0,
@@ -299,6 +450,7 @@ impl KainUiNativeApp {
 
 impl eframe::App for KainUiNativeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        trace_runtime("app_update: begin");
         let frame_now = Instant::now();
         self.frame_dt_seconds = (frame_now - self.last_frame_instant)
             .as_secs_f32()
@@ -306,10 +458,14 @@ impl eframe::App for KainUiNativeApp {
         self.last_frame_instant = frame_now;
 
         apply_demo_visuals(ctx);
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(
+            self.runtime_settings.repaint_interval_ms,
+        ));
+        self.viewport_input = snapshot_viewport_input(ctx);
         self.viewport_surfaces
             .retain(|id, _| self.output.tree.nodes.contains_key(id));
 
+        trace_runtime("app_update: topbar");
         egui::TopBottomPanel::top("kain_ui_native_topbar")
             .resizable(false)
             .show(ctx, |ui| {
@@ -340,41 +496,46 @@ impl eframe::App for KainUiNativeApp {
                 });
             });
 
-        egui::SidePanel::right("kain_ui_native_inspector")
-            .default_width(360.0)
-            .show(ctx, |ui| {
-                ui.heading("Runtime Inspector");
-                ui.label("Retained semantic tree, emitted patch stream, and compiled viewport surfaces.");
-                ui.separator();
-                ui.label(
-                    RichText::new(format!("boot source: {}", self.boot_mode.label()))
-                        .monospace()
-                        .color(Color32::from_rgb(173, 216, 255)),
-                );
+        if self.runtime_settings.show_runtime_inspector {
+            trace_runtime("app_update: inspector");
+            egui::SidePanel::right("kain_ui_native_inspector")
+                .default_width(360.0)
+                .show(ctx, |ui| {
+                    ui.heading("Runtime Inspector");
+                    ui.label("Retained semantic tree, emitted patch stream, and compiled viewport surfaces.");
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!("boot source: {}", self.boot_mode.label()))
+                            .monospace()
+                            .color(Color32::from_rgb(173, 216, 255)),
+                    );
 
-                ui.collapsing("Semantic Tree", |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.code(&self.debug_tree);
+                    ui.collapsing("Semantic Tree", |ui| {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.code(&self.debug_tree);
+                        });
                     });
+
+                    ui.separator();
+                    ui.heading("Patch Stream");
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            for patch in &self.output.patches {
+                                ui.label(RichText::new(format!("{patch:?}")).monospace());
+                            }
+                        });
                 });
+        }
 
-                ui.separator();
-                ui.heading("Patch Stream");
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        for patch in &self.output.patches {
-                            ui.label(RichText::new(format!("{patch:?}")).monospace());
-                        }
-                    });
-            });
-
+        trace_runtime("app_update: central_panel");
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Some(root_id) = self.output.tree.root {
                 let tree = self.output.tree.clone();
                 render_node(self, ui, ctx, &tree, root_id);
             }
         });
+        trace_runtime("app_update: end");
     }
 }
 
@@ -569,9 +730,29 @@ fn render_viewport_surface(
             let scene_name = prop_text(node, "scene")
                 .unwrap_or(app.scene_catalog.default_scene.as_str())
                 .to_string();
+            trace_runtime(format!(
+                "viewport: enter node={} scene={} enabled={}",
+                node.id.0, scene_name, app.runtime_settings.enable_viewports
+            ));
+            if !app.runtime_settings.enable_viewports {
+                painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
+                painter.text(
+                    inner_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "viewport runtime disabled by KAIN_UI_NATIVE_ENABLE_VIEWPORTS=0",
+                    egui::FontId::proportional(15.0),
+                    Color32::from_rgb(246, 211, 101),
+                );
+                trace_runtime(format!("viewport: skipped node={}", node.id.0));
+                return;
+            }
             let elapsed_seconds = app.start_time.elapsed().as_secs_f32();
             let resolution = viewport_render_resolution(inner_rect.size());
-            let Some(scene) = app.scene_catalog.scene(&scene_name).cloned() else {
+            let Some((reference_pose, viewport_summary)) =
+                app.scene_catalog
+                    .scene(&scene_name)
+                    .map(|scene| (scene.camera.pose_at(0.0), scene.viewport_summary.clone()))
+            else {
                 painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
                 painter.text(
                     inner_rect.center(),
@@ -582,145 +763,201 @@ fn render_viewport_surface(
                 );
                 return;
             };
-
-            let reference_pose = scene.camera.pose_at(0.0);
-            let surface = app.viewport_surfaces.entry(node.id).or_insert_with(|| ViewportSurfaceState {
-                texture: None,
-                scene_name: scene_name.clone(),
-                controller: ViewportCameraController::from_pose(&reference_pose),
-            });
+            trace_runtime(format!("viewport: resolved scene node={}", node.id.0));
+            let surface =
+                app.viewport_surfaces
+                    .entry(node.id)
+                    .or_insert_with(|| ViewportSurfaceState {
+                        texture: None,
+                        scene_name: scene_name.clone(),
+                        controller: ViewportCameraController::from_pose(&reference_pose),
+                        last_render_at: None,
+                        last_stats: RenderStats::default(),
+                    });
+            trace_runtime(format!("viewport: state_ready node={}", node.id.0));
             if surface.scene_name != scene_name {
                 surface.scene_name = scene_name.clone();
                 surface.controller.recenter(&reference_pose);
+                surface.texture = None;
+                surface.last_render_at = None;
+                surface.last_stats = RenderStats::default();
             }
-            if response.clicked() {
-                response.request_focus();
-            }
-
-            sync_viewport_input(ctx, response, &scene, &mut surface.controller, app.frame_dt_seconds);
-            let view = RenderViewSettings {
-                camera: Some(surface.controller.pose(&reference_pose)),
+            sync_viewport_input(
+                &app.viewport_input,
+                response,
+                &reference_pose,
+                &mut surface.controller,
+                app.frame_dt_seconds,
+            );
+            let interactive = response.hovered() || response.dragged();
+            let render_interval = if interactive {
+                Duration::from_millis(app.runtime_settings.viewport_render_interval_interactive_ms)
+            } else {
+                Duration::from_millis(app.runtime_settings.viewport_render_interval_idle_ms)
             };
+            let should_render = elapsed_seconds
+                >= (app.runtime_settings.viewport_startup_delay_ms as f32 / 1000.0)
+                && (surface.texture.is_none()
+                    || surface
+                        .last_render_at
+                        .is_none_or(|instant| instant.elapsed() >= render_interval));
+            trace_runtime(format!(
+                "viewport: node={} interactive={} should_render={} elapsed_ms={:.0} resolution={}x{}",
+                node.id.0,
+                interactive,
+                should_render,
+                elapsed_seconds * 1000.0,
+                resolution.width,
+                resolution.height
+            ));
 
-            match app
-                .renderer
-                .render_scene_with_view(&scene, elapsed_seconds, resolution, &view)
-            {
-                Ok(frame) => {
-                    let image =
-                        egui::ColorImage::from_rgba_unmultiplied([frame.width, frame.height], &frame.rgba);
-                    let texture_name = format!("kain_viewport_surface_{}", node.id.0);
-                    let texture_id = {
+            if should_render {
+                let view = RenderViewSettings {
+                    camera: Some(surface.controller.pose(&reference_pose)),
+                };
+                let render_start = Instant::now();
+
+                match app.renderer.render_catalog_scene_with_view(
+                    &app.scene_catalog,
+                    &scene_name,
+                    elapsed_seconds,
+                    resolution,
+                    &view,
+                ) {
+                    Ok(frame) => {
+                        let image = egui::ColorImage::from_rgba_unmultiplied(
+                            [frame.width, frame.height],
+                            &frame.rgba,
+                        );
+                        let texture_name = format!("kain_viewport_surface_{}", node.id.0);
                         if let Some(texture) = surface.texture.as_mut() {
                             texture.set(image, egui::TextureOptions::LINEAR);
-                            texture.id()
                         } else {
-                            let texture =
-                                ctx.load_texture(texture_name, image, egui::TextureOptions::LINEAR);
-                            let texture_id = texture.id();
-                            surface.texture = Some(texture);
-                            texture_id
+                            surface.texture = Some(ctx.load_texture(
+                                texture_name,
+                                image,
+                                egui::TextureOptions::LINEAR,
+                            ));
                         }
-                    };
-
-                    painter.image(
-                        texture_id,
-                        inner_rect,
-                        egui::Rect::from_min_max(
-                            egui::pos2(0.0, 0.0),
-                            egui::pos2(1.0, 1.0),
-                        ),
-                        Color32::WHITE,
-                    );
-                    painter.rect_stroke(
-                        inner_rect,
-                        12.0,
-                        Stroke::new(1.0, Color32::from_rgb(76, 214, 255)),
-                        egui::StrokeKind::Inside,
-                    );
-
-                    let overlay_rect = egui::Rect::from_min_size(
-                        inner_rect.min + egui::vec2(12.0, 12.0),
-                        Vec2::new(320.0, 112.0),
-                    );
-                    painter.rect_filled(
-                        overlay_rect,
-                        8.0,
-                        Color32::from_rgba_unmultiplied(9, 13, 18, 210),
-                    );
-                    painter.text(
-                        overlay_rect.min + egui::vec2(10.0, 10.0),
-                        egui::Align2::LEFT_TOP,
-                        format!("scene: {scene_name}"),
-                        egui::FontId::monospace(13.0),
-                        Color32::from_rgb(246, 211, 101),
-                    );
-                    painter.text(
-                        overlay_rect.min + egui::vec2(10.0, 28.0),
-                        egui::Align2::LEFT_TOP,
-                        format!(
-                            "tris: {} submitted / {} lit / {} px",
-                            frame.stats.triangles_submitted,
-                            frame.stats.triangles_rasterized,
-                            frame.stats.pixels_shaded
-                        ),
-                        egui::FontId::monospace(12.0),
-                        Color32::from_rgb(173, 216, 255),
-                    );
-                    painter.text(
-                        overlay_rect.min + egui::vec2(10.0, 44.0),
-                        egui::Align2::LEFT_TOP,
-                        format!(
-                            "particles: {} submitted / {} blended",
-                            frame.stats.particles_submitted, frame.stats.particles_shaded
-                        ),
-                        egui::FontId::monospace(11.0),
-                        Color32::from_rgb(139, 214, 123),
-                    );
-                    let camera_position = surface.controller.position;
-                    painter.text(
-                        overlay_rect.min + egui::vec2(10.0, 61.0),
-                        egui::Align2::LEFT_TOP,
-                        format!(
-                            "cam: [{:.1}, {:.1}, {:.1}]  speed: {:.1}",
-                            camera_position.x,
-                            camera_position.y,
-                            camera_position.z,
-                            surface.controller.move_speed
-                        ),
-                        egui::FontId::monospace(11.0),
-                        Color32::from_rgb(173, 216, 255),
-                    );
-                    painter.text(
-                        overlay_rect.min + egui::vec2(10.0, 78.0),
-                        egui::Align2::LEFT_TOP,
-                        "native Kain viewport | roam: WASD + QE | drag: look | wheel: speed",
-                        egui::FontId::monospace(10.5),
-                        if response.has_focus() || response.hovered() {
-                            Color32::from_rgb(246, 211, 101)
-                        } else {
-                            Color32::from_rgb(145, 152, 167)
-                        },
-                    );
-                    painter.text(
-                        overlay_rect.min + egui::vec2(10.0, 94.0),
-                        egui::Align2::LEFT_TOP,
-                        "scene: Kerr black hole | accretion particles | frame dragging shell",
-                        egui::FontId::monospace(10.5),
-                        Color32::from_rgb(129, 198, 255),
-                    );
-                }
-                Err(err) => {
-                    painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
-                    painter.text(
-                        inner_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        format!("Viewport render failed:\n{err}"),
-                        egui::FontId::proportional(16.0),
-                        Color32::LIGHT_RED,
-                    );
+                        surface.last_stats = frame.stats;
+                        surface.last_render_at = Some(Instant::now());
+                        trace_runtime(format!(
+                            "viewport: rendered node={} ms={} tris={} particles={}",
+                            node.id.0,
+                            render_start.elapsed().as_millis(),
+                            surface.last_stats.triangles_submitted,
+                            surface.last_stats.particles_submitted
+                        ));
+                    }
+                    Err(err) => {
+                        trace_runtime(format!("viewport: failed node={} error={err}", node.id.0));
+                        painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
+                        painter.text(
+                            inner_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            format!("Viewport render failed:\n{err}"),
+                            egui::FontId::proportional(16.0),
+                            Color32::LIGHT_RED,
+                        );
+                        return;
+                    }
                 }
             }
+
+            if let Some(texture) = surface.texture.as_ref() {
+                painter.image(
+                    texture.id(),
+                    inner_rect,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            } else {
+                painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
+                painter.text(
+                    inner_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "warming native viewport...",
+                    egui::FontId::proportional(18.0),
+                    Color32::from_rgb(129, 198, 255),
+                );
+            }
+            painter.rect_stroke(
+                inner_rect,
+                12.0,
+                Stroke::new(1.0, Color32::from_rgb(76, 214, 255)),
+                egui::StrokeKind::Inside,
+            );
+
+            let overlay_rect = egui::Rect::from_min_size(
+                inner_rect.min + egui::vec2(12.0, 12.0),
+                Vec2::new(320.0, 112.0),
+            );
+            painter.rect_filled(
+                overlay_rect,
+                8.0,
+                Color32::from_rgba_unmultiplied(9, 13, 18, 210),
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 10.0),
+                egui::Align2::LEFT_TOP,
+                format!("scene: {scene_name}"),
+                egui::FontId::monospace(13.0),
+                Color32::from_rgb(246, 211, 101),
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 28.0),
+                egui::Align2::LEFT_TOP,
+                format!(
+                    "tris: {} submitted / {} lit / {} px",
+                    surface.last_stats.triangles_submitted,
+                    surface.last_stats.triangles_rasterized,
+                    surface.last_stats.pixels_shaded
+                ),
+                egui::FontId::monospace(12.0),
+                Color32::from_rgb(173, 216, 255),
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 44.0),
+                egui::Align2::LEFT_TOP,
+                format!(
+                    "particles: {} submitted / {} blended",
+                    surface.last_stats.particles_submitted, surface.last_stats.particles_shaded
+                ),
+                egui::FontId::monospace(11.0),
+                Color32::from_rgb(139, 214, 123),
+            );
+            let camera_position = surface.controller.position;
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 61.0),
+                egui::Align2::LEFT_TOP,
+                format!(
+                    "cam: [{:.1}, {:.1}, {:.1}]  speed: {:.1}",
+                    camera_position.x,
+                    camera_position.y,
+                    camera_position.z,
+                    surface.controller.move_speed
+                ),
+                egui::FontId::monospace(11.0),
+                Color32::from_rgb(173, 216, 255),
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 78.0),
+                egui::Align2::LEFT_TOP,
+                "native Kain viewport | roam: WASD + QE | drag: look | wheel: speed",
+                egui::FontId::monospace(10.5),
+                if response.has_focus() || response.hovered() {
+                    Color32::from_rgb(246, 211, 101)
+                } else {
+                    Color32::from_rgb(145, 152, 167)
+                },
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 94.0),
+                egui::Align2::LEFT_TOP,
+                viewport_summary.as_str(),
+                egui::FontId::monospace(10.5),
+                Color32::from_rgb(129, 198, 255),
+            );
         },
     );
 }
@@ -756,74 +993,86 @@ fn render_surface_frame(
         });
 }
 
+fn snapshot_viewport_input(ctx: &egui::Context) -> ViewportInputSnapshot {
+    ctx.input(|input| ViewportInputSnapshot {
+        scroll_delta_y: input.raw_scroll_delta.y,
+        pointer_delta: input.pointer.delta(),
+        move_forward: input.key_down(egui::Key::W),
+        move_backward: input.key_down(egui::Key::S),
+        move_right: input.key_down(egui::Key::D),
+        move_left: input.key_down(egui::Key::A),
+        move_up: input.key_down(egui::Key::Q),
+        move_down: input.key_down(egui::Key::E),
+        speed_boost: input.modifiers.shift,
+        recenter: input.key_pressed(egui::Key::Space),
+    })
+}
+
 fn sync_viewport_input(
-    ctx: &egui::Context,
+    input: &ViewportInputSnapshot,
     response: &egui::Response,
-    scene: &SceneDescription,
+    reference_pose: &CameraPose,
     controller: &mut ViewportCameraController,
     dt_seconds: f32,
 ) {
-    let reference_pose = scene.camera.pose_at(0.0);
-    ctx.input(|input| {
-        if response.hovered() && input.raw_scroll_delta.y.abs() > f32::EPSILON {
-            let speed_scale = (1.0 + input.raw_scroll_delta.y * 0.0015).clamp(0.5, 2.0);
-            controller.move_speed = (controller.move_speed * speed_scale).clamp(1.0, 42.0);
-        }
+    if response.hovered() && input.scroll_delta_y.abs() > f32::EPSILON {
+        let speed_scale = (1.0 + input.scroll_delta_y * 0.0015).clamp(0.5, 2.0);
+        controller.move_speed = (controller.move_speed * speed_scale).clamp(1.0, 42.0);
+    }
 
-        if response.dragged_by(egui::PointerButton::Primary) {
-            let delta = input.pointer.delta();
-            controller.yaw -= delta.x * 0.009;
-            controller.pitch = (controller.pitch - delta.y * 0.009).clamp(-1.45, 1.45);
-        }
+    if response.dragged_by(egui::PointerButton::Primary) {
+        let delta = input.pointer_delta;
+        controller.yaw -= delta.x * 0.009;
+        controller.pitch = (controller.pitch - delta.y * 0.009).clamp(-1.45, 1.45);
+    }
 
-        let accepts_movement = response.hovered() || response.has_focus() || response.dragged();
-        if !accepts_movement {
-            return;
-        }
+    let accepts_movement = response.hovered() || response.dragged();
+    if !accepts_movement {
+        return;
+    }
 
-        if input.key_pressed(egui::Key::Space) {
-            controller.recenter(&reference_pose);
-        }
+    if input.recenter {
+        controller.recenter(reference_pose);
+    }
 
-        let mut movement = Vec3::ZERO;
-        let forward = controller.forward();
-        let right = controller.right();
-        if input.key_down(egui::Key::W) {
-            movement += forward;
-        }
-        if input.key_down(egui::Key::S) {
-            movement += forward * -1.0;
-        }
-        if input.key_down(egui::Key::D) {
-            movement += right;
-        }
-        if input.key_down(egui::Key::A) {
-            movement += right * -1.0;
-        }
-        if input.key_down(egui::Key::Q) {
-            movement += Vec3::UP;
-        }
-        if input.key_down(egui::Key::E) {
-            movement += Vec3::UP * -1.0;
-        }
+    let mut movement = Vec3::ZERO;
+    let forward = controller.forward();
+    let right = controller.right();
+    if input.move_forward {
+        movement += forward;
+    }
+    if input.move_backward {
+        movement += forward * -1.0;
+    }
+    if input.move_right {
+        movement += right;
+    }
+    if input.move_left {
+        movement += right * -1.0;
+    }
+    if input.move_up {
+        movement += Vec3::UP;
+    }
+    if input.move_down {
+        movement += Vec3::UP * -1.0;
+    }
 
-        if movement.length() > f32::EPSILON {
-            let speed = if input.modifiers.shift {
-                controller.move_speed * 2.8
-            } else {
-                controller.move_speed
-            };
-            controller.position += movement.normalize() * dt_seconds * speed;
-        }
-    });
+    if movement.length() > f32::EPSILON {
+        let speed = if input.speed_boost {
+            controller.move_speed * 2.8
+        } else {
+            controller.move_speed
+        };
+        controller.position += movement.normalize() * dt_seconds * speed;
+    }
 }
 
 fn viewport_render_resolution(size: Vec2) -> RenderResolution {
     let width = size.x.max(32.0);
     let height = size.y.max(32.0);
     let dominant_axis = width.max(height);
-    let scale = if dominant_axis > 480.0 {
-        480.0 / dominant_axis
+    let scale = if dominant_axis > 240.0 {
+        240.0 / dominant_axis
     } else {
         1.0
     };

@@ -1,0 +1,53 @@
+fn pick_profile(city_extent: Float, wants_neon: Bool) -> String:
+    if wants_neon && city_extent >= 120.0:
+        return "luminous_port"
+    elif city_extent >= 92.0:
+        return "starforge"
+    else:
+        return "emberfall"
+
+fn particle_budget(city_extent: Float, move_speed: Float) -> Int:
+    let budget = 72 + round(city_extent * 0.58) + round(move_speed * 3.0)
+    if budget < 120:
+        return 120
+    elif budget > 260:
+        return 260
+    else:
+        return budget
+
+fn fog_density_for(wants_neon: Bool) -> Float:
+    if wants_neon:
+        return 0.0125
+    else:
+        return 0.0190
+
+fn configure_city_walkthrough() -> Int:
+    let city_extent = 132.0
+    let wants_neon = true
+    let profile = pick_profile(city_extent, wants_neon)
+    let move_speed = 8.4 + (city_extent / 54.0)
+    let sprint_multiplier = 1.85 + (city_extent / 320.0)
+    let jump_velocity = 6.2 + (city_extent / 95.0)
+    let fog_density = fog_density_for(wants_neon)
+    let particle_count = particle_budget(city_extent, move_speed)
+    let window_width = 1728
+    let window_height = 972
+
+    native_config_string("KAIN_NATIVE_SCENE_PROFILE", profile)
+    native_config_float("KAIN_NATIVE_WORLD_TARGET_EXTENT", city_extent)
+    native_config_float("KAIN_NATIVE_MOVE_SPEED", move_speed)
+    native_config_float("KAIN_NATIVE_SPRINT_MULTIPLIER", sprint_multiplier)
+    native_config_float("KAIN_NATIVE_JUMP_VELOCITY", jump_velocity)
+    native_config_float("KAIN_NATIVE_FOG_DENSITY", fog_density)
+    native_config_int("KAIN_NATIVE_PARTICLE_COUNT", particle_count)
+    native_config_int("KAIN_NATIVE_WINDOW_WIDTH", window_width)
+    native_config_int("KAIN_NATIVE_WINDOW_HEIGHT", window_height)
+    native_config_flag("KAIN_NATIVE_SHOW_HELP", 1)
+    native_config_flag("KAIN_NATIVE_CAPTURE_MOUSE", 1)
+    return 0
+
+fn main() -> Int:
+    println("Kain is driving the raw native world lab.")
+    let launch_configured = configure_city_walkthrough()
+    spawn_native_viewport(0.0, 0.0)
+    return launch_configured

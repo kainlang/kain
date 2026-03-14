@@ -15,6 +15,7 @@ pub mod import_c;
 pub mod import_rust;
 pub mod import_typescript;
 pub mod lsp;
+pub mod native_ui_build;
 pub mod omni;
 pub mod packager;
 pub mod rust_build;

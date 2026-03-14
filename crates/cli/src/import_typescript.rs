@@ -1059,6 +1059,9 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
         kain_core::ast::Expr::Await(value, _) => {
             format!("(await {})", expr_to_string_with_indent(value, indent))
         }
+        kain_core::ast::Expr::AsyncBlock(value, _) => {
+            format!("(async {})", expr_to_string_with_indent(value, indent))
+        }
         kain_core::ast::Expr::Try(value, _) => {
             format!("({}?)", expr_to_string_with_indent(value, indent))
         }

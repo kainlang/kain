@@ -217,29 +217,94 @@ fn test_struct_literal_brace_style() {
     let span_mapper = diagnostics::SpanMapper::new(source);
     let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
 
-    match parser.parse() {
-        Ok(_) => panic!("Expected parse error for struct literal but got success"),
-        Err(e) => {
-            let error_str = e.to_string();
-            println!("Error message: {}", error_str);
+    let program = parser.parse().unwrap();
+    let Item::Function(function) = &program.items[1] else {
+        panic!("Expected function item");
+    };
+    let Stmt::Let {
+        value: Some(expr), ..
+    } = &function.body.stmts[0]
+    else {
+        panic!("Expected let statement with initializer");
+    };
+    let Expr::Struct {
+        name,
+        fields,
+        rest,
+        ..
+    } = expr
+    else {
+        panic!("Expected struct literal expression");
+    };
+    assert_eq!(name, "Point");
+    assert_eq!(fields.len(), 2);
+    assert!(rest.is_none());
+    assert_eq!(fields[0].0, "x");
+    assert_eq!(fields[1].0, "y");
+}
 
-            // Should mention struct literals not supported
-            let lower = error_str.to_lowercase();
-            assert!(
-                lower.contains("struct")
-                    && (lower.contains("literal") || lower.contains("initialization")),
-                "Error should mention struct literals but got: {}",
-                error_str
-            );
+#[test]
+fn test_struct_literal_rest_and_ref_lifetimes() {
+    let source = "struct Point:\n    x: Float\n    y: Float\n\nfn clone_point(base: Point, view: &static Point, other: &mut arena Point):\n    let p = Point {\n        x: view.x,\n        ..base,\n    }\n    return other";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "example.kn");
 
-            // Should suggest field-by-field assignment
-            assert!(
-                lower.contains("field") || lower.contains("assignment"),
-                "Error should suggest field-by-field assignment but got: {}",
-                error_str
-            );
+    let program = parser.parse().unwrap();
+    let Item::Function(function) = &program.items[1] else {
+        panic!("Expected function item");
+    };
+
+    match &function.params[1].ty {
+        Type::Ref {
+            mutable,
+            lifetime,
+            inner,
+            ..
+        } => {
+            assert!(!mutable);
+            assert_eq!(lifetime.as_deref(), Some("static"));
+            assert!(matches!(inner.as_ref(), Type::Named { name, .. } if name == "Point"));
         }
+        other => panic!("Expected immutable ref type, got {other:?}"),
     }
+
+    match &function.params[2].ty {
+        Type::Ref {
+            mutable,
+            lifetime,
+            inner,
+            ..
+        } => {
+            assert!(*mutable);
+            assert_eq!(lifetime.as_deref(), Some("arena"));
+            assert!(matches!(inner.as_ref(), Type::Named { name, .. } if name == "Point"));
+        }
+        other => panic!("Expected mutable ref type, got {other:?}"),
+    }
+
+    let Stmt::Let {
+        value: Some(expr), ..
+    } = &function.body.stmts[0]
+    else {
+        panic!("Expected let statement with initializer");
+    };
+    let Expr::Struct {
+        name,
+        fields,
+        rest,
+        ..
+    } = expr
+    else {
+        panic!("Expected struct literal expression");
+    };
+    assert_eq!(name, "Point");
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].0, "x");
+    assert!(matches!(
+        rest.as_deref(),
+        Some(Expr::Ident(base, _)) if base == "base"
+    ));
 }
 
 #[test]

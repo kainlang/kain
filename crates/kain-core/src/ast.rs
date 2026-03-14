@@ -357,6 +357,7 @@ pub struct TraitMethod {
 pub struct Impl {
     pub generics: Vec<Generic>,
     pub trait_name: Option<String>,
+    pub trait_generics: Vec<Type>,
     pub target_type: Type,
     pub methods: Vec<Function>,
     pub span: Span,
@@ -663,6 +664,7 @@ pub enum Expr {
     Struct {
         name: String,
         fields: Vec<(String, Expr)>,
+        rest: Option<Box<Expr>>,
         span: Span,
     },
 
@@ -809,6 +811,9 @@ pub enum Expr {
     /// Await: `await expr`
     Await(Box<Expr>, Span),
 
+    /// Async expression: `async expr` or `async: <block>`
+    AsyncBlock(Box<Expr>, Span),
+
     /// Spawn actor: `spawn ActorName { state }`
     Spawn {
         actor: String,
@@ -889,6 +894,7 @@ impl Expr {
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
+            | Expr::AsyncBlock(_, s)
             | Expr::Spawn { span: s, .. }
             | Expr::SendMsg { span: s, .. }
             | Expr::Comptime(_, s)
@@ -1852,10 +1858,15 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             collect_type_names_from_expr(value, out);
             collect_type_names_from_type(target, out);
         }
-        Expr::Struct { name, fields, .. } => {
+        Expr::Struct {
+            name, fields, rest, ..
+        } => {
             out.insert(name.clone());
             for (_, field_expr) in fields {
                 collect_type_names_from_expr(field_expr, out);
+            }
+            if let Some(rest) = rest {
+                collect_type_names_from_expr(rest, out);
             }
         }
         Expr::AggregateInit { ty, fields, .. } => {
@@ -1997,6 +2008,7 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         Expr::Deref(inner, _)
         | Expr::Try(inner, _)
         | Expr::Await(inner, _)
+        | Expr::AsyncBlock(inner, _)
         | Expr::Comptime(inner, _)
         | Expr::Paren(inner, _) => {
             collect_type_names_from_expr(inner, out);

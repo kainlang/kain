@@ -85,6 +85,12 @@ pub struct RustTransformer {
     /// Local variable type map (for type-directed lowering when needed).
     local_types: Vec<HashMap<String, Type>>,
 
+    /// Scoped value substitutions used for lowered destructuring bindings.
+    value_substitutions: Vec<HashMap<String, Expr>>,
+
+    /// Monotonic counter for synthetic closure parameter names.
+    closure_param_counter: usize,
+
     /// Accumulated warnings / unsupported construct notes.
     pub diagnostics: Vec<String>,
 
@@ -116,9 +122,60 @@ impl RustTransformer {
             generics_in_scope: Vec::new(),
             current_function: None,
             local_types: vec![HashMap::new()],
+            value_substitutions: vec![HashMap::new()],
+            closure_param_counter: 0,
             diagnostics: Vec::new(),
             options,
         }
+    }
+
+    fn transform_attributes(&mut self, attrs: &[syn::Attribute]) -> Vec<Attribute> {
+        let mut lowered = Vec::new();
+        for attr in attrs {
+            let name = path_to_ident(attr.path());
+            let args = match &attr.meta {
+                syn::Meta::Path(_) => Vec::new(),
+                syn::Meta::List(_) => {
+                    let parsed = attr.parse_args_with(
+                        syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated,
+                    );
+                    match parsed {
+                        Ok(exprs) => exprs
+                            .iter()
+                            .filter_map(|expr| self.transform_attr_expr(expr).ok())
+                            .collect(),
+                        Err(err) => {
+                            self.note_lossy_class(
+                                "attribute_lowering",
+                                format!("attribute {} args skipped: {}", name, err),
+                            );
+                            Vec::new()
+                        }
+                    }
+                }
+                syn::Meta::NameValue(value) => {
+                    let target = Expr::Ident(path_to_ident(&value.path), S);
+                    let value = self
+                        .transform_attr_expr(&value.value)
+                        .unwrap_or_else(|_| Expr::None(S));
+                    vec![Expr::Assign {
+                        target: Box::new(target),
+                        value: Box::new(value),
+                        span: S,
+                    }]
+                }
+            };
+            lowered.push(Attribute {
+                name,
+                args,
+                span: S,
+            });
+        }
+        lowered
+    }
+
+    fn transform_attr_expr(&mut self, expr: &syn::Expr) -> Result<Expr> {
+        self.transform_expr(expr)
     }
 
     // ── Identifier helpers ────────────────────────────────────────────────
@@ -183,6 +240,163 @@ impl RustTransformer {
     fn define(&mut self, name: &str, ty: Type) {
         if let Some(scope) = self.local_types.last_mut() {
             scope.insert(name.to_string(), ty);
+        }
+    }
+
+    fn push_value_substitution_scope(&mut self) {
+        self.value_substitutions.push(HashMap::new());
+    }
+
+    fn pop_value_substitution_scope(&mut self) {
+        if self.value_substitutions.len() > 1 {
+            self.value_substitutions.pop();
+        }
+    }
+
+    fn add_value_substitution(&mut self, name: String, expr: Expr) {
+        if let Some(scope) = self.value_substitutions.last_mut() {
+            scope.insert(name, expr);
+        }
+    }
+
+    fn lookup_value_substitution(&self, path: &syn::Path) -> Option<Expr> {
+        if path.leading_colon.is_some() || path.segments.len() != 1 {
+            return None;
+        }
+        let name = path.segments.first()?.ident.to_string();
+        self.value_substitutions
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&name).cloned())
+    }
+
+    fn next_closure_param_name(&mut self) -> String {
+        let name = format!("__kain_closure_arg{}", self.closure_param_counter);
+        self.closure_param_counter += 1;
+        name
+    }
+
+    fn closure_param_can_bind_directly(&self, pat: &syn::Pat) -> bool {
+        match pat {
+            syn::Pat::Ident(_) | syn::Pat::Wild(_) => true,
+            syn::Pat::Paren(paren) => self.closure_param_can_bind_directly(&paren.pat),
+            syn::Pat::Type(typed) => self.closure_param_can_bind_directly(&typed.pat),
+            syn::Pat::Reference(_) => false,
+            _ => false,
+        }
+    }
+
+    fn tuple_binding_expr(&self, access: &Expr, index: usize) -> Expr {
+        Expr::Field {
+            object: Box::new(access.clone()),
+            field: format!("__kain_tuple_{index}"),
+            span: S,
+        }
+    }
+
+    fn register_pattern_substitutions(&mut self, pat: &syn::Pat, access: Expr) {
+        match pat {
+            syn::Pat::Ident(ident) => {
+                let name = ident.ident.to_string();
+                let bound = if ident.by_ref.is_some() {
+                    Expr::Ref {
+                        mutable: ident.mutability.is_some(),
+                        value: Box::new(access.clone()),
+                        span: S,
+                    }
+                } else {
+                    access.clone()
+                };
+                self.add_value_substitution(name, bound);
+                if let Some((_, subpat)) = &ident.subpat {
+                    self.register_pattern_substitutions(subpat, access);
+                }
+            }
+            syn::Pat::Paren(paren) => self.register_pattern_substitutions(&paren.pat, access),
+            syn::Pat::Type(typed) => self.register_pattern_substitutions(&typed.pat, access),
+            syn::Pat::Reference(reference) => {
+                self.register_pattern_substitutions(&reference.pat, Expr::Deref(Box::new(access), S));
+            }
+            syn::Pat::Tuple(tuple) => {
+                for (index, element) in tuple.elems.iter().enumerate() {
+                    self.register_pattern_substitutions(
+                        element,
+                        self.tuple_binding_expr(&access, index),
+                    );
+                }
+            }
+            syn::Pat::TupleStruct(tuple_struct) => {
+                for (index, element) in tuple_struct.elems.iter().enumerate() {
+                    self.register_pattern_substitutions(
+                        element,
+                        Expr::Field {
+                            object: Box::new(access.clone()),
+                            field: format!("field_{index}"),
+                            span: S,
+                        },
+                    );
+                }
+            }
+            syn::Pat::Struct(struct_pat) => {
+                for field in &struct_pat.fields {
+                    let field_name = self.rename_field(&member_name(&field.member));
+                    self.register_pattern_substitutions(
+                        &field.pat,
+                        Expr::Field {
+                            object: Box::new(access.clone()),
+                            field: field_name,
+                            span: S,
+                        },
+                    );
+                }
+            }
+            syn::Pat::Slice(slice) => {
+                for (index, element) in slice.elems.iter().enumerate() {
+                    self.register_pattern_substitutions(
+                        element,
+                        Expr::Index {
+                            object: Box::new(access.clone()),
+                            index: Box::new(Expr::Int(index as i64, S)),
+                            span: S,
+                        },
+                    );
+                }
+            }
+            syn::Pat::Wild(_)
+            | syn::Pat::Lit(_)
+            | syn::Pat::Path(_)
+            | syn::Pat::Range(_)
+            | syn::Pat::Rest(_) => {}
+            _ => {
+                self.note_lossy_class(
+                    "closure_pattern_lowering",
+                    "unsupported closure pattern binding lowered lossy".to_string(),
+                );
+            }
+        }
+    }
+
+    fn build_closure_param(&mut self, pat: &syn::Pat) -> Param {
+        let ty = self.type_from_local_pat(pat).unwrap_or(Type::Infer(S));
+        if self.closure_param_can_bind_directly(pat) {
+            let (name, mutable) = self.local_pat_name(pat);
+            return Param {
+                name,
+                ty,
+                mutable,
+                default: None,
+                span: S,
+            };
+        }
+
+        let name = self.next_closure_param_name();
+        self.register_pattern_substitutions(pat, Expr::Ident(name.clone(), S));
+        Param {
+            name,
+            ty,
+            mutable: false,
+            default: None,
+            span: S,
         }
     }
 
@@ -254,8 +468,9 @@ impl RustTransformer {
                 self.note_lossy(format!("trait alias {} skipped", t.ident));
                 Ok(vec![])
             }
+            syn::Item::ExternCrate(_) => Ok(vec![]),
             // Macro rules / foreign items → skip
-            syn::Item::Macro(_) | syn::Item::ExternCrate(_) | syn::Item::ForeignMod(_) => {
+            syn::Item::Macro(_) | syn::Item::ForeignMod(_) => {
                 self.note_lossy("macro/extern/foreign item skipped".to_string());
                 Ok(vec![])
             }
@@ -342,7 +557,7 @@ impl RustTransformer {
             return_type,
             body,
             effects,
-            attributes: Vec::new(),
+            attributes: self.transform_attributes(&f.attrs),
             visibility: visibility(&f.vis),
             span: S,
         }])
@@ -384,12 +599,12 @@ impl RustTransformer {
                     });
                 }
                 syn::FnArg::Typed(pt) => {
-                    let name = self.pattern_to_name(&pt.pat);
+                    let (name, mutable) = self.local_pat_name(&pt.pat);
                     let ty = self.map_type_checked(&pt.ty);
                     params.push(Param {
                         name,
                         ty,
-                        mutable: false,
+                        mutable,
                         default: None,
                         span: S,
                     });
@@ -542,7 +757,7 @@ impl RustTransformer {
                     Field {
                         name: field_name,
                         ty,
-                        attributes: Vec::new(),
+                        attributes: self.transform_attributes(&f.attrs),
                         visibility: visibility(&f.vis),
                         default: None,
                         weak: false,
@@ -559,7 +774,7 @@ impl RustTransformer {
                     Field {
                         name: format!("field_{}", i),
                         ty,
-                        attributes: Vec::new(),
+                        attributes: self.transform_attributes(&f.attrs),
                         visibility: visibility(&f.vis),
                         default: None,
                         weak: false,
@@ -575,7 +790,7 @@ impl RustTransformer {
             generics,
             fields,
             methods: Vec::new(),
-            attributes: Vec::new(),
+            attributes: self.transform_attributes(&s.attrs),
             visibility: visibility(&s.vis),
             span: S,
         })
@@ -658,12 +873,16 @@ impl RustTransformer {
         }
 
         // `impl Trait for Type` → note the trait, still emit the methods
-        let trait_name = i.trait_.as_ref().map(|(_, path, _)| {
-            path.segments
-                .last()
-                .map(|s| s.ident.to_string())
-                .unwrap_or_default()
-        });
+        let trait_name = i
+            .trait_
+            .as_ref()
+            .map(|(_, path, _)| self.resolve_type_path(path));
+        let trait_generics = i
+            .trait_
+            .as_ref()
+            .and_then(|(_, path, _)| path.segments.last())
+            .map(|segment| self.type_mapper.generic_args(&segment.arguments))
+            .unwrap_or_default();
 
         let mut methods = Vec::new();
         for item in &i.items {
@@ -714,7 +933,7 @@ impl RustTransformer {
                         return_type,
                         body,
                         effects,
-                        attributes: Vec::new(),
+                        attributes: self.transform_attributes(&method.attrs),
                         visibility: visibility(&method.vis),
                         span: S,
                     });
@@ -756,6 +975,7 @@ impl RustTransformer {
             generics,
             target_type,
             trait_name,
+            trait_generics,
             methods,
             span: S,
         })
@@ -827,7 +1047,7 @@ impl RustTransformer {
         match stmt {
             // `let x = expr;`  /  `let x: T = expr;`
             syn::Stmt::Local(local) => {
-                let (name, mutable) = self.local_pat_name(&local.pat);
+                let pattern = self.transform_pattern(&local.pat);
                 let ty = self.type_from_local_pat(&local.pat);
                 let (ty_ann, value) = if let Some(init) = &local.init {
                     let ty_from_pat = self.type_from_local_pat(&local.pat);
@@ -837,15 +1057,11 @@ impl RustTransformer {
                     (None, None)
                 };
                 let ty_ann = ty.or(ty_ann);
-                if let Some(ty_ann) = &ty_ann {
-                    self.define(&name, ty_ann.clone());
+                if let (Some(ty_ann), Pattern::Binding { name, .. }) = (&ty_ann, &pattern) {
+                    self.define(name, ty_ann.clone());
                 }
                 Ok(vec![Stmt::Let {
-                    pattern: Pattern::Binding {
-                        name,
-                        mutable,
-                        span: S,
-                    },
+                    pattern,
                     ty: ty_ann,
                     value,
                     span: S,
@@ -966,6 +1182,9 @@ impl RustTransformer {
 
             // ── Identifiers ───────────────────────────────────────────────
             syn::Expr::Path(p) => {
+                if let Some(expr) = self.lookup_value_substitution(&p.path) {
+                    return Ok(expr);
+                }
                 let name = self.resolve_value_path(&p.path);
                 Ok(Expr::Ident(name, S))
             }
@@ -1092,9 +1311,15 @@ impl RustTransformer {
                         Ok((field_name, val))
                     })
                     .collect::<Result<Vec<_>>>()?;
+                let rest = s
+                    .rest
+                    .as_ref()
+                    .map(|expr| self.transform_expr(expr).map(Box::new))
+                    .transpose()?;
                 Ok(Expr::Struct {
                     name,
                     fields,
+                    rest,
                     span: S,
                 })
             }
@@ -1119,7 +1344,13 @@ impl RustTransformer {
             // ── Tuple ─────────────────────────────────────────────────────
             syn::Expr::Tuple(t) => {
                 if t.elems.is_empty() {
-                    return Ok(Expr::None(S)); // () → None (unit)
+                    return Ok(Expr::Block(
+                        Block {
+                            stmts: vec![],
+                            span: S,
+                        },
+                        S,
+                    ));
                 }
                 let items = t
                     .elems
@@ -1131,25 +1362,21 @@ impl RustTransformer {
 
             // ── Closure / lambda ──────────────────────────────────────────
             syn::Expr::Closure(cl) => {
-                let params = cl
-                    .inputs
-                    .iter()
-                    .map(|p| {
-                        let name = self.pattern_to_name(p);
-                        Param {
-                            name,
-                            ty: Type::Infer(S),
-                            mutable: false,
-                            default: None,
-                            span: S,
-                        }
-                    })
-                    .collect();
+                self.push_scope();
+                self.push_value_substitution_scope();
+                let mut params = Vec::with_capacity(cl.inputs.len());
+                for pat in &cl.inputs {
+                    let param = self.build_closure_param(pat);
+                    self.define(&param.name, param.ty.clone());
+                    params.push(param);
+                }
                 let return_type = match &cl.output {
                     syn::ReturnType::Default => None,
                     syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
                 };
                 let body = self.transform_expr(&cl.body)?;
+                self.pop_value_substitution_scope();
+                self.pop_scope();
                 Ok(Expr::Lambda {
                     params,
                     return_type,
@@ -1239,6 +1466,12 @@ impl RustTransformer {
             syn::Expr::Await(a) => {
                 let inner = self.transform_expr(&a.base)?;
                 Ok(Expr::Await(Box::new(inner), S))
+            }
+
+            // ── async block ───────────────────────────────────────────────
+            syn::Expr::Async(a) => {
+                let block = self.transform_block(&a.block)?;
+                Ok(Expr::AsyncBlock(Box::new(Expr::Block(block, S)), S))
             }
 
             // ── Cast: `expr as T` ─────────────────────────────────────────
@@ -2283,6 +2516,26 @@ const S: Span = Span { start: 0, end: 0 };
 fn visibility(vis: &syn::Visibility) -> Visibility {
     match vis {
         syn::Visibility::Public(_) => Visibility::Public,
+        syn::Visibility::Restricted(restricted) => {
+            if restricted.in_token.is_none() {
+                match &*restricted.path {
+                    syn::Path {
+                        leading_colon: None,
+                        segments,
+                    } if segments.len() == 1 => {
+                        let segment = segments.first().map(|value| value.ident.to_string());
+                        match segment.as_deref() {
+                            Some("crate") => Visibility::Crate,
+                            Some("super") => Visibility::Super,
+                            _ => Visibility::Private,
+                        }
+                    }
+                    _ => Visibility::Private,
+                }
+            } else {
+                Visibility::Private
+            }
+        }
         _ => Visibility::Private,
     }
 }
@@ -2753,7 +3006,7 @@ mod tests {
     }
 
     #[test]
-    fn records_unsupported_expr_lowering_class_marker() {
+    fn lowers_async_blocks_without_strict_diagnostics() {
         let (_program, diagnostics) = transform_with_diagnostics(
             r#"
             fn demo() {
@@ -2762,9 +3015,221 @@ mod tests {
             "#,
         );
 
-        assert!(diagnostics
+        assert!(!diagnostics
             .iter()
             .any(|diag| diag.contains("class:unsupported_expr_lowering")));
+    }
+
+    #[test]
+    fn lowers_async_move_blocks_without_strict_diagnostics() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo() {
+                let _value = async move { 41 };
+            }
+            "#,
+        );
+
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:unsupported_expr_lowering")));
+    }
+
+    #[test]
+    fn preserves_tuple_destructured_closure_bindings() {
+        let program = transform_source(
+            r#"
+            fn demo() {
+                let pair = |(left, right)| left + right;
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            value: Some(Expr::Lambda { params, body, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected lambda");
+        };
+
+        assert_eq!(params.len(), 1);
+        assert!(params[0].name.starts_with("__kain_closure_arg"));
+        assert!(matches!(
+            body.as_ref(),
+            Expr::Binary { left, op: BinaryOp::Add, right, .. }
+                if matches!(
+                    left.as_ref(),
+                    Expr::Field { field, .. } if field == "__kain_tuple_0"
+                )
+                && matches!(
+                    right.as_ref(),
+                    Expr::Field { field, .. } if field == "__kain_tuple_1"
+                )
+        ));
+    }
+
+    #[test]
+    fn preserves_struct_destructured_closure_bindings() {
+        let program = transform_source(
+            r#"
+            struct Pair { left: i32, right: i32 }
+
+            fn demo() {
+                let pair = |Pair { left, right }| left + right;
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[1] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            value: Some(Expr::Lambda { params, body, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected lambda");
+        };
+
+        assert_eq!(params.len(), 1);
+        assert!(params[0].name.starts_with("__kain_closure_arg"));
+        assert!(matches!(
+            body.as_ref(),
+            Expr::Binary { left, op: BinaryOp::Add, right, .. }
+                if matches!(left.as_ref(), Expr::Field { field, .. } if field == "left")
+                && matches!(right.as_ref(), Expr::Field { field, .. } if field == "right")
+        ));
+    }
+
+    #[test]
+    fn preserves_lifetime_generics_in_imported_types() {
+        let program = transform_source(
+            r#"
+            pub struct SourceLocation<'a> {
+                file: &'a str,
+            }
+
+            fn span_to_location<'a>(file: &'a str) -> SourceLocation<'a> {
+                SourceLocation { file }
+            }
+            "#,
+        );
+
+        let Item::Struct(struct_def) = &program.items[0] else {
+            panic!("expected struct");
+        };
+        assert!(matches!(
+            struct_def.generics.as_slice(),
+            [Generic { name, .. }] if name == "a"
+        ));
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        assert!(matches!(
+            function.generics.as_slice(),
+            [Generic { name, .. }] if name == "a"
+        ));
+        assert!(matches!(
+            function.return_type.as_ref(),
+            Some(Type::Named { name, generics, .. })
+                if name == "SourceLocation"
+                    && matches!(
+                        generics.as_slice(),
+                        [Type::Named { name, generics, .. }]
+                            if name == "a" && generics.is_empty()
+                    )
+        ));
+    }
+
+    #[test]
+    fn preserves_tuple_destructured_local_bindings() {
+        let program = transform_source(
+            r#"
+            fn demo(pair: (i32, i32)) {
+                let (left, right) = pair;
+                let sum = left + right;
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            pattern: Pattern::Tuple(patterns, _),
+            value: Some(Expr::Ident(name, _)),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected tuple destructuring let");
+        };
+
+        assert_eq!(name, "pair");
+        assert!(matches!(
+            patterns.as_slice(),
+            [
+                Pattern::Binding { name: left, .. },
+                Pattern::Binding { name: right, .. }
+            ] if left == "left" && right == "right"
+        ));
+    }
+
+    #[test]
+    fn lowers_unit_tuple_literal_to_empty_block_expr() {
+        let program = transform_source(
+            r#"
+            fn demo() {
+                let value = ();
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            value: Some(Expr::Block(block, _)),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected unit tuple to lower to empty block");
+        };
+
+        assert!(block.stmts.is_empty());
+    }
+
+    #[test]
+    fn preserves_restricted_visibility_markers() {
+        let program = transform_source(
+            r#"
+            pub(crate) fn crate_visible() {}
+            pub(super) fn super_visible() {}
+            "#,
+        );
+
+        assert!(matches!(
+            &program.items[0],
+            Item::Function(Function {
+                visibility: Visibility::Crate,
+                ..
+            })
+        ));
+        assert!(matches!(
+            &program.items[1],
+            Item::Function(Function {
+                visibility: Visibility::Super,
+                ..
+            })
+        ));
     }
 
     #[test]

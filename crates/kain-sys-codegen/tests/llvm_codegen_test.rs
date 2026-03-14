@@ -180,6 +180,7 @@ fn llvm_generates_struct_array_and_fstring_paths() {
                                 "value".to_string(),
                                 Expr::Ident("n".to_string(), span()),
                             )],
+                            rest: None,
                             span: span(),
                         }),
                         span: span(),
@@ -294,6 +295,7 @@ fn llvm_generates_impl_methods_and_method_calls() {
         ast: Impl {
             generics: vec![],
             trait_name: None,
+            trait_generics: vec![],
             target_type: Type::Named {
                 name: "ViewModel".to_string(),
                 generics: vec![],
@@ -913,6 +915,7 @@ fn llvm_generates_struct_destructuring_patterns() {
                                 ("x".to_string(), Expr::Int(4, span())),
                                 ("y".to_string(), Expr::Int(5, span())),
                             ],
+                            rest: None,
                             span: span(),
                         }),
                         span: span(),

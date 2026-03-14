@@ -6,6 +6,7 @@ use cli::import_c;
 use cli::import_rust;
 use cli::import_typescript;
 use cli::lsp;
+use cli::native_ui_build;
 use cli::omni;
 use cli::packager;
 use cli::rust_build;
@@ -15,11 +16,46 @@ use cli::{
     BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER,
     BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
+use serde::Deserialize;
+use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+
+#[derive(Debug, Default, Deserialize)]
+struct NativeRuntimeManifest {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    sources: Vec<PathBuf>,
+    #[serde(default)]
+    include_dirs: Vec<PathBuf>,
+    #[serde(default)]
+    defines: Vec<String>,
+    #[serde(default)]
+    link: NativeRuntimeLinkManifest,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct NativeRuntimeLinkManifest {
+    #[serde(default)]
+    windows: Vec<String>,
+    #[serde(default)]
+    linux: Vec<String>,
+    #[serde(default)]
+    macos: Vec<String>,
+}
+
+#[derive(Debug)]
+struct ResolvedNativeRuntimeBundle {
+    name: String,
+    sources: Vec<PathBuf>,
+    include_dirs: Vec<PathBuf>,
+    defines: Vec<String>,
+    link_libs: Vec<String>,
+}
 
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
@@ -83,6 +119,56 @@ struct Args {
 }
 
 #[derive(clap::Subcommand, Debug)]
+enum BuildCommand {
+    /// Build a standalone native UI app and optionally a desktop executable
+    #[command(name = "native-ui")]
+    NativeUi {
+        /// Input Kain UI source file
+        input: PathBuf,
+
+        /// Root component override
+        #[arg(long = "root")]
+        root_component: Option<String>,
+
+        /// Native app name / Cargo package name
+        #[arg(long)]
+        app_name: Option<String>,
+
+        /// Window title for the native host
+        #[arg(long)]
+        window_title: Option<String>,
+
+        /// Materialized project output directory
+        #[arg(short = 'o', long = "out")]
+        project_dir: Option<PathBuf>,
+
+        /// Relative or absolute artifact directory inside the materialized project
+        #[arg(long)]
+        artifact_dir: Option<PathBuf>,
+
+        /// Generate the native app project but skip cargo build
+        #[arg(long)]
+        bundle_only: bool,
+
+        /// Build the generated app in release mode
+        #[arg(long)]
+        release: bool,
+
+        /// Override the native runtime crate name
+        #[arg(long, default_value = "kain-ui-native")]
+        runtime_crate: String,
+
+        /// Use an explicit path dependency for the native runtime crate
+        #[arg(long, conflicts_with = "runtime_version")]
+        runtime_path: Option<PathBuf>,
+
+        /// Use a published version dependency for the native runtime crate
+        #[arg(long, conflicts_with = "runtime_path")]
+        runtime_version: Option<String>,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
 enum Commands {
     /// Initialize a new KAIN project
     Init {
@@ -115,6 +201,9 @@ enum Commands {
 
     /// Build project or file. Without input, reads KAIN.toml for multi-target build.
     Build {
+        #[command(subcommand)]
+        command: Option<BuildCommand>,
+
         /// Optional input file. If omitted, builds all targets from KAIN.toml
         input: Option<PathBuf>,
 
@@ -685,29 +774,30 @@ fn run_compile(
                         .unwrap_or_else(|| "clang".to_string());
 
                     let mut cmd = std::process::Command::new(&clang_cmd);
+                    let mut runtime_link_libs = Vec::new();
 
-                    if let Some(runtime_c) = find_runtime_c() {
-                        let mut runtime_o = runtime_c.clone();
-                        runtime_o.set_extension(if cfg!(windows) { "obj" } else { "o" });
-
-                        let status = std::process::Command::new(&clang_cmd)
-                            .arg("-c")
-                            .arg(&runtime_c)
-                            .arg("-o")
-                            .arg(&runtime_o)
-                            .status();
-
-                        if let Ok(s) = status {
-                            if s.success() {
-                                cmd.arg(&runtime_o);
-                            } else {
-                                eprintln!(" Failed to compile runtime library.");
-                                return false;
-                            }
-                        } else {
-                            eprintln!(" Failed to invoke clang for runtime library compilation.");
+                    if let Some(runtime_bundle) = match resolve_native_runtime_bundle() {
+                        Ok(bundle) => bundle,
+                        Err(err) => {
+                            eprintln!(" Failed to resolve native runtime bundle: {}", err);
                             return false;
                         }
+                    } {
+                        let runtime_objects = match compile_native_runtime_bundle(
+                            &runtime_bundle,
+                            &clang_cmd,
+                            &exe_path,
+                        ) {
+                            Ok(objects) => objects,
+                            Err(err) => {
+                                eprintln!(" Failed to compile runtime library: {}", err);
+                                return false;
+                            }
+                        };
+                        for object in runtime_objects {
+                            cmd.arg(object);
+                        }
+                        runtime_link_libs = runtime_bundle.link_libs;
                     }
 
                     cmd.arg(&output_path)
@@ -716,10 +806,8 @@ fn run_compile(
                         .arg("-Wno-override-module")
                         .arg("-g"); // Debug info
 
-                    if cfg!(windows) {
-                        cmd.arg("-llegacy_stdio_definitions");
-                        cmd.arg("-luser32");
-                        cmd.arg("-lgdi32");
+                    for link_lib in runtime_link_libs {
+                        cmd.arg(format!("-l{}", link_lib));
                     }
 
                     let status = cmd.status();
@@ -901,6 +989,7 @@ fn main() {
                     }
                 }
                 Some(Commands::Build {
+                    command,
                     input,
                     output,
                     target,
@@ -909,7 +998,57 @@ fn main() {
                     r#rust,
                     embed,
                 }) => {
-                    if ue5 {
+                    if let Some(BuildCommand::NativeUi {
+                        input,
+                        root_component,
+                        app_name,
+                        window_title,
+                        project_dir,
+                        artifact_dir,
+                        bundle_only,
+                        release,
+                        runtime_crate,
+                        runtime_path,
+                        runtime_version,
+                    }) = command
+                    {
+                        let runtime_dependency = if let Some(path) = runtime_path {
+                            native_ui_build::NativeUiRuntimeDependencyConfig::Path(path)
+                        } else if let Some(version) = runtime_version {
+                            native_ui_build::NativeUiRuntimeDependencyConfig::Version(version)
+                        } else {
+                            native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath
+                        };
+                        let config = native_ui_build::NativeUiBuildConfig {
+                            root_component,
+                            window_title,
+                            app_name,
+                            project_dir,
+                            artifact_output_dir: artifact_dir
+                                .unwrap_or_else(|| PathBuf::from("generated")),
+                            build_executable: !bundle_only,
+                            release,
+                            runtime_crate_name: runtime_crate,
+                            runtime_dependency,
+                            ..Default::default()
+                        };
+
+                        match native_ui_build::run_native_ui_build_pipeline(&input, &config) {
+                            Ok(result) => {
+                                println!(
+                                    " Native UI app: {} ({})",
+                                    result.metadata.app_name, result.metadata.root_component
+                                );
+                                for path in result.written_paths() {
+                                    println!("   ✓ {}", path.display());
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!(" Native UI build failed: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    } else if ue5 {
                         // UE5 plugin build
                         if let Err(e) = packager::build_ue5_plugin_with_options(embed) {
                             // Error already contains formatted details with file:line:col
@@ -1385,6 +1524,324 @@ fn find_runtime_c() -> Option<PathBuf> {
     }
 
     None
+}
+
+fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>, String> {
+    if let Some(manifest_path) = find_native_runtime_manifest() {
+        return load_native_runtime_manifest(&manifest_path).map(Some);
+    }
+
+    if let Some(runtime_c) = find_runtime_c() {
+        return Ok(Some(ResolvedNativeRuntimeBundle {
+            name: "kain-runtime-legacy".to_string(),
+            sources: vec![runtime_c],
+            include_dirs: Vec::new(),
+            defines: Vec::new(),
+            link_libs: default_native_runtime_link_libs(),
+        }));
+    }
+
+    Ok(None)
+}
+
+fn load_native_runtime_manifest(
+    manifest_path: &Path,
+) -> Result<ResolvedNativeRuntimeBundle, String> {
+    let manifest_source = fs::read_to_string(manifest_path).map_err(|err| {
+        format!(
+            "unable to read runtime manifest {}: {}",
+            manifest_path.display(),
+            err
+        )
+    })?;
+    let manifest: NativeRuntimeManifest = toml::from_str(&manifest_source).map_err(|err| {
+        format!(
+            "unable to parse runtime manifest {}: {}",
+            manifest_path.display(),
+            err
+        )
+    })?;
+    if manifest.sources.is_empty() {
+        return Err(format!(
+            "runtime manifest {} does not declare any sources",
+            manifest_path.display()
+        ));
+    }
+
+    let manifest_dir = manifest_path.parent().ok_or_else(|| {
+        format!(
+            "runtime manifest {} has no parent directory",
+            manifest_path.display()
+        )
+    })?;
+    let sources = manifest
+        .sources
+        .iter()
+        .map(|path| resolve_runtime_path(manifest_dir, path))
+        .collect::<Vec<_>>();
+    let include_dirs = manifest
+        .include_dirs
+        .iter()
+        .map(|path| resolve_runtime_path(manifest_dir, path))
+        .collect::<Vec<_>>();
+
+    for source in &sources {
+        if !source.exists() {
+            return Err(format!(
+                "runtime source {} does not exist",
+                source.display()
+            ));
+        }
+    }
+
+    for include_dir in &include_dirs {
+        if !include_dir.exists() {
+            return Err(format!(
+                "runtime include directory {} does not exist",
+                include_dir.display()
+            ));
+        }
+    }
+
+    Ok(ResolvedNativeRuntimeBundle {
+        name: manifest
+            .name
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "kain-native-runtime".to_string()),
+        sources,
+        include_dirs,
+        defines: manifest.defines,
+        link_libs: unique_link_libs(platform_link_libs(&manifest.link)),
+    })
+}
+
+fn compile_native_runtime_bundle(
+    bundle: &ResolvedNativeRuntimeBundle,
+    clang_cmd: &str,
+    exe_path: &Path,
+) -> Result<Vec<PathBuf>, String> {
+    let output_dir = exe_path.parent().unwrap_or_else(|| Path::new("."));
+    let runtime_obj_dir = output_dir
+        .join(".kain-runtime")
+        .join(sanitize_runtime_name(&bundle.name));
+    fs::create_dir_all(&runtime_obj_dir).map_err(|err| {
+        format!(
+            "unable to create runtime object directory {}: {}",
+            runtime_obj_dir.display(),
+            err
+        )
+    })?;
+
+    let object_ext = if cfg!(windows) { "obj" } else { "o" };
+    let mut objects = Vec::with_capacity(bundle.sources.len());
+    for (index, source) in bundle.sources.iter().enumerate() {
+        let object_path = runtime_obj_dir.join(format!(
+            "{:02}_{}.{}",
+            index,
+            sanitize_runtime_name(
+                &source
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or("runtime")
+            ),
+            object_ext
+        ));
+
+        let mut compile_cmd = std::process::Command::new(clang_cmd);
+        compile_cmd
+            .arg("-c")
+            .arg(source)
+            .arg("-o")
+            .arg(&object_path)
+            .arg("-g");
+
+        for include_dir in &bundle.include_dirs {
+            compile_cmd.arg("-I").arg(include_dir);
+        }
+        for define in &bundle.defines {
+            compile_cmd.arg(format!("-D{}", define));
+        }
+
+        let status = compile_cmd
+            .status()
+            .map_err(|err| format!("unable to invoke clang for {}: {}", source.display(), err))?;
+        if !status.success() {
+            return Err(format!(
+                "clang returned a non-zero status while compiling {}",
+                source.display()
+            ));
+        }
+        objects.push(object_path);
+    }
+
+    Ok(objects)
+}
+
+fn sanitize_runtime_name(value: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let trimmed = sanitized.trim_matches('_');
+    if trimmed.is_empty() {
+        "runtime".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn resolve_runtime_path(root: &Path, value: &Path) -> PathBuf {
+    if value.is_absolute() {
+        value.to_path_buf()
+    } else {
+        root.join(value)
+    }
+}
+
+fn unique_link_libs(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut ordered = Vec::new();
+    for value in values {
+        if seen.insert(value.clone()) {
+            ordered.push(value);
+        }
+    }
+    ordered
+}
+
+fn platform_link_libs(link: &NativeRuntimeLinkManifest) -> Vec<String> {
+    if cfg!(windows) {
+        link.windows.clone()
+    } else if cfg!(target_os = "macos") {
+        link.macos.clone()
+    } else {
+        link.linux.clone()
+    }
+}
+
+fn default_native_runtime_link_libs() -> Vec<String> {
+    if cfg!(windows) {
+        vec![
+            "legacy_stdio_definitions".to_string(),
+            "user32".to_string(),
+            "gdi32".to_string(),
+            "opengl32".to_string(),
+            "ws2_32".to_string(),
+        ]
+    } else {
+        Vec::new()
+    }
+}
+
+fn find_native_runtime_manifest() -> Option<PathBuf> {
+    if let Ok(env_path) = std::env::var("KAIN_RUNTIME_MANIFEST_PATH") {
+        let path = PathBuf::from(env_path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    let candidate_suffixes = [
+        PathBuf::from("runtime/native_runtime.toml"),
+        PathBuf::from("runtime/native/runtime.toml"),
+    ];
+
+    for root in runtime_search_roots() {
+        for suffix in &candidate_suffixes {
+            let candidate = root.join(suffix);
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    None
+}
+
+fn runtime_search_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        roots.push(cwd);
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(mut dir) = exe_path.parent().map(|path| path.to_path_buf()) {
+            loop {
+                roots.push(dir.clone());
+                if !dir.pop() {
+                    break;
+                }
+            }
+        }
+    }
+    roots
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        load_native_runtime_manifest, platform_link_libs, sanitize_runtime_name,
+        NativeRuntimeLinkManifest,
+    };
+    use std::fs;
+
+    #[test]
+    fn sanitize_runtime_name_keeps_object_filenames_stable() {
+        assert_eq!(sanitize_runtime_name("Kain Runtime"), "kain_runtime");
+        assert_eq!(sanitize_runtime_name("###"), "runtime");
+    }
+
+    #[test]
+    fn runtime_manifest_resolves_relative_paths() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let manifest_dir = temp_dir.path().join("runtime");
+        let source_dir = manifest_dir.join("src");
+        let include_dir = manifest_dir.join("include");
+        fs::create_dir_all(&source_dir).expect("source dir");
+        fs::create_dir_all(&include_dir).expect("include dir");
+        fs::write(
+            source_dir.join("kain_runtime.c"),
+            "int main(void) { return 0; }\n",
+        )
+        .expect("source file");
+        fs::write(
+            manifest_dir.join("native_runtime.toml"),
+            r#"
+name = "test-runtime"
+sources = ["src/kain_runtime.c"]
+include_dirs = ["include"]
+defines = ["KAIN_TEST=1"]
+
+[link]
+windows = ["user32", "gdi32"]
+linux = ["m"]
+macos = ["Cocoa"]
+"#,
+        )
+        .expect("manifest file");
+
+        let resolved = load_native_runtime_manifest(&manifest_dir.join("native_runtime.toml"))
+            .expect("resolved manifest");
+
+        assert_eq!(resolved.name, "test-runtime");
+        assert_eq!(resolved.sources.len(), 1);
+        assert!(resolved.sources[0].is_absolute());
+        assert!(resolved.include_dirs[0].is_absolute());
+        assert_eq!(resolved.defines, vec!["KAIN_TEST=1".to_string()]);
+        assert_eq!(
+            resolved.link_libs,
+            platform_link_libs(&NativeRuntimeLinkManifest {
+                windows: vec!["user32".to_string(), "gdi32".to_string()],
+                linux: vec!["m".to_string()],
+                macos: vec!["Cocoa".to_string()],
+            })
+        );
+    }
 }
 
 fn find_bundled_clang() -> Option<String> {

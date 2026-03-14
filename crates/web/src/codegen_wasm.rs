@@ -2417,7 +2417,18 @@ impl WasmCompiler {
                     ));
                 }
             }
-            Expr::Struct { name, fields, span } => {
+            Expr::Struct {
+                name,
+                fields,
+                rest,
+                span,
+            } => {
+                if rest.is_some() {
+                    return Err(KainError::codegen(
+                        "Struct update syntax is not yet supported by WASM codegen",
+                        *span,
+                    ));
+                }
                 if let Some((field_offsets, total_size)) = ctx.struct_layouts.get(name).cloned() {
                     // Allocate memory for struct using bump allocator
                     self.emit_alloc(ctx, builder, total_size);

@@ -172,6 +172,7 @@ pub struct BlackHole {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SceneDescription {
     pub name: String,
+    pub viewport_summary: String,
     pub background: BackgroundGradient,
     pub camera: Camera,
     pub lighting: LightingRig,
@@ -224,14 +225,16 @@ pub struct SceneCatalog {
 
 impl Default for SceneCatalog {
     fn default() -> Self {
+        let luminous_port = build_luminous_port_scene();
         let retirement_demo = build_retirement_demo_scene();
         let kerr_black_hole = build_kerr_black_hole_scene();
         let mut scenes = BTreeMap::new();
+        scenes.insert(luminous_port.name.clone(), luminous_port);
         scenes.insert(retirement_demo.name.clone(), retirement_demo);
         scenes.insert(kerr_black_hole.name.clone(), kerr_black_hole);
 
         Self {
-            default_scene: "kerr_black_hole".to_string(),
+            default_scene: "luminous_port".to_string(),
             scenes,
         }
     }
@@ -242,6 +245,207 @@ impl SceneCatalog {
         self.scenes
             .get(name)
             .or_else(|| self.scenes.get(&self.default_scene))
+    }
+}
+
+fn build_luminous_port_scene() -> SceneDescription {
+    let mut meshes = BTreeMap::new();
+    meshes.insert("cube".to_string(), mesh_cube());
+    meshes.insert("floor".to_string(), mesh_plane());
+    meshes.insert("pyramid".to_string(), mesh_pyramid());
+    meshes.insert("orb".to_string(), mesh_uv_sphere(6, 10));
+
+    let mut materials = BTreeMap::new();
+    materials.insert(
+        "platform".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.17, 0.21, 0.28),
+            specular_color: ColorRgb::new(0.40, 0.48, 0.58),
+            ambient_strength: 0.30,
+            diffuse_strength: 0.88,
+            specular_strength: 0.14,
+            shininess: 10.0,
+        },
+    );
+    materials.insert(
+        "glass".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.14, 0.82, 0.95),
+            specular_color: ColorRgb::new(0.88, 0.98, 1.0),
+            ambient_strength: 0.22,
+            diffuse_strength: 0.96,
+            specular_strength: 0.74,
+            shininess: 34.0,
+        },
+    );
+    materials.insert(
+        "warm".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.98, 0.64, 0.28),
+            specular_color: ColorRgb::new(1.0, 0.92, 0.75),
+            ambient_strength: 0.18,
+            diffuse_strength: 0.95,
+            specular_strength: 0.34,
+            shininess: 18.0,
+        },
+    );
+    materials.insert(
+        "pearl".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.80, 0.86, 0.96),
+            specular_color: ColorRgb::new(1.0, 1.0, 1.0),
+            ambient_strength: 0.26,
+            diffuse_strength: 0.92,
+            specular_strength: 0.48,
+            shininess: 26.0,
+        },
+    );
+
+    SceneDescription {
+        name: "luminous_port".to_string(),
+        viewport_summary: "luminous port | floating gallery | soft particles".to_string(),
+        background: BackgroundGradient {
+            top: ColorRgb::new(0.05, 0.11, 0.18),
+            bottom: ColorRgb::new(0.12, 0.08, 0.15),
+        },
+        camera: Camera {
+            target: Vec3::new(0.0, 0.6, 0.0),
+            up: Vec3::UP,
+            orbit_radius: 8.4,
+            orbit_height: 2.7,
+            orbit_speed_radians_per_second: 0.22,
+            fov_y_degrees: 54.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        },
+        lighting: LightingRig {
+            ambient_color: ColorRgb::new(0.78, 0.84, 0.98),
+            ambient_intensity: 0.36,
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: Vec3::new(-0.45, -1.0, -0.30).normalize(),
+                    color: ColorRgb::new(0.92, 0.96, 1.0),
+                    intensity: 1.10,
+                },
+                DirectionalLight {
+                    direction: Vec3::new(0.55, -0.42, 0.35).normalize(),
+                    color: ColorRgb::new(0.22, 0.56, 0.92),
+                    intensity: 0.34,
+                },
+            ],
+            point_lights: vec![
+                PointLight {
+                    position: Vec3::new(0.0, 2.8, 0.0),
+                    color: ColorRgb::new(0.38, 0.92, 1.0),
+                    intensity: 1.35,
+                    range: 9.0,
+                },
+                PointLight {
+                    position: Vec3::new(-2.4, 1.1, 2.6),
+                    color: ColorRgb::new(1.0, 0.72, 0.42),
+                    intensity: 0.92,
+                    range: 8.0,
+                },
+                PointLight {
+                    position: Vec3::new(2.5, 1.4, -2.4),
+                    color: ColorRgb::new(0.58, 0.76, 1.0),
+                    intensity: 0.72,
+                    range: 8.0,
+                },
+            ],
+        },
+        meshes,
+        materials,
+        instances: vec![
+            SceneInstance {
+                id: "platform".to_string(),
+                mesh: "floor".to_string(),
+                material: "platform".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, -1.0, 0.0))
+                    .with_scale(Vec3::new(6.5, 1.0, 6.5)),
+            },
+            SceneInstance {
+                id: "orb".to_string(),
+                mesh: "orb".to_string(),
+                material: "pearl".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 0.9, 0.0))
+                    .with_scale(Vec3::new(0.85, 0.85, 0.85)),
+            },
+            SceneInstance {
+                id: "north_spire".to_string(),
+                mesh: "pyramid".to_string(),
+                material: "warm".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 0.25, -2.7))
+                    .with_scale(Vec3::new(0.85, 1.65, 0.85)),
+            },
+            SceneInstance {
+                id: "south_spire".to_string(),
+                mesh: "pyramid".to_string(),
+                material: "warm".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 0.25, 2.7))
+                    .with_rotation(Vec3::new(0.0, 1.57, 0.0))
+                    .with_scale(Vec3::new(0.85, 1.35, 0.85)),
+            },
+            SceneInstance {
+                id: "east_tower".to_string(),
+                mesh: "cube".to_string(),
+                material: "glass".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(2.7, 0.25, 0.0))
+                    .with_rotation(Vec3::new(0.08, 0.34, 0.0))
+                    .with_scale(Vec3::new(0.55, 1.25, 0.55)),
+            },
+            SceneInstance {
+                id: "west_tower".to_string(),
+                mesh: "cube".to_string(),
+                material: "glass".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(-2.7, 0.45, 0.0))
+                    .with_rotation(Vec3::new(0.05, -0.22, 0.0))
+                    .with_scale(Vec3::new(0.65, 1.55, 0.65)),
+            },
+        ],
+        animations: vec![
+            SceneAnimation::Spin {
+                instance_id: "orb".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, 0.55, 0.0),
+            },
+            SceneAnimation::Bob {
+                instance_id: "orb".to_string(),
+                amplitude: 0.20,
+                speed_radians_per_second: 1.30,
+            },
+            SceneAnimation::Spin {
+                instance_id: "east_tower".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, 0.24, 0.05),
+            },
+            SceneAnimation::Spin {
+                instance_id: "west_tower".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, -0.28, 0.04),
+            },
+        ],
+        particle_emitters: vec![ParticleEmitter {
+            id: "lantern_dust".to_string(),
+            center: Vec3::new(0.0, 1.3, 0.0),
+            axis: Vec3::UP,
+            radial_range: [1.8, 4.8],
+            vertical_range: [-0.4, 1.6],
+            particle_size_range: [0.05, 0.12],
+            particle_count: 18,
+            orbit_radians_per_second: 0.18,
+            swirl: 0.22,
+            drift: Vec3::new(0.0, 0.22, 0.0),
+            color_start: ColorRgb::new(0.38, 0.88, 1.0),
+            color_end: ColorRgb::new(1.0, 0.80, 0.48),
+            emissive_strength: 0.42,
+            softness: 1.2,
+            depth_test: false,
+        }],
+        black_hole: None,
     }
 }
 
@@ -288,6 +492,7 @@ fn build_retirement_demo_scene() -> SceneDescription {
 
     SceneDescription {
         name: "retirement_demo".to_string(),
+        viewport_summary: "studio demo | depth | lighting | orbit camera".to_string(),
         background: BackgroundGradient {
             top: ColorRgb::new(0.03, 0.05, 0.08),
             bottom: ColorRgb::new(0.13, 0.17, 0.22),
@@ -397,6 +602,7 @@ fn build_kerr_black_hole_scene() -> SceneDescription {
     let spin_axis = Vec3::new(0.35, 1.0, 0.18).normalize();
     SceneDescription {
         name: "kerr_black_hole".to_string(),
+        viewport_summary: "kerr singularity | accretion particles | lens shell".to_string(),
         background: BackgroundGradient {
             top: ColorRgb::new(0.01, 0.02, 0.05),
             bottom: ColorRgb::new(0.0, 0.0, 0.01),
@@ -683,10 +889,16 @@ mod tests {
     #[test]
     fn default_catalog_contains_black_hole_scene() {
         let catalog = SceneCatalog::default();
+        let default_scene = catalog
+            .scene("luminous_port")
+            .expect("luminous port scene should be registered");
         let scene = catalog
             .scene("kerr_black_hole")
             .expect("black hole scene should be registered");
 
+        assert_eq!(catalog.default_scene, "luminous_port");
+        assert_eq!(default_scene.name, "luminous_port");
+        assert!(default_scene.black_hole.is_none());
         assert_eq!(scene.name, "kerr_black_hole");
         assert!(!scene.particle_emitters.is_empty());
         assert!(scene.black_hole.is_some());

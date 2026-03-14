@@ -8,11 +8,11 @@ use kain_core::ast::Item;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::{build_ui_output_from_source, Lexer, Parser};
-use kain_ui::UiBuildOutput;
-use serde::Serialize;
+use kain_ui::{
+    ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeMetadata,
+};
 
 const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
-const NATIVE_APP_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -78,22 +78,6 @@ pub struct NativeAppMaterializedPaths {
     pub source_copy_path: PathBuf,
     pub artifact_paths: Vec<PathBuf>,
     pub executable_path: Option<PathBuf>,
-}
-
-#[derive(Debug, Serialize)]
-struct NativeAppRuntimeBundleDocument<'a> {
-    schema_version: u32,
-    metadata: NativeAppRuntimeMetadataDocument<'a>,
-    output: &'a UiBuildOutput,
-}
-
-#[derive(Debug, Serialize)]
-struct NativeAppRuntimeMetadataDocument<'a> {
-    app_name: &'a str,
-    window_title: &'a str,
-    root_component: &'a str,
-    source_file_name: &'a str,
-    initial_window_size: [f32; 2],
 }
 
 impl DriverSession {
@@ -306,7 +290,7 @@ fn render_main_rs(runtime_bundle_include_path: &Path, runtime_crate_name: &str) 
     let runtime_module_name = runtime_crate_name.replace('-', "_");
 
     format!(
-        "#![cfg_attr(target_os = \"windows\", windows_subsystem = \"windows\")]\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
+        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
 }
 
@@ -439,19 +423,18 @@ fn rust_string_literal(value: &str) -> String {
 }
 
 fn render_runtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
-    let document = NativeAppRuntimeBundleDocument {
-        schema_version: NATIVE_APP_RUNTIME_BUNDLE_SCHEMA_VERSION,
-        metadata: NativeAppRuntimeMetadataDocument {
-            app_name: &bundle.metadata.app_name,
-            window_title: &bundle.metadata.window_title,
-            root_component: &bundle.metadata.root_component,
-            source_file_name: &bundle.metadata.source_file_name,
+    let runtime_bundle = ui_runtime_bundle_from_output(
+        UiRuntimeMetadata {
+            app_name: Some(bundle.metadata.app_name.clone()),
+            window_title: bundle.metadata.window_title.clone(),
+            root_component: bundle.metadata.root_component.clone(),
+            source_file_name: Some(bundle.metadata.source_file_name.clone()),
             initial_window_size: bundle.metadata.initial_window_size,
         },
-        output: &bundle.ui,
-    };
+        bundle.ui.clone(),
+    );
 
-    serde_json::to_string_pretty(&document).map_err(|err| {
+    ui_runtime_bundle_to_json(&runtime_bundle).map_err(|err| {
         KainError::runtime(format!(
             "Failed to serialize native app runtime bundle for {}: {err}",
             bundle.metadata.app_name

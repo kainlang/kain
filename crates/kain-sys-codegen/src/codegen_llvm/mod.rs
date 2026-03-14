@@ -2922,7 +2922,18 @@ impl LlvmGenerator {
                 }
                 _ => Err(KainError::codegen("Unsupported assignment target", *span)),
             },
-            Expr::Struct { name, fields, span } => {
+            Expr::Struct {
+                name,
+                fields,
+                rest,
+                span,
+            } => {
+                if rest.is_some() {
+                    return Err(KainError::codegen(
+                        "Struct update syntax is not yet supported by LLVM codegen",
+                        *span,
+                    ));
+                }
                 let def = self.struct_defs.get(name).cloned().ok_or_else(|| {
                     KainError::codegen(format!("Unknown struct: {}", name), *span)
                 })?;
@@ -2974,6 +2985,7 @@ impl LlvmGenerator {
                 kain_core::ast::Type::Named { name, .. } => self.compile_expr(&Expr::Struct {
                     name: name.clone(),
                     fields: fields.clone(),
+                    rest: None,
                     span: *span,
                 }),
                 kain_core::ast::Type::Tuple(_, _) => self.compile_expr(&Expr::Tuple(

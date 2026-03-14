@@ -771,6 +771,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::Bool(value, _) => value.to_string(),
         kain_core::ast::Expr::None(_) => "none".to_string(),
         kain_core::ast::Expr::Ident(name, _) => name.clone(),
+        kain_core::ast::Expr::AsyncBlock(value, _) => format!("async {}", expr_to_string(value)),
         _ => "# <expr>".to_string(),
     }
 }

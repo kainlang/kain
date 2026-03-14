@@ -7176,7 +7176,9 @@ fn item_uses_kain_runtime(item: &TypedItem) -> bool {
             .iter()
             .any(|m| block_uses_kain_runtime(&m.body)),
         TypedItem::Test(t) => block_uses_kain_runtime(&t.ast.body),
-        TypedItem::TypeAlias(_)
+        TypedItem::Mod(module) => module.items.iter().any(item_uses_kain_runtime),
+        TypedItem::Trait(_)
+        | TypedItem::TypeAlias(_)
         | TypedItem::Enum(_)
         | TypedItem::Macro(_)
         | TypedItem::Use(_)
@@ -7255,6 +7257,7 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
         | Expr::Cast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
         | Expr::Comptime(operand, _)
         | Expr::Paren(operand, _) => expr_uses_kain_runtime(operand),
         Expr::Call { callee, args, .. } => {

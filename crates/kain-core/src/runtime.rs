@@ -301,6 +301,138 @@ impl Env {
             );
             Ok(Value::Unit)
         });
+        self.define_native("spawn_native_viewport", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "spawn_native_viewport: expected 2 arguments (x, y)",
+                ));
+            }
+            let x = match args[0] {
+                Value::Int(n) => n as f64,
+                Value::Float(n) => n,
+                _ => {
+                    return Err(KainError::runtime(
+                        "spawn_native_viewport: x must be number",
+                    ))
+                }
+            };
+            let y = match args[1] {
+                Value::Int(n) => n as f64,
+                Value::Float(n) => n,
+                _ => {
+                    return Err(KainError::runtime(
+                        "spawn_native_viewport: y must be number",
+                    ))
+                }
+            };
+
+            println!(
+                " [KOS Bridge] Spawning Native Viewport at {{ x: {:.2}, y: {:.2} }}",
+                x, y
+            );
+            Ok(Value::Unit)
+        });
+        self.define_native("spawn_native_sculpt_lab", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "spawn_native_sculpt_lab: expected 2 arguments (x, y)",
+                ));
+            }
+            let x = match args[0] {
+                Value::Int(n) => n as f64,
+                Value::Float(n) => n,
+                _ => {
+                    return Err(KainError::runtime(
+                        "spawn_native_sculpt_lab: x must be number",
+                    ))
+                }
+            };
+            let y = match args[1] {
+                Value::Int(n) => n as f64,
+                Value::Float(n) => n,
+                _ => {
+                    return Err(KainError::runtime(
+                        "spawn_native_sculpt_lab: y must be number",
+                    ))
+                }
+            };
+
+            println!(
+                " [KOS Bridge] Spawning Native Sculpt Lab at {{ x: {:.2}, y: {:.2} }}",
+                x, y
+            );
+            Ok(Value::Unit)
+        });
+        self.define_native("native_config_string", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "native_config_string: expected 2 arguments (key, value)",
+                ));
+            }
+            let key = match &args[0] {
+                Value::String(value) => value.clone(),
+                _ => return Err(KainError::runtime("native_config_string: key must be string")),
+            };
+            let value = match &args[1] {
+                Value::String(value) => value.clone(),
+                _ => return Err(KainError::runtime("native_config_string: value must be string")),
+            };
+            std::env::set_var(key, value);
+            Ok(Value::Unit)
+        });
+        self.define_native("native_config_int", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "native_config_int: expected 2 arguments (key, value)",
+                ));
+            }
+            let key = match &args[0] {
+                Value::String(value) => value.clone(),
+                _ => return Err(KainError::runtime("native_config_int: key must be string")),
+            };
+            let value = match args[1] {
+                Value::Int(value) => value,
+                _ => return Err(KainError::runtime("native_config_int: value must be int")),
+            };
+            std::env::set_var(key, value.to_string());
+            Ok(Value::Unit)
+        });
+        self.define_native("native_config_float", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "native_config_float: expected 2 arguments (key, value)",
+                ));
+            }
+            let key = match &args[0] {
+                Value::String(value) => value.clone(),
+                _ => return Err(KainError::runtime("native_config_float: key must be string")),
+            };
+            let value = match args[1] {
+                Value::Int(value) => value as f64,
+                Value::Float(value) => value,
+                _ => return Err(KainError::runtime("native_config_float: value must be number")),
+            };
+            std::env::set_var(key, format!("{value:.6}"));
+            Ok(Value::Unit)
+        });
+        self.define_native("native_config_flag", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "native_config_flag: expected 2 arguments (key, enabled)",
+                ));
+            }
+            let key = match &args[0] {
+                Value::String(value) => value.clone(),
+                _ => return Err(KainError::runtime("native_config_flag: key must be string")),
+            };
+            let enabled = match args[1] {
+                Value::Bool(value) => value,
+                Value::Int(value) => value != 0,
+                _ => return Err(KainError::runtime("native_config_flag: enabled must be 0 or 1")),
+            };
+            std::env::set_var(key, if enabled { "1" } else { "0" });
+            Ok(Value::Unit)
+        });
     }
 
     pub fn register_net_stdlib(&mut self) {
@@ -1811,6 +1943,11 @@ impl Env {
     fn register_typed_item(&mut self, item: &TypedItem) -> KainResult<()> {
         match item {
             TypedItem::Use(u) => load_module(self, &u.ast)?,
+            TypedItem::Mod(module) => {
+                for child in &module.items {
+                    self.register_typed_item(child)?;
+                }
+            }
             TypedItem::Function(f) => {
                 self.functions.insert(f.ast.name.clone(), f.ast.clone());
                 self.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
@@ -1867,6 +2004,7 @@ impl Env {
             TypedItem::Comptime(_)
             | TypedItem::Shader(_)
             | TypedItem::Macro(_)
+            | TypedItem::Trait(_)
             | TypedItem::Test(_)
             | TypedItem::TypeAlias(_)
             | TypedItem::MaterialGraph(_)
@@ -2878,8 +3016,24 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
         }
 
         // Structure creation
-        Expr::Struct { name, fields, .. } => {
-            let mut field_vals = HashMap::new();
+        Expr::Struct {
+            name, fields, rest, ..
+        } => {
+            let mut field_vals = if let Some(rest) = rest {
+                match eval_expr(env, rest)? {
+                    Value::Return(value) => return Ok(Value::Return(value)),
+                    Value::Struct(_, fields) => fields.read().unwrap().clone(),
+                    Value::None => HashMap::new(),
+                    other => {
+                        return Err(KainError::runtime(format!(
+                            "Struct update syntax requires a struct value, found {:?}",
+                            other
+                        )));
+                    }
+                }
+            } else {
+                HashMap::new()
+            };
             for (k, expr) in fields {
                 let v = eval_expr(env, expr)?;
                 if let Value::Return(_) = v {
@@ -3200,6 +3354,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             // Use the async runtime to poll to completion
             poll_future_to_completion(env, future_val)
         }
+        Expr::AsyncBlock(body, _) => eval_expr(env, body),
 
         // OR static method call: TypeName::method(args)
         Expr::EnumVariant {

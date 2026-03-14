@@ -737,6 +737,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::Binary { left, op, right, .. } => {
             format!("({} {} {})", expr_to_string(left), binary_op_to_string(*op), expr_to_string(right))
         }
+        kain_core::ast::Expr::AsyncBlock(value, _) => format!("async {}", expr_to_string(value)),
         kain_core::ast::Expr::Call { callee, args, .. } => {
             let args = args.iter().map(|arg| call_arg_to_string(arg)).collect::<Vec<_>>().join(", ");
             format!("{}({})", expr_to_string(callee), args)

@@ -10,12 +10,13 @@ pub mod gpu_host;
 
 use kain_core::ast::{
     BinaryOp, Block, Component, ElseBranch, Enum, EnumVariantFields, Expr, Function, Generic, Impl,
-    JSXAttrValue, JSXNode, Param, Pattern, Stmt, Struct, Type, UnaryOp, VariantFields,
-    VariantPatternFields,
+    Item, JSXAttrValue, JSXNode, Mod, Param, Pattern, Stmt, Struct, Trait, TraitMethod, Type,
+    UnaryOp, Use, VariantFields, VariantPatternFields,
 };
 use kain_core::effects::Effect;
 use kain_core::error::KainResult;
-use kain_core::types::{TypedItem, TypedProgram};
+use kain_core::parser::RESERVED_KEYWORDS;
+use kain_core::types::{TypedItem, TypedMod, TypedProgram};
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -32,10 +33,14 @@ pub use gpu_host::generate_gpu_host;
 /// Generate Rust source code from a typed program
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Rust)?;
-    let mut gen = RustGen::new();
-    Ok(postprocess_flattened_selfhost_output(
-        &gen.gen_program(&lowered),
-    ))
+    let has_modules = typed_program_has_modules(&lowered);
+    let mut gen = RustGen::new(has_modules);
+    let rendered = gen.gen_program(&lowered);
+    if has_modules {
+        Ok(rendered)
+    } else {
+        Ok(postprocess_flattened_selfhost_output(&rendered))
+    }
 }
 
 pub fn generate_gpu_host_wrappers(program: &TypedProgram) -> KainResult<String> {
@@ -66,6 +71,7 @@ impl StringBuilder {
 struct RustGen {
     output: StringBuilder,
     indent: usize,
+    has_modules: bool,
     emitted_symbols: HashSet<String>,
     known_type_names: HashSet<String>,
     struct_fields: HashMap<String, Vec<String>>,
@@ -75,6 +81,7 @@ struct RustGen {
     self_type_stack: Vec<String>,
     impl_target_stack: Vec<String>,
     impl_trait_stack: Vec<Option<String>>,
+    generic_lifetime_stack: Vec<HashSet<String>>,
     display_helpers: BTreeSet<String>,
     free_self_alias_stack: Vec<Option<String>>,
 }
@@ -154,11 +161,144 @@ fn is_token_boundary_before(source: &str, index: usize) -> bool {
     )
 }
 
+fn typed_program_has_modules(program: &TypedProgram) -> bool {
+    program
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Mod(_)))
+}
+
+const EMITTED_IDENTIFIER_CONTEXTUAL_KEYWORDS: &[&str] = &["state", "weak", "compute", "shader"];
+const RUST_RESERVED_KEYWORDS: &[&str] = &[
+    "Self", "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
+    "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move",
+    "mut", "pub", "ref", "return", "self", "static", "struct", "super", "trait", "true", "type",
+    "unsafe", "use", "where", "while",
+];
+const RUST_PATH_ROOT_SEGMENTS: &[&str] = &["Self", "crate", "self", "super"];
+
+fn sanitize_rust_identifier(name: &str) -> String {
+    let mut sanitized = name
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if sanitized.is_empty() {
+        sanitized.push('_');
+    }
+    if sanitized
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_digit())
+    {
+        sanitized.insert(0, '_');
+    }
+    if RUST_RESERVED_KEYWORDS.contains(&sanitized.as_str()) || sanitized == "_" {
+        sanitized.push('_');
+    }
+    sanitized
+}
+
+fn desanitize_kain_identifier(name: &str) -> String {
+    let candidate = name.trim();
+    let Some(stripped) = candidate.strip_suffix('_') else {
+        return candidate.to_string();
+    };
+    if stripped.is_empty() {
+        return candidate.to_string();
+    }
+    if (RESERVED_KEYWORDS.contains(&stripped)
+        || EMITTED_IDENTIFIER_CONTEXTUAL_KEYWORDS.contains(&stripped))
+        && !RUST_RESERVED_KEYWORDS.contains(&stripped)
+    {
+        return stripped.to_string();
+    }
+    candidate.to_string()
+}
+
+fn sanitize_emitted_identifier(name: &str) -> String {
+    sanitize_rust_identifier(&desanitize_kain_identifier(name))
+}
+
+fn sanitize_emitted_path_segment(segment: &str, is_root: bool) -> String {
+    let normalized = desanitize_kain_identifier(segment);
+    if is_root && RUST_PATH_ROOT_SEGMENTS.contains(&normalized.as_str()) {
+        normalized
+    } else {
+        sanitize_rust_identifier(&normalized)
+    }
+}
+
+fn sanitize_emitted_path(path: &str) -> String {
+    path.split("::")
+        .filter(|segment| !segment.is_empty())
+        .enumerate()
+        .map(|(index, segment)| sanitize_emitted_path_segment(segment, index == 0))
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn tuple_field_marker_index(field: &str) -> Option<&str> {
+    let index = field.strip_prefix("__kain_tuple_")?;
+    (!index.is_empty() && index.chars().all(|ch| ch.is_ascii_digit())).then_some(index)
+}
+
+fn strip_rendered_type_generics(rendered: &str) -> String {
+    let mut depth = 0usize;
+    let mut output = String::with_capacity(rendered.len());
+    for ch in rendered.chars() {
+        match ch {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            _ if depth == 0 => output.push(ch),
+            _ => {}
+        }
+    }
+    output.trim().to_string()
+}
+
+fn split_sanitized_dunder_path(path: &str) -> Vec<String> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    let chars: Vec<char> = path.chars().collect();
+    let mut index = 0;
+    while index < chars.len() {
+        if chars[index] == '_' {
+            let run_start = index;
+            while index < chars.len() && chars[index] == '_' {
+                index += 1;
+            }
+            let run_len = index - run_start;
+            if run_len >= 2 {
+                current.push_str(&"_".repeat(run_len.saturating_sub(2)));
+                if !current.is_empty() {
+                    segments.push(std::mem::take(&mut current));
+                }
+                continue;
+            }
+            current.push('_');
+            continue;
+        }
+        current.push(chars[index]);
+        index += 1;
+    }
+    if !current.is_empty() {
+        segments.push(current);
+    }
+    segments
+}
+
 impl RustGen {
-    fn new() -> Self {
+    fn new(has_modules: bool) -> Self {
         Self {
             output: StringBuilder::new(),
             indent: 0,
+            has_modules,
             emitted_symbols: HashSet::new(),
             known_type_names: HashSet::new(),
             struct_fields: HashMap::new(),
@@ -168,6 +308,7 @@ impl RustGen {
             self_type_stack: Vec::new(),
             impl_target_stack: Vec::new(),
             impl_trait_stack: Vec::new(),
+            generic_lifetime_stack: vec![HashSet::new()],
             display_helpers: BTreeSet::new(),
             free_self_alias_stack: Vec::new(),
         }
@@ -194,6 +335,28 @@ impl RustGen {
 
     fn write_blank(&mut self) {
         self.output.push_line("");
+    }
+
+    fn push_generic_lifetimes(&mut self, lifetimes: HashSet<String>) {
+        let mut merged = self
+            .generic_lifetime_stack
+            .last()
+            .cloned()
+            .unwrap_or_default();
+        merged.extend(lifetimes);
+        self.generic_lifetime_stack.push(merged);
+    }
+
+    fn pop_generic_lifetimes(&mut self) {
+        if self.generic_lifetime_stack.len() > 1 {
+            self.generic_lifetime_stack.pop();
+        }
+    }
+
+    fn current_generic_lifetimes(&self) -> &HashSet<String> {
+        self.generic_lifetime_stack
+            .last()
+            .expect("generic lifetime stack must be initialized")
     }
 
     // Generate Rust code for an entire program
@@ -242,40 +405,49 @@ impl RustGen {
         self.known_type_names.clear();
         self.struct_fields.clear();
         for item in &program.items {
-            match item {
-                TypedItem::Struct(st) => {
-                    self.known_type_names.insert(st.ast.name.clone());
-                    self.struct_fields.insert(
-                        st.ast.name.clone(),
-                        st.ast
-                            .fields
-                            .iter()
-                            .map(|field| field.name.clone())
-                            .collect(),
-                    );
-                }
-                TypedItem::Enum(en) => {
-                    self.known_type_names.insert(en.ast.name.clone());
-                }
-                TypedItem::TypeAlias(alias) => {
-                    self.known_type_names.insert(alias.ast.name.clone());
-                }
-                TypedItem::Component(component) => {
-                    self.known_type_names.insert(component.ast.name.clone());
-                    self.known_type_names
-                        .insert(self.component_props_name(&component.ast.name));
-                    let props_name = self.component_props_name(&component.ast.name);
-                    let mut fields: Vec<String> = component
-                        .ast
-                        .props
+            self.collect_known_type_names_from_item(item);
+        }
+    }
+
+    fn collect_known_type_names_from_item(&mut self, item: &TypedItem) {
+        match item {
+            TypedItem::Struct(st) => {
+                self.known_type_names.insert(st.ast.name.clone());
+                self.struct_fields.insert(
+                    st.ast.name.clone(),
+                    st.ast
+                        .fields
                         .iter()
-                        .map(|prop| prop.name.clone())
-                        .collect();
-                    fields.push("children".to_string());
-                    self.struct_fields.insert(props_name, fields);
-                }
-                _ => {}
+                        .map(|field| field.name.clone())
+                        .collect(),
+                );
             }
+            TypedItem::Enum(en) => {
+                self.known_type_names.insert(en.ast.name.clone());
+            }
+            TypedItem::TypeAlias(alias) => {
+                self.known_type_names.insert(alias.ast.name.clone());
+            }
+            TypedItem::Component(component) => {
+                self.known_type_names.insert(component.ast.name.clone());
+                self.known_type_names
+                    .insert(self.component_props_name(&component.ast.name));
+                let props_name = self.component_props_name(&component.ast.name);
+                let mut fields: Vec<String> = component
+                    .ast
+                    .props
+                    .iter()
+                    .map(|prop| prop.name.clone())
+                    .collect();
+                fields.push("children".to_string());
+                self.struct_fields.insert(props_name, fields);
+            }
+            TypedItem::Mod(module) => {
+                for child in &module.items {
+                    self.collect_known_type_names_from_item(child);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -443,12 +615,35 @@ impl RustGen {
                     self.gen_enum(&en.ast);
                 }
             }
+            TypedItem::Trait(tr) => {
+                if self.register_symbol("trait", &tr.ast.name) {
+                    self.gen_trait(&tr.ast);
+                }
+            }
             TypedItem::Impl(im) => self.gen_impl(&im.ast),
             TypedItem::Const(c) => {
                 if self.register_symbol("const", &c.ast.name) {
                     self.gen_const(&c.ast.name, &c.ast.ty, &c.ast.value, c.ast.visibility);
                 }
             }
+            TypedItem::TypeAlias(alias) => {
+                if self.register_symbol("type", &alias.ast.name) {
+                    let lifetime_names = self
+                        .type_alias_lifetime_generic_names(&alias.ast.generics, &alias.ast.target);
+                    self.push_generic_lifetimes(lifetime_names.clone());
+                    let vis = self.visibility_prefix(alias.ast.visibility);
+                    let generics = self.render_generic_params(&alias.ast.generics, &lifetime_names);
+                    self.write_line(&format!(
+                        "{vis}type {}{} = {};",
+                        sanitize_emitted_identifier(&alias.ast.name),
+                        generics,
+                        self.map_type(&alias.ast.target)
+                    ));
+                    self.pop_generic_lifetimes();
+                }
+            }
+            TypedItem::Use(u) => self.gen_use(&u.ast),
+            TypedItem::Mod(module) => self.gen_typed_mod(module),
             _ => {}
         }
     }
@@ -494,6 +689,166 @@ impl RustGen {
             self.map_const_type(ty),
             self.gen_const_value_expr(value)
         ));
+    }
+
+    fn gen_use(&mut self, use_item: &Use) {
+        self.write_line(&self.render_use(use_item));
+    }
+
+    fn gen_nested_item(&mut self, item: &Item) {
+        match item {
+            Item::Function(function) => self.gen_function(function),
+            Item::Struct(struct_def) => self.gen_struct(struct_def),
+            Item::Enum(enum_def) => self.gen_enum(enum_def),
+            Item::Trait(trait_def) => self.gen_trait(trait_def),
+            Item::Impl(impl_def) => self.gen_impl(impl_def),
+            Item::Const(const_def) => {
+                self.gen_const(
+                    &const_def.name,
+                    &const_def.ty,
+                    &const_def.value,
+                    const_def.visibility,
+                );
+            }
+            Item::Use(use_item) => self.gen_use(use_item),
+            Item::Mod(module) => self.gen_ast_mod(module),
+            Item::TypeAlias(alias) => {
+                let lifetime_names =
+                    self.type_alias_lifetime_generic_names(&alias.generics, &alias.target);
+                self.push_generic_lifetimes(lifetime_names.clone());
+                let vis = self.visibility_prefix(alias.visibility);
+                let generics = self.render_generic_params(&alias.generics, &lifetime_names);
+                self.write_line(&format!(
+                    "{vis}type {}{} = {};",
+                    sanitize_emitted_identifier(&alias.name),
+                    generics,
+                    self.map_type(&alias.target)
+                ));
+                self.pop_generic_lifetimes();
+            }
+            _ => {}
+        }
+    }
+
+    fn gen_typed_mod(&mut self, module: &TypedMod) {
+        let vis = self.visibility_prefix(module.ast.visibility);
+        self.write_line(&format!(
+            "{vis}mod {} {{",
+            sanitize_emitted_identifier(&module.ast.name)
+        ));
+        self.push_indent();
+        self.with_symbol_scope(|gen| {
+            for child in &module.items {
+                gen.gen_item(child);
+                gen.write_blank();
+            }
+        });
+        self.pop_indent();
+        self.write_line("}");
+    }
+
+    fn gen_ast_mod(&mut self, module: &Mod) {
+        let vis = self.visibility_prefix(module.visibility);
+        self.write_line(&format!(
+            "{vis}mod {} {{",
+            sanitize_emitted_identifier(&module.name)
+        ));
+        self.push_indent();
+        self.with_symbol_scope(|gen| {
+            if let Some(children) = &module.inline {
+                for child in children {
+                    gen.gen_nested_item(child);
+                    gen.write_blank();
+                }
+            }
+        });
+        self.pop_indent();
+        self.write_line("}");
+    }
+
+    fn gen_trait(&mut self, trait_def: &Trait) {
+        let lifetime_names = self.trait_lifetime_generic_names(trait_def);
+        self.push_generic_lifetimes(lifetime_names.clone());
+        let vis = self.visibility_prefix(trait_def.visibility);
+        let generics = self.render_generic_params(&trait_def.generics, &lifetime_names);
+        self.write_line(&format!(
+            "{vis}trait {}{} {{",
+            sanitize_emitted_identifier(&trait_def.name),
+            generics
+        ));
+        self.push_indent();
+        for method in &trait_def.methods {
+            self.gen_trait_method(method);
+            self.write_blank();
+        }
+        self.pop_indent();
+        self.write_line("}");
+        self.pop_generic_lifetimes();
+    }
+
+    fn gen_trait_method(&mut self, method: &TraitMethod) {
+        let params = self.render_trait_method_params(&method.params);
+        let ret = method
+            .return_type
+            .as_ref()
+            .map(|ty| format!(" -> {}", self.map_return_type(ty, None)))
+            .unwrap_or_default();
+        let name = self.normalize_runtime_method(&self.rust_function_name(&method.name));
+        if let Some(default_impl) = &method.default_impl {
+            self.write_line(&format!("fn {name}({params}){ret} {{"));
+            self.push_indent();
+            let has_implicit_return = method
+                .return_type
+                .as_ref()
+                .is_some_and(|ty| !matches!(ty, Type::Unit(_)));
+            self.gen_block_with_implicit_return(default_impl, has_implicit_return);
+            self.pop_indent();
+            self.write_line("}");
+        } else {
+            self.write_line(&format!("fn {name}({params}){ret};"));
+        }
+    }
+
+    fn render_trait_method_params(&self, params: &[Param]) -> String {
+        params
+            .iter()
+            .enumerate()
+            .map(|(index, param)| {
+                if index == 0 && matches!(param.name.as_str(), "self" | "_self") {
+                    if param.mutable {
+                        "mut self".to_string()
+                    } else {
+                        "self".to_string()
+                    }
+                } else {
+                    let ty = self.map_type(&param.ty);
+                    if param.mutable {
+                        format!("mut {}: {}", sanitize_emitted_identifier(&param.name), ty)
+                    } else {
+                        format!("{}: {}", sanitize_emitted_identifier(&param.name), ty)
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn with_symbol_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        let saved = std::mem::take(&mut self.emitted_symbols);
+        let result = f(self);
+        self.emitted_symbols = saved;
+        result
+    }
+
+    fn render_use(&self, use_item: &Use) -> String {
+        let mut path = self.normalize_runtime_path(&use_item.path.join("::"));
+        if use_item.glob {
+            path.push_str("::*");
+        }
+        match &use_item.alias {
+            Some(alias) => format!("use {path} as {};", sanitize_emitted_identifier(alias)),
+            None => format!("use {path};"),
+        }
     }
 
     fn is_simple_const(&self, ty: &Type, value: &Expr) -> bool {
@@ -553,16 +908,31 @@ impl RustGen {
                     format!("({})", parts.join(", "))
                 }
             }
-            Expr::Struct { name, fields, .. } => {
-                let field_strs: Vec<String> = fields
+            Expr::Struct {
+                name, fields, rest, ..
+            } => {
+                let mut field_strs: Vec<String> = fields
                     .iter()
-                    .map(|(field, value)| format!("{field}: {}", self.gen_const_value_expr(value)))
+                    .map(|(field, value)| {
+                        format!(
+                            "{}: {}",
+                            sanitize_emitted_identifier(field),
+                            self.gen_const_value_expr(value)
+                        )
+                    })
                     .collect();
-                format!(
-                    "{} {{ {} }}",
-                    self.normalize_runtime_path(name),
-                    field_strs.join(", ")
-                )
+                if let Some(rest) = rest {
+                    field_strs.push(format!("..{}", self.gen_const_value_expr(rest)));
+                }
+                if field_strs.is_empty() {
+                    format!("{} {{}}", self.normalize_runtime_path(name))
+                } else {
+                    format!(
+                        "{} {{ {} }}",
+                        self.normalize_runtime_path(name),
+                        field_strs.join(", ")
+                    )
+                }
             }
             Expr::AggregateInit {
                 ty,
@@ -580,7 +950,11 @@ impl RustGen {
                         let field_strs: Vec<String> = fields
                             .iter()
                             .map(|(field, value)| {
-                                format!("{field}: {}", self.gen_const_value_expr(value))
+                                format!(
+                                    "{}: {}",
+                                    sanitize_emitted_identifier(field),
+                                    self.gen_const_value_expr(value)
+                                )
                             })
                             .collect();
                         return format!("{head} {{ {} }}", field_strs.join(", "));
@@ -589,7 +963,13 @@ impl RustGen {
                 let ty_name = self.map_type(ty);
                 let field_strs: Vec<String> = fields
                     .iter()
-                    .map(|(field, value)| format!("{field}: {}", self.gen_const_value_expr(value)))
+                    .map(|(field, value)| {
+                        format!(
+                            "{}: {}",
+                            sanitize_emitted_identifier(field),
+                            self.gen_const_value_expr(value)
+                        )
+                    })
                     .collect();
                 if *zero_fill_rest {
                     if field_strs.is_empty() {
@@ -664,6 +1044,8 @@ impl RustGen {
         let mutated_params = self.collect_mutated_bindings_in_block(&func.body);
         let binding_types = self.collect_binding_types(func);
         self.current_function_stack.push(func.name.clone());
+        let lifetime_names = self.function_lifetime_generic_names(func);
+        self.push_generic_lifetimes(lifetime_names.clone());
         let vis = self.visibility_prefix(func.visibility);
         let modifiers = self.function_modifiers(&func.effects);
         let params = self.gen_params_with_context(
@@ -673,13 +1055,12 @@ impl RustGen {
             free_self_alias.as_deref(),
         );
         let generic_params = self.collect_function_generic_params(func);
-        let generic_suffix = if generic_params.is_empty() {
-            String::new()
-        } else {
-            format!("<{}>", generic_params.join(", "))
-        };
+        let generic_suffix = self.render_generic_names(&generic_params, &lifetime_names);
         let ret = if let Some(trait_name) = self.current_impl_trait() {
-            if trait_name == "Display" && self.rust_method_name(&func.name) == "fmt" {
+            if (self.trait_name_matches(trait_name, "Display")
+                || self.trait_name_matches(trait_name, "Debug"))
+                && self.rust_method_name(&func.name) == "fmt"
+            {
                 " -> std::fmt::Result".to_string()
             } else if let Some(ty) = &func.return_type {
                 format!(" -> {}", self.map_return_type(ty, self_ctx_ref))
@@ -705,6 +1086,7 @@ impl RustGen {
             .as_ref()
             .is_some_and(|ty| !matches!(ty, Type::Unit(_)));
 
+        self.emit_rust_attributes(&func.attributes);
         self.write_line(&format!(
             "{}{}fn {}{}({}){} {{",
             vis,
@@ -716,7 +1098,8 @@ impl RustGen {
         ));
         self.push_indent();
         if let Some(self_ctx) = &self_ctx {
-            self.self_type_stack.push(self_ctx.to_string());
+            self.self_type_stack
+                .push(strip_rendered_type_generics(self_ctx));
         }
         self.free_self_alias_stack.push(free_self_alias);
         self.current_return_struct_stack.push(return_struct);
@@ -728,6 +1111,7 @@ impl RustGen {
         if self_ctx.is_some() {
             self.self_type_stack.pop();
         }
+        self.pop_generic_lifetimes();
         self.current_function_stack.pop();
         self.pop_indent();
         self.write_line("}");
@@ -810,13 +1194,13 @@ impl RustGen {
                 let ty_str = self.map_type_in_context(&p.ty, self_ctx.or(free_self_target), false);
                 if index == 0 && matches!(p.name.as_str(), "self" | "_self") {
                     if let Some(alias) = free_self_alias {
-                        return format!("{alias}: {ty_str}");
+                        return format!("{}: {ty_str}", sanitize_emitted_identifier(alias));
                     }
                 }
                 if p.mutable || needs_mut {
-                    format!("mut {}: {}", p.name, ty_str)
+                    format!("mut {}: {}", sanitize_emitted_identifier(&p.name), ty_str)
                 } else {
-                    format!("{}: {}", p.name, ty_str)
+                    format!("{}: {}", sanitize_emitted_identifier(&p.name), ty_str)
                 }
             })
             .collect();
@@ -824,14 +1208,26 @@ impl RustGen {
     }
 
     fn collect_function_generic_params(&self, func: &Function) -> Vec<String> {
-        let mut names = BTreeSet::new();
-        for param in &func.params {
-            self.collect_type_generic_params(&param.ty, &mut names);
+        let mut names: Vec<String> = func
+            .generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        if self.current_impl_target().is_none() && self.current_impl_trait().is_none() {
+            let mut inferred = BTreeSet::new();
+            for param in &func.params {
+                self.collect_type_generic_params(&param.ty, &mut inferred);
+            }
+            if let Some(return_type) = &func.return_type {
+                self.collect_type_generic_params(return_type, &mut inferred);
+            }
+            for inferred_name in inferred {
+                if !names.iter().any(|name| name == &inferred_name) {
+                    names.push(inferred_name);
+                }
+            }
         }
-        if let Some(return_type) = &func.return_type {
-            self.collect_type_generic_params(return_type, &mut names);
-        }
-        names.into_iter().collect()
+        names
     }
 
     fn collect_type_generic_params(&self, ty: &Type, out: &mut BTreeSet<String>) {
@@ -883,53 +1279,474 @@ impl RustGen {
         }
     }
 
-    fn render_generic_params(&self, generics: &[Generic]) -> String {
-        if generics.is_empty() {
+    fn looks_like_lifetime_name(&self, name: &str) -> bool {
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        if leaf.is_empty() {
+            return false;
+        }
+        if leaf == "static" || leaf == "_" {
+            return true;
+        }
+        let mut chars = leaf.chars();
+        matches!(chars.next(), Some(ch) if ch.is_ascii_lowercase() || ch == '_')
+            && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    }
+
+    fn collect_declared_lifetime_generic_names_from_type(
+        &self,
+        ty: &Type,
+        declared_names: &HashSet<String>,
+        out: &mut HashSet<String>,
+    ) {
+        match ty {
+            Type::Named { name, generics, .. } => {
+                let leaf = name.rsplit("::").next().unwrap_or(name);
+                if generics.is_empty()
+                    && (declared_names.contains(name) || declared_names.contains(leaf))
+                    && self.looks_like_lifetime_name(leaf)
+                {
+                    out.insert(leaf.to_string());
+                }
+                for generic in generics {
+                    self.collect_declared_lifetime_generic_names_from_type(
+                        generic,
+                        declared_names,
+                        out,
+                    );
+                }
+            }
+            Type::Tuple(types, _) => {
+                for item in types {
+                    self.collect_declared_lifetime_generic_names_from_type(
+                        item,
+                        declared_names,
+                        out,
+                    );
+                }
+            }
+            Type::Array(inner, _, _)
+            | Type::Slice(inner, _)
+            | Type::Ptr { inner, .. }
+            | Type::Option(inner, _) => {
+                self.collect_declared_lifetime_generic_names_from_type(inner, declared_names, out);
+            }
+            Type::Ref {
+                inner, lifetime, ..
+            } => {
+                if let Some(name) = lifetime {
+                    let leaf = name.rsplit("::").next().unwrap_or(name);
+                    if (declared_names.contains(name) || declared_names.contains(leaf))
+                        && self.looks_like_lifetime_name(leaf)
+                    {
+                        out.insert(leaf.to_string());
+                    }
+                }
+                self.collect_declared_lifetime_generic_names_from_type(inner, declared_names, out);
+            }
+            Type::Result(ok, err, _) => {
+                self.collect_declared_lifetime_generic_names_from_type(ok, declared_names, out);
+                self.collect_declared_lifetime_generic_names_from_type(err, declared_names, out);
+            }
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
+                for param in params {
+                    self.collect_declared_lifetime_generic_names_from_type(
+                        param,
+                        declared_names,
+                        out,
+                    );
+                }
+                self.collect_declared_lifetime_generic_names_from_type(
+                    return_type,
+                    declared_names,
+                    out,
+                );
+            }
+            Type::Impl { generics, .. } => {
+                for generic in generics {
+                    self.collect_declared_lifetime_generic_names_from_type(
+                        generic,
+                        declared_names,
+                        out,
+                    );
+                }
+            }
+            Type::Infer(_) | Type::Never(_) | Type::Unit(_) => {}
+        }
+    }
+
+    fn function_lifetime_generic_names(&self, func: &Function) -> HashSet<String> {
+        let declared_names: HashSet<String> = func
+            .generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        let mut out = HashSet::new();
+        for param in &func.params {
+            self.collect_declared_lifetime_generic_names_from_type(
+                &param.ty,
+                &declared_names,
+                &mut out,
+            );
+        }
+        if let Some(return_type) = &func.return_type {
+            self.collect_declared_lifetime_generic_names_from_type(
+                return_type,
+                &declared_names,
+                &mut out,
+            );
+        }
+        out
+    }
+
+    fn struct_lifetime_generic_names(&self, struct_def: &Struct) -> HashSet<String> {
+        let declared_names: HashSet<String> = struct_def
+            .generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        let mut out = HashSet::new();
+        for field in &struct_def.fields {
+            self.collect_declared_lifetime_generic_names_from_type(
+                &field.ty,
+                &declared_names,
+                &mut out,
+            );
+        }
+        out
+    }
+
+    fn enum_lifetime_generic_names(&self, enum_def: &Enum) -> HashSet<String> {
+        let declared_names: HashSet<String> = enum_def
+            .generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        let mut out = HashSet::new();
+        for variant in &enum_def.variants {
+            match &variant.fields {
+                VariantFields::Unit => {}
+                VariantFields::Tuple(types) => {
+                    for ty in types {
+                        self.collect_declared_lifetime_generic_names_from_type(
+                            ty,
+                            &declared_names,
+                            &mut out,
+                        );
+                    }
+                }
+                VariantFields::Struct(fields) => {
+                    for field in fields {
+                        self.collect_declared_lifetime_generic_names_from_type(
+                            &field.ty,
+                            &declared_names,
+                            &mut out,
+                        );
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn trait_lifetime_generic_names(&self, trait_def: &Trait) -> HashSet<String> {
+        let declared_names: HashSet<String> = trait_def
+            .generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        let mut out = HashSet::new();
+        for method in &trait_def.methods {
+            for param in &method.params {
+                self.collect_declared_lifetime_generic_names_from_type(
+                    &param.ty,
+                    &declared_names,
+                    &mut out,
+                );
+            }
+            if let Some(return_type) = &method.return_type {
+                self.collect_declared_lifetime_generic_names_from_type(
+                    return_type,
+                    &declared_names,
+                    &mut out,
+                );
+            }
+        }
+        out
+    }
+
+    fn impl_lifetime_generic_names(&self, impl_def: &Impl) -> HashSet<String> {
+        let declared_names: HashSet<String> = impl_def
+            .generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        let mut out = HashSet::new();
+        self.collect_declared_lifetime_generic_names_from_type(
+            &impl_def.target_type,
+            &declared_names,
+            &mut out,
+        );
+        for generic in &impl_def.trait_generics {
+            self.collect_declared_lifetime_generic_names_from_type(
+                generic,
+                &declared_names,
+                &mut out,
+            );
+        }
+        for method in &impl_def.methods {
+            for param in &method.params {
+                self.collect_declared_lifetime_generic_names_from_type(
+                    &param.ty,
+                    &declared_names,
+                    &mut out,
+                );
+            }
+            if let Some(return_type) = &method.return_type {
+                self.collect_declared_lifetime_generic_names_from_type(
+                    return_type,
+                    &declared_names,
+                    &mut out,
+                );
+            }
+        }
+        out
+    }
+
+    fn type_alias_lifetime_generic_names(
+        &self,
+        generics: &[Generic],
+        target: &Type,
+    ) -> HashSet<String> {
+        let declared_names: HashSet<String> = generics
+            .iter()
+            .map(|generic| generic.name.clone())
+            .collect();
+        let mut out = HashSet::new();
+        self.collect_declared_lifetime_generic_names_from_type(target, &declared_names, &mut out);
+        out
+    }
+
+    fn render_generic_name(&self, name: &str, lifetime_names: &HashSet<String>) -> String {
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        if (lifetime_names.contains(name) || lifetime_names.contains(leaf))
+            && self.looks_like_lifetime_name(leaf)
+        {
+            format!("'{}", self.sanitize_lifetime_name(leaf))
+        } else {
+            sanitize_emitted_identifier(name)
+        }
+    }
+
+    fn render_generic_names(&self, names: &[String], lifetime_names: &HashSet<String>) -> String {
+        if names.is_empty() {
             String::new()
         } else {
             format!(
                 "<{}>",
-                generics
+                names
                     .iter()
-                    .map(|generic| generic.name.clone())
+                    .map(|name| self.render_generic_name(name, lifetime_names))
                     .collect::<Vec<_>>()
                     .join(", ")
             )
         }
     }
 
-    fn gen_struct(&mut self, struct_def: &Struct) {
-        let vis = self.visibility_prefix(struct_def.visibility);
-        let generics = self.render_generic_params(&struct_def.generics);
+    fn render_generic_params(
+        &self,
+        generics: &[Generic],
+        lifetime_names: &HashSet<String>,
+    ) -> String {
+        if generics.is_empty() {
+            String::new()
+        } else {
+            let names = generics
+                .iter()
+                .map(|generic| generic.name.clone())
+                .collect::<Vec<_>>();
+            self.render_generic_names(&names, lifetime_names)
+        }
+    }
 
-        self.write_line("#[derive(Debug, Clone, PartialEq)]");
-        self.write_line(&format!("{}struct {}{} {{", vis, struct_def.name, generics));
+    fn emit_rust_attributes(&mut self, attrs: &[kain_core::ast::Attribute]) {
+        for attr in attrs {
+            if let Some(rendered) = self.render_rust_attribute(attr) {
+                self.write_line(&rendered);
+            }
+        }
+    }
+
+    fn has_rust_attribute(&self, attrs: &[kain_core::ast::Attribute], target: &str) -> bool {
+        attrs
+            .iter()
+            .any(|attr| self.normalize_runtime_path(&attr.name) == target)
+    }
+
+    fn render_rust_attribute(&self, attr: &kain_core::ast::Attribute) -> Option<String> {
+        let name = self.normalize_runtime_path(&attr.name);
+        if name == "doc" {
+            if attr.args.len() == 1 {
+                if let Some(value) = self.render_rust_doc_attr_value(&attr.args[0]) {
+                    return Some(format!("#[doc = {value}]"));
+                }
+            }
+        }
+        if attr.args.is_empty() {
+            Some(format!("#[{name}]"))
+        } else {
+            Some(format!(
+                "#[{name}({})]",
+                attr.args
+                    .iter()
+                    .map(|arg| self.render_rust_attr_expr(arg))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        }
+    }
+
+    fn render_rust_doc_attr_value(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Tuple(parts, _) if parts.len() == 2 => {
+                if let Expr::Ident(name, _) = &parts[0] {
+                    if self.normalize_runtime_path(name) == "doc" {
+                        return Some(self.render_rust_attr_expr(&parts[1]));
+                    }
+                }
+                None
+            }
+            Expr::Assign { target, value, .. } => {
+                if matches!(target.as_ref(), Expr::Ident(name, _) if self.normalize_runtime_path(name) == "doc")
+                {
+                    Some(self.render_rust_attr_expr(value))
+                } else {
+                    None
+                }
+            }
+            Expr::String(_, _) => Some(self.render_rust_attr_expr(expr)),
+            _ => None,
+        }
+    }
+
+    fn render_rust_attr_expr(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Ident(name, _) => self.normalize_runtime_path(name),
+            Expr::String(value, _) => format!("{value:?}"),
+            Expr::Int(value, _) => value.to_string(),
+            Expr::Float(value, _) => value.to_string(),
+            Expr::Bool(value, _) => value.to_string(),
+            Expr::Tuple(parts, _) if parts.len() == 2 => {
+                if let Expr::Ident(name, _) = &parts[0] {
+                    return format!(
+                        "{} = {}",
+                        self.normalize_runtime_path(name),
+                        self.render_rust_attr_expr(&parts[1])
+                    );
+                }
+                self.gen_expr(expr)
+            }
+            Expr::Assign { target, value, .. } => format!(
+                "{} = {}",
+                self.render_rust_attr_expr(target),
+                self.render_rust_attr_expr(value)
+            ),
+            Expr::Call { callee, args, .. } => {
+                let callee = self.render_rust_attr_expr(callee);
+                let args = args
+                    .iter()
+                    .map(|arg| match &arg.name {
+                        Some(name) => format!(
+                            "{} = {}",
+                            self.normalize_runtime_path(name),
+                            self.render_rust_attr_expr(&arg.value)
+                        ),
+                        None => self.render_rust_attr_expr(&arg.value),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{callee}({args})")
+            }
+            Expr::Field { object, field, .. } => {
+                format!(
+                    "{}.{}",
+                    self.render_rust_attr_expr(object),
+                    self.render_field_accessor(field)
+                )
+            }
+            _ => self.gen_expr(expr),
+        }
+    }
+
+    fn gen_struct(&mut self, struct_def: &Struct) {
+        let lifetime_names = self.struct_lifetime_generic_names(struct_def);
+        self.push_generic_lifetimes(lifetime_names.clone());
+        let vis = self.visibility_prefix(struct_def.visibility);
+        let generics = self.render_generic_params(&struct_def.generics, &lifetime_names);
+
+        self.emit_rust_attributes(&struct_def.attributes);
+        if !self.has_rust_attribute(&struct_def.attributes, "derive") {
+            self.write_line("#[derive(Debug, Clone, PartialEq)]");
+        }
+        self.write_line(&format!(
+            "{}struct {}{} {{",
+            vis,
+            sanitize_emitted_identifier(&struct_def.name),
+            generics
+        ));
         self.push_indent();
 
         for field in &struct_def.fields {
+            self.emit_rust_attributes(&field.attributes);
             self.write_line(&format!(
                 "{}{}: {},",
                 self.visibility_prefix(field.visibility),
-                field.name,
+                sanitize_emitted_identifier(&field.name),
                 self.map_storage_type(&field.ty, Some(&struct_def.name))
             ));
         }
 
         self.pop_indent();
         self.write_line("}");
+        self.pop_generic_lifetimes();
     }
 
     fn gen_impl(&mut self, impl_def: &Impl) {
+        let lifetime_names = self.impl_lifetime_generic_names(impl_def);
+        self.push_generic_lifetimes(lifetime_names.clone());
+        let impl_generics = self.render_generic_params(&impl_def.generics, &lifetime_names);
         let target = self.map_type(&impl_def.target_type);
-        let trait_name = impl_def
-            .trait_name
-            .as_ref()
-            .map(|name| self.map_trait_name(name));
+        let trait_name = impl_def.trait_name.as_ref().map(|name| {
+            let name = self.map_trait_name(name);
+            if impl_def.trait_generics.is_empty() {
+                name
+            } else {
+                format!(
+                    "{}<{}>",
+                    name,
+                    impl_def
+                        .trait_generics
+                        .iter()
+                        .map(|ty| {
+                            let current_self = self.current_impl_target();
+                            self.map_generic_arg_in_context(ty, current_self.as_deref(), false)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+        });
 
         if let Some(trait_name) = &trait_name {
-            self.write_line(&format!("impl {} for {} {{", trait_name, target));
+            self.write_line(&format!(
+                "impl{} {} for {} {{",
+                impl_generics, trait_name, target
+            ));
         } else {
-            self.write_line(&format!("impl {} {{", target));
+            self.write_line(&format!("impl{} {} {{", impl_generics, target));
         }
 
         self.push_indent();
@@ -943,15 +1760,18 @@ impl RustGen {
         self.impl_target_stack.pop();
         self.pop_indent();
         self.write_line("}");
+        self.pop_generic_lifetimes();
     }
 
     fn gen_enum(&mut self, enum_def: &Enum) {
-        let generics = self.render_generic_params(&enum_def.generics);
+        let lifetime_names = self.enum_lifetime_generic_names(enum_def);
+        self.push_generic_lifetimes(lifetime_names.clone());
+        let generics = self.render_generic_params(&enum_def.generics, &lifetime_names);
         self.write_line("#[derive(Debug, Clone, PartialEq)]");
         self.write_line(&format!(
             "{}enum {}{} {{",
             self.visibility_prefix(enum_def.visibility),
-            enum_def.name,
+            sanitize_emitted_identifier(&enum_def.name),
             generics
         ));
         self.push_indent();
@@ -959,22 +1779,29 @@ impl RustGen {
         for variant in &enum_def.variants {
             match &variant.fields {
                 VariantFields::Unit => {
-                    self.write_line(&format!("{},", variant.name));
+                    self.write_line(&format!("{},", sanitize_emitted_identifier(&variant.name)));
                 }
                 VariantFields::Tuple(types) => {
                     let fields: Vec<String> = types
                         .iter()
                         .map(|t| self.map_storage_type(t, Some(&enum_def.name)))
                         .collect();
-                    self.write_line(&format!("{}({}),", variant.name, fields.join(", ")));
+                    self.write_line(&format!(
+                        "{}({}),",
+                        sanitize_emitted_identifier(&variant.name),
+                        fields.join(", ")
+                    ));
                 }
                 VariantFields::Struct(fields) => {
-                    self.write_line(&format!("{} {{", variant.name));
+                    self.write_line(&format!(
+                        "{} {{",
+                        sanitize_emitted_identifier(&variant.name)
+                    ));
                     self.push_indent();
                     for f in fields {
                         self.write_line(&format!(
                             "{}: {},",
-                            f.name,
+                            sanitize_emitted_identifier(&f.name),
                             self.map_storage_type(&f.ty, Some(&enum_def.name))
                         ));
                     }
@@ -986,6 +1813,7 @@ impl RustGen {
 
         self.pop_indent();
         self.write_line("}");
+        self.pop_generic_lifetimes();
     }
 
     fn component_props_name(&self, name: &str) -> String {
@@ -1189,13 +2017,13 @@ impl RustGen {
                     self.write_line(&format!("{};", self.gen_expr(expr)));
                 }
             }
-            Stmt::Item(_) => {}
+            Stmt::Item(item) => self.gen_nested_item(item),
         }
     }
 
     fn gen_block_expr(&self, block: &Block) -> String {
         if self.is_selfhost_empty_block(block) {
-            return "None".to_string();
+            return "{ () }".to_string();
         }
         let len = block.stmts.len();
         let mut stmt_strs = Vec::new();
@@ -1300,88 +2128,76 @@ impl RustGen {
         }
     }
 
+    fn string_literal_expr(expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::String(value, _) => Some(format!("{value:?}")),
+            _ => None,
+        }
+    }
+
+    fn render_format_head_macro(&self, name: &str, args: &[&Expr]) -> String {
+        let Some((first, rest)) = args.split_first() else {
+            return format!("{name}!()");
+        };
+
+        if rest.is_empty() {
+            return format!("{name}!(\"{{}}\", {})", self.gen_expr(first));
+        }
+
+        if let Some(literal) = Self::string_literal_expr(first) {
+            let rendered_rest: Vec<String> = rest.iter().map(|arg| self.gen_expr(arg)).collect();
+            format!("{name}!({literal}, {})", rendered_rest.join(", "))
+        } else {
+            let rendered_args: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
+            let placeholders = vec!["{}"; rendered_args.len()].join(" ");
+            format!("{name}!(\"{placeholders}\", {})", rendered_args.join(", "))
+        }
+    }
+
+    fn render_builtin_macro_exprs(&self, name: &str, args: &[&Expr]) -> Option<String> {
+        let rendered = match name {
+            "format" => self.render_format_head_macro("format", args),
+            "panic" | "unreachable" | "todo" => self.render_format_head_macro(name, args),
+            "__kain_write_fmt" => {
+                let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
+                if arg_strs.len() == 2 {
+                    format!("write!({}, \"{{}}\", {})", arg_strs[0], arg_strs[1])
+                } else {
+                    format!("write!({})", arg_strs.join(", "))
+                }
+            }
+            "__kain_writeln_fmt" => {
+                let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
+                if arg_strs.len() == 2 {
+                    format!("writeln!({}, \"{{}}\", {})", arg_strs[0], arg_strs[1])
+                } else {
+                    format!("writeln!({})", arg_strs.join(", "))
+                }
+            }
+            "println" | "print" | "eprintln" | "eprint" => {
+                self.render_format_head_macro(name, args)
+            }
+            _ => return None,
+        };
+        Some(rendered)
+    }
+
     fn gen_expr(&self, expr: &Expr) -> String {
         match expr {
             Expr::Int(n, _) => n.to_string(),
             Expr::Float(f, _) => format!("{:.1}", f),
             Expr::String(s, _) => format!("\"{}\".to_string()", self.escape_string(s)),
-            Expr::FString(parts, _) => {
-                if parts.is_empty() {
-                    "String::new()".to_string()
-                } else {
-                    let placeholders = vec!["{}"; parts.len()].join("");
-                    let args: Vec<String> = parts.iter().map(|part| self.gen_expr(part)).collect();
-                    format!("format!(\"{}\", {})", placeholders, args.join(", "))
-                }
-            }
+            Expr::FString(parts, _) => self.render_interpolated_string(parts),
             Expr::Bool(b, _) => b.to_string(),
             Expr::None(_) => "None".to_string(),
             Expr::Ident(name, _) => self.normalize_runtime_path(name),
             Expr::MacroCall { name, args, .. } => {
-                match name.as_str() {
-                    "format" => {
-                        if let Some((first, rest)) = args.split_first() {
-                            let format_head = match first {
-                                Expr::String(value, _) => format!("{value:?}"),
-                                _ => self.gen_expr(first),
-                            };
-                            let arg_strs: Vec<String> =
-                                rest.iter().map(|arg| self.gen_expr(arg)).collect();
-                            if arg_strs.is_empty() {
-                                format!("format!({format_head})")
-                            } else {
-                                format!("format!({format_head}, {})", arg_strs.join(", "))
-                            }
-                        } else {
-                            "format!()".to_string()
-                        }
-                    }
-                    "panic" => {
-                        if let Some((first, rest)) = args.split_first() {
-                            let panic_head = match first {
-                                Expr::String(value, _) => format!("{value:?}"),
-                                _ => self.gen_expr(first),
-                            };
-                            let arg_strs: Vec<String> =
-                                rest.iter().map(|arg| self.gen_expr(arg)).collect();
-                            if arg_strs.is_empty() {
-                                format!("panic!({panic_head})")
-                            } else {
-                                format!("panic!({panic_head}, {})", arg_strs.join(", "))
-                            }
-                        } else {
-                            "panic!()".to_string()
-                        }
-                    }
-                    "__kain_write_fmt" => {
-                        let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
-                        if arg_strs.len() == 2 {
-                            format!("write!({}, \"{{}}\", {})", arg_strs[0], arg_strs[1])
-                        } else {
-                            format!("write!({})", arg_strs.join(", "))
-                        }
-                    }
-                    "__kain_writeln_fmt" => {
-                        let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
-                        if arg_strs.len() == 2 {
-                            format!("writeln!({}, \"{{}}\", {})", arg_strs[0], arg_strs[1])
-                        } else {
-                            format!("writeln!({})", arg_strs.join(", "))
-                        }
-                    }
-                    "println" | "print" | "eprintln" => {
-                        let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
-                        if arg_strs.is_empty() {
-                            format!("{}!()", name)
-                        } else {
-                            let placeholders = vec!["{}"; arg_strs.len()].join(" " );
-                            format!("{}!(\"{}\", {})", name, placeholders, arg_strs.join(", "))
-                        }
-                    }
-                    _ => {
-                        let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
-                        format!("{}!({})", name, arg_strs.join(", "))
-                    }
+                let arg_refs: Vec<&Expr> = args.iter().collect();
+                if let Some(rendered) = self.render_builtin_macro_exprs(name, &arg_refs) {
+                    rendered
+                } else {
+                    let arg_strs: Vec<String> = args.iter().map(|arg| self.gen_expr(arg)).collect();
+                    format!("{}!({})", name, arg_strs.join(", "))
                 }
             }
             Expr::Binary { left, op, right, .. } => {
@@ -1399,21 +2215,9 @@ impl RustGen {
                 if fn_name == "Some" && args.len() == 1 && matches!(args[0].value, Expr::None(_)) {
                     return "None".to_string();
                 }
-                if fn_name == "panic" {
-                    let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
-                    return if arg_strs.is_empty() {
-                        "panic!()".to_string()
-                    } else {
-                        format!("panic!({})", arg_strs.join(", "))
-                    };
-                }
-                if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" || fn_name == "eprint" {
-                    let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
-                    if arg_strs.is_empty() {
-                        return format!("{}!()", fn_name);
-                    }
-                    let placeholders = vec!["{}"; arg_strs.len()].join(" " );
-                    return format!("{}!(\"{}\", {})", fn_name, placeholders, arg_strs.join(", "));
+                let call_arg_refs: Vec<&Expr> = args.iter().map(|a| &a.value).collect();
+                if let Some(rendered) = self.render_builtin_macro_exprs(&fn_name, &call_arg_refs) {
+                    return rendered;
                 }
                 if fn_name == "range" {
                     let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
@@ -1422,6 +2226,17 @@ impl RustGen {
                         [start, end, inclusive] if inclusive == "true" => format!("{start}..={end}"),
                         [start, end, _] => format!("{start}..{end}"),
                         _ => format!("range({})", arg_strs.join(", ")),
+                    };
+                }
+                if fn_name == "slice" {
+                    let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
+                    return match arg_strs.as_slice() {
+                        [object, start, end] => {
+                            let start = if start == "None" || start == "none" { "" } else { start };
+                            let end = if end == "None" || end == "none" { "" } else { end };
+                            format!("{object}[{start}..{end}]")
+                        }
+                        _ => format!("slice({})", arg_strs.join(", ")),
                     };
                 }
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
@@ -1448,12 +2263,38 @@ impl RustGen {
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!("{}.{}({})", recv, normalized_method, arg_strs.join(", "))
             }
-            Expr::Field { object, field, .. } => format!("{}.{}", self.gen_expr(object), field),
+            Expr::Field { object, field, .. } => format!(
+                "{}.{}",
+                self.gen_expr(object),
+                self.render_field_accessor(field)
+            ),
             Expr::Index { object, index, .. } => format!("{}[{}]", self.gen_expr(object), self.gen_expr(index)),
             Expr::Assign { target, value, .. } => format!("({} = {})", self.gen_expr(target), self.gen_expr(value)),
-            Expr::Struct { name, fields, .. } => {
-                let field_strs: Vec<String> = fields.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
-                format!("{} {{ {} }}", self.normalize_runtime_path(name), field_strs.join(", "))
+            Expr::Struct {
+                name, fields, rest, ..
+            } => {
+                let mut field_strs: Vec<String> = fields
+                    .iter()
+                    .map(|(name, value)| {
+                        format!(
+                            "{}: {}",
+                            sanitize_emitted_identifier(name),
+                            self.gen_expr(value)
+                        )
+                    })
+                    .collect();
+                if let Some(rest) = rest {
+                    field_strs.push(format!("..{}", self.gen_expr(rest)));
+                }
+                if field_strs.is_empty() {
+                    format!("{} {{}}", self.normalize_runtime_path(name))
+                } else {
+                    format!(
+                        "{} {{ {} }}",
+                        self.normalize_runtime_path(name),
+                        field_strs.join(", ")
+                    )
+                }
             }
             Expr::AggregateInit { ty, fields, zero_fill_rest, .. } => {
                 if let Type::Named { name, .. } = ty {
@@ -1465,13 +2306,28 @@ impl RustGen {
                         );
                         let field_strs: Vec<String> = fields
                             .iter()
-                            .map(|(name, value)| format!("{}: {}", name, self.gen_expr(value)))
+                            .map(|(name, value)| {
+                                format!(
+                                    "{}: {}",
+                                    sanitize_emitted_identifier(name),
+                                    self.gen_expr(value)
+                                )
+                            })
                             .collect();
                         return format!("{} {{ {} }}", head, field_strs.join(", "));
                     }
                 }
                 let ty_name = self.map_type(ty);
-                let field_strs: Vec<String> = fields.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                let field_strs: Vec<String> = fields
+                    .iter()
+                    .map(|(name, value)| {
+                        format!(
+                            "{}: {}",
+                            sanitize_emitted_identifier(name),
+                            self.gen_expr(value)
+                        )
+                    })
+                    .collect();
                 if *zero_fill_rest {
                     if field_strs.is_empty() {
                         format!("{} {{ ..Default::default() }}", ty_name)
@@ -1490,7 +2346,16 @@ impl RustGen {
                         format!("{}({})", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
                     }
                     EnumVariantFields::Struct(values) => {
-                        let parts: Vec<String> = values.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                        let parts: Vec<String> = values
+                            .iter()
+                            .map(|(name, value)| {
+                                format!(
+                                    "{}: {}",
+                                    sanitize_emitted_identifier(name),
+                                    self.gen_expr(value)
+                                )
+                            })
+                            .collect();
                         format!("{} {{ {} }}", self.normalize_variant_head(Some(enum_name), variant, None), parts.join(", "))
                     }
                 }
@@ -1581,6 +2446,10 @@ impl RustGen {
             Expr::Cast { value, target, .. } => format!("(({}) as {})", self.gen_expr(value), self.map_type(target)),
             Expr::Try(value, _) => format!("({}?)", self.gen_expr(value)),
             Expr::Await(value, _) => format!("({}.await)", self.gen_expr(value)),
+            Expr::AsyncBlock(value, _) => match value.as_ref() {
+                Expr::Block(block, _) => format!("async {}", self.gen_block_expr(block)),
+                _ => format!("async {{ {} }}", self.gen_expr(value)),
+            },
             Expr::Spawn { actor, init, .. } => {
                 let init_fields: Vec<String> = init.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
                 format!("{} {{ {} }}", actor, init_fields.join(", "))
@@ -1777,9 +2646,9 @@ impl RustGen {
             Pattern::Literal(expr) => self.gen_pattern_literal(expr),
             Pattern::Binding { name, mutable, .. } => {
                 if *mutable {
-                    format!("mut {}", name)
+                    format!("mut {}", sanitize_emitted_identifier(name))
                 } else {
-                    name.clone()
+                    sanitize_emitted_identifier(name)
                 }
             }
             Pattern::Struct {
@@ -1788,7 +2657,11 @@ impl RustGen {
                 let mut field_strs: Vec<String> = fields
                     .iter()
                     .map(|(field, pat)| {
-                        format!("{field}: {}", self.gen_pattern_with_hint(pat, None))
+                        format!(
+                            "{}: {}",
+                            sanitize_emitted_identifier(field),
+                            self.gen_pattern_with_hint(pat, None)
+                        )
                     })
                     .collect();
                 if *rest || !fields.is_empty() {
@@ -1989,6 +2862,7 @@ impl RustGen {
             | Expr::Deref(operand, _)
             | Expr::Try(operand, _)
             | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
             | Expr::Comptime(operand, _)
             | Expr::Paren(operand, _)
             | Expr::Return(Some(operand), _)
@@ -2012,7 +2886,15 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(object, names);
                 self.collect_mutated_bindings_in_expr(index, names);
             }
-            Expr::Struct { fields, .. } | Expr::AggregateInit { fields, .. } => {
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.collect_mutated_bindings_in_expr(value, names);
+                }
+                if let Some(rest) = rest {
+                    self.collect_mutated_bindings_in_expr(rest, names);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
                 for (_, value) in fields {
                     self.collect_mutated_bindings_in_expr(value, names);
                 }
@@ -2170,7 +3052,13 @@ impl RustGen {
                 EnumVariantFields::Struct(values) => {
                     let parts: Vec<String> = values
                         .iter()
-                        .map(|(name, value)| format!("{name}: {}", self.gen_pattern_literal(value)))
+                        .map(|(name, value)| {
+                            format!(
+                                "{}: {}",
+                                sanitize_emitted_identifier(name),
+                                self.gen_pattern_literal(value)
+                            )
+                        })
                         .collect();
                     format!(
                         "{} {{ {} }}",
@@ -2185,7 +3073,11 @@ impl RustGen {
     }
 
     fn rust_function_name(&self, name: &str) -> String {
-        name.replace("::", "__")
+        name.split("::")
+            .filter(|segment| !segment.is_empty())
+            .map(sanitize_emitted_identifier)
+            .collect::<Vec<_>>()
+            .join("__")
     }
 
     fn rust_method_name(&self, name: &str) -> String {
@@ -2203,11 +3095,15 @@ impl RustGen {
         }
         if let Some(trait_name) = self.current_impl_trait() {
             match trait_name {
-                "Display" if emitted.ends_with("_fmt") => return "fmt".to_string(),
-                "Default"
-                    if emitted.ends_with("_default")
+                _ if self.trait_name_matches(trait_name, "Display")
+                    && emitted.ends_with("_fmt") =>
+                {
+                    return "fmt".to_string()
+                }
+                _ if self.trait_name_matches(trait_name, "Default")
+                    && (emitted.ends_with("_default")
                         || emitted == "default"
-                        || emitted == "default_" =>
+                        || emitted == "default_") =>
                 {
                     return "default".to_string()
                 }
@@ -2224,7 +3120,21 @@ impl RustGen {
     fn map_trait_name(&self, name: &str) -> String {
         match name {
             "Display" => "std::fmt::Display".to_string(),
+            "Debug" => "std::fmt::Debug".to_string(),
             _ => self.normalize_runtime_path(name),
+        }
+    }
+
+    fn trait_name_matches(&self, trait_name: &str, target: &str) -> bool {
+        trait_name == target || trait_name.ends_with(&format!("::{target}"))
+    }
+
+    fn normalize_runtime_head_segment(&self, segment: &str) -> String {
+        let normalized = desanitize_kain_identifier(segment);
+        if RUST_PATH_ROOT_SEGMENTS.contains(&normalized.as_str()) {
+            normalized
+        } else {
+            self.map_named_type(&normalized)
         }
     }
 
@@ -2346,62 +3256,40 @@ impl RustGen {
                 return self.normalize_runtime_path(&canonical);
             }
         }
-        for prefix in STRIP_COLON_PREFIXES {
-            if let Some(rest) = normalized.strip_prefix(prefix) {
-                normalized = rest;
-                break;
+        if !self.has_modules {
+            for prefix in STRIP_COLON_PREFIXES {
+                if let Some(rest) = normalized.strip_prefix(prefix) {
+                    normalized = rest;
+                    break;
+                }
             }
-        }
-        for prefix in STRIP_DUNDER_PREFIXES {
-            if let Some(rest) = normalized.strip_prefix(prefix) {
-                normalized = rest;
-                break;
+            for prefix in STRIP_DUNDER_PREFIXES {
+                if let Some(rest) = normalized.strip_prefix(prefix) {
+                    normalized = rest;
+                    break;
+                }
             }
         }
         if normalized == "Self_" {
             return "Self".to_string();
         }
-        if normalized.starts_with("crate::") {
+        if !self.has_modules && normalized.starts_with("crate::") {
             normalized = normalized.trim_start_matches("crate::");
         }
         if normalized.starts_with("__kain_") {
             return normalized.to_string();
         }
         if normalized.contains("::") {
-            let mut segments = normalized
+            let segments = normalized
                 .split("::")
                 .filter(|segment| !segment.is_empty())
-                .enumerate()
-                .map(|(index, segment)| self.normalize_runtime_segment(segment, index > 0))
                 .collect::<Vec<_>>();
-            if let Some(first) = segments.first_mut() {
-                let mapped = self.map_named_type(first);
-                if mapped.contains("::") {
-                    let rest = segments.into_iter().skip(1).collect::<Vec<_>>();
-                    return if rest.is_empty() {
-                        mapped
-                    } else {
-                        format!("{mapped}::{}", rest.join("::"))
-                    };
-                }
-            }
-            return segments.join("::");
-        }
-        if !normalized.contains("__") {
-            let mapped = self.map_named_type(normalized);
-            return mapped;
-        }
-
-        let mut segments = normalized
-            .split("__")
-            .filter(|segment| !segment.is_empty())
-            .enumerate()
-            .map(|(index, segment)| self.normalize_runtime_segment(segment, index > 0))
-            .collect::<Vec<_>>();
-        if let Some(first) = segments.first_mut() {
-            let mapped = self.map_named_type(first);
-            if mapped.contains("::") {
-                let rest = segments.into_iter().skip(1).collect::<Vec<_>>();
+            if let Some((first, rest)) = segments.split_first() {
+                let mapped = self.normalize_runtime_head_segment(first);
+                let rest = rest
+                    .iter()
+                    .map(|segment| self.normalize_runtime_segment(segment, true))
+                    .collect::<Vec<_>>();
                 return if rest.is_empty() {
                     mapped
                 } else {
@@ -2409,28 +3297,51 @@ impl RustGen {
                 };
             }
         }
-        segments.join("::")
+        if !normalized.contains("__") {
+            return self.normalize_runtime_head_segment(normalized);
+        }
+
+        let segments = split_sanitized_dunder_path(normalized)
+            .into_iter()
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        if let Some((first, rest)) = segments.split_first() {
+            let mapped = self.normalize_runtime_head_segment(first);
+            let rest = rest
+                .iter()
+                .map(|segment| self.normalize_runtime_segment(segment, true))
+                .collect::<Vec<_>>();
+            return if rest.is_empty() {
+                mapped
+            } else {
+                format!("{mapped}::{}", rest.join("::"))
+            };
+        }
+        String::new()
     }
 
     fn normalize_runtime_segment(&self, segment: &str, terminal: bool) -> String {
-        if terminal {
+        let normalized = if terminal {
             if segment.starts_with('_')
                 && segment
                     .chars()
                     .nth(1)
                     .is_some_and(|ch| ch.is_ascii_uppercase())
             {
-                return segment.trim_start_matches('_').to_string();
+                segment.trim_start_matches('_').to_string()
+            } else {
+                match segment {
+                    "new_" => "new".to_string(),
+                    "default_" => "default".to_string(),
+                    "var_" => "var".to_string(),
+                    "spawn_" => "spawn".to_string(),
+                    _ => segment.to_string(),
+                }
             }
-            match segment {
-                "new_" => return "new".to_string(),
-                "default_" => return "default".to_string(),
-                "var_" => return "var".to_string(),
-                "spawn_" => return "spawn".to_string(),
-                _ => {}
-            }
-        }
-        segment.to_string()
+        } else {
+            segment.to_string()
+        };
+        sanitize_emitted_identifier(&normalized)
     }
 
     fn normalize_runtime_method(&self, method: &str) -> String {
@@ -2442,7 +3353,7 @@ impl RustGen {
         {
             return method.trim_start_matches('_').to_string();
         }
-        match method {
+        let normalized = match method {
             "send_" => "send".to_string(),
             "spawn_" => "spawn".to_string(),
             "or_" => "or".to_string(),
@@ -2450,8 +3361,34 @@ impl RustGen {
             "new_" => "new".to_string(),
             "default_" => "default".to_string(),
             "var_" => "var".to_string(),
-            _ => method.to_string(),
+            _ => desanitize_kain_identifier(method),
+        };
+        sanitize_rust_identifier(&normalized)
+    }
+
+    fn render_interpolated_string(&self, parts: &[Expr]) -> String {
+        if parts.is_empty() {
+            return "String::new()".to_string();
         }
+        let mut lines = Vec::with_capacity(parts.len() + 4);
+        lines.push("{".to_string());
+        lines.push("let mut __kain_fstr = String::new();".to_string());
+        for part in parts {
+            match part {
+                Expr::String(value, _) => {
+                    lines.push(format!("__kain_fstr.push_str({value:?});"));
+                }
+                expr => {
+                    lines.push(format!(
+                        "__kain_fstr.push_str(&format!(\"{{}}\", {}));",
+                        self.gen_expr(expr)
+                    ));
+                }
+            }
+        }
+        lines.push("__kain_fstr".to_string());
+        lines.push("}".to_string());
+        lines.join(" ")
     }
 
     fn current_return_struct(&self) -> Option<&str> {
@@ -2554,13 +3491,14 @@ impl RustGen {
     }
 
     fn placeholder_for_peer_branch(&self, other: &str) -> String {
+        let other = other.trim();
         if other.contains("VNode::") {
             if self.current_function_name() == Some("reconcile") {
                 return "next.clone()".to_string();
             }
             return "VNode::Fragment(Vec::new())".to_string();
         }
-        if other == "()" || other.contains("return ") {
+        if other == "()" || other == "{ () }" || other.contains("return ") {
             return "()".to_string();
         }
         if other.starts_with("Some(") || other == "None" {
@@ -2573,12 +3511,63 @@ impl RustGen {
         self.map_type_in_context(ty, None, false)
     }
 
+    fn sanitize_lifetime_name(&self, lifetime: &str) -> String {
+        let normalized = lifetime.trim_start_matches('\'');
+        if normalized == "static" || normalized == "_" {
+            normalized.to_string()
+        } else {
+            sanitize_rust_identifier(normalized)
+        }
+    }
+
+    fn render_field_accessor(&self, field: &str) -> String {
+        if let Some(index) = tuple_field_marker_index(field) {
+            index.to_string()
+        } else {
+            sanitize_emitted_identifier(field)
+        }
+    }
+
+    fn render_ref_lifetime(&self, lifetime: Option<&str>) -> String {
+        lifetime
+            .map(|name| format!("'{} ", self.sanitize_lifetime_name(name)))
+            .unwrap_or_default()
+    }
+
+    fn lifetime_generic_arg_name(&self, ty: &Type) -> Option<String> {
+        let Type::Named { name, generics, .. } = ty else {
+            return None;
+        };
+        if !generics.is_empty() {
+            return None;
+        }
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        ((leaf == "_" || leaf == "static")
+            || ((self.current_generic_lifetimes().contains(name)
+                || self.current_generic_lifetimes().contains(leaf))
+                && self.looks_like_lifetime_name(leaf)))
+        .then(|| leaf.to_string())
+    }
+
+    fn map_generic_arg_in_context(
+        &self,
+        ty: &Type,
+        current_self: Option<&str>,
+        recursive_slot: bool,
+    ) -> String {
+        if let Some(lifetime_name) = self.lifetime_generic_arg_name(ty) {
+            format!("'{}", self.sanitize_lifetime_name(&lifetime_name))
+        } else {
+            self.map_type_in_context(ty, current_self, recursive_slot)
+        }
+    }
+
     fn map_storage_type(&self, ty: &Type, current_self: Option<&str>) -> String {
         self.map_owned_type_in_context(ty, current_self, true)
     }
 
     fn map_return_type(&self, ty: &Type, current_self: Option<&str>) -> String {
-        self.map_owned_type_in_context(ty, current_self, false)
+        self.map_type_in_context(ty, current_self, false)
     }
 
     fn map_owned_type_in_context(
@@ -2600,7 +3589,7 @@ impl RustGen {
                 } else {
                     let gen_strs: Vec<String> = generics
                         .iter()
-                        .map(|g| self.map_owned_type_in_context(g, current_self, false))
+                        .map(|g| self.map_generic_arg_in_context(g, current_self, false))
                         .collect();
                     format!("{}<{}>", rust_name, gen_strs.join(", "))
                 }
@@ -2681,7 +3670,7 @@ impl RustGen {
                 } else {
                     let gen_strs: Vec<String> = generics
                         .iter()
-                        .map(|g| self.map_type_in_context(g, current_self, false))
+                        .map(|g| self.map_generic_arg_in_context(g, current_self, false))
                         .collect();
                     format!("{}<{}>", rust_name, gen_strs.join(", "))
                 }
@@ -2707,14 +3696,25 @@ impl RustGen {
             Type::Slice(inner, _) => {
                 format!("[{}]", self.map_type_in_context(inner, current_self, true))
             }
-            Type::Ref { mutable, inner, .. } => {
+            Type::Ref {
+                mutable,
+                inner,
+                lifetime,
+                ..
+            } => {
+                let lifetime = self.render_ref_lifetime(lifetime.as_deref());
                 if *mutable {
                     format!(
-                        "&mut {}",
+                        "&{}mut {}",
+                        lifetime,
                         self.map_type_in_context(inner, current_self, false)
                     )
                 } else {
-                    format!("&{}", self.map_type_in_context(inner, current_self, false))
+                    format!(
+                        "&{}{}",
+                        lifetime,
+                        self.map_type_in_context(inner, current_self, false)
+                    )
                 }
             }
             Type::Ptr { mutable, inner, .. } => {
@@ -2771,7 +3771,7 @@ impl RustGen {
                 } else {
                     let gen_strs: Vec<String> = generics
                         .iter()
-                        .map(|g| self.map_type_in_context(g, current_self, false))
+                        .map(|g| self.map_generic_arg_in_context(g, current_self, false))
                         .collect();
                     format!("impl {}<{}>", trait_name, gen_strs.join(", "))
                 }
@@ -2805,7 +3805,7 @@ impl RustGen {
     }
 
     fn map_named_type(&self, name: &str) -> String {
-        match name {
+        let mapped = match name {
             "Int" => "i64".to_string(),
             "UInt" => "u64".to_string(),
             "Int8" => "i8".to_string(),
@@ -2827,7 +3827,7 @@ impl RustGen {
             "Map" => "std::collections::HashMap".to_string(),
             "Set" => "std::collections::HashSet".to_string(),
             "Range" => "std::ops::Range".to_string(),
-            "Error" => "KainError".to_string(),
+            "Error" => "crate::error::KainError".to_string(),
             "PathBuf" => "std::path::PathBuf".to_string(),
             "Path" => "std::path::Path".to_string(),
             "Formatter" => "std::fmt::Formatter".to_string(),
@@ -2839,22 +3839,27 @@ impl RustGen {
             "PyObject" => "pyo3::PyObject".to_string(),
             "Python" => "pyo3::Python".to_string(),
             _ => name.to_string(),
-        }
+        };
+        sanitize_emitted_path(&mapped)
     }
 
     fn normalize_type_name(&self, name: &str, current_self: Option<&str>) -> String {
-        let mut leaf = name.rsplit("::").next().unwrap_or(name).trim();
+        let raw = name.trim();
+        let mut leaf = raw.rsplit("::").next().unwrap_or(raw).trim();
         if let Some(stripped) = leaf.strip_prefix("&mut ") {
             leaf = stripped.trim();
         } else if let Some(stripped) = leaf.strip_prefix('&') {
             leaf = stripped.trim();
         }
-        let normalized = if leaf == "Self_" || leaf == "Self" {
-            current_self.unwrap_or("Self")
+        if leaf == "Self_" || leaf == "Self" {
+            current_self
+                .map(str::to_string)
+                .unwrap_or_else(|| "Self".to_string())
+        } else if raw.contains("::") {
+            sanitize_emitted_path(raw)
         } else {
-            leaf
-        };
-        self.map_named_type(normalized)
+            self.map_named_type(leaf)
+        }
     }
 
     fn inferred_self_type<'a>(&self, fn_name: &'a str) -> Option<&'a str> {
@@ -2884,10 +3889,10 @@ impl RustGen {
             return false;
         }
 
-        !func.attributes.iter().any(|attr| {
-            let attr_name = attr.name.to_ascii_lowercase();
-            attr_name == "test" || attr_name == "cfg"
-        })
+        !func
+            .attributes
+            .iter()
+            .any(|attr| attr.name.eq_ignore_ascii_case("test"))
     }
 
     fn map_binop(&self, op: &BinaryOp) -> &'static str {
@@ -2980,7 +3985,7 @@ mod tests {
 
     #[test]
     fn test_type_mapping() {
-        let gen = RustGen::new();
+        let gen = RustGen::new(false);
         let int_ty = Type::Named {
             name: "Int".to_string(),
             generics: vec![],
@@ -3001,7 +4006,7 @@ mod tests {
 
     #[test]
     fn test_function_modifiers_and_implicit_return() {
-        let mut gen = RustGen::new();
+        let mut gen = RustGen::new(false);
         let func = Function {
             name: "compute".to_string(),
             generics: vec![],
@@ -3030,7 +4035,7 @@ mod tests {
 
     #[test]
     fn test_low_level_memory_expr_lowering() {
-        let gen = RustGen::new();
+        let gen = RustGen::new(false);
         let span = Span::default();
         let int_ty = Type::Named {
             name: "Int".to_string(),
@@ -3336,5 +4341,283 @@ mod tests {
         assert!(output.contains("pub fn AppShell(props: AppShellProps) -> String {"));
         assert!(output.contains("let AppShellProps { children } = props;"));
         assert!(output.contains("HudPanel(HudPanelProps { title: \"Status\".to_string(), children: vec![\"Inner body\".to_string()].join(\"\") })"));
+    }
+
+    #[test]
+    fn test_async_block_and_panic_codegen() {
+        let span = Span::default();
+        let gen = RustGen::new(false);
+
+        let async_expr = Expr::AsyncBlock(
+            Box::new(Expr::Block(
+                Block {
+                    stmts: vec![Stmt::Expr(Expr::Await(
+                        Box::new(Expr::Call {
+                            callee: Box::new(Expr::Ident("work".to_string(), span)),
+                            args: vec![],
+                            span,
+                        }),
+                        span,
+                    ))],
+                    span,
+                },
+                span,
+            )),
+            span,
+        );
+        let async_rendered = gen.gen_expr(&async_expr);
+        assert!(async_rendered.contains("async"));
+        assert!(async_rendered.contains(".await"));
+
+        let panic_expr = Expr::Call {
+            callee: Box::new(Expr::Ident("panic".to_string(), span)),
+            args: vec![kain_core::ast::CallArg {
+                name: None,
+                value: Expr::MethodCall {
+                    receiver: Box::new(Expr::String("boom".to_string(), span)),
+                    method: "to_string".to_string(),
+                    args: vec![],
+                    span,
+                },
+                span,
+            }],
+            span,
+        };
+        let panic_rendered = gen.gen_expr(&panic_expr);
+        assert!(panic_rendered.starts_with("panic!(\"{}\", "));
+        assert!(!panic_rendered.contains("panic!(\"boom\".to_string())"));
+    }
+
+    #[test]
+    fn test_tuple_field_marker_renders_as_tuple_accessor() {
+        let span = Span::default();
+        let gen = RustGen::new(false);
+        let expr = Expr::Field {
+            object: Box::new(Expr::Ident("pair".to_string(), span)),
+            field: "__kain_tuple_1".to_string(),
+            span,
+        };
+
+        assert_eq!(gen.gen_expr(&expr), "pair.1");
+    }
+
+    #[test]
+    fn test_lifetime_generics_render_in_structs_and_functions() {
+        let span = Span::default();
+        let mut gen = RustGen::new(false);
+        let lifetime_generic = Generic {
+            name: "a".to_string(),
+            bounds: vec![],
+            span,
+        };
+        let string_ref = Type::Ref {
+            mutable: false,
+            inner: Box::new(Type::Named {
+                name: "String".to_string(),
+                generics: vec![],
+                span,
+            }),
+            lifetime: Some("a".to_string()),
+            span,
+        };
+        let source_location = Struct {
+            name: "SourceLocation".to_string(),
+            generics: vec![lifetime_generic.clone()],
+            fields: vec![Field {
+                name: "file".to_string(),
+                ty: string_ref.clone(),
+                attributes: vec![],
+                visibility: Visibility::Private,
+                default: None,
+                weak: false,
+                span,
+            }],
+            methods: vec![],
+            attributes: vec![],
+            visibility: Visibility::Public,
+            span,
+        };
+        let function = Function {
+            name: "span_to_location".to_string(),
+            generics: vec![lifetime_generic],
+            params: vec![Param {
+                name: "file".to_string(),
+                ty: string_ref,
+                mutable: false,
+                default: None,
+                span,
+            }],
+            return_type: Some(Type::Named {
+                name: "SourceLocation".to_string(),
+                generics: vec![Type::Named {
+                    name: "a".to_string(),
+                    generics: vec![],
+                    span,
+                }],
+                span,
+            }),
+            effects: vec![],
+            body: Block {
+                stmts: vec![Stmt::Expr(Expr::Struct {
+                    name: "SourceLocation".to_string(),
+                    fields: vec![("file".to_string(), Expr::Ident("file".to_string(), span))],
+                    rest: None,
+                    span,
+                })],
+                span,
+            },
+            visibility: Visibility::Public,
+            attributes: vec![],
+            span,
+        };
+
+        gen.gen_struct(&source_location);
+        gen.write_blank();
+        gen.gen_function(&function);
+        let output = gen.output.build();
+
+        assert!(output.contains("pub struct SourceLocation<'a> {"));
+        assert!(output.contains("file: &'a String"));
+        assert!(output
+            .contains("pub fn span_to_location<'a>(file: &'a String) -> SourceLocation<'a> {"));
+    }
+
+    #[test]
+    fn test_self_in_generic_impl_uses_type_in_signature_and_base_path_in_body() {
+        let span = Span::default();
+        let mut gen = RustGen::new(false);
+        let source_location = Struct {
+            name: "SourceLocation".to_string(),
+            generics: vec![Generic {
+                name: "a".to_string(),
+                bounds: vec![],
+                span,
+            }],
+            fields: vec![Field {
+                name: "file".to_string(),
+                ty: Type::Ref {
+                    mutable: false,
+                    inner: Box::new(Type::Named {
+                        name: "String".to_string(),
+                        generics: vec![],
+                        span,
+                    }),
+                    lifetime: Some("a".to_string()),
+                    span,
+                },
+                attributes: vec![],
+                visibility: Visibility::Private,
+                default: None,
+                weak: false,
+                span,
+            }],
+            methods: vec![],
+            attributes: vec![],
+            visibility: Visibility::Public,
+            span,
+        };
+        let impl_def = Impl {
+            generics: vec![Generic {
+                name: "a".to_string(),
+                bounds: vec![],
+                span,
+            }],
+            trait_name: None,
+            trait_generics: vec![],
+            target_type: Type::Named {
+                name: "SourceLocation".to_string(),
+                generics: vec![Type::Named {
+                    name: "a".to_string(),
+                    generics: vec![],
+                    span,
+                }],
+                span,
+            },
+            methods: vec![Function {
+                name: "new".to_string(),
+                generics: vec![],
+                params: vec![Param {
+                    name: "file".to_string(),
+                    ty: Type::Ref {
+                        mutable: false,
+                        inner: Box::new(Type::Named {
+                            name: "String".to_string(),
+                            generics: vec![],
+                            span,
+                        }),
+                        lifetime: Some("a".to_string()),
+                        span,
+                    },
+                    mutable: false,
+                    default: None,
+                    span,
+                }],
+                return_type: Some(Type::Named {
+                    name: "Self_".to_string(),
+                    generics: vec![],
+                    span,
+                }),
+                effects: vec![],
+                body: Block {
+                    stmts: vec![Stmt::Expr(Expr::Struct {
+                        name: "Self_".to_string(),
+                        fields: vec![("file".to_string(), Expr::Ident("file".to_string(), span))],
+                        rest: None,
+                        span,
+                    })],
+                    span,
+                },
+                visibility: Visibility::Public,
+                attributes: vec![],
+                span,
+            }],
+            span,
+        };
+
+        gen.gen_struct(&source_location);
+        gen.write_blank();
+        gen.gen_impl(&impl_def);
+        let output = gen.output.build();
+
+        assert!(output.contains("impl<'a> SourceLocation<'a> {"));
+        assert!(output.contains("pub fn new(file: &'a String) -> SourceLocation<'a> {"));
+        assert!(output.contains("SourceLocation { file: file }"));
+    }
+
+    #[test]
+    fn test_placeholder_lifetime_generic_arg_renders_verbatim() {
+        let gen = RustGen::new(false);
+        let span = Span::default();
+        let ty = Type::Named {
+            name: "std::fmt::Formatter".to_string(),
+            generics: vec![Type::Named {
+                name: "_".to_string(),
+                generics: vec![],
+                span,
+            }],
+            span,
+        };
+
+        assert_eq!(gen.map_type(&ty), "std::fmt::Formatter<'_>");
+    }
+
+    #[test]
+    fn test_qualified_type_paths_remain_qualified() {
+        let gen = RustGen::new(false);
+        let span = Span::default();
+
+        let io_error = Type::Named {
+            name: "std::io::Error".to_string(),
+            generics: vec![],
+            span,
+        };
+        let crate_span = Type::Named {
+            name: "crate::span::Span".to_string(),
+            generics: vec![],
+            span,
+        };
+
+        assert_eq!(gen.map_type(&io_error), "std::io::Error");
+        assert_eq!(gen.map_type(&crate_span), "crate::span::Span");
     }
 }

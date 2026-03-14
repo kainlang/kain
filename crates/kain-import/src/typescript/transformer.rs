@@ -427,6 +427,7 @@ impl TypeScriptTransformer {
         let impl_item = Item::Impl(Impl {
             generics,
             trait_name: None,
+            trait_generics: Vec::new(),
             target_type: Type::Named {
                 name: class_name,
                 generics: Vec::new(),

@@ -4,7 +4,10 @@
 //! focuses on semantic nodes, retained tree state, renderer capability tables,
 //! and patch streams instead of a virtual DOM-first execution model.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    io::{Error as IoError, ErrorKind},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -411,6 +414,199 @@ pub struct UiBuildOutput {
     pub patches: Vec<UiPatch>,
 }
 
+/// Flat raw-native projection of the semantic tree for runtimes that do not yet
+/// consume the full retained tree format directly.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiNativeProjection {
+    pub root_id: Option<u64>,
+    pub primary_panel_title: Option<String>,
+    pub primary_viewport_title: Option<String>,
+    pub primary_viewport_scene: Option<String>,
+    pub nodes: Vec<UiNativeProjectionNode>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiNativeProjectionNode {
+    pub id: u64,
+    pub parent_id: Option<u64>,
+    pub depth: u32,
+    pub kind: UiNativeProjectionKind,
+    pub title: Option<String>,
+    pub text: Option<String>,
+    pub tag: Option<String>,
+    pub scene: Option<String>,
+    pub layout_kind: UiLayoutKind,
+    pub child_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiNativeProjectionKind {
+    Element,
+    ComponentRef,
+    Text,
+    Panel,
+    Inspector,
+    Graph,
+    Timeline,
+    Table,
+    Tree,
+    Viewport2D,
+    Viewport3D,
+    Overlay,
+    Slot,
+}
+
+/// Stable runtime bundle schema version for compiled KAIN UI apps.
+pub const UI_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = 1;
+
+/// Backend-agnostic metadata for a compiled KAIN UI runtime bundle.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiRuntimeMetadata {
+    pub app_name: Option<String>,
+    pub window_title: String,
+    pub root_component: String,
+    pub source_file_name: Option<String>,
+    pub initial_window_size: [f32; 2],
+}
+
+/// Serialized ABI boundary between the KAIN compiler and host runtimes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiRuntimeBundle {
+    pub schema_version: u32,
+    pub metadata: UiRuntimeMetadata,
+    pub output: UiBuildOutput,
+    #[serde(default)]
+    pub native_projection: UiNativeProjection,
+}
+
+pub fn ui_runtime_bundle_from_output(
+    metadata: UiRuntimeMetadata,
+    output: UiBuildOutput,
+) -> UiRuntimeBundle {
+    let native_projection = ui_native_projection_from_output(&output);
+    UiRuntimeBundle {
+        schema_version: UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
+        metadata,
+        output,
+        native_projection,
+    }
+}
+
+pub fn ui_runtime_bundle_to_json(bundle: &UiRuntimeBundle) -> Result<String, serde_json::Error> {
+    serde_json::to_string_pretty(bundle)
+}
+
+pub fn ui_runtime_bundle_from_json(json: &str) -> Result<UiRuntimeBundle, serde_json::Error> {
+    serde_json::from_str(json)
+}
+
+pub fn validate_ui_runtime_bundle(bundle: &UiRuntimeBundle) -> Result<(), IoError> {
+    if bundle.schema_version != UI_RUNTIME_BUNDLE_SCHEMA_VERSION {
+        return Err(IoError::new(
+            ErrorKind::InvalidData,
+            format!(
+                "Unsupported KAIN UI runtime bundle schema version {} (expected {})",
+                bundle.schema_version, UI_RUNTIME_BUNDLE_SCHEMA_VERSION
+            ),
+        ));
+    }
+
+    if bundle.output.tree.root.is_none() {
+        return Err(IoError::new(
+            ErrorKind::InvalidData,
+            "Compiled KAIN UI runtime bundle did not contain a root node",
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProjection {
+    let mut projection = UiNativeProjection {
+        root_id: output.tree.root.map(|id| id.0),
+        ..UiNativeProjection::default()
+    };
+
+    let Some(root_id) = output.tree.root else {
+        return projection;
+    };
+
+    collect_native_projection_nodes(&output.tree, root_id, None, 0, &mut projection);
+    projection
+}
+
+fn collect_native_projection_nodes(
+    tree: &UiTree,
+    id: UiNodeId,
+    parent_id: Option<UiNodeId>,
+    depth: u32,
+    projection: &mut UiNativeProjection,
+) {
+    let Some(node) = tree.node(id) else {
+        return;
+    };
+
+    let title = node_prop_string(node, "title");
+    let text = node_prop_string(node, "text");
+    let scene = node_prop_string(node, "scene");
+    let tag = node_prop_string(node, "tag");
+    let kind = UiNativeProjectionKind::from_widget_kind(&node.kind);
+
+    if projection.primary_panel_title.is_none() && kind == UiNativeProjectionKind::Panel {
+        projection.primary_panel_title = title.clone();
+    }
+    if projection.primary_viewport_title.is_none() && kind == UiNativeProjectionKind::Viewport3D {
+        projection.primary_viewport_title = title.clone();
+    }
+    if projection.primary_viewport_scene.is_none() && kind == UiNativeProjectionKind::Viewport3D {
+        projection.primary_viewport_scene = scene.clone();
+    }
+
+    projection.nodes.push(UiNativeProjectionNode {
+        id: id.0,
+        parent_id: parent_id.map(|value| value.0),
+        depth,
+        kind,
+        title,
+        text,
+        tag,
+        scene,
+        layout_kind: node.layout.kind,
+        child_count: node.children.len(),
+    });
+
+    for child in &node.children {
+        collect_native_projection_nodes(tree, *child, Some(id), depth + 1, projection);
+    }
+}
+
+fn node_prop_string(node: &UiNode, key: &str) -> Option<String> {
+    node.props.get(key).and_then(|value| match value {
+        UiValue::String(value) => Some(value.clone()),
+        _ => None,
+    })
+}
+
+impl UiNativeProjectionKind {
+    fn from_widget_kind(kind: &UiWidgetKind) -> Self {
+        match kind {
+            UiWidgetKind::Element(_) => Self::Element,
+            UiWidgetKind::ComponentRef(_) => Self::ComponentRef,
+            UiWidgetKind::Text => Self::Text,
+            UiWidgetKind::Panel => Self::Panel,
+            UiWidgetKind::Inspector => Self::Inspector,
+            UiWidgetKind::Graph => Self::Graph,
+            UiWidgetKind::Timeline => Self::Timeline,
+            UiWidgetKind::Table => Self::Table,
+            UiWidgetKind::Tree => Self::Tree,
+            UiWidgetKind::Viewport2D => Self::Viewport2D,
+            UiWidgetKind::Viewport3D => Self::Viewport3D,
+            UiWidgetKind::Overlay => Self::Overlay,
+            UiWidgetKind::Slot => Self::Slot,
+        }
+    }
+}
+
 /// Builder that assigns stable ids, retains nodes, and emits patch commands
 /// while the semantic graph is constructed.
 #[derive(Clone, Debug, Default)]
@@ -606,5 +802,91 @@ mod tests {
         assert!(rendered.contains("Panel"));
         assert!(rendered.contains("Text"));
         assert!(rendered.contains("hello"));
+    }
+
+    #[test]
+    fn runtime_bundle_round_trip_preserves_ui_output() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        builder.add_node(UiNode::new(root_id, UiWidgetKind::Panel));
+        builder.set_root(root_id);
+        let output = builder.finish();
+
+        let bundle = ui_runtime_bundle_from_output(
+            UiRuntimeMetadata {
+                app_name: Some("studio-shell".to_string()),
+                window_title: "Studio Shell".to_string(),
+                root_component: "App".to_string(),
+                source_file_name: Some("studio.kn".to_string()),
+                initial_window_size: [1600.0, 900.0],
+            },
+            output.clone(),
+        );
+
+        let json = ui_runtime_bundle_to_json(&bundle).expect("bundle should serialize");
+        let decoded = ui_runtime_bundle_from_json(&json).expect("bundle should deserialize");
+
+        assert_eq!(decoded.schema_version, UI_RUNTIME_BUNDLE_SCHEMA_VERSION);
+        assert_eq!(decoded.metadata.root_component, "App");
+        assert_eq!(decoded.output, output);
+        assert_eq!(decoded.native_projection.root_id, Some(root_id.0));
+        validate_ui_runtime_bundle(&decoded).expect("bundle should validate");
+    }
+
+    #[test]
+    fn runtime_bundle_validation_requires_root_node() {
+        let bundle = ui_runtime_bundle_from_output(
+            UiRuntimeMetadata {
+                app_name: None,
+                window_title: "Invalid".to_string(),
+                root_component: "App".to_string(),
+                source_file_name: None,
+                initial_window_size: [1440.0, 920.0],
+            },
+            UiBuildOutput::default(),
+        );
+
+        let err = validate_ui_runtime_bundle(&bundle).expect_err("bundle should be rejected");
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn native_projection_collects_panel_and_viewport_metadata() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        let viewport_id = builder.alloc_id();
+
+        let mut panel = UiNode::new(root_id, UiWidgetKind::Panel);
+        panel
+            .props
+            .insert("title".to_string(), UiValue::from("Viewport Lab"));
+        builder.add_node(panel);
+
+        let mut viewport = UiNode::new(viewport_id, UiWidgetKind::Viewport3D);
+        viewport
+            .props
+            .insert("title".to_string(), UiValue::from("Hero View"));
+        viewport
+            .props
+            .insert("scene".to_string(), UiValue::from("luminous_port"));
+        builder.add_node(viewport);
+        builder.replace_children(root_id, vec![viewport_id]);
+        builder.set_root(root_id);
+
+        let output = builder.finish();
+        let projection = ui_native_projection_from_output(&output);
+
+        assert_eq!(projection.root_id, Some(root_id.0));
+        assert_eq!(projection.primary_panel_title.as_deref(), Some("Viewport Lab"));
+        assert_eq!(projection.primary_viewport_title.as_deref(), Some("Hero View"));
+        assert_eq!(
+            projection.primary_viewport_scene.as_deref(),
+            Some("luminous_port")
+        );
+        assert_eq!(projection.nodes.len(), 2);
+        assert!(projection
+            .nodes
+            .iter()
+            .any(|node| node.kind == UiNativeProjectionKind::Viewport3D));
     }
 }

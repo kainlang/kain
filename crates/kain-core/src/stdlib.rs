@@ -301,6 +301,42 @@ impl StdLib {
             "Unit",
             "Open a native 3D cube window",
         );
+        lib.add_fn(
+            "spawn_native_viewport",
+            &[("x", "Float"), ("y", "Float")],
+            "Unit",
+            "Open the raw native Kain 3D viewport host",
+        );
+        lib.add_fn(
+            "spawn_native_sculpt_lab",
+            &[("x", "Float"), ("y", "Float")],
+            "Unit",
+            "Open the raw native Kain sculpting lab",
+        );
+        lib.add_fn(
+            "native_config_string",
+            &[("key", "String"), ("value", "String")],
+            "Unit",
+            "Set a raw native runtime string config value before launch",
+        );
+        lib.add_fn(
+            "native_config_int",
+            &[("key", "String"), ("value", "Int")],
+            "Unit",
+            "Set a raw native runtime integer config value before launch",
+        );
+        lib.add_fn(
+            "native_config_float",
+            &[("key", "String"), ("value", "Float")],
+            "Unit",
+            "Set a raw native runtime float config value before launch",
+        );
+        lib.add_fn(
+            "native_config_flag",
+            &[("key", "String"), ("enabled", "Int")],
+            "Unit",
+            "Set a raw native runtime boolean-like config value before launch using 0 or 1",
+        );
 
         lib
     }

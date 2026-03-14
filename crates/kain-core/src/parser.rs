@@ -506,6 +506,141 @@ impl<'a> Parser<'a> {
         )
     }
 
+    fn parse_path_name(&mut self) -> KainResult<String> {
+        let mut name = self.parse_ident()?;
+        while self.check(TokenKind::ColonColon) {
+            self.advance();
+            let part = self.parse_ident()?;
+            name.push_str("::");
+            name.push_str(&part);
+        }
+        Ok(name)
+    }
+
+    fn parse_path_segments_after(&mut self, first: String) -> KainResult<Vec<String>> {
+        let mut segments = vec![first];
+        while self.check(TokenKind::ColonColon) {
+            self.advance();
+            segments.push(self.parse_ident()?);
+        }
+        Ok(segments)
+    }
+
+    fn join_path_segments(segments: &[String]) -> String {
+        segments.join("::")
+    }
+
+    fn path_segment_looks_like_type_name(segment: &str) -> bool {
+        segment.contains("__")
+            || segment
+                .chars()
+                .next()
+                .is_some_and(|ch| ch.is_ascii_uppercase())
+    }
+
+    fn path_looks_like_enum_variant(segments: &[String]) -> bool {
+        if segments.len() < 2 {
+            return false;
+        }
+        let variant = &segments[segments.len() - 1];
+        let enum_head = &segments[segments.len() - 2];
+        Self::path_segment_looks_like_type_name(variant)
+            && Self::path_segment_looks_like_type_name(enum_head)
+    }
+
+    fn parse_variant_pattern_fields(&mut self) -> KainResult<VariantPatternFields> {
+        if self.check(TokenKind::LParen) {
+            self.advance();
+            let mut patterns = Vec::new();
+            while !self.check(TokenKind::RParen) {
+                patterns.push(self.parse_pattern()?);
+                if !self.check(TokenKind::RParen) {
+                    self.expect(TokenKind::Comma)?;
+                }
+            }
+            self.expect(TokenKind::RParen)?;
+            Ok(VariantPatternFields::Tuple(patterns))
+        } else if self.check(TokenKind::LBrace) {
+            self.advance();
+            let mut fields = Vec::new();
+            while !self.check(TokenKind::RBrace) {
+                let fname = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let pat = self.parse_pattern()?;
+                fields.push((fname, pat));
+                if !self.check(TokenKind::RBrace) {
+                    self.expect(TokenKind::Comma)?;
+                }
+            }
+            self.expect(TokenKind::RBrace)?;
+            Ok(VariantPatternFields::Struct(fields))
+        } else {
+            Ok(VariantPatternFields::Unit)
+        }
+    }
+
+    fn parse_enum_variant_fields(&mut self) -> KainResult<EnumVariantFields> {
+        if self.check(TokenKind::LParen) {
+            self.advance();
+            self.skip_newlines();
+            let mut items = Vec::new();
+            if !self.check(TokenKind::RParen) {
+                items.push(self.parse_expr()?);
+                while self.check(TokenKind::Comma) {
+                    self.advance();
+                    if self.check(TokenKind::RParen) {
+                        break;
+                    }
+                    items.push(self.parse_expr()?);
+                }
+            }
+            self.expect(TokenKind::RParen)?;
+            if items.is_empty() {
+                Ok(EnumVariantFields::Unit)
+            } else {
+                Ok(EnumVariantFields::Tuple(items))
+            }
+        } else if self.check(TokenKind::LBrace) {
+            self.advance();
+            let mut fields = Vec::new();
+
+            self.skip_newlines();
+            let indented = if self.check(TokenKind::Indent) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+
+            while !self.check(TokenKind::RBrace) && !self.at_end() {
+                if indented && self.check(TokenKind::Dedent) {
+                    break;
+                }
+
+                let field_name = self.parse_ident()?;
+                self.expect(TokenKind::Colon)?;
+                let field_value = self.parse_expr()?;
+                fields.push((field_name, field_value));
+
+                if !self.check(TokenKind::RBrace) && (!indented || !self.check(TokenKind::Dedent))
+                {
+                    if self.check(TokenKind::Comma) {
+                        self.advance();
+                    }
+                }
+                self.skip_newlines();
+            }
+
+            if indented {
+                self.expect(TokenKind::Dedent)?;
+            }
+            self.expect(TokenKind::RBrace)?;
+            Ok(EnumVariantFields::Struct(fields))
+        } else {
+            Ok(EnumVariantFields::Unit)
+        }
+    }
+
     fn parse_item(&mut self) -> KainResult<Item> {
         // Collect any @attr decorators first
         let attributes = self.parse_attributes()?;
@@ -821,27 +956,30 @@ impl<'a> Parser<'a> {
         // Parse impl-level generics: impl<T>
         let generics = self.parse_generics()?;
 
-        // Check for "TraitName for" pattern to support "impl Trait for Type"
-        let trait_name = if matches!(self.peek_kind(), TokenKind::Ident(_)) {
-            // Look ahead to see if there's a "for" keyword
-            let saved_pos = self.pos;
-            let potential_trait = self.parse_ident()?;
-
-            if self.check(TokenKind::For) {
-                // This is "impl Trait for Type" syntax
-                self.advance(); // consume "for"
-                Some(potential_trait)
-            } else {
-                // This is just "impl Type" syntax, backtrack
-                self.pos = saved_pos;
-                None
-            }
+        let first_type = self.parse_type()?;
+        let (trait_name, trait_generics, target_type) = if self.check(TokenKind::For) {
+            self.advance();
+            let (trait_name, trait_generics) = match first_type {
+                Type::Named {
+                    name,
+                    generics,
+                    ..
+                } => (name, generics),
+                other => {
+                    return Err(self.parser_error(
+                        format!(
+                            "Expected trait path before 'for' in impl block, found {:?}",
+                            other
+                        ),
+                        other.span(),
+                    ));
+                }
+            };
+            let target_type = self.parse_type()?;
+            (Some(trait_name), trait_generics, target_type)
         } else {
-            None
+            (None, Vec::new(), first_type)
         };
-
-        // Parse target type: Option<T>
-        let target_type = self.parse_type()?;
 
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
@@ -879,6 +1017,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Impl(Impl {
             generics,
             trait_name,
+            trait_generics,
             target_type,
             methods,
             span: start.merge(self.current_span()),
@@ -2579,6 +2718,28 @@ impl<'a> Parser<'a> {
         Ok(generics)
     }
 
+    fn parse_generics_as_types(&mut self) -> KainResult<Vec<Type>> {
+        let mut generics = Vec::new();
+        if !self.check(TokenKind::Lt) {
+            return Ok(generics);
+        }
+        self.advance();
+        while !self.check(TokenKind::Gt) && !self.check(TokenKind::Shr) && !self.at_end() {
+            generics.push(self.parse_type()?);
+            if !self.check(TokenKind::Gt) && !self.check(TokenKind::Shr) {
+                self.expect(TokenKind::Comma)?;
+            }
+        }
+        if self.check(TokenKind::Shr) {
+            let shr_span = self.current_span();
+            self.advance();
+            self.inject_token(Token::new(TokenKind::Gt, shr_span));
+        } else {
+            self.expect(TokenKind::Gt)?;
+        }
+        Ok(generics)
+    }
+
     fn parse_effects(&mut self) -> KainResult<Vec<Effect>> {
         let mut effects = Vec::new();
         if self.check(TokenKind::With) {
@@ -2640,11 +2801,12 @@ impl<'a> Parser<'a> {
             } else {
                 false
             };
+            let lifetime = self.parse_optional_ref_lifetime();
             let inner = self.parse_type()?;
             return Ok(Type::Ref {
                 mutable,
                 inner: Box::new(inner),
-                lifetime: None,
+                lifetime,
                 span: span.merge(self.current_span()),
             });
         }
@@ -2765,7 +2927,7 @@ impl<'a> Parser<'a> {
 
         // Handle delegate types: delegate(T, U) - same as fn but for UE5 delegates
         // This is syntactic sugar for function types used as delegates
-        let mut name = self.parse_ident()?;
+        let name = self.parse_path_name()?;
 
         // Check if this is delegate(...) syntax
         if name == "delegate" && self.check(TokenKind::LParen) {
@@ -2790,14 +2952,6 @@ impl<'a> Parser<'a> {
                 effects: vec![],
                 span: span.merge(self.current_span()),
             });
-        }
-
-        // Support Module::Type syntax
-        while self.check(TokenKind::ColonColon) {
-            self.advance(); // consume ::
-            let part = self.parse_ident()?;
-            name.push_str("::");
-            name.push_str(&part);
         }
 
         // Parse generic type arguments: Type<T, U>
@@ -2872,6 +3026,10 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_stmt(&mut self) -> KainResult<Stmt> {
+        if self.is_item_start() {
+            return Ok(Stmt::Item(Box::new(self.parse_item()?)));
+        }
+
         match self.peek_kind() {
             TokenKind::Let => self.parse_let(),
             TokenKind::Var => self.parse_var(),
@@ -3174,6 +3332,20 @@ impl<'a> Parser<'a> {
                     start.merge(self.current_span()),
                 ))
             }
+            TokenKind::AsyncKw => {
+                let start = self.current_span();
+                self.advance();
+                let body = if self.check(TokenKind::Colon) {
+                    self.advance();
+                    Expr::Block(self.parse_block()?, start)
+                } else {
+                    self.parse_unary()?
+                };
+                Ok(Expr::AsyncBlock(
+                    Box::new(body),
+                    start.merge(self.current_span()),
+                ))
+            }
             TokenKind::Send => {
                 let start = self.current_span();
                 self.advance();
@@ -3302,7 +3474,51 @@ impl<'a> Parser<'a> {
                 }
                 TokenKind::LBracket => {
                     self.advance();
-                    let idx = self.parse_expr()?;
+                    let idx = if self.check(TokenKind::DotDot) {
+                        self.advance();
+                        let inclusive = if self.check(TokenKind::Eq) {
+                            self.advance();
+                            true
+                        } else {
+                            false
+                        };
+                        let end = if self.check(TokenKind::RBracket) {
+                            None
+                        } else {
+                            Some(Box::new(self.parse_expr()?))
+                        };
+                        Expr::Range {
+                            start: None,
+                            end,
+                            inclusive,
+                            span: self.current_span(),
+                        }
+                    } else {
+                        let first = self.parse_expr()?;
+                        if self.check(TokenKind::DotDot) {
+                            let start_span = first.span();
+                            self.advance();
+                            let inclusive = if self.check(TokenKind::Eq) {
+                                self.advance();
+                                true
+                            } else {
+                                false
+                            };
+                            let end = if self.check(TokenKind::RBracket) {
+                                None
+                            } else {
+                                Some(Box::new(self.parse_expr()?))
+                            };
+                            Expr::Range {
+                                start: Some(Box::new(first)),
+                                end,
+                                inclusive,
+                                span: start_span.merge(self.current_span()),
+                            }
+                        } else {
+                            first
+                        }
+                    };
                     self.expect(TokenKind::RBracket)?;
                     let s = expr.span().merge(self.current_span());
                     expr = Expr::Index {
@@ -3453,94 +3669,35 @@ impl<'a> Parser<'a> {
             TokenKind::Ident(ref s) => {
                 let name = s.clone();
                 self.advance();
+                let path_segments = self.parse_path_segments_after(name.clone())?;
+                let path_name = Self::join_path_segments(&path_segments);
+                let is_variant_path = Self::path_looks_like_enum_variant(&path_segments);
 
-                if self.check(TokenKind::ColonColon) {
-                    self.advance();
-                    let variant = self.parse_ident()?;
+                // Check if this is a struct literal: Name { field: value, ... }
+                // Skip formatting (newlines and indents) to handle multi-line struct literals.
+                let saved_pos_for_check = self.pos;
+                self.skip_formatting();
+                let has_brace = self.check(TokenKind::LBrace);
 
-                    let fields = if self.check(TokenKind::LParen) {
-                        self.advance();
-                        self.skip_newlines();
-                        let mut items = Vec::new();
-                        if !self.check(TokenKind::RParen) {
-                            items.push(self.parse_expr()?);
-                            while self.check(TokenKind::Comma) {
-                                self.advance();
-                                if self.check(TokenKind::RParen) {
-                                    break;
-                                }
-                                items.push(self.parse_expr()?);
-                            }
-                        }
-                        self.expect(TokenKind::RParen)?;
-                        if items.is_empty() {
-                            EnumVariantFields::Unit
-                        } else {
-                            EnumVariantFields::Tuple(items)
-                        }
-                    } else if self.check(TokenKind::LBrace) {
-                        self.advance();
-                        let mut fields = Vec::new();
-
-                        self.skip_newlines();
-                        let indented = if self.check(TokenKind::Indent) {
-                            self.advance();
-                            true
-                        } else {
-                            false
-                        };
-
-                        while !self.check(TokenKind::RBrace) && !self.at_end() {
-                            if indented && self.check(TokenKind::Dedent) {
-                                break;
-                            }
-
-                            let field_name = self.parse_ident()?;
-                            self.expect(TokenKind::Colon)?;
-                            let field_value = self.parse_expr()?;
-                            fields.push((field_name, field_value));
-
-                            if !self.check(TokenKind::RBrace)
-                                && (!indented || !self.check(TokenKind::Dedent))
-                            {
-                                if self.check(TokenKind::Comma) {
-                                    self.advance();
-                                }
-                            }
-                            self.skip_newlines();
-                        }
-
-                        if indented {
-                            self.expect(TokenKind::Dedent)?;
-                        }
-                        self.expect(TokenKind::RBrace)?;
-                        EnumVariantFields::Struct(fields)
-                    } else {
-                        EnumVariantFields::Unit
-                    };
-
+                if is_variant_path && (self.check(TokenKind::LParen) || has_brace) {
+                    let variant = path_segments.last().cloned().unwrap_or_default();
+                    let enum_name =
+                        Self::join_path_segments(&path_segments[..path_segments.len() - 1]);
+                    let fields = self.parse_enum_variant_fields()?;
                     return Ok(Expr::EnumVariant {
-                        enum_name: name,
+                        enum_name,
                         variant,
                         fields,
                         span: span.merge(self.current_span()),
                     });
                 }
 
-                // Check if this is a struct literal: Name { field: value, ... }
-                // KAIN does not support struct literals - always emit error when we see Ident {
-                // Skip formatting (newlines and indents) to handle multi-line struct literals
-                let saved_pos_for_check = self.pos;
-                self.skip_formatting();
+                if has_brace {
+                    if !self.capabilities.supports_parser_struct_literals() {
+                        // Restore position before emitting error
+                        self.pos = saved_pos_for_check;
 
-                if self.check(TokenKind::LBrace)
-                    && !self.capabilities.supports_parser_struct_literals()
-                {
-                    // Restore position before emitting error
-                    self.pos = saved_pos_for_check;
-
-                    // This looks like a struct literal - emit error
-                    return Err(self.parser_error(
+                        return Err(self.parser_error(
                         format!(
                             "Struct literal syntax is not supported in KAIN. Found '{} {{ ... }}'.\n\
                              Use field-by-field assignment instead:\n\
@@ -3549,17 +3706,31 @@ impl<'a> Parser<'a> {
                                let obj = {}()\n\
                                obj.field1 = value1\n\
                                obj.field2 = value2",
-                            name, name
-                        ),
-                        span
-                    ));
+                            path_name, path_name
+                            ),
+                            span,
+                        ));
+                    }
+                    return self.parse_struct_literal_expr(path_name, span);
+                }
+
+                if is_variant_path {
+                    let variant = path_segments.last().cloned().unwrap_or_default();
+                    let enum_name =
+                        Self::join_path_segments(&path_segments[..path_segments.len() - 1]);
+                    return Ok(Expr::EnumVariant {
+                        enum_name,
+                        variant,
+                        fields: EnumVariantFields::Unit,
+                        span: span.merge(self.current_span()),
+                    });
                 }
 
                 // Restore position if not a struct literal
                 self.pos = saved_pos_for_check;
 
                 // Just an identifier
-                Ok(Expr::Ident(name, span))
+                Ok(Expr::Ident(path_name, span))
             }
             TokenKind::SelfLower => {
                 self.advance();
@@ -3820,6 +3991,113 @@ impl<'a> Parser<'a> {
                 span,
             )),
         }
+    }
+
+    fn parse_struct_literal_expr(&mut self, name: String, start_span: Span) -> KainResult<Expr> {
+        self.expect(TokenKind::LBrace)?;
+        self.skip_newlines();
+
+        let indented = if self.check(TokenKind::Indent) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        let mut fields = Vec::new();
+        let mut rest = None;
+        while !self.check(TokenKind::RBrace) && !self.at_end() {
+            if indented && self.check(TokenKind::Dedent) {
+                break;
+            }
+
+            self.skip_newlines();
+            if self.check(TokenKind::RBrace) || (indented && self.check(TokenKind::Dedent)) {
+                break;
+            }
+
+            if self.check(TokenKind::DotDot) {
+                self.advance();
+                if rest.is_some() {
+                    return Err(self.parser_error(
+                        "Struct update syntax only supports one '..base' expression",
+                        self.current_span(),
+                    ));
+                }
+                if self.check(TokenKind::Comma)
+                    || self.check(TokenKind::RBrace)
+                    || (indented && self.check(TokenKind::Dedent))
+                {
+                    return Err(self.parser_error(
+                        "Struct update syntax requires an expression after '..'",
+                        self.current_span(),
+                    ));
+                }
+                rest = Some(Box::new(self.parse_expr()?));
+                self.skip_newlines();
+                if self.check(TokenKind::Comma) {
+                    self.advance();
+                    self.skip_newlines();
+                }
+                break;
+            }
+
+            let field_name = self.parse_ident()?;
+            self.expect(TokenKind::Colon)?;
+            let field_value = self.parse_expr()?;
+            fields.push((field_name, field_value));
+
+            self.skip_newlines();
+            if self.check(TokenKind::Comma) {
+                self.advance();
+                self.skip_newlines();
+            }
+        }
+
+        if indented {
+            self.expect(TokenKind::Dedent)?;
+        }
+        self.expect(TokenKind::RBrace)?;
+
+        Ok(Expr::Struct {
+            name,
+            fields,
+            rest,
+            span: start_span.merge(self.current_span()),
+        })
+    }
+
+    fn parse_optional_ref_lifetime(&mut self) -> Option<String> {
+        match self.peek_kind() {
+            TokenKind::Ident(name)
+                if self
+                    .peek_kind_at(1)
+                    .as_ref()
+                    .is_some_and(Self::token_can_start_type) =>
+            {
+                self.advance();
+                Some(name)
+            }
+            _ => None,
+        }
+    }
+
+    fn token_can_start_type(kind: &TokenKind) -> bool {
+        matches!(
+            kind,
+            TokenKind::Ident(_)
+                | TokenKind::SelfLower
+                | TokenKind::SelfUpper
+                | TokenKind::Component
+                | TokenKind::Shader
+                | TokenKind::Actor
+                | TokenKind::State
+                | TokenKind::LBracket
+                | TokenKind::LParen
+                | TokenKind::Amp
+                | TokenKind::Fn
+                | TokenKind::Impl
+        )
     }
 
     fn normalize_special_call(&self, callee: Expr, args: Vec<CallArg>, span: Span) -> Expr {
@@ -4284,42 +4562,16 @@ impl<'a> Parser<'a> {
                 // Validate identifier if it's used as a binding (not an enum name)
                 // We'll validate after determining if it's a binding or enum reference
 
-                if self.check(TokenKind::ColonColon) {
-                    // This is an enum name, not a binding, so no validation needed here
-                    self.advance(); // consume ::
-                    let variant = self.parse_ident()?;
-
-                    let fields = if self.check(TokenKind::LParen) {
-                        self.advance();
-                        let mut patterns = Vec::new();
-                        while !self.check(TokenKind::RParen) {
-                            patterns.push(self.parse_pattern()?);
-                            if !self.check(TokenKind::RParen) {
-                                self.expect(TokenKind::Comma)?;
-                            }
-                        }
-                        self.expect(TokenKind::RParen)?;
-                        VariantPatternFields::Tuple(patterns)
-                    } else if self.check(TokenKind::LBrace) {
-                        self.advance();
-                        let mut fields = Vec::new();
-                        while !self.check(TokenKind::RBrace) {
-                            let fname = self.parse_ident()?;
-                            self.expect(TokenKind::Colon)?;
-                            let pat = self.parse_pattern()?;
-                            fields.push((fname, pat));
-                            if !self.check(TokenKind::RBrace) {
-                                self.expect(TokenKind::Comma)?;
-                            }
-                        }
-                        self.expect(TokenKind::RBrace)?;
-                        VariantPatternFields::Struct(fields)
-                    } else {
-                        VariantPatternFields::Unit
-                    };
+                let path_segments = self.parse_path_segments_after(name.clone())?;
+                if path_segments.len() > 1 {
+                    // This is an enum name, not a binding, so no validation needed here.
+                    let variant = path_segments.last().cloned().unwrap_or_default();
+                    let enum_name =
+                        Self::join_path_segments(&path_segments[..path_segments.len() - 1]);
+                    let fields = self.parse_variant_pattern_fields()?;
 
                     Ok(Pattern::Variant {
-                        enum_name: Some(name),
+                        enum_name: Some(enum_name),
                         variant,
                         fields,
                         span: span.merge(self.current_span()),

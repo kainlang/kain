@@ -31,6 +31,12 @@ pub struct TypedUse {
 }
 
 #[derive(Debug, Clone)]
+pub struct TypedMod {
+    pub ast: Mod,
+    pub items: Vec<TypedItem>,
+}
+
+#[derive(Debug, Clone)]
 pub enum TypedItem {
     Function(TypedFunction),
     Component(TypedComponent),
@@ -38,11 +44,12 @@ pub enum TypedItem {
     Actor(TypedActor),
     Struct(TypedStruct),
     Enum(TypedEnum),
-    // Trait(TypedTrait), // TODO: Agent 4 will implement trait type checking
+    Trait(TypedTrait),
     Comptime(TypedComptime),
     Const(TypedConst),
     Macro(TypedMacro),
     Use(TypedUse),
+    Mod(TypedMod),
     Impl(TypedImpl),
     Test(TypedTest),
     TypeAlias(TypedTypeAlias),
@@ -308,20 +315,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
 }
 
 fn check_item_into(env: &mut TypeEnv, item: &Item, out: &mut Vec<TypedItem>) -> KainResult<()> {
-    match item {
-        Item::Trait(_) => {
-            // Skip traits for now - trait type checking not yet implemented
-        }
-        Item::Mod(module) => {
-            if let Some(children) = &module.inline {
-                for child in children {
-                    check_item_into(env, child, out)?;
-                }
-            }
-        }
-        _ => out.push(check_item(env, item)?),
-    }
-
+    out.push(check_item(env, item)?);
     Ok(())
 }
 
@@ -330,6 +324,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Function(f) => Ok(TypedItem::Function(check_function(env, f)?)),
         Item::Struct(s) => Ok(TypedItem::Struct(check_struct(env, s)?)),
         Item::Enum(e) => Ok(TypedItem::Enum(check_enum(env, e)?)),
+        Item::Trait(t) => Ok(TypedItem::Trait(TypedTrait { ast: t.clone() })),
         Item::Component(c) => Ok(TypedItem::Component(check_component(env, c)?)),
         Item::Shader(s) => Ok(TypedItem::Shader(check_shader(env, s)?)),
         Item::Actor(a) => Ok(TypedItem::Actor(check_actor(env, a)?)),
@@ -339,6 +334,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Const(c) => Ok(TypedItem::Const(check_const(env, c)?)),
         Item::Macro(m) => Ok(TypedItem::Macro(TypedMacro { ast: m.clone() })),
         Item::Use(u) => Ok(TypedItem::Use(TypedUse { ast: u.clone() })),
+        Item::Mod(module) => Ok(TypedItem::Mod(check_mod(env, module)?)),
         Item::Impl(i) => Ok(TypedItem::Impl(TypedImpl { ast: i.clone() })),
         Item::Test(t) => Ok(TypedItem::Test(TypedTest { ast: t.clone() })),
         Item::TypeAlias(ta) => Ok(TypedItem::TypeAlias(TypedTypeAlias { ast: ta.clone() })),
@@ -353,18 +349,24 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::GameplayAbility(ga) => Ok(TypedItem::GameplayAbility(ga.clone())),
         Item::GameplayEffect(ge) => Ok(TypedItem::GameplayEffect(ge.clone())),
         Item::GameplayCue(gc) => Ok(TypedItem::GameplayCue(gc.clone())),
-        Item::Trait(_) => {
-            // This should never be reached because we filter traits in check()
-            unreachable!("Traits should be filtered before check_item")
-        }
-        Item::Mod(_) => {
-            unreachable!("Modules should be flattened before check_item")
-        }
         _ => Err(env.type_error(
             "Item type not yet supported in type checker",
             item_span(item),
         )),
     }
+}
+
+fn check_mod(env: &mut TypeEnv, module: &Mod) -> KainResult<TypedMod> {
+    let mut items = Vec::new();
+    if let Some(children) = &module.inline {
+        for child in children {
+            check_item_into(env, child, &mut items)?;
+        }
+    }
+    Ok(TypedMod {
+        ast: module.clone(),
+        items,
+    })
 }
 
 fn check_const(_env: &mut TypeEnv, c: &Const) -> KainResult<TypedConst> {
@@ -729,9 +731,12 @@ fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
                 check_expr_for_syntax_errors(env, e)?;
             }
         }
-        Expr::Struct { fields, .. } => {
+        Expr::Struct { fields, rest, .. } => {
             for (_, field_expr) in fields {
                 check_expr_for_syntax_errors(env, field_expr)?;
+            }
+            if let Some(rest) = rest {
+                check_expr_for_syntax_errors(env, rest)?;
             }
         }
         Expr::AggregateInit { fields, .. } => {
@@ -779,6 +784,9 @@ fn check_expr_for_syntax_errors(env: &TypeEnv, expr: &Expr) -> KainResult<()> {
             check_expr_for_syntax_errors(env, inner)?;
         }
         Expr::Await(inner, _) => {
+            check_expr_for_syntax_errors(env, inner)?;
+        }
+        Expr::AsyncBlock(inner, _) => {
             check_expr_for_syntax_errors(env, inner)?;
         }
         Expr::Spawn { init, .. } => {

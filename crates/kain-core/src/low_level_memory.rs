@@ -13,7 +13,7 @@ use crate::monomorphize::MonomorphizedProgram;
 use crate::span::Span;
 use crate::types::{
     ResolvedType, TypedActor, TypedComponent, TypedConst, TypedEnum, TypedFunction, TypedImpl,
-    TypedItem, TypedProgram, TypedStruct, TypedTypeAlias,
+    TypedItem, TypedMod, TypedProgram, TypedStruct, TypedTypeAlias,
 };
 use crate::CompileTarget;
 use std::collections::{HashMap, HashSet};
@@ -48,8 +48,15 @@ impl LayoutRegistry {
             abi,
             structs: HashMap::new(),
         };
-        for item in items {
-            if let TypedItem::Struct(st) = item {
+        collect_struct_layouts(items, &mut registry);
+        registry
+    }
+}
+
+fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
+    for item in items {
+        match item {
+            TypedItem::Struct(st) => {
                 let is_union = has_attr(&st.ast.attributes, C_UNION_ATTR);
                 let is_packed = has_attr(&st.ast.attributes, C_PACKED_ATTR);
                 let pack_align = attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR)
@@ -189,10 +196,13 @@ impl LayoutRegistry {
                     },
                 );
             }
+            TypedItem::Mod(module) => collect_struct_layouts(&module.items, registry),
+            _ => {}
         }
-        registry
     }
+}
 
+impl LayoutRegistry {
     fn field(&self, struct_name: &str, field: &str) -> Option<&LayoutField> {
         self.structs.get(struct_name)?.fields.get(field)
     }
@@ -492,6 +502,14 @@ fn lower_typed_item_memory(
                 target: lower_type_memory(&alias.ast.target),
                 ..alias.ast.clone()
             },
+        }),
+        TypedItem::Mod(module) => TypedItem::Mod(TypedMod {
+            ast: module.ast.clone(),
+            items: module
+                .items
+                .iter()
+                .map(|child| lower_typed_item_memory(child, target, layouts))
+                .collect(),
         }),
         TypedItem::Enum(enum_item) => TypedItem::Enum(TypedEnum {
             ast: Enum {
@@ -1093,12 +1111,20 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 .collect(),
             *items_span,
         ),
-        Expr::Struct { name, fields, span } => Expr::Struct {
+        Expr::Struct {
+            name,
+            fields,
+            rest,
+            span,
+        } => Expr::Struct {
             name: name.clone(),
             fields: fields
                 .iter()
                 .map(|(field, value)| (field.clone(), lower_expr_memory_with_ctx(value, ctx)))
                 .collect(),
+            rest: rest
+                .as_ref()
+                .map(|value| Box::new(lower_expr_memory_with_ctx(value, ctx))),
             span: *span,
         },
         Expr::EnumVariant {
@@ -1187,6 +1213,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             *inner_span,
         ),
         Expr::Await(inner, inner_span) => Expr::Await(
+            Box::new(lower_expr_memory_with_ctx(inner, ctx)),
+            *inner_span,
+        ),
+        Expr::AsyncBlock(inner, inner_span) => Expr::AsyncBlock(
             Box::new(lower_expr_memory_with_ctx(inner, ctx)),
             *inner_span,
         ),
@@ -1490,6 +1520,7 @@ fn collect_address_taken_from_expr(expr: &Expr, roots: &mut HashSet<String>) {
         Expr::Paren(inner, _)
         | Expr::Try(inner, _)
         | Expr::Await(inner, _)
+        | Expr::AsyncBlock(inner, _)
         | Expr::Comptime(inner, _) => collect_address_taken_from_expr(inner, roots),
         _ => {}
     }
@@ -1888,6 +1919,7 @@ fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span, zeroed: b
             Expr::Struct {
                 name: name.clone(),
                 fields,
+                rest: None,
                 span,
             }
         }
@@ -1958,6 +1990,7 @@ fn lower_aggregate_init_expr(
                         let base_struct = Expr::Struct {
                             name: name.clone(),
                             fields: field_values,
+                            rest: None,
                             span,
                         };
                         return if let Some(active_field) = active_field {
@@ -2013,6 +2046,7 @@ fn lower_aggregate_init_expr(
                         return Expr::Struct {
                             name: name.clone(),
                             fields: field_values,
+                            rest: None,
                             span,
                         };
                     }
@@ -2020,6 +2054,7 @@ fn lower_aggregate_init_expr(
                 .unwrap_or_else(|| Expr::Struct {
                     name: name.clone(),
                     fields: fields.to_vec(),
+                    rest: None,
                     span,
                 });
             field_values
@@ -2170,6 +2205,11 @@ fn first_unsupported_memory_context(
                     }
                 }
             }
+            TypedItem::Mod(module) => {
+                if let Some(context) = first_unsupported_memory_context(&module.items, caps) {
+                    return Some(context);
+                }
+            }
             _ => {}
         }
     }
@@ -2307,6 +2347,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         | Expr::Deref(operand, _)
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
         | Expr::Comptime(operand, _)
         | Expr::Paren(operand, _) => first_memory_expr_context(operand, base),
         Expr::Cast { value, .. } => first_memory_expr_context(value, base),
@@ -2327,9 +2368,10 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
             .or_else(|| first_memory_expr_context(index, base)),
         Expr::Assign { target, value, .. } => first_memory_expr_context(target, base.clone())
             .or_else(|| first_memory_expr_context(value, base)),
-        Expr::Struct { fields, .. } => fields
+        Expr::Struct { fields, rest, .. } => fields
             .iter()
-            .find_map(|(_, value)| first_memory_expr_context(value, base.clone())),
+            .find_map(|(_, value)| first_memory_expr_context(value, base.clone()))
+            .or_else(|| rest.as_ref().and_then(|value| first_memory_expr_context(value, base))),
         Expr::EnumVariant { fields, .. } => match fields {
             crate::ast::EnumVariantFields::Unit => None,
             crate::ast::EnumVariantFields::Tuple(items) => items
