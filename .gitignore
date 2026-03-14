@@ -1,5 +1,9 @@
 # Build artifacts
 /target/
+**/*target*/
+**/*target*/**
+**/debug/
+**/debug/**
 /target_selfhost_probe*/
 *.exe
 *.pdb
