@@ -53,6 +53,15 @@ const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
     LLVM_TARGET_MACOS_ARM64,
 ];
 
+fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
+    match name {
+        "floor" => "kain_floor_i64",
+        "ceil" => "kain_ceil_i64",
+        "round" => "kain_round_i64",
+        _ => name,
+    }
+}
+
 fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
     let target_id = if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         LlvmTargetId::WindowsX64Msvc
@@ -1899,10 +1908,11 @@ impl LlvmGenerator {
             for (_, p_ty) in func.params {
                 param_tys.push(self.map_type_from_str(p_ty));
             }
+            let runtime_symbol = runtime_symbol_for_stdlib_function(&name);
             self.emit(&format!(
                 "declare {} @{}({})",
                 ret_ty,
-                name,
+                runtime_symbol,
                 param_tys.join(", ")
             ));
         }
@@ -3724,14 +3734,15 @@ impl LlvmGenerator {
                     .map(|(val, ty)| format!("{} {}", ty, val))
                     .collect::<Vec<_>>()
                     .join(", ");
+                let runtime_symbol = runtime_symbol_for_stdlib_function(&func_name);
 
                 if ret_ty == "void" {
-                    self.emit(&format!("  call void @{}({})", func_name, arg_str));
+                    self.emit(&format!("  call void @{}({})", runtime_symbol, arg_str));
                     Ok(("0".into(), "i64".into()))
                 } else {
                     self.emit(&format!(
                         "  {} = call {} @{}({})",
-                        res, ret_ty, func_name, arg_str
+                        res, ret_ty, runtime_symbol, arg_str
                     ));
                     Ok((res, ret_ty))
                 }
@@ -3986,5 +3997,18 @@ impl LlvmGenerator {
                 other.span(),
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runtime_symbol_for_stdlib_function;
+
+    #[test]
+    fn remaps_rounding_builtins_to_runtime_wrappers() {
+        assert_eq!(runtime_symbol_for_stdlib_function("floor"), "kain_floor_i64");
+        assert_eq!(runtime_symbol_for_stdlib_function("ceil"), "kain_ceil_i64");
+        assert_eq!(runtime_symbol_for_stdlib_function("round"), "kain_round_i64");
+        assert_eq!(runtime_symbol_for_stdlib_function("sqrt"), "sqrt");
     }
 }

@@ -352,9 +352,25 @@ static void kain_gl_render_frame(KainNativeViewportApp* app) {
     kain_gl_render_overlay(app);
 }
 
+static void kain_native_viewport_basis(double yaw, double* forward_x, double* forward_z, double* right_x, double* right_z) {
+    double fx = -sin(yaw);
+    double fz = -cos(yaw);
+    double rx = cos(yaw);
+    double rz = -sin(yaw);
+
+    if (forward_x) *forward_x = fx;
+    if (forward_z) *forward_z = fz;
+    if (right_x) *right_x = rx;
+    if (right_z) *right_z = rz;
+}
+
 static void kain_native_update_camera(KainNativeViewportApp* app, double dt) {
     double move_x = 0.0;
     double move_z = 0.0;
+    double forward_x = 0.0;
+    double forward_z = 0.0;
+    double right_x = 0.0;
+    double right_z = 0.0;
     double length;
     double move_speed;
     int space_down;
@@ -363,33 +379,35 @@ static void kain_native_update_camera(KainNativeViewportApp* app, double dt) {
         int delta_x = 0;
         int delta_y = 0;
         if (kain_win32_mouse_capture_sample_relative(&app->mouse_capture, &delta_x, &delta_y)) {
-            app->yaw += delta_x * app->settings.mouse_sensitivity;
-            app->pitch += delta_y * app->settings.mouse_sensitivity;
+            app->yaw -= delta_x * app->settings.mouse_sensitivity;
+            app->pitch -= delta_y * app->settings.mouse_sensitivity;
         }
         app->pitch = kain_clampd(app->pitch, -1.25, 1.25);
     } else {
-        if (app->keys[VK_LEFT]) app->yaw -= dt * 1.6;
-        if (app->keys[VK_RIGHT]) app->yaw += dt * 1.6;
-        if (app->keys[VK_UP]) app->pitch -= dt * 1.2;
-        if (app->keys[VK_DOWN]) app->pitch += dt * 1.2;
+        if (app->keys[VK_LEFT]) app->yaw += dt * 1.6;
+        if (app->keys[VK_RIGHT]) app->yaw -= dt * 1.6;
+        if (app->keys[VK_UP]) app->pitch += dt * 1.2;
+        if (app->keys[VK_DOWN]) app->pitch -= dt * 1.2;
         app->pitch = kain_clampd(app->pitch, -1.25, 1.25);
     }
 
+    kain_native_viewport_basis(app->yaw, &forward_x, &forward_z, &right_x, &right_z);
+
     if (app->keys['W']) {
-        move_x += sin(app->yaw);
-        move_z -= cos(app->yaw);
+        move_x += forward_x;
+        move_z += forward_z;
     }
     if (app->keys['S']) {
-        move_x -= sin(app->yaw);
-        move_z += cos(app->yaw);
+        move_x -= forward_x;
+        move_z -= forward_z;
     }
     if (app->keys['A']) {
-        move_x -= cos(app->yaw);
-        move_z -= sin(app->yaw);
+        move_x -= right_x;
+        move_z -= right_z;
     }
     if (app->keys['D']) {
-        move_x += cos(app->yaw);
-        move_z += sin(app->yaw);
+        move_x += right_x;
+        move_z += right_z;
     }
 
     length = sqrt((move_x * move_x) + (move_z * move_z));

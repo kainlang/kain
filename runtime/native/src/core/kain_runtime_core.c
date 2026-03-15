@@ -13,6 +13,18 @@ double kain_clampd(double value, double min_value, double max_value) {
     return value;
 }
 
+long long kain_floor_i64(double value) {
+    return (long long)floor(value);
+}
+
+long long kain_ceil_i64(double value) {
+    return (long long)ceil(value);
+}
+
+long long kain_round_i64(double value) {
+    return (long long)round(value);
+}
+
 void* kain_alloc_rc(size_t size, long long type_tag) {
     RcHeader* header = malloc(sizeof(RcHeader) + size);
     if (!header) return NULL;
@@ -234,6 +246,10 @@ void array_push(KainArray* arr, long long val) {
     arr->data[arr->len++] = val;
 }
 
+void push(void* arr, long long val) {
+    array_push((KainArray*)arr, val);
+}
+
 long long array_get(KainArray* arr, long long index) {
     if (index < 0 || index >= arr->len) {
         printf("Panic: Index out of bounds %lld\n", index);
@@ -252,6 +268,13 @@ void array_set(KainArray* arr, long long index, long long val) {
 
 long long array_len(KainArray* arr) {
     return arr->len;
+}
+
+long long pop(void* arr_ptr) {
+    KainArray* arr = (KainArray*)arr_ptr;
+    if (!arr || arr->len <= 0) return 0;
+    arr->len -= 1;
+    return arr->data[arr->len];
 }
 
 char* file_read(char* path) {
@@ -281,6 +304,10 @@ char* file_read(char* path) {
     return buf;
 }
 
+char* read_file(char* path) {
+    return file_read(path);
+}
+
 void file_write(char* path, char* content) {
     FILE* f = NULL;
 #ifdef _WIN32
@@ -293,6 +320,26 @@ void file_write(char* path, char* content) {
         fprintf(f, "%s", content);
     }
     fclose(f);
+}
+
+void write_file(char* path, char* content) {
+    file_write(path, content);
+}
+
+long long len(void* value) {
+    RcHeader* header;
+    if (!value) return 0;
+    header = get_header(value);
+    if (header->type_tag == 1) {
+        return (long long)strlen((char*)value);
+    }
+    if (header->type_tag == 2) {
+        return ((KainArray*)value)->len;
+    }
+    if (header->type_tag == 3) {
+        return ((KainMap*)value)->count;
+    }
+    return 0;
 }
 
 static unsigned long hash_str(char* str) {

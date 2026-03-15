@@ -1,3 +1,6 @@
+fn lab_path(name: String) -> String:
+    return "M:/Code/Kain/labs/raw_native_world_lab/" + name
+
 fn pick_profile(city_extent: Float, wants_neon: Bool) -> String:
     if wants_neon && city_extent >= 120.0:
         return "luminous_port"
@@ -6,8 +9,8 @@ fn pick_profile(city_extent: Float, wants_neon: Bool) -> String:
     else:
         return "emberfall"
 
-fn particle_budget(city_extent: Float, move_speed: Float) -> Int:
-    let budget = 72 + round(city_extent * 0.58) + round(move_speed * 3.0)
+fn particle_budget(city_blocks: Int, speed_rank: Int) -> Int:
+    let budget = 72 + city_blocks + (speed_rank * 3)
     if budget < 120:
         return 120
     elif budget > 260:
@@ -21,17 +24,92 @@ fn fog_density_for(wants_neon: Bool) -> Float:
     else:
         return 0.0190
 
+fn sample_total(city_blocks: Int, speed_rank: Int) -> Int:
+    let samples = [
+        city_blocks,
+        speed_rank * 10,
+        144,
+        abs(-18)
+    ]
+    push(samples, 44)
+    let echo = pop(samples)
+    push(samples, echo)
+
+    let total = 0
+    for i in range(0, len(samples)):
+        total = total + samples[i]
+    return total
+
+fn float_math_score(city_extent: Float, move_speed: Float, jump_velocity: Float) -> Int:
+    let spatial_grid = floor(city_extent / 7.5)
+    let sprint_steps = ceil(move_speed * 1.5)
+    let jump_steps = round(jump_velocity * 2.0)
+    let arc_energy = round(sqrt(144.0) + pow(2.0, 5.0))
+    let wave_bias = round((sin(0.50) + cos(1.25) + tan(0.25)) * 10.0)
+    return spatial_grid + sprint_steps + jump_steps + arc_energy + wave_bias
+
+fn build_ceiling_report(profile: String, particle_count: Int, sample_sum: Int, float_score: Int, http_bytes: Int) -> String:
+    let report = "KAIN RAW NATIVE WORLD LAB CEILING REPORT\n"
+    report = report + "profile=" + profile + "\n"
+    report = report + "particle_count=" + to_string(particle_count) + "\n"
+    report = report + "sample_total=" + to_string(sample_sum) + "\n"
+    report = report + "float_math_score=" + to_string(float_score) + "\n"
+    report = report + "http_bytes=" + to_string(http_bytes) + "\n"
+    report = report + "features=math,float_math,floor,ceil,round,sqrt,pow,trig,range,arrays,push,pop,len,maps,file_io,sockets,native_config,viewport\n"
+    return report
+
+fn attempt_http_probe() -> Int:
+    let sock = socket_connect("example.com", 80)
+    if sock < 0:
+        write_file(lab_path("ceiling_http_response.txt"), "socket_connect failed")
+        return 0
+
+    socket_send(sock, "GET / HTTP/1.0\r\nHost: example.com\r\nConnection: close\r\n\r\n")
+    let http_response = socket_recv(sock)
+    write_file(lab_path("ceiling_http_response.txt"), http_response)
+    return len(http_response)
+
 fn configure_city_walkthrough() -> Int:
+    let city_blocks = 132
     let city_extent = 132.0
     let wants_neon = true
     let profile = pick_profile(city_extent, wants_neon)
-    let move_speed = 8.4 + (city_extent / 54.0)
-    let sprint_multiplier = 1.85 + (city_extent / 320.0)
-    let jump_velocity = 6.2 + (city_extent / 95.0)
+    let move_speed = 10.8
+    let sprint_multiplier = 2.25
+    let jump_velocity = 7.45
     let fog_density = fog_density_for(wants_neon)
-    let particle_count = particle_budget(city_extent, move_speed)
+    let speed_rank = 11
+    let particle_count = particle_budget(city_blocks, speed_rank)
+    let float_score = float_math_score(city_extent, move_speed, jump_velocity)
     let window_width = 1728
     let window_height = 972
+    let samples = sample_total(city_blocks, speed_rank)
+
+    let metrics = map_new()
+    map_set(metrics, "sample_total", samples)
+    map_set(metrics, "particle_count", particle_count)
+    map_set(metrics, "window_width", window_width)
+
+    let report_seed = build_ceiling_report(
+        profile,
+        map_get(metrics, "particle_count"),
+        map_get(metrics, "sample_total"),
+        float_score,
+        0
+    )
+    write_file(lab_path("ceiling_report.txt"), report_seed)
+    let report_echo = read_file(lab_path("ceiling_report.txt"))
+    println(report_echo)
+
+    let http_bytes = attempt_http_probe()
+    let final_report = build_ceiling_report(
+        profile,
+        map_get(metrics, "particle_count"),
+        map_get(metrics, "sample_total"),
+        float_score,
+        http_bytes
+    )
+    write_file(lab_path("ceiling_report.txt"), final_report)
 
     native_config_string("KAIN_NATIVE_SCENE_PROFILE", profile)
     native_config_float("KAIN_NATIVE_WORLD_TARGET_EXTENT", city_extent)
@@ -44,10 +122,11 @@ fn configure_city_walkthrough() -> Int:
     native_config_int("KAIN_NATIVE_WINDOW_HEIGHT", window_height)
     native_config_flag("KAIN_NATIVE_SHOW_HELP", 1)
     native_config_flag("KAIN_NATIVE_CAPTURE_MOUSE", 1)
-    return 0
+    return map_get(metrics, "sample_total") + http_bytes
 
 fn main() -> Int:
-    println("Kain is driving the raw native world lab.")
-    let launch_configured = configure_city_walkthrough()
+    println("Kain is driving the raw native world lab in ceiling mode.")
+    let launch_score = configure_city_walkthrough()
+    println(launch_score)
     spawn_native_viewport(0.0, 0.0)
-    return launch_configured
+    return launch_score

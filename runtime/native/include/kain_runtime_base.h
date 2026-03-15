@@ -76,6 +76,9 @@ typedef struct {
 } MessageQueue;
 
 double kain_clampd(double value, double min_value, double max_value);
+long long kain_floor_i64(double value);
+long long kain_ceil_i64(double value);
+long long kain_round_i64(double value);
 char* string_new(char* src);
 int deep_eq(void* a, void* b);
 
