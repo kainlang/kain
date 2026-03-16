@@ -36,6 +36,12 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Evaluate Python expression",
         },
         BuiltinFn {
+            name: "py_eval_raw",
+            params: vec![("code", "String")],
+            return_type: "Any",
+            doc: "Evaluate Python expression and keep the raw Python object",
+        },
+        BuiltinFn {
             name: "py_exec",
             params: vec![("code", "String")],
             return_type: "Unit",
@@ -54,10 +60,22 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Call a Python callable or method with optional kwargs",
         },
         BuiltinFn {
+            name: "py_call_raw",
+            params: vec![("target", "Any"), ("args", "Any")],
+            return_type: "Any",
+            doc: "Call a Python callable or method and keep the raw Python object",
+        },
+        BuiltinFn {
             name: "py_getattr",
             params: vec![("target", "Any"), ("name", "String")],
             return_type: "Any",
             doc: "Read a Python attribute",
+        },
+        BuiltinFn {
+            name: "py_getattr_raw",
+            params: vec![("target", "Any"), ("name", "String")],
+            return_type: "Any",
+            doc: "Read a Python attribute and keep the raw Python object",
         },
         BuiltinFn {
             name: "py_setattr",
@@ -70,6 +88,24 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             params: vec![("target", "Any"), ("name", "String")],
             return_type: "Bool",
             doc: "Check whether a Python attribute exists",
+        },
+        BuiltinFn {
+            name: "py_buffer",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Create a raw Python memoryview for a buffer-capable object",
+        },
+        BuiltinFn {
+            name: "py_buffer_info",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Inspect shape, dtype, strides, contiguity, and byte size for a Python buffer",
+        },
+        BuiltinFn {
+            name: "py_buffer_bytes",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Snapshot a Python buffer as a flat byte array",
         },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
@@ -99,12 +135,18 @@ fn register_python_env(env: &mut Env) {
     }
 
     env.register_native_fn("py_eval", py_eval_native);
+    env.register_native_fn("py_eval_raw", py_eval_raw_native);
     env.register_native_fn("py_exec", py_exec_native);
     env.register_native_fn("py_import", py_import_native);
     env.register_native_fn("py_call", py_call_native);
+    env.register_native_fn("py_call_raw", py_call_raw_native);
     env.register_native_fn("py_getattr", py_getattr_native);
+    env.register_native_fn("py_getattr_raw", py_getattr_raw_native);
     env.register_native_fn("py_setattr", py_setattr_native);
     env.register_native_fn("py_hasattr", py_hasattr_native);
+    env.register_native_fn("py_buffer", py_buffer_native);
+    env.register_native_fn("py_buffer_info", py_buffer_info_native);
+    env.register_native_fn("py_buffer_bytes", py_buffer_bytes_native);
 }
 
 fn py_eval_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -124,6 +166,28 @@ fn py_eval_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
             .eval(code, Some(scope_dict), Some(scope_dict))
             .map_err(|err| KainError::runtime(format!("Python Error: {err}")))?;
         py_to_value(result)
+    })
+}
+
+fn py_eval_raw_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_eval_raw: expected 1 argument (code)",
+        ));
+    }
+    let code = match &args[0] {
+        Value::String(s) => s,
+        _ => return Err(KainError::runtime("py_eval_raw: expected string")),
+    };
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let result = py
+            .eval(code, Some(scope_dict), Some(scope_dict))
+            .map_err(|err| KainError::runtime(format!("Python Error: {err}")))?;
+        wrap_python_object(result)
     })
 }
 
@@ -170,6 +234,14 @@ fn py_import_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
 }
 
 fn py_call_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    py_call_with_mode(env, args, false)
+}
+
+fn py_call_raw_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    py_call_with_mode(env, args, true)
+}
+
+fn py_call_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainResult<Value> {
     let state = python_scope_state(env)?;
     let call_spec = parse_python_call(&args)?;
 
@@ -194,11 +266,23 @@ fn py_call_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
             .as_ref(py)
             .call(py_args, py_kwargs)
             .map_err(|err| KainError::runtime(format!("Python call error: {err}")))?;
-        py_to_value(result)
+        if raw_result {
+            wrap_python_object(result)
+        } else {
+            py_to_value(result)
+        }
     })
 }
 
 fn py_getattr_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    py_getattr_with_mode(env, args, false)
+}
+
+fn py_getattr_raw_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    py_getattr_with_mode(env, args, true)
+}
+
+fn py_getattr_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainResult<Value> {
     if args.len() != 2 {
         return Err(KainError::runtime(
             "py_getattr: expected 2 arguments (target, name)",
@@ -222,7 +306,11 @@ fn py_getattr_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
             .as_ref(py)
             .getattr(attr_name.as_str())
             .map_err(|err| KainError::runtime(format!("Python getattr error: {err}")))?;
-        py_to_value(attr)
+        if raw_result {
+            wrap_python_object(attr)
+        } else {
+            py_to_value(attr)
+        }
     })
 }
 
@@ -280,6 +368,61 @@ fn py_hasattr_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
             .hasattr(attr_name.as_str())
             .map_err(|err| KainError::runtime(format!("Python hasattr error: {err}")))?;
         Ok(Value::Bool(has_attr))
+    })
+}
+
+fn py_buffer_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_buffer: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let view = create_memoryview(py, target.as_ref(py))?;
+        wrap_python_object(view.as_ref(py))
+    })
+}
+
+fn py_buffer_info_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_buffer_info: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let view = create_memoryview(py, target.as_ref(py))?;
+        build_buffer_info(target.as_ref(py), view.as_ref(py))
+    })
+}
+
+fn py_buffer_bytes_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_buffer_bytes: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let view = create_memoryview(py, target.as_ref(py))?;
+        let bytes = view
+            .as_ref(py)
+            .call_method0("tobytes")
+            .map_err(|err| KainError::runtime(format!("Python buffer export error: {err}")))?;
+        py_to_value(bytes)
     })
 }
 
@@ -384,6 +527,157 @@ fn resolve_python_target<'py>(
             .map_err(|err| KainError::runtime(format!("Python resolution error: {err}"))),
         _ => value_to_pyobject(py, value),
     }
+}
+
+fn create_memoryview(py: Python<'_>, target: &PyAny) -> KainResult<PyObject> {
+    let builtins = py
+        .import("builtins")
+        .map_err(|err| KainError::runtime(format!("Python import error: {err}")))?;
+    builtins
+        .getattr("memoryview")
+        .and_then(|callable| callable.call1((target,)))
+        .map(|view| view.into_py(py))
+        .map_err(|err| KainError::runtime(format!("Python buffer error: {err}")))
+}
+
+fn build_buffer_info(target: &PyAny, view: &PyAny) -> KainResult<Value> {
+    let mut fields = HashMap::new();
+    fields.insert("kind".to_string(), Value::String(python_type_path(target)));
+    fields.insert(
+        "label".to_string(),
+        Value::String(python_object_label(target)),
+    );
+    fields.insert(
+        "format".to_string(),
+        py_optional_string_attr(view, "format")?,
+    );
+    fields.insert("dtype".to_string(), numpy_dtype_name(target, view)?);
+    fields.insert("item_size".to_string(), py_int_attr(view, "itemsize")?);
+    fields.insert("ndim".to_string(), py_int_attr(view, "ndim")?);
+    fields.insert("nbytes".to_string(), py_int_attr(view, "nbytes")?);
+    fields.insert("readonly".to_string(), py_bool_attr(view, "readonly")?);
+    fields.insert(
+        "c_contiguous".to_string(),
+        py_bool_attr(view, "c_contiguous")?,
+    );
+    fields.insert(
+        "f_contiguous".to_string(),
+        py_bool_attr(view, "f_contiguous")?,
+    );
+    fields.insert("contiguous".to_string(), py_bool_attr(view, "contiguous")?);
+    fields.insert("shape".to_string(), py_index_sequence_attr(view, "shape")?);
+    fields.insert(
+        "strides".to_string(),
+        py_index_sequence_attr(view, "strides")?,
+    );
+
+    Ok(Value::Struct(
+        "PyBufferInfo".to_string(),
+        Arc::new(RwLock::new(fields)),
+    ))
+}
+
+fn py_optional_string_attr(target: &PyAny, name: &str) -> KainResult<Value> {
+    match target.getattr(name) {
+        Ok(value) if value.is_none() => Ok(Value::None),
+        Ok(value) => value
+            .extract::<String>()
+            .map(Value::String)
+            .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}"))),
+        Err(err) => Err(KainError::runtime(format!(
+            "Python attribute error ({name}): {err}"
+        ))),
+    }
+}
+
+fn py_int_attr(target: &PyAny, name: &str) -> KainResult<Value> {
+    target
+        .getattr(name)
+        .and_then(|value| value.extract::<i64>())
+        .map(Value::Int)
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))
+}
+
+fn py_bool_attr(target: &PyAny, name: &str) -> KainResult<Value> {
+    target
+        .getattr(name)
+        .and_then(|value| value.extract::<bool>())
+        .map(Value::Bool)
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))
+}
+
+fn py_index_sequence_attr(target: &PyAny, name: &str) -> KainResult<Value> {
+    let value = target
+        .getattr(name)
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))?;
+    if value.is_none() {
+        return Ok(Value::None);
+    }
+
+    if let Ok(tuple) = value.downcast::<PyTuple>() {
+        let values = tuple
+            .iter()
+            .map(|item| {
+                item.extract::<i64>().map(Value::Int).map_err(|err| {
+                    KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
+                })
+            })
+            .collect::<KainResult<Vec<_>>>()?;
+        return Ok(Value::Array(Arc::new(RwLock::new(values))));
+    }
+
+    if let Ok(list) = value.downcast::<PyList>() {
+        let values = list
+            .iter()
+            .map(|item| {
+                item.extract::<i64>().map(Value::Int).map_err(|err| {
+                    KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
+                })
+            })
+            .collect::<KainResult<Vec<_>>>()?;
+        return Ok(Value::Array(Arc::new(RwLock::new(values))));
+    }
+
+    py_to_value(value)
+}
+
+fn numpy_dtype_name(target: &PyAny, view: &PyAny) -> KainResult<Value> {
+    for candidate in [
+        Some(target),
+        target.getattr("obj").ok(),
+        view.getattr("obj").ok(),
+    ] {
+        let Some(candidate) = candidate else {
+            continue;
+        };
+        if let Ok(dtype) = candidate.getattr("dtype") {
+            if let Ok(name) = dtype
+                .getattr("name")
+                .and_then(|value| value.extract::<String>())
+            {
+                return Ok(Value::String(name));
+            }
+            if let Ok(name) = dtype.str().and_then(|value| value.extract::<String>()) {
+                return Ok(Value::String(name));
+            }
+        }
+    }
+
+    py_optional_string_attr(view, "format")
+}
+
+fn python_type_path(obj: &PyAny) -> String {
+    let type_name = obj
+        .get_type()
+        .name()
+        .map(|name| name.to_string())
+        .unwrap_or_else(|_| "object".to_string());
+    let module_name = obj
+        .get_type()
+        .getattr("__module__")
+        .and_then(|value| value.extract::<String>())
+        .unwrap_or_else(|_| "builtins".to_string());
+    format!("{module_name}.{type_name}")
 }
 
 fn extract_python_object(value: &Value, py: Python<'_>) -> KainResult<PyObject> {
@@ -497,8 +791,33 @@ fn py_to_value(obj: &PyAny) -> KainResult<Value> {
             Arc::new(RwLock::new(values)),
         ));
     }
+    if let Some(value) = try_numpy_array_to_value(obj)? {
+        return Ok(value);
+    }
 
     wrap_python_object(obj)
+}
+
+fn try_numpy_array_to_value(obj: &PyAny) -> KainResult<Option<Value>> {
+    let module_name = obj
+        .get_type()
+        .getattr("__module__")
+        .and_then(|value| value.extract::<String>())
+        .unwrap_or_default();
+    let type_name = obj
+        .get_type()
+        .name()
+        .map(|name| name.to_string())
+        .unwrap_or_default();
+
+    if !module_name.starts_with("numpy") || type_name != "ndarray" {
+        return Ok(None);
+    }
+
+    let list_value = obj
+        .call_method0("tolist")
+        .map_err(|err| KainError::runtime(format!("NumPy array conversion error: {err}")))?;
+    Ok(Some(py_to_value(list_value)?))
 }
 
 fn wrap_python_object(obj: &PyAny) -> KainResult<Value> {
@@ -562,18 +881,25 @@ mod tests {
     use kain_core::runtime::{interpret, Value};
     use kain_core::stdlib::StdLib;
     use kain_core::types;
+    use pyo3::Python;
 
     #[test]
     fn python_builtins_extend_stdlib_metadata() {
         register();
         let stdlib = StdLib::new();
         assert!(stdlib.functions.contains_key("py_eval"));
+        assert!(stdlib.functions.contains_key("py_eval_raw"));
         assert!(stdlib.functions.contains_key("py_exec"));
         assert!(stdlib.functions.contains_key("py_import"));
         assert!(stdlib.functions.contains_key("py_call"));
+        assert!(stdlib.functions.contains_key("py_call_raw"));
         assert!(stdlib.functions.contains_key("py_getattr"));
+        assert!(stdlib.functions.contains_key("py_getattr_raw"));
         assert!(stdlib.functions.contains_key("py_setattr"));
         assert!(stdlib.functions.contains_key("py_hasattr"));
+        assert!(stdlib.functions.contains_key("py_buffer"));
+        assert!(stdlib.functions.contains_key("py_buffer_info"));
+        assert!(stdlib.functions.contains_key("py_buffer_bytes"));
     }
 
     #[test]
@@ -641,6 +967,73 @@ fn main():
         }
     }
 
+    #[test]
+    fn python_bridge_converts_numpy_arrays_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping NumPy bridge test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    let np = py_import("numpy")
+    return py_call(np, "linspace", [-1.0, 1.0, 5])
+"#,
+        );
+
+        let Value::Array(values) = result else {
+            panic!("expected NumPy bridge to return Array, got {result:?}");
+        };
+        let values = values.read().unwrap();
+        assert_eq!(values.len(), 5);
+
+        match &values[0] {
+            Value::Float(value) => assert_eq!(*value, -1.0),
+            other => panic!("expected first NumPy sample to be Float(-1.0), got {other:?}"),
+        }
+        match &values[2] {
+            Value::Float(value) => assert_eq!(*value, 0.0),
+            other => panic!("expected midpoint NumPy sample to be Float(0.0), got {other:?}"),
+        }
+        match &values[4] {
+            Value::Float(value) => assert_eq!(*value, 1.0),
+            other => panic!("expected last NumPy sample to be Float(1.0), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_exposes_numpy_buffer_metadata_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping NumPy buffer test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_plane():\n    return np.arange(24, dtype=np.uint8).reshape(2, 3, 4)")
+    let plane = py_call_raw("make_plane", [])
+    let view = py_buffer(plane)
+    let info = py_buffer_info(view)
+    assert(info.dtype == "uint8", "expected uint8 dtype")
+    assert(info.ndim == 3, "expected 3 dimensions")
+    assert(info.shape[0] == 2, "expected height 2")
+    assert(info.shape[1] == 3, "expected width 3")
+    assert(info.shape[2] == 4, "expected 4 channels")
+    assert(info.nbytes == 24, "expected 24 bytes")
+    assert(info.c_contiguous == true, "expected contiguous buffer")
+    let bytes = py_buffer_bytes(view)
+    return bytes[5]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 5),
+            other => panic!("expected buffer bridge to return Int(5), got {other:?}"),
+        }
+    }
+
     fn interpret_source(source: &str) -> Value {
         register();
 
@@ -652,5 +1045,9 @@ fn main():
         kain_core::comptime::eval_program(&mut ast).unwrap();
         let typed = types::check(&ast, &span_mapper, "<test>").unwrap();
         interpret(&typed).unwrap()
+    }
+
+    fn numpy_available() -> bool {
+        Python::with_gil(|py| py.import("numpy").is_ok())
     }
 }

@@ -849,6 +849,7 @@ fn value_kind(value: &Value) -> &'static str {
         Value::Array(_) => "Array",
         Value::Tuple(_) => "Tuple",
         Value::Struct(_, _) => "Struct",
+        Value::HostObject(_, _) => "HostObject",
         Value::Function(_) => "Function",
         Value::NativeFn(_, _) => "NativeFn",
         Value::ActorRef(_) => "ActorRef",
@@ -925,6 +926,12 @@ fn run(value: Int) -> Int:
             .expect("call run");
 
         assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn value_kind_reports_host_object() {
+        let value = Value::host_object("test", std::sync::Arc::new(7_i64));
+        assert_eq!(value_kind(&value), "HostObject");
     }
 
     #[test]
