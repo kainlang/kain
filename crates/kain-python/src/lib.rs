@@ -48,11 +48,28 @@ struct PythonGeometryView {
     face_size: i64,
 }
 
+#[derive(Clone, Copy)]
+enum SharedScalarKind {
+    Bool,
+    Int,
+    Float,
+}
+
+#[derive(Clone)]
+struct SharedPythonBuffer {
+    owner: PyObject,
+    flat: PyObject,
+    backend: String,
+    kind: SharedScalarKind,
+    len: usize,
+}
+
 #[derive(Clone)]
 enum NativeScalarBuffer {
     Bool(Arc<RwLock<Vec<bool>>>),
     Int(Arc<RwLock<Vec<i64>>>),
     Float(Arc<RwLock<Vec<f64>>>),
+    Shared(Arc<SharedPythonBuffer>),
 }
 
 #[derive(Clone)]
@@ -65,6 +82,7 @@ struct KainNativeImage {
     height: i64,
     channels: i64,
     data: NativeScalarBuffer,
+    source: Option<PyObject>,
 }
 
 #[derive(Clone)]
@@ -72,6 +90,7 @@ struct KainNativeTensor {
     dtype: String,
     shape: Vec<i64>,
     data: NativeScalarBuffer,
+    source: Option<PyObject>,
 }
 
 #[derive(Clone)]
@@ -84,6 +103,7 @@ struct KainNativeGeometry {
     index_shape: Vec<i64>,
     face_size: i64,
     indices: Option<NativeScalarBuffer>,
+    source: Option<PyObject>,
 }
 
 pub fn register() {
@@ -298,6 +318,12 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Write one pixel into a Kain-owned typed image buffer",
         },
         BuiltinFn {
+            name: "kain_image_to_py",
+            params: vec![("image", "Any"), ("backend", "String")],
+            return_type: "Any",
+            doc: "Export a Kain-owned typed image buffer back into a Python object such as a NumPy array or torch tensor",
+        },
+        BuiltinFn {
             name: "kain_tensor_from_py",
             params: vec![("target", "Any")],
             return_type: "Any",
@@ -320,6 +346,12 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             params: vec![("tensor", "Any"), ("indices", "Any"), ("value", "Any")],
             return_type: "Unit",
             doc: "Write one tensor element into a Kain-owned typed tensor buffer",
+        },
+        BuiltinFn {
+            name: "kain_tensor_to_py",
+            params: vec![("tensor", "Any"), ("backend", "String")],
+            return_type: "Any",
+            doc: "Export a Kain-owned typed tensor buffer back into a Python object such as a NumPy array or torch tensor",
         },
         BuiltinFn {
             name: "kain_geometry_from_py",
@@ -356,6 +388,12 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             params: vec![("geometry", "Any"), ("index", "Int"), ("value", "Any")],
             return_type: "Unit",
             doc: "Write one face into a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_to_py",
+            params: vec![("geometry", "Any"), ("backend", "String")],
+            return_type: "Any",
+            doc: "Export a Kain-owned typed geometry buffer back into Python arrays, dict payloads, or trimesh objects",
         },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
@@ -416,16 +454,19 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("kain_image_info", kain_image_info_native);
     env.register_native_fn("kain_image_pixel", kain_image_pixel_native);
     env.register_native_fn("kain_image_set_pixel", kain_image_set_pixel_native);
+    env.register_native_fn("kain_image_to_py", kain_image_to_py_native);
     env.register_native_fn("kain_tensor_from_py", kain_tensor_from_py_native);
     env.register_native_fn("kain_tensor_info", kain_tensor_info_native);
     env.register_native_fn("kain_tensor_get", kain_tensor_get_native);
     env.register_native_fn("kain_tensor_set", kain_tensor_set_native);
+    env.register_native_fn("kain_tensor_to_py", kain_tensor_to_py_native);
     env.register_native_fn("kain_geometry_from_py", kain_geometry_from_py_native);
     env.register_native_fn("kain_geometry_info", kain_geometry_info_native);
     env.register_native_fn("kain_geometry_vertex", kain_geometry_vertex_native);
     env.register_native_fn("kain_geometry_set_vertex", kain_geometry_set_vertex_native);
     env.register_native_fn("kain_geometry_face", kain_geometry_face_native);
     env.register_native_fn("kain_geometry_set_face", kain_geometry_set_face_native);
+    env.register_native_fn("kain_geometry_to_py", kain_geometry_to_py_native);
 }
 
 fn py_eval_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -1202,11 +1243,17 @@ fn kain_geometry_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<V
             .as_ref()
             .map(|value| resolve_payload_metadata(py, value.as_ref(py)))
             .transpose()?;
+        let source = if args.len() == 1 {
+            Some(resolve_python_target(py, scope_dict, &args[0])?)
+        } else {
+            None
+        };
         build_native_geometry(
             vertices.as_ref(py),
             indices.as_ref().map(|value| value.as_ref(py)),
             &vertex_metadata,
             index_metadata.as_ref(),
+            source.as_ref().map(|value| value.as_ref(py)),
         )
     })
 }
@@ -1270,6 +1317,60 @@ fn kain_geometry_set_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult
     let index = value_to_int_arg("kain_geometry_set_face", "index", &args[1])?;
     native_geometry_set_face(&geometry, index, &args[2])?;
     Ok(Value::Unit)
+}
+
+fn kain_image_to_py_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let image = match args.as_slice() {
+        [image] | [image, Value::String(_)] => extract_native_image(image)?,
+        _ => {
+            return Err(KainError::runtime(
+                "kain_image_to_py: expected (image) or (image, backend)",
+            ))
+        }
+    };
+    let backend = parse_optional_backend_arg("kain_image_to_py", &args, "numpy")?;
+    Python::with_gil(|py| wrap_python_object(export_native_image_pyobject(py, image.as_ref(), &backend)?.as_ref(py)))
+}
+
+fn kain_tensor_to_py_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let tensor = match args.as_slice() {
+        [tensor] | [tensor, Value::String(_)] => extract_native_tensor(tensor)?,
+        _ => {
+            return Err(KainError::runtime(
+                "kain_tensor_to_py: expected (tensor) or (tensor, backend)",
+            ))
+        }
+    };
+    let backend = parse_optional_backend_arg("kain_tensor_to_py", &args, "numpy")?;
+    Python::with_gil(|py| wrap_python_object(export_native_tensor_pyobject(py, tensor.as_ref(), &backend)?.as_ref(py)))
+}
+
+fn kain_geometry_to_py_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let geometry = match args.as_slice() {
+        [geometry] | [geometry, Value::String(_)] => extract_native_geometry(geometry)?,
+        _ => {
+            return Err(KainError::runtime(
+                "kain_geometry_to_py: expected (geometry) or (geometry, backend)",
+            ))
+        }
+    };
+    let backend = parse_optional_backend_arg("kain_geometry_to_py", &args, "dict")?;
+    Python::with_gil(|py| {
+        wrap_python_object(export_native_geometry_pyobject(py, geometry.as_ref(), &backend)?.as_ref(py))
+    })
+}
+
+fn parse_optional_backend_arg(fn_name: &str, args: &[Value], default: &str) -> KainResult<String> {
+    match args {
+        [_] => Ok(default.to_string()),
+        [_, Value::String(backend)] => Ok(backend.clone()),
+        [_, other] => Err(KainError::runtime(format!(
+            "{fn_name}: expected backend to be a String, got {other:?}"
+        ))),
+        _ => Err(KainError::runtime(format!(
+            "{fn_name}: invalid argument shape for backend parsing"
+        ))),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2114,6 +2215,11 @@ impl NativeScalarBuffer {
             Self::Bool(_) => "bool",
             Self::Int(_) => "int",
             Self::Float(_) => "float",
+            Self::Shared(shared) => match shared.kind {
+                SharedScalarKind::Bool => "bool",
+                SharedScalarKind::Int => "int",
+                SharedScalarKind::Float => "float",
+            },
         }
     }
 
@@ -2122,6 +2228,7 @@ impl NativeScalarBuffer {
             Self::Bool(values) => values.read().unwrap().len(),
             Self::Int(values) => values.read().unwrap().len(),
             Self::Float(values) => values.read().unwrap().len(),
+            Self::Shared(shared) => shared.len,
         }
     }
 
@@ -2154,6 +2261,7 @@ impl NativeScalarBuffer {
                 .ok_or_else(|| {
                     KainError::runtime(format!("native buffer index {index} is out of bounds"))
                 }),
+            Self::Shared(shared) => shared_buffer_get_value(shared.as_ref(), index),
         }
     }
 
@@ -2217,8 +2325,160 @@ impl NativeScalarBuffer {
                 *slot = converted;
                 Ok(())
             }
+            Self::Shared(shared) => shared_buffer_set_value(shared.as_ref(), index, value),
         }
     }
+
+    fn is_shared(&self) -> bool {
+        matches!(self, Self::Shared(_))
+    }
+
+    fn shared_owner(&self, py: Python<'_>) -> Option<PyObject> {
+        match self {
+            Self::Shared(shared) => Some(shared.owner.clone_ref(py)),
+            _ => None,
+        }
+    }
+
+    fn shared_backend(&self) -> Option<&str> {
+        match self {
+            Self::Shared(shared) => Some(shared.backend.as_str()),
+            _ => None,
+        }
+    }
+}
+
+fn try_build_shared_native_scalar_buffer(
+    py: Python<'_>,
+    target: &PyAny,
+    metadata: &PythonPayloadMetadata,
+) -> KainResult<Option<NativeScalarBuffer>> {
+    if !metadata.c_contiguous || metadata.readonly {
+        return Ok(None);
+    }
+
+    let Some(kind) = shared_scalar_kind_for_dtype(&metadata.dtype) else {
+        return Ok(None);
+    };
+    let len = checked_element_count(&metadata.shape)?;
+
+    match metadata.backend.as_str() {
+        "numpy" => {
+            let flat = target
+                .call_method1("reshape", (-1,))
+                .map_err(|err| KainError::runtime(format!("NumPy shared reshape error: {err}")))?;
+            Ok(Some(NativeScalarBuffer::Shared(Arc::new(SharedPythonBuffer {
+                owner: target.into_py(py),
+                flat: flat.into_py(py),
+                backend: "numpy".to_string(),
+                kind,
+                len,
+            }))))
+        }
+        "torch" => {
+            let device = metadata.device.as_deref().unwrap_or("cpu");
+            if device != "cpu" {
+                return Ok(None);
+            }
+            let detached = target
+                .call_method0("detach")
+                .map_err(|err| KainError::runtime(format!("PyTorch shared detach error: {err}")))?;
+            let flat = detached
+                .call_method1("reshape", (-1,))
+                .map_err(|err| KainError::runtime(format!("PyTorch shared reshape error: {err}")))?;
+            Ok(Some(NativeScalarBuffer::Shared(Arc::new(SharedPythonBuffer {
+                owner: target.into_py(py),
+                flat: flat.into_py(py),
+                backend: "torch".to_string(),
+                kind,
+                len,
+            }))))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn shared_scalar_kind_for_dtype(dtype: &str) -> Option<SharedScalarKind> {
+    match dtype {
+        "bool" | "bool_" => Some(SharedScalarKind::Bool),
+        "uint8" | "ubyte" | "int8" | "byte" | "uint16" | "int16" | "uint32" | "int32"
+        | "uint64" | "int64" => Some(SharedScalarKind::Int),
+        "float32" | "float64" | "double" => Some(SharedScalarKind::Float),
+        _ => None,
+    }
+}
+
+fn shared_buffer_get_value(shared: &SharedPythonBuffer, index: usize) -> KainResult<Value> {
+    if index >= shared.len {
+        return Err(KainError::runtime(format!(
+            "native buffer index {index} is out of bounds"
+        )));
+    }
+    Python::with_gil(|py| {
+        let item = shared
+            .flat
+            .as_ref(py)
+            .get_item(index)
+            .map_err(|err| KainError::runtime(format!("Shared Python buffer indexing error: {err}")))?;
+        py_any_to_value(item)
+    })
+}
+
+fn shared_buffer_set_value(
+    shared: &SharedPythonBuffer,
+    index: usize,
+    value: &Value,
+) -> KainResult<()> {
+    if index >= shared.len {
+        return Err(KainError::runtime(format!(
+            "native buffer index {index} is out of bounds"
+        )));
+    }
+
+    Python::with_gil(|py| {
+        let converted = match shared.kind {
+            SharedScalarKind::Bool => match value {
+                Value::Bool(value) => (*value).into_py(py),
+                Value::Int(value) => (*value != 0).into_py(py),
+                other => {
+                    return Err(KainError::runtime(format!(
+                        "Expected bool-compatible value, got {other:?}"
+                    )))
+                }
+            },
+            SharedScalarKind::Int => match value {
+                Value::Int(value) => (*value).into_py(py),
+                Value::Bool(value) => i64::from(*value).into_py(py),
+                other => {
+                    return Err(KainError::runtime(format!(
+                        "Expected int-compatible value, got {other:?}"
+                    )))
+                }
+            },
+            SharedScalarKind::Float => match value {
+                Value::Float(value) => (*value).into_py(py),
+                Value::Int(value) => (*value as f64).into_py(py),
+                Value::Bool(value) => {
+                    if *value {
+                        1.0f64.into_py(py)
+                    } else {
+                        0.0f64.into_py(py)
+                    }
+                }
+                other => {
+                    return Err(KainError::runtime(format!(
+                        "Expected float-compatible value, got {other:?}"
+                    )))
+                }
+            },
+        };
+
+        shared
+            .flat
+            .as_ref(py)
+            .set_item(index, converted)
+            .map_err(|err| KainError::runtime(format!("Shared Python buffer assignment error: {err}")))
+    })
 }
 
 fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
@@ -2229,8 +2489,11 @@ fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainR
     let width = struct_int_field(&fields, "width")?;
     let height = struct_int_field(&fields, "height")?;
     let channels = struct_int_field(&fields, "channels")?;
-    let bytes = export_payload_bytes(target.py(), target)?;
-    let data = decode_native_scalar_buffer(bytes.as_ref(target.py()), &metadata.dtype)?;
+    let data = try_build_shared_native_scalar_buffer(target.py(), target, metadata)?
+        .unwrap_or(decode_native_scalar_buffer(
+            export_payload_bytes(target.py(), target)?.as_ref(target.py()),
+            &metadata.dtype,
+        )?);
     let expected_len = checked_element_count(&metadata.shape)?;
     if data.len() != expected_len {
         return Err(KainError::runtime(format!(
@@ -2250,13 +2513,17 @@ fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainR
             height,
             channels,
             data,
+            source: Some(target.into_py(target.py())),
         }),
     ))
 }
 
 fn build_native_tensor(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
-    let bytes = export_payload_bytes(target.py(), target)?;
-    let data = decode_native_scalar_buffer(bytes.as_ref(target.py()), &metadata.dtype)?;
+    let data = try_build_shared_native_scalar_buffer(target.py(), target, metadata)?
+        .unwrap_or(decode_native_scalar_buffer(
+            export_payload_bytes(target.py(), target)?.as_ref(target.py()),
+            &metadata.dtype,
+        )?);
     let expected_len = checked_element_count(&metadata.shape)?;
     if data.len() != expected_len {
         return Err(KainError::runtime(format!(
@@ -2271,6 +2538,7 @@ fn build_native_tensor(target: &PyAny, metadata: &PythonPayloadMetadata) -> Kain
             dtype: metadata.dtype.clone(),
             shape: metadata.shape.clone(),
             data,
+            source: Some(target.into_py(target.py())),
         }),
     ))
 }
@@ -2280,15 +2548,18 @@ fn build_native_geometry(
     indices: Option<&PyAny>,
     vertex_metadata: &PythonPayloadMetadata,
     index_metadata: Option<&PythonPayloadMetadata>,
+    source: Option<&PyAny>,
 ) -> KainResult<Value> {
     let info = build_geometry_info(vertex_metadata, index_metadata)?;
     let fields = struct_fields_from_value(info);
     let components = struct_int_field(&fields, "components")?;
     let face_size = struct_int_field(&fields, "face_size")?;
 
-    let vertex_bytes = export_payload_bytes(vertices.py(), vertices)?;
-    let vertex_buffer =
-        decode_native_scalar_buffer(vertex_bytes.as_ref(vertices.py()), &vertex_metadata.dtype)?;
+    let vertex_buffer = try_build_shared_native_scalar_buffer(vertices.py(), vertices, vertex_metadata)?
+        .unwrap_or(decode_native_scalar_buffer(
+            export_payload_bytes(vertices.py(), vertices)?.as_ref(vertices.py()),
+            &vertex_metadata.dtype,
+        )?);
     let expected_vertex_len = checked_element_count(&vertex_metadata.shape)?;
     if vertex_buffer.len() != expected_vertex_len {
         return Err(KainError::runtime(format!(
@@ -2299,8 +2570,11 @@ fn build_native_geometry(
 
     let index_buffer = match (indices, index_metadata) {
         (Some(indices), Some(metadata)) => {
-            let bytes = export_payload_bytes(indices.py(), indices)?;
-            let buffer = decode_native_scalar_buffer(bytes.as_ref(indices.py()), &metadata.dtype)?;
+            let buffer = try_build_shared_native_scalar_buffer(indices.py(), indices, metadata)?
+                .unwrap_or(decode_native_scalar_buffer(
+                    export_payload_bytes(indices.py(), indices)?.as_ref(indices.py()),
+                    &metadata.dtype,
+                )?);
             let expected_index_len = checked_element_count(&metadata.shape)?;
             if buffer.len() != expected_index_len {
                 return Err(KainError::runtime(format!(
@@ -2326,6 +2600,7 @@ fn build_native_geometry(
                 .unwrap_or_default(),
             face_size,
             indices: index_buffer,
+            source: source.map(|value| value.into_py(value.py())),
         }),
     ))
 }
@@ -2343,6 +2618,14 @@ fn native_image_info_value(image: &KainNativeImage) -> Value {
         "storage".to_string(),
         Value::String(image.data.scalar_kind().to_string()),
     );
+    fields.insert("zero_copy".to_string(), Value::Bool(image.data.is_shared()));
+    fields.insert(
+        "source_backend".to_string(),
+        image.data
+            .shared_backend()
+            .map(|value| Value::String(value.to_string()))
+            .unwrap_or(Value::None),
+    );
     fields.insert(
         "pixel_count".to_string(),
         Value::Int(image.width * image.height * image.batch),
@@ -2357,6 +2640,15 @@ fn native_tensor_info_value(tensor: &KainNativeTensor) -> Value {
     fields.insert(
         "storage".to_string(),
         Value::String(tensor.data.scalar_kind().to_string()),
+    );
+    fields.insert("zero_copy".to_string(), Value::Bool(tensor.data.is_shared()));
+    fields.insert(
+        "source_backend".to_string(),
+        tensor
+            .data
+            .shared_backend()
+            .map(|value| Value::String(value.to_string()))
+            .unwrap_or(Value::None),
     );
     fields.insert("length".to_string(), Value::Int(tensor.data.len() as i64));
     Value::Struct("KainTensorInfo".to_string(), Arc::new(RwLock::new(fields)))
@@ -2381,6 +2673,20 @@ fn native_geometry_info_value(geometry: &KainNativeGeometry) -> Value {
     fields.insert(
         "indexed".to_string(),
         Value::Bool(geometry.indices.is_some()),
+    );
+    fields.insert(
+        "shared_vertices".to_string(),
+        Value::Bool(geometry.vertices.is_shared()),
+    );
+    fields.insert(
+        "shared_indices".to_string(),
+        Value::Bool(
+            geometry
+                .indices
+                .as_ref()
+                .map(|value| value.is_shared())
+                .unwrap_or(false),
+        ),
     );
     fields.insert(
         "index_dtype".to_string(),
@@ -2541,6 +2847,344 @@ fn native_vector_write(
         buffer.set_value(start + offset, value)?;
     }
     Ok(())
+}
+
+fn export_native_image_pyobject(
+    py: Python<'_>,
+    image: &KainNativeImage,
+    backend: &str,
+) -> KainResult<PyObject> {
+    if image.data.is_shared() {
+        if let Some(source) = &image.source {
+            if matches!(backend, "numpy" | "torch")
+                && native_source_matches_backend(source.as_ref(py), backend)
+            {
+                return Ok(source.clone_ref(py));
+            }
+        }
+    }
+    if let Some(owner) = image.data.shared_owner(py) {
+        if image.data.shared_backend() == Some(backend) {
+            return Ok(owner);
+        }
+    }
+    match backend {
+        "numpy" => native_numpy_array(py, &image.data, &image.dtype, &image.shape),
+        "torch" => {
+            let array = native_numpy_array(py, &image.data, &image.dtype, &image.shape)?;
+            let torch = py
+                .import("torch")
+                .map_err(|err| KainError::runtime(format!("kain_image_to_py: torch import error: {err}")))?;
+            torch
+                .getattr("from_numpy")
+                .and_then(|callable| callable.call1((array.as_ref(py),)))
+                .map(|value| value.into_py(py))
+                .map_err(|err| KainError::runtime(format!("kain_image_to_py: torch export error: {err}")))
+        }
+        other => Err(KainError::runtime(format!(
+            "kain_image_to_py: unsupported backend {other}; expected numpy or torch"
+        ))),
+    }
+}
+
+fn export_native_tensor_pyobject(
+    py: Python<'_>,
+    tensor: &KainNativeTensor,
+    backend: &str,
+) -> KainResult<PyObject> {
+    if tensor.data.is_shared() {
+        if let Some(source) = &tensor.source {
+            if matches!(backend, "numpy" | "torch")
+                && native_source_matches_backend(source.as_ref(py), backend)
+            {
+                return Ok(source.clone_ref(py));
+            }
+        }
+    }
+    if let Some(owner) = tensor.data.shared_owner(py) {
+        if tensor.data.shared_backend() == Some(backend) {
+            return Ok(owner);
+        }
+    }
+    match backend {
+        "numpy" => native_numpy_array(py, &tensor.data, &tensor.dtype, &tensor.shape),
+        "torch" => {
+            let array = native_numpy_array(py, &tensor.data, &tensor.dtype, &tensor.shape)?;
+            let torch = py
+                .import("torch")
+                .map_err(|err| KainError::runtime(format!("kain_tensor_to_py: torch import error: {err}")))?;
+            torch
+                .getattr("from_numpy")
+                .and_then(|callable| callable.call1((array.as_ref(py),)))
+                .map(|value| value.into_py(py))
+                .map_err(|err| KainError::runtime(format!("kain_tensor_to_py: torch export error: {err}")))
+        }
+        other => Err(KainError::runtime(format!(
+            "kain_tensor_to_py: unsupported backend {other}; expected numpy or torch"
+        ))),
+    }
+}
+
+fn export_native_geometry_pyobject(
+    py: Python<'_>,
+    geometry: &KainNativeGeometry,
+    backend: &str,
+) -> KainResult<PyObject> {
+    if backend == "trimesh" && geometry.vertices.is_shared() {
+        if let Some(source) = &geometry.source {
+            if python_type_path(source.as_ref(py)).starts_with("trimesh.") {
+                return Ok(source.clone_ref(py));
+            }
+        }
+    }
+    let vertices = native_numpy_array(py, &geometry.vertices, &geometry.vertex_dtype, &geometry.vertex_shape)?;
+    let faces = match (&geometry.indices, geometry.index_dtype.as_deref()) {
+        (Some(indices), Some(dtype)) => Some(native_numpy_array(py, indices, dtype, &geometry.index_shape)?),
+        _ => None,
+    };
+
+    match backend {
+        "dict" => {
+            let dict = PyDict::new(py);
+            dict.set_item("vertices", vertices.as_ref(py))
+                .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: dict export error: {err}")))?;
+            match &faces {
+                Some(value) => dict
+                    .set_item("faces", value.as_ref(py))
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: dict export error: {err}")))?,
+                None => dict
+                    .set_item("faces", py.None())
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: dict export error: {err}")))?,
+            }
+            Ok(dict.into())
+        }
+        "tuple" => Ok(PyTuple::new(
+            py,
+            [
+                vertices.clone_ref(py),
+                faces
+                    .as_ref()
+                    .map(|value| value.clone_ref(py))
+                    .unwrap_or_else(|| py.None()),
+            ],
+        )
+        .into()),
+        "trimesh" => {
+            let trimesh = py
+                .import("trimesh")
+                .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: trimesh import error: {err}")))?;
+            if let Some(faces) = faces {
+                let kwargs = PyDict::new(py);
+                kwargs
+                    .set_item("vertices", vertices.as_ref(py))
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: trimesh kwargs error: {err}")))?;
+                kwargs
+                    .set_item("faces", faces.as_ref(py))
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: trimesh kwargs error: {err}")))?;
+                kwargs
+                    .set_item("process", false)
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: trimesh kwargs error: {err}")))?;
+                trimesh
+                    .getattr("Trimesh")
+                    .and_then(|callable| callable.call((), Some(kwargs)))
+                    .map(|value| value.into_py(py))
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: trimesh export error: {err}")))
+            } else {
+                let points = trimesh
+                    .getattr("points")
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: trimesh points error: {err}")))?;
+                points
+                    .getattr("PointCloud")
+                    .and_then(|callable| callable.call1((vertices.as_ref(py),)))
+                    .map(|value| value.into_py(py))
+                    .map_err(|err| KainError::runtime(format!("kain_geometry_to_py: point cloud export error: {err}")))
+            }
+        }
+        other => Err(KainError::runtime(format!(
+            "kain_geometry_to_py: unsupported backend {other}; expected dict, tuple, or trimesh"
+        ))),
+    }
+}
+
+fn reshape_python_array(
+    py: Python<'_>,
+    array: &PyAny,
+    shape: &[i64],
+    context: &str,
+) -> KainResult<PyObject> {
+    if shape.is_empty() {
+        return array
+            .call_method1("reshape", (PyTuple::empty(py),))
+            .map(|value| value.into_py(py))
+            .map_err(|err| KainError::runtime(format!("{context} error: {err}")));
+    }
+    let shape_tuple = PyTuple::new(py, shape.iter().copied());
+    array
+        .call_method1("reshape", (shape_tuple,))
+        .map(|value| value.into_py(py))
+        .map_err(|err| KainError::runtime(format!("{context} error: {err}")))
+}
+
+fn native_source_matches_backend(source: &PyAny, backend: &str) -> bool {
+    match backend {
+        "numpy" => detect_backend(source) == "numpy",
+        "torch" => detect_backend(source) == "torch",
+        _ => false,
+    }
+}
+
+fn native_numpy_array(
+    py: Python<'_>,
+    buffer: &NativeScalarBuffer,
+    dtype: &str,
+    shape: &[i64],
+) -> KainResult<PyObject> {
+    if let Some(owner) = buffer.shared_owner(py) {
+        if buffer.shared_backend() == Some("numpy") {
+            return reshape_python_array(py, owner.as_ref(py), shape, "NumPy shared reshape");
+        }
+        if buffer.shared_backend() == Some("torch") {
+            let numpy_view = owner
+                .as_ref(py)
+                .call_method0("detach")
+                .and_then(|value| value.call_method0("numpy"))
+                .map_err(|err| KainError::runtime(format!("PyTorch shared numpy export error: {err}")))?;
+            return reshape_python_array(py, numpy_view, shape, "PyTorch shared numpy reshape");
+        }
+    }
+    let numpy = py
+        .import("numpy")
+        .map_err(|err| KainError::runtime(format!("NumPy import error: {err}")))?;
+    let dtype_object = numpy
+        .getattr("dtype")
+        .and_then(|callable| callable.call1((dtype,)))
+        .map_err(|err| KainError::runtime(format!("NumPy dtype error for {dtype}: {err}")))?;
+    let bytes = native_scalar_buffer_bytes(buffer, dtype)?;
+    let bytearray = PyByteArray::new(py, &bytes);
+    let array = numpy
+        .getattr("frombuffer")
+        .and_then(|callable| callable.call1((bytearray, dtype_object)))
+        .map_err(|err| KainError::runtime(format!("NumPy frombuffer export error: {err}")))?;
+    reshape_python_array(py, array, shape, "NumPy reshape export")
+}
+
+fn native_scalar_buffer_bytes(buffer: &NativeScalarBuffer, dtype: &str) -> KainResult<Vec<u8>> {
+    if let NativeScalarBuffer::Shared(shared) = buffer {
+        return Python::with_gil(|py| {
+            let bytes = export_payload_bytes(py, shared.owner.as_ref(py))?;
+            let bytes = bytes.as_ref(py).downcast::<PyBytes>().map_err(|_| {
+                KainError::runtime("Expected bytes when exporting shared Python buffer")
+            })?;
+            Ok(bytes.as_bytes().to_vec())
+        });
+    }
+    match dtype {
+        "bool" | "bool_" => match buffer {
+            NativeScalarBuffer::Bool(values) => Ok(values
+                .read()
+                .unwrap()
+                .iter()
+                .map(|value| if *value { 1 } else { 0 })
+                .collect()),
+            _ => Err(KainError::runtime(format!(
+                "Native buffer storage mismatch: dtype {dtype} requires bool storage"
+            ))),
+        },
+        "uint8" | "ubyte" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = u8::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(vec![narrowed])
+        }),
+        "int8" | "byte" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = i8::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(vec![narrowed as u8])
+        }),
+        "uint16" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = u16::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(narrowed.to_le_bytes().to_vec())
+        }),
+        "int16" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = i16::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(narrowed.to_le_bytes().to_vec())
+        }),
+        "uint32" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = u32::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(narrowed.to_le_bytes().to_vec())
+        }),
+        "int32" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = i32::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(narrowed.to_le_bytes().to_vec())
+        }),
+        "uint64" => encode_native_int_bytes(buffer, dtype, |value| {
+            let narrowed = u64::try_from(value).map_err(|_| {
+                KainError::runtime(format!("Cannot encode value {value} as {dtype}"))
+            })?;
+            Ok(narrowed.to_le_bytes().to_vec())
+        }),
+        "int64" => encode_native_int_bytes(buffer, dtype, |value| Ok(value.to_le_bytes().to_vec())),
+        "float32" => encode_native_float_bytes(buffer, dtype, |value| {
+            Ok((value as f32).to_le_bytes().to_vec())
+        }),
+        "float64" | "double" => encode_native_float_bytes(buffer, dtype, |value| {
+            Ok(value.to_le_bytes().to_vec())
+        }),
+        other => Err(KainError::runtime(format!(
+            "Unsupported dtype for native Python export: {other}"
+        ))),
+    }
+}
+
+fn encode_native_int_bytes<F>(
+    buffer: &NativeScalarBuffer,
+    dtype: &str,
+    encode: F,
+) -> KainResult<Vec<u8>>
+where
+    F: Fn(i64) -> KainResult<Vec<u8>>,
+{
+    let NativeScalarBuffer::Int(values) = buffer else {
+        return Err(KainError::runtime(format!(
+            "Native buffer storage mismatch: dtype {dtype} requires int storage"
+        )));
+    };
+    let values = values.read().unwrap();
+    let mut bytes = Vec::new();
+    for value in values.iter().copied() {
+        bytes.extend(encode(value)?);
+    }
+    Ok(bytes)
+}
+
+fn encode_native_float_bytes<F>(
+    buffer: &NativeScalarBuffer,
+    dtype: &str,
+    encode: F,
+) -> KainResult<Vec<u8>>
+where
+    F: Fn(f64) -> KainResult<Vec<u8>>,
+{
+    let NativeScalarBuffer::Float(values) = buffer else {
+        return Err(KainError::runtime(format!(
+            "Native buffer storage mismatch: dtype {dtype} requires float storage"
+        )));
+    };
+    let values = values.read().unwrap();
+    let mut bytes = Vec::new();
+    for value in values.iter().copied() {
+        bytes.extend(encode(value)?);
+    }
+    Ok(bytes)
 }
 
 fn native_image_channel_indices(
@@ -2847,9 +3491,16 @@ fn detect_backend(target: &PyAny) -> String {
         "numpy".to_string()
     } else if kind.starts_with("torch.") {
         "torch".to_string()
+    } else if is_numpy_array_like(target) {
+        "numpy".to_string()
     } else {
         "python".to_string()
     }
+}
+
+fn is_numpy_array_like(target: &PyAny) -> bool {
+    target.hasattr("__array_interface__").unwrap_or(false)
+        || target.hasattr("__array__").unwrap_or(false)
 }
 
 fn is_torch_tensor(target: &PyAny) -> bool {
@@ -2921,6 +3572,15 @@ fn extract_python_object(value: &Value, py: Python<'_>) -> KainResult<PyObject> 
     }
     if let Some(view) = value.downcast_host_object::<PythonTensorView>() {
         return Ok(view.object.clone_ref(py));
+    }
+    if let Some(image) = value.downcast_host_object::<KainNativeImage>() {
+        return export_native_image_pyobject(py, image.as_ref(), "numpy");
+    }
+    if let Some(tensor) = value.downcast_host_object::<KainNativeTensor>() {
+        return export_native_tensor_pyobject(py, tensor.as_ref(), "numpy");
+    }
+    if let Some(geometry) = value.downcast_host_object::<KainNativeGeometry>() {
+        return export_native_geometry_pyobject(py, geometry.as_ref(), "dict");
     }
 
     Err(KainError::runtime(format!(
@@ -3184,16 +3844,19 @@ mod tests {
         assert!(stdlib.functions.contains_key("kain_image_info"));
         assert!(stdlib.functions.contains_key("kain_image_pixel"));
         assert!(stdlib.functions.contains_key("kain_image_set_pixel"));
+        assert!(stdlib.functions.contains_key("kain_image_to_py"));
         assert!(stdlib.functions.contains_key("kain_tensor_from_py"));
         assert!(stdlib.functions.contains_key("kain_tensor_info"));
         assert!(stdlib.functions.contains_key("kain_tensor_get"));
         assert!(stdlib.functions.contains_key("kain_tensor_set"));
+        assert!(stdlib.functions.contains_key("kain_tensor_to_py"));
         assert!(stdlib.functions.contains_key("kain_geometry_from_py"));
         assert!(stdlib.functions.contains_key("kain_geometry_info"));
         assert!(stdlib.functions.contains_key("kain_geometry_vertex"));
         assert!(stdlib.functions.contains_key("kain_geometry_set_vertex"));
         assert!(stdlib.functions.contains_key("kain_geometry_face"));
         assert!(stdlib.functions.contains_key("kain_geometry_set_face"));
+        assert!(stdlib.functions.contains_key("kain_geometry_to_py"));
     }
 
     #[test]
@@ -3542,6 +4205,57 @@ fn main():
     }
 
     #[test]
+    fn python_bridge_syncs_native_image_mutations_into_original_numpy_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping native image sync test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    return np.zeros((4, 5, 4), dtype=np.uint8)")
+    let image = py_call_raw("make_image", [])
+    let native = kain_image_from_py(image)
+    let info = kain_image_info(native)
+    assert(info.zero_copy == true, "expected zero-copy native image backing")
+    kain_image_set_pixel(native, 3, 2, [5, 6, 7, 255])
+    return py_image_pixel(py_image_view(image), 3, 2)[2]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 7),
+            other => panic!("expected native image sync to return Int(7), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_exports_native_images_back_to_numpy_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping native image export test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    return np.zeros((4, 5, 4), dtype=np.uint8)")
+    let native = kain_image_from_py(py_call_raw("make_image", []))
+    kain_image_set_pixel(native, 2, 1, [77, 88, 99, 255])
+    let exported = kain_image_to_py(native)
+    let view = py_image_view(exported)
+    return py_image_pixel(view, 2, 1)[2]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 99),
+            other => panic!("expected native image export to return Int(99), got {other:?}"),
+        }
+    }
+
+    #[test]
     fn python_bridge_materializes_native_tensor_buffers_when_available() {
         if !numpy_available() {
             eprintln!("skipping native tensor test because numpy is not installed");
@@ -3565,6 +4279,59 @@ fn main():
         match result {
             Value::Float(value) => assert_eq!(value, 42.5),
             other => panic!("expected native tensor mutation to return Float(42.5), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_syncs_native_tensor_mutations_into_original_torch_when_available() {
+        if !torch_available() {
+            eprintln!("skipping native tensor sync test because torch is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import torch\ndef make_tensor():\n    return torch.arange(0, 12, dtype=torch.float32).reshape(3, 4)")
+    let tensor = py_call_raw("make_tensor", [])
+    let native = kain_tensor_from_py(tensor)
+    let info = kain_tensor_info(native)
+    assert(info.zero_copy == true, "expected zero-copy native tensor backing")
+    kain_tensor_set(native, [1, 2], 42.5)
+    return py_tensor_get(py_tensor_view(tensor), [1, 2])
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 42.5),
+            other => panic!("expected native tensor sync to return Float(42.5), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_exports_native_tensors_back_to_torch_when_available() {
+        if !numpy_available() || !torch_available() {
+            eprintln!("skipping native tensor torch export test because numpy or torch is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_tensor():\n    return np.arange(0, 12, dtype=np.float32).reshape(3, 4)")
+    let native = kain_tensor_from_py(py_call_raw("make_tensor", []))
+    kain_tensor_set(native, [1, 2], 42.5)
+    let exported = kain_tensor_to_py(native, "torch")
+    let info = py_tensor_info(exported)
+    assert(info.backend == "torch", "expected torch tensor export")
+    let view = py_tensor_view(exported)
+    return py_tensor_get(view, [1, 2])
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 42.5),
+            other => panic!("expected native tensor export to return Float(42.5), got {other:?}"),
         }
     }
 
@@ -3594,6 +4361,80 @@ fn main():
             other => {
                 panic!("expected native geometry mutation to return Float(3.5), got {other:?}")
             }
+        }
+    }
+
+    #[test]
+    fn python_bridge_syncs_native_geometry_mutations_into_original_trimesh_when_available() {
+        if !trimesh_available() {
+            eprintln!("skipping native geometry sync test because trimesh is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import trimesh\ndef make_mesh():\n    return trimesh.creation.icosphere(subdivisions=1, radius=1.0)")
+    let mesh = py_call_raw("make_mesh", [])
+    let native = kain_geometry_from_py(mesh)
+    let info = kain_geometry_info(native)
+    assert(info.shared_vertices == true, "expected shared trimesh vertex backing")
+    kain_geometry_set_vertex(native, 0, [0.25, 1.25, 0.75])
+    return py_geometry_vertex(py_geometry_view(mesh), 0)[1]
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 1.25),
+            other => panic!("expected native geometry sync to return Float(1.25), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_exports_native_geometry_back_to_trimesh_when_available() {
+        if !numpy_available() || !trimesh_available() {
+            eprintln!("skipping native geometry export test because numpy or trimesh is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_vertices():\n    return np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32)\ndef make_faces():\n    return np.array([[0, 1, 2]], dtype=np.int32)")
+    let geometry = kain_geometry_from_py(py_call_raw("make_vertices", []), py_call_raw("make_faces", []))
+    kain_geometry_set_vertex(geometry, 1, [2.5, 3.5, 4.5])
+    let exported = kain_geometry_to_py(geometry, "trimesh")
+    let view = py_geometry_view(exported)
+    return py_geometry_vertex(view, 1)[1]
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 3.5),
+            other => panic!("expected native geometry export to return Float(3.5), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_passes_native_tensors_into_python_calls_by_default() {
+        if !numpy_available() {
+            eprintln!("skipping native tensor python-call bridge test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef tail_value(values):\n    return np.asarray(values)[-1]\ndef make_native():\n    return np.linspace(-1.0, 1.0, 5)")
+    let native = kain_tensor_from_py(py_call_raw("make_native", []))
+    kain_tensor_set(native, [4], 9.0)
+    return py_call("tail_value", [native])
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 9.0),
+            other => panic!("expected native tensor python-call bridge to return Float(9.0), got {other:?}"),
         }
     }
 

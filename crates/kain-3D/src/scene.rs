@@ -229,10 +229,12 @@ pub struct SceneCatalog {
 impl Default for SceneCatalog {
     fn default() -> Self {
         let luminous_port = build_luminous_port_scene();
+        let magma_terraces = build_magma_terraces_scene();
         let retirement_demo = build_retirement_demo_scene();
         let kerr_black_hole = build_kerr_black_hole_scene();
         let mut scenes = BTreeMap::new();
         scenes.insert(luminous_port.name.clone(), luminous_port);
+        scenes.insert(magma_terraces.name.clone(), magma_terraces);
         scenes.insert(retirement_demo.name.clone(), retirement_demo);
         scenes.insert(kerr_black_hole.name.clone(), kerr_black_hole);
 
@@ -248,6 +250,360 @@ impl SceneCatalog {
         self.scenes
             .get(name)
             .or_else(|| self.scenes.get(&self.default_scene))
+    }
+}
+
+fn build_magma_terraces_scene() -> SceneDescription {
+    let mut meshes = BTreeMap::new();
+    meshes.insert("cube".to_string(), mesh_cube());
+    meshes.insert("floor".to_string(), mesh_plane());
+    meshes.insert("pyramid".to_string(), mesh_pyramid());
+    meshes.insert("orb".to_string(), mesh_uv_sphere(7, 14));
+
+    let mut materials = BTreeMap::new();
+    materials.insert(
+        "basalt".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.13, 0.12, 0.13),
+            specular_color: ColorRgb::new(0.32, 0.30, 0.32),
+            ambient_strength: 0.30,
+            diffuse_strength: 0.88,
+            specular_strength: 0.10,
+            shininess: 8.0,
+        },
+    );
+    materials.insert(
+        "ash".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.29, 0.27, 0.25),
+            specular_color: ColorRgb::new(0.46, 0.42, 0.38),
+            ambient_strength: 0.28,
+            diffuse_strength: 0.82,
+            specular_strength: 0.12,
+            shininess: 10.0,
+        },
+    );
+    materials.insert(
+        "magma".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.98, 0.30, 0.07),
+            specular_color: ColorRgb::new(1.0, 0.83, 0.46),
+            ambient_strength: 0.22,
+            diffuse_strength: 1.0,
+            specular_strength: 0.44,
+            shininess: 24.0,
+        },
+    );
+    materials.insert(
+        "crust".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.47, 0.18, 0.11),
+            specular_color: ColorRgb::new(0.82, 0.46, 0.20),
+            ambient_strength: 0.20,
+            diffuse_strength: 0.92,
+            specular_strength: 0.22,
+            shininess: 14.0,
+        },
+    );
+    materials.insert(
+        "sulfur".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.97, 0.79, 0.22),
+            specular_color: ColorRgb::new(1.0, 0.95, 0.62),
+            ambient_strength: 0.18,
+            diffuse_strength: 0.96,
+            specular_strength: 0.26,
+            shininess: 18.0,
+        },
+    );
+    materials.insert(
+        "obsidian".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.10, 0.08, 0.14),
+            specular_color: ColorRgb::new(0.60, 0.52, 0.70),
+            ambient_strength: 0.18,
+            diffuse_strength: 0.70,
+            specular_strength: 0.58,
+            shininess: 28.0,
+        },
+    );
+
+    let terrace_specs = [
+        ("terrace_base", -2.8, 16.0, 14.0, "basalt"),
+        ("terrace_mid_outer", -1.8, 12.0, 10.0, "ash"),
+        ("terrace_mid_inner", -0.9, 8.8, 7.2, "basalt"),
+        ("terrace_upper", 0.0, 6.0, 4.8, "ash"),
+        ("caldera_rim", 1.1, 3.7, 3.0, "basalt"),
+        ("magma_lake", 1.22, 2.2, 1.8, "magma"),
+    ];
+
+    let mut instances = Vec::new();
+    for (id, y, sx, sz, material) in terrace_specs {
+        instances.push(SceneInstance {
+            id: id.to_string(),
+            mesh: "floor".to_string(),
+            material: material.to_string(),
+            transform: Transform::identity()
+                .with_translation(Vec3::new(0.0, y, 0.0))
+                .with_scale(Vec3::new(sx, 1.0, sz)),
+        });
+    }
+
+    let ring_columns = [
+        (6.2, -0.9, 0.68, 1.4, 16usize, "ash"),
+        (4.4, 0.2, 0.52, 1.1, 12usize, "basalt"),
+    ];
+    for (radius, y, column_scale, height_scale, count, material) in ring_columns {
+        for index in 0..count {
+            let angle = index as f32 / count as f32 * std::f32::consts::TAU;
+            let radial_wave = 0.82 + ((index % 3) as f32 * 0.08);
+            instances.push(SceneInstance {
+                id: format!("{material}_column_{count}_{index}"),
+                mesh: "cube".to_string(),
+                material: material.to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(
+                        angle.cos() * radius,
+                        y + ((index % 2) as f32 * 0.18),
+                        angle.sin() * radius,
+                    ))
+                    .with_rotation(Vec3::new(0.05, angle, 0.0))
+                    .with_scale(Vec3::new(
+                        column_scale * radial_wave,
+                        height_scale + ((index % 4) as f32 * 0.22),
+                        column_scale * radial_wave,
+                    )),
+            });
+        }
+    }
+
+    let vent_specs = [
+        ("vent_north", Vec3::new(0.0, 1.38, -1.8), Vec3::new(0.55, 1.8, 0.55)),
+        ("vent_south", Vec3::new(0.0, 1.28, 1.85), Vec3::new(0.48, 1.6, 0.48)),
+        ("vent_east", Vec3::new(1.85, 1.16, 0.15), Vec3::new(0.44, 1.45, 0.44)),
+        ("vent_west", Vec3::new(-1.75, 1.1, -0.2), Vec3::new(0.42, 1.35, 0.42)),
+    ];
+    for (id, translation, scale) in vent_specs {
+        instances.push(SceneInstance {
+            id: id.to_string(),
+            mesh: "pyramid".to_string(),
+            material: "crust".to_string(),
+            transform: Transform::identity()
+                .with_translation(translation)
+                .with_scale(scale),
+        });
+    }
+
+    let terrace_blocks = [
+        ("north_plate", Vec3::new(0.0, 0.42, -3.8), Vec3::new(1.8, 0.38, 0.9), "ash"),
+        ("south_plate", Vec3::new(0.0, 0.32, 3.65), Vec3::new(1.7, 0.32, 0.82), "ash"),
+        ("east_shelf", Vec3::new(3.65, -0.2, 0.0), Vec3::new(0.86, 0.42, 1.85), "basalt"),
+        ("west_shelf", Vec3::new(-3.55, -0.1, 0.0), Vec3::new(0.92, 0.48, 1.72), "basalt"),
+        ("magma_bridge", Vec3::new(0.0, 1.26, 0.0), Vec3::new(0.42, 0.08, 2.1), "magma"),
+    ];
+    for (id, translation, scale, material) in terrace_blocks {
+        instances.push(SceneInstance {
+            id: id.to_string(),
+            mesh: "cube".to_string(),
+            material: material.to_string(),
+            transform: Transform::identity()
+                .with_translation(translation)
+                .with_scale(scale),
+        });
+    }
+
+    let orb_specs = [
+        ("magma_core", Vec3::new(0.0, 2.2, 0.0), Vec3::new(0.56, 0.56, 0.56), "magma"),
+        ("sulfur_beacon_a", Vec3::new(-2.1, 2.1, 2.4), Vec3::new(0.28, 0.28, 0.28), "sulfur"),
+        ("sulfur_beacon_b", Vec3::new(2.3, 2.4, -2.0), Vec3::new(0.32, 0.32, 0.32), "sulfur"),
+        ("obsidian_eye", Vec3::new(0.0, 2.9, -0.2), Vec3::new(0.22, 0.22, 0.22), "obsidian"),
+    ];
+    for (id, translation, scale, material) in orb_specs {
+        instances.push(SceneInstance {
+            id: id.to_string(),
+            mesh: "orb".to_string(),
+            material: material.to_string(),
+            transform: Transform::identity()
+                .with_translation(translation)
+                .with_scale(scale),
+        });
+    }
+
+    SceneDescription {
+        name: "magma_terraces".to_string(),
+        viewport_summary: "terraced caldera | magma plumes | falling ash gravity".to_string(),
+        background: BackgroundGradient {
+            top: ColorRgb::new(0.06, 0.07, 0.10),
+            bottom: ColorRgb::new(0.22, 0.08, 0.04),
+        },
+        camera: Camera {
+            target: Vec3::new(0.0, 0.9, 0.0),
+            up: Vec3::UP,
+            orbit_radius: 15.5,
+            orbit_height: 5.8,
+            orbit_speed_radians_per_second: 0.12,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 160.0,
+        },
+        lighting: LightingRig {
+            ambient_color: ColorRgb::new(0.90, 0.52, 0.28),
+            ambient_intensity: 0.24,
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: Vec3::new(-0.45, -1.0, -0.28).normalize(),
+                    color: ColorRgb::new(1.0, 0.78, 0.58),
+                    intensity: 1.05,
+                },
+                DirectionalLight {
+                    direction: Vec3::new(0.38, -0.55, 0.44).normalize(),
+                    color: ColorRgb::new(0.24, 0.42, 0.92),
+                    intensity: 0.28,
+                },
+            ],
+            point_lights: vec![
+                PointLight {
+                    position: Vec3::new(0.0, 2.6, 0.0),
+                    color: ColorRgb::new(1.0, 0.46, 0.16),
+                    intensity: 2.2,
+                    range: 10.5,
+                },
+                PointLight {
+                    position: Vec3::new(0.0, 2.0, -1.8),
+                    color: ColorRgb::new(1.0, 0.56, 0.18),
+                    intensity: 1.35,
+                    range: 7.0,
+                },
+                PointLight {
+                    position: Vec3::new(0.0, 1.8, 1.85),
+                    color: ColorRgb::new(1.0, 0.58, 0.20),
+                    intensity: 1.25,
+                    range: 6.4,
+                },
+                PointLight {
+                    position: Vec3::new(2.3, 2.3, -2.0),
+                    color: ColorRgb::new(0.98, 0.82, 0.26),
+                    intensity: 0.95,
+                    range: 6.5,
+                },
+            ],
+        },
+        meshes,
+        materials,
+        instances,
+        animations: vec![
+            SceneAnimation::Bob {
+                instance_id: "magma_core".to_string(),
+                amplitude: 0.34,
+                speed_radians_per_second: 1.6,
+            },
+            SceneAnimation::Spin {
+                instance_id: "magma_core".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, 0.75, 0.0),
+            },
+            SceneAnimation::Bob {
+                instance_id: "sulfur_beacon_a".to_string(),
+                amplitude: 0.16,
+                speed_radians_per_second: 2.1,
+            },
+            SceneAnimation::Bob {
+                instance_id: "sulfur_beacon_b".to_string(),
+                amplitude: 0.18,
+                speed_radians_per_second: 1.8,
+            },
+            SceneAnimation::Spin {
+                instance_id: "obsidian_eye".to_string(),
+                axis_radians_per_second: Vec3::new(0.15, -1.0, 0.08),
+            },
+        ],
+        particle_emitters: vec![
+            ParticleEmitter {
+                id: "caldera_plume".to_string(),
+                center: Vec3::new(0.0, 1.26, 0.0),
+                axis: Vec3::UP,
+                radial_range: [0.12, 1.10],
+                vertical_range: [-0.05, 0.22],
+                particle_size_range: [0.08, 0.24],
+                particle_count: 96,
+                orbit_radians_per_second: 1.45,
+                swirl: 0.78,
+                drift: Vec3::new(0.0, 2.6, 0.0),
+                color_start: ColorRgb::new(1.0, 0.38, 0.08),
+                color_end: ColorRgb::new(1.0, 0.78, 0.30),
+                emissive_strength: 0.88,
+                softness: 1.6,
+                depth_test: true,
+            },
+            ParticleEmitter {
+                id: "north_vent_spray".to_string(),
+                center: Vec3::new(0.0, 1.42, -1.8),
+                axis: Vec3::UP,
+                radial_range: [0.08, 0.72],
+                vertical_range: [-0.03, 0.16],
+                particle_size_range: [0.06, 0.16],
+                particle_count: 48,
+                orbit_radians_per_second: 1.9,
+                swirl: 0.62,
+                drift: Vec3::new(0.0, 1.9, 0.0),
+                color_start: ColorRgb::new(1.0, 0.34, 0.10),
+                color_end: ColorRgb::new(1.0, 0.76, 0.38),
+                emissive_strength: 0.74,
+                softness: 1.3,
+                depth_test: true,
+            },
+            ParticleEmitter {
+                id: "south_vent_spray".to_string(),
+                center: Vec3::new(0.0, 1.34, 1.85),
+                axis: Vec3::UP,
+                radial_range: [0.08, 0.66],
+                vertical_range: [-0.03, 0.16],
+                particle_size_range: [0.06, 0.16],
+                particle_count: 44,
+                orbit_radians_per_second: -1.75,
+                swirl: 0.58,
+                drift: Vec3::new(0.0, 1.7, 0.0),
+                color_start: ColorRgb::new(1.0, 0.38, 0.12),
+                color_end: ColorRgb::new(1.0, 0.72, 0.34),
+                emissive_strength: 0.70,
+                softness: 1.25,
+                depth_test: true,
+            },
+            ParticleEmitter {
+                id: "ash_gravity".to_string(),
+                center: Vec3::new(0.0, 6.2, 0.0),
+                axis: Vec3::UP,
+                radial_range: [2.0, 8.5],
+                vertical_range: [-0.4, 0.4],
+                particle_size_range: [0.04, 0.12],
+                particle_count: 104,
+                orbit_radians_per_second: 0.16,
+                swirl: 0.18,
+                drift: Vec3::new(0.0, -2.4, 0.0),
+                color_start: ColorRgb::new(0.48, 0.44, 0.40),
+                color_end: ColorRgb::new(0.20, 0.18, 0.18),
+                emissive_strength: 0.08,
+                softness: 1.4,
+                depth_test: true,
+            },
+            ParticleEmitter {
+                id: "magma_river".to_string(),
+                center: Vec3::new(0.0, 1.3, 0.0),
+                axis: Vec3::UP,
+                radial_range: [0.3, 2.8],
+                vertical_range: [-0.05, 0.05],
+                particle_size_range: [0.05, 0.14],
+                particle_count: 86,
+                orbit_radians_per_second: 0.72,
+                swirl: 0.92,
+                drift: Vec3::new(0.0, 0.2, 0.0),
+                color_start: ColorRgb::new(1.0, 0.30, 0.04),
+                color_end: ColorRgb::new(1.0, 0.62, 0.18),
+                emissive_strength: 0.76,
+                softness: 1.2,
+                depth_test: true,
+            },
+        ],
+        black_hole: None,
     }
 }
 
@@ -910,6 +1266,9 @@ mod tests {
         let default_scene = catalog
             .scene("luminous_port")
             .expect("luminous port scene should be registered");
+        let magma_scene = catalog
+            .scene("magma_terraces")
+            .expect("magma terraces scene should be registered");
         let scene = catalog
             .scene("kerr_black_hole")
             .expect("black hole scene should be registered");
@@ -917,6 +1276,8 @@ mod tests {
         assert_eq!(catalog.default_scene, "luminous_port");
         assert_eq!(default_scene.name, "luminous_port");
         assert!(default_scene.black_hole.is_none());
+        assert_eq!(magma_scene.name, "magma_terraces");
+        assert!(magma_scene.particle_emitters.len() >= 4);
         assert_eq!(scene.name, "kerr_black_hole");
         assert!(!scene.particle_emitters.is_empty());
         assert!(scene.black_hole.is_some());
