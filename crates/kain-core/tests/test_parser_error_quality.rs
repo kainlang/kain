@@ -228,10 +228,7 @@ fn test_struct_literal_brace_style() {
         panic!("Expected let statement with initializer");
     };
     let Expr::Struct {
-        name,
-        fields,
-        rest,
-        ..
+        name, fields, rest, ..
     } = expr
     else {
         panic!("Expected struct literal expression");
@@ -290,10 +287,7 @@ fn test_struct_literal_rest_and_ref_lifetimes() {
         panic!("Expected let statement with initializer");
     };
     let Expr::Struct {
-        name,
-        fields,
-        rest,
-        ..
+        name, fields, rest, ..
     } = expr
     else {
         panic!("Expected struct literal expression");

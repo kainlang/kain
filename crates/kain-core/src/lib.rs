@@ -41,10 +41,10 @@ pub use low_level_memory::*;
 pub use low_level_memory_metadata::*;
 pub use monomorphize::MonomorphizedProgram;
 pub use parser::Parser;
+pub use runtime_contract::*;
 pub use span::*;
 pub use types::*;
 pub use ui::*;
-pub use runtime_contract::*;
 
 /// Compilation target
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

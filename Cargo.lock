@@ -2614,6 +2614,10 @@ dependencies = [
 [[package]]
 name = "kain-3d"
 version = "0.1.0"
+dependencies = [
+ "kain-host",
+ "kain-reflect",
+]
 
 [[package]]
 name = "kain-asm"
@@ -2652,7 +2656,6 @@ dependencies = [
  "logos",
  "once_cell",
  "petgraph",
- "pyo3",
  "reqwest",
  "serde",
  "serde_json",
@@ -2667,6 +2670,7 @@ version = "0.1.0"
 dependencies = [
  "gpu",
  "kain-core",
+ "kain-python",
  "kain-sys-codegen",
  "kain-ui",
  "serde",
@@ -2736,6 +2740,14 @@ dependencies = [
  "ue5-editor",
  "ue5-shaders",
  "web",
+]
+
+[[package]]
+name = "kain-python"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "pyo3",
 ]
 
 [[package]]

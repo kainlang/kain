@@ -1,4 +1,5 @@
 mod authoring;
+mod host;
 mod math;
 mod prelude;
 mod renderer;
@@ -10,6 +11,7 @@ pub use authoring::{
     Modifier, Node, NodeId, NodeKind, Scene, SceneBuildError, Spline, SplineType, ToolContext,
     Volume,
 };
+pub use host::{install_runtime_natives, Kain3dSession, KAIN_3D_MODULE_NAME};
 pub use math::{ColorRgb, Mat4, Transform, Vec2, Vec3};
 pub use prelude::{emit_kain_prelude, reflected_type_registry};
 pub use renderer::{

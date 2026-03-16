@@ -2,7 +2,21 @@
 
 use crate::types::ResolvedType;
 use crate::CompileTarget;
-use std::collections::HashMap;
+use once_cell::sync::Lazy;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::RwLock;
+
+pub type StdlibExtensionRegistrar = fn(&mut StdLib);
+
+static STDLIB_EXTENSION_REGISTRARS: Lazy<RwLock<BTreeMap<String, StdlibExtensionRegistrar>>> =
+    Lazy::new(|| RwLock::new(BTreeMap::new()));
+
+pub fn register_stdlib_extension(name: impl Into<String>, registrar: StdlibExtensionRegistrar) {
+    STDLIB_EXTENSION_REGISTRARS
+        .write()
+        .unwrap()
+        .insert(name.into(), registrar);
+}
 
 /// Built-in function registry
 pub struct StdLib {
@@ -268,26 +282,6 @@ impl StdLib {
             "Send message",
         );
 
-        // Python FFI
-        lib.add_fn(
-            "py_eval",
-            &[("code", "String")],
-            "Any",
-            "Evaluate Python expression",
-        );
-        lib.add_fn(
-            "py_exec",
-            &[("code", "String")],
-            "Unit",
-            "Execute Python code",
-        );
-        lib.add_fn(
-            "py_import",
-            &[("module", "String")],
-            "Any",
-            "Import Python module",
-        );
-
         // UI
         lib.add_fn(
             "mount",
@@ -337,6 +331,16 @@ impl StdLib {
             "Unit",
             "Set a raw native runtime boolean-like config value before launch using 0 or 1",
         );
+
+        let registrars = STDLIB_EXTENSION_REGISTRARS
+            .read()
+            .unwrap()
+            .values()
+            .copied()
+            .collect::<Vec<_>>();
+        for registrar in registrars {
+            registrar(&mut lib);
+        }
 
         lib
     }
@@ -915,7 +919,6 @@ mod tests {
         assert!(stdlib.functions.contains_key("sqrt"));
         assert!(stdlib.functions.contains_key("vec3"));
         assert!(stdlib.functions.contains_key("push"));
-        assert!(stdlib.functions.contains_key("py_eval"));
     }
 
     #[test]

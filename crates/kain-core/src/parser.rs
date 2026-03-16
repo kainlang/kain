@@ -622,8 +622,7 @@ impl<'a> Parser<'a> {
                 let field_value = self.parse_expr()?;
                 fields.push((field_name, field_value));
 
-                if !self.check(TokenKind::RBrace) && (!indented || !self.check(TokenKind::Dedent))
-                {
+                if !self.check(TokenKind::RBrace) && (!indented || !self.check(TokenKind::Dedent)) {
                     if self.check(TokenKind::Comma) {
                         self.advance();
                     }
@@ -960,11 +959,7 @@ impl<'a> Parser<'a> {
         let (trait_name, trait_generics, target_type) = if self.check(TokenKind::For) {
             self.advance();
             let (trait_name, trait_generics) = match first_type {
-                Type::Named {
-                    name,
-                    generics,
-                    ..
-                } => (name, generics),
+                Type::Named { name, generics, .. } => (name, generics),
                 other => {
                     return Err(self.parser_error(
                         format!(

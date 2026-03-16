@@ -8,34 +8,22 @@ use crate::parser::Parser;
 use crate::types::{TypedItem, TypedProgram};
 use crate::ui::{eval_jsx, VNode};
 use flume::Sender;
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
-use std::collections::HashMap;
+use once_cell::sync::Lazy;
+use std::any::Any;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::{Arc, RwLock};
 
-fn py_to_value(obj: &PyAny) -> PyResult<Value> {
-    if let Ok(s) = obj.extract::<String>() {
-        return Ok(Value::String(s));
-    }
-    if let Ok(b) = obj.extract::<bool>() {
-        return Ok(Value::Bool(b));
-    }
-    if let Ok(i) = obj.extract::<i64>() {
-        return Ok(Value::Int(i));
-    }
-    if let Ok(f) = obj.extract::<f64>() {
-        return Ok(Value::Float(f));
-    }
-    if let Ok(l) = obj.downcast::<PyList>() {
-        let mut vec = Vec::new();
-        for item in l {
-            vec.push(py_to_value(item)?);
-        }
-        return Ok(Value::Array(Arc::new(RwLock::new(vec))));
-    }
-    // Fallback string representation
-    Ok(Value::String(format!("{}", obj)))
+pub type EnvExtensionRegistrar = fn(&mut Env);
+
+static ENV_EXTENSION_REGISTRARS: Lazy<RwLock<BTreeMap<String, EnvExtensionRegistrar>>> =
+    Lazy::new(|| RwLock::new(BTreeMap::new()));
+
+pub fn register_env_extension(name: impl Into<String>, registrar: EnvExtensionRegistrar) {
+    ENV_EXTENSION_REGISTRARS
+        .write()
+        .unwrap()
+        .insert(name.into(), registrar);
 }
 
 /// Runtime value
@@ -49,6 +37,7 @@ pub enum Value {
     Array(Arc<RwLock<Vec<Value>>>),
     Tuple(Vec<Value>),
     Struct(String, Arc<RwLock<HashMap<String, Value>>>),
+    HostObject(String, Arc<dyn Any + Send + Sync>),
     Function(String),
     NativeFn(String, fn(&mut Env, Vec<Value>) -> KainResult<Value>),
     ActorRef(ActorRef),
@@ -88,6 +77,7 @@ impl fmt::Debug for Value {
             Value::Array(arr) => write!(f, "Array({:?})", arr),
             Value::Tuple(t) => write!(f, "Tuple({:?})", t),
             Value::Struct(name, fields) => write!(f, "Struct({}, {:?})", name, fields),
+            Value::HostObject(name, _) => write!(f, "HostObject({})", name),
             Value::Function(name) => write!(f, "Function({})", name),
             Value::NativeFn(name, _) => write!(f, "NativeFn({})", name),
             Value::StructConstructor(name, _) => write!(f, "StructConstructor({})", name),
@@ -158,6 +148,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, "}}")
             }
+            Value::HostObject(name, _) => write!(f, "<host {}>", name),
             Value::Function(name) => write!(f, "<fn {}>", name),
             Value::NativeFn(name, _) => write!(f, "<native fn {}>", name),
             Value::StructConstructor(name, _) => write!(f, "<constructor {}>", name),
@@ -211,6 +202,26 @@ impl fmt::Display for Value {
     }
 }
 
+impl Value {
+    pub fn host_object(label: impl Into<String>, object: Arc<dyn Any + Send + Sync>) -> Self {
+        Self::HostObject(label.into(), object)
+    }
+
+    pub fn downcast_host_object<T: Any + Send + Sync>(&self) -> Option<Arc<T>> {
+        match self {
+            Value::HostObject(_, object) => object.clone().downcast::<T>().ok(),
+            _ => None,
+        }
+    }
+
+    pub fn host_object_label(&self) -> Option<&str> {
+        match self {
+            Value::HostObject(label, _) => Some(label.as_str()),
+            _ => None,
+        }
+    }
+}
+
 /// Reference to an actor
 #[derive(Debug, Clone)]
 pub struct ActorRef {
@@ -241,8 +252,7 @@ pub struct Env {
     actor_defs: HashMap<String, Actor>,
     /// ID of the current actor if running inside one
     self_actor_id: Option<u64>,
-    /// Python global scope
-    python_scope: Option<PyObject>,
+    extension_state: HashMap<String, Arc<dyn Any + Send + Sync>>,
 }
 
 impl Env {
@@ -257,24 +267,42 @@ impl Env {
             next_actor_id: 1,
             actor_defs: HashMap::new(),
             self_actor_id: None,
-            python_scope: None,
+            extension_state: HashMap::new(),
         };
-
-        // Initialize Python scope
-        Python::with_gil(|py| {
-            // Use the same dict for both globals and locals to maintain scope
-            let scope = PyDict::new(py);
-            // Import builtins into the scope
-            let builtins = py.import("builtins").unwrap();
-            scope.set_item("__builtins__", builtins).unwrap();
-            env.python_scope = Some(scope.into());
-        });
 
         env.register_stdlib();
         env.register_net_stdlib();
         env.register_json_stdlib();
         env.register_kos_bridge();
+        env.apply_registered_extensions();
         env
+    }
+
+    fn apply_registered_extensions(&mut self) {
+        let registrars = ENV_EXTENSION_REGISTRARS
+            .read()
+            .unwrap()
+            .values()
+            .copied()
+            .collect::<Vec<_>>();
+        for registrar in registrars {
+            registrar(self);
+        }
+    }
+
+    pub fn set_extension_state(
+        &mut self,
+        key: impl Into<String>,
+        state: Arc<dyn Any + Send + Sync>,
+    ) {
+        self.extension_state.insert(key.into(), state);
+    }
+
+    pub fn get_extension_state<T: Any + Send + Sync>(&self, key: &str) -> Option<Arc<T>> {
+        self.extension_state
+            .get(key)
+            .cloned()
+            .and_then(|state| state.downcast::<T>().ok())
     }
 
     pub fn register_kos_bridge(&mut self) {
@@ -371,11 +399,19 @@ impl Env {
             }
             let key = match &args[0] {
                 Value::String(value) => value.clone(),
-                _ => return Err(KainError::runtime("native_config_string: key must be string")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "native_config_string: key must be string",
+                    ))
+                }
             };
             let value = match &args[1] {
                 Value::String(value) => value.clone(),
-                _ => return Err(KainError::runtime("native_config_string: value must be string")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "native_config_string: value must be string",
+                    ))
+                }
             };
             std::env::set_var(key, value);
             Ok(Value::Unit)
@@ -405,12 +441,20 @@ impl Env {
             }
             let key = match &args[0] {
                 Value::String(value) => value.clone(),
-                _ => return Err(KainError::runtime("native_config_float: key must be string")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "native_config_float: key must be string",
+                    ))
+                }
             };
             let value = match args[1] {
                 Value::Int(value) => value as f64,
                 Value::Float(value) => value,
-                _ => return Err(KainError::runtime("native_config_float: value must be number")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "native_config_float: value must be number",
+                    ))
+                }
             };
             std::env::set_var(key, format!("{value:.6}"));
             Ok(Value::Unit)
@@ -428,7 +472,11 @@ impl Env {
             let enabled = match args[1] {
                 Value::Bool(value) => value,
                 Value::Int(value) => value != 0,
-                _ => return Err(KainError::runtime("native_config_flag: enabled must be 0 or 1")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "native_config_flag: enabled must be 0 or 1",
+                    ))
+                }
             };
             std::env::set_var(key, if enabled { "1" } else { "0" });
             Ok(Value::Unit)
@@ -903,6 +951,7 @@ impl Env {
                 Value::Array(_) => "array",
                 Value::Tuple(_) => "tuple",
                 Value::Struct(name, _) => name.as_str(),
+                Value::HostObject(name, _) => return Ok(Value::String(name.clone())),
                 Value::Function(_) => "function",
                 Value::NativeFn(_, _) => "native_function",
                 Value::ActorRef(_) => "actor",
@@ -1666,76 +1715,6 @@ impl Env {
             let mut line = String::new();
             stdin.lock().read_line(&mut line).ok();
             Ok(Value::String(line.trim_end().to_string()))
-        });
-
-        // Python FFI
-        self.define_native("py_eval", |env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("py_eval: expected 1 argument (code)"));
-            }
-            let code = match &args[0] {
-                Value::String(s) => s,
-                _ => return Err(KainError::runtime("py_eval: expected string")),
-            };
-
-            let scope = env.python_scope.as_ref().unwrap();
-
-            Python::with_gil(|py| {
-                let scope_dict = scope.as_ref(py).downcast::<PyDict>().unwrap();
-                // Use scope as both globals and locals for proper persistence
-                let result = py
-                    .eval(code, Some(scope_dict), Some(scope_dict))
-                    .map_err(|e| KainError::runtime(format!("Python Error: {}", e)))?;
-                py_to_value(result)
-                    .map_err(|e| KainError::runtime(format!("Conversion Error: {}", e)))
-            })
-        });
-
-        self.define_native("py_exec", |env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("py_exec: expected 1 argument"));
-            }
-            let code = match &args[0] {
-                Value::String(s) => s,
-                _ => return Err(KainError::runtime("py_exec: expected string")),
-            };
-
-            let scope = env.python_scope.as_ref().unwrap();
-
-            Python::with_gil(|py| {
-                let scope_dict = scope.as_ref(py).downcast::<PyDict>().unwrap();
-                // Use scope as both globals and locals for proper persistence
-                py.run(code, Some(scope_dict), Some(scope_dict))
-                    .map_err(|e| KainError::runtime(format!("Python Error: {}", e)))?;
-                Ok(Value::Unit)
-            })
-        });
-
-        self.define_native("py_import", |env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("py_import: expected 1 argument"));
-            }
-            let module_name = match &args[0] {
-                Value::String(s) => s,
-                _ => return Err(KainError::runtime("py_import: argument must be string")),
-            };
-
-            let scope = env.python_scope.as_ref().unwrap();
-
-            Python::with_gil(|py| {
-                let locals = scope.as_ref(py).downcast::<PyDict>().unwrap();
-                let module = py
-                    .import(module_name.as_str())
-                    .map_err(|e| KainError::runtime(format!("Python error: {}", e)))?;
-
-                // Add module to locals with its name
-                locals
-                    .set_item(module_name, module)
-                    .map_err(|e| KainError::runtime(format!("Failed to set module: {}", e)))?;
-
-                py_to_value(module)
-                    .map_err(|e| KainError::runtime(format!("Conversion Error: {}", e)))
-            })
         });
 
         self.define_native("file_exists", |_env, args| {
@@ -2877,6 +2856,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                             Value::Array(_) => "array",
                             Value::Tuple(_) => "tuple",
                             Value::Struct(name, _) => return Ok(Value::String(name.clone())),
+                            Value::HostObject(name, _) => return Ok(Value::String(name.clone())),
                             Value::Function(_) => "function",
                             Value::NativeFn(_, _) => "native_fn",
                             Value::StructConstructor(_, _) => "struct_constructor",
@@ -3160,20 +3140,11 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     next_actor_id: 0,
                     actor_defs,
                     self_actor_id: Some(id),
-                    python_scope: None,
+                    extension_state: HashMap::new(),
                 };
 
-                // Initialize Python scope
-                Python::with_gil(|py| {
-                    // Use the same dict for both globals and locals to maintain scope
-                    let scope = PyDict::new(py);
-                    // Import builtins into the scope
-                    let builtins = py.import("builtins").unwrap();
-                    scope.set_item("__builtins__", builtins).unwrap();
-                    actor_env.python_scope = Some(scope.into());
-                });
-
                 actor_env.register_stdlib();
+                actor_env.apply_registered_extensions();
 
                 actor_env.push_scope(); // Actor scope
 

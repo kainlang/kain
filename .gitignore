@@ -57,3 +57,6 @@ target_selfhost_probe/*
 *target_selfhost_probe\*
 target_selfhost_probe\
 target_selfhost_probe\**
+# Third-party vendored deps
+third_party/
+third_party/modular_mojo/

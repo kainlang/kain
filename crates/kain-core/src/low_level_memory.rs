@@ -2371,7 +2371,10 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::Struct { fields, rest, .. } => fields
             .iter()
             .find_map(|(_, value)| first_memory_expr_context(value, base.clone()))
-            .or_else(|| rest.as_ref().and_then(|value| first_memory_expr_context(value, base))),
+            .or_else(|| {
+                rest.as_ref()
+                    .and_then(|value| first_memory_expr_context(value, base))
+            }),
         Expr::EnumVariant { fields, .. } => match fields {
             crate::ast::EnumVariantFields::Unit => None,
             crate::ast::EnumVariantFields::Tuple(items) => items

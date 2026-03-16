@@ -103,12 +103,15 @@ fn parser_accepts_qualified_enum_variant_expressions() {
         other => panic!("expected function, got {:?}", other),
     };
 
-    let ast::Stmt::Return(Some(ast::Expr::EnumVariant {
-        enum_name,
-        variant,
-        fields: ast::EnumVariantFields::Struct(fields),
-        ..
-    }), _) = &function.body.stmts[0]
+    let ast::Stmt::Return(
+        Some(ast::Expr::EnumVariant {
+            enum_name,
+            variant,
+            fields: ast::EnumVariantFields::Struct(fields),
+            ..
+        }),
+        _,
+    ) = &function.body.stmts[0]
     else {
         panic!("expected qualified enum variant return");
     };

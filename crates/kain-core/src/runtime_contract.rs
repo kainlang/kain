@@ -403,7 +403,8 @@ mod tests {
 
     #[test]
     fn emits_service_bindings_for_rust_lane() {
-        let bundle = emit_runtime_contract_bundle(&TypedProgram { items: Vec::new() }, CompileTarget::Rust);
+        let bundle =
+            emit_runtime_contract_bundle(&TypedProgram { items: Vec::new() }, CompileTarget::Rust);
         assert_eq!(bundle.target, "rust");
         assert!(bundle
             .service_bindings
@@ -419,7 +420,9 @@ component App():
 "#;
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let span_mapper = SpanMapper::new(source);
-        let ast = Parser::new(&tokens, &span_mapper, "<test>").parse().expect("parse");
+        let ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("parse");
         let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
 
         let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Rust);

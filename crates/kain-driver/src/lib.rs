@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use kain_core::ast::Program;
 use kain_core::error::KainError;
 use kain_core::monomorphize::MonomorphizedProgram;
+use kain_core::runtime;
 use kain_core::{
     comptime, diagnostics, emit_runtime_contract_bundle, monomorphize, stdlib, types,
     CompileTarget, Lexer, Parser, RuntimeContractBundle, TypedProgram,
@@ -174,6 +175,8 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
+        kain_python::register();
+
         let stdlib_source = stdlib::load_stdlib_for_target(target);
         let full_source = format!("{stdlib_source}\n{source}");
 
@@ -271,9 +274,15 @@ impl DriverSession {
                     #[cfg(feature = "sys")]
                     CompileTarget::Cpp => sys::generate_cpp(&typed_for_codegen),
 
-                    CompileTarget::Interpret | CompileTarget::Test => Err(KainError::runtime(
-                        "Interpret/Test targets not yet implemented in workspace",
-                    )),
+                    CompileTarget::Interpret => {
+                        let value = runtime::interpret(&typed_for_codegen)?;
+                        Ok(value.to_string())
+                    }
+
+                    CompileTarget::Test => {
+                        runtime::run_tests(&typed_for_codegen)?;
+                        Ok("Tests passed".to_string())
+                    }
 
                     #[cfg(feature = "ue5")]
                     CompileTarget::Ue5Editor => {
@@ -683,5 +692,33 @@ mod tests {
     #[test]
     fn extension_for_typescript_is_ts() {
         assert_eq!(target_extension(CompileTarget::Ts), "ts");
+    }
+
+    #[test]
+    fn interpret_target_executes_main_and_returns_result() {
+        let output = compile(
+            r#"
+fn main() -> Int:
+    return 42
+"#,
+            CompileTarget::Interpret,
+        )
+        .unwrap();
+
+        assert_eq!(output, "42");
+    }
+
+    #[test]
+    fn test_target_runs_kain_tests() {
+        let output = compile(
+            r#"
+test smoke:
+    assert(true, "should pass")
+"#,
+            CompileTarget::Test,
+        )
+        .unwrap();
+
+        assert_eq!(output, "Tests passed");
     }
 }

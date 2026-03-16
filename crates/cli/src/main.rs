@@ -459,6 +459,10 @@ fn run_compile(
     match compile(&source, target) {
         Ok(compiled_output) => {
             if target == CompileTarget::Interpret || target == CompileTarget::Test {
+                let trimmed_output = compiled_output.trim();
+                if !trimmed_output.is_empty() && trimmed_output != "()" {
+                    println!("{}", compiled_output);
+                }
                 println!(" Execution complete");
             } else {
                 let default_ext = target_extension(target);
