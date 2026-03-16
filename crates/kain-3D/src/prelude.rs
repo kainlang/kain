@@ -74,7 +74,10 @@ pub fn reflected_type_registry() -> TypeRegistry {
             field("up", named("Vec3")),
             field("orbit_radius", primitive(PrimitiveType::Float)),
             field("orbit_height", primitive(PrimitiveType::Float)),
-            field("orbit_speed_radians_per_second", primitive(PrimitiveType::Float)),
+            field(
+                "orbit_speed_radians_per_second",
+                primitive(PrimitiveType::Float),
+            ),
             field("fov_y_degrees", primitive(PrimitiveType::Float)),
             field("near_plane", primitive(PrimitiveType::Float)),
             field("far_plane", primitive(PrimitiveType::Float)),
@@ -83,7 +86,10 @@ pub fn reflected_type_registry() -> TypeRegistry {
     registry.register_schema(enum_schema(
         "Field",
         vec![
-            tuple_variant("Constant", vec![field("value", primitive(PrimitiveType::Float))]),
+            tuple_variant(
+                "Constant",
+                vec![field("value", primitive(PrimitiveType::Float))],
+            ),
             tuple_variant(
                 "Linear",
                 vec![
@@ -114,7 +120,10 @@ pub fn reflected_type_registry() -> TypeRegistry {
         vec![
             tuple_variant("Translate", vec![field("offset", named("Vec3"))]),
             tuple_variant("Scale", vec![field("factor", named("Vec3"))]),
-            tuple_variant("Inflate", vec![field("amount", primitive(PrimitiveType::Float))]),
+            tuple_variant(
+                "Inflate",
+                vec![field("amount", primitive(PrimitiveType::Float))],
+            ),
             tuple_variant(
                 "Twist",
                 vec![
@@ -129,7 +138,10 @@ pub fn reflected_type_registry() -> TypeRegistry {
                     field("frequency", primitive(PrimitiveType::Float)),
                 ],
             ),
-            tuple_variant("Spherify", vec![field("factor", primitive(PrimitiveType::Float))]),
+            tuple_variant(
+                "Spherify",
+                vec![field("factor", primitive(PrimitiveType::Float))],
+            ),
         ],
     ));
     registry.register_schema(enum_schema(

@@ -48,6 +48,44 @@ struct PythonGeometryView {
     face_size: i64,
 }
 
+#[derive(Clone)]
+enum NativeScalarBuffer {
+    Bool(Arc<RwLock<Vec<bool>>>),
+    Int(Arc<RwLock<Vec<i64>>>),
+    Float(Arc<RwLock<Vec<f64>>>),
+}
+
+#[derive(Clone)]
+struct KainNativeImage {
+    dtype: String,
+    shape: Vec<i64>,
+    layout: String,
+    batch: i64,
+    width: i64,
+    height: i64,
+    channels: i64,
+    data: NativeScalarBuffer,
+}
+
+#[derive(Clone)]
+struct KainNativeTensor {
+    dtype: String,
+    shape: Vec<i64>,
+    data: NativeScalarBuffer,
+}
+
+#[derive(Clone)]
+struct KainNativeGeometry {
+    vertex_dtype: String,
+    vertex_shape: Vec<i64>,
+    components: i64,
+    vertices: NativeScalarBuffer,
+    index_dtype: Option<String>,
+    index_shape: Vec<i64>,
+    face_size: i64,
+    indices: Option<NativeScalarBuffer>,
+}
+
 pub fn register() {
     REGISTER.call_once(|| {
         register_stdlib_extension("python", register_python_stdlib);
@@ -166,6 +204,17 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Read a pixel from a typed Python image view without flattening the whole payload",
         },
         BuiltinFn {
+            name: "py_image_set_pixel",
+            params: vec![
+                ("view", "Any"),
+                ("x", "Int"),
+                ("y", "Int"),
+                ("value", "Any"),
+            ],
+            return_type: "Unit",
+            doc: "Write a pixel into a live Python image view",
+        },
+        BuiltinFn {
             name: "py_geometry_info",
             params: vec![("target", "Any")],
             return_type: "Any",
@@ -190,6 +239,18 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Read one face from a typed Python geometry view",
         },
         BuiltinFn {
+            name: "py_geometry_set_vertex",
+            params: vec![("view", "Any"), ("index", "Int"), ("value", "Any")],
+            return_type: "Unit",
+            doc: "Write one vertex into a live Python geometry view",
+        },
+        BuiltinFn {
+            name: "py_geometry_set_face",
+            params: vec![("view", "Any"), ("index", "Int"), ("value", "Any")],
+            return_type: "Unit",
+            doc: "Write one face into a live Python geometry view",
+        },
+        BuiltinFn {
             name: "py_tensor_view",
             params: vec![("target", "Any")],
             return_type: "Any",
@@ -200,6 +261,101 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             params: vec![("view", "Any"), ("indices", "Any")],
             return_type: "Any",
             doc: "Read one tensor element or sub-value from a typed Python tensor view",
+        },
+        BuiltinFn {
+            name: "py_tensor_set",
+            params: vec![("view", "Any"), ("indices", "Any"), ("value", "Any")],
+            return_type: "Unit",
+            doc: "Write one tensor element or sub-value into a live Python tensor view",
+        },
+        BuiltinFn {
+            name: "kain_image_from_py",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python image payload into a Kain-owned typed image buffer",
+        },
+        BuiltinFn {
+            name: "kain_image_info",
+            params: vec![("image", "Any")],
+            return_type: "Any",
+            doc: "Inspect a Kain-owned typed image buffer",
+        },
+        BuiltinFn {
+            name: "kain_image_pixel",
+            params: vec![("image", "Any"), ("x", "Int"), ("y", "Int")],
+            return_type: "Any",
+            doc: "Read one pixel from a Kain-owned typed image buffer",
+        },
+        BuiltinFn {
+            name: "kain_image_set_pixel",
+            params: vec![
+                ("image", "Any"),
+                ("x", "Int"),
+                ("y", "Int"),
+                ("value", "Any"),
+            ],
+            return_type: "Unit",
+            doc: "Write one pixel into a Kain-owned typed image buffer",
+        },
+        BuiltinFn {
+            name: "kain_tensor_from_py",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python tensor payload into a Kain-owned typed tensor buffer",
+        },
+        BuiltinFn {
+            name: "kain_tensor_info",
+            params: vec![("tensor", "Any")],
+            return_type: "Any",
+            doc: "Inspect a Kain-owned typed tensor buffer",
+        },
+        BuiltinFn {
+            name: "kain_tensor_get",
+            params: vec![("tensor", "Any"), ("indices", "Any")],
+            return_type: "Any",
+            doc: "Read one tensor element from a Kain-owned typed tensor buffer",
+        },
+        BuiltinFn {
+            name: "kain_tensor_set",
+            params: vec![("tensor", "Any"), ("indices", "Any"), ("value", "Any")],
+            return_type: "Unit",
+            doc: "Write one tensor element into a Kain-owned typed tensor buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_from_py",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize Python geometry into a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_info",
+            params: vec![("geometry", "Any")],
+            return_type: "Any",
+            doc: "Inspect a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_vertex",
+            params: vec![("geometry", "Any"), ("index", "Int")],
+            return_type: "Any",
+            doc: "Read one vertex from a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_set_vertex",
+            params: vec![("geometry", "Any"), ("index", "Int"), ("value", "Any")],
+            return_type: "Unit",
+            doc: "Write one vertex into a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_face",
+            params: vec![("geometry", "Any"), ("index", "Int")],
+            return_type: "Any",
+            doc: "Read one face from a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_set_face",
+            params: vec![("geometry", "Any"), ("index", "Int"), ("value", "Any")],
+            return_type: "Unit",
+            doc: "Write one face into a Kain-owned typed geometry buffer",
         },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
@@ -246,12 +402,30 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("py_image_info", py_image_info_native);
     env.register_native_fn("py_image_view", py_image_view_native);
     env.register_native_fn("py_image_pixel", py_image_pixel_native);
+    env.register_native_fn("py_image_set_pixel", py_image_set_pixel_native);
     env.register_native_fn("py_geometry_info", py_geometry_info_native);
     env.register_native_fn("py_geometry_view", py_geometry_view_native);
     env.register_native_fn("py_geometry_vertex", py_geometry_vertex_native);
     env.register_native_fn("py_geometry_face", py_geometry_face_native);
+    env.register_native_fn("py_geometry_set_vertex", py_geometry_set_vertex_native);
+    env.register_native_fn("py_geometry_set_face", py_geometry_set_face_native);
     env.register_native_fn("py_tensor_view", py_tensor_view_native);
     env.register_native_fn("py_tensor_get", py_tensor_get_native);
+    env.register_native_fn("py_tensor_set", py_tensor_set_native);
+    env.register_native_fn("kain_image_from_py", kain_image_from_py_native);
+    env.register_native_fn("kain_image_info", kain_image_info_native);
+    env.register_native_fn("kain_image_pixel", kain_image_pixel_native);
+    env.register_native_fn("kain_image_set_pixel", kain_image_set_pixel_native);
+    env.register_native_fn("kain_tensor_from_py", kain_tensor_from_py_native);
+    env.register_native_fn("kain_tensor_info", kain_tensor_info_native);
+    env.register_native_fn("kain_tensor_get", kain_tensor_get_native);
+    env.register_native_fn("kain_tensor_set", kain_tensor_set_native);
+    env.register_native_fn("kain_geometry_from_py", kain_geometry_from_py_native);
+    env.register_native_fn("kain_geometry_info", kain_geometry_info_native);
+    env.register_native_fn("kain_geometry_vertex", kain_geometry_vertex_native);
+    env.register_native_fn("kain_geometry_set_vertex", kain_geometry_set_vertex_native);
+    env.register_native_fn("kain_geometry_face", kain_geometry_face_native);
+    env.register_native_fn("kain_geometry_set_face", kain_geometry_set_face_native);
 }
 
 fn py_eval_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -651,6 +825,37 @@ fn py_image_pixel_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> 
     })
 }
 
+fn py_image_set_pixel_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let (view, batch, x, y, value) =
+        match args.as_slice() {
+            [view, x, y, value] => (
+                extract_image_view(view)?,
+                0,
+                value_to_int_arg("py_image_set_pixel", "x", x)?,
+                value_to_int_arg("py_image_set_pixel", "y", y)?,
+                value,
+            ),
+            [view, batch, x, y, value] => (
+                extract_image_view(view)?,
+                value_to_int_arg("py_image_set_pixel", "batch", batch)?,
+                value_to_int_arg("py_image_set_pixel", "x", x)?,
+                value_to_int_arg("py_image_set_pixel", "y", y)?,
+                value,
+            ),
+            _ => return Err(KainError::runtime(
+                "py_image_set_pixel: expected (view, x, y, value) or (view, batch, x, y, value)",
+            )),
+        };
+
+    validate_pixel_value("py_image_set_pixel", value, view.channels)?;
+    Python::with_gil(|py| {
+        let index = image_pixel_indices(py, &view, batch, x, y)?;
+        let py_value = python_pixel_value(py, value, view.channels)?;
+        set_python_item(py, view.object.as_ref(py), &index, py_value)?;
+        Ok(Value::Unit)
+    })
+}
+
 fn py_tensor_view_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     if args.len() != 1 {
         return Err(KainError::runtime(
@@ -696,6 +901,32 @@ fn py_tensor_get_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
             .collect::<Vec<_>>();
         let item = get_python_item(py, view.object.as_ref(py), &py_indices)?;
         py_any_to_value(item.as_ref(py))
+    })
+}
+
+fn py_tensor_set_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "py_tensor_set: expected (view, indices, value)",
+        ));
+    }
+
+    let view = extract_tensor_view(&args[0])?;
+    let indices = parse_index_values("py_tensor_set", &args[1])?;
+    validate_rank(
+        "py_tensor_set",
+        &view.metadata.shape,
+        indices.len(),
+        "tensor rank",
+    )?;
+    Python::with_gil(|py| {
+        let py_indices = indices
+            .iter()
+            .map(|value| (*value).into_py(py))
+            .collect::<Vec<_>>();
+        let py_value = value_to_pyobject(py, &args[2])?;
+        set_python_item(py, view.object.as_ref(py), &py_indices, py_value)?;
+        Ok(Value::Unit)
     })
 }
 
@@ -770,6 +1001,275 @@ fn py_geometry_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value
         }
         Ok(face)
     })
+}
+
+fn py_geometry_set_vertex_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "py_geometry_set_vertex: expected (view, index, value)",
+        ));
+    }
+
+    let view = extract_geometry_view(&args[0])?;
+    let index = value_to_int_arg("py_geometry_set_vertex", "index", &args[1])?;
+    validate_axis_index(
+        "py_geometry_set_vertex",
+        index,
+        view.vertex_metadata.shape.first().copied().unwrap_or(0),
+    )?;
+    validate_vector_value("py_geometry_set_vertex", &args[2], view.components)?;
+    Python::with_gil(|py| {
+        let py_value = value_to_pyobject(py, &args[2])?;
+        set_python_item(py, view.vertices.as_ref(py), &[index.into_py(py)], py_value)?;
+        Ok(Value::Unit)
+    })
+}
+
+fn py_geometry_set_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "py_geometry_set_face: expected (view, index, value)",
+        ));
+    }
+
+    let view = extract_geometry_view(&args[0])?;
+    let Some(indices) = view.indices.as_ref() else {
+        return Err(KainError::runtime(
+            "py_geometry_set_face: geometry view has no index buffer",
+        ));
+    };
+    let index = value_to_int_arg("py_geometry_set_face", "index", &args[1])?;
+    let face_count = view
+        .index_metadata
+        .as_ref()
+        .and_then(|metadata| metadata.shape.first().copied())
+        .unwrap_or(0);
+    validate_axis_index("py_geometry_set_face", index, face_count)?;
+    if view.face_size > 0 {
+        validate_vector_value("py_geometry_set_face", &args[2], view.face_size)?;
+    }
+    Python::with_gil(|py| {
+        let py_value = value_to_pyobject(py, &args[2])?;
+        set_python_item(py, indices.as_ref(py), &[index.into_py(py)], py_value)?;
+        Ok(Value::Unit)
+    })
+}
+
+fn kain_image_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_image_from_py: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        build_native_image(target.as_ref(py), &metadata)
+    })
+}
+
+fn kain_image_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_image_info: expected 1 argument (image)",
+        ));
+    }
+
+    let image = extract_native_image(&args[0])?;
+    Ok(native_image_info_value(&image))
+}
+
+fn kain_image_pixel_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let (image, batch, x, y) = match args.as_slice() {
+        [image, x, y] => (
+            extract_native_image(image)?,
+            0,
+            value_to_int_arg("kain_image_pixel", "x", x)?,
+            value_to_int_arg("kain_image_pixel", "y", y)?,
+        ),
+        [image, batch, x, y] => (
+            extract_native_image(image)?,
+            value_to_int_arg("kain_image_pixel", "batch", batch)?,
+            value_to_int_arg("kain_image_pixel", "x", x)?,
+            value_to_int_arg("kain_image_pixel", "y", y)?,
+        ),
+        _ => {
+            return Err(KainError::runtime(
+                "kain_image_pixel: expected (image, x, y) or (image, batch, x, y)",
+            ))
+        }
+    };
+
+    native_image_pixel(&image, batch, x, y)
+}
+
+fn kain_image_set_pixel_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let (image, batch, x, y, value) = match args.as_slice() {
+        [image, x, y, value] => (
+            extract_native_image(image)?,
+            0,
+            value_to_int_arg("kain_image_set_pixel", "x", x)?,
+            value_to_int_arg("kain_image_set_pixel", "y", y)?,
+            value,
+        ),
+        [image, batch, x, y, value] => (
+            extract_native_image(image)?,
+            value_to_int_arg("kain_image_set_pixel", "batch", batch)?,
+            value_to_int_arg("kain_image_set_pixel", "x", x)?,
+            value_to_int_arg("kain_image_set_pixel", "y", y)?,
+            value,
+        ),
+        _ => return Err(KainError::runtime(
+            "kain_image_set_pixel: expected (image, x, y, value) or (image, batch, x, y, value)",
+        )),
+    };
+
+    native_image_set_pixel(&image, batch, x, y, value)?;
+    Ok(Value::Unit)
+}
+
+fn kain_tensor_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_tensor_from_py: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        build_native_tensor(target.as_ref(py), &metadata)
+    })
+}
+
+fn kain_tensor_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_tensor_info: expected 1 argument (tensor)",
+        ));
+    }
+
+    let tensor = extract_native_tensor(&args[0])?;
+    Ok(native_tensor_info_value(&tensor))
+}
+
+fn kain_tensor_get_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "kain_tensor_get: expected (tensor, indices)",
+        ));
+    }
+
+    let tensor = extract_native_tensor(&args[0])?;
+    let indices = parse_index_values("kain_tensor_get", &args[1])?;
+    native_tensor_get(&tensor, &indices)
+}
+
+fn kain_tensor_set_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "kain_tensor_set: expected (tensor, indices, value)",
+        ));
+    }
+
+    let tensor = extract_native_tensor(&args[0])?;
+    let indices = parse_index_values("kain_tensor_set", &args[1])?;
+    native_tensor_set(&tensor, &indices, &args[2])?;
+    Ok(Value::Unit)
+}
+
+fn kain_geometry_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(KainError::runtime(
+            "kain_geometry_from_py: expected (target) or (vertices, indices)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let (vertices, indices) = resolve_geometry_targets(py, scope_dict, &args)?;
+        let vertex_metadata = resolve_payload_metadata(py, vertices.as_ref(py))?;
+        let index_metadata = indices
+            .as_ref()
+            .map(|value| resolve_payload_metadata(py, value.as_ref(py)))
+            .transpose()?;
+        build_native_geometry(
+            vertices.as_ref(py),
+            indices.as_ref().map(|value| value.as_ref(py)),
+            &vertex_metadata,
+            index_metadata.as_ref(),
+        )
+    })
+}
+
+fn kain_geometry_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_geometry_info: expected 1 argument (geometry)",
+        ));
+    }
+
+    let geometry = extract_native_geometry(&args[0])?;
+    Ok(native_geometry_info_value(&geometry))
+}
+
+fn kain_geometry_vertex_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "kain_geometry_vertex: expected (geometry, index)",
+        ));
+    }
+
+    let geometry = extract_native_geometry(&args[0])?;
+    let index = value_to_int_arg("kain_geometry_vertex", "index", &args[1])?;
+    native_geometry_vertex(&geometry, index)
+}
+
+fn kain_geometry_set_vertex_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "kain_geometry_set_vertex: expected (geometry, index, value)",
+        ));
+    }
+
+    let geometry = extract_native_geometry(&args[0])?;
+    let index = value_to_int_arg("kain_geometry_set_vertex", "index", &args[1])?;
+    native_geometry_set_vertex(&geometry, index, &args[2])?;
+    Ok(Value::Unit)
+}
+
+fn kain_geometry_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "kain_geometry_face: expected (geometry, index)",
+        ));
+    }
+
+    let geometry = extract_native_geometry(&args[0])?;
+    let index = value_to_int_arg("kain_geometry_face", "index", &args[1])?;
+    native_geometry_face(&geometry, index)
+}
+
+fn kain_geometry_set_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "kain_geometry_set_face: expected (geometry, index, value)",
+        ));
+    }
+
+    let geometry = extract_native_geometry(&args[0])?;
+    let index = value_to_int_arg("kain_geometry_set_face", "index", &args[1])?;
+    native_geometry_set_face(&geometry, index, &args[2])?;
+    Ok(Value::Unit)
 }
 
 #[derive(Debug, Clone)]
@@ -1590,6 +2090,757 @@ fn get_python_item(py: Python<'_>, target: &PyAny, indices: &[PyObject]) -> Kain
         .map_err(|err| KainError::runtime(format!("Python indexing error: {err}")))
 }
 
+fn set_python_item(
+    py: Python<'_>,
+    target: &PyAny,
+    indices: &[PyObject],
+    value: PyObject,
+) -> KainResult<()> {
+    if indices.len() == 1 {
+        return target
+            .set_item(indices[0].clone_ref(py), value)
+            .map_err(|err| KainError::runtime(format!("Python assignment error: {err}")));
+    }
+
+    let index_tuple = PyTuple::new(py, indices.iter().map(|index| index.clone_ref(py)));
+    target
+        .set_item(index_tuple, value)
+        .map_err(|err| KainError::runtime(format!("Python assignment error: {err}")))
+}
+
+impl NativeScalarBuffer {
+    fn scalar_kind(&self) -> &'static str {
+        match self {
+            Self::Bool(_) => "bool",
+            Self::Int(_) => "int",
+            Self::Float(_) => "float",
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Bool(values) => values.read().unwrap().len(),
+            Self::Int(values) => values.read().unwrap().len(),
+            Self::Float(values) => values.read().unwrap().len(),
+        }
+    }
+
+    fn get_value(&self, index: usize) -> KainResult<Value> {
+        match self {
+            Self::Bool(values) => values
+                .read()
+                .unwrap()
+                .get(index)
+                .copied()
+                .map(Value::Bool)
+                .ok_or_else(|| {
+                    KainError::runtime(format!("native buffer index {index} is out of bounds"))
+                }),
+            Self::Int(values) => values
+                .read()
+                .unwrap()
+                .get(index)
+                .copied()
+                .map(Value::Int)
+                .ok_or_else(|| {
+                    KainError::runtime(format!("native buffer index {index} is out of bounds"))
+                }),
+            Self::Float(values) => values
+                .read()
+                .unwrap()
+                .get(index)
+                .copied()
+                .map(Value::Float)
+                .ok_or_else(|| {
+                    KainError::runtime(format!("native buffer index {index} is out of bounds"))
+                }),
+        }
+    }
+
+    fn set_value(&self, index: usize, value: &Value) -> KainResult<()> {
+        match self {
+            Self::Bool(values) => {
+                let converted = match value {
+                    Value::Bool(value) => *value,
+                    Value::Int(value) => *value != 0,
+                    other => {
+                        return Err(KainError::runtime(format!(
+                            "Expected bool-compatible value, got {other:?}"
+                        )))
+                    }
+                };
+                let mut values = values.write().unwrap();
+                let slot = values.get_mut(index).ok_or_else(|| {
+                    KainError::runtime(format!("native buffer index {index} is out of bounds"))
+                })?;
+                *slot = converted;
+                Ok(())
+            }
+            Self::Int(values) => {
+                let converted = match value {
+                    Value::Int(value) => *value,
+                    Value::Bool(value) => i64::from(*value),
+                    other => {
+                        return Err(KainError::runtime(format!(
+                            "Expected int-compatible value, got {other:?}"
+                        )))
+                    }
+                };
+                let mut values = values.write().unwrap();
+                let slot = values.get_mut(index).ok_or_else(|| {
+                    KainError::runtime(format!("native buffer index {index} is out of bounds"))
+                })?;
+                *slot = converted;
+                Ok(())
+            }
+            Self::Float(values) => {
+                let converted = match value {
+                    Value::Float(value) => *value,
+                    Value::Int(value) => *value as f64,
+                    Value::Bool(value) => {
+                        if *value {
+                            1.0
+                        } else {
+                            0.0
+                        }
+                    }
+                    other => {
+                        return Err(KainError::runtime(format!(
+                            "Expected float-compatible value, got {other:?}"
+                        )))
+                    }
+                };
+                let mut values = values.write().unwrap();
+                let slot = values.get_mut(index).ok_or_else(|| {
+                    KainError::runtime(format!("native buffer index {index} is out of bounds"))
+                })?;
+                *slot = converted;
+                Ok(())
+            }
+        }
+    }
+}
+
+fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
+    let info = build_image_info(metadata)?;
+    let fields = struct_fields_from_value(info);
+    let layout = struct_string_field(&fields, "layout")?;
+    let batch = struct_int_field(&fields, "batch")?;
+    let width = struct_int_field(&fields, "width")?;
+    let height = struct_int_field(&fields, "height")?;
+    let channels = struct_int_field(&fields, "channels")?;
+    let bytes = export_payload_bytes(target.py(), target)?;
+    let data = decode_native_scalar_buffer(bytes.as_ref(target.py()), &metadata.dtype)?;
+    let expected_len = checked_element_count(&metadata.shape)?;
+    if data.len() != expected_len {
+        return Err(KainError::runtime(format!(
+            "kain_image_from_py: decoded {} values but expected {expected_len}",
+            data.len()
+        )));
+    }
+
+    Ok(Value::host_object(
+        "kain:image",
+        Arc::new(KainNativeImage {
+            dtype: metadata.dtype.clone(),
+            shape: metadata.shape.clone(),
+            layout,
+            batch,
+            width,
+            height,
+            channels,
+            data,
+        }),
+    ))
+}
+
+fn build_native_tensor(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
+    let bytes = export_payload_bytes(target.py(), target)?;
+    let data = decode_native_scalar_buffer(bytes.as_ref(target.py()), &metadata.dtype)?;
+    let expected_len = checked_element_count(&metadata.shape)?;
+    if data.len() != expected_len {
+        return Err(KainError::runtime(format!(
+            "kain_tensor_from_py: decoded {} values but expected {expected_len}",
+            data.len()
+        )));
+    }
+
+    Ok(Value::host_object(
+        "kain:tensor",
+        Arc::new(KainNativeTensor {
+            dtype: metadata.dtype.clone(),
+            shape: metadata.shape.clone(),
+            data,
+        }),
+    ))
+}
+
+fn build_native_geometry(
+    vertices: &PyAny,
+    indices: Option<&PyAny>,
+    vertex_metadata: &PythonPayloadMetadata,
+    index_metadata: Option<&PythonPayloadMetadata>,
+) -> KainResult<Value> {
+    let info = build_geometry_info(vertex_metadata, index_metadata)?;
+    let fields = struct_fields_from_value(info);
+    let components = struct_int_field(&fields, "components")?;
+    let face_size = struct_int_field(&fields, "face_size")?;
+
+    let vertex_bytes = export_payload_bytes(vertices.py(), vertices)?;
+    let vertex_buffer =
+        decode_native_scalar_buffer(vertex_bytes.as_ref(vertices.py()), &vertex_metadata.dtype)?;
+    let expected_vertex_len = checked_element_count(&vertex_metadata.shape)?;
+    if vertex_buffer.len() != expected_vertex_len {
+        return Err(KainError::runtime(format!(
+            "kain_geometry_from_py: decoded {} vertex values but expected {expected_vertex_len}",
+            vertex_buffer.len()
+        )));
+    }
+
+    let index_buffer = match (indices, index_metadata) {
+        (Some(indices), Some(metadata)) => {
+            let bytes = export_payload_bytes(indices.py(), indices)?;
+            let buffer = decode_native_scalar_buffer(bytes.as_ref(indices.py()), &metadata.dtype)?;
+            let expected_index_len = checked_element_count(&metadata.shape)?;
+            if buffer.len() != expected_index_len {
+                return Err(KainError::runtime(format!(
+                    "kain_geometry_from_py: decoded {} index values but expected {expected_index_len}",
+                    buffer.len()
+                )));
+            }
+            Some(buffer)
+        }
+        _ => None,
+    };
+
+    Ok(Value::host_object(
+        "kain:geometry",
+        Arc::new(KainNativeGeometry {
+            vertex_dtype: vertex_metadata.dtype.clone(),
+            vertex_shape: vertex_metadata.shape.clone(),
+            components,
+            vertices: vertex_buffer,
+            index_dtype: index_metadata.map(|metadata| metadata.dtype.clone()),
+            index_shape: index_metadata
+                .map(|metadata| metadata.shape.clone())
+                .unwrap_or_default(),
+            face_size,
+            indices: index_buffer,
+        }),
+    ))
+}
+
+fn native_image_info_value(image: &KainNativeImage) -> Value {
+    let mut fields = HashMap::new();
+    fields.insert("dtype".to_string(), Value::String(image.dtype.clone()));
+    fields.insert("shape".to_string(), int_list_to_value(&image.shape));
+    fields.insert("layout".to_string(), Value::String(image.layout.clone()));
+    fields.insert("batch".to_string(), Value::Int(image.batch));
+    fields.insert("width".to_string(), Value::Int(image.width));
+    fields.insert("height".to_string(), Value::Int(image.height));
+    fields.insert("channels".to_string(), Value::Int(image.channels));
+    fields.insert(
+        "storage".to_string(),
+        Value::String(image.data.scalar_kind().to_string()),
+    );
+    fields.insert(
+        "pixel_count".to_string(),
+        Value::Int(image.width * image.height * image.batch),
+    );
+    Value::Struct("KainImageInfo".to_string(), Arc::new(RwLock::new(fields)))
+}
+
+fn native_tensor_info_value(tensor: &KainNativeTensor) -> Value {
+    let mut fields = HashMap::new();
+    fields.insert("dtype".to_string(), Value::String(tensor.dtype.clone()));
+    fields.insert("shape".to_string(), int_list_to_value(&tensor.shape));
+    fields.insert(
+        "storage".to_string(),
+        Value::String(tensor.data.scalar_kind().to_string()),
+    );
+    fields.insert("length".to_string(), Value::Int(tensor.data.len() as i64));
+    Value::Struct("KainTensorInfo".to_string(), Arc::new(RwLock::new(fields)))
+}
+
+fn native_geometry_info_value(geometry: &KainNativeGeometry) -> Value {
+    let mut fields = HashMap::new();
+    let vertex_count = geometry.vertex_shape.first().copied().unwrap_or(0);
+    let face_count = geometry.index_shape.first().copied().unwrap_or(0);
+    fields.insert(
+        "vertex_dtype".to_string(),
+        Value::String(geometry.vertex_dtype.clone()),
+    );
+    fields.insert(
+        "vertex_shape".to_string(),
+        int_list_to_value(&geometry.vertex_shape),
+    );
+    fields.insert("vertex_count".to_string(), Value::Int(vertex_count));
+    fields.insert("components".to_string(), Value::Int(geometry.components));
+    fields.insert("face_count".to_string(), Value::Int(face_count));
+    fields.insert("face_size".to_string(), Value::Int(geometry.face_size));
+    fields.insert(
+        "indexed".to_string(),
+        Value::Bool(geometry.indices.is_some()),
+    );
+    fields.insert(
+        "index_dtype".to_string(),
+        geometry
+            .index_dtype
+            .as_ref()
+            .cloned()
+            .map(Value::String)
+            .unwrap_or(Value::None),
+    );
+    fields.insert(
+        "index_shape".to_string(),
+        if geometry.index_shape.is_empty() {
+            Value::None
+        } else {
+            int_list_to_value(&geometry.index_shape)
+        },
+    );
+    Value::Struct(
+        "KainGeometryInfo".to_string(),
+        Arc::new(RwLock::new(fields)),
+    )
+}
+
+fn native_image_pixel(image: &KainNativeImage, batch: i64, x: i64, y: i64) -> KainResult<Value> {
+    let indices = native_image_channel_indices(image, batch, x, y)?;
+    let mut values = Vec::with_capacity(indices.len());
+    for index in indices {
+        values.push(image.data.get_value(index)?);
+    }
+    Ok(Value::Array(Arc::new(RwLock::new(values))))
+}
+
+fn native_image_set_pixel(
+    image: &KainNativeImage,
+    batch: i64,
+    x: i64,
+    y: i64,
+    value: &Value,
+) -> KainResult<()> {
+    validate_pixel_value("kain_image_set_pixel", value, image.channels)?;
+    let indices = native_image_channel_indices(image, batch, x, y)?;
+    let values = collect_vector_values(value, image.channels)?;
+    for (slot, value) in indices.iter().zip(values.iter()) {
+        image.data.set_value(*slot, value)?;
+    }
+    Ok(())
+}
+
+fn native_tensor_get(tensor: &KainNativeTensor, indices: &[i64]) -> KainResult<Value> {
+    let index = flatten_row_major_index("kain_tensor_get", &tensor.shape, indices)?;
+    tensor.data.get_value(index)
+}
+
+fn native_tensor_set(tensor: &KainNativeTensor, indices: &[i64], value: &Value) -> KainResult<()> {
+    let index = flatten_row_major_index("kain_tensor_set", &tensor.shape, indices)?;
+    tensor.data.set_value(index, value)
+}
+
+fn native_geometry_vertex(geometry: &KainNativeGeometry, index: i64) -> KainResult<Value> {
+    let vertex_count = geometry.vertex_shape.first().copied().unwrap_or(0);
+    validate_axis_index("kain_geometry_vertex", index, vertex_count)?;
+    let start = usize::try_from(index)
+        .map_err(|_| KainError::runtime(format!("kain_geometry_vertex: invalid index {index}")))?
+        * usize::try_from(geometry.components).map_err(|_| {
+            KainError::runtime(format!(
+                "kain_geometry_vertex: invalid component count {}",
+                geometry.components
+            ))
+        })?;
+    native_vector_from_buffer(&geometry.vertices, start, geometry.components)
+}
+
+fn native_geometry_set_vertex(
+    geometry: &KainNativeGeometry,
+    index: i64,
+    value: &Value,
+) -> KainResult<()> {
+    let vertex_count = geometry.vertex_shape.first().copied().unwrap_or(0);
+    validate_axis_index("kain_geometry_set_vertex", index, vertex_count)?;
+    validate_vector_value("kain_geometry_set_vertex", value, geometry.components)?;
+    let start = usize::try_from(index).map_err(|_| {
+        KainError::runtime(format!("kain_geometry_set_vertex: invalid index {index}"))
+    })? * usize::try_from(geometry.components).map_err(|_| {
+        KainError::runtime(format!(
+            "kain_geometry_set_vertex: invalid component count {}",
+            geometry.components
+        ))
+    })?;
+    native_vector_write(&geometry.vertices, start, geometry.components, value)
+}
+
+fn native_geometry_face(geometry: &KainNativeGeometry, index: i64) -> KainResult<Value> {
+    let Some(indices) = geometry.indices.as_ref() else {
+        return Err(KainError::runtime(
+            "kain_geometry_face: geometry has no index buffer",
+        ));
+    };
+    let face_count = geometry.index_shape.first().copied().unwrap_or(0);
+    validate_axis_index("kain_geometry_face", index, face_count)?;
+    let start = usize::try_from(index)
+        .map_err(|_| KainError::runtime(format!("kain_geometry_face: invalid index {index}")))?
+        * usize::try_from(geometry.face_size).map_err(|_| {
+            KainError::runtime(format!(
+                "kain_geometry_face: invalid face size {}",
+                geometry.face_size
+            ))
+        })?;
+    native_vector_from_buffer(indices, start, geometry.face_size)
+}
+
+fn native_geometry_set_face(
+    geometry: &KainNativeGeometry,
+    index: i64,
+    value: &Value,
+) -> KainResult<()> {
+    let Some(indices) = geometry.indices.as_ref() else {
+        return Err(KainError::runtime(
+            "kain_geometry_set_face: geometry has no index buffer",
+        ));
+    };
+    let face_count = geometry.index_shape.first().copied().unwrap_or(0);
+    validate_axis_index("kain_geometry_set_face", index, face_count)?;
+    validate_vector_value("kain_geometry_set_face", value, geometry.face_size)?;
+    let start = usize::try_from(index).map_err(|_| {
+        KainError::runtime(format!("kain_geometry_set_face: invalid index {index}"))
+    })? * usize::try_from(geometry.face_size).map_err(|_| {
+        KainError::runtime(format!(
+            "kain_geometry_set_face: invalid face size {}",
+            geometry.face_size
+        ))
+    })?;
+    native_vector_write(indices, start, geometry.face_size, value)
+}
+
+fn native_vector_from_buffer(
+    buffer: &NativeScalarBuffer,
+    start: usize,
+    count: i64,
+) -> KainResult<Value> {
+    let count = usize::try_from(count)
+        .map_err(|_| KainError::runtime(format!("Invalid vector length {count}")))?;
+    let mut values = Vec::with_capacity(count);
+    for offset in 0..count {
+        values.push(buffer.get_value(start + offset)?);
+    }
+    Ok(Value::Array(Arc::new(RwLock::new(values))))
+}
+
+fn native_vector_write(
+    buffer: &NativeScalarBuffer,
+    start: usize,
+    count: i64,
+    value: &Value,
+) -> KainResult<()> {
+    let values = collect_vector_values(value, count)?;
+    for (offset, value) in values.iter().enumerate() {
+        buffer.set_value(start + offset, value)?;
+    }
+    Ok(())
+}
+
+fn native_image_channel_indices(
+    image: &KainNativeImage,
+    batch: i64,
+    x: i64,
+    y: i64,
+) -> KainResult<Vec<usize>> {
+    if batch < 0 || batch >= image.batch {
+        return Err(KainError::runtime(format!(
+            "image batch index {batch} is outside 0..{}",
+            image.batch.saturating_sub(1)
+        )));
+    }
+    if x < 0 || x >= image.width {
+        return Err(KainError::runtime(format!(
+            "image x index {x} is outside 0..{}",
+            image.width.saturating_sub(1)
+        )));
+    }
+    if y < 0 || y >= image.height {
+        return Err(KainError::runtime(format!(
+            "image y index {y} is outside 0..{}",
+            image.height.saturating_sub(1)
+        )));
+    }
+
+    let width = usize::try_from(image.width)
+        .map_err(|_| KainError::runtime(format!("Invalid image width {}", image.width)))?;
+    let height = usize::try_from(image.height)
+        .map_err(|_| KainError::runtime(format!("Invalid image height {}", image.height)))?;
+    let channels = usize::try_from(image.channels)
+        .map_err(|_| KainError::runtime(format!("Invalid image channels {}", image.channels)))?;
+    let batch = usize::try_from(batch)
+        .map_err(|_| KainError::runtime(format!("Invalid image batch {batch}")))?;
+    let x = usize::try_from(x).map_err(|_| KainError::runtime(format!("Invalid image x {x}")))?;
+    let y = usize::try_from(y).map_err(|_| KainError::runtime(format!("Invalid image y {y}")))?;
+
+    let indices = match image.layout.as_str() {
+        "HW" => vec![y * width + x],
+        "HWC" => {
+            let base = (y * width + x) * channels;
+            (0..channels).map(|channel| base + channel).collect()
+        }
+        "CHW" => {
+            let plane = height * width;
+            (0..channels)
+                .map(|channel| channel * plane + y * width + x)
+                .collect()
+        }
+        "NHWC" => {
+            let batch_stride = height * width * channels;
+            let base = batch * batch_stride + (y * width + x) * channels;
+            (0..channels).map(|channel| base + channel).collect()
+        }
+        "NCHW" => {
+            let batch_stride = channels * height * width;
+            let plane = height * width;
+            let batch_base = batch * batch_stride;
+            (0..channels)
+                .map(|channel| batch_base + channel * plane + y * width + x)
+                .collect()
+        }
+        other => {
+            return Err(KainError::runtime(format!(
+                "Unsupported native image layout {other}"
+            )))
+        }
+    };
+    Ok(indices)
+}
+
+fn flatten_row_major_index(fn_name: &str, shape: &[i64], indices: &[i64]) -> KainResult<usize> {
+    if shape.len() != indices.len() {
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected {} indices, got {}",
+            shape.len(),
+            indices.len()
+        )));
+    }
+
+    let mut index = 0usize;
+    let mut stride = 1usize;
+    for (dimension, coord) in shape.iter().rev().zip(indices.iter().rev()) {
+        if *coord < 0 || *coord >= *dimension {
+            return Err(KainError::runtime(format!(
+                "{fn_name}: index {coord} is outside 0..{}",
+                dimension.saturating_sub(1)
+            )));
+        }
+        let coord = usize::try_from(*coord)
+            .map_err(|_| KainError::runtime(format!("{fn_name}: invalid index {coord}")))?;
+        index = index.saturating_add(coord.saturating_mul(stride));
+        stride = stride
+            .saturating_mul(usize::try_from(*dimension).map_err(|_| {
+                KainError::runtime(format!("{fn_name}: invalid shape {:?}", shape))
+            })?);
+    }
+    Ok(index)
+}
+
+fn checked_element_count(shape: &[i64]) -> KainResult<usize> {
+    if shape.is_empty() {
+        return Ok(1);
+    }
+
+    let mut count = 1usize;
+    for dim in shape {
+        if *dim < 0 {
+            return Err(KainError::runtime(format!(
+                "Invalid negative dimension in shape {:?}",
+                shape
+            )));
+        }
+        count = count.saturating_mul(usize::try_from(*dim).map_err(|_| {
+            KainError::runtime(format!("Invalid dimension {dim} in shape {:?}", shape))
+        })?);
+    }
+    Ok(count)
+}
+
+fn collect_vector_values(value: &Value, expected_len: i64) -> KainResult<Vec<Value>> {
+    match value {
+        Value::Array(values) => {
+            let values = values.read().unwrap().clone();
+            if values.len() as i64 != expected_len {
+                return Err(KainError::runtime(format!(
+                    "Expected vector length {expected_len}, got {}",
+                    values.len()
+                )));
+            }
+            Ok(values)
+        }
+        Value::Tuple(values) => {
+            if values.len() as i64 != expected_len {
+                return Err(KainError::runtime(format!(
+                    "Expected vector length {expected_len}, got {}",
+                    values.len()
+                )));
+            }
+            Ok(values.clone())
+        }
+        other if expected_len == 1 => Ok(vec![other.clone()]),
+        other => Err(KainError::runtime(format!(
+            "Expected vector of length {expected_len}, got {other:?}"
+        ))),
+    }
+}
+
+fn validate_vector_value(fn_name: &str, value: &Value, expected_len: i64) -> KainResult<()> {
+    let _ = collect_vector_values(value, expected_len)
+        .map_err(|err| KainError::runtime(format!("{fn_name}: {err}")))?;
+    Ok(())
+}
+
+fn validate_pixel_value(fn_name: &str, value: &Value, channels: i64) -> KainResult<()> {
+    validate_vector_value(fn_name, value, channels)
+}
+
+fn python_pixel_value(py: Python<'_>, value: &Value, channels: i64) -> KainResult<PyObject> {
+    if channels == 1 {
+        return match value {
+            Value::Array(values) if values.read().unwrap().len() == 1 => {
+                value_to_pyobject(py, &values.read().unwrap()[0])
+            }
+            Value::Tuple(values) if values.len() == 1 => value_to_pyobject(py, &values[0]),
+            _ => value_to_pyobject(py, value),
+        };
+    }
+    value_to_pyobject(py, value)
+}
+
+fn decode_native_scalar_buffer(bytes: &PyAny, dtype: &str) -> KainResult<NativeScalarBuffer> {
+    let bytes = bytes.downcast::<PyBytes>().map_err(|_| {
+        KainError::runtime("Expected Python bytes payload for native buffer decode")
+    })?;
+    let bytes = bytes.as_bytes();
+
+    let int_buffer = |values: Vec<i64>| NativeScalarBuffer::Int(Arc::new(RwLock::new(values)));
+    let float_buffer = |values: Vec<f64>| NativeScalarBuffer::Float(Arc::new(RwLock::new(values)));
+    let bool_buffer = |values: Vec<bool>| NativeScalarBuffer::Bool(Arc::new(RwLock::new(values)));
+
+    match dtype {
+        "bool" | "bool_" => Ok(bool_buffer(bytes.iter().map(|value| *value != 0).collect())),
+        "uint8" | "ubyte" => Ok(int_buffer(
+            bytes.iter().map(|value| i64::from(*value)).collect(),
+        )),
+        "int8" | "byte" => Ok(int_buffer(
+            bytes.iter().map(|value| i64::from(*value as i8)).collect(),
+        )),
+        "uint16" => Ok(int_buffer(
+            bytes
+                .chunks_exact(2)
+                .map(|chunk| i64::from(u16::from_le_bytes([chunk[0], chunk[1]])))
+                .collect(),
+        )),
+        "int16" => Ok(int_buffer(
+            bytes
+                .chunks_exact(2)
+                .map(|chunk| i64::from(i16::from_le_bytes([chunk[0], chunk[1]])))
+                .collect(),
+        )),
+        "uint32" => Ok(int_buffer(
+            bytes
+                .chunks_exact(4)
+                .map(|chunk| {
+                    i64::from(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                })
+                .collect(),
+        )),
+        "int32" => Ok(int_buffer(
+            bytes
+                .chunks_exact(4)
+                .map(|chunk| {
+                    i64::from(i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                })
+                .collect(),
+        )),
+        "uint64" => {
+            let mut values = Vec::with_capacity(bytes.len() / 8);
+            for chunk in bytes.chunks_exact(8) {
+                let raw = u64::from_le_bytes([
+                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
+                ]);
+                let value = i64::try_from(raw).map_err(|_| {
+                    KainError::runtime(format!(
+                        "Cannot materialize uint64 value {raw} into Kain Int"
+                    ))
+                })?;
+                values.push(value);
+            }
+            Ok(int_buffer(values))
+        }
+        "int64" => Ok(int_buffer(
+            bytes
+                .chunks_exact(8)
+                .map(|chunk| {
+                    i64::from_le_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                        chunk[7],
+                    ])
+                })
+                .collect(),
+        )),
+        "float32" => Ok(float_buffer(
+            bytes
+                .chunks_exact(4)
+                .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
+                .collect(),
+        )),
+        "float64" | "double" => Ok(float_buffer(
+            bytes
+                .chunks_exact(8)
+                .map(|chunk| {
+                    f64::from_le_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                        chunk[7],
+                    ])
+                })
+                .collect(),
+        )),
+        other => Err(KainError::runtime(format!(
+            "Unsupported dtype for native Kain buffer materialization: {other}"
+        ))),
+    }
+}
+
+fn extract_native_image(value: &Value) -> KainResult<Arc<KainNativeImage>> {
+    value
+        .downcast_host_object::<KainNativeImage>()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Expected Kain native image, got {}",
+                value.host_object_label().unwrap_or("value")
+            ))
+        })
+}
+
+fn extract_native_tensor(value: &Value) -> KainResult<Arc<KainNativeTensor>> {
+    value
+        .downcast_host_object::<KainNativeTensor>()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Expected Kain native tensor, got {}",
+                value.host_object_label().unwrap_or("value")
+            ))
+        })
+}
+
+fn extract_native_geometry(value: &Value) -> KainResult<Arc<KainNativeGeometry>> {
+    value
+        .downcast_host_object::<KainNativeGeometry>()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Expected Kain native geometry, got {}",
+                value.host_object_label().unwrap_or("value")
+            ))
+        })
+}
+
 fn detect_backend(target: &PyAny) -> String {
     let kind = python_type_path(target);
     if kind.starts_with("numpy.") {
@@ -1919,12 +3170,30 @@ mod tests {
         assert!(stdlib.functions.contains_key("py_image_info"));
         assert!(stdlib.functions.contains_key("py_image_view"));
         assert!(stdlib.functions.contains_key("py_image_pixel"));
+        assert!(stdlib.functions.contains_key("py_image_set_pixel"));
         assert!(stdlib.functions.contains_key("py_geometry_info"));
         assert!(stdlib.functions.contains_key("py_geometry_view"));
         assert!(stdlib.functions.contains_key("py_geometry_vertex"));
         assert!(stdlib.functions.contains_key("py_geometry_face"));
+        assert!(stdlib.functions.contains_key("py_geometry_set_vertex"));
+        assert!(stdlib.functions.contains_key("py_geometry_set_face"));
         assert!(stdlib.functions.contains_key("py_tensor_view"));
         assert!(stdlib.functions.contains_key("py_tensor_get"));
+        assert!(stdlib.functions.contains_key("py_tensor_set"));
+        assert!(stdlib.functions.contains_key("kain_image_from_py"));
+        assert!(stdlib.functions.contains_key("kain_image_info"));
+        assert!(stdlib.functions.contains_key("kain_image_pixel"));
+        assert!(stdlib.functions.contains_key("kain_image_set_pixel"));
+        assert!(stdlib.functions.contains_key("kain_tensor_from_py"));
+        assert!(stdlib.functions.contains_key("kain_tensor_info"));
+        assert!(stdlib.functions.contains_key("kain_tensor_get"));
+        assert!(stdlib.functions.contains_key("kain_tensor_set"));
+        assert!(stdlib.functions.contains_key("kain_geometry_from_py"));
+        assert!(stdlib.functions.contains_key("kain_geometry_info"));
+        assert!(stdlib.functions.contains_key("kain_geometry_vertex"));
+        assert!(stdlib.functions.contains_key("kain_geometry_set_vertex"));
+        assert!(stdlib.functions.contains_key("kain_geometry_face"));
+        assert!(stdlib.functions.contains_key("kain_geometry_set_face"));
     }
 
     #[test]
@@ -2115,6 +3384,31 @@ fn main():
     }
 
     #[test]
+    fn python_bridge_mutates_live_image_views_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping live image mutation test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    return np.zeros((3, 4, 4), dtype=np.uint8)")
+    let image = py_call_raw("make_image", [])
+    let view = py_image_view(image)
+    py_image_set_pixel(view, 2, 1, [12, 34, 56, 255])
+    let pixel = py_image_pixel(view, 2, 1)
+    return pixel[2]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 56),
+            other => panic!("expected live image mutation to return Int(56), got {other:?}"),
+        }
+    }
+
+    #[test]
     fn python_bridge_infers_geometry_metadata_from_trimesh_when_available() {
         if !trimesh_available() {
             eprintln!("skipping geometry metadata test because trimesh is not installed");
@@ -2216,6 +3510,90 @@ fn main():
         match result {
             Value::Float(value) => assert_eq!(value, 23.0),
             other => panic!("expected tensor view to return Float(23.0), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_materializes_native_image_buffers_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping native image test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    image = np.zeros((4, 5, 4), dtype=np.uint8)\n    image[2, 3] = np.array([1, 2, 3, 255], dtype=np.uint8)\n    return image")
+    let native = kain_image_from_py(py_call_raw("make_image", []))
+    let info = kain_image_info(native)
+    assert(info.width == 5, "expected width 5")
+    assert(info.height == 4, "expected height 4")
+    let before = kain_image_pixel(native, 3, 2)
+    assert(before[2] == 3, "expected blue channel before write")
+    kain_image_set_pixel(native, 3, 2, [9, 8, 7, 255])
+    return kain_image_pixel(native, 3, 2)[0]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 9),
+            other => panic!("expected native image mutation to return Int(9), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_materializes_native_tensor_buffers_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping native tensor test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_tensor():\n    return np.arange(0, 12, dtype=np.float32).reshape(3, 4)")
+    let native = kain_tensor_from_py(py_call_raw("make_tensor", []))
+    let info = kain_tensor_info(native)
+    assert(info.shape[0] == 3, "expected first dim 3")
+    assert(info.shape[1] == 4, "expected second dim 4")
+    assert(kain_tensor_get(native, [2, 3]) == 11.0, "expected last element 11")
+    kain_tensor_set(native, [1, 2], 42.5)
+    return kain_tensor_get(native, [1, 2])
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 42.5),
+            other => panic!("expected native tensor mutation to return Float(42.5), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_materializes_native_geometry_buffers_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping native geometry test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_vertices():\n    return np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32)\ndef make_faces():\n    return np.array([[0, 1, 2]], dtype=np.int32)")
+    let geometry = kain_geometry_from_py(py_call_raw("make_vertices", []), py_call_raw("make_faces", []))
+    let info = kain_geometry_info(geometry)
+    assert(info.vertex_count == 3, "expected 3 vertices")
+    assert(info.face_count == 1, "expected 1 face")
+    assert(kain_geometry_face(geometry, 0)[2] == 2, "expected triangle face")
+    kain_geometry_set_vertex(geometry, 1, [2.5, 3.5, 4.5])
+    return kain_geometry_vertex(geometry, 1)[1]
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 3.5),
+            other => {
+                panic!("expected native geometry mutation to return Float(3.5), got {other:?}")
+            }
         }
     }
 

@@ -68,7 +68,10 @@ pub fn install_runtime_natives(env: &mut Env) {
 
 impl ToKainValue for Vec2 {
     fn to_kain_value(self) -> Value {
-        bridge::struct_value("Vec2", [("x", self.x.to_kain_value()), ("y", self.y.to_kain_value())])
+        bridge::struct_value(
+            "Vec2",
+            [("x", self.x.to_kain_value()), ("y", self.y.to_kain_value())],
+        )
     }
 }
 
@@ -171,7 +174,14 @@ impl ToKainValue for Geometry {
                 ),
                 ("uvs", self.uvs().unwrap_or(&[]).to_vec().to_kain_value()),
                 ("colors", Vec::<ColorRgb>::new().to_kain_value()),
-                ("indices", self.indices.iter().map(|value| *value as i64).collect::<Vec<_>>().to_kain_value()),
+                (
+                    "indices",
+                    self.indices
+                        .iter()
+                        .map(|value| *value as i64)
+                        .collect::<Vec<_>>()
+                        .to_kain_value(),
+                ),
                 ("topology", self.topology.to_kain_value()),
             ],
         )
@@ -195,10 +205,14 @@ impl FromKainValue for Geometry {
             .with_indices(
                 indices
                     .into_iter()
-                    .map(|value| u32::try_from(value).map_err(|_| KainError::runtime("index out of range")))
+                    .map(|value| {
+                        u32::try_from(value).map_err(|_| KainError::runtime("index out of range"))
+                    })
                     .collect::<Result<Vec<_>, _>>()?,
             );
-        if geometry.normals().is_none() || geometry.normals().is_some_and(|values| values.is_empty()) {
+        if geometry.normals().is_none()
+            || geometry.normals().is_some_and(|values| values.is_empty())
+        {
             let _ = geometry.compute_vertex_normals();
         }
         Ok(geometry)
@@ -278,10 +292,18 @@ impl FromKainValue for Camera {
 impl ToKainValue for Field {
     fn to_kain_value(self) -> Value {
         match self {
-            Self::Constant(value) => bridge::enum_variant_value("Field", "Constant", vec![value.to_kain_value()]),
-            Self::Linear { axis, start, end } => {
-                bridge::enum_variant_value("Field", "Linear", vec![axis.to_kain_value(), start.to_kain_value(), end.to_kain_value()])
+            Self::Constant(value) => {
+                bridge::enum_variant_value("Field", "Constant", vec![value.to_kain_value()])
             }
+            Self::Linear { axis, start, end } => bridge::enum_variant_value(
+                "Field",
+                "Linear",
+                vec![
+                    axis.to_kain_value(),
+                    start.to_kain_value(),
+                    end.to_kain_value(),
+                ],
+            ),
             Self::Radial {
                 center,
                 inner_radius,
@@ -295,9 +317,11 @@ impl ToKainValue for Field {
                     outer_radius.to_kain_value(),
                 ],
             ),
-            Self::Noise { frequency, offset } => {
-                bridge::enum_variant_value("Field", "Noise", vec![frequency.to_kain_value(), offset.to_kain_value()])
-            }
+            Self::Noise { frequency, offset } => bridge::enum_variant_value(
+                "Field",
+                "Noise",
+                vec![frequency.to_kain_value(), offset.to_kain_value()],
+            ),
             Self::VolumeMask { .. } => KainError::runtime("VolumeMask bridge is not implemented")
                 .to_string()
                 .to_kain_value(),
@@ -336,7 +360,9 @@ impl FromKainValue for Field {
                     offset: Vec3::from_kain_value(fields.remove(0))?,
                 })
             }
-            _ => Err(KainError::runtime(format!("Unknown Field variant `{variant}`"))),
+            _ => Err(KainError::runtime(format!(
+                "Unknown Field variant `{variant}`"
+            ))),
         }
     }
 }
@@ -344,12 +370,24 @@ impl FromKainValue for Field {
 impl ToKainValue for Modifier {
     fn to_kain_value(self) -> Value {
         match self {
-            Self::Translate(offset) => bridge::enum_variant_value("Modifier", "Translate", vec![offset.to_kain_value()]),
-            Self::Scale(factor) => bridge::enum_variant_value("Modifier", "Scale", vec![factor.to_kain_value()]),
-            Self::Inflate { amount } => bridge::enum_variant_value("Modifier", "Inflate", vec![amount.to_kain_value()]),
-            Self::Twist { axis, angle_radians, .. } => {
-                bridge::enum_variant_value("Modifier", "Twist", vec![axis.to_kain_value(), angle_radians.to_kain_value()])
+            Self::Translate(offset) => {
+                bridge::enum_variant_value("Modifier", "Translate", vec![offset.to_kain_value()])
             }
+            Self::Scale(factor) => {
+                bridge::enum_variant_value("Modifier", "Scale", vec![factor.to_kain_value()])
+            }
+            Self::Inflate { amount } => {
+                bridge::enum_variant_value("Modifier", "Inflate", vec![amount.to_kain_value()])
+            }
+            Self::Twist {
+                axis,
+                angle_radians,
+                ..
+            } => bridge::enum_variant_value(
+                "Modifier",
+                "Twist",
+                vec![axis.to_kain_value(), angle_radians.to_kain_value()],
+            ),
             Self::NoiseDisplace {
                 amplitude,
                 frequency,
@@ -359,7 +397,9 @@ impl ToKainValue for Modifier {
                 "NoiseDisplace",
                 vec![amplitude.to_kain_value(), frequency.to_kain_value()],
             ),
-            Self::Spherify { factor } => bridge::enum_variant_value("Modifier", "Spherify", vec![factor.to_kain_value()]),
+            Self::Spherify { factor } => {
+                bridge::enum_variant_value("Modifier", "Spherify", vec![factor.to_kain_value()])
+            }
         }
     }
 }
@@ -406,7 +446,9 @@ impl FromKainValue for Modifier {
                     factor: f32::from_kain_value(fields.remove(0))?,
                 })
             }
-            _ => Err(KainError::runtime(format!("Unknown Modifier variant `{variant}`"))),
+            _ => Err(KainError::runtime(format!(
+                "Unknown Modifier variant `{variant}`"
+            ))),
         }
     }
 }
@@ -579,7 +621,9 @@ where
 {
     match args.as_slice() {
         [value] => T::from_kain_value(value.clone()),
-        _ => Err(KainError::runtime(format!("{name} expects a single argument"))),
+        _ => Err(KainError::runtime(format!(
+            "{name} expects a single argument"
+        ))),
     }
 }
 

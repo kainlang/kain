@@ -205,8 +205,8 @@ impl Geometry {
             for longitude in 0..=longitude_segments {
                 let u = longitude as f32 / longitude_segments as f32;
                 let theta = u * std::f32::consts::TAU;
-                let normal = Vec3::new(theta.cos() * ring_radius, y, theta.sin() * ring_radius)
-                    .normalize();
+                let normal =
+                    Vec3::new(theta.cos() * ring_radius, y, theta.sin() * ring_radius).normalize();
                 positions.push(normal * radius);
                 normals.push(normal);
                 uvs.push(Vec2::new(u, v));
@@ -244,7 +244,11 @@ impl Geometry {
     pub fn with_positions(mut self, values: Vec<Vec3>) -> Self {
         self.attributes.insert(
             "position".to_string(),
-            GeometryAttribute::new("position", AttributeDomain::Vertex, AttributeValues::Vec3(values)),
+            GeometryAttribute::new(
+                "position",
+                AttributeDomain::Vertex,
+                AttributeValues::Vec3(values),
+            ),
         );
         self
     }
@@ -252,7 +256,11 @@ impl Geometry {
     pub fn with_normals(mut self, values: Vec<Vec3>) -> Self {
         self.attributes.insert(
             "normal".to_string(),
-            GeometryAttribute::new("normal", AttributeDomain::Vertex, AttributeValues::Vec3(values)),
+            GeometryAttribute::new(
+                "normal",
+                AttributeDomain::Vertex,
+                AttributeValues::Vec3(values),
+            ),
         );
         self
     }
@@ -268,7 +276,11 @@ impl Geometry {
     pub fn with_colors(mut self, values: Vec<ColorRgb>) -> Self {
         self.attributes.insert(
             "color".to_string(),
-            GeometryAttribute::new("color", AttributeDomain::Vertex, AttributeValues::Color(values)),
+            GeometryAttribute::new(
+                "color",
+                AttributeDomain::Vertex,
+                AttributeValues::Color(values),
+            ),
         );
         self
     }
@@ -320,14 +332,22 @@ impl Geometry {
     fn set_positions(&mut self, values: Vec<Vec3>) {
         self.attributes.insert(
             "position".to_string(),
-            GeometryAttribute::new("position", AttributeDomain::Vertex, AttributeValues::Vec3(values)),
+            GeometryAttribute::new(
+                "position",
+                AttributeDomain::Vertex,
+                AttributeValues::Vec3(values),
+            ),
         );
     }
 
     fn set_normals(&mut self, values: Vec<Vec3>) {
         self.attributes.insert(
             "normal".to_string(),
-            GeometryAttribute::new("normal", AttributeDomain::Vertex, AttributeValues::Vec3(values)),
+            GeometryAttribute::new(
+                "normal",
+                AttributeDomain::Vertex,
+                AttributeValues::Vec3(values),
+            ),
         );
     }
 
@@ -336,7 +356,8 @@ impl Geometry {
         let vertex_count = positions.len();
 
         for (name, attribute) in &self.attributes {
-            if attribute.domain == AttributeDomain::Vertex && attribute.values.len() != vertex_count {
+            if attribute.domain == AttributeDomain::Vertex && attribute.values.len() != vertex_count
+            {
                 return Err(GeometryError::InvalidAttributeLength {
                     attribute: name.clone(),
                     expected: vertex_count,
@@ -439,7 +460,10 @@ impl Geometry {
                 .collect()
         };
 
-        Ok(Mesh { vertices, triangles })
+        Ok(Mesh {
+            vertices,
+            triangles,
+        })
     }
 }
 
@@ -616,7 +640,10 @@ impl Modifier {
                 let average_radius = if positions.is_empty() {
                     0.0
                 } else {
-                    positions.iter().map(|position| position.length()).sum::<f32>()
+                    positions
+                        .iter()
+                        .map(|position| position.length())
+                        .sum::<f32>()
                         / positions.len() as f32
                 };
                 for (index, position) in next_positions.iter_mut().enumerate() {
@@ -663,8 +690,7 @@ impl Effector {
                 transform.translation += *offset * weight;
             }
             Self::Rotate {
-                rotation_radians,
-                ..
+                rotation_radians, ..
             } => {
                 transform.rotation_radians += *rotation_radians * weight;
             }
@@ -1235,7 +1261,8 @@ impl Scene {
                     .entry(instancer.geometry.clone())
                     .or_insert(geometry.to_mesh()?);
 
-                for (instance_index, local) in instancer.generate_transforms().into_iter().enumerate()
+                for (instance_index, local) in
+                    instancer.generate_transforms().into_iter().enumerate()
                 {
                     description.instances.push(SceneInstance {
                         id: format!("{}_{}", node.name, instance_index),
@@ -1335,7 +1362,10 @@ impl BackgroundGradient {
     }
 }
 
-fn generate_vertex_normals(positions: &[Vec3], indices: &[u32]) -> Result<Vec<Vec3>, GeometryError> {
+fn generate_vertex_normals(
+    positions: &[Vec3],
+    indices: &[u32],
+) -> Result<Vec<Vec3>, GeometryError> {
     let mut normals = vec![Vec3::ZERO; positions.len()];
     let triangle_source = if indices.is_empty() {
         if positions.len() % 3 != 0 {
@@ -1419,16 +1449,14 @@ fn generate_grid_transforms(counts: [usize; 3], spacing: Vec3, centered: bool) -
     for z in 0..counts[2] {
         for y in 0..counts[1] {
             for x in 0..counts[0] {
-                transforms.push(
-                    Transform::identity().with_translation(
-                        offset
-                            + Vec3::new(
-                                x as f32 * spacing.x,
-                                y as f32 * spacing.y,
-                                z as f32 * spacing.z,
-                            ),
-                    ),
-                );
+                transforms.push(Transform::identity().with_translation(
+                    offset
+                        + Vec3::new(
+                            x as f32 * spacing.x,
+                            y as f32 * spacing.y,
+                            z as f32 * spacing.z,
+                        ),
+                ));
             }
         }
     }
@@ -1492,12 +1520,10 @@ mod tests {
 
         assert_eq!(deformed.vertex_count(), source.vertex_count());
         assert_eq!(instancer.generate_transforms().len(), 6);
-        assert!(
-            instancer
-                .generate_transforms()
-                .iter()
-                .any(|transform| transform.translation.y > 0.0)
-        );
+        assert!(instancer
+            .generate_transforms()
+            .iter()
+            .any(|transform| transform.translation.y > 0.0));
     }
 
     #[test]
@@ -1506,7 +1532,10 @@ mod tests {
         scene
             .add_geometry("box", Geometry::box_mesh(Vec3::new(1.2, 1.2, 1.2)))
             .add_material("hero", Material::glossy(ColorRgb::new(0.25, 0.72, 0.98)))
-            .add_material("instanced", Material::matte(ColorRgb::new(0.92, 0.62, 0.28)));
+            .add_material(
+                "instanced",
+                Material::matte(ColorRgb::new(0.92, 0.62, 0.28)),
+            );
 
         let hero = scene.spawn_mesh("hero", "box", "hero");
         scene

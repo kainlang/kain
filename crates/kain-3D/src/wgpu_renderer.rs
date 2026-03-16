@@ -6,12 +6,16 @@ use wgpu::util::DeviceExt;
 use crate::renderer::{
     RenderBackend, RenderError, RenderFrame, RenderResolution, RenderStats, RenderViewSettings,
 };
-use crate::{Mat4, Mesh, SceneCatalog, SceneDescription};
+use crate::{
+    CpuPickingService, ManipulatorMode, Mat4, Mesh, PickTargetId, PickingQuery, PickingRay,
+    SceneCatalog, SceneDescription, Vec3,
+};
 
 const MAX_DIRECTIONAL_LIGHTS: usize = 2;
 const MAX_POINT_LIGHTS: usize = 4;
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+const PICK_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
 const WGPU_VIEWPORT_SHADER: &str = r#"
 struct SceneUniforms {
@@ -52,6 +56,26 @@ struct SceneVertexOutput {
 struct BackgroundVertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) gradient_t: f32,
+};
+
+struct PickVertexInput {
+    @location(0) world_position: vec4<f32>,
+    @location(1) instance_id: u32,
+};
+
+struct PickVertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) @interpolate(flat) instance_id: u32,
+};
+
+struct GizmoVertexInput {
+    @location(0) world_position: vec4<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+struct GizmoVertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) color: vec4<f32>,
 };
 
 @vertex
@@ -183,6 +207,32 @@ fn background_fs_main(input: BackgroundVertexOutput) -> @location(0) vec4<f32> {
     let color = scene.background_top.xyz * (1.0 - t) + scene.background_bottom.xyz * t;
     return vec4<f32>(color, 1.0);
 }
+
+@vertex
+fn pick_vs_main(input: PickVertexInput) -> PickVertexOutput {
+    var output: PickVertexOutput;
+    output.clip_position = scene.view_proj * vec4<f32>(input.world_position.xyz, 1.0);
+    output.instance_id = input.instance_id;
+    return output;
+}
+
+@fragment
+fn pick_fs_main(input: PickVertexOutput) -> @location(0) u32 {
+    return input.instance_id;
+}
+
+@vertex
+fn gizmo_vs_main(input: GizmoVertexInput) -> GizmoVertexOutput {
+    var output: GizmoVertexOutput;
+    output.clip_position = scene.view_proj * vec4<f32>(input.world_position.xyz, 1.0);
+    output.color = input.color;
+    return output;
+}
+
+@fragment
+fn gizmo_fs_main(input: GizmoVertexOutput) -> @location(0) vec4<f32> {
+    return input.color;
+}
 "#;
 
 #[derive(Debug)]
@@ -213,6 +263,8 @@ pub struct WgpuRenderer {
     uniform_bind_group: wgpu::BindGroup,
     background_pipeline: wgpu::RenderPipeline,
     scene_pipeline: wgpu::RenderPipeline,
+    pick_pipeline: wgpu::RenderPipeline,
+    gizmo_pipeline: wgpu::RenderPipeline,
     target: Option<WgpuFrameTarget>,
 }
 
@@ -220,9 +272,12 @@ struct WgpuFrameTarget {
     resolution: RenderResolution,
     color_texture: wgpu::Texture,
     color_view: wgpu::TextureView,
+    pick_texture: wgpu::Texture,
+    pick_view: wgpu::TextureView,
     _depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     readback_buffer: wgpu::Buffer,
+    pick_readback_buffer: wgpu::Buffer,
     padded_bytes_per_row: u32,
 }
 
@@ -233,6 +288,59 @@ struct GpuVertex {
     normal_and_diffuse: [f32; 4],
     base_color_and_specular_strength: [f32; 4],
     specular_color_and_shininess: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+struct PickVertex {
+    world_position: [f32; 4],
+    instance_id: u32,
+    _padding: [u32; 3],
+}
+
+impl PickVertex {
+    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+        wgpu::VertexAttribute {
+            offset: 0,
+            shader_location: 0,
+            format: wgpu::VertexFormat::Float32x4,
+        },
+        wgpu::VertexAttribute {
+            offset: size_of::<[f32; 4]>() as u64,
+            shader_location: 1,
+            format: wgpu::VertexFormat::Uint32,
+        },
+    ];
+
+    fn layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+struct GizmoVertex {
+    world_position: [f32; 4],
+    color: [f32; 4],
+}
+
+impl GizmoVertex {
+    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+        0 => Float32x4,
+        1 => Float32x4
+    ];
+
+    fn layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
 }
 
 impl GpuVertex {
@@ -294,7 +402,9 @@ impl WgpuRenderer {
                 None,
             )
             .await
-            .map_err(|err| WgpuRendererInitError::new(format!("failed to create WGPU device: {err}")))?;
+            .map_err(|err| {
+                WgpuRendererInitError::new(format!("failed to create WGPU device: {err}"))
+            })?;
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("kain-3d-wgpu-shader"),
@@ -411,6 +521,80 @@ impl WgpuRenderer {
             cache: None,
         });
 
+        let pick_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("kain-3d-pick-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("pick_vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[PickVertex::layout()],
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("pick_fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: PICK_FORMAT,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview: None,
+            cache: None,
+        });
+
+        let gizmo_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("kain-3d-gizmo-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("gizmo_vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[GizmoVertex::layout()],
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("gizmo_fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: COLOR_FORMAT,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview: None,
+            cache: None,
+        });
+
         Ok(Self {
             device,
             queue,
@@ -418,6 +602,8 @@ impl WgpuRenderer {
             uniform_bind_group,
             background_pipeline,
             scene_pipeline,
+            pick_pipeline,
+            gizmo_pipeline,
             target: None,
         })
     }
@@ -455,6 +641,7 @@ impl WgpuRenderer {
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         let (vertices, mut stats) = build_gpu_scene(scene, time_seconds)?;
+        let gizmo_vertices = build_gizmo_vertices(scene, time_seconds, view);
         let vertex_buffer = if vertices.is_empty() {
             None
         } else {
@@ -463,6 +650,18 @@ impl WgpuRenderer {
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("kain-3d-scene-vertex-buffer"),
                         contents: bytemuck::cast_slice(&vertices),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    }),
+            )
+        };
+        let gizmo_buffer = if gizmo_vertices.is_empty() {
+            None
+        } else {
+            Some(
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("kain-3d-gizmo-vertex-buffer"),
+                        contents: bytemuck::cast_slice(&gizmo_vertices),
                         usage: wgpu::BufferUsages::VERTEX,
                     }),
             )
@@ -505,6 +704,12 @@ impl WgpuRenderer {
                 render_pass.set_pipeline(&self.scene_pipeline);
                 render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                 render_pass.draw(0..vertices.len() as u32, 0..1);
+            }
+
+            if let Some(gizmo_buffer) = gizmo_buffer.as_ref() {
+                render_pass.set_pipeline(&self.gizmo_pipeline);
+                render_pass.set_vertex_buffer(0, gizmo_buffer.slice(..));
+                render_pass.draw(0..gizmo_vertices.len() as u32, 0..1);
             }
         }
 
@@ -586,6 +791,145 @@ impl RenderBackend for WgpuRenderer {
         view: &RenderViewSettings,
     ) -> Result<RenderFrame, RenderError> {
         self.render_scene_internal(scene, time_seconds, resolution, view)
+    }
+
+    fn pick_catalog_scene_at(
+        &mut self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+        pixel_x: f32,
+        pixel_y: f32,
+    ) -> Result<Option<crate::PickingHit>, RenderError> {
+        let scene = catalog
+            .scene(scene_name)
+            .ok_or_else(|| RenderError::MissingScene(scene_name.to_string()))?;
+        self.pick_scene_at(scene, time_seconds, resolution, view, pixel_x, pixel_y)
+    }
+
+    fn pick_scene_at(
+        &mut self,
+        scene: &SceneDescription,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+        pixel_x: f32,
+        pixel_y: f32,
+    ) -> Result<Option<crate::PickingHit>, RenderError> {
+        self.ensure_target(resolution);
+        let target = self.target.as_ref().expect("target was just initialized");
+        let pick_texture = target.pick_texture.clone();
+        let pick_view = target.pick_view.clone();
+        let depth_view = target.depth_view.clone();
+        let pick_readback_buffer = target.pick_readback_buffer.clone();
+
+        let uniforms = build_scene_uniforms(scene, time_seconds, resolution, view);
+        self.queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+
+        let (pick_vertices, pick_targets) = build_pick_scene(scene, time_seconds)?;
+        if pick_vertices.is_empty() || pick_targets.is_empty() {
+            return Ok(None);
+        }
+
+        let pick_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("kain-3d-pick-vertex-buffer"),
+                contents: bytemuck::cast_slice(&pick_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("kain-3d-pick-encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("kain-3d-pick-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &pick_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+            render_pass.set_pipeline(&self.pick_pipeline);
+            render_pass.set_vertex_buffer(0, pick_buffer.slice(..));
+            render_pass.draw(0..pick_vertices.len() as u32, 0..1);
+        }
+
+        let pick_origin = wgpu::Origin3d {
+            x: pixel_x.clamp(0.0, (resolution.width.saturating_sub(1)) as f32) as u32,
+            y: pixel_y.clamp(0.0, (resolution.height.saturating_sub(1)) as f32) as u32,
+            z: 0,
+        };
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &pick_texture,
+                mip_level: 0,
+                origin: pick_origin,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &pick_readback_buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT),
+                    rows_per_image: Some(1),
+                },
+            },
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.queue.submit(Some(encoder.finish()));
+
+        let mapped = download_pick_id(&self.device, &pick_readback_buffer)
+            .map_err(|err| RenderError::BackendFailure(err.to_string()))?;
+        if mapped == 0 {
+            return Ok(None);
+        }
+
+        let target = pick_targets.get((mapped - 1) as usize).cloned();
+        let Some(target) = target else {
+            return Ok(None);
+        };
+
+        let default_camera_pose;
+        let camera = if let Some(camera) = view.camera.as_ref() {
+            camera
+        } else {
+            default_camera_pose = scene.camera.pose_at(time_seconds);
+            &default_camera_pose
+        };
+        let ray = PickingRay::from_viewport_pixel(pixel_x, pixel_y, resolution, camera);
+        Ok(CpuPickingService.pick_scene_instance(
+            scene,
+            &PickingQuery::new(ray, time_seconds),
+            &target.instance_id,
+        ))
     }
 }
 
@@ -768,6 +1112,106 @@ fn append_mesh_vertices(
     }
 }
 
+fn build_pick_scene(
+    scene: &SceneDescription,
+    time_seconds: f32,
+) -> Result<(Vec<PickVertex>, Vec<PickTargetId>), RenderError> {
+    let animated_instances = scene.animated_instances(time_seconds);
+    let mut vertices = Vec::new();
+    let mut targets = Vec::new();
+
+    for (instance_index, instance) in animated_instances.iter().enumerate() {
+        let mesh = scene
+            .meshes
+            .get(&instance.mesh)
+            .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
+        let object_id = (instance_index + 1) as u32;
+        targets.push(PickTargetId {
+            instance_id: instance.id.clone(),
+            mesh_id: instance.mesh.clone(),
+        });
+
+        for triangle in &mesh.triangles {
+            for index in triangle {
+                let vertex = &mesh.vertices[*index];
+                let world_position = instance.transform.transform_point(vertex.position);
+                vertices.push(PickVertex {
+                    world_position: [world_position.x, world_position.y, world_position.z, 1.0],
+                    instance_id: object_id,
+                    _padding: [0; 3],
+                });
+            }
+        }
+    }
+
+    Ok((vertices, targets))
+}
+
+fn build_gizmo_vertices(
+    scene: &SceneDescription,
+    time_seconds: f32,
+    view: &RenderViewSettings,
+) -> Vec<GizmoVertex> {
+    let Some(selected_instance_id) = view.selected_instance_id.as_deref() else {
+        return Vec::new();
+    };
+
+    let animated_instances = scene.animated_instances(time_seconds);
+    let Some(instance) = animated_instances
+        .iter()
+        .find(|candidate| candidate.id == selected_instance_id)
+    else {
+        return Vec::new();
+    };
+
+    let origin = instance.transform.translation;
+    let max_scale = instance
+        .transform
+        .scale
+        .x
+        .max(instance.transform.scale.y)
+        .max(instance.transform.scale.z)
+        .max(1.0);
+    let axis_length = match view.manipulator_mode.unwrap_or(ManipulatorMode::Translate) {
+        ManipulatorMode::Translate => 1.25 * max_scale,
+        ManipulatorMode::Rotate => 1.55 * max_scale,
+        ManipulatorMode::Scale => 1.05 * max_scale,
+    };
+
+    let mut vertices = Vec::new();
+    append_gizmo_axis(
+        &mut vertices,
+        origin,
+        origin + Vec3::new(axis_length, 0.0, 0.0),
+        [1.0, 0.34, 0.34, 1.0],
+    );
+    append_gizmo_axis(
+        &mut vertices,
+        origin,
+        origin + Vec3::new(0.0, axis_length, 0.0),
+        [0.38, 0.95, 0.56, 1.0],
+    );
+    append_gizmo_axis(
+        &mut vertices,
+        origin,
+        origin + Vec3::new(0.0, 0.0, axis_length),
+        [0.32, 0.72, 1.0, 1.0],
+    );
+
+    vertices
+}
+
+fn append_gizmo_axis(vertices: &mut Vec<GizmoVertex>, start: Vec3, end: Vec3, color: [f32; 4]) {
+    vertices.push(GizmoVertex {
+        world_position: [start.x, start.y, start.z, 1.0],
+        color,
+    });
+    vertices.push(GizmoVertex {
+        world_position: [end.x, end.y, end.z, 1.0],
+        color,
+    });
+}
+
 fn create_target(device: &wgpu::Device, resolution: RenderResolution) -> WgpuFrameTarget {
     let size = wgpu::Extent3d {
         width: resolution.width as u32,
@@ -786,6 +1230,18 @@ fn create_target(device: &wgpu::Device, resolution: RenderResolution) -> WgpuFra
         view_formats: &[],
     });
     let color_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    let pick_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("kain-3d-pick-target"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: PICK_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let pick_view = pick_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("kain-3d-depth-target"),
@@ -806,14 +1262,23 @@ fn create_target(device: &wgpu::Device, resolution: RenderResolution) -> WgpuFra
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
+    let pick_readback_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("kain-3d-pick-readback-buffer"),
+        size: wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
 
     WgpuFrameTarget {
         resolution,
         color_texture,
         color_view,
+        pick_texture,
+        pick_view,
         _depth_texture: depth_texture,
         depth_view,
         readback_buffer,
+        pick_readback_buffer,
         padded_bytes_per_row,
     }
 }
@@ -833,7 +1298,9 @@ fn download_target_rgba(
 
     rx.recv()
         .map_err(|_| WgpuRendererInitError::new("failed to receive WGPU readback completion"))?
-        .map_err(|err| WgpuRendererInitError::new(format!("failed to map WGPU readback buffer: {err}")))?;
+        .map_err(|err| {
+            WgpuRendererInitError::new(format!("failed to map WGPU readback buffer: {err}"))
+        })?;
 
     let mapped = slice.get_mapped_range();
     let unpadded_bytes_per_row = resolution.width * 4;
@@ -849,6 +1316,30 @@ fn download_target_rgba(
     buffer.unmap();
 
     Ok(rgba)
+}
+
+fn download_pick_id(
+    device: &wgpu::Device,
+    buffer: &wgpu::Buffer,
+) -> Result<u32, WgpuRendererInitError> {
+    let slice = buffer.slice(..);
+    let (tx, rx) = mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = tx.send(result);
+    });
+    let _ = device.poll(wgpu::Maintain::Wait);
+
+    rx.recv()
+        .map_err(|_| WgpuRendererInitError::new("failed to receive WGPU pick readback completion"))?
+        .map_err(|err| {
+            WgpuRendererInitError::new(format!("failed to map WGPU pick buffer: {err}"))
+        })?;
+
+    let mapped = slice.get_mapped_range();
+    let bytes = [mapped[0], mapped[1], mapped[2], mapped[3]];
+    drop(mapped);
+    buffer.unmap();
+    Ok(u32::from_le_bytes(bytes))
 }
 
 fn aligned_bytes_per_row(unpadded_bytes_per_row: u32) -> u32 {

@@ -305,7 +305,12 @@ impl Mat4 {
         Self {
             m: [
                 [right.x, right.y, right.z, -right.dot(eye)],
-                [corrected_up.x, corrected_up.y, corrected_up.z, -corrected_up.dot(eye)],
+                [
+                    corrected_up.x,
+                    corrected_up.y,
+                    corrected_up.z,
+                    -corrected_up.dot(eye),
+                ],
                 [-forward.x, -forward.y, -forward.z, forward.dot(eye)],
                 [0.0, 0.0, 0.0, 1.0],
             ],
@@ -385,10 +390,8 @@ impl Transform {
     }
 
     pub fn combine(&self, child: &Self) -> Self {
-        let rotated_child_translation =
-            Mat4::rotation_xyz(self.rotation_radians).transform_vector(
-                child.translation.component_mul(self.scale),
-            );
+        let rotated_child_translation = Mat4::rotation_xyz(self.rotation_radians)
+            .transform_vector(child.translation.component_mul(self.scale));
 
         Self {
             translation: self.translation + rotated_child_translation,

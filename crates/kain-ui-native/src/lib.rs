@@ -8,8 +8,8 @@ use std::{
 
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use kain_3d::{
-    CameraPose, CpuPickingService, PickingHit, PickingQuery, PickingRay, PickingService,
-    RenderBackend, RenderResolution, RenderStats, RenderViewSettings, SceneCatalog,
+    CameraPose, CpuPickingService, ManipulatorMode, PickingHit, PickingQuery, PickingRay,
+    PickingService, RenderBackend, RenderResolution, RenderStats, RenderViewSettings, SceneCatalog,
     SoftwareRenderer, Vec3, WgpuRenderer,
 };
 use kain_core::{build_ui_output_from_source, render_ui_output_debug};
@@ -342,6 +342,8 @@ struct ViewportSurfaceState {
     controller: ViewportCameraController,
     last_render_at: Option<Instant>,
     last_stats: RenderStats,
+    selected_instance_id: Option<String>,
+    manipulator_mode: ManipulatorMode,
     last_pick: Option<PickingHit>,
 }
 
@@ -364,6 +366,9 @@ struct ViewportInputSnapshot {
     move_down: bool,
     speed_boost: bool,
     recenter: bool,
+    gizmo_translate: bool,
+    gizmo_rotate: bool,
+    gizmo_scale: bool,
 }
 
 impl ViewportCameraController {
@@ -827,10 +832,10 @@ fn render_viewport_surface(
             }
             let elapsed_seconds = app.start_time.elapsed().as_secs_f32();
             let resolution = viewport_render_resolution(inner_rect.size());
-            let Some((reference_pose, viewport_summary)) =
-                app.scene_catalog
-                    .scene(&scene_name)
-                    .map(|scene| (scene.camera.pose_at(0.0), scene.viewport_summary.clone()))
+            let Some((reference_pose, viewport_summary)) = app
+                .scene_catalog
+                .scene(&scene_name)
+                .map(|scene| (scene.camera.pose_at(0.0), scene.viewport_summary.clone()))
             else {
                 painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
                 painter.text(
@@ -852,6 +857,8 @@ fn render_viewport_surface(
                         controller: ViewportCameraController::from_pose(&reference_pose),
                         last_render_at: None,
                         last_stats: RenderStats::default(),
+                        selected_instance_id: None,
+                        manipulator_mode: ManipulatorMode::Translate,
                         last_pick: None,
                     });
             trace_runtime(format!("viewport: state_ready node={}", node.id.0));
@@ -861,6 +868,7 @@ fn render_viewport_surface(
                 surface.texture = None;
                 surface.last_render_at = None;
                 surface.last_stats = RenderStats::default();
+                surface.selected_instance_id = None;
                 surface.last_pick = None;
             }
             sync_viewport_input(
@@ -870,7 +878,21 @@ fn render_viewport_surface(
                 &mut surface.controller,
                 app.frame_dt_seconds,
             );
+            if response.hovered() || response.has_focus() {
+                if app.viewport_input.gizmo_translate {
+                    surface.manipulator_mode = ManipulatorMode::Translate;
+                } else if app.viewport_input.gizmo_rotate {
+                    surface.manipulator_mode = ManipulatorMode::Rotate;
+                } else if app.viewport_input.gizmo_scale {
+                    surface.manipulator_mode = ManipulatorMode::Scale;
+                }
+            }
             let active_camera = surface.controller.pose(&reference_pose);
+            let render_view = RenderViewSettings {
+                camera: Some(active_camera),
+                selected_instance_id: surface.selected_instance_id.clone(),
+                manipulator_mode: Some(surface.manipulator_mode),
+            };
             if response.clicked() {
                 if let Some(pointer_pos) = response.interact_pointer_pos() {
                     if inner_rect.contains(pointer_pos) {
@@ -879,13 +901,44 @@ fn render_viewport_surface(
                             relative.x,
                             relative.y,
                             resolution,
-                            &active_camera,
+                            render_view
+                                .camera
+                                .as_ref()
+                                .expect("viewport render view should always include a camera"),
                         );
-                        surface.last_pick = CpuPickingService.pick_catalog_scene(
+                        let query = PickingQuery::new(ray, elapsed_seconds);
+                        let gpu_pick = app.renderer.pick_catalog_scene_at(
                             &app.scene_catalog,
                             &scene_name,
-                            &PickingQuery::new(ray, elapsed_seconds),
+                            elapsed_seconds,
+                            resolution,
+                            &render_view,
+                            relative.x,
+                            relative.y,
                         );
+                        surface.last_pick = match gpu_pick {
+                            Ok(Some(hit)) => Some(hit),
+                            Ok(None) => CpuPickingService.pick_catalog_scene(
+                                &app.scene_catalog,
+                                &scene_name,
+                                &query,
+                            ),
+                            Err(err) => {
+                                trace_runtime(format!(
+                                    "viewport: gpu_pick_failed node={} error={err}",
+                                    node.id.0
+                                ));
+                                CpuPickingService.pick_catalog_scene(
+                                    &app.scene_catalog,
+                                    &scene_name,
+                                    &query,
+                                )
+                            }
+                        };
+                        surface.selected_instance_id = surface
+                            .last_pick
+                            .as_ref()
+                            .map(|hit| hit.target.instance_id.clone());
                     }
                 }
             }
@@ -912,9 +965,6 @@ fn render_viewport_surface(
             ));
 
             if should_render {
-                let view = RenderViewSettings {
-                    camera: Some(active_camera),
-                };
                 let render_start = Instant::now();
 
                 match app.renderer.render_catalog_scene_with_view(
@@ -922,7 +972,7 @@ fn render_viewport_surface(
                     &scene_name,
                     elapsed_seconds,
                     resolution,
-                    &view,
+                    &render_view,
                 ) {
                     Ok(frame) => {
                         let image = egui::ColorImage::from_rgba_unmultiplied(
@@ -990,7 +1040,7 @@ fn render_viewport_surface(
 
             let overlay_rect = egui::Rect::from_min_size(
                 inner_rect.min + egui::vec2(12.0, 12.0),
-                Vec2::new(360.0, 142.0),
+                Vec2::new(360.0, 160.0),
             );
             painter.rect_filled(
                 overlay_rect,
@@ -1061,13 +1111,24 @@ fn render_viewport_surface(
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 110.0),
                 egui::Align2::LEFT_TOP,
+                format!(
+                    "selection: {} | gizmo: {:?} | keys: T/R/Y",
+                    surface.selected_instance_id.as_deref().unwrap_or("none"),
+                    surface.manipulator_mode
+                ),
+                egui::FontId::monospace(10.5),
+                Color32::from_rgb(173, 216, 255),
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 126.0),
+                egui::Align2::LEFT_TOP,
                 viewport_summary.as_str(),
                 egui::FontId::monospace(10.5),
                 Color32::from_rgb(129, 198, 255),
             );
             if let Some(hit) = surface.last_pick.as_ref() {
                 painter.text(
-                    overlay_rect.min + egui::vec2(10.0, 126.0),
+                    overlay_rect.min + egui::vec2(10.0, 142.0),
                     egui::Align2::LEFT_TOP,
                     format!(
                         "pick: {} @ {:.2}m [{:.2}, {:.2}, {:.2}]",
@@ -1128,6 +1189,9 @@ fn snapshot_viewport_input(ctx: &egui::Context) -> ViewportInputSnapshot {
         move_down: input.key_down(egui::Key::E),
         speed_boost: input.modifiers.shift,
         recenter: input.key_pressed(egui::Key::Space),
+        gizmo_translate: input.key_pressed(egui::Key::T),
+        gizmo_rotate: input.key_pressed(egui::Key::R),
+        gizmo_scale: input.key_pressed(egui::Key::Y),
     })
 }
 

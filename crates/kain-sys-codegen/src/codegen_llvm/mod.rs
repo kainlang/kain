@@ -4006,9 +4006,15 @@ mod tests {
 
     #[test]
     fn remaps_rounding_builtins_to_runtime_wrappers() {
-        assert_eq!(runtime_symbol_for_stdlib_function("floor"), "kain_floor_i64");
+        assert_eq!(
+            runtime_symbol_for_stdlib_function("floor"),
+            "kain_floor_i64"
+        );
         assert_eq!(runtime_symbol_for_stdlib_function("ceil"), "kain_ceil_i64");
-        assert_eq!(runtime_symbol_for_stdlib_function("round"), "kain_round_i64");
+        assert_eq!(
+            runtime_symbol_for_stdlib_function("round"),
+            "kain_round_i64"
+        );
         assert_eq!(runtime_symbol_for_stdlib_function("sqrt"), "sqrt");
     }
 }

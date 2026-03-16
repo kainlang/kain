@@ -164,9 +164,45 @@ pub struct CpuPickingService;
 
 impl PickingService for CpuPickingService {
     fn pick_scene(&self, scene: &SceneDescription, query: &PickingQuery) -> Option<PickingHit> {
+        self.pick_scene_filtered(scene, query, None)
+    }
+}
+
+impl CpuPickingService {
+    pub fn pick_scene_instance(
+        &self,
+        scene: &SceneDescription,
+        query: &PickingQuery,
+        instance_id: &str,
+    ) -> Option<PickingHit> {
+        self.pick_scene_filtered(scene, query, Some(instance_id))
+    }
+
+    pub fn pick_catalog_scene_instance(
+        &self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        query: &PickingQuery,
+        instance_id: &str,
+    ) -> Option<PickingHit> {
+        let scene = catalog.scene(scene_name)?;
+        self.pick_scene_instance(scene, query, instance_id)
+    }
+
+    fn pick_scene_filtered(
+        &self,
+        scene: &SceneDescription,
+        query: &PickingQuery,
+        instance_filter: Option<&str>,
+    ) -> Option<PickingHit> {
         let mut closest_hit: Option<PickingHit> = None;
 
         for instance in scene.animated_instances(query.scene_time_seconds) {
+            if let Some(instance_filter) = instance_filter {
+                if instance.id != instance_filter {
+                    continue;
+                }
+            }
             let mesh = scene.meshes.get(&instance.mesh)?;
             let model = instance.transform.matrix();
 
@@ -253,8 +289,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::{
-        BackgroundGradient, Camera, ColorRgb, DirectionalLight, LightingRig, Material, PointLight,
-        Geometry, SceneDescription, SceneInstance, Transform, Vec3,
+        BackgroundGradient, Camera, ColorRgb, DirectionalLight, Geometry, LightingRig, Material,
+        PointLight, SceneDescription, SceneInstance, Transform, Vec3,
     };
 
     use super::*;

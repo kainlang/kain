@@ -315,7 +315,10 @@ impl RustTransformer {
             syn::Pat::Paren(paren) => self.register_pattern_substitutions(&paren.pat, access),
             syn::Pat::Type(typed) => self.register_pattern_substitutions(&typed.pat, access),
             syn::Pat::Reference(reference) => {
-                self.register_pattern_substitutions(&reference.pat, Expr::Deref(Box::new(access), S));
+                self.register_pattern_substitutions(
+                    &reference.pat,
+                    Expr::Deref(Box::new(access), S),
+                );
             }
             syn::Pat::Tuple(tuple) => {
                 for (index, element) in tuple.elems.iter().enumerate() {

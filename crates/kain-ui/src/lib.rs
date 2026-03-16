@@ -1062,10 +1062,13 @@ pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
         }
 
         if let Some(identity_key) = node.identity_key.clone() {
-            systems.hot_reload.identity_aliases.push(UiReloadIdentityAlias {
-                from: identity_key.clone(),
-                to: identity_key,
-            });
+            systems
+                .hot_reload
+                .identity_aliases
+                .push(UiReloadIdentityAlias {
+                    from: identity_key.clone(),
+                    to: identity_key,
+                });
         }
     }
 
@@ -1608,10 +1611,7 @@ pub fn ui_step_animation_runtime(
     let mut frames = Vec::new();
 
     for track in &systems.animation_tracks {
-        let state = systems
-            .animation_state
-            .entry(track.id.clone())
-            .or_default();
+        let state = systems.animation_state.entry(track.id.clone()).or_default();
         if state.completed {
             continue;
         }
@@ -1688,7 +1688,9 @@ pub fn ui_transfer_hot_reload_state(
 
     if next.systems.hot_reload.preserve_session_state {
         for (key, value) in &previous.systems.session_state {
-            next.systems.session_state.insert(key.clone(), value.clone());
+            next.systems
+                .session_state
+                .insert(key.clone(), value.clone());
             report.session_values_transferred += 1;
         }
     }
@@ -1713,21 +1715,30 @@ pub fn ui_transfer_hot_reload_state(
         };
         let previous_identity = aliases
             .iter()
-            .find_map(|(from, to)| if to == target_identity { Some(from.clone()) } else { None })
+            .find_map(|(from, to)| {
+                if to == target_identity {
+                    Some(from.clone())
+                } else {
+                    None
+                }
+            })
             .unwrap_or_else(|| target_identity.clone());
         let Some(previous_node) = previous_identity_map
             .iter()
-            .find_map(|(node_id, identity)| if identity == &previous_identity { Some(node_id) } else { None })
+            .find_map(|(node_id, identity)| {
+                if identity == &previous_identity {
+                    Some(node_id)
+                } else {
+                    None
+                }
+            })
         else {
             continue;
         };
 
-        let Some(previous_track) = previous
-            .systems
-            .animation_tracks
-            .iter()
-            .find(|candidate| candidate.target == *previous_node && candidate.property == track.property)
-        else {
+        let Some(previous_track) = previous.systems.animation_tracks.iter().find(|candidate| {
+            candidate.target == *previous_node && candidate.property == track.property
+        }) else {
             continue;
         };
 
@@ -2033,7 +2044,10 @@ mod tests {
             .iter()
             .any(|patch| matches!(patch, UiPatch::SetRoot { id } if *id == root_id)));
         assert_eq!(build.systems.computed.len(), 1);
-        assert_eq!(build.systems.focus_graph.default_scope.as_deref(), Some("inspector"));
+        assert_eq!(
+            build.systems.focus_graph.default_scope.as_deref(),
+            Some("inspector")
+        );
         assert_eq!(
             build.systems.selection_model.active_scope.as_deref(),
             Some("selection")
@@ -2140,8 +2154,14 @@ mod tests {
         let projection = ui_native_projection_from_output(&output);
 
         assert_eq!(projection.root_id, Some(root_id.0));
-        assert_eq!(projection.primary_panel_title.as_deref(), Some("Viewport Lab"));
-        assert_eq!(projection.primary_viewport_title.as_deref(), Some("Hero View"));
+        assert_eq!(
+            projection.primary_panel_title.as_deref(),
+            Some("Viewport Lab")
+        );
+        assert_eq!(
+            projection.primary_viewport_title.as_deref(),
+            Some("Hero View")
+        );
         assert_eq!(
             projection.primary_viewport_scene.as_deref(),
             Some("luminous_port")
@@ -2182,7 +2202,10 @@ mod tests {
         assert_eq!(build.systems.surfaces.len(), 1);
         assert_eq!(build.systems.animation_tracks.len(), 1);
         assert_eq!(build.systems.hot_reload.identity_aliases.len(), 2);
-        assert_eq!(build.systems.workspace_layout.persistence_key.as_deref(), Some("shell-layout"));
+        assert_eq!(
+            build.systems.workspace_layout.persistence_key.as_deref(),
+            Some("shell-layout")
+        );
         assert!(build
             .systems
             .scheduler
@@ -2280,13 +2303,17 @@ mod tests {
         node.style.theme_scope = Some("studio".to_string());
         let before = ui_resolve_theme_for_node(&node, &registry);
 
-        node.style
-            .values
-            .insert("surface.background".to_string(), UiValue::String("#222222".to_string()));
+        node.style.values.insert(
+            "surface.background".to_string(),
+            UiValue::String("#222222".to_string()),
+        );
         let after = ui_resolve_theme_for_node(&node, &registry);
         let diff = ui_diff_resolved_theme(&before, &after);
 
-        assert_eq!(before.scope_chain, vec!["studio".to_string(), "base".to_string()]);
+        assert_eq!(
+            before.scope_chain,
+            vec!["studio".to_string(), "base".to_string()]
+        );
         assert!(!diff.is_empty());
         assert!(diff
             .changes
@@ -2348,14 +2375,18 @@ mod tests {
             node.layout.dock = Some(UiDockPlacement::Right);
             node.layout.split_ratio = Some(0.2);
         }
-        let applied = ui_apply_workspace_layout_snapshot(&mut build.tree, &mut build.systems, &snapshot);
+        let applied =
+            ui_apply_workspace_layout_snapshot(&mut build.tree, &mut build.systems, &snapshot);
         assert_eq!(applied, 3);
         assert_eq!(
             build.tree.node(left_id).and_then(|node| node.layout.dock),
             Some(UiDockPlacement::Left)
         );
         assert_eq!(
-            build.tree.node(left_id).and_then(|node| node.layout.split_ratio),
+            build
+                .tree
+                .node(left_id)
+                .and_then(|node| node.layout.split_ratio),
             Some(0.3)
         );
     }
@@ -2448,7 +2479,10 @@ mod tests {
         assert!(report.docking_transferred);
         assert_eq!(report.animation_tracks_transferred, 1);
         assert_eq!(report.session_values_transferred, 1);
-        assert_eq!(next.systems.focus_graph.default_scope.as_deref(), Some("selection"));
+        assert_eq!(
+            next.systems.focus_graph.default_scope.as_deref(),
+            Some("selection")
+        );
         assert_eq!(
             next.systems.session_state.get("tab"),
             Some(&UiValue::String("materials".to_string()))

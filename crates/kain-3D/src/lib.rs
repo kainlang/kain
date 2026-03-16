@@ -9,9 +9,9 @@ mod wgpu_renderer;
 
 pub use authoring::{
     AttributeDomain, AttributeValues, Brush, BrushFalloff, Effector, Field, Geometry,
-    GeometryAttribute, GeometryError, GeometryTopology, InstancePattern, Instancer, Light, MeshNode,
-    Modifier, Node, NodeId, NodeKind, Scene, SceneBuildError, Spline, SplineType, ToolContext,
-    Volume,
+    GeometryAttribute, GeometryError, GeometryTopology, InstancePattern, Instancer, Light,
+    MeshNode, Modifier, Node, NodeId, NodeKind, Scene, SceneBuildError, Spline, SplineType,
+    ToolContext, Volume,
 };
 pub use host::{install_runtime_natives, Kain3dSession, KAIN_3D_MODULE_NAME};
 pub use interaction::{

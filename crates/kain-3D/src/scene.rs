@@ -193,10 +193,12 @@ impl SceneDescription {
                     instance_id,
                     axis_radians_per_second,
                 } => {
-                    if let Some(instance) =
-                        instances.iter_mut().find(|candidate| candidate.id == *instance_id)
+                    if let Some(instance) = instances
+                        .iter_mut()
+                        .find(|candidate| candidate.id == *instance_id)
                     {
-                        instance.transform.rotation_radians += *axis_radians_per_second * time_seconds;
+                        instance.transform.rotation_radians +=
+                            *axis_radians_per_second * time_seconds;
                     }
                 }
                 SceneAnimation::Bob {
@@ -204,8 +206,9 @@ impl SceneDescription {
                     amplitude,
                     speed_radians_per_second,
                 } => {
-                    if let Some(instance) =
-                        instances.iter_mut().find(|candidate| candidate.id == *instance_id)
+                    if let Some(instance) = instances
+                        .iter_mut()
+                        .find(|candidate| candidate.id == *instance_id)
                     {
                         instance.transform.translation.y +=
                             amplitude * (time_seconds * speed_radians_per_second).sin();
@@ -782,7 +785,10 @@ fn mesh_cube() -> Mesh {
         triangles.push([base, base + 2, base + 3]);
     }
 
-    Mesh { vertices, triangles }
+    Mesh {
+        vertices,
+        triangles,
+    }
 }
 
 fn mesh_plane() -> Mesh {
@@ -827,8 +833,14 @@ fn mesh_pyramid() -> Mesh {
         let p1 = base[next];
         let normal = (p1 - p0).cross(apex - p0).normalize();
         let base_index = vertices.len();
-        vertices.push(Vertex { position: p0, normal });
-        vertices.push(Vertex { position: p1, normal });
+        vertices.push(Vertex {
+            position: p0,
+            normal,
+        });
+        vertices.push(Vertex {
+            position: p1,
+            normal,
+        });
         vertices.push(Vertex {
             position: apex,
             normal,
@@ -844,7 +856,10 @@ fn mesh_pyramid() -> Mesh {
     triangles.push([base_index, base_index + 2, base_index + 1]);
     triangles.push([base_index, base_index + 3, base_index + 2]);
 
-    Mesh { vertices, triangles }
+    Mesh {
+        vertices,
+        triangles,
+    }
 }
 
 fn mesh_uv_sphere(latitude_segments: usize, longitude_segments: usize) -> Mesh {
@@ -879,7 +894,10 @@ fn mesh_uv_sphere(latitude_segments: usize, longitude_segments: usize) -> Mesh {
         }
     }
 
-    Mesh { vertices, triangles }
+    Mesh {
+        vertices,
+        triangles,
+    }
 }
 
 #[cfg(test)]

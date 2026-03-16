@@ -1,4 +1,7 @@
-use crate::{BlackHole, CameraPose, ColorRgb, Mat4, ParticleEmitter, SceneCatalog, SceneDescription, Vec3};
+use crate::{
+    BlackHole, CameraPose, ColorRgb, ManipulatorMode, Mat4, ParticleEmitter, PickingHit,
+    SceneCatalog, SceneDescription, Vec3,
+};
 use crate::{DirectionalLight, LightingRig, Material, PointLight};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +37,8 @@ impl Default for SoftwareRendererConfig {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RenderViewSettings {
     pub camera: Option<CameraPose>,
+    pub selected_instance_id: Option<String>,
+    pub manipulator_mode: Option<ManipulatorMode>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -123,6 +128,31 @@ pub trait RenderBackend {
         resolution: RenderResolution,
         view: &RenderViewSettings,
     ) -> Result<RenderFrame, RenderError>;
+
+    fn pick_catalog_scene_at(
+        &mut self,
+        _catalog: &SceneCatalog,
+        _scene_name: &str,
+        _time_seconds: f32,
+        _resolution: RenderResolution,
+        _view: &RenderViewSettings,
+        _pixel_x: f32,
+        _pixel_y: f32,
+    ) -> Result<Option<PickingHit>, RenderError> {
+        Ok(None)
+    }
+
+    fn pick_scene_at(
+        &mut self,
+        _scene: &SceneDescription,
+        _time_seconds: f32,
+        _resolution: RenderResolution,
+        _view: &RenderViewSettings,
+        _pixel_x: f32,
+        _pixel_y: f32,
+    ) -> Result<Option<PickingHit>, RenderError> {
+        Ok(None)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -179,7 +209,12 @@ impl SoftwareRenderer {
         time_seconds: f32,
         resolution: RenderResolution,
     ) -> Result<RenderFrame, RenderError> {
-        self.render_scene_with_view(scene, time_seconds, resolution, &RenderViewSettings::default())
+        self.render_scene_with_view(
+            scene,
+            time_seconds,
+            resolution,
+            &RenderViewSettings::default(),
+        )
     }
 
     pub fn render_scene_with_view(
@@ -196,7 +231,12 @@ impl SoftwareRenderer {
         let depth = &mut self.scratch_depth;
         let mut stats = RenderStats::default();
 
-        fill_background(rgba, resolution, scene.background.top, scene.background.bottom);
+        fill_background(
+            rgba,
+            resolution,
+            scene.background.top,
+            scene.background.bottom,
+        );
         depth.fill(f32::INFINITY);
 
         let aspect_ratio = resolution.width as f32 / resolution.height as f32;
@@ -245,11 +285,15 @@ impl SoftwareRenderer {
                     }
                 });
 
-                if transformed.iter().any(|vertex| vertex.clip_position[3] <= 0.001) {
+                if transformed
+                    .iter()
+                    .any(|vertex| vertex.clip_position[3] <= 0.001)
+                {
                     continue;
                 }
 
-                let screen = transformed.map(|vertex| project_vertex(vertex.clip_position, resolution));
+                let screen =
+                    transformed.map(|vertex| project_vertex(vertex.clip_position, resolution));
 
                 if is_backface(screen[0], screen[1], screen[2]) {
                     continue;
@@ -544,7 +588,8 @@ fn render_black_hole_overlay(
     }
     let screen = project_vertex(clip_position, resolution);
     let distance = (black_hole.center - camera.position).length().max(0.001);
-    let horizon_radius = (black_hole.radius * resolution.height as f32 / distance * 0.34).clamp(6.0, 96.0);
+    let horizon_radius =
+        (black_hole.radius * resolution.height as f32 / distance * 0.34).clamp(6.0, 96.0);
     let lens_radius = (black_hole.lens_radius * resolution.height as f32 / distance * 0.34)
         .clamp(horizon_radius + 4.0, 132.0);
 
@@ -606,8 +651,10 @@ fn sample_particle(
     let angular_velocity = emitter.orbit_radians_per_second
         * (1.0 + emitter.swirl * (hash01(seed * 4.73) * 2.0 - 1.0));
     let angle = phase + time_seconds * angular_velocity;
-    let vertical_wave = vertical_extent * (time_seconds * (0.55 + hash01(seed * 5.11)) + phase).sin();
-    let drift_cycle = hash01(seed * 6.07) + time_seconds * (0.08 + emitter.orbit_radians_per_second.abs() * 0.025);
+    let vertical_wave =
+        vertical_extent * (time_seconds * (0.55 + hash01(seed * 5.11)) + phase).sin();
+    let drift_cycle = hash01(seed * 6.07)
+        + time_seconds * (0.08 + emitter.orbit_radians_per_second.abs() * 0.025);
     let drift_t = fract01(drift_cycle) * 2.0 - 1.0;
 
     ParticleSample {
@@ -635,7 +682,9 @@ fn draw_particle(
     clip_w: f32,
     particle: ParticleSample,
 ) {
-    let distance = (particle.world_position - camera.position).length().max(0.001);
+    let distance = (particle.world_position - camera.position)
+        .length()
+        .max(0.001);
     let perspective_scale = (resolution.height as f32 / clip_w.max(0.001)) * 0.22;
     let particle_radius = (particle.radius * perspective_scale * (1.0 + 0.05 / distance))
         .clamp(1.0, resolution.height as f32 * 0.16);
@@ -776,10 +825,17 @@ fn shade_pixel(
     }
 
     for light in &lighting.point_lights {
-        color += shade_point(material, world_position, world_normal, view_direction, light);
+        color += shade_point(
+            material,
+            world_position,
+            world_normal,
+            view_direction,
+            light,
+        );
     }
 
-    let rim = (1.0 - world_normal.dot(view_direction).max(0.0)).powf(2.0) * config.rim_light_strength;
+    let rim =
+        (1.0 - world_normal.dot(view_direction).max(0.0)).powf(2.0) * config.rim_light_strength;
     color += Vec3::new(rim, rim, rim * 1.25);
 
     ColorRgb::from_vec3(color)
@@ -799,7 +855,10 @@ fn shade_directional(
         .max(0.0)
         .powf(material.shininess.max(1.0));
 
-    material.base_color.to_vec3().component_mul(light.color.to_vec3())
+    material
+        .base_color
+        .to_vec3()
+        .component_mul(light.color.to_vec3())
         * diffuse
         * light.intensity
         * material.diffuse_strength
@@ -835,7 +894,10 @@ fn shade_point(
         .max(0.0)
         .powf(material.shininess.max(1.0));
 
-    material.base_color.to_vec3().component_mul(light.color.to_vec3())
+    material
+        .base_color
+        .to_vec3()
+        .component_mul(light.color.to_vec3())
         * diffuse
         * attenuation
         * light.intensity
@@ -926,7 +988,12 @@ mod tests {
         let catalog = SceneCatalog::default();
         let mut renderer = SoftwareRenderer::default();
         let frame = renderer
-            .render_catalog_scene(&catalog, "retirement_demo", 1.25, RenderResolution::new(192, 128))
+            .render_catalog_scene(
+                &catalog,
+                "retirement_demo",
+                1.25,
+                RenderResolution::new(192, 128),
+            )
             .expect("demo scene should render");
 
         assert_eq!(frame.rgba.len(), 192 * 128 * 4);
@@ -940,7 +1007,12 @@ mod tests {
         let catalog = SceneCatalog::default();
         let mut renderer = SoftwareRenderer::default();
         let frame = renderer
-            .render_catalog_scene(&catalog, "kerr_black_hole", 2.0, RenderResolution::new(256, 160))
+            .render_catalog_scene(
+                &catalog,
+                "kerr_black_hole",
+                2.0,
+                RenderResolution::new(256, 160),
+            )
             .expect("black hole scene should render");
 
         assert!(frame.stats.particles_submitted > 0);
