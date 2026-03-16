@@ -18,6 +18,7 @@ pub mod low_level_memory_metadata;
 pub mod monomorphize;
 pub mod parser;
 pub mod runtime;
+pub mod runtime_contract;
 pub mod shader_analysis;
 pub mod span;
 pub mod stdlib;
@@ -43,6 +44,7 @@ pub use parser::Parser;
 pub use span::*;
 pub use types::*;
 pub use ui::*;
+pub use runtime_contract::*;
 
 /// Compilation target
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

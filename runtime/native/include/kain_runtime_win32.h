@@ -106,6 +106,8 @@ int kain_env_set_string(const char* name, const char* value);
 int kain_env_set_int(const char* name, long long value);
 int kain_env_set_double(const char* name, double value);
 int kain_env_set_flag(const char* name, int value);
+int kain_win32_get_executable_path(char* out_path, size_t out_cap);
+int kain_win32_get_executable_sidecar_path(const char* suffix, char* out_path, size_t out_cap);
 int kain_win32_app_run(KainWin32AppHost* host, const KainWin32AppConfig* config, void* user_data);
 void kain_win32_app_request_close(KainWin32AppHost* host);
 int kain_win32_gl_boot(HWND hwnd, HDC* dc, HGLRC* glrc);

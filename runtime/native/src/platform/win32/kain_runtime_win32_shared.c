@@ -125,6 +125,58 @@ int kain_env_set_flag(const char* name, int value) {
     return kain_env_set_string(name, value ? "1" : "0");
 }
 
+int kain_win32_get_executable_path(char* out_path, size_t out_cap) {
+    DWORD length;
+    if (!out_path || out_cap == 0) {
+        return 0;
+    }
+    out_path[0] = '\0';
+    length = GetModuleFileNameA(NULL, out_path, (DWORD)out_cap);
+    if (length == 0 || length >= (DWORD)out_cap) {
+        out_path[0] = '\0';
+        return 0;
+    }
+    return 1;
+}
+
+int kain_win32_get_executable_sidecar_path(const char* suffix, char* out_path, size_t out_cap) {
+    char* last_dot;
+    char* last_backslash;
+    char* last_slash;
+    char* last_sep;
+    size_t base_len;
+    size_t suffix_len;
+
+    if (!kain_win32_get_executable_path(out_path, out_cap)) {
+        return 0;
+    }
+    if (!suffix || !suffix[0]) {
+        return 1;
+    }
+
+    last_backslash = strrchr(out_path, '\\');
+    last_slash = strrchr(out_path, '/');
+    last_sep = last_backslash;
+    if (!last_sep || (last_slash && last_slash > last_sep)) {
+        last_sep = last_slash;
+    }
+
+    last_dot = strrchr(out_path, '.');
+    if (last_dot && (!last_sep || last_dot > last_sep)) {
+        *last_dot = '\0';
+    }
+
+    base_len = strlen(out_path);
+    suffix_len = strlen(suffix);
+    if (base_len + suffix_len + 1 > out_cap) {
+        out_path[0] = '\0';
+        return 0;
+    }
+
+    memcpy(out_path + base_len, suffix, suffix_len + 1);
+    return 1;
+}
+
 int kain_env_flag(const char* name, int fallback) {
     char* value = kain_env_dup(name);
     int result = fallback;

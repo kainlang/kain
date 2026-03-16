@@ -7,12 +7,16 @@ use crate::{DriverSession, RustBundleOutput};
 use kain_core::ast::Item;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
-use kain_core::{build_ui_output_from_source, Lexer, Parser};
+use kain_core::{
+    build_ui_output_from_source, runtime_contract_bundle_to_json, CompileTarget, Lexer, Parser,
+    RuntimeContractBundle,
+};
 use kain_ui::{
     ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeMetadata,
 };
 
 const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
+const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json";
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -49,6 +53,7 @@ pub struct NativeAppMetadata {
 #[derive(Debug, Clone)]
 pub struct NativeAppBundle {
     pub metadata: NativeAppMetadata,
+    pub runtime_contract: RuntimeContractBundle,
     pub ui: UiBuildOutput,
     pub rust: RustBundleOutput,
 }
@@ -105,6 +110,7 @@ impl DriverSession {
             .clone()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| root_component.clone());
+        let runtime_contract = self.compile_runtime_contract_bundle(source, CompileTarget::Rust)?;
         let ui = build_ui_output_from_source(source, &root_component)?;
         let rust = self.compile_rust_artifact_bundle(source, config.include_spirv)?;
 
@@ -116,6 +122,7 @@ impl DriverSession {
                 source_file_name,
                 initial_window_size: config.initial_window_size,
             },
+            runtime_contract,
             ui,
             rust,
         })
@@ -149,6 +156,12 @@ impl DriverSession {
         fs::write(&runtime_bundle_path, runtime_bundle_json.as_bytes())
             .map_err(io_error("write native app runtime bundle"))?;
         artifact_paths.push(runtime_bundle_path.clone());
+
+        let runtime_contract_path = artifact_root.join(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME);
+        let runtime_contract_json = render_runtime_contract_json(bundle)?;
+        fs::write(&runtime_contract_path, runtime_contract_json.as_bytes())
+            .map_err(io_error("write native app runtime contract"))?;
+        artifact_paths.push(runtime_contract_path);
 
         let primary_path = artifact_root.join(&bundle.rust.bundle.primary.suggested_file_name);
         fs::write(
@@ -442,6 +455,15 @@ fn render_runtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainEr
     })
 }
 
+fn render_runtime_contract_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
+    runtime_contract_bundle_to_json(&bundle.runtime_contract).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to serialize runtime contract bundle for {}: {err}",
+            bundle.metadata.app_name
+        ))
+    })
+}
+
 fn relative_path_from_directory(from_dir: &Path, to_path: &Path) -> Option<PathBuf> {
     let from_components: Vec<_> = from_dir.components().collect();
     let to_components: Vec<_> = to_path.components().collect();
@@ -540,6 +562,12 @@ component App():
         assert_eq!(bundle.metadata.app_name, "studio-shell");
         assert_eq!(bundle.metadata.root_component, "App");
         assert_eq!(bundle.metadata.source_file_name, "studio.kn");
+        assert_eq!(bundle.runtime_contract.target, "rust");
+        assert!(bundle
+            .runtime_contract
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "ui.runtime-bundle"));
         assert!(bundle.ui.tree.root.is_some());
         assert!(bundle.rust.bundle.primary.contents.contains("fn"));
     }
@@ -590,5 +618,9 @@ component App():
             .artifact_paths
             .iter()
             .any(|path| path.ends_with(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME)));
+        assert!(materialized
+            .artifact_paths
+            .iter()
+            .any(|path| path.ends_with(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME)));
     }
 }

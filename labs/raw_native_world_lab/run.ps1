@@ -1,12 +1,19 @@
 param(
     [string]$ExeName = "raw_native_world_lab.exe",
     [string]$BundleName = "ui_bundle.json",
+    [string]$RuntimeContractName = "",
     [string]$AssetName = ""
 )
 
 $labRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $exePath = Join-Path $labRoot $ExeName
 $bundlePath = Join-Path $labRoot $BundleName
+$runtimeContractFile = if ($RuntimeContractName) {
+    $RuntimeContractName
+} else {
+    "{0}.runtime_contract.json" -f [System.IO.Path]::GetFileNameWithoutExtension($ExeName)
+}
+$runtimeContractPath = Join-Path $labRoot $runtimeContractFile
 $assetsRoot = Join-Path $labRoot "assets"
 $assetPath = $null
 
@@ -20,6 +27,14 @@ if (Test-Path $bundlePath) {
 } else {
     Remove-Item Env:KAIN_NATIVE_UI_BUNDLE -ErrorAction SilentlyContinue
     Write-Host "No local UI bundle found. Launching raw viewport without compiled UI metadata."
+}
+
+if (Test-Path $runtimeContractPath) {
+    $env:KAIN_RUNTIME_CONTRACT = $runtimeContractPath
+    Write-Host "Using runtime contract: $runtimeContractPath"
+} else {
+    Remove-Item Env:KAIN_RUNTIME_CONTRACT -ErrorAction SilentlyContinue
+    Write-Host "No explicit runtime contract env set. The native runtime will try the exe sidecar automatically."
 }
 
 if ($AssetName) {

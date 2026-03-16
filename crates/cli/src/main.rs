@@ -12,9 +12,10 @@ use cli::packager;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    compile, parse_compile_target, supported_targets_csv, target_extension, CompileTarget,
-    BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER,
-    BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
+    compile, compile_runtime_contract_bundle, parse_compile_target, supported_targets_csv,
+    target_extension, CompileTarget, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA,
+    BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME,
+    LANGUAGE_NAME, VERSION,
 };
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -504,6 +505,18 @@ fn run_compile(
                     output_path.display(),
                     compiled_output.len()
                 );
+
+                if target == CompileTarget::Llvm {
+                    match write_runtime_contract_artifact(&source, target, &output_path) {
+                        Ok(contract_path) => {
+                            println!(" Runtime contract: {}", contract_path.display());
+                        }
+                        Err(err) => {
+                            eprintln!(" Failed to write runtime contract artifact: {}", err);
+                            return false;
+                        }
+                    }
+                }
 
                 // Generate C++ reflection header for USF shaders (GODMODE Phase 3)
                 if target == CompileTarget::Usf {
@@ -1489,6 +1502,39 @@ fn ensure_parent_dir(file_path: &PathBuf) -> bool {
     true
 }
 
+fn runtime_contract_artifact_path(output_path: &Path) -> PathBuf {
+    output_path.with_extension("runtime_contract.json")
+}
+
+fn write_runtime_contract_artifact(
+    source: &str,
+    target: CompileTarget,
+    output_path: &Path,
+) -> Result<PathBuf, String> {
+    let contract_bundle =
+        compile_runtime_contract_bundle(source, target).map_err(|err| err.to_string())?;
+    let contract_json = kain_core::runtime_contract_bundle_to_json(&contract_bundle)
+        .map_err(|err| err.to_string())?;
+    let contract_path = runtime_contract_artifact_path(output_path);
+    if let Some(parent) = contract_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "unable to create runtime contract directory {}: {}",
+                parent.display(),
+                err
+            )
+        })?;
+    }
+    fs::write(&contract_path, contract_json.as_bytes()).map_err(|err| {
+        format!(
+            "unable to write runtime contract artifact {}: {}",
+            contract_path.display(),
+            err
+        )
+    })?;
+    Ok(contract_path)
+}
+
 fn find_runtime_c() -> Option<PathBuf> {
     if let Ok(env_path) = std::env::var("KAIN_RUNTIME_C_PATH") {
         let p = PathBuf::from(env_path);
@@ -1785,10 +1831,11 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        load_native_runtime_manifest, platform_link_libs, sanitize_runtime_name,
-        NativeRuntimeLinkManifest,
+        load_native_runtime_manifest, platform_link_libs, runtime_contract_artifact_path,
+        sanitize_runtime_name, NativeRuntimeLinkManifest,
     };
     use std::fs;
+    use std::path::Path;
 
     #[test]
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
@@ -1841,6 +1888,12 @@ macos = ["Cocoa"]
                 macos: vec!["Cocoa".to_string()],
             })
         );
+    }
+
+    #[test]
+    fn runtime_contract_artifact_path_stays_stable_for_llvm_outputs() {
+        let contract_path = runtime_contract_artifact_path(Path::new("build/demo.ll"));
+        assert_eq!(contract_path, Path::new("build/demo.runtime_contract.json"));
     }
 }
 

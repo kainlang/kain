@@ -1,6 +1,7 @@
 param(
     [string]$Entry = "src/main.kn",
-    [string]$OutputLl = "raw_native_world_lab.ll"
+    [string]$OutputLl = "raw_native_world_lab.ll",
+    [switch]$SkipCliBuild
 )
 
 $labRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -13,7 +14,7 @@ if (!(Test-Path $entryPath)) {
     throw "Kain entry file not found: $entryPath"
 }
 
-if (!(Test-Path $cliPath)) {
+if (!(Test-Path $cliPath) -or !$SkipCliBuild) {
     Push-Location $repoRoot
     try {
         cargo build -p cli

@@ -1,5 +1,6 @@
 #include "../../../include/kain_runtime_win32.h"
 #include "../../../include/kain_runtime_asset.h"
+#include "../../../include/kain_runtime_contract.h"
 #include "../../../include/kain_runtime_ui.h"
 
 #ifdef _WIN32
@@ -23,6 +24,7 @@ typedef struct {
     KainWin32AppHost host;
     KainWin32GlSurface surface;
     KainWin32MouseCapture mouse_capture;
+    KainRuntimeContractBundle runtime_contract;
     KainUiCompiledBundle compiled_ui;
     KainNativeSceneAsset world_asset;
     HWND hwnd;
@@ -61,6 +63,19 @@ static void kain_native_viewport_try_load_compiled_ui(KainNativeViewportApp* app
         }
     } else {
         kain_ui_compiled_bundle_init(&app->compiled_ui);
+    }
+}
+
+static void kain_native_viewport_try_load_runtime_contract(KainNativeViewportApp* app) {
+    if (!app) {
+        return;
+    }
+
+    if (!kain_runtime_contract_load_for_current_process(
+            KAIN_RUNTIME_CONTRACT_ENV,
+            &app->runtime_contract
+        )) {
+        kain_runtime_contract_init(&app->runtime_contract);
     }
 }
 
@@ -256,7 +271,8 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     char stats_line[256];
     char asset_line[256];
     char config_line[256];
-    const char* live_lines[3];
+    char contract_line[256];
+    const char* live_lines[4];
     const char* help_lines[1];
     KainUiCompiledOverlaySpec overlay_spec;
     const KainViewportProfile* profile = app->settings.profile;
@@ -284,9 +300,30 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         snprintf(asset_line, sizeof(asset_line), "fallback procedural world  |  no GLB loaded");
         snprintf(subtitle_line, sizeof(subtitle_line), "%s  |  GPU-backed OpenGL lane", profile->label);
     }
+    if (app->runtime_contract.loaded) {
+        snprintf(
+            contract_line,
+            sizeof(contract_line),
+            "contract %s via %s  |  core %d/3  |  extras %d/2  |  items %d",
+            app->runtime_contract.target[0] ? app->runtime_contract.target : "unknown",
+            app->runtime_contract.load_origin[0] ? app->runtime_contract.load_origin : "path",
+            app->runtime_contract.core_service_count,
+            app->runtime_contract.optional_service_count,
+            app->runtime_contract.item_count
+        );
+    } else {
+        snprintf(
+            contract_line,
+            sizeof(contract_line),
+            "contract missing  |  expected %s beside the executable or via %s",
+            KAIN_RUNTIME_CONTRACT_SIDECAR_SUFFIX,
+            KAIN_RUNTIME_CONTRACT_ENV
+        );
+    }
     live_lines[0] = stats_line;
     live_lines[1] = config_line;
     live_lines[2] = asset_line;
+    live_lines[3] = contract_line;
     help_lines[0] = "WASD move  |  Space jump  |  Shift sprint  |  Click capture mouse  |  Esc release";
 
     ZeroMemory(&overlay_spec, sizeof(overlay_spec));
@@ -300,12 +337,14 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     overlay_spec.fallback_title = "KAIN RAW NATIVE VIEWPORT";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
-    overlay_spec.live_line_count = 3;
+    overlay_spec.live_line_count = 4;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 1;
-    overlay_spec.fallback_hint = app->world_asset.loaded
-        ? "City world is env-driven through KAIN_NATIVE_WORLD_ASSET. Drop new .glb files into the lab assets folder to iterate."
-        : "Arrow keys also look around. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port.";
+    overlay_spec.fallback_hint = app->runtime_contract.loaded
+        ? (app->world_asset.loaded
+            ? "Runtime contract consumed successfully. City world is env-driven through KAIN_NATIVE_WORLD_ASSET."
+            : "Runtime contract consumed successfully. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port.")
+        : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.";
     kain_ui_compiled_overlay_render(&app->surface, app->width, app->height, &app->compiled_ui, &overlay_spec);
 }
 
@@ -570,6 +609,7 @@ static void kain_run_native_viewport(double x, double y, const char* window_titl
     ZeroMemory(&app, sizeof(app));
     ZeroMemory(&config, sizeof(config));
     app.settings = kain_load_viewport_settings();
+    kain_native_viewport_try_load_runtime_contract(&app);
     kain_native_viewport_try_load_compiled_ui(&app);
     kain_native_scene_asset_init(&app.world_asset);
     app.width = app.settings.window_width;

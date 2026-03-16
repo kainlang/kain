@@ -10,7 +10,8 @@ use kain_core::ast::Program;
 use kain_core::error::KainError;
 use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::{
-    comptime, diagnostics, monomorphize, stdlib, types, CompileTarget, Lexer, Parser, TypedProgram,
+    comptime, diagnostics, emit_runtime_contract_bundle, monomorphize, stdlib, types,
+    CompileTarget, Lexer, Parser, RuntimeContractBundle, TypedProgram,
 };
 
 #[cfg(feature = "sys")]
@@ -199,6 +200,15 @@ impl DriverSession {
         target: CompileTarget,
     ) -> Result<TypedProgram, KainError> {
         Ok(self.frontend_to_checked_program(source, target)?.typed)
+    }
+
+    pub fn compile_runtime_contract_bundle(
+        &self,
+        source: &str,
+        target: CompileTarget,
+    ) -> Result<RuntimeContractBundle, KainError> {
+        let typed = self.frontend_to_typed_program(source, target)?;
+        Ok(emit_runtime_contract_bundle(&typed, target))
     }
 
     pub fn compile(&self, source: &str, target: CompileTarget) -> Result<String, KainError> {
@@ -565,6 +575,13 @@ pub fn compile_rust_artifact_bundle(
     include_spirv: bool,
 ) -> Result<RustBundleOutput, KainError> {
     DriverSession::default().compile_rust_artifact_bundle(source, include_spirv)
+}
+
+pub fn compile_runtime_contract_bundle(
+    source: &str,
+    target: CompileTarget,
+) -> Result<RuntimeContractBundle, KainError> {
+    DriverSession::default().compile_runtime_contract_bundle(source, target)
 }
 
 #[cfg(feature = "ue5")]

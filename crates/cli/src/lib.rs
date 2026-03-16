@@ -86,6 +86,13 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
     kain_driver::compile(source, target)
 }
 
+pub fn compile_runtime_contract_bundle(
+    source: &str,
+    target: CompileTarget,
+) -> Result<RuntimeContractBundle, KainError> {
+    kain_driver::compile_runtime_contract_bundle(source, target)
+}
+
 pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     kain_driver::compile_spirv_binary(source)
 }

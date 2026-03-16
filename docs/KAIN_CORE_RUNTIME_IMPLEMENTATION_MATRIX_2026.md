@@ -43,12 +43,18 @@ These are not hypothetical tracks. They are already visible in the codebase and 
 
 - [lib.rs](/M:/Code/Kain/crates/kain-ui/src/lib.rs#L1)
 - [lib.rs](/M:/Code/Kain/crates/kain-ui-native/src/lib.rs#L1)
+- [kain_runtime_ui.h](/M:/Code/Kain/runtime/native/include/kain_runtime_ui.h#L1)
 - [kain_ui_compiled_bundle.c](/M:/Code/Kain/runtime/native/src/ui/kain_ui_compiled_bundle.c#L1)
 - [kain_ui_compiled_overlay.c](/M:/Code/Kain/runtime/native/src/ui/kain_ui_compiled_overlay.c#L1)
 - [kain_ui_overlay.c](/M:/Code/Kain/runtime/native/src/ui/kain_ui_overlay.c#L1)
 
 ### 2.3 Native Runtime Services Spine
 
+- [native_runtime.toml](/M:/Code/Kain/runtime/native_runtime.toml#L1)
+- [kain_runtime.c](/M:/Code/Kain/runtime/kain_runtime.c#L1)
+- [kain_runtime_base.h](/M:/Code/Kain/runtime/native/include/kain_runtime_base.h#L1)
+- [kain_runtime_asset.h](/M:/Code/Kain/runtime/native/include/kain_runtime_asset.h#L1)
+- [kain_runtime_win32.h](/M:/Code/Kain/runtime/native/include/kain_runtime_win32.h#L1)
 - [kain_runtime_core.c](/M:/Code/Kain/runtime/native/src/core/kain_runtime_core.c#L1)
 - [kain_asset_gltf.c](/M:/Code/Kain/runtime/native/src/asset/kain_asset_gltf.c#L1)
 - [kain_gl_win32_host.c](/M:/Code/Kain/runtime/native/src/gfx/opengl/kain_gl_win32_host.c#L1)
@@ -268,6 +274,11 @@ Strengthen `runtime/native` as the execution substrate for app hosting, input, g
 
 ### Likely files
 
+- [native_runtime.toml](/M:/Code/Kain/runtime/native_runtime.toml#L1)
+- [kain_runtime.c](/M:/Code/Kain/runtime/kain_runtime.c#L1)
+- [kain_runtime_base.h](/M:/Code/Kain/runtime/native/include/kain_runtime_base.h#L1)
+- [kain_runtime_asset.h](/M:/Code/Kain/runtime/native/include/kain_runtime_asset.h#L1)
+- [kain_runtime_win32.h](/M:/Code/Kain/runtime/native/include/kain_runtime_win32.h#L1)
 - [kain_runtime_core.c](/M:/Code/Kain/runtime/native/src/core/kain_runtime_core.c#L1)
 - [kain_asset_gltf.c](/M:/Code/Kain/runtime/native/src/asset/kain_asset_gltf.c#L1)
 - [kain_gl_win32_host.c](/M:/Code/Kain/runtime/native/src/gfx/opengl/kain_gl_win32_host.c#L1)
@@ -316,8 +327,12 @@ Treat backend/runtime helper parity as a first-class execution concern.
 ### Likely files
 
 - [lib.rs](/M:/Code/Kain/crates/kain-sys-codegen/src/lib.rs#L1)
+- backend modules like [mod.rs](/M:/Code/Kain/crates/kain-sys-codegen/src/codegen_llvm/mod.rs#L1)
 - backend modules under `crates/kain-sys-codegen/src/codegen_*`
 - [lib.rs](/M:/Code/Kain/crates/kain-driver/src/lib.rs#L1)
+- [native_runtime.toml](/M:/Code/Kain/runtime/native_runtime.toml#L1)
+- [kain_runtime.c](/M:/Code/Kain/runtime/kain_runtime.c#L1)
+- [kain_runtime_base.h](/M:/Code/Kain/runtime/native/include/kain_runtime_base.h#L1)
 - [kain_runtime_core.c](/M:/Code/Kain/runtime/native/src/core/kain_runtime_core.c#L1)
 
 ### Core tasks
@@ -474,4 +489,3 @@ The runtime matrix is worth keeping, but only in the right place:
 If we do that, the document becomes useful planning infrastructure.
 
 If we do not, it risks overfitting planning around future runtime theory while underrepresenting the platform work already underway.
-
