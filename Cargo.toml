@@ -89,12 +89,15 @@ tar       = "0.4"
 heck      = "0.5.0"
 minijinja = "2.15.1"
 chrono    = "0.4.43"
+bytemuck  = { version = "1.25.0", features = ["derive"] }
+pollster  = "0.4"
 
 # ── Backend specific ─────────────────────────────────────────────────────────
 inkwell = { version = "0.7.1", features = ["llvm21-1", "target-x86"] }
 walrus  = "0.21"
 rspirv  = "0.12"
 pyo3    = { version = "0.20", features = ["auto-initialize"] }
+wgpu    = "24.0.5"
 
 # ── Unreal asset sub-crate deps (used by crates/unreal/* internally) ─────────
 unreal_asset          = { path = "crates/unreal/unreal_asset" }

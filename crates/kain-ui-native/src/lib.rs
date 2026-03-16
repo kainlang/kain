@@ -8,8 +8,9 @@ use std::{
 
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use kain_3d::{
-    CameraPose, RenderResolution, RenderStats, RenderViewSettings, SceneCatalog, SoftwareRenderer,
-    Vec3,
+    CameraPose, CpuPickingService, PickingHit, PickingQuery, PickingRay, PickingService,
+    RenderBackend, RenderResolution, RenderStats, RenderViewSettings, SceneCatalog,
+    SoftwareRenderer, Vec3, WgpuRenderer,
 };
 use kain_core::{build_ui_output_from_source, render_ui_output_debug};
 use kain_ui::{
@@ -117,11 +118,10 @@ impl Default for KainUiNativeRuntimeSettings {
 impl KainUiNativeRuntimeSettings {
     fn from_env() -> Self {
         let mut settings = Self::default();
-        if let Some(renderer) = env_var_trimmed("KAIN_UI_NATIVE_RENDERER") {
-            settings.renderer = match renderer.to_ascii_lowercase().as_str() {
-                "wgpu" => NativeRendererPreference::Wgpu,
-                _ => NativeRendererPreference::Glow,
-            };
+        if let Some(renderer) = env_var_trimmed("KAIN_UI_NATIVE_VIEWPORT_RENDERER")
+            .or_else(|| env_var_trimmed("KAIN_UI_NATIVE_RENDERER"))
+        {
+            settings.renderer = parse_renderer_preference(&renderer);
         }
         if let Some(value) = env_bool("KAIN_UI_NATIVE_SHOW_INSPECTOR") {
             settings.show_runtime_inspector = value;
@@ -150,16 +150,23 @@ impl KainUiNativeRuntimeSettings {
 
     fn renderer_label(self) -> &'static str {
         match self.renderer {
-            NativeRendererPreference::Glow => "glow",
-            NativeRendererPreference::Wgpu => "wgpu-requested",
+            NativeRendererPreference::Glow => "software",
+            NativeRendererPreference::Wgpu => "wgpu",
         }
     }
 
     fn effective_renderer_label(self) -> &'static str {
         match self.renderer {
-            NativeRendererPreference::Glow => "glow",
-            NativeRendererPreference::Wgpu => "glow-fallback",
+            NativeRendererPreference::Glow => "software",
+            NativeRendererPreference::Wgpu => "pending-app-init",
         }
+    }
+}
+
+fn parse_renderer_preference(value: &str) -> NativeRendererPreference {
+    match value.to_ascii_lowercase().as_str() {
+        "wgpu" => NativeRendererPreference::Wgpu,
+        _ => NativeRendererPreference::Glow,
     }
 }
 
@@ -335,6 +342,7 @@ struct ViewportSurfaceState {
     controller: ViewportCameraController,
     last_render_at: Option<Instant>,
     last_stats: RenderStats,
+    last_pick: Option<PickingHit>,
 }
 
 struct ViewportCameraController {
@@ -404,7 +412,8 @@ struct KainUiNativeApp {
     output: UiBuildOutput,
     debug_tree: String,
     scene_catalog: SceneCatalog,
-    renderer: SoftwareRenderer,
+    renderer: Box<dyn RenderBackend>,
+    active_renderer_label: String,
     viewport_surfaces: BTreeMap<kain_ui::UiNodeId, ViewportSurfaceState>,
     viewport_input: ViewportInputSnapshot,
     start_time: Instant,
@@ -420,13 +429,14 @@ impl KainUiNativeApp {
         boot_mode: AppBootMode,
         runtime_settings: KainUiNativeRuntimeSettings,
     ) -> Self {
+        let (renderer, active_renderer_label) = select_viewport_renderer(runtime_settings);
         trace_runtime(format!(
             "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={}",
             config.window_title,
             config.root_component,
             boot_mode.label(),
             runtime_settings.renderer_label(),
-            runtime_settings.effective_renderer_label(),
+            active_renderer_label,
             runtime_settings.show_runtime_inspector,
             runtime_settings.enable_viewports,
         ));
@@ -437,7 +447,8 @@ impl KainUiNativeApp {
             output,
             debug_tree,
             scene_catalog: SceneCatalog::default(),
-            renderer: SoftwareRenderer::default(),
+            renderer,
+            active_renderer_label,
             viewport_surfaces: BTreeMap::new(),
             viewport_input: ViewportInputSnapshot::default(),
             start_time: Instant::now(),
@@ -445,6 +456,29 @@ impl KainUiNativeApp {
             frame_dt_seconds: 1.0 / 60.0,
             boot_mode,
         }
+    }
+}
+
+fn select_viewport_renderer(
+    runtime_settings: KainUiNativeRuntimeSettings,
+) -> (Box<dyn RenderBackend>, String) {
+    match runtime_settings.renderer {
+        NativeRendererPreference::Glow => (
+            Box::new(SoftwareRenderer::default()),
+            "software".to_string(),
+        ),
+        NativeRendererPreference::Wgpu => match WgpuRenderer::new() {
+            Ok(renderer) => (Box::new(renderer), "wgpu".to_string()),
+            Err(err) => {
+                trace_runtime(format!(
+                    "viewport_renderer: requested=wgpu fallback=software error={err}"
+                ));
+                (
+                    Box::new(SoftwareRenderer::default()),
+                    "software-fallback".to_string(),
+                )
+            }
+        },
     }
 }
 
@@ -818,6 +852,7 @@ fn render_viewport_surface(
                         controller: ViewportCameraController::from_pose(&reference_pose),
                         last_render_at: None,
                         last_stats: RenderStats::default(),
+                        last_pick: None,
                     });
             trace_runtime(format!("viewport: state_ready node={}", node.id.0));
             if surface.scene_name != scene_name {
@@ -826,6 +861,7 @@ fn render_viewport_surface(
                 surface.texture = None;
                 surface.last_render_at = None;
                 surface.last_stats = RenderStats::default();
+                surface.last_pick = None;
             }
             sync_viewport_input(
                 &app.viewport_input,
@@ -834,6 +870,25 @@ fn render_viewport_surface(
                 &mut surface.controller,
                 app.frame_dt_seconds,
             );
+            let active_camera = surface.controller.pose(&reference_pose);
+            if response.clicked() {
+                if let Some(pointer_pos) = response.interact_pointer_pos() {
+                    if inner_rect.contains(pointer_pos) {
+                        let relative = pointer_pos - inner_rect.min;
+                        let ray = PickingRay::from_viewport_pixel(
+                            relative.x,
+                            relative.y,
+                            resolution,
+                            &active_camera,
+                        );
+                        surface.last_pick = CpuPickingService.pick_catalog_scene(
+                            &app.scene_catalog,
+                            &scene_name,
+                            &PickingQuery::new(ray, elapsed_seconds),
+                        );
+                    }
+                }
+            }
             let interactive = response.hovered() || response.dragged();
             let render_interval = if interactive {
                 Duration::from_millis(app.runtime_settings.viewport_render_interval_interactive_ms)
@@ -858,7 +913,7 @@ fn render_viewport_surface(
 
             if should_render {
                 let view = RenderViewSettings {
-                    camera: Some(surface.controller.pose(&reference_pose)),
+                    camera: Some(active_camera),
                 };
                 let render_start = Instant::now();
 
@@ -935,7 +990,7 @@ fn render_viewport_surface(
 
             let overlay_rect = egui::Rect::from_min_size(
                 inner_rect.min + egui::vec2(12.0, 12.0),
-                Vec2::new(320.0, 112.0),
+                Vec2::new(360.0, 142.0),
             );
             painter.rect_filled(
                 overlay_rect,
@@ -952,6 +1007,13 @@ fn render_viewport_surface(
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 28.0),
                 egui::Align2::LEFT_TOP,
+                format!("renderer: {}", app.active_renderer_label),
+                egui::FontId::monospace(11.0),
+                Color32::from_rgb(139, 214, 123),
+            );
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 44.0),
+                egui::Align2::LEFT_TOP,
                 format!(
                     "tris: {} submitted / {} lit / {} px",
                     surface.last_stats.triangles_submitted,
@@ -962,7 +1024,7 @@ fn render_viewport_surface(
                 Color32::from_rgb(173, 216, 255),
             );
             painter.text(
-                overlay_rect.min + egui::vec2(10.0, 44.0),
+                overlay_rect.min + egui::vec2(10.0, 60.0),
                 egui::Align2::LEFT_TOP,
                 format!(
                     "particles: {} submitted / {} blended",
@@ -973,7 +1035,7 @@ fn render_viewport_surface(
             );
             let camera_position = surface.controller.position;
             painter.text(
-                overlay_rect.min + egui::vec2(10.0, 61.0),
+                overlay_rect.min + egui::vec2(10.0, 77.0),
                 egui::Align2::LEFT_TOP,
                 format!(
                     "cam: [{:.1}, {:.1}, {:.1}]  speed: {:.1}",
@@ -986,7 +1048,7 @@ fn render_viewport_surface(
                 Color32::from_rgb(173, 216, 255),
             );
             painter.text(
-                overlay_rect.min + egui::vec2(10.0, 78.0),
+                overlay_rect.min + egui::vec2(10.0, 94.0),
                 egui::Align2::LEFT_TOP,
                 "native Kain viewport | roam: WASD + QE | drag: look | wheel: speed",
                 egui::FontId::monospace(10.5),
@@ -997,12 +1059,28 @@ fn render_viewport_surface(
                 },
             );
             painter.text(
-                overlay_rect.min + egui::vec2(10.0, 94.0),
+                overlay_rect.min + egui::vec2(10.0, 110.0),
                 egui::Align2::LEFT_TOP,
                 viewport_summary.as_str(),
                 egui::FontId::monospace(10.5),
                 Color32::from_rgb(129, 198, 255),
             );
+            if let Some(hit) = surface.last_pick.as_ref() {
+                painter.text(
+                    overlay_rect.min + egui::vec2(10.0, 126.0),
+                    egui::Align2::LEFT_TOP,
+                    format!(
+                        "pick: {} @ {:.2}m [{:.2}, {:.2}, {:.2}]",
+                        hit.target.instance_id,
+                        hit.distance,
+                        hit.position.x,
+                        hit.position.y,
+                        hit.position.z
+                    ),
+                    egui::FontId::monospace(10.0),
+                    Color32::from_rgb(246, 211, 101),
+                );
+            }
         },
     );
 }

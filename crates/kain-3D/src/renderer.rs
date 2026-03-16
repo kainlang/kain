@@ -58,6 +58,7 @@ pub enum RenderError {
     MissingMesh(String),
     MissingMaterial(String),
     MissingScene(String),
+    BackendFailure(String),
 }
 
 impl std::fmt::Display for RenderError {
@@ -66,11 +67,63 @@ impl std::fmt::Display for RenderError {
             Self::MissingMesh(name) => write!(f, "scene references missing mesh `{name}`"),
             Self::MissingMaterial(name) => write!(f, "scene references missing material `{name}`"),
             Self::MissingScene(name) => write!(f, "scene `{name}` was not found in the catalog"),
+            Self::BackendFailure(message) => f.write_str(message),
         }
     }
 }
 
 impl std::error::Error for RenderError {}
+
+pub trait RenderBackend {
+    fn backend_name(&self) -> &'static str;
+
+    fn render_catalog_scene(
+        &mut self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        time_seconds: f32,
+        resolution: RenderResolution,
+    ) -> Result<RenderFrame, RenderError> {
+        self.render_catalog_scene_with_view(
+            catalog,
+            scene_name,
+            time_seconds,
+            resolution,
+            &RenderViewSettings::default(),
+        )
+    }
+
+    fn render_catalog_scene_with_view(
+        &mut self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+    ) -> Result<RenderFrame, RenderError>;
+
+    fn render_scene(
+        &mut self,
+        scene: &SceneDescription,
+        time_seconds: f32,
+        resolution: RenderResolution,
+    ) -> Result<RenderFrame, RenderError> {
+        self.render_scene_with_view(
+            scene,
+            time_seconds,
+            resolution,
+            &RenderViewSettings::default(),
+        )
+    }
+
+    fn render_scene_with_view(
+        &mut self,
+        scene: &SceneDescription,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+    ) -> Result<RenderFrame, RenderError>;
+}
 
 #[derive(Clone, Debug)]
 pub struct SoftwareRenderer {
@@ -249,6 +302,40 @@ impl SoftwareRenderer {
         if self.scratch_depth.len() != pixel_count {
             self.scratch_depth.resize(pixel_count, f32::INFINITY);
         }
+    }
+}
+
+impl RenderBackend for SoftwareRenderer {
+    fn backend_name(&self) -> &'static str {
+        "software"
+    }
+
+    fn render_catalog_scene_with_view(
+        &mut self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+    ) -> Result<RenderFrame, RenderError> {
+        SoftwareRenderer::render_catalog_scene_with_view(
+            self,
+            catalog,
+            scene_name,
+            time_seconds,
+            resolution,
+            view,
+        )
+    }
+
+    fn render_scene_with_view(
+        &mut self,
+        scene: &SceneDescription,
+        time_seconds: f32,
+        resolution: RenderResolution,
+        view: &RenderViewSettings,
+    ) -> Result<RenderFrame, RenderError> {
+        SoftwareRenderer::render_scene_with_view(self, scene, time_seconds, resolution, view)
     }
 }
 

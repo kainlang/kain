@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bytemuck = { workspace = true }
 kain-host = { path = "../kain-host", default-features = false }
 kain-reflect = { path = "../kain-reflect" }
+pollster = { workspace = true }
+wgpu = { workspace = true }

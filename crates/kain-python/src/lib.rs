@@ -11,6 +11,8 @@ const PYTHON_EXTENSION_KEY: &str = "kain.python.scope";
 
 static REGISTER: Once = Once::new();
 
+const IMAGE_CHANNEL_COUNTS: &[i64] = &[1, 2, 3, 4];
+
 struct PythonScopeState {
     scope: RwLock<PyObject>,
 }
@@ -18,6 +20,32 @@ struct PythonScopeState {
 #[derive(Clone)]
 struct PythonObjectRef {
     object: PyObject,
+}
+
+#[derive(Clone)]
+struct PythonImageView {
+    object: PyObject,
+    layout: String,
+    batch: i64,
+    width: i64,
+    height: i64,
+    channels: i64,
+}
+
+#[derive(Clone)]
+struct PythonTensorView {
+    object: PyObject,
+    metadata: PythonPayloadMetadata,
+}
+
+#[derive(Clone)]
+struct PythonGeometryView {
+    vertices: PyObject,
+    indices: Option<PyObject>,
+    vertex_metadata: PythonPayloadMetadata,
+    index_metadata: Option<PythonPayloadMetadata>,
+    components: i64,
+    face_size: i64,
 }
 
 pub fn register() {
@@ -107,6 +135,72 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             return_type: "Any",
             doc: "Snapshot a Python buffer as a flat byte array",
         },
+        BuiltinFn {
+            name: "py_tensor_info",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Inspect a tensor or typed numeric payload across NumPy and PyTorch",
+        },
+        BuiltinFn {
+            name: "py_tensor_bytes",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Snapshot a tensor payload as flat bytes across NumPy and PyTorch",
+        },
+        BuiltinFn {
+            name: "py_image_info",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Infer width, height, channels, layout, and storage info for an image payload",
+        },
+        BuiltinFn {
+            name: "py_image_view",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Create a read-only typed image view over a Python image payload",
+        },
+        BuiltinFn {
+            name: "py_image_pixel",
+            params: vec![("view", "Any"), ("x", "Int"), ("y", "Int")],
+            return_type: "Any",
+            doc: "Read a pixel from a typed Python image view without flattening the whole payload",
+        },
+        BuiltinFn {
+            name: "py_geometry_info",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Infer vertex/index layout for array-backed geometry or mesh objects",
+        },
+        BuiltinFn {
+            name: "py_geometry_view",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Create a read-only typed geometry view over Python mesh or point-cloud data",
+        },
+        BuiltinFn {
+            name: "py_geometry_vertex",
+            params: vec![("view", "Any"), ("index", "Int")],
+            return_type: "Any",
+            doc: "Read one vertex from a typed Python geometry view",
+        },
+        BuiltinFn {
+            name: "py_geometry_face",
+            params: vec![("view", "Any"), ("index", "Int")],
+            return_type: "Any",
+            doc: "Read one face from a typed Python geometry view",
+        },
+        BuiltinFn {
+            name: "py_tensor_view",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Create a read-only typed tensor view over a Python tensor payload",
+        },
+        BuiltinFn {
+            name: "py_tensor_get",
+            params: vec![("view", "Any"), ("indices", "Any")],
+            return_type: "Any",
+            doc: "Read one tensor element or sub-value from a typed Python tensor view",
+        },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
     }
@@ -147,6 +241,17 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("py_buffer", py_buffer_native);
     env.register_native_fn("py_buffer_info", py_buffer_info_native);
     env.register_native_fn("py_buffer_bytes", py_buffer_bytes_native);
+    env.register_native_fn("py_tensor_info", py_tensor_info_native);
+    env.register_native_fn("py_tensor_bytes", py_tensor_bytes_native);
+    env.register_native_fn("py_image_info", py_image_info_native);
+    env.register_native_fn("py_image_view", py_image_view_native);
+    env.register_native_fn("py_image_pixel", py_image_pixel_native);
+    env.register_native_fn("py_geometry_info", py_geometry_info_native);
+    env.register_native_fn("py_geometry_view", py_geometry_view_native);
+    env.register_native_fn("py_geometry_vertex", py_geometry_vertex_native);
+    env.register_native_fn("py_geometry_face", py_geometry_face_native);
+    env.register_native_fn("py_tensor_view", py_tensor_view_native);
+    env.register_native_fn("py_tensor_get", py_tensor_get_native);
 }
 
 fn py_eval_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -400,8 +505,13 @@ fn py_buffer_info_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
         let scope = state.scope.read().unwrap();
         let scope_dict = scope_dict_from_guard(py, &scope)?;
         let target = resolve_python_target(py, scope_dict, &args[0])?;
-        let view = create_memoryview(py, target.as_ref(py))?;
-        build_buffer_info(target.as_ref(py), view.as_ref(py))
+        if is_torch_tensor(target.as_ref(py)) {
+            let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+            Ok(metadata_to_value("PyBufferInfo", &metadata))
+        } else {
+            let view = create_memoryview(py, target.as_ref(py))?;
+            build_buffer_info(target.as_ref(py), view.as_ref(py))
+        }
     })
 }
 
@@ -417,13 +527,269 @@ fn py_buffer_bytes_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> 
         let scope = state.scope.read().unwrap();
         let scope_dict = scope_dict_from_guard(py, &scope)?;
         let target = resolve_python_target(py, scope_dict, &args[0])?;
-        let view = create_memoryview(py, target.as_ref(py))?;
-        let bytes = view
-            .as_ref(py)
-            .call_method0("tobytes")
-            .map_err(|err| KainError::runtime(format!("Python buffer export error: {err}")))?;
-        py_to_value(bytes)
+        let bytes = export_payload_bytes(py, target.as_ref(py))?;
+        py_to_value(bytes.as_ref(py))
     })
+}
+
+fn py_tensor_info_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_tensor_info: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        Ok(metadata_to_value("PyTensorInfo", &metadata))
+    })
+}
+
+fn py_tensor_bytes_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_tensor_bytes: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let bytes = export_payload_bytes(py, target.as_ref(py))?;
+        py_to_value(bytes.as_ref(py))
+    })
+}
+
+fn py_image_info_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_image_info: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        build_image_info(&metadata)
+    })
+}
+
+fn py_geometry_info_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(KainError::runtime(
+            "py_geometry_info: expected (target) or (vertices, indices)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let (vertices, indices) = resolve_geometry_targets(py, scope_dict, &args)?;
+        let vertex_metadata = resolve_payload_metadata(py, vertices.as_ref(py))?;
+        let index_metadata = indices
+            .as_ref()
+            .map(|value| resolve_payload_metadata(py, value.as_ref(py)))
+            .transpose()?;
+        build_geometry_info(&vertex_metadata, index_metadata.as_ref())
+    })
+}
+
+fn py_image_view_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_image_view: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        build_image_view(target, &metadata)
+    })
+}
+
+fn py_image_pixel_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let (view, batch, x, y) = match args.as_slice() {
+        [view, x, y] => (
+            extract_image_view(view)?,
+            0,
+            value_to_int_arg("py_image_pixel", "x", x)?,
+            value_to_int_arg("py_image_pixel", "y", y)?,
+        ),
+        [view, batch, x, y] => (
+            extract_image_view(view)?,
+            value_to_int_arg("py_image_pixel", "batch", batch)?,
+            value_to_int_arg("py_image_pixel", "x", x)?,
+            value_to_int_arg("py_image_pixel", "y", y)?,
+        ),
+        _ => {
+            return Err(KainError::runtime(
+                "py_image_pixel: expected (view, x, y) or (view, batch, x, y)",
+            ))
+        }
+    };
+
+    Python::with_gil(|py| {
+        let index = image_pixel_indices(py, &view, batch, x, y)?;
+        let pixel = get_python_item(py, view.object.as_ref(py), &index)?;
+        let pixel = normalize_vector_value(py_any_to_value(pixel.as_ref(py))?);
+        validate_vector_length("py_image_pixel", &pixel, view.channels)?;
+        Ok(pixel)
+    })
+}
+
+fn py_tensor_view_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "py_tensor_view: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        Ok(Value::host_object(
+            "python:view:tensor",
+            Arc::new(PythonTensorView {
+                object: target,
+                metadata,
+            }),
+        ))
+    })
+}
+
+fn py_tensor_get_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "py_tensor_get: expected (view, indices)",
+        ));
+    }
+
+    let view = extract_tensor_view(&args[0])?;
+    let indices = parse_index_values("py_tensor_get", &args[1])?;
+    Python::with_gil(|py| {
+        validate_rank(
+            "py_tensor_get",
+            &view.metadata.shape,
+            indices.len(),
+            "tensor rank",
+        )?;
+        let py_indices = indices
+            .iter()
+            .map(|value| (*value).into_py(py))
+            .collect::<Vec<_>>();
+        let item = get_python_item(py, view.object.as_ref(py), &py_indices)?;
+        py_any_to_value(item.as_ref(py))
+    })
+}
+
+fn py_geometry_view_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(KainError::runtime(
+            "py_geometry_view: expected (target) or (vertices, indices)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let (vertices, indices) = resolve_geometry_targets(py, scope_dict, &args)?;
+        let vertex_metadata = resolve_payload_metadata(py, vertices.as_ref(py))?;
+        let index_metadata = indices
+            .as_ref()
+            .map(|value| resolve_payload_metadata(py, value.as_ref(py)))
+            .transpose()?;
+        build_geometry_view(vertices, indices, vertex_metadata, index_metadata)
+    })
+}
+
+fn py_geometry_vertex_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "py_geometry_vertex: expected (view, index)",
+        ));
+    }
+
+    let view = extract_geometry_view(&args[0])?;
+    let index = value_to_int_arg("py_geometry_vertex", "index", &args[1])?;
+    validate_axis_index(
+        "py_geometry_vertex",
+        index,
+        view.vertex_metadata.shape.first().copied().unwrap_or(0),
+    )?;
+    Python::with_gil(|py| {
+        let item = get_python_item(py, view.vertices.as_ref(py), &[index.into_py(py)])?;
+        let point = normalize_vector_value(py_any_to_value(item.as_ref(py))?);
+        validate_vector_length("py_geometry_vertex", &point, view.components)?;
+        Ok(point)
+    })
+}
+
+fn py_geometry_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "py_geometry_face: expected (view, index)",
+        ));
+    }
+
+    let view = extract_geometry_view(&args[0])?;
+    let Some(indices) = view.indices.as_ref() else {
+        return Err(KainError::runtime(
+            "py_geometry_face: geometry view has no index buffer",
+        ));
+    };
+    let index = value_to_int_arg("py_geometry_face", "index", &args[1])?;
+    let face_count = view
+        .index_metadata
+        .as_ref()
+        .and_then(|metadata| metadata.shape.first().copied())
+        .unwrap_or(0);
+    validate_axis_index("py_geometry_face", index, face_count)?;
+    Python::with_gil(|py| {
+        let item = get_python_item(py, indices.as_ref(py), &[index.into_py(py)])?;
+        let face = normalize_vector_value(py_any_to_value(item.as_ref(py))?);
+        if view.face_size > 0 {
+            validate_vector_length("py_geometry_face", &face, view.face_size)?;
+        }
+        Ok(face)
+    })
+}
+
+#[derive(Debug, Clone)]
+struct PythonPayloadMetadata {
+    backend: String,
+    kind: String,
+    label: String,
+    dtype: String,
+    format: Option<String>,
+    shape: Vec<i64>,
+    strides: Vec<i64>,
+    ndim: i64,
+    nbytes: i64,
+    item_size: i64,
+    readonly: bool,
+    contiguous: bool,
+    c_contiguous: bool,
+    f_contiguous: bool,
+    device: Option<String>,
+    requires_grad: Option<bool>,
 }
 
 struct PythonCallSpec<'a> {
@@ -540,108 +906,80 @@ fn create_memoryview(py: Python<'_>, target: &PyAny) -> KainResult<PyObject> {
         .map_err(|err| KainError::runtime(format!("Python buffer error: {err}")))
 }
 
+fn resolve_payload_metadata(py: Python<'_>, target: &PyAny) -> KainResult<PythonPayloadMetadata> {
+    if is_torch_tensor(target) {
+        return build_torch_tensor_metadata(py, target);
+    }
+
+    let view = create_memoryview(py, target)?;
+    build_memoryview_metadata(target, view.as_ref(py))
+}
+
+fn build_memoryview_metadata(target: &PyAny, view: &PyAny) -> KainResult<PythonPayloadMetadata> {
+    Ok(PythonPayloadMetadata {
+        backend: detect_backend(target),
+        kind: python_type_path(target),
+        label: python_object_label(target),
+        dtype: dtype_name_from_target_or_view(target, view)?,
+        format: py_optional_string_attr_value(view, "format")?,
+        shape: py_index_sequence_attr_values(view, "shape")?,
+        strides: py_index_sequence_attr_values_or_default(view, "strides")?,
+        ndim: py_int_attr_value(view, "ndim")?,
+        nbytes: py_int_attr_value(view, "nbytes")?,
+        item_size: py_int_attr_value(view, "itemsize")?,
+        readonly: py_bool_attr_value(view, "readonly")?,
+        contiguous: py_bool_attr_value(view, "contiguous")?,
+        c_contiguous: py_bool_attr_value(view, "c_contiguous")?,
+        f_contiguous: py_bool_attr_value(view, "f_contiguous")?,
+        device: py_optional_string_attr_value(target, "device")?,
+        requires_grad: py_optional_bool_attr_value(target, "requires_grad")?,
+    })
+}
+
+fn build_torch_tensor_metadata(
+    py: Python<'_>,
+    target: &PyAny,
+) -> KainResult<PythonPayloadMetadata> {
+    let detached = target
+        .call_method0("detach")
+        .map_err(|err| KainError::runtime(format!("PyTorch detach error: {err}")))?;
+    let cpu_tensor = detached
+        .call_method0("cpu")
+        .map_err(|err| KainError::runtime(format!("PyTorch cpu() error: {err}")))?;
+    let contiguous_tensor = cpu_tensor
+        .call_method0("contiguous")
+        .map_err(|err| KainError::runtime(format!("PyTorch contiguous() error: {err}")))?;
+    let numpy_array = contiguous_tensor
+        .call_method0("numpy")
+        .map_err(|err| KainError::runtime(format!("PyTorch numpy() error: {err}")))?;
+    let view = create_memoryview(py, numpy_array)?;
+
+    Ok(PythonPayloadMetadata {
+        backend: "torch".to_string(),
+        kind: python_type_path(target),
+        label: python_object_label(target),
+        dtype: torch_dtype_name(target)?,
+        format: py_optional_string_attr_value(view.as_ref(py), "format")?,
+        shape: py_index_sequence_values_from_object(target, "shape")?,
+        strides: torch_stride_values(target)?,
+        ndim: py_int_attr_value(target, "ndim")?,
+        nbytes: torch_nbytes(target)?,
+        item_size: torch_item_size(target)?,
+        readonly: false,
+        contiguous: torch_is_contiguous(target)?,
+        c_contiguous: torch_is_contiguous(target)?,
+        f_contiguous: false,
+        device: py_optional_string_attr_value(target, "device")?,
+        requires_grad: py_optional_bool_attr_value(target, "requires_grad")?,
+    })
+}
+
 fn build_buffer_info(target: &PyAny, view: &PyAny) -> KainResult<Value> {
-    let mut fields = HashMap::new();
-    fields.insert("kind".to_string(), Value::String(python_type_path(target)));
-    fields.insert(
-        "label".to_string(),
-        Value::String(python_object_label(target)),
-    );
-    fields.insert(
-        "format".to_string(),
-        py_optional_string_attr(view, "format")?,
-    );
-    fields.insert("dtype".to_string(), numpy_dtype_name(target, view)?);
-    fields.insert("item_size".to_string(), py_int_attr(view, "itemsize")?);
-    fields.insert("ndim".to_string(), py_int_attr(view, "ndim")?);
-    fields.insert("nbytes".to_string(), py_int_attr(view, "nbytes")?);
-    fields.insert("readonly".to_string(), py_bool_attr(view, "readonly")?);
-    fields.insert(
-        "c_contiguous".to_string(),
-        py_bool_attr(view, "c_contiguous")?,
-    );
-    fields.insert(
-        "f_contiguous".to_string(),
-        py_bool_attr(view, "f_contiguous")?,
-    );
-    fields.insert("contiguous".to_string(), py_bool_attr(view, "contiguous")?);
-    fields.insert("shape".to_string(), py_index_sequence_attr(view, "shape")?);
-    fields.insert(
-        "strides".to_string(),
-        py_index_sequence_attr(view, "strides")?,
-    );
-
-    Ok(Value::Struct(
-        "PyBufferInfo".to_string(),
-        Arc::new(RwLock::new(fields)),
-    ))
+    let metadata = build_memoryview_metadata(target, view)?;
+    Ok(metadata_to_value("PyBufferInfo", &metadata))
 }
 
-fn py_optional_string_attr(target: &PyAny, name: &str) -> KainResult<Value> {
-    match target.getattr(name) {
-        Ok(value) if value.is_none() => Ok(Value::None),
-        Ok(value) => value
-            .extract::<String>()
-            .map(Value::String)
-            .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}"))),
-        Err(err) => Err(KainError::runtime(format!(
-            "Python attribute error ({name}): {err}"
-        ))),
-    }
-}
-
-fn py_int_attr(target: &PyAny, name: &str) -> KainResult<Value> {
-    target
-        .getattr(name)
-        .and_then(|value| value.extract::<i64>())
-        .map(Value::Int)
-        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))
-}
-
-fn py_bool_attr(target: &PyAny, name: &str) -> KainResult<Value> {
-    target
-        .getattr(name)
-        .and_then(|value| value.extract::<bool>())
-        .map(Value::Bool)
-        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))
-}
-
-fn py_index_sequence_attr(target: &PyAny, name: &str) -> KainResult<Value> {
-    let value = target
-        .getattr(name)
-        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))?;
-    if value.is_none() {
-        return Ok(Value::None);
-    }
-
-    if let Ok(tuple) = value.downcast::<PyTuple>() {
-        let values = tuple
-            .iter()
-            .map(|item| {
-                item.extract::<i64>().map(Value::Int).map_err(|err| {
-                    KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
-                })
-            })
-            .collect::<KainResult<Vec<_>>>()?;
-        return Ok(Value::Array(Arc::new(RwLock::new(values))));
-    }
-
-    if let Ok(list) = value.downcast::<PyList>() {
-        let values = list
-            .iter()
-            .map(|item| {
-                item.extract::<i64>().map(Value::Int).map_err(|err| {
-                    KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
-                })
-            })
-            .collect::<KainResult<Vec<_>>>()?;
-        return Ok(Value::Array(Arc::new(RwLock::new(values))));
-    }
-
-    py_to_value(value)
-}
-
-fn numpy_dtype_name(target: &PyAny, view: &PyAny) -> KainResult<Value> {
+fn dtype_name_from_target_or_view(target: &PyAny, view: &PyAny) -> KainResult<String> {
     for candidate in [
         Some(target),
         target.getattr("obj").ok(),
@@ -655,15 +993,658 @@ fn numpy_dtype_name(target: &PyAny, view: &PyAny) -> KainResult<Value> {
                 .getattr("name")
                 .and_then(|value| value.extract::<String>())
             {
-                return Ok(Value::String(name));
+                return Ok(name);
             }
             if let Ok(name) = dtype.str().and_then(|value| value.extract::<String>()) {
-                return Ok(Value::String(name));
+                return Ok(name);
             }
         }
     }
 
-    py_optional_string_attr(view, "format")
+    Ok(py_optional_string_attr_value(view, "format")?.unwrap_or_else(|| "unknown".to_string()))
+}
+
+fn export_payload_bytes(py: Python<'_>, target: &PyAny) -> KainResult<PyObject> {
+    if is_torch_tensor(target) {
+        let contiguous_tensor = target
+            .call_method0("detach")
+            .and_then(|value| value.call_method0("cpu"))
+            .and_then(|value| value.call_method0("contiguous"))
+            .map_err(|err| KainError::runtime(format!("PyTorch tensor export error: {err}")))?;
+        return contiguous_tensor
+            .call_method0("numpy")
+            .and_then(|value| value.call_method0("tobytes"))
+            .map(|value| value.into_py(py))
+            .map_err(|err| KainError::runtime(format!("PyTorch bytes export error: {err}")));
+    }
+
+    let view = create_memoryview(py, target)?;
+    view.as_ref(py)
+        .call_method0("tobytes")
+        .map(|value| value.into_py(py))
+        .map_err(|err| KainError::runtime(format!("Python buffer export error: {err}")))
+}
+
+fn metadata_to_value(name: &str, metadata: &PythonPayloadMetadata) -> Value {
+    let mut fields = HashMap::new();
+    fields.insert(
+        "backend".to_string(),
+        Value::String(metadata.backend.clone()),
+    );
+    fields.insert("kind".to_string(), Value::String(metadata.kind.clone()));
+    fields.insert("label".to_string(), Value::String(metadata.label.clone()));
+    fields.insert("dtype".to_string(), Value::String(metadata.dtype.clone()));
+    fields.insert(
+        "format".to_string(),
+        optional_string_to_value(metadata.format.clone()),
+    );
+    fields.insert("shape".to_string(), int_list_to_value(&metadata.shape));
+    fields.insert("strides".to_string(), int_list_to_value(&metadata.strides));
+    fields.insert("ndim".to_string(), Value::Int(metadata.ndim));
+    fields.insert("nbytes".to_string(), Value::Int(metadata.nbytes));
+    fields.insert("item_size".to_string(), Value::Int(metadata.item_size));
+    fields.insert("readonly".to_string(), Value::Bool(metadata.readonly));
+    fields.insert("contiguous".to_string(), Value::Bool(metadata.contiguous));
+    fields.insert(
+        "c_contiguous".to_string(),
+        Value::Bool(metadata.c_contiguous),
+    );
+    fields.insert(
+        "f_contiguous".to_string(),
+        Value::Bool(metadata.f_contiguous),
+    );
+    fields.insert(
+        "device".to_string(),
+        optional_string_to_value(metadata.device.clone()),
+    );
+    fields.insert(
+        "requires_grad".to_string(),
+        optional_bool_to_value(metadata.requires_grad),
+    );
+    Value::Struct(name.to_string(), Arc::new(RwLock::new(fields)))
+}
+
+fn build_image_info(metadata: &PythonPayloadMetadata) -> KainResult<Value> {
+    let dims = &metadata.shape;
+    let (layout, batch, height, width, channels) = match dims.as_slice() {
+        [height, width] => ("HW".to_string(), 1, *height, *width, 1),
+        [height, width, channels] if IMAGE_CHANNEL_COUNTS.contains(channels) => {
+            ("HWC".to_string(), 1, *height, *width, *channels)
+        }
+        [channels, height, width] if IMAGE_CHANNEL_COUNTS.contains(channels) => {
+            ("CHW".to_string(), 1, *height, *width, *channels)
+        }
+        [batch, height, width, channels] if IMAGE_CHANNEL_COUNTS.contains(channels) => {
+            ("NHWC".to_string(), *batch, *height, *width, *channels)
+        }
+        [batch, channels, height, width] if IMAGE_CHANNEL_COUNTS.contains(channels) => {
+            ("NCHW".to_string(), *batch, *height, *width, *channels)
+        }
+        _ => {
+            return Err(KainError::runtime(format!(
+                "py_image_info: cannot infer image layout from shape {:?}",
+                dims
+            )))
+        }
+    };
+
+    let mut fields = struct_fields_from_value(metadata_to_value("PyImageInfo", metadata));
+    fields.insert("layout".to_string(), Value::String(layout));
+    fields.insert("batch".to_string(), Value::Int(batch));
+    fields.insert("height".to_string(), Value::Int(height));
+    fields.insert("width".to_string(), Value::Int(width));
+    fields.insert("channels".to_string(), Value::Int(channels));
+    fields.insert(
+        "pixel_count".to_string(),
+        Value::Int(height.saturating_mul(width).saturating_mul(batch)),
+    );
+    fields.insert(
+        "channel_last".to_string(),
+        Value::Bool(
+            matches!(dims.len(), 2)
+                || matches!(dims.as_slice(), [_, _, c] if IMAGE_CHANNEL_COUNTS.contains(c))
+                || matches!(dims.as_slice(), [_, _, _, c] if IMAGE_CHANNEL_COUNTS.contains(c)),
+        ),
+    );
+    Ok(Value::Struct(
+        "PyImageInfo".to_string(),
+        Arc::new(RwLock::new(fields)),
+    ))
+}
+
+fn build_image_view(target: PyObject, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
+    let info = build_image_info(metadata)?;
+    let fields = struct_fields_from_value(info);
+    let layout = struct_string_field(&fields, "layout")?;
+    let batch = struct_int_field(&fields, "batch")?;
+    let width = struct_int_field(&fields, "width")?;
+    let height = struct_int_field(&fields, "height")?;
+    let channels = struct_int_field(&fields, "channels")?;
+
+    Ok(Value::host_object(
+        "python:view:image",
+        Arc::new(PythonImageView {
+            object: target,
+            layout,
+            batch,
+            width,
+            height,
+            channels,
+        }),
+    ))
+}
+
+fn build_geometry_info(
+    vertices: &PythonPayloadMetadata,
+    indices: Option<&PythonPayloadMetadata>,
+) -> KainResult<Value> {
+    let vertex_shape = vertices.shape.as_slice();
+    let (vertex_count, components) = match vertex_shape {
+        [count, components] if (2..=4).contains(components) => (*count, *components),
+        _ => {
+            return Err(KainError::runtime(format!(
+                "py_geometry_info: expected vertex shape [N, 2|3|4], found {:?}",
+                vertices.shape
+            )))
+        }
+    };
+
+    let (index_count, face_count, face_size) = match indices {
+        Some(indices) => match indices.shape.as_slice() {
+            [count] => (*count, *count, 1),
+            [count, face_size] if (2..=4).contains(face_size) => {
+                (count.saturating_mul(*face_size), *count, *face_size)
+            }
+            _ => {
+                return Err(KainError::runtime(format!(
+                    "py_geometry_info: expected index shape [M] or [M, 2|3|4], found {:?}",
+                    indices.shape
+                )))
+            }
+        },
+        None => (0, 0, 0),
+    };
+
+    let mut fields = HashMap::new();
+    fields.insert(
+        "backend".to_string(),
+        Value::String(vertices.backend.clone()),
+    );
+    fields.insert(
+        "vertex_dtype".to_string(),
+        Value::String(vertices.dtype.clone()),
+    );
+    fields.insert("vertex_count".to_string(), Value::Int(vertex_count));
+    fields.insert("components".to_string(), Value::Int(components));
+    fields.insert(
+        "vertex_shape".to_string(),
+        int_list_to_value(&vertices.shape),
+    );
+    fields.insert(
+        "vertex_stride".to_string(),
+        Value::Int(
+            vertices
+                .strides
+                .last()
+                .copied()
+                .unwrap_or(vertices.item_size),
+        ),
+    );
+    fields.insert("indexed".to_string(), Value::Bool(indices.is_some()));
+    fields.insert("index_count".to_string(), Value::Int(index_count));
+    fields.insert("face_count".to_string(), Value::Int(face_count));
+    fields.insert("face_size".to_string(), Value::Int(face_size));
+    fields.insert(
+        "primitive".to_string(),
+        Value::String(if indices.is_some() {
+            "mesh".to_string()
+        } else {
+            "point_cloud".to_string()
+        }),
+    );
+
+    if let Some(indices) = indices {
+        fields.insert(
+            "index_dtype".to_string(),
+            Value::String(indices.dtype.clone()),
+        );
+        fields.insert("index_shape".to_string(), int_list_to_value(&indices.shape));
+    } else {
+        fields.insert("index_dtype".to_string(), Value::None);
+        fields.insert("index_shape".to_string(), Value::None);
+    }
+
+    Ok(Value::Struct(
+        "PyGeometryInfo".to_string(),
+        Arc::new(RwLock::new(fields)),
+    ))
+}
+
+fn build_geometry_view(
+    vertices: PyObject,
+    indices: Option<PyObject>,
+    vertex_metadata: PythonPayloadMetadata,
+    index_metadata: Option<PythonPayloadMetadata>,
+) -> KainResult<Value> {
+    let info = build_geometry_info(&vertex_metadata, index_metadata.as_ref())?;
+    let fields = struct_fields_from_value(info);
+    let components = struct_int_field(&fields, "components")?;
+    let face_size = struct_int_field(&fields, "face_size")?;
+
+    Ok(Value::host_object(
+        "python:view:geometry",
+        Arc::new(PythonGeometryView {
+            vertices,
+            indices,
+            vertex_metadata,
+            index_metadata,
+            components,
+            face_size,
+        }),
+    ))
+}
+
+fn resolve_geometry_targets<'py>(
+    py: Python<'py>,
+    scope: &'py PyDict,
+    args: &[Value],
+) -> KainResult<(PyObject, Option<PyObject>)> {
+    if args.len() == 1 {
+        if let Some(view) = args[0].downcast_host_object::<PythonGeometryView>() {
+            return Ok((
+                view.vertices.clone_ref(py),
+                view.indices.as_ref().map(|value| value.clone_ref(py)),
+            ));
+        }
+    }
+
+    if args.len() == 2 {
+        let vertices = resolve_python_target(py, scope, &args[0])?;
+        let indices = resolve_python_target(py, scope, &args[1])?;
+        return Ok((vertices, Some(indices)));
+    }
+
+    let target = resolve_python_target(py, scope, &args[0])?;
+    let target_ref = target.as_ref(py);
+    if let Ok(vertices) = target_ref.getattr("vertices") {
+        let indices = target_ref
+            .getattr("faces")
+            .ok()
+            .map(|value| value.into_py(py));
+        return Ok((vertices.into_py(py), indices));
+    }
+
+    Ok((target, None))
+}
+
+fn py_optional_string_attr_value(target: &PyAny, name: &str) -> KainResult<Option<String>> {
+    match target.getattr(name) {
+        Ok(value) if value.is_none() => Ok(None),
+        Ok(value) => match value.extract::<String>() {
+            Ok(text) => Ok(Some(text)),
+            Err(_) => value
+                .str()
+                .and_then(|text| text.extract::<String>())
+                .map(Some)
+                .map_err(|err| {
+                    KainError::runtime(format!("Python attribute error ({name}): {err}"))
+                }),
+        },
+        Err(_) => Ok(None),
+    }
+}
+
+fn py_optional_bool_attr_value(target: &PyAny, name: &str) -> KainResult<Option<bool>> {
+    match target.getattr(name) {
+        Ok(value) if value.is_none() => Ok(None),
+        Ok(value) => value
+            .extract::<bool>()
+            .map(Some)
+            .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}"))),
+        Err(_) => Ok(None),
+    }
+}
+
+fn py_int_attr_value(target: &PyAny, name: &str) -> KainResult<i64> {
+    target
+        .getattr(name)
+        .and_then(|value| value.extract::<i64>())
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))
+}
+
+fn py_bool_attr_value(target: &PyAny, name: &str) -> KainResult<bool> {
+    target
+        .getattr(name)
+        .and_then(|value| value.extract::<bool>())
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))
+}
+
+fn py_index_sequence_attr_values(target: &PyAny, name: &str) -> KainResult<Vec<i64>> {
+    let value = target
+        .getattr(name)
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))?;
+    py_index_sequence_values(value, name)
+}
+
+fn py_index_sequence_values_from_object(target: &PyAny, name: &str) -> KainResult<Vec<i64>> {
+    let value = target
+        .getattr(name)
+        .map_err(|err| KainError::runtime(format!("Python attribute error ({name}): {err}")))?;
+    py_index_sequence_values(value, name)
+}
+
+fn py_index_sequence_attr_values_or_default(target: &PyAny, name: &str) -> KainResult<Vec<i64>> {
+    match target.getattr(name) {
+        Ok(value) if value.is_none() => Ok(Vec::new()),
+        Ok(value) => py_index_sequence_values(value, name),
+        Err(_) => Ok(Vec::new()),
+    }
+}
+
+fn py_index_sequence_values(value: &PyAny, name: &str) -> KainResult<Vec<i64>> {
+    if value.is_none() {
+        return Ok(Vec::new());
+    }
+    if let Ok(tuple) = value.downcast::<PyTuple>() {
+        return tuple
+            .iter()
+            .map(|item| {
+                item.extract::<i64>().map_err(|err| {
+                    KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
+                })
+            })
+            .collect();
+    }
+    if let Ok(list) = value.downcast::<PyList>() {
+        return list
+            .iter()
+            .map(|item| {
+                item.extract::<i64>().map_err(|err| {
+                    KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
+                })
+            })
+            .collect();
+    }
+    Ok(vec![value.extract::<i64>().map_err(|err| {
+        KainError::runtime(format!("Python sequence conversion error ({name}): {err}"))
+    })?])
+}
+
+fn int_list_to_value(values: &[i64]) -> Value {
+    Value::Array(Arc::new(RwLock::new(
+        values.iter().copied().map(Value::Int).collect(),
+    )))
+}
+
+fn optional_string_to_value(value: Option<String>) -> Value {
+    value.map(Value::String).unwrap_or(Value::None)
+}
+
+fn optional_bool_to_value(value: Option<bool>) -> Value {
+    value.map(Value::Bool).unwrap_or(Value::None)
+}
+
+fn struct_fields_from_value(value: Value) -> HashMap<String, Value> {
+    match value {
+        Value::Struct(_, fields) => fields.read().unwrap().clone(),
+        _ => HashMap::new(),
+    }
+}
+
+fn struct_string_field(fields: &HashMap<String, Value>, name: &str) -> KainResult<String> {
+    match fields.get(name) {
+        Some(Value::String(value)) => Ok(value.clone()),
+        Some(other) => Err(KainError::runtime(format!(
+            "Expected struct field {name} to be String, got {other:?}"
+        ))),
+        None => Err(KainError::runtime(format!(
+            "Missing struct field {name} in typed Python view info"
+        ))),
+    }
+}
+
+fn struct_int_field(fields: &HashMap<String, Value>, name: &str) -> KainResult<i64> {
+    match fields.get(name) {
+        Some(Value::Int(value)) => Ok(*value),
+        Some(other) => Err(KainError::runtime(format!(
+            "Expected struct field {name} to be Int, got {other:?}"
+        ))),
+        None => Err(KainError::runtime(format!(
+            "Missing struct field {name} in typed Python view info"
+        ))),
+    }
+}
+
+fn value_to_int_arg(fn_name: &str, arg_name: &str, value: &Value) -> KainResult<i64> {
+    match value {
+        Value::Int(value) => Ok(*value),
+        other => Err(KainError::runtime(format!(
+            "{fn_name}: expected integer {arg_name}, got {other:?}"
+        ))),
+    }
+}
+
+fn parse_index_values(fn_name: &str, value: &Value) -> KainResult<Vec<i64>> {
+    match value {
+        Value::Int(value) => Ok(vec![*value]),
+        Value::Array(values) => values
+            .read()
+            .unwrap()
+            .iter()
+            .map(|item| value_to_int_arg(fn_name, "indices", item))
+            .collect(),
+        Value::Tuple(values) => values
+            .iter()
+            .map(|item| value_to_int_arg(fn_name, "indices", item))
+            .collect(),
+        other => Err(KainError::runtime(format!(
+            "{fn_name}: expected integer index or index tuple/array, got {other:?}"
+        ))),
+    }
+}
+
+fn validate_rank(fn_name: &str, shape: &[i64], index_count: usize, label: &str) -> KainResult<()> {
+    if !shape.is_empty() && index_count > shape.len() {
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected at most {} indices for {label}, got {index_count}",
+            shape.len()
+        )));
+    }
+    Ok(())
+}
+
+fn validate_axis_index(fn_name: &str, index: i64, len: i64) -> KainResult<()> {
+    if index < 0 || index >= len {
+        return Err(KainError::runtime(format!(
+            "{fn_name}: index {index} is outside 0..{}",
+            len.saturating_sub(1)
+        )));
+    }
+    Ok(())
+}
+
+fn normalize_vector_value(value: Value) -> Value {
+    match value {
+        Value::Array(_) => value,
+        Value::Tuple(items) => Value::Array(Arc::new(RwLock::new(items))),
+        other => Value::Array(Arc::new(RwLock::new(vec![other]))),
+    }
+}
+
+fn validate_vector_length(fn_name: &str, value: &Value, expected_len: i64) -> KainResult<()> {
+    if expected_len <= 0 {
+        return Ok(());
+    }
+
+    let actual_len = match value {
+        Value::Array(values) => values.read().unwrap().len() as i64,
+        Value::Tuple(values) => values.len() as i64,
+        _ => 1,
+    };
+
+    if actual_len != expected_len {
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected vector length {expected_len}, got {actual_len}"
+        )));
+    }
+    Ok(())
+}
+
+fn extract_image_view(value: &Value) -> KainResult<Arc<PythonImageView>> {
+    value
+        .downcast_host_object::<PythonImageView>()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Expected typed Python image view, got {}",
+                value.host_object_label().unwrap_or("value")
+            ))
+        })
+}
+
+fn extract_tensor_view(value: &Value) -> KainResult<Arc<PythonTensorView>> {
+    value
+        .downcast_host_object::<PythonTensorView>()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Expected typed Python tensor view, got {}",
+                value.host_object_label().unwrap_or("value")
+            ))
+        })
+}
+
+fn extract_geometry_view(value: &Value) -> KainResult<Arc<PythonGeometryView>> {
+    value
+        .downcast_host_object::<PythonGeometryView>()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Expected typed Python geometry view, got {}",
+                value.host_object_label().unwrap_or("value")
+            ))
+        })
+}
+
+fn image_pixel_indices(
+    py: Python<'_>,
+    view: &PythonImageView,
+    batch: i64,
+    x: i64,
+    y: i64,
+) -> KainResult<Vec<PyObject>> {
+    if batch < 0 || batch >= view.batch {
+        return Err(KainError::runtime(format!(
+            "py_image_pixel: batch index {batch} is outside 0..{}",
+            view.batch.saturating_sub(1)
+        )));
+    }
+    if x < 0 || x >= view.width {
+        return Err(KainError::runtime(format!(
+            "py_image_pixel: x index {x} is outside 0..{}",
+            view.width.saturating_sub(1)
+        )));
+    }
+    if y < 0 || y >= view.height {
+        return Err(KainError::runtime(format!(
+            "py_image_pixel: y index {y} is outside 0..{}",
+            view.height.saturating_sub(1)
+        )));
+    }
+
+    let full = python_full_slice(py)?;
+    let indices = match view.layout.as_str() {
+        "HW" | "HWC" => vec![y.into_py(py), x.into_py(py)],
+        "CHW" => vec![full, y.into_py(py), x.into_py(py)],
+        "NHWC" => vec![batch.into_py(py), y.into_py(py), x.into_py(py)],
+        "NCHW" => vec![batch.into_py(py), full, y.into_py(py), x.into_py(py)],
+        other => {
+            return Err(KainError::runtime(format!(
+                "py_image_pixel: unsupported image layout {other}"
+            )))
+        }
+    };
+    Ok(indices)
+}
+
+fn python_full_slice(py: Python<'_>) -> KainResult<PyObject> {
+    let builtins = py
+        .import("builtins")
+        .map_err(|err| KainError::runtime(format!("Python import error: {err}")))?;
+    builtins
+        .getattr("slice")
+        .and_then(|callable| callable.call1((py.None(),)))
+        .map(|value| value.into_py(py))
+        .map_err(|err| KainError::runtime(format!("Python slice error: {err}")))
+}
+
+fn get_python_item(py: Python<'_>, target: &PyAny, indices: &[PyObject]) -> KainResult<PyObject> {
+    if indices.len() == 1 {
+        return target
+            .get_item(indices[0].clone_ref(py))
+            .map(|value| value.into_py(py))
+            .map_err(|err| KainError::runtime(format!("Python indexing error: {err}")));
+    }
+
+    let index_tuple = PyTuple::new(py, indices.iter().map(|value| value.clone_ref(py)));
+    target
+        .get_item(index_tuple)
+        .map(|value| value.into_py(py))
+        .map_err(|err| KainError::runtime(format!("Python indexing error: {err}")))
+}
+
+fn detect_backend(target: &PyAny) -> String {
+    let kind = python_type_path(target);
+    if kind.starts_with("numpy.") {
+        "numpy".to_string()
+    } else if kind.starts_with("torch.") {
+        "torch".to_string()
+    } else {
+        "python".to_string()
+    }
+}
+
+fn is_torch_tensor(target: &PyAny) -> bool {
+    let type_name = python_type_path(target);
+    type_name == "torch.Tensor"
+}
+
+fn torch_dtype_name(target: &PyAny) -> KainResult<String> {
+    let dtype = target
+        .getattr("dtype")
+        .map_err(|err| KainError::runtime(format!("PyTorch dtype error: {err}")))?;
+    let name = dtype
+        .str()
+        .and_then(|value| value.extract::<String>())
+        .map_err(|err| KainError::runtime(format!("PyTorch dtype string error: {err}")))?;
+    Ok(name.trim_start_matches("torch.").to_string())
+}
+
+fn torch_item_size(target: &PyAny) -> KainResult<i64> {
+    target
+        .call_method0("element_size")
+        .and_then(|value| value.extract::<i64>())
+        .map_err(|err| KainError::runtime(format!("PyTorch element_size error: {err}")))
+}
+
+fn torch_nbytes(target: &PyAny) -> KainResult<i64> {
+    let element_size = torch_item_size(target)?;
+    let numel = target
+        .call_method0("numel")
+        .and_then(|value| value.extract::<i64>())
+        .map_err(|err| KainError::runtime(format!("PyTorch numel error: {err}")))?;
+    Ok(element_size.saturating_mul(numel))
+}
+
+fn torch_is_contiguous(target: &PyAny) -> KainResult<bool> {
+    target
+        .call_method0("is_contiguous")
+        .and_then(|value| value.extract::<bool>())
+        .map_err(|err| KainError::runtime(format!("PyTorch is_contiguous error: {err}")))
+}
+
+fn torch_stride_values(target: &PyAny) -> KainResult<Vec<i64>> {
+    target
+        .call_method0("stride")
+        .map_err(|err| KainError::runtime(format!("PyTorch stride error: {err}")))
+        .and_then(|value| py_index_sequence_values(value, "stride"))
 }
 
 fn python_type_path(obj: &PyAny) -> String {
@@ -681,15 +1662,20 @@ fn python_type_path(obj: &PyAny) -> String {
 }
 
 fn extract_python_object(value: &Value, py: Python<'_>) -> KainResult<PyObject> {
-    value
-        .downcast_host_object::<PythonObjectRef>()
-        .map(|object| object.object.clone_ref(py))
-        .ok_or_else(|| {
-            KainError::runtime(format!(
-                "Expected Python object handle, got {}",
-                value.host_object_label().unwrap_or("host object")
-            ))
-        })
+    if let Some(object) = value.downcast_host_object::<PythonObjectRef>() {
+        return Ok(object.object.clone_ref(py));
+    }
+    if let Some(view) = value.downcast_host_object::<PythonImageView>() {
+        return Ok(view.object.clone_ref(py));
+    }
+    if let Some(view) = value.downcast_host_object::<PythonTensorView>() {
+        return Ok(view.object.clone_ref(py));
+    }
+
+    Err(KainError::runtime(format!(
+        "Expected Python object handle, got {}",
+        value.host_object_label().unwrap_or("host object")
+    )))
 }
 
 fn value_to_pyobject(py: Python<'_>, value: &Value) -> KainResult<PyObject> {
@@ -791,14 +1777,31 @@ fn py_to_value(obj: &PyAny) -> KainResult<Value> {
             Arc::new(RwLock::new(values)),
         ));
     }
-    if let Some(value) = try_numpy_array_to_value(obj)? {
+    if let Some(value) = try_array_like_to_value(obj)? {
         return Ok(value);
     }
 
     wrap_python_object(obj)
 }
 
-fn try_numpy_array_to_value(obj: &PyAny) -> KainResult<Option<Value>> {
+fn py_any_to_value(obj: &PyAny) -> KainResult<Value> {
+    if is_torch_tensor(obj) {
+        let ndim = py_int_attr_value(obj, "ndim")?;
+        if ndim == 0 {
+            let scalar = obj
+                .call_method0("item")
+                .map_err(|err| KainError::runtime(format!("PyTorch scalar item error: {err}")))?;
+            return py_to_value(scalar);
+        }
+    }
+    py_to_value(obj)
+}
+
+fn try_array_like_to_value(obj: &PyAny) -> KainResult<Option<Value>> {
+    if is_torch_tensor(obj) {
+        return Ok(None);
+    }
+
     let module_name = obj
         .get_type()
         .getattr("__module__")
@@ -810,13 +1813,18 @@ fn try_numpy_array_to_value(obj: &PyAny) -> KainResult<Option<Value>> {
         .map(|name| name.to_string())
         .unwrap_or_default();
 
-    if !module_name.starts_with("numpy") || type_name != "ndarray" {
+    let is_numpy_array = module_name.starts_with("numpy") && type_name == "ndarray";
+    let is_array_like = obj.hasattr("tolist").unwrap_or(false)
+        && (obj.hasattr("shape").unwrap_or(false)
+            || obj.hasattr("__array_interface__").unwrap_or(false));
+
+    if !is_numpy_array && !is_array_like {
         return Ok(None);
     }
 
     let list_value = obj
         .call_method0("tolist")
-        .map_err(|err| KainError::runtime(format!("NumPy array conversion error: {err}")))?;
+        .map_err(|err| KainError::runtime(format!("Python array conversion error: {err}")))?;
     Ok(Some(py_to_value(list_value)?))
 }
 
@@ -882,6 +1890,12 @@ mod tests {
     use kain_core::stdlib::StdLib;
     use kain_core::types;
     use pyo3::Python;
+    use std::sync::{Mutex, OnceLock};
+
+    fn python_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn python_builtins_extend_stdlib_metadata() {
@@ -900,6 +1914,17 @@ mod tests {
         assert!(stdlib.functions.contains_key("py_buffer"));
         assert!(stdlib.functions.contains_key("py_buffer_info"));
         assert!(stdlib.functions.contains_key("py_buffer_bytes"));
+        assert!(stdlib.functions.contains_key("py_tensor_info"));
+        assert!(stdlib.functions.contains_key("py_tensor_bytes"));
+        assert!(stdlib.functions.contains_key("py_image_info"));
+        assert!(stdlib.functions.contains_key("py_image_view"));
+        assert!(stdlib.functions.contains_key("py_image_pixel"));
+        assert!(stdlib.functions.contains_key("py_geometry_info"));
+        assert!(stdlib.functions.contains_key("py_geometry_view"));
+        assert!(stdlib.functions.contains_key("py_geometry_vertex"));
+        assert!(stdlib.functions.contains_key("py_geometry_face"));
+        assert!(stdlib.functions.contains_key("py_tensor_view"));
+        assert!(stdlib.functions.contains_key("py_tensor_get"));
     }
 
     #[test]
@@ -1034,7 +2059,168 @@ fn main():
         }
     }
 
+    #[test]
+    fn python_bridge_infers_image_metadata_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping image metadata test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    return np.zeros((12, 20, 4), dtype=np.uint8)")
+    let image = py_call_raw("make_image", [])
+    let info = py_image_info(image)
+    assert(info.width == 20, "expected width 20")
+    assert(info.height == 12, "expected height 12")
+    assert(info.channels == 4, "expected rgba")
+    assert(info.layout == "HWC", "expected channel-last image")
+    return info.pixel_count
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 240),
+            other => panic!("expected image bridge to return Int(240), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_reads_pixels_from_image_views_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping image view test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    image = np.zeros((3, 4, 4), dtype=np.uint8)\n    image[1, 2] = np.array([10, 20, 30, 255], dtype=np.uint8)\n    return image")
+    let image = py_call_raw("make_image", [])
+    let view = py_image_view(image)
+    let pixel = py_image_pixel(view, 2, 1)
+    assert(len(pixel) == 4, "expected rgba pixel")
+    assert(pixel[0] == 10, "expected red channel")
+    assert(pixel[1] == 20, "expected green channel")
+    assert(pixel[2] == 30, "expected blue channel")
+    return pixel[3]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 255),
+            other => panic!("expected image view to return alpha channel, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_infers_geometry_metadata_from_trimesh_when_available() {
+        if !trimesh_available() {
+            eprintln!("skipping geometry metadata test because trimesh is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import trimesh\ndef make_mesh():\n    return trimesh.creation.icosphere(subdivisions=1, radius=1.0)")
+    let mesh = py_call_raw("make_mesh", [])
+    let info = py_geometry_info(mesh)
+    assert(info.primitive == "mesh", "expected mesh primitive")
+    assert(info.components == 3, "expected xyz vertices")
+    assert(info.face_size == 3, "expected triangle faces")
+    return info.vertex_count
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert!(value > 0),
+            other => panic!("expected geometry bridge to return vertex count, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_reads_geometry_samples_from_views_when_available() {
+        if !trimesh_available() {
+            eprintln!("skipping geometry view test because trimesh is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import trimesh\ndef make_mesh():\n    return trimesh.creation.box(extents=(2.0, 4.0, 6.0))")
+    let mesh = py_call_raw("make_mesh", [])
+    let view = py_geometry_view(mesh)
+    let point = py_geometry_vertex(view, 0)
+    let face = py_geometry_face(view, 0)
+    assert(len(point) == 3, "expected xyz vertex")
+    assert(len(face) == 3, "expected triangle face")
+    return len(point) + len(face)
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 6),
+            other => panic!("expected geometry view sample size, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_reads_torch_tensor_metadata_when_available() {
+        if !torch_available() {
+            eprintln!("skipping torch metadata test because torch is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import torch\ndef make_tensor():\n    return torch.arange(0, 96, dtype=torch.float32).reshape(2, 3, 4, 4)")
+    let tensor = py_call_raw("make_tensor", [])
+    let info = py_tensor_info(tensor)
+    assert(info.backend == "torch", "expected torch backend")
+    assert(info.dtype == "float32", "expected float32 tensor")
+    assert(info.shape[0] == 2, "expected batch 2")
+    assert(info.shape[1] == 3, "expected channels 3")
+    assert(info.nbytes == 96 * 4, "expected float32 byte size")
+    let bytes = py_tensor_bytes(tensor)
+    return len(bytes)
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 384),
+            other => panic!("expected torch bridge to return byte count, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_reads_tensor_scalars_from_views_when_available() {
+        if !torch_available() {
+            eprintln!("skipping tensor view test because torch is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import torch\ndef make_tensor():\n    return torch.arange(0, 24, dtype=torch.float32).reshape(2, 3, 4)")
+    let tensor = py_call_raw("make_tensor", [])
+    let view = py_tensor_view(tensor)
+    return py_tensor_get(view, [1, 2, 3])
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 23.0),
+            other => panic!("expected tensor view to return Float(23.0), got {other:?}"),
+        }
+    }
+
     fn interpret_source(source: &str) -> Value {
+        let _guard = python_test_lock().lock().unwrap();
         register();
 
         let tokens = Lexer::new(source).tokenize().unwrap();
@@ -1048,6 +2234,17 @@ fn main():
     }
 
     fn numpy_available() -> bool {
+        let _guard = python_test_lock().lock().unwrap();
         Python::with_gil(|py| py.import("numpy").is_ok())
+    }
+
+    fn torch_available() -> bool {
+        let _guard = python_test_lock().lock().unwrap();
+        Python::with_gil(|py| py.import("torch").is_ok())
+    }
+
+    fn trimesh_available() -> bool {
+        let _guard = python_test_lock().lock().unwrap();
+        Python::with_gil(|py| py.import("trimesh").is_ok())
     }
 }
