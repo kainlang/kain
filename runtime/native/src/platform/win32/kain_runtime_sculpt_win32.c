@@ -28,6 +28,7 @@ typedef struct {
     KainWin32GlSurface surface;
     KainWin32MouseCapture mouse_capture;
     KainRuntimeContractBundle runtime_contract;
+    KainRuntimeContractValidation contract_validation;
     KainUiCompiledBundle compiled_ui;
     HWND hwnd;
     int width;
@@ -58,6 +59,11 @@ static void kain_native_sculpt_try_load_compiled_ui(KainNativeSculptApp* app) {
         return;
     }
 
+    if ((app->contract_validation.downgraded_optional_mask & KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED) != 0u) {
+        kain_ui_compiled_bundle_init(&app->compiled_ui);
+        return;
+    }
+
     if (kain_ui_compiled_bundle_load_from_env(KAIN_UI_COMPILED_BUNDLE_ENV, &app->compiled_ui)) {
         if (app->compiled_ui.primary_viewport_scene[0]) {
             app->settings.profile = kain_find_viewport_profile(app->compiled_ui.primary_viewport_scene);
@@ -78,6 +84,61 @@ static void kain_native_sculpt_try_load_runtime_contract(KainNativeSculptApp* ap
         )) {
         kain_runtime_contract_init(&app->runtime_contract);
     }
+}
+
+static unsigned int kain_native_sculpt_optional_service_mask(void) {
+    unsigned int mask = 0u;
+    char* compiled_ui_path = kain_env_dup(KAIN_UI_COMPILED_BUNDLE_ENV);
+    if (compiled_ui_path && compiled_ui_path[0]) {
+        mask |= KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED;
+    }
+    kain_env_free(compiled_ui_path);
+    return mask;
+}
+
+static void kain_native_sculpt_emit_contract_diagnostics(
+    const char* app_label,
+    const KainRuntimeContractValidation* validation
+) {
+    int i;
+    if (!validation) {
+        return;
+    }
+    if (validation->fatal_error && validation->fatal_message[0]) {
+        fprintf(stderr, "[KAIN][%s] %s\n", app_label, validation->fatal_message);
+    }
+    for (i = 0; i < validation->warning_count; ++i) {
+        if (validation->warnings[i][0]) {
+            fprintf(stderr, "[KAIN][%s] warning: %s\n", app_label, validation->warnings[i]);
+        }
+    }
+}
+
+static int kain_native_sculpt_validate_runtime_contract(KainNativeSculptApp* app) {
+    unsigned int optional_service_mask;
+    if (!app) {
+        return 0;
+    }
+    optional_service_mask = kain_native_sculpt_optional_service_mask();
+    if (!kain_runtime_contract_validate_startup(
+            &app->runtime_contract,
+            KAIN_RUNTIME_SERVICE_CORE_MASK,
+            optional_service_mask,
+            &app->contract_validation
+        )) {
+        kain_native_sculpt_emit_contract_diagnostics("raw-native-sculpt", &app->contract_validation);
+        MessageBoxA(
+            NULL,
+            app->contract_validation.fatal_message[0]
+                ? app->contract_validation.fatal_message
+                : "Raw native sculpt startup validation failed.",
+            "Kain Runtime Contract Error",
+            MB_OK | MB_ICONERROR
+        );
+        return 0;
+    }
+    kain_native_sculpt_emit_contract_diagnostics("raw-native-sculpt", &app->contract_validation);
+    return 1;
 }
 
 static KainNativeSculptSettings kain_load_sculpt_settings(void) {
@@ -369,8 +430,9 @@ static void kain_sculpt_render_overlay(KainNativeSculptApp* app) {
     char subtitle_line[256];
     char stats_line[256];
     char contract_line[256];
+    char validation_line[256];
     const char* mode = "raise";
-    const char* live_lines[2];
+    const char* live_lines[3];
     const char* help_lines[2];
     KainUiCompiledOverlaySpec overlay_spec;
     const KainViewportProfile* profile = app->settings.profile;
@@ -398,8 +460,31 @@ static void kain_sculpt_render_overlay(KainNativeSculptApp* app) {
             KAIN_RUNTIME_CONTRACT_ENV
         );
     }
+    if (app->contract_validation.warning_count > 0) {
+        snprintf(
+            validation_line,
+            sizeof(validation_line),
+            "validation degraded  |  %s",
+            app->contract_validation.warnings[0]
+        );
+    } else {
+        char service_line[160];
+        kain_runtime_contract_format_service_mask(
+            app->contract_validation.available_service_mask,
+            service_line,
+            sizeof(service_line)
+        );
+        snprintf(
+            validation_line,
+            sizeof(validation_line),
+            "validation %s  |  services %s",
+            app->contract_validation.strict_mode ? "strict" : "compat",
+            service_line
+        );
+    }
     live_lines[0] = stats_line;
     live_lines[1] = contract_line;
+    live_lines[2] = validation_line;
     help_lines[0] = "LMB sculpt  |  Shift+LMB carve  |  Ctrl+LMB smooth  |  RMB orbit";
     help_lines[1] = "Wheel / [ ] radius  |  - = strength  |  Tab wireframe  |  P particles  |  R reset";
 
@@ -414,12 +499,14 @@ static void kain_sculpt_render_overlay(KainNativeSculptApp* app) {
     overlay_spec.fallback_title = "KAIN RAW SCULPT LAB";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
-    overlay_spec.live_line_count = 2;
+    overlay_spec.live_line_count = 3;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 2;
-    overlay_spec.fallback_hint = app->runtime_contract.loaded
-        ? "Runtime contract consumed successfully. This sculpt lab is running on the raw Kain native lane."
-        : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.";
+    overlay_spec.fallback_hint = app->contract_validation.warning_count > 0
+        ? app->contract_validation.warnings[0]
+        : (app->runtime_contract.loaded
+            ? "Runtime contract validated. This sculpt lab is running on the raw Kain native lane."
+            : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.");
     kain_ui_compiled_overlay_render(&app->surface, app->width, app->height, &app->compiled_ui, &overlay_spec);
 }
 
@@ -635,6 +722,9 @@ static void kain_run_native_sculpt_lab(double x, double y, const char* window_ti
     ZeroMemory(&config, sizeof(config));
     app.settings = kain_load_sculpt_settings();
     kain_native_sculpt_try_load_runtime_contract(&app);
+    if (!kain_native_sculpt_validate_runtime_contract(&app)) {
+        return;
+    }
     kain_native_sculpt_try_load_compiled_ui(&app);
     app.width = app.settings.window_width;
     app.height = app.settings.window_height;

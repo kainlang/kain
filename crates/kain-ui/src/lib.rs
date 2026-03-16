@@ -5,7 +5,7 @@
 //! and patch streams instead of a virtual DOM-first execution model.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     io::{Error as IoError, ErrorKind},
 };
 
@@ -173,6 +173,47 @@ pub enum UiLayoutKind {
     Absolute,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum UiLengthUnit {
+    Auto,
+    Px,
+    Percent,
+    Fr,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiLength {
+    pub value: f32,
+    pub unit: UiLengthUnit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiLayoutAlignment {
+    Start,
+    Center,
+    End,
+    Stretch,
+    SpaceBetween,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiOverflowBehavior {
+    Visible,
+    Hidden,
+    Scroll,
+    Auto,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiDockPlacement {
+    Center,
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Tab,
+}
+
 /// Semantic layout specification. Values remain data so backends can map them
 /// to the host layout engine without changing authoring semantics.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -182,6 +223,20 @@ pub struct UiLayoutSpec {
     pub padding: f32,
     pub min_width: Option<f32>,
     pub min_height: Option<f32>,
+    pub width: Option<UiLength>,
+    pub height: Option<UiLength>,
+    pub max_width: Option<f32>,
+    pub max_height: Option<f32>,
+    pub flex_grow: f32,
+    pub flex_shrink: f32,
+    pub align_items: UiLayoutAlignment,
+    pub justify_content: UiLayoutAlignment,
+    pub overflow_x: UiOverflowBehavior,
+    pub overflow_y: UiOverflowBehavior,
+    pub dock: Option<UiDockPlacement>,
+    pub split_ratio: Option<f32>,
+    pub resizable: bool,
+    pub persistent_layout_id: Option<String>,
 }
 
 impl Default for UiLayoutSpec {
@@ -192,6 +247,20 @@ impl Default for UiLayoutSpec {
             padding: 0.0,
             min_width: None,
             min_height: None,
+            width: None,
+            height: None,
+            max_width: None,
+            max_height: None,
+            flex_grow: 0.0,
+            flex_shrink: 1.0,
+            align_items: UiLayoutAlignment::Start,
+            justify_content: UiLayoutAlignment::Start,
+            overflow_x: UiOverflowBehavior::Visible,
+            overflow_y: UiOverflowBehavior::Visible,
+            dock: None,
+            split_ratio: None,
+            resizable: false,
+            persistent_layout_id: None,
         }
     }
 }
@@ -311,34 +380,54 @@ pub fn default_layout_for_tag(tag: &str) -> UiLayoutSpec {
 
 /// Style tokens and literal overrides. Higher-level styling should compile
 /// into this shape rather than coupling authoring to a specific renderer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiStyleState {
+    Hovered,
+    Active,
+    Focused,
+    Disabled,
+    Selected,
+    Dragging,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiStyleSpec {
     pub tokens: Vec<String>,
     pub values: BTreeMap<String, UiValue>,
+    pub classes: Vec<String>,
+    pub theme_scope: Option<String>,
+    pub variant: Option<String>,
+    pub states: Vec<UiStyleState>,
 }
 
 /// Declarative node in the retained semantic tree.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiNode {
     pub id: UiNodeId,
+    pub identity_key: Option<String>,
     pub kind: UiWidgetKind,
     pub props: BTreeMap<String, UiValue>,
     pub children: Vec<UiNodeId>,
     pub layout: UiLayoutSpec,
     pub style: UiStyleSpec,
     pub watches: Vec<UiSignalId>,
+    pub focus_scope: Option<String>,
+    pub selection_scope: Option<String>,
 }
 
 impl UiNode {
     pub fn new(id: UiNodeId, kind: UiWidgetKind) -> Self {
         Self {
             id,
+            identity_key: None,
             kind,
             props: BTreeMap::new(),
             children: Vec::new(),
             layout: UiLayoutSpec::default(),
             style: UiStyleSpec::default(),
             watches: Vec::new(),
+            focus_scope: None,
+            selection_scope: None,
         }
     }
 }
@@ -412,6 +501,351 @@ pub enum UiPatch {
 pub struct UiBuildOutput {
     pub tree: UiTree,
     pub patches: Vec<UiPatch>,
+    #[serde(default)]
+    pub systems: UiRuntimeSystems,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiComputed {
+    pub id: String,
+    pub label: String,
+    pub depends_on: Vec<UiSignalId>,
+    pub invalidates_nodes: Vec<UiNodeId>,
+    pub scheduler_phase: UiSchedulerPhase,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiResource {
+    pub id: String,
+    pub kind: String,
+    pub owner: Option<UiNodeId>,
+    pub state: UiResourceState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiResourceState {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiTransaction {
+    pub label: String,
+    pub touched_nodes: Vec<UiNodeId>,
+    pub changed_signals: Vec<UiSignalId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiFocusGraph {
+    pub scopes: Vec<String>,
+    pub default_scope: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiEventRoute {
+    pub event: String,
+    pub target: UiNodeId,
+    pub phase: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiAnimationTrigger {
+    Mount,
+    Unmount,
+    SignalChange,
+    Hover,
+    Focus,
+    LayoutChange,
+    Reload,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiEasingKind {
+    Linear,
+    EaseIn,
+    EaseOut,
+    EaseInOut,
+    Spring,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiAnimationTrack {
+    pub id: String,
+    pub target: UiNodeId,
+    pub property: String,
+    pub duration_ms: u32,
+    pub trigger: UiAnimationTrigger,
+    pub easing: UiEasingKind,
+    pub preserve_on_reload: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiSurface {
+    pub id: String,
+    pub kind: UiSurfaceKind,
+    pub node: UiNodeId,
+    pub title: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiSurfaceKind {
+    Graph,
+    Timeline,
+    Table,
+    Tree,
+    Viewport2D,
+    Viewport3D,
+    Overlay,
+    Custom(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiSchedulerPhase {
+    Signals,
+    Resources,
+    Layout,
+    Animation,
+    Patches,
+    Effects,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiSchedulerEntry {
+    pub phase: UiSchedulerPhase,
+    pub label: String,
+    pub target_nodes: Vec<UiNodeId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiScheduler {
+    pub phases: Vec<UiSchedulerPhase>,
+    pub pending: Vec<UiSchedulerEntry>,
+}
+
+impl Default for UiScheduler {
+    fn default() -> Self {
+        Self {
+            phases: vec![
+                UiSchedulerPhase::Signals,
+                UiSchedulerPhase::Resources,
+                UiSchedulerPhase::Layout,
+                UiSchedulerPhase::Animation,
+                UiSchedulerPhase::Patches,
+                UiSchedulerPhase::Effects,
+            ],
+            pending: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiSelectionModel {
+    pub scopes: Vec<String>,
+    pub active_scope: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiCommand {
+    pub name: String,
+    pub target: Option<UiNodeId>,
+    pub payload: BTreeMap<String, UiValue>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiCommandBuffer {
+    pub pending: Vec<UiCommand>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiThemeToken {
+    pub name: String,
+    pub category: String,
+    pub value: UiValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiThemeVariant {
+    pub scope: String,
+    pub name: String,
+    pub tokens: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiThemeScope {
+    pub name: String,
+    pub selector: String,
+    pub parent: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiThemeRegistry {
+    pub active_theme: Option<String>,
+    pub scopes: Vec<UiThemeScope>,
+    pub semantic_tokens: Vec<UiThemeToken>,
+    pub variants: Vec<UiThemeVariant>,
+    pub diff_keys: Vec<String>,
+}
+
+impl Default for UiThemeRegistry {
+    fn default() -> Self {
+        Self {
+            active_theme: Some("default".to_string()),
+            scopes: Vec::new(),
+            semantic_tokens: Vec::new(),
+            variants: Vec::new(),
+            diff_keys: Vec::new(),
+        }
+    }
+}
+
+impl UiThemeRegistry {
+    fn is_empty(&self) -> bool {
+        self.scopes.is_empty()
+            && self.semantic_tokens.is_empty()
+            && self.variants.is_empty()
+            && self.diff_keys.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiDockNode {
+    pub id: String,
+    pub node: UiNodeId,
+    pub placement: UiDockPlacement,
+    pub split_ratio: Option<f32>,
+    pub children: Vec<UiNodeId>,
+    pub persistent_layout_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiWorkspaceLayout {
+    pub roots: Vec<UiDockNode>,
+    pub persistence_key: Option<String>,
+    pub virtualization_enabled: bool,
+}
+
+impl UiWorkspaceLayout {
+    fn is_empty(&self) -> bool {
+        self.roots.is_empty() && self.persistence_key.is_none() && !self.virtualization_enabled
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiReloadIdentityAlias {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiHotReloadPlan {
+    pub preserve_focus: bool,
+    pub preserve_selection: bool,
+    pub preserve_docking: bool,
+    pub preserve_animation_state: bool,
+    pub preserve_session_state: bool,
+    pub identity_aliases: Vec<UiReloadIdentityAlias>,
+}
+
+impl Default for UiHotReloadPlan {
+    fn default() -> Self {
+        Self {
+            preserve_focus: true,
+            preserve_selection: true,
+            preserve_docking: true,
+            preserve_animation_state: true,
+            preserve_session_state: true,
+            identity_aliases: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiAnimationPlaybackState {
+    pub elapsed_ms: u32,
+    pub progress: f32,
+    pub eased_progress: f32,
+    pub completed: bool,
+}
+
+impl Default for UiAnimationPlaybackState {
+    fn default() -> Self {
+        Self {
+            elapsed_ms: 0,
+            progress: 0.0,
+            eased_progress: 0.0,
+            completed: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiRuntimeSystems {
+    pub computed: Vec<UiComputed>,
+    pub resources: Vec<UiResource>,
+    pub transactions: Vec<UiTransaction>,
+    pub focus_graph: UiFocusGraph,
+    pub event_routes: Vec<UiEventRoute>,
+    pub animation_tracks: Vec<UiAnimationTrack>,
+    pub surfaces: Vec<UiSurface>,
+    pub scheduler: UiScheduler,
+    pub selection_model: UiSelectionModel,
+    pub command_buffer: UiCommandBuffer,
+    pub theme_registry: UiThemeRegistry,
+    pub workspace_layout: UiWorkspaceLayout,
+    pub hot_reload: UiHotReloadPlan,
+    pub signal_values: BTreeMap<UiSignalId, UiValue>,
+    pub animation_state: BTreeMap<String, UiAnimationPlaybackState>,
+    pub session_state: BTreeMap<String, UiValue>,
+}
+
+impl UiRuntimeSystems {
+    pub fn is_empty(&self) -> bool {
+        self.computed.is_empty()
+            && self.resources.is_empty()
+            && self.transactions.is_empty()
+            && self.focus_graph.scopes.is_empty()
+            && self.focus_graph.default_scope.is_none()
+            && self.event_routes.is_empty()
+            && self.animation_tracks.is_empty()
+            && self.surfaces.is_empty()
+            && self.scheduler.pending.is_empty()
+            && self.selection_model.scopes.is_empty()
+            && self.selection_model.active_scope.is_none()
+            && self.command_buffer.pending.is_empty()
+            && self.theme_registry.is_empty()
+            && self.workspace_layout.is_empty()
+            && self.hot_reload.identity_aliases.is_empty()
+            && self.signal_values.is_empty()
+            && self.animation_state.is_empty()
+            && self.session_state.is_empty()
+    }
+}
+
+impl Default for UiFocusGraph {
+    fn default() -> Self {
+        Self {
+            scopes: Vec::new(),
+            default_scope: None,
+        }
+    }
+}
+
+impl Default for UiSelectionModel {
+    fn default() -> Self {
+        Self {
+            scopes: Vec::new(),
+            active_scope: None,
+        }
+    }
 }
 
 /// Flat raw-native projection of the semantic tree for runtimes that do not yet
@@ -483,6 +917,10 @@ pub fn ui_runtime_bundle_from_output(
     metadata: UiRuntimeMetadata,
     output: UiBuildOutput,
 ) -> UiRuntimeBundle {
+    let mut output = output;
+    if output.systems.is_empty() {
+        output.systems = ui_runtime_systems_from_tree(&output.tree);
+    }
     let native_projection = ui_native_projection_from_output(&output);
     UiRuntimeBundle {
         schema_version: UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
@@ -521,6 +959,801 @@ pub fn validate_ui_runtime_bundle(bundle: &UiRuntimeBundle) -> Result<(), IoErro
     Ok(())
 }
 
+pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
+    let mut systems = UiRuntimeSystems::default();
+    let mut theme_scopes = BTreeSet::new();
+    let mut focus_scopes = BTreeSet::new();
+    let mut selection_scopes = BTreeSet::new();
+
+    for node in tree.nodes.values() {
+        if !node.watches.is_empty() {
+            systems.computed.push(UiComputed {
+                id: format!("computed.node.{}", node.id.0),
+                label: format!("node-{}-dependencies", node.id.0),
+                depends_on: node.watches.clone(),
+                invalidates_nodes: vec![node.id],
+                scheduler_phase: UiSchedulerPhase::Signals,
+            });
+            systems.scheduler.pending.push(UiSchedulerEntry {
+                phase: UiSchedulerPhase::Signals,
+                label: format!("invalidate-node-{}", node.id.0),
+                target_nodes: vec![node.id],
+            });
+        }
+
+        if let Some(scope) = node.style.theme_scope.clone() {
+            if theme_scopes.insert(scope.clone()) {
+                systems.theme_registry.scopes.push(UiThemeScope {
+                    name: scope.clone(),
+                    selector: format!("scope:{scope}"),
+                    parent: None,
+                });
+                systems.theme_registry.diff_keys.push(scope);
+            }
+        }
+
+        if let Some(scope) = node.focus_scope.clone() {
+            if focus_scopes.insert(scope.clone()) {
+                systems.focus_graph.scopes.push(scope.clone());
+                if systems.focus_graph.default_scope.is_none() {
+                    systems.focus_graph.default_scope = Some(scope);
+                }
+            }
+        }
+
+        if let Some(scope) = node.selection_scope.clone() {
+            if selection_scopes.insert(scope.clone()) {
+                systems.selection_model.scopes.push(scope.clone());
+                if systems.selection_model.active_scope.is_none() {
+                    systems.selection_model.active_scope = Some(scope);
+                }
+            }
+        }
+
+        if matches!(node.layout.kind, UiLayoutKind::Dock) {
+            systems.workspace_layout.roots.push(UiDockNode {
+                id: format!("dock.node.{}", node.id.0),
+                node: node.id,
+                placement: node.layout.dock.unwrap_or(UiDockPlacement::Center),
+                split_ratio: node.layout.split_ratio,
+                children: node.children.clone(),
+                persistent_layout_id: node
+                    .layout
+                    .persistent_layout_id
+                    .clone()
+                    .or_else(|| node.identity_key.clone()),
+            });
+            systems.workspace_layout.virtualization_enabled = true;
+            if systems.workspace_layout.persistence_key.is_none() {
+                systems.workspace_layout.persistence_key = node
+                    .layout
+                    .persistent_layout_id
+                    .clone()
+                    .or_else(|| node.identity_key.clone());
+            }
+            systems.scheduler.pending.push(UiSchedulerEntry {
+                phase: UiSchedulerPhase::Layout,
+                label: format!("layout-pass-node-{}", node.id.0),
+                target_nodes: vec![node.id],
+            });
+        }
+
+        if let Some(surface_kind) = surface_kind_for_node(node) {
+            systems.surfaces.push(UiSurface {
+                id: format!("surface.node.{}", node.id.0),
+                kind: surface_kind.clone(),
+                node: node.id,
+                title: node_prop_string(node, "title"),
+            });
+            systems.animation_tracks.push(UiAnimationTrack {
+                id: format!("animation.node.{}", node.id.0),
+                target: node.id,
+                property: "surface.opacity".to_string(),
+                duration_ms: 180,
+                trigger: UiAnimationTrigger::Mount,
+                easing: UiEasingKind::EaseOut,
+                preserve_on_reload: true,
+            });
+            systems.scheduler.pending.push(UiSchedulerEntry {
+                phase: UiSchedulerPhase::Animation,
+                label: format!("animation-pass-node-{}", node.id.0),
+                target_nodes: vec![node.id],
+            });
+        }
+
+        if let Some(identity_key) = node.identity_key.clone() {
+            systems.hot_reload.identity_aliases.push(UiReloadIdentityAlias {
+                from: identity_key.clone(),
+                to: identity_key,
+            });
+        }
+    }
+
+    if !systems.theme_registry.scopes.is_empty() {
+        systems.theme_registry.variants.push(UiThemeVariant {
+            scope: systems
+                .theme_registry
+                .scopes
+                .first()
+                .map(|scope| scope.name.clone())
+                .unwrap_or_else(|| "default".to_string()),
+            name: "base".to_string(),
+            tokens: vec!["surface.background".to_string(), "text.default".to_string()],
+        });
+        systems.theme_registry.semantic_tokens.push(UiThemeToken {
+            name: "surface.background".to_string(),
+            category: "color".to_string(),
+            value: UiValue::String("theme.surface.background".to_string()),
+        });
+        systems.theme_registry.semantic_tokens.push(UiThemeToken {
+            name: "text.default".to_string(),
+            category: "color".to_string(),
+            value: UiValue::String("theme.text.default".to_string()),
+        });
+    }
+
+    systems
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiSignalUpdate {
+    pub signal: UiSignalId,
+    pub value: UiValue,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiInvalidationResult {
+    pub changed_signals: Vec<UiSignalId>,
+    pub invalidated_nodes: Vec<UiNodeId>,
+    pub scheduled: Vec<UiSchedulerEntry>,
+    pub transaction: Option<UiTransaction>,
+}
+
+pub fn ui_execute_signal_updates(
+    systems: &mut UiRuntimeSystems,
+    updates: &[UiSignalUpdate],
+) -> UiInvalidationResult {
+    let mut result = UiInvalidationResult::default();
+    let mut invalidated = BTreeSet::new();
+
+    for update in updates {
+        let changed = systems.signal_values.get(&update.signal) != Some(&update.value);
+        if !changed {
+            continue;
+        }
+
+        systems
+            .signal_values
+            .insert(update.signal, update.value.clone());
+        result.changed_signals.push(update.signal);
+
+        for computed in &systems.computed {
+            if computed.depends_on.contains(&update.signal) {
+                for node in &computed.invalidates_nodes {
+                    if invalidated.insert(*node) {
+                        result.invalidated_nodes.push(*node);
+                    }
+                }
+
+                let entry = UiSchedulerEntry {
+                    phase: computed.scheduler_phase,
+                    label: computed.label.clone(),
+                    target_nodes: computed.invalidates_nodes.clone(),
+                };
+                systems.scheduler.pending.push(entry.clone());
+                result.scheduled.push(entry);
+            }
+        }
+    }
+
+    if !result.changed_signals.is_empty() {
+        let transaction = UiTransaction {
+            label: format!("signals:{}", result.changed_signals.len()),
+            touched_nodes: result.invalidated_nodes.clone(),
+            changed_signals: result.changed_signals.clone(),
+        };
+        systems.transactions.push(transaction.clone());
+        result.transaction = Some(transaction);
+    }
+
+    result
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiResolvedTheme {
+    pub active_theme: Option<String>,
+    pub scope_chain: Vec<String>,
+    pub applied_tokens: Vec<String>,
+    pub values: BTreeMap<String, UiValue>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiThemeDiffEntry {
+    pub key: String,
+    pub before: Option<UiValue>,
+    pub after: Option<UiValue>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiThemeDiff {
+    pub changes: Vec<UiThemeDiffEntry>,
+}
+
+impl UiThemeDiff {
+    pub fn is_empty(&self) -> bool {
+        self.changes.is_empty()
+    }
+}
+
+pub fn ui_resolve_theme_for_node(node: &UiNode, registry: &UiThemeRegistry) -> UiResolvedTheme {
+    let mut resolved = UiResolvedTheme {
+        active_theme: registry.active_theme.clone(),
+        scope_chain: theme_scope_chain(node.style.theme_scope.as_deref(), registry),
+        ..UiResolvedTheme::default()
+    };
+
+    for token in &registry.semantic_tokens {
+        resolved
+            .values
+            .insert(token.name.clone(), token.value.clone());
+        resolved.applied_tokens.push(token.name.clone());
+    }
+
+    for scope in &resolved.scope_chain {
+        for variant in registry.variants.iter().filter(|variant| {
+            variant.scope == *scope
+                && match node.style.variant.as_deref() {
+                    Some(name) => variant.name == name || variant.name == "base",
+                    None => variant.name == "base",
+                }
+        }) {
+            for token in &variant.tokens {
+                if !resolved.applied_tokens.contains(token) {
+                    resolved.applied_tokens.push(token.clone());
+                }
+            }
+        }
+    }
+
+    for token in &node.style.tokens {
+        if !resolved.applied_tokens.contains(token) {
+            resolved.applied_tokens.push(token.clone());
+        }
+    }
+
+    for class_name in &node.style.classes {
+        resolved
+            .values
+            .insert(format!("class:{class_name}"), UiValue::Bool(true));
+    }
+
+    for state in &node.style.states {
+        resolved.values.insert(
+            format!("state:{:?}", state).to_ascii_lowercase(),
+            UiValue::Bool(true),
+        );
+    }
+
+    for (key, value) in &node.style.values {
+        resolved.values.insert(key.clone(), value.clone());
+    }
+
+    resolved
+}
+
+pub fn ui_diff_resolved_theme(previous: &UiResolvedTheme, next: &UiResolvedTheme) -> UiThemeDiff {
+    let mut changes = Vec::new();
+    let keys = previous
+        .values
+        .keys()
+        .chain(next.values.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    for key in keys {
+        let before = previous.values.get(&key).cloned();
+        let after = next.values.get(&key).cloned();
+        if before != after {
+            changes.push(UiThemeDiffEntry { key, before, after });
+        }
+    }
+
+    UiThemeDiff { changes }
+}
+
+fn theme_scope_chain(scope_name: Option<&str>, registry: &UiThemeRegistry) -> Vec<String> {
+    let mut chain = Vec::new();
+    let mut current = scope_name
+        .map(|value| value.to_string())
+        .or_else(|| registry.scopes.first().map(|scope| scope.name.clone()));
+
+    while let Some(scope_name) = current {
+        if chain.contains(&scope_name) {
+            break;
+        }
+        chain.push(scope_name.clone());
+        current = registry
+            .scopes
+            .iter()
+            .find(|scope| scope.name == scope_name)
+            .and_then(|scope| scope.parent.clone());
+    }
+
+    chain
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiRect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiResolvedLayoutNode {
+    pub node: UiNodeId,
+    pub rect: UiRect,
+    pub layout_kind: UiLayoutKind,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiResolvedLayout {
+    pub viewport: UiRect,
+    pub nodes: Vec<UiResolvedLayoutNode>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiPersistedDockState {
+    pub placement: UiDockPlacement,
+    pub split_ratio: Option<f32>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiWorkspaceLayoutSnapshot {
+    pub persistence_key: Option<String>,
+    pub nodes: BTreeMap<String, UiPersistedDockState>,
+}
+
+pub fn ui_solve_workspace_layout(
+    tree: &UiTree,
+    systems: &UiRuntimeSystems,
+    viewport_size: [f32; 2],
+) -> UiResolvedLayout {
+    let viewport = UiRect {
+        x: 0.0,
+        y: 0.0,
+        width: viewport_size[0].max(1.0),
+        height: viewport_size[1].max(1.0),
+    };
+    let mut resolved = UiResolvedLayout {
+        viewport,
+        nodes: Vec::new(),
+    };
+
+    if let Some(root) = tree.root {
+        solve_layout_node(tree, root, viewport, systems, &mut resolved);
+    }
+
+    resolved
+}
+
+pub fn ui_workspace_layout_snapshot(
+    tree: &UiTree,
+    systems: &UiRuntimeSystems,
+) -> UiWorkspaceLayoutSnapshot {
+    let mut snapshot = UiWorkspaceLayoutSnapshot {
+        persistence_key: systems.workspace_layout.persistence_key.clone(),
+        nodes: BTreeMap::new(),
+    };
+
+    for node in tree.nodes.values() {
+        if let Some(layout_id) = node
+            .layout
+            .persistent_layout_id
+            .as_ref()
+            .or(node.identity_key.as_ref())
+        {
+            snapshot.nodes.insert(
+                layout_id.clone(),
+                UiPersistedDockState {
+                    placement: node.layout.dock.unwrap_or(UiDockPlacement::Center),
+                    split_ratio: node.layout.split_ratio,
+                },
+            );
+        }
+    }
+
+    snapshot
+}
+
+pub fn ui_apply_workspace_layout_snapshot(
+    tree: &mut UiTree,
+    systems: &mut UiRuntimeSystems,
+    snapshot: &UiWorkspaceLayoutSnapshot,
+) -> usize {
+    let mut applied = 0;
+    systems.workspace_layout.persistence_key = snapshot.persistence_key.clone();
+
+    for node in tree.nodes.values_mut() {
+        let Some(layout_id) = node
+            .layout
+            .persistent_layout_id
+            .clone()
+            .or_else(|| node.identity_key.clone())
+        else {
+            continue;
+        };
+
+        let Some(saved) = snapshot.nodes.get(&layout_id) else {
+            continue;
+        };
+
+        node.layout.dock = Some(saved.placement);
+        node.layout.split_ratio = saved.split_ratio;
+        applied += 1;
+    }
+
+    systems.workspace_layout = ui_runtime_systems_from_tree(tree).workspace_layout;
+    applied
+}
+
+fn solve_layout_node(
+    tree: &UiTree,
+    id: UiNodeId,
+    rect: UiRect,
+    systems: &UiRuntimeSystems,
+    resolved: &mut UiResolvedLayout,
+) {
+    let Some(node) = tree.node(id) else {
+        return;
+    };
+
+    resolved.nodes.push(UiResolvedLayoutNode {
+        node: id,
+        rect,
+        layout_kind: node.layout.kind,
+    });
+
+    if node.children.is_empty() {
+        return;
+    }
+
+    match node.layout.kind {
+        UiLayoutKind::Dock => solve_dock_children(tree, node, rect, systems, resolved),
+        UiLayoutKind::FlexRow => solve_row_children(tree, node, rect, systems, resolved),
+        UiLayoutKind::FlexColumn | UiLayoutKind::Flow => {
+            solve_column_children(tree, node, rect, systems, resolved)
+        }
+        UiLayoutKind::Stack | UiLayoutKind::Absolute | UiLayoutKind::Grid => {
+            for child in &node.children {
+                solve_layout_node(tree, *child, rect, systems, resolved);
+            }
+        }
+    }
+}
+
+fn solve_dock_children(
+    tree: &UiTree,
+    node: &UiNode,
+    rect: UiRect,
+    systems: &UiRuntimeSystems,
+    resolved: &mut UiResolvedLayout,
+) {
+    let mut remaining = rect;
+
+    for child_id in &node.children {
+        let Some(child) = tree.node(*child_id) else {
+            continue;
+        };
+
+        let preferred_ratio = child
+            .layout
+            .split_ratio
+            .or_else(|| persisted_split_ratio(child, systems))
+            .unwrap_or(0.25)
+            .clamp(0.1, 0.9);
+
+        let child_rect = match child.layout.dock.unwrap_or(UiDockPlacement::Center) {
+            UiDockPlacement::Left => {
+                let width = remaining.width * preferred_ratio;
+                let child_rect = UiRect {
+                    x: remaining.x,
+                    y: remaining.y,
+                    width,
+                    height: remaining.height,
+                };
+                remaining.x += width;
+                remaining.width -= width;
+                child_rect
+            }
+            UiDockPlacement::Right => {
+                let width = remaining.width * preferred_ratio;
+                let child_rect = UiRect {
+                    x: remaining.x + remaining.width - width,
+                    y: remaining.y,
+                    width,
+                    height: remaining.height,
+                };
+                remaining.width -= width;
+                child_rect
+            }
+            UiDockPlacement::Top => {
+                let height = remaining.height * preferred_ratio;
+                let child_rect = UiRect {
+                    x: remaining.x,
+                    y: remaining.y,
+                    width: remaining.width,
+                    height,
+                };
+                remaining.y += height;
+                remaining.height -= height;
+                child_rect
+            }
+            UiDockPlacement::Bottom => {
+                let height = remaining.height * preferred_ratio;
+                let child_rect = UiRect {
+                    x: remaining.x,
+                    y: remaining.y + remaining.height - height,
+                    width: remaining.width,
+                    height,
+                };
+                remaining.height -= height;
+                child_rect
+            }
+            UiDockPlacement::Center | UiDockPlacement::Tab => remaining,
+        };
+
+        solve_layout_node(tree, *child_id, child_rect, systems, resolved);
+    }
+}
+
+fn solve_row_children(
+    tree: &UiTree,
+    node: &UiNode,
+    rect: UiRect,
+    systems: &UiRuntimeSystems,
+    resolved: &mut UiResolvedLayout,
+) {
+    let total_gap = node.layout.gap * node.children.len().saturating_sub(1) as f32;
+    let total_flex = node
+        .children
+        .iter()
+        .filter_map(|child_id| tree.node(*child_id))
+        .map(|child| child.layout.flex_grow.max(1.0))
+        .sum::<f32>()
+        .max(1.0);
+    let mut cursor_x = rect.x;
+
+    for child_id in &node.children {
+        let Some(child) = tree.node(*child_id) else {
+            continue;
+        };
+        let share = child.layout.flex_grow.max(1.0) / total_flex;
+        let width = ((rect.width - total_gap).max(1.0)) * share;
+        let child_rect = UiRect {
+            x: cursor_x,
+            y: rect.y,
+            width,
+            height: rect.height,
+        };
+        cursor_x += width + node.layout.gap;
+        solve_layout_node(tree, *child_id, child_rect, systems, resolved);
+    }
+}
+
+fn solve_column_children(
+    tree: &UiTree,
+    node: &UiNode,
+    rect: UiRect,
+    systems: &UiRuntimeSystems,
+    resolved: &mut UiResolvedLayout,
+) {
+    let total_gap = node.layout.gap * node.children.len().saturating_sub(1) as f32;
+    let total_flex = node
+        .children
+        .iter()
+        .filter_map(|child_id| tree.node(*child_id))
+        .map(|child| child.layout.flex_grow.max(1.0))
+        .sum::<f32>()
+        .max(1.0);
+    let mut cursor_y = rect.y;
+
+    for child_id in &node.children {
+        let Some(child) = tree.node(*child_id) else {
+            continue;
+        };
+        let share = child.layout.flex_grow.max(1.0) / total_flex;
+        let height = ((rect.height - total_gap).max(1.0)) * share;
+        let child_rect = UiRect {
+            x: rect.x,
+            y: cursor_y,
+            width: rect.width,
+            height,
+        };
+        cursor_y += height + node.layout.gap;
+        solve_layout_node(tree, *child_id, child_rect, systems, resolved);
+    }
+}
+
+fn persisted_split_ratio(node: &UiNode, systems: &UiRuntimeSystems) -> Option<f32> {
+    let persisted_id = node
+        .layout
+        .persistent_layout_id
+        .as_ref()
+        .or(node.identity_key.as_ref())?;
+
+    systems
+        .workspace_layout
+        .roots
+        .iter()
+        .find(|entry| entry.persistent_layout_id.as_ref() == Some(persisted_id))
+        .and_then(|entry| entry.split_ratio)
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiAnimationFrame {
+    pub track_id: String,
+    pub target: UiNodeId,
+    pub property: String,
+    pub progress: f32,
+    pub eased_progress: f32,
+    pub completed: bool,
+}
+
+pub fn ui_step_animation_runtime(
+    systems: &mut UiRuntimeSystems,
+    delta_ms: u32,
+) -> Vec<UiAnimationFrame> {
+    let mut frames = Vec::new();
+
+    for track in &systems.animation_tracks {
+        let state = systems
+            .animation_state
+            .entry(track.id.clone())
+            .or_default();
+        if state.completed {
+            continue;
+        }
+
+        state.elapsed_ms = state.elapsed_ms.saturating_add(delta_ms);
+        let duration = track.duration_ms.max(1);
+        state.progress = (state.elapsed_ms as f32 / duration as f32).clamp(0.0, 1.0);
+        state.eased_progress = ease_progress(track.easing, state.progress);
+        state.completed = state.progress >= 1.0;
+
+        frames.push(UiAnimationFrame {
+            track_id: track.id.clone(),
+            target: track.target,
+            property: track.property.clone(),
+            progress: state.progress,
+            eased_progress: state.eased_progress,
+            completed: state.completed,
+        });
+    }
+
+    frames
+}
+
+fn ease_progress(easing: UiEasingKind, progress: f32) -> f32 {
+    match easing {
+        UiEasingKind::Linear => progress,
+        UiEasingKind::EaseIn => progress * progress,
+        UiEasingKind::EaseOut => 1.0 - (1.0 - progress) * (1.0 - progress),
+        UiEasingKind::EaseInOut => {
+            if progress < 0.5 {
+                2.0 * progress * progress
+            } else {
+                1.0 - (-2.0 * progress + 2.0).powf(2.0) / 2.0
+            }
+        }
+        UiEasingKind::Spring => {
+            let overshoot = 1.70158;
+            let shifted = progress - 1.0;
+            1.0 + shifted * shifted * ((overshoot + 1.0) * shifted + overshoot)
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiHotReloadTransferReport {
+    pub focus_transferred: bool,
+    pub selection_transferred: bool,
+    pub docking_transferred: bool,
+    pub animation_tracks_transferred: usize,
+    pub session_values_transferred: usize,
+}
+
+pub fn ui_transfer_hot_reload_state(
+    previous: &UiBuildOutput,
+    next: &mut UiBuildOutput,
+) -> UiHotReloadTransferReport {
+    let mut report = UiHotReloadTransferReport::default();
+
+    if next.systems.hot_reload.preserve_focus {
+        next.systems.focus_graph.default_scope = previous.systems.focus_graph.default_scope.clone();
+        report.focus_transferred = next.systems.focus_graph.default_scope.is_some();
+    }
+
+    if next.systems.hot_reload.preserve_selection {
+        next.systems.selection_model.active_scope =
+            previous.systems.selection_model.active_scope.clone();
+        report.selection_transferred = next.systems.selection_model.active_scope.is_some();
+    }
+
+    if next.systems.hot_reload.preserve_docking {
+        next.systems.workspace_layout = previous.systems.workspace_layout.clone();
+        report.docking_transferred = !next.systems.workspace_layout.roots.is_empty();
+    }
+
+    if next.systems.hot_reload.preserve_session_state {
+        for (key, value) in &previous.systems.session_state {
+            next.systems.session_state.insert(key.clone(), value.clone());
+            report.session_values_transferred += 1;
+        }
+    }
+
+    let previous_identity_map = node_identity_map(&previous.tree);
+    let next_identity_map = node_identity_map(&next.tree);
+    let aliases = next
+        .systems
+        .hot_reload
+        .identity_aliases
+        .iter()
+        .map(|alias| (alias.from.clone(), alias.to.clone()))
+        .collect::<BTreeMap<_, _>>();
+
+    for track in &next.systems.animation_tracks {
+        if !track.preserve_on_reload {
+            continue;
+        }
+
+        let Some(target_identity) = next_identity_map.get(&track.target) else {
+            continue;
+        };
+        let previous_identity = aliases
+            .iter()
+            .find_map(|(from, to)| if to == target_identity { Some(from.clone()) } else { None })
+            .unwrap_or_else(|| target_identity.clone());
+        let Some(previous_node) = previous_identity_map
+            .iter()
+            .find_map(|(node_id, identity)| if identity == &previous_identity { Some(node_id) } else { None })
+        else {
+            continue;
+        };
+
+        let Some(previous_track) = previous
+            .systems
+            .animation_tracks
+            .iter()
+            .find(|candidate| candidate.target == *previous_node && candidate.property == track.property)
+        else {
+            continue;
+        };
+
+        if let Some(state) = previous.systems.animation_state.get(&previous_track.id) {
+            next.systems
+                .animation_state
+                .insert(track.id.clone(), state.clone());
+            report.animation_tracks_transferred += 1;
+        }
+    }
+
+    report
+}
+
+fn node_identity_map(tree: &UiTree) -> BTreeMap<UiNodeId, String> {
+    tree.nodes
+        .values()
+        .filter_map(|node| {
+            node.identity_key
+                .clone()
+                .or_else(|| node.layout.persistent_layout_id.clone())
+                .map(|identity| (node.id, identity))
+        })
+        .collect()
+}
+
 pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProjection {
     let mut projection = UiNativeProjection {
         root_id: output.tree.root.map(|id| id.0),
@@ -533,6 +1766,19 @@ pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProje
 
     collect_native_projection_nodes(&output.tree, root_id, None, 0, &mut projection);
     projection
+}
+
+fn surface_kind_for_node(node: &UiNode) -> Option<UiSurfaceKind> {
+    match node.kind {
+        UiWidgetKind::Graph => Some(UiSurfaceKind::Graph),
+        UiWidgetKind::Timeline => Some(UiSurfaceKind::Timeline),
+        UiWidgetKind::Table => Some(UiSurfaceKind::Table),
+        UiWidgetKind::Tree => Some(UiSurfaceKind::Tree),
+        UiWidgetKind::Viewport2D => Some(UiSurfaceKind::Viewport2D),
+        UiWidgetKind::Viewport3D => Some(UiSurfaceKind::Viewport3D),
+        UiWidgetKind::Overlay => Some(UiSurfaceKind::Overlay),
+        _ => None,
+    }
 }
 
 fn collect_native_projection_nodes(
@@ -667,9 +1913,11 @@ impl UiTreeBuilder {
     }
 
     pub fn finish(self) -> UiBuildOutput {
+        let systems = ui_runtime_systems_from_tree(&self.tree);
         UiBuildOutput {
             tree: self.tree,
             patches: self.patches,
+            systems,
         }
     }
 }
@@ -752,13 +2000,18 @@ mod tests {
         let child_id = builder.alloc_id();
 
         let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some("workspace-root".to_string());
         root.layout = UiLayoutSpec {
             kind: UiLayoutKind::Dock,
+            persistent_layout_id: Some("workspace-main".to_string()),
             ..UiLayoutSpec::default()
         };
         builder.add_node(root);
 
         let mut child = UiNode::new(child_id, UiWidgetKind::Inspector);
+        child.focus_scope = Some("inspector".to_string());
+        child.selection_scope = Some("selection".to_string());
+        child.style.theme_scope = Some("studio".to_string());
         child
             .props
             .insert("title".to_string(), UiValue::from("Details"));
@@ -779,6 +2032,14 @@ mod tests {
             .patches
             .iter()
             .any(|patch| matches!(patch, UiPatch::SetRoot { id } if *id == root_id)));
+        assert_eq!(build.systems.computed.len(), 1);
+        assert_eq!(build.systems.focus_graph.default_scope.as_deref(), Some("inspector"));
+        assert_eq!(
+            build.systems.selection_model.active_scope.as_deref(),
+            Some("selection")
+        );
+        assert_eq!(build.systems.theme_registry.scopes.len(), 1);
+        assert_eq!(build.systems.workspace_layout.roots.len(), 1);
     }
 
     #[test]
@@ -857,12 +2118,14 @@ mod tests {
         let viewport_id = builder.alloc_id();
 
         let mut panel = UiNode::new(root_id, UiWidgetKind::Panel);
+        panel.identity_key = Some("viewport-lab".to_string());
         panel
             .props
             .insert("title".to_string(), UiValue::from("Viewport Lab"));
         builder.add_node(panel);
 
         let mut viewport = UiNode::new(viewport_id, UiWidgetKind::Viewport3D);
+        viewport.style.theme_scope = Some("viewport".to_string());
         viewport
             .props
             .insert("title".to_string(), UiValue::from("Hero View"));
@@ -888,5 +2151,307 @@ mod tests {
             .nodes
             .iter()
             .any(|node| node.kind == UiNativeProjectionKind::Viewport3D));
+    }
+
+    #[test]
+    fn runtime_systems_derive_surfaces_and_reload_identity() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        let graph_id = builder.alloc_id();
+
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some("shell".to_string());
+        root.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            dock: Some(UiDockPlacement::Center),
+            persistent_layout_id: Some("shell-layout".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(root);
+
+        let mut graph = UiNode::new(graph_id, UiWidgetKind::Graph);
+        graph.identity_key = Some("material-graph".to_string());
+        graph.style.theme_scope = Some("editor".to_string());
+        graph.watches.push(UiSignalId(42));
+        builder.add_node(graph);
+        builder.replace_children(root_id, vec![graph_id]);
+        builder.set_root(root_id);
+
+        let build = builder.finish();
+
+        assert_eq!(build.systems.surfaces.len(), 1);
+        assert_eq!(build.systems.animation_tracks.len(), 1);
+        assert_eq!(build.systems.hot_reload.identity_aliases.len(), 2);
+        assert_eq!(build.systems.workspace_layout.persistence_key.as_deref(), Some("shell-layout"));
+        assert!(build
+            .systems
+            .scheduler
+            .pending
+            .iter()
+            .any(|entry| entry.phase == UiSchedulerPhase::Signals));
+    }
+
+    #[test]
+    fn runtime_bundle_backfills_runtime_systems_for_manual_output() {
+        let root_id = UiNodeId(1);
+        let mut tree = UiTree::default();
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some("manual-root".to_string());
+        root.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            ..UiLayoutSpec::default()
+        };
+        tree.nodes.insert(root_id, root);
+        tree.root = Some(root_id);
+
+        let bundle = ui_runtime_bundle_from_output(
+            UiRuntimeMetadata {
+                app_name: Some("manual".to_string()),
+                window_title: "Manual".to_string(),
+                root_component: "App".to_string(),
+                source_file_name: None,
+                initial_window_size: [1280.0, 720.0],
+            },
+            UiBuildOutput {
+                tree,
+                patches: vec![UiPatch::SetRoot { id: root_id }],
+                systems: UiRuntimeSystems::default(),
+            },
+        );
+
+        assert!(!bundle.output.systems.is_empty());
+        assert_eq!(bundle.output.systems.workspace_layout.roots.len(), 1);
+    }
+
+    #[test]
+    fn signal_updates_invalidate_exact_dependencies() {
+        let mut systems = UiRuntimeSystems::default();
+        systems.computed.push(UiComputed {
+            id: "selection.computed".to_string(),
+            label: "selection".to_string(),
+            depends_on: vec![UiSignalId(7)],
+            invalidates_nodes: vec![UiNodeId(11), UiNodeId(12)],
+            scheduler_phase: UiSchedulerPhase::Signals,
+        });
+
+        let result = ui_execute_signal_updates(
+            &mut systems,
+            &[UiSignalUpdate {
+                signal: UiSignalId(7),
+                value: UiValue::Int(3),
+            }],
+        );
+
+        assert_eq!(result.changed_signals, vec![UiSignalId(7)]);
+        assert_eq!(result.invalidated_nodes, vec![UiNodeId(11), UiNodeId(12)]);
+        assert_eq!(systems.transactions.len(), 1);
+        assert!(systems
+            .scheduler
+            .pending
+            .iter()
+            .any(|entry| entry.label == "selection"));
+    }
+
+    #[test]
+    fn theme_resolution_and_diff_detect_style_changes() {
+        let mut registry = UiThemeRegistry::default();
+        registry.scopes.push(UiThemeScope {
+            name: "studio".to_string(),
+            selector: "scope:studio".to_string(),
+            parent: Some("base".to_string()),
+        });
+        registry.scopes.push(UiThemeScope {
+            name: "base".to_string(),
+            selector: "scope:base".to_string(),
+            parent: None,
+        });
+        registry.semantic_tokens.push(UiThemeToken {
+            name: "surface.background".to_string(),
+            category: "color".to_string(),
+            value: UiValue::String("#111111".to_string()),
+        });
+        registry.variants.push(UiThemeVariant {
+            scope: "studio".to_string(),
+            name: "base".to_string(),
+            tokens: vec!["surface.background".to_string()],
+        });
+
+        let mut node = UiNode::new(UiNodeId(1), UiWidgetKind::Panel);
+        node.style.theme_scope = Some("studio".to_string());
+        let before = ui_resolve_theme_for_node(&node, &registry);
+
+        node.style
+            .values
+            .insert("surface.background".to_string(), UiValue::String("#222222".to_string()));
+        let after = ui_resolve_theme_for_node(&node, &registry);
+        let diff = ui_diff_resolved_theme(&before, &after);
+
+        assert_eq!(before.scope_chain, vec!["studio".to_string(), "base".to_string()]);
+        assert!(!diff.is_empty());
+        assert!(diff
+            .changes
+            .iter()
+            .any(|entry| entry.key == "surface.background"));
+    }
+
+    #[test]
+    fn workspace_layout_solver_and_snapshot_round_trip() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        let left_id = builder.alloc_id();
+        let center_id = builder.alloc_id();
+
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some("workspace".to_string());
+        root.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            persistent_layout_id: Some("workspace".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(root);
+
+        let mut left = UiNode::new(left_id, UiWidgetKind::Inspector);
+        left.identity_key = Some("left-pane".to_string());
+        left.layout = UiLayoutSpec {
+            kind: UiLayoutKind::FlexColumn,
+            dock: Some(UiDockPlacement::Left),
+            split_ratio: Some(0.3),
+            persistent_layout_id: Some("left-pane".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(left);
+
+        let mut center = UiNode::new(center_id, UiWidgetKind::Graph);
+        center.identity_key = Some("center-pane".to_string());
+        center.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Absolute,
+            dock: Some(UiDockPlacement::Center),
+            persistent_layout_id: Some("center-pane".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(center);
+
+        builder.replace_children(root_id, vec![left_id, center_id]);
+        builder.set_root(root_id);
+
+        let mut build = builder.finish();
+        let resolved = ui_solve_workspace_layout(&build.tree, &build.systems, [1000.0, 800.0]);
+        let left_layout = resolved
+            .nodes
+            .iter()
+            .find(|entry| entry.node == left_id)
+            .expect("left layout should exist");
+        assert!((left_layout.rect.width - 300.0).abs() < 0.5);
+
+        let snapshot = ui_workspace_layout_snapshot(&build.tree, &build.systems);
+        if let Some(node) = build.tree.node_mut(left_id) {
+            node.layout.dock = Some(UiDockPlacement::Right);
+            node.layout.split_ratio = Some(0.2);
+        }
+        let applied = ui_apply_workspace_layout_snapshot(&mut build.tree, &mut build.systems, &snapshot);
+        assert_eq!(applied, 3);
+        assert_eq!(
+            build.tree.node(left_id).and_then(|node| node.layout.dock),
+            Some(UiDockPlacement::Left)
+        );
+        assert_eq!(
+            build.tree.node(left_id).and_then(|node| node.layout.split_ratio),
+            Some(0.3)
+        );
+    }
+
+    #[test]
+    fn animation_runtime_advances_tracks_to_completion() {
+        let mut systems = UiRuntimeSystems::default();
+        systems.animation_tracks.push(UiAnimationTrack {
+            id: "fade".to_string(),
+            target: UiNodeId(9),
+            property: "opacity".to_string(),
+            duration_ms: 100,
+            trigger: UiAnimationTrigger::Mount,
+            easing: UiEasingKind::EaseOut,
+            preserve_on_reload: true,
+        });
+
+        let first = ui_step_animation_runtime(&mut systems, 40);
+        let second = ui_step_animation_runtime(&mut systems, 60);
+
+        assert_eq!(first.len(), 1);
+        assert!(first[0].eased_progress > first[0].progress);
+        assert_eq!(second[0].progress, 1.0);
+        assert!(second[0].completed);
+        assert!(systems
+            .animation_state
+            .get("fade")
+            .is_some_and(|state| state.completed));
+    }
+
+    #[test]
+    fn hot_reload_transfer_preserves_runtime_state() {
+        let mut previous_builder = UiTreeBuilder::new();
+        let previous_root = previous_builder.alloc_id();
+        let previous_graph = previous_builder.alloc_id();
+
+        let mut root = UiNode::new(previous_root, UiWidgetKind::Panel);
+        root.identity_key = Some("shell".to_string());
+        root.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            persistent_layout_id: Some("shell".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        previous_builder.add_node(root);
+
+        let mut graph = UiNode::new(previous_graph, UiWidgetKind::Graph);
+        graph.identity_key = Some("graph".to_string());
+        previous_builder.add_node(graph);
+        previous_builder.replace_children(previous_root, vec![previous_graph]);
+        previous_builder.set_root(previous_root);
+        let mut previous = previous_builder.finish();
+        previous.systems.focus_graph.default_scope = Some("selection".to_string());
+        previous.systems.selection_model.active_scope = Some("selection".to_string());
+        previous
+            .systems
+            .session_state
+            .insert("tab".to_string(), UiValue::String("materials".to_string()));
+        previous.systems.animation_state.insert(
+            "animation.node.2".to_string(),
+            UiAnimationPlaybackState {
+                elapsed_ms: 90,
+                progress: 0.5,
+                eased_progress: 0.75,
+                completed: false,
+            },
+        );
+
+        let mut next_builder = UiTreeBuilder::new();
+        let next_root = next_builder.alloc_id();
+        let next_graph = next_builder.alloc_id();
+        let mut next_root_node = UiNode::new(next_root, UiWidgetKind::Panel);
+        next_root_node.identity_key = Some("shell".to_string());
+        next_root_node.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            persistent_layout_id: Some("shell".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        next_builder.add_node(next_root_node);
+        let mut next_graph_node = UiNode::new(next_graph, UiWidgetKind::Graph);
+        next_graph_node.identity_key = Some("graph".to_string());
+        next_builder.add_node(next_graph_node);
+        next_builder.replace_children(next_root, vec![next_graph]);
+        next_builder.set_root(next_root);
+        let mut next = next_builder.finish();
+
+        let report = ui_transfer_hot_reload_state(&previous, &mut next);
+
+        assert!(report.focus_transferred);
+        assert!(report.selection_transferred);
+        assert!(report.docking_transferred);
+        assert_eq!(report.animation_tracks_transferred, 1);
+        assert_eq!(report.session_values_transferred, 1);
+        assert_eq!(next.systems.focus_graph.default_scope.as_deref(), Some("selection"));
+        assert_eq!(
+            next.systems.session_state.get("tab"),
+            Some(&UiValue::String("materials".to_string()))
+        );
     }
 }

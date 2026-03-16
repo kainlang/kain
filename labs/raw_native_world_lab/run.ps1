@@ -2,7 +2,8 @@ param(
     [string]$ExeName = "raw_native_world_lab.exe",
     [string]$BundleName = "ui_bundle.json",
     [string]$RuntimeContractName = "",
-    [string]$AssetName = ""
+    [string]$AssetName = "",
+    [switch]$CompatContract
 )
 
 $labRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -36,6 +37,9 @@ if (Test-Path $runtimeContractPath) {
     Remove-Item Env:KAIN_RUNTIME_CONTRACT -ErrorAction SilentlyContinue
     Write-Host "No explicit runtime contract env set. The native runtime will try the exe sidecar automatically."
 }
+
+$env:KAIN_RUNTIME_CONTRACT_STRICT = if ($CompatContract) { "0" } else { "1" }
+Write-Host ("Runtime contract mode: " + $(if ($CompatContract) { "compat" } else { "strict" }))
 
 if ($AssetName) {
     $assetPath = Join-Path $assetsRoot $AssetName

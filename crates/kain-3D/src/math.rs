@@ -1,4 +1,72 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Vec2 {
+    pub const ZERO: Self = Self::new(0.0, 0.0);
+    pub const ONE: Self = Self::new(1.0, 1.0);
+
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn length(self) -> f32 {
+        self.dot(self).sqrt()
+    }
+
+    pub fn normalize(self) -> Self {
+        let length = self.length();
+        if length <= f32::EPSILON {
+            Self::ZERO
+        } else {
+            self / length
+        }
+    }
+
+    pub fn lerp(self, other: Self, t: f32) -> Self {
+        self + (other - self) * t
+    }
+}
+
+impl std::ops::Add for Vec2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+
+impl std::ops::Sub for Vec2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+impl std::ops::Mul<f32> for Vec2 {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self::new(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl std::ops::Div<f32> for Vec2 {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        Self::new(self.x / rhs, self.y / rhs)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -40,6 +108,14 @@ impl Vec3 {
 
     pub fn component_mul(self, other: Self) -> Self {
         Self::new(self.x * other.x, self.y * other.y, self.z * other.z)
+    }
+
+    pub fn distance(self, other: Self) -> f32 {
+        (self - other).length()
+    }
+
+    pub fn lerp(self, other: Self, t: f32) -> Self {
+        self + (other - self) * t
     }
 }
 
@@ -296,6 +372,29 @@ impl Transform {
     pub fn with_scale(mut self, scale: Vec3) -> Self {
         self.scale = scale;
         self
+    }
+
+    pub fn transform_point(&self, point: Vec3) -> Vec3 {
+        let scaled = point.component_mul(self.scale);
+        let rotated = Mat4::rotation_xyz(self.rotation_radians).transform_vector(scaled);
+        rotated + self.translation
+    }
+
+    pub fn transform_vector(&self, vector: Vec3) -> Vec3 {
+        Mat4::rotation_xyz(self.rotation_radians).transform_vector(vector.component_mul(self.scale))
+    }
+
+    pub fn combine(&self, child: &Self) -> Self {
+        let rotated_child_translation =
+            Mat4::rotation_xyz(self.rotation_radians).transform_vector(
+                child.translation.component_mul(self.scale),
+            );
+
+        Self {
+            translation: self.translation + rotated_child_translation,
+            rotation_radians: self.rotation_radians + child.rotation_radians,
+            scale: self.scale.component_mul(child.scale),
+        }
     }
 
     pub fn matrix(&self) -> Mat4 {

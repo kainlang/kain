@@ -1,6 +1,23 @@
 #include "../../include/kain_runtime_contract.h"
 
 #ifdef _WIN32
+typedef struct {
+    const char* key;
+    unsigned int mask;
+    int is_core;
+} KainRuntimeServiceSpec;
+
+static const KainRuntimeServiceSpec g_kain_runtime_service_specs[] = {
+    {"native.app-host", KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST, 1},
+    {"native.input", KAIN_RUNTIME_SERVICE_NATIVE_INPUT, 1},
+    {"native.viewport", KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT, 1},
+    {"native.asset.gltf", KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF, 0},
+    {"native.ui.compiled-bundle", KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED, 0},
+};
+
+static const size_t g_kain_runtime_service_spec_count =
+    sizeof(g_kain_runtime_service_specs) / sizeof(g_kain_runtime_service_specs[0]);
+
 static const char* kain_runtime_contract_find_substring(
     const char* start,
     const char* end,
@@ -162,6 +179,67 @@ static void kain_runtime_contract_copy_cstr(char* out, size_t out_cap, const cha
     out[length] = '\0';
 }
 
+static int kain_runtime_contract_count_bits(unsigned int value) {
+    int count = 0;
+    while (value) {
+        count += (value & 1u) != 0u ? 1 : 0;
+        value >>= 1;
+    }
+    return count;
+}
+
+static const KainRuntimeServiceSpec* kain_runtime_contract_find_service_spec(const char* key) {
+    size_t i;
+    if (!key || !key[0]) {
+        return NULL;
+    }
+    for (i = 0; i < g_kain_runtime_service_spec_count; ++i) {
+        if (_stricmp(g_kain_runtime_service_specs[i].key, key) == 0) {
+            return &g_kain_runtime_service_specs[i];
+        }
+    }
+    return NULL;
+}
+
+static void kain_runtime_contract_append_message(
+    char* out,
+    size_t out_cap,
+    const char* value
+) {
+    size_t length;
+    size_t value_length;
+    if (!out || out_cap == 0 || !value || !value[0]) {
+        return;
+    }
+    length = strlen(out);
+    value_length = strlen(value);
+    if (length + value_length + 1 >= out_cap) {
+        value_length = out_cap - length - 1;
+    }
+    if (value_length > 0) {
+        memcpy(out + length, value, value_length);
+        out[length + value_length] = '\0';
+    }
+}
+
+static void kain_runtime_contract_add_warning(
+    KainRuntimeContractValidation* validation,
+    const char* warning
+) {
+    if (!validation || !warning || !warning[0]) {
+        return;
+    }
+    if (validation->warning_count >= KAIN_RUNTIME_CONTRACT_MAX_DIAGNOSTICS) {
+        return;
+    }
+    kain_runtime_contract_copy_cstr(
+        validation->warnings[validation->warning_count],
+        sizeof(validation->warnings[validation->warning_count]),
+        warning
+    );
+    validation->warning_count += 1;
+}
+
 static void kain_runtime_contract_extract_string_field(
     const char* scope_start,
     const char* scope_end,
@@ -264,16 +342,10 @@ static void kain_runtime_contract_analyze_services(
         );
 
         if (service_name[0]) {
-            if (_stricmp(service_name, "native.app-host") == 0) {
-                bundle->has_native_app_host = 1;
-            } else if (_stricmp(service_name, "native.input") == 0) {
-                bundle->has_native_input = 1;
-            } else if (_stricmp(service_name, "native.viewport") == 0) {
-                bundle->has_native_viewport = 1;
-            } else if (_stricmp(service_name, "native.asset.gltf") == 0) {
-                bundle->has_native_asset_gltf = 1;
-            } else if (_stricmp(service_name, "native.ui.compiled-bundle") == 0) {
-                bundle->has_native_ui_compiled_bundle = 1;
+            const KainRuntimeServiceSpec* spec =
+                kain_runtime_contract_find_service_spec(service_name);
+            if (spec) {
+                bundle->service_mask |= spec->mask;
             }
         }
 
@@ -287,13 +359,22 @@ static void kain_runtime_contract_finalize(KainRuntimeContractBundle* bundle) {
     }
 
     bundle->target_is_llvm = bundle->target[0] && _stricmp(bundle->target, "llvm") == 0;
-    bundle->core_service_count =
-        (bundle->has_native_app_host ? 1 : 0) +
-        (bundle->has_native_input ? 1 : 0) +
-        (bundle->has_native_viewport ? 1 : 0);
-    bundle->optional_service_count =
-        (bundle->has_native_asset_gltf ? 1 : 0) +
-        (bundle->has_native_ui_compiled_bundle ? 1 : 0);
+    bundle->has_native_app_host =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST) != 0u;
+    bundle->has_native_input =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_INPUT) != 0u;
+    bundle->has_native_viewport =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT) != 0u;
+    bundle->has_native_asset_gltf =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF) != 0u;
+    bundle->has_native_ui_compiled_bundle =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED) != 0u;
+    bundle->core_service_count = kain_runtime_contract_count_bits(
+        bundle->service_mask & KAIN_RUNTIME_SERVICE_CORE_MASK
+    );
+    bundle->optional_service_count = kain_runtime_contract_count_bits(
+        bundle->service_mask & KAIN_RUNTIME_SERVICE_OPTIONAL_MASK
+    );
     bundle->missing_core_service_count = 3 - bundle->core_service_count;
     if (bundle->missing_core_service_count < 0) {
         bundle->missing_core_service_count = 0;
@@ -512,5 +593,154 @@ int kain_runtime_contract_load_for_current_process(
 
     kain_runtime_contract_init(bundle);
     return 0;
+}
+
+unsigned int kain_runtime_contract_service_mask(const KainRuntimeContractBundle* bundle) {
+    if (!bundle) {
+        return 0u;
+    }
+    return bundle->service_mask;
+}
+
+void kain_runtime_contract_validation_init(KainRuntimeContractValidation* validation) {
+    if (!validation) {
+        return;
+    }
+    ZeroMemory(validation, sizeof(*validation));
+}
+
+void kain_runtime_contract_format_service_mask(
+    unsigned int service_mask,
+    char* out,
+    size_t out_cap
+) {
+    size_t i;
+    int wrote_any = 0;
+    if (!out || out_cap == 0) {
+        return;
+    }
+    out[0] = '\0';
+    for (i = 0; i < g_kain_runtime_service_spec_count; ++i) {
+        const KainRuntimeServiceSpec* spec = &g_kain_runtime_service_specs[i];
+        if ((service_mask & spec->mask) == 0u) {
+            continue;
+        }
+        if (wrote_any) {
+            kain_runtime_contract_append_message(out, out_cap, ", ");
+        }
+        kain_runtime_contract_append_message(out, out_cap, spec->key);
+        wrote_any = 1;
+    }
+    if (!wrote_any) {
+        kain_runtime_contract_copy_cstr(out, out_cap, "none");
+    }
+}
+
+int kain_runtime_contract_validate_startup(
+    const KainRuntimeContractBundle* bundle,
+    unsigned int required_service_mask,
+    unsigned int optional_service_mask,
+    KainRuntimeContractValidation* validation
+) {
+    char services_buffer[192];
+    if (!validation) {
+        return 0;
+    }
+
+    kain_runtime_contract_validation_init(validation);
+    validation->strict_mode = kain_env_flag(KAIN_RUNTIME_CONTRACT_STRICT_ENV, 1);
+    validation->required_service_mask = required_service_mask;
+    validation->optional_service_mask = optional_service_mask;
+    validation->contract_present = bundle && bundle->loaded;
+    validation->available_service_mask = bundle ? bundle->service_mask : 0u;
+    validation->missing_required_mask =
+        required_service_mask & ~validation->available_service_mask;
+    validation->downgraded_optional_mask =
+        optional_service_mask & ~validation->available_service_mask;
+
+    if (!validation->contract_present) {
+        if (validation->strict_mode) {
+            validation->fatal_error = 1;
+            snprintf(
+                validation->fatal_message,
+                sizeof(validation->fatal_message),
+                "Runtime contract missing. Keep %s beside the executable or set %s.",
+                KAIN_RUNTIME_CONTRACT_SIDECAR_SUFFIX,
+                KAIN_RUNTIME_CONTRACT_ENV
+            );
+            return 0;
+        }
+        kain_runtime_contract_add_warning(
+            validation,
+            "Runtime contract missing; running raw native lane without contract enforcement."
+        );
+        return 1;
+    }
+
+    if (!bundle->target_is_llvm) {
+        if (validation->strict_mode) {
+            validation->fatal_error = 1;
+            snprintf(
+                validation->fatal_message,
+                sizeof(validation->fatal_message),
+                "Runtime contract target mismatch. Expected llvm, got %s.",
+                bundle->target[0] ? bundle->target : "unknown"
+            );
+            return 0;
+        }
+        snprintf(
+            services_buffer,
+            sizeof(services_buffer),
+            "Runtime contract target is %s instead of llvm; continuing because %s=0.",
+            bundle->target[0] ? bundle->target : "unknown",
+            KAIN_RUNTIME_CONTRACT_STRICT_ENV
+        );
+        kain_runtime_contract_add_warning(validation, services_buffer);
+    }
+
+    if (validation->missing_required_mask != 0u) {
+        kain_runtime_contract_format_service_mask(
+            validation->missing_required_mask,
+            services_buffer,
+            sizeof(services_buffer)
+        );
+        if (validation->strict_mode) {
+            validation->fatal_error = 1;
+            snprintf(
+                validation->fatal_message,
+                sizeof(validation->fatal_message),
+                "Runtime contract is missing required services: %s.",
+                services_buffer
+            );
+            return 0;
+        }
+        snprintf(
+            validation->fatal_message,
+            sizeof(validation->fatal_message),
+            "Missing required services but continuing because %s=0: %s.",
+            KAIN_RUNTIME_CONTRACT_STRICT_ENV,
+            services_buffer
+        );
+        kain_runtime_contract_add_warning(validation, validation->fatal_message);
+        validation->fatal_message[0] = '\0';
+    }
+
+    if (validation->downgraded_optional_mask != 0u) {
+        kain_runtime_contract_format_service_mask(
+            validation->downgraded_optional_mask,
+            services_buffer,
+            sizeof(services_buffer)
+        );
+        snprintf(
+            validation->fatal_message,
+            sizeof(validation->fatal_message),
+            "Optional runtime services unavailable; related features will be disabled: %s.",
+            services_buffer
+        );
+        kain_runtime_contract_add_warning(validation, validation->fatal_message);
+        validation->fatal_message[0] = '\0';
+    }
+
+    return 1;
 }
 #endif

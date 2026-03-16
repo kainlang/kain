@@ -1,8 +1,17 @@
+mod authoring;
 mod math;
+mod prelude;
 mod renderer;
 mod scene;
 
-pub use math::{ColorRgb, Mat4, Transform, Vec3};
+pub use authoring::{
+    AttributeDomain, AttributeValues, Brush, BrushFalloff, Effector, Field, Geometry,
+    GeometryAttribute, GeometryError, GeometryTopology, InstancePattern, Instancer, Light, MeshNode,
+    Modifier, Node, NodeId, NodeKind, Scene, SceneBuildError, Spline, SplineType, ToolContext,
+    Volume,
+};
+pub use math::{ColorRgb, Mat4, Transform, Vec2, Vec3};
+pub use prelude::{emit_kain_prelude, reflected_type_registry};
 pub use renderer::{
     RenderError, RenderFrame, RenderResolution, RenderStats, RenderViewSettings, SoftwareRenderer,
     SoftwareRendererConfig,

@@ -525,6 +525,51 @@ impl eframe::App for KainUiNativeApp {
                                 ui.label(RichText::new(format!("{patch:?}")).monospace());
                             }
                         });
+
+                    ui.separator();
+                    ui.heading("Runtime Systems");
+                    ui.label(format!(
+                        "computed={} surfaces={} animations={} theme_scopes={} dock_roots={}",
+                        self.output.systems.computed.len(),
+                        self.output.systems.surfaces.len(),
+                        self.output.systems.animation_tracks.len(),
+                        self.output.systems.theme_registry.scopes.len(),
+                        self.output.systems.workspace_layout.roots.len(),
+                    ));
+                    ui.label(format!(
+                        "focus_scopes={} selection_scopes={} scheduler_pending={} reload_aliases={}",
+                        self.output.systems.focus_graph.scopes.len(),
+                        self.output.systems.selection_model.scopes.len(),
+                        self.output.systems.scheduler.pending.len(),
+                        self.output.systems.hot_reload.identity_aliases.len(),
+                    ));
+
+                    ui.collapsing("Theme Scopes", |ui| {
+                        for scope in &self.output.systems.theme_registry.scopes {
+                            ui.label(
+                                RichText::new(format!("{} -> {}", scope.name, scope.selector))
+                                    .monospace(),
+                            );
+                        }
+                    });
+
+                    ui.collapsing("Scheduler", |ui| {
+                        for entry in &self.output.systems.scheduler.pending {
+                            ui.label(
+                                RichText::new(format!("{:?}: {}", entry.phase, entry.label))
+                                    .monospace(),
+                            );
+                        }
+                    });
+
+                    ui.collapsing("Hot Reload", |ui| {
+                        for alias in &self.output.systems.hot_reload.identity_aliases {
+                            ui.label(
+                                RichText::new(format!("{} -> {}", alias.from, alias.to))
+                                    .monospace(),
+                            );
+                        }
+                    });
                 });
         }
 
