@@ -4,6 +4,8 @@
 
 This board turns the GPU-first roadmap into a parallel execution plan. `SPIR-V` remains the canonical native GPU payload inside a compiler-owned `Kain shader bundle`. `WGSL`, `HLSL`, `USF`, and future formats are derived outputs, not independent truths.
 
+The board now also has to account for a second platform fact that is no longer hypothetical: Kain has an active host-backed interop lane. The current runtime can already orchestrate Python, Rust crate FFI, Node, and C in the same `.kn` program while moving shared payloads through neutral Kain-owned contracts instead of bespoke one-off bridges.
+
 The implementation boundary is still `Kain + ZenDCC`:
 - `Kain` owns authored scene/tool/shader intent, compiler artifacts, and runtime contracts.
 - `ZenDCC` owns persistence, entity/layer state, and flagship DCC integration until Kain-native editor persistence replaces it.
@@ -21,6 +23,8 @@ Program order is still fixed at the milestone level:
 10. hot reload
 11. flagship proof apps
 
+The program is therefore no longer just `GPU-first rendering`. It is `GPU-first rendering + Kain-owned runtime interop`, where authored Kain code remains the compact orchestration and intent layer above renderer bundles, editor state, and host/runtime bridge contracts.
+
 This file exists to answer a different question:
 `what can multiple agents do right now without stepping on each other?`
 
@@ -35,6 +39,10 @@ This file exists to answer a different question:
 - `kain-ui-native` can resolve viewport scene/material/shader references from realtime sidecars.
 - Raw native runtime can load a realtime bundle sidecar and expose it in the viewport/sculpt lanes.
 - CPU picking, GPU picking, and first-pass gizmo rendering exist.
+- `kain-driver` now registers and prepares a mixed host runtime lane that can compose `kain-c-ffi`, `kain-crate-ffi`, `kain-node`, `kain-python`, and `kain-interop` in one authored `.kn`.
+- `kain-interop` defines neutral shared buffer/image contracts with source-runtime metadata instead of per-bridge bespoke payload formats.
+- `KAIN.toml` can declare `rust_ffi`, `c_ffi`, and node runtime settings as manifest-driven configuration rather than ad hoc source-local wiring.
+- Mixed-language smoke coverage exists in `smoketest/py_cargo_node_c/quad_prism_halo`, proving Python -> Kain -> Rust -> C -> Node flow over the same shared payload lifecycle.
 
 ### Still transitional
 
@@ -44,6 +52,9 @@ This file exists to answer a different question:
 - Gizmos are not yet a full manipulator drag/transaction system.
 - Zen bridge, layer bindings, and undo/redo authority are not wired end-to-end.
 - Modern material/resource ownership is still early.
+- The host interop lane is still mostly an interpret/test and host-backed execution story; it is not yet modeled as a first-class platform milestone with explicit capability/version policy.
+- Neutral interop contracts currently cover meaningful shared payloads, but bundle/runtime/editor planning does not yet treat them as canonical cross-runtime data interfaces.
+- The DCC roadmap still understates how much future tool, import, simulation, and asset work can be staged through the interop spine before fully native bundle/runtime replacements exist.
 
 ### Program position
 
@@ -51,15 +62,19 @@ This file exists to answer a different question:
 - `Milestone 1`: mostly implemented, not retired
 - `Milestone 2`: partially implemented
 - `Milestone 3`: partially implemented
-- `Milestone 4`: started
-- `Milestone 5+`: mostly ahead
+- `Milestone 4`: not formally tracked, but host interop/FFI substrate is actively emerging
+- `Milestone 5`: started
+- `Milestone 6+`: mostly ahead
 
 ## Non-Negotiables
 
 - Canonical unit is a `Kain shader bundle`, not a loose `.spv` file.
 - `SPIR-V` is the canonical native GPU payload inside that bundle.
 - `WGSL`, `HLSL`, and `USF` are derived outputs and must not become independent truths.
+- Canonical cross-runtime payloads must move through Kain-owned neutral contracts such as `kain.shared.buffer` and `kain.shared.image`, not per-bridge bespoke blobs.
+- `KAIN.toml` is the source of truth for host FFI/runtime bridge configuration; runtime discovery must stay manifest/schema driven.
 - No long-term reliance on handwritten renderer-local shader blobs.
+- No long-term reliance on handwritten bridge-local marshaling formats that bypass `kain-interop`.
 - No divergent scene/material/shader truths across hosts.
 - No flagship demo work unless it graduates reusable compiler/runtime/editor services.
 
@@ -189,6 +204,45 @@ Retirement criteria:
 - Pick, transform, visibility, and undo/redo stay synchronized between viewport and Zen layer state.
 - Gizmos are interactive, not visual-only.
 
+### WS4X: Host Interop and FFI Spine
+
+Status: `ACTIVE`
+Milestone target: `4`
+Primary ownership:
+- `crates/kain-driver`
+- `crates/kain-interop`
+- `crates/kain-c-ffi`
+- `crates/kain-crate-ffi`
+- `crates/kain-node`
+- `crates/kain-python`
+- `crates/cli`
+- `smoketest`
+
+Goal:
+- Make Kain-owned host interop a deliberate platform substrate instead of a collection of useful but under-planned bridges.
+
+Scope:
+- Define the neutral interop contracts as stable platform surfaces with versioning, validation, metadata, and capability expectations.
+- Keep bridge/runtime discovery manifest-driven through `KAIN.toml` rather than source-local assumptions.
+- Expand mixed-lane smokes so they prove shared buffers/images, opaque handles, and authored orchestration across Python, Rust crate FFI, Node, and C.
+- Clarify lane limits explicitly: host-backed FFI support is real and valuable, but target/runtime availability must be surfaced instead of implied universal portability.
+- Use the interop spine as the transitional substrate for tool kernels, import flows, validation labs, and pre-native DCC services where it shortens time to proof without creating permanent architectural debt.
+
+Key files:
+- `M:/Code/Kain/crates/kain-driver/src/lib.rs`
+- `M:/Code/Kain/crates/kain-interop/src/lib.rs`
+- `M:/Code/Kain/crates/kain-c-ffi/src/lib.rs`
+- `M:/Code/Kain/crates/kain-crate-ffi/src/lib.rs`
+- `M:/Code/Kain/crates/cli/src/packager/config.rs`
+- `M:/Code/Kain/smoketest/py_cargo_node_c/quad_prism_halo/KAIN.toml`
+- `M:/Code/Kain/smoketest/py_cargo_node_c/quad_prism_halo/smoke.kn`
+
+Retirement criteria:
+- Mixed-runtime execution is documented and validated as a first-class Kain lane, not an accidental side effect.
+- Shared payload contracts have clear schema/version expectations and fail loudly on incompatible usage.
+- At least one smoke proves Python + Rust crate FFI + C + Node working together over the same authored Kain program and neutral payload contracts.
+- DCC/runtime roadmap items that depend on host interop can point to this substrate instead of inventing one-off bridge plans.
+
 ### WS5: Modern Renderer Core
 
 Status: `READY`
@@ -292,7 +346,7 @@ Retirement criteria:
 
 ### WS10: Flagship Proof Apps
 
-Status: `BLOCKED BY 4/5/6`
+Status: `BLOCKED BY 4/4X/5/6`
 Milestone target: `10`
 Primary ownership:
 - `crates/kain-3D`
@@ -354,6 +408,17 @@ Owns:
 Avoid touching:
 - shader compilation pipeline
 
+### Agent D2: Host Interop Spine
+
+Owns:
+- `WS4X`
+- neutral shared contract policy
+- manifest-driven bridge/runtime config
+- mixed-lane smoke proof and capability validation
+
+Avoid touching:
+- viewport manipulator behavior unless interop work is required to unblock it
+
 ### Agent E: Renderer Features
 
 Owns:
@@ -381,11 +446,13 @@ To keep multiple agents fast without wrecking the tree:
 - One workstream per agent at a time.
 - Shared contracts change first, consumers second.
 - Any new runtime or bundle field must be added with defaulting or compatibility handling.
+- Any new interop contract field or bridge capability must be added with versioning/defaulting and explicit validation behavior.
 - Do not merge demo-only shortcuts into platform seams.
 - Each agent should prove the real lane they touched:
   - compiler emission
   - viewport host
   - raw native runtime
+  - host interop bridge lane
   - Zen bridge
 
 ## Board Order
@@ -395,10 +462,11 @@ The fastest defensible execution order is:
 1. Retire `WS1`
 2. Retire `WS2`
 3. Retire `WS3`
-4. Retire `WS4`
-5. Run `WS5` and `WS6` in parallel
-6. Use that platform to unlock `WS7`, `WS8`, `WS9`
-7. Ship `WS10`
+4. Retire `WS4X` in parallel with `WS4`
+5. Retire `WS4`
+6. Run `WS5` and `WS6` in parallel
+7. Use that platform to unlock `WS7`, `WS8`, `WS9`
+8. Ship `WS10`
 
 ## Validation Matrix
 
@@ -407,6 +475,7 @@ The fastest defensible execution order is:
 - Golden tests for `ShaderArtifactBundle`
 - Golden tests for `RealtimeAppBundle`
 - Cross-backend derived output checks
+- Contract/version tests for `kain-interop` shared payload surfaces
 
 ### GPU / viewport
 
@@ -418,6 +487,13 @@ The fastest defensible execution order is:
 
 - `clang -c .\\runtime\\kain_runtime.c -o .\\runtime\\kain_runtime_smoke.obj`
 - `labs/raw_native_world_lab/build.ps1`
+
+### Host interop / FFI
+
+- `cargo test -p kain-c-ffi --lib`
+- `cargo test -p kain-crate-ffi --lib`
+- focused mixed-lane smoke in `smoketest/py_cargo_node_c/quad_prism_halo`
+- manifest/config validation for `KAIN.toml` bridge sections
 
 ### Editor substrate
 
@@ -440,6 +516,9 @@ The fastest defensible execution order is:
 - `RenderSceneBundle`
 - `RuntimeCapabilitySet`
 - `RendererCapabilitySet`
+- `KAIN_SHARED_CONTRACT_VERSION`
+- `SharedBufferMetadata`
+- `SharedImageMetadata`
 - `ZenSceneBridge`
 - `ZenEntityBinding`
 - `ZenLayerBinding`
@@ -451,6 +530,8 @@ The fastest defensible execution order is:
 
 - `kain-core`: shader/compute/runtime contract schemas and semantic lowering
 - `kain-driver`: bundle compilation/materialization and contract emission
+- `kain-interop`: neutral shared payload contracts and metadata surfaces
+- `kain-c-ffi` / `kain-crate-ffi` / `kain-node` / `kain-python`: host-backed bridge lanes that must converge on shared Kain-owned contracts
 - `gpu`: canonical `SPIR-V` generation and derived backend materializers
 - `kain-3D`: renderer/runtime consumption of compiled bundles
 - `kain-ui` / `kain-ui-native`: editor UI and GPU viewport hosting
