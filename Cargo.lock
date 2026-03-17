@@ -2714,6 +2714,7 @@ dependencies = [
  "gpu",
  "kain-core",
  "kain-crate-ffi",
+ "kain-node",
  "kain-python",
  "kain-sys-codegen",
  "kain-ui",
@@ -2762,6 +2763,18 @@ dependencies = [
  "thiserror 1.0.69",
  "tree-sitter",
  "tree-sitter-hlsl",
+]
+
+[[package]]
+name = "kain-node"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

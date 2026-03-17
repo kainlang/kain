@@ -1,0 +1,91 @@
+use std::python::bridge
+use std::python::numpy
+use std::javascript::bridge
+use std::javascript::web
+use rust::trinity_stack_node
+
+fn smoke_output(name: String) -> String:
+    return "outputs/" + name
+
+fn install_python_kernel():
+    py_bridge_exec("import sys\nif 'helpers' not in sys.path:\n    sys.path.insert(0, 'helpers')\nfrom trinity_kernel import kain_trinity_payload\n")
+
+fn build_svg(payload, phase: Int) -> String:
+    let width = payload.width
+    let height = payload.height
+    let points = payload.points
+    let bands = payload.bands
+    let spokes = cargo_spokes(width, 6, phase)
+    let markers = cargo_markers(width, height, phase)
+    let svg = "<svg viewBox='0 0 " + str(width) + " " + str(height) + "' xmlns='http://www.w3.org/2000/svg'>"
+    let svg = svg + "<rect width='" + str(width) + "' height='" + str(height) + "' rx='28' fill='black' />"
+    let svg = svg + "<line x1='" + str(spokes[0]) + "' y1='72' x2='" + str(spokes[0]) + "' y2='" + str(height - 72) + "' stroke='slategray' stroke-width='1' opacity='0.42' />"
+    let svg = svg + "<line x1='" + str(spokes[1]) + "' y1='72' x2='" + str(spokes[1]) + "' y2='" + str(height - 72) + "' stroke='slategray' stroke-width='1' opacity='0.42' />"
+    let svg = svg + "<line x1='" + str(spokes[2]) + "' y1='72' x2='" + str(spokes[2]) + "' y2='" + str(height - 72) + "' stroke='slategray' stroke-width='1' opacity='0.42' />"
+    let svg = svg + "<rect x='" + str(spokes[0] - 8) + "' y='" + str(height - 96 - bands[0] - 36) + "' width='16' height='" + str(bands[0] + 36) + "' rx='8' fill='" + payload.secondary + "' opacity='0.74' />"
+    let svg = svg + "<rect x='" + str(spokes[1] - 8) + "' y='" + str(height - 96 - bands[1] - 36) + "' width='16' height='" + str(bands[1] + 36) + "' rx='8' fill='" + payload.accent + "' opacity='0.74' />"
+    let svg = svg + "<rect x='" + str(spokes[2] - 8) + "' y='" + str(height - 96 - bands[2] - 36) + "' width='16' height='" + str(bands[2] + 36) + "' rx='8' fill='" + payload.secondary + "' opacity='0.74' />"
+    let svg = svg + "<circle cx='" + str(markers[0]) + "' cy='" + str(markers[1]) + "' r='6' fill='white' opacity='0.94' />"
+    let svg = svg + "<circle cx='" + str(markers[2]) + "' cy='" + str(markers[3]) + "' r='6' fill='white' opacity='0.94' />"
+    let svg = svg + "<circle cx='" + str(points[0][0]) + "' cy='" + str(points[0][1]) + "' r='" + str(points[0][2]) + "' fill='" + payload.accent + "' opacity='" + str(points[0][3]) + "' />"
+    let svg = svg + "<circle cx='" + str(points[1][0]) + "' cy='" + str(points[1][1]) + "' r='" + str(points[1][2]) + "' fill='" + payload.secondary + "' opacity='" + str(points[1][3]) + "' />"
+    let svg = svg + "<circle cx='" + str(points[2][0]) + "' cy='" + str(points[2][1]) + "' r='" + str(points[2][2]) + "' fill='" + payload.accent + "' opacity='" + str(points[2][3]) + "' />"
+    let svg = svg + "<text x='72' y='68' fill='" + payload.secondary + "' font-size='24' font-family='Consolas, monospace'>" + payload.title + "</text>"
+    let svg = svg + "<text x='72' y='96' fill='silver' font-size='14' font-family='Consolas, monospace'>phase " + str(phase) + " / " + trinity_signature("stack", phase) + "</text>"
+    let svg = svg + "</svg>"
+    return svg
+
+test py_cargo_node_trinity_web_lattice:
+    install_python_kernel()
+    assert(py_numpy_available(), "numpy must be installed for the trinity smoke")
+    assert(TRINITY_STACK_REVISION == 9, "expected trinity stack revision")
+    let phase = trinity_stamp_orbit(4, 8)
+    assert(phase == 49, "expected trinity stamp orbit result")
+    let payload = py_bridge_call("kain_trinity_payload", [360, 220, 18, phase])
+    let helper = js_bridge_import("./helpers/payload_studio.mjs")
+    let svg = build_svg(payload, phase)
+    let document = js_bridge_call_method_raw(helper, "makeDocumentPayload", [payload.title, svg, payload.background, payload.accent])
+    let image = js_bridge_call_method_raw(helper, "makeSvgImagePayload", ["trinity_web_lattice", svg, payload.width, payload.height, payload.accent])
+    let document_info = js_web_document_info(document)
+    let image_info = js_web_canvas_info(image)
+    assert(trinity_signature("stack", phase) == "stack:49:py-cargo-node", "expected cargo signature")
+    assert(document_info.byte_length > 24, "expected html payload bytes")
+    assert(image_info.width == 360, "expected canvas width")
+    assert(len(js_web_canvas_bytes(image)) == image_info.byte_length, "expected image bytes to match metadata")
+
+fn main() -> String:
+    install_python_kernel()
+    assert(py_numpy_available(), "numpy must be installed for the trinity smoke")
+
+    let phase = trinity_stamp_orbit(6, 9)
+    let payload = py_bridge_call("kain_trinity_payload", [1480, 860, 36, phase])
+    let helper = js_bridge_import("./helpers/payload_studio.mjs")
+    let svg = build_svg(payload, phase)
+    let document = js_bridge_call_method_raw(helper, "makeDocumentPayload", [payload.title, svg, payload.background, payload.accent])
+    let image = js_bridge_call_method_raw(helper, "makeSvgImagePayload", ["trinity_web_lattice", svg, payload.width, payload.height, payload.accent])
+    let html_path = smoke_output("trinity_web_lattice.html")
+    let svg_path = smoke_output("trinity_web_lattice.svg")
+    let report_path = smoke_output("trinity_web_lattice_report.txt")
+    let image_info = js_web_canvas_info(image)
+    let report = "Python + Cargo + Node trinity web lattice smoke\n"
+    let report = report + "revision: " + str(TRINITY_STACK_REVISION) + "\n"
+    let report = report + "phase: " + str(phase) + "\n"
+    let report = report + "signature: " + trinity_signature("stack", phase) + "\n"
+    let report = report + "point_count: " + str(len(payload.points)) + "\n"
+    let report = report + "band_count: " + str(len(payload.bands)) + "\n"
+    let report = report + "marker_count: " + str(len(cargo_markers(payload.width, payload.height, phase)) / 2) + "\n"
+    let report = report + "image_kind: " + image_info.kind + "\n"
+    let report = report + "image_dims: " + str(image_info.width) + "x" + str(image_info.height) + "\n"
+    let report = report + "python_role: generated lattice payload + band amplitudes\n"
+    let report = report + "cargo_role: generated structural spokes + markers + signature\n"
+    let report = report + "node_role: packaged html and canvas payloads + wrote artifacts\n"
+    let report = report + "kain_role: composed svg scene + runtime report\n"
+    let report = report + "html_path: " + html_path + "\n"
+    let report = report + "svg_path: " + svg_path + "\n"
+    let report = report + "generated_binding: outputs/generated/trinity_stack_node.kn"
+
+    js_web_document_write(html_path, document)
+    js_web_canvas_write(svg_path, image)
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

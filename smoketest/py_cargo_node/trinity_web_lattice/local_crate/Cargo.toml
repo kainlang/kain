@@ -1,0 +1,10 @@
+[package]
+name = "trinity_stack_node"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "trinity_stack_node"
+path = "src/lib.rs"
+
+[workspace]

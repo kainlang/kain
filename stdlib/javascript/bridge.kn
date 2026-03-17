@@ -1,0 +1,59 @@
+pub fn js_bridge_exec(code: String):
+    js_exec(code)
+
+pub fn js_bridge_eval(code: String) -> Any:
+    return js_eval(code)
+
+pub fn js_bridge_eval_raw(code: String) -> Any:
+    return js_eval_raw(code)
+
+pub fn js_bridge_import(specifier: String) -> Any:
+    return js_import(specifier)
+
+pub fn js_bridge_call(target: Any, args: Any) -> Any:
+    return js_call(target, args)
+
+pub fn js_bridge_call_raw(target: Any, args: Any) -> Any:
+    return js_call_raw(target, args)
+
+pub fn js_bridge_call_method(target: Any, name: String, args: Any) -> Any:
+    return js_call_method(target, name, args)
+
+pub fn js_bridge_call_method_raw(target: Any, name: String, args: Any) -> Any:
+    return js_call_method_raw(target, name, args)
+
+pub fn js_bridge_getattr(target: Any, name: String) -> Any:
+    return js_getattr(target, name)
+
+pub fn js_bridge_getattr_raw(target: Any, name: String) -> Any:
+    return js_getattr_raw(target, name)
+
+pub fn js_bridge_setattr(target: Any, name: String, value: Any):
+    js_setattr(target, name, value)
+
+pub fn js_bridge_hasattr(target: Any, name: String) -> Bool:
+    return js_hasattr(target, name)
+
+pub fn js_bridge_buffer_info(target: Any) -> Any:
+    return js_buffer_info(target)
+
+pub fn js_bridge_buffer_bytes(target: Any) -> Any:
+    return js_buffer_bytes(target)
+
+pub fn js_bridge_document_info(target: Any) -> Any:
+    return js_document_info(target)
+
+pub fn js_bridge_document_text(target: Any) -> String:
+    return js_document_text(target)
+
+pub fn js_bridge_image_info(target: Any) -> Any:
+    return js_image_info(target)
+
+pub fn js_bridge_image_text(target: Any) -> String:
+    return js_image_text(target)
+
+pub fn js_bridge_image_bytes(target: Any) -> Any:
+    return js_image_bytes(target)
+
+pub fn js_bridge_image_buffer(target: Any) -> Any:
+    return js_image_buffer(target)

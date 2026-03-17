@@ -1,0 +1,13 @@
+[package]
+name = "typescript_signal_forge"
+version = "0.1.0"
+
+[build]
+entry = "smoke.kn"
+output = "outputs"
+targets = ["run", "test"]
+
+[node_ffi]
+command = "npx"
+args = ["tsx"]
+cwd = "."

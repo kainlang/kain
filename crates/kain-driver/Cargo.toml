@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 kain-core = { path = "../kain-core" }
 kain-crate-ffi = { path = "../kain-crate-ffi" }
+kain-node = { path = "../kain-node" }
 kain-python = { path = "../kain-python" }
 kain-ui = { path = "../kain-ui" }
 serde = { workspace = true }

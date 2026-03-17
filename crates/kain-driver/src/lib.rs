@@ -14,8 +14,8 @@ use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::runtime;
 use kain_core::{
     comptime, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle, monomorphize,
-    realtime_app_bundle_to_json, stdlib, types, CompileTarget, Lexer, Parser,
-    RealtimeAppBundle, RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
+    realtime_app_bundle_to_json, stdlib, types, CompileTarget, Lexer, Parser, RealtimeAppBundle,
+    RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
 };
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
@@ -198,10 +198,12 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
+        kain_node::register();
         kain_python::register();
         kain_crate_ffi::register();
 
-        let source = prepare_rust_ffi_source(source, target)?;
+        let source = kain_node::prepare_source_for_runtime(source, target)?;
+        let source = prepare_rust_ffi_source(&source, target)?;
 
         let stdlib_source = stdlib::load_stdlib_for_target(target);
         let full_source = format!("{stdlib_source}\n{source}");
@@ -251,15 +253,23 @@ impl DriverSession {
             .map(str::to_string)
             .or_else(|| discover_root_component_name(&typed));
         let ui_output = if let Some(root_component) = resolved_root_component.as_deref() {
-            Some(kain_core::build_ui_output_from_source(source, root_component)?)
+            Some(kain_core::build_ui_output_from_source(
+                source,
+                root_component,
+            )?)
         } else {
             None
         };
         let bundle = emit_realtime_app_bundle(&typed, ui_output.as_ref(), target);
         let bundle_json = realtime_app_bundle_to_json(&bundle).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize realtime app bundle JSON: {err}"))
+            KainError::runtime(format!(
+                "Failed to serialize realtime app bundle JSON: {err}"
+            ))
         })?;
-        Ok(RealtimeAppBundleOutput { bundle, bundle_json })
+        Ok(RealtimeAppBundleOutput {
+            bundle,
+            bundle_json,
+        })
     }
 
     pub fn compile(&self, source: &str, target: CompileTarget) -> Result<String, KainError> {
@@ -377,14 +387,12 @@ impl DriverSession {
             KainError::runtime(format!("Failed to serialize GPU reflection JSON: {err}"))
         })?;
         let derived_hlsl = Some(gpu::generate_hlsl(&typed_program)?);
-        let bundle = build_shader_artifact_bundle(
-            &reflection,
-            &spirv,
-            derived_hlsl.as_deref(),
-            "<input>",
-        );
+        let bundle =
+            build_shader_artifact_bundle(&reflection, &spirv, derived_hlsl.as_deref(), "<input>");
         let bundle_json = shader_artifact_bundle_to_json(&bundle).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize shader artifact bundle JSON: {err}"))
+            KainError::runtime(format!(
+                "Failed to serialize shader artifact bundle JSON: {err}"
+            ))
         })?;
 
         Ok(ShaderArtifactBundleOutput {
@@ -663,7 +671,9 @@ pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     DriverSession::default().compile_spirv_binary(source)
 }
 
-pub fn compile_shader_artifact_bundle(source: &str) -> Result<ShaderArtifactBundleOutput, KainError> {
+pub fn compile_shader_artifact_bundle(
+    source: &str,
+) -> Result<ShaderArtifactBundleOutput, KainError> {
     DriverSession::default().compile_shader_artifact_bundle(source)
 }
 
@@ -750,7 +760,8 @@ fn build_shader_artifact_bundle(
                 };
                 if matches!(
                     binding.kind,
-                    sys::RustGpuBindingKind::LocalSize | sys::RustGpuBindingKind::SpecializationConstant
+                    sys::RustGpuBindingKind::LocalSize
+                        | sys::RustGpuBindingKind::SpecializationConstant
                 ) {
                     specialization_constants.push(ShaderSpecializationConstant {
                         shader: shader.name.clone(),
@@ -1099,11 +1110,9 @@ fn main() -> Int:
         )
         .expect_err("non-host target should reject rust crate ffi");
 
-        assert!(
-            error
-                .to_string()
-                .contains("Rust crate FFI is only available in host-backed Kain execution lanes for now")
-        );
+        assert!(error.to_string().contains(
+            "Rust crate FFI is only available in host-backed Kain execution lanes for now"
+        ));
     }
 
     #[test]
@@ -1211,7 +1220,9 @@ shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
         );
         assert_eq!(output.bundle.spirv_modules.len(), 1);
         assert!(output.bundle.spirv_modules[0].byte_len > 0);
-        assert!(output.bundle_json.contains("\"canonical_native_payload\": \"spirv\""));
+        assert!(output
+            .bundle_json
+            .contains("\"canonical_native_payload\": \"spirv\""));
         assert!(output.bundle_json.contains("\"spirv_modules\""));
         assert!(output.derived_hlsl.is_some());
     }

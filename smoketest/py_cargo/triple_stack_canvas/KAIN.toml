@@ -1,0 +1,15 @@
+[package]
+name = "py_cargo_triple_stack_canvas"
+version = "0.1.0"
+
+[build]
+entry = "smoke.kn"
+output = "outputs"
+targets = ["run", "test"]
+
+[rust_ffi]
+manifest_path = "../../../Cargo.toml"
+
+[[rust_ffi.path_crates]]
+name = "py_cargo_canvas"
+path = "local_crate"

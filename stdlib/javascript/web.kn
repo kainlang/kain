@@ -1,0 +1,96 @@
+use std::javascript::bridge
+
+pub fn js_web_fs() -> Any:
+    return js_bridge_import("node:fs")
+
+pub fn js_web_path() -> Any:
+    return js_bridge_import("node:path")
+
+pub fn js_web_json() -> Any:
+    return js_bridge_eval_raw("JSON")
+
+pub fn js_web_write_text(path: String, text: String):
+    js_bridge_call_method(js_web_fs(), "writeFileSync", [path, text])
+
+pub fn js_web_read_text(path: String) -> String:
+    return js_bridge_call_method(js_web_fs(), "readFileSync", [path, "utf8"])
+
+pub fn js_web_path_basename(path: String) -> String:
+    return js_bridge_call_method(js_web_path(), "basename", [path])
+
+pub fn js_web_path_join(parts: Any) -> String:
+    return js_bridge_call_method(js_web_path(), "join", parts)
+
+pub fn js_web_json_stringify(value: Any) -> String:
+    return js_bridge_call_method(js_web_json(), "stringify", [value])
+
+pub fn js_web_json_parse(text: String) -> Any:
+    return js_bridge_call_method(js_web_json(), "parse", [text])
+
+pub fn js_web_buffer_info(target: Any) -> Any:
+    return js_bridge_buffer_info(target)
+
+pub fn js_web_buffer_bytes(target: Any) -> Any:
+    return js_bridge_buffer_bytes(target)
+
+pub fn js_web_document_info(target: Any) -> Any:
+    return js_bridge_document_info(target)
+
+pub fn js_web_document_text(target: Any) -> String:
+    return js_bridge_document_text(target)
+
+pub fn js_web_document_write(path: String, target: Any):
+    js_web_write_text(path, js_web_document_text(target))
+
+pub fn js_web_image_info(target: Any) -> Any:
+    return js_bridge_image_info(target)
+
+pub fn js_web_canvas_info(target: Any) -> Any:
+    return js_web_image_info(target)
+
+pub fn js_web_image_text(target: Any) -> String:
+    return js_bridge_image_text(target)
+
+pub fn js_web_image_bytes(target: Any) -> Any:
+    return js_bridge_image_bytes(target)
+
+pub fn js_web_canvas_bytes(target: Any) -> Any:
+    return js_bridge_image_bytes(target)
+
+pub fn js_web_image_buffer(target: Any) -> Any:
+    return js_bridge_image_buffer(target)
+
+pub fn js_web_image_write(path: String, target: Any):
+    let info = js_web_image_info(target)
+    if info.mime_type == "image/svg+xml" or info.mime_type == "text/plain":
+        js_web_write_text(path, js_web_image_text(target))
+        return
+    js_bridge_call_method(js_web_fs(), "writeFileSync", [path, js_web_image_buffer(target)])
+
+pub fn js_web_canvas_write(path: String, target: Any):
+    js_web_image_write(path, target)
+
+pub fn js_web_html_document(title: String, body: String, background: String, accent: String) -> String:
+    let html = "<!doctype html>\n"
+    let html = html + "<html lang='en'>\n"
+    let html = html + "<head>\n"
+    let html = html + "  <meta charset='utf-8' />\n"
+    let html = html + "  <meta name='viewport' content='width=device-width, initial-scale=1' />\n"
+    let html = html + "  <title>" + title + "</title>\n"
+    let html = html + "  <style>\n"
+    let html = html + "    :root { color-scheme: dark; }\n"
+    let html = html + "    * { box-sizing: border-box; }\n"
+    let html = html + "    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: " + background + "; font-family: Consolas, 'Courier New', monospace; color: #eef6ff; }\n"
+    let html = html + "    main { width: min(92vw, 1100px); border: 1px solid " + accent + "; background: rgba(7, 8, 18, 0.74); padding: 18px; border-radius: 24px; box-shadow: 0 28px 120px rgba(0, 0, 0, 0.55); }\n"
+    let html = html + "    .title { margin: 0 0 12px; letter-spacing: 0.28em; font-size: 13px; text-transform: uppercase; color: " + accent + "; }\n"
+    let html = html + "    svg { width: 100%; height: auto; display: block; border-radius: 18px; }\n"
+    let html = html + "  </style>\n"
+    let html = html + "</head>\n"
+    let html = html + "<body>\n"
+    let html = html + "  <main>\n"
+    let html = html + "    <p class='title'>" + title + "</p>\n"
+    let html = html + body + "\n"
+    let html = html + "  </main>\n"
+    let html = html + "</body>\n"
+    let html = html + "</html>\n"
+    return html

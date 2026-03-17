@@ -44,7 +44,11 @@ struct ExtractionState<'a> {
 }
 
 impl<'a> ExtractionState<'a> {
-    fn parse_module_file(&mut self, file_path: &Path, module_path: &[String]) -> Result<(), KainError> {
+    fn parse_module_file(
+        &mut self,
+        file_path: &Path,
+        module_path: &[String],
+    ) -> Result<(), KainError> {
         let canonical = fs::canonicalize(file_path).unwrap_or_else(|_| file_path.to_path_buf());
         if !self.parsed_files.insert(canonical.clone()) {
             return Ok(());
@@ -61,7 +65,11 @@ impl<'a> ExtractionState<'a> {
                 canonical.display()
             ))
         })?;
-        self.parse_items(&parsed, canonical.parent().unwrap_or_else(|| Path::new(".")), module_path)
+        self.parse_items(
+            &parsed,
+            canonical.parent().unwrap_or_else(|| Path::new(".")),
+            module_path,
+        )
     }
 
     fn parse_items(
@@ -199,7 +207,8 @@ impl<'a> ExtractionState<'a> {
                     module_path,
                     &function_name,
                     docs,
-                    "receiver-style functions are only supported through inherent impl lowering".to_string(),
+                    "receiver-style functions are only supported through inherent impl lowering"
+                        .to_string(),
                 );
                 return;
             };
@@ -217,7 +226,10 @@ impl<'a> ExtractionState<'a> {
                     module_path,
                     &function_name,
                     docs,
-                    format!("unsupported parameter type '{}'", type_to_string(&pat_ty.ty)),
+                    format!(
+                        "unsupported parameter type '{}'",
+                        type_to_string(&pat_ty.ty)
+                    ),
                 );
                 return;
             };
@@ -241,7 +253,8 @@ impl<'a> ExtractionState<'a> {
         };
 
         let emitted_name = function_name.clone();
-        let prefixed_alias = prefixed_symbol_name(&self.resolved.import_name, module_path, &function_name);
+        let prefixed_alias =
+            prefixed_symbol_name(&self.resolved.import_name, module_path, &function_name);
         let signature = render_kain_fn_signature(&emitted_name, &params, &return_type);
         self.insert_module_item(
             module_path,
@@ -309,7 +322,7 @@ impl<'a> ExtractionState<'a> {
             Fields::Named(fields) => {
                 let mut lines = vec![format!("struct {name}:")];
                 if fields.named.is_empty() {
-                    lines.push("    pass".to_string());
+                    lines.push("    __kain_placeholder: Int".to_string());
                 } else {
                     for field in &fields.named {
                         let field_name = field
@@ -325,7 +338,7 @@ impl<'a> ExtractionState<'a> {
                 }
                 lines.join("\n") + "\n"
             }
-            _ => format!("struct {name}:\n    pass\n"),
+            _ => format!("struct {name}:\n    __kain_placeholder: Int\n"),
         };
 
         self.insert_module_item(
@@ -356,7 +369,7 @@ impl<'a> ExtractionState<'a> {
         self.public_type_names.insert(name.clone());
         let mut lines = vec![format!("enum {name}:")];
         if value.variants.is_empty() {
-            lines.push("    pass".to_string());
+            lines.push("    Placeholder".to_string());
         } else {
             for variant in &value.variants {
                 lines.push(format!("    {}", variant.ident));
@@ -465,7 +478,12 @@ impl<'a> ExtractionState<'a> {
         let Type::Path(type_path) = value.self_ty.as_ref() else {
             return;
         };
-        let Some(type_name) = type_path.path.segments.last().map(|segment| segment.ident.to_string()) else {
+        let Some(type_name) = type_path
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string())
+        else {
             return;
         };
         if !self.public_type_names.contains(&type_name) {
@@ -485,7 +503,8 @@ impl<'a> ExtractionState<'a> {
                     module_path,
                     &method_name,
                     docs,
-                    "receiver methods and generic inherent methods are stubbed in v1 crate FFI".to_string(),
+                    "receiver methods and generic inherent methods are stubbed in v1 crate FFI"
+                        .to_string(),
                 );
                 continue;
             }
@@ -494,7 +513,8 @@ impl<'a> ExtractionState<'a> {
             let mut unsupported = None;
             for input in &method.sig.inputs {
                 let syn::FnArg::Typed(pat_ty) = input else {
-                    unsupported = Some("receiver methods are not lowered in v1 crate FFI".to_string());
+                    unsupported =
+                        Some("receiver methods are not lowered in v1 crate FFI".to_string());
                     break;
                 };
                 let Some(name) = pat_to_ident_name(&pat_ty.pat) else {
@@ -529,7 +549,8 @@ impl<'a> ExtractionState<'a> {
             }
 
             let emitted_name = method_name.clone();
-            let prefixed_alias = prefixed_symbol_name(&self.resolved.import_name, module_path, &emitted_name);
+            let prefixed_alias =
+                prefixed_symbol_name(&self.resolved.import_name, module_path, &emitted_name);
             self.insert_module_item(
                 module_path,
                 GeneratedModuleItem {
@@ -661,13 +682,20 @@ fn resolve_module_file(base_dir: &Path, name: &str) -> Option<PathBuf> {
     None
 }
 
-fn render_kain_fn_signature(name: &str, params: &[BridgeParam], return_type: &BridgeType) -> String {
+fn render_kain_fn_signature(
+    name: &str,
+    params: &[BridgeParam],
+    return_type: &BridgeType,
+) -> String {
     let rendered_params = params
         .iter()
         .map(|param| format!("{}: {}", param.name, param.ty.render_kain()))
         .collect::<Vec<_>>()
         .join(", ");
-    format!("fn {name}({rendered_params}) -> {}:", return_type.render_kain())
+    format!(
+        "fn {name}({rendered_params}) -> {}:",
+        return_type.render_kain()
+    )
 }
 
 fn prefixed_symbol_name(crate_name: &str, module_path: &[String], symbol_name: &str) -> String {
@@ -699,7 +727,8 @@ fn pat_to_ident_name(pattern: &syn::Pat) -> Option<String> {
 }
 
 fn doc_lines(attrs: &[Attribute]) -> Vec<String> {
-    attrs.iter()
+    attrs
+        .iter()
         .filter_map(|attr| {
             if !attr.path().is_ident("doc") {
                 return None;

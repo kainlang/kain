@@ -37,6 +37,8 @@
         └── 📂 src
         └── 📂 tests
             └── 📂 fixtures
+    └── 📂 kain-crate-ffi
+        └── 📂 src
     └── 📂 kain-driver
         └── 📂 src
     └── 📂 kain-host
@@ -55,6 +57,8 @@
         └── 📂 tests
             └── 📂 abi_corpus
                 └── 📂 fixtures
+    └── 📂 kain-node
+        └── 📂 src
     └── 📂 kain-omni
         └── 📂 src
     └── 📂 kain-python

@@ -1,0 +1,6 @@
+# Generated import shim for crate py_cargo_canvas
+use rust::py_cargo_canvas::rust_py_cargo_canvas_cargo_signature as rust_py_cargo_canvas_cargo_signature
+use rust::py_cargo_canvas::rust_py_cargo_canvas_cargo_energy as rust_py_cargo_canvas_cargo_energy
+use rust::py_cargo_canvas::rust_py_cargo_canvas_cargo_mask_row as rust_py_cargo_canvas_cargo_mask_row
+use rust::py_cargo_canvas::rust_py_cargo_canvas_cargo_beacon_points as rust_py_cargo_canvas_cargo_beacon_points
+use rust::py_cargo_canvas::rust_py_cargo_canvas_hybrid_stamp_orbit as rust_py_cargo_canvas_hybrid_stamp_orbit

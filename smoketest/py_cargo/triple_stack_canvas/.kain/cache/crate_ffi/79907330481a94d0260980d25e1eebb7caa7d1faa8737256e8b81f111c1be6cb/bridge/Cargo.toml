@@ -1,0 +1,19 @@
+[package]
+name = "kain_crate_ffi_bridge_py_cargo_canvas"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kain-core = { path = "M:\\Code\\Kain\\crates\\kain-core" }
+kain-host = { path = "M:\\Code\\Kain\\crates\\kain-host", default-features = false }
+py_cargo_canvas = { package = "py_cargo_canvas", path = "\\\\?\\M:\\Code\\Kain\\smoketest\\py_cargo\\triple_stack_canvas\\local_crate" }
+
+[profile.dev]
+debug = 0
+panic = "unwind"
+
+[workspace]
+resolver = "2"

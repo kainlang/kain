@@ -1,0 +1,10 @@
+[package]
+name = "py_cargo_canvas"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "py_cargo_canvas"
+path = "src/lib.rs"
+
+[workspace]
