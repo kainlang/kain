@@ -1,0 +1,6 @@
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "cgltf_scene_probe"
+header = "native/cgltf_scene_probe.h"
+shared_lib = "native/cgltf_scene_probe.dll"

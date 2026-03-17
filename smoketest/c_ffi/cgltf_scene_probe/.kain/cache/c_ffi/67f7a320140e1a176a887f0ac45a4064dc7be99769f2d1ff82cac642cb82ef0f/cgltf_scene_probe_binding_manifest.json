@@ -1,0 +1,95 @@
+{
+  "schema_version": "kain-c-ffi-manifest-v1",
+  "library_name": "cgltf_scene_probe",
+  "parser_backend": "kain-import.c + kain-c-ffi",
+  "supported_targets": [
+    "interpret",
+    "test"
+  ],
+  "capabilities": [
+    "binding-report",
+    "host-backed",
+    "opaque-handle"
+  ],
+  "generated_module": "M:\\Code\\Kain\\smoketest\\c_ffi\\cgltf_scene_probe\\.kain\\cache\\c_ffi\\67f7a320140e1a176a887f0ac45a4064dc7be99769f2d1ff82cac642cb82ef0f\\cgltf_scene_probe.kn",
+  "generated_prelude": "M:\\Code\\Kain\\smoketest\\c_ffi\\cgltf_scene_probe\\.kain\\cache\\c_ffi\\67f7a320140e1a176a887f0ac45a4064dc7be99769f2d1ff82cac642cb82ef0f\\cgltf_scene_probe_prelude.kn",
+  "entries": [
+    {
+      "symbol_path": "c::cgltf_scene_probe::CgltfSceneProbe",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::CgltfSceneProbe",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_close",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_close"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_material_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_material_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_mesh_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_mesh_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_node_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_node_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_open",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_open"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_primitive_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_primitive_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_scene_name",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_scene_name"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_signature",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_signature"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_vertex_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_vertex_count"
+    }
+  ]
+}

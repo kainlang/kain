@@ -1,0 +1,6 @@
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "audio_tone_lab"
+header = "native/audio_tone_lab.h"
+shared_lib = "native/audio_tone_lab.dll"

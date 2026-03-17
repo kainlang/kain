@@ -1,0 +1,20 @@
+[package]
+name = "kain_c_ffi_bridge_audio_tone_lab"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kain-core = { path = "M:\\Code\\Kain\\crates\\kain-core" }
+kain-host = { path = "M:\\Code\\Kain\\crates\\kain-host", default-features = false }
+kain-interop = { path = "M:\\Code\\Kain\\crates\\kain-interop" }
+libloading = "0.8"
+
+[profile.dev]
+debug = 0
+panic = "unwind"
+
+[workspace]
+resolver = "2"

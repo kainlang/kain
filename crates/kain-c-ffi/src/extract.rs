@@ -329,6 +329,13 @@ fn build_function_binding(
         extract_function_params(declarator).map_err(|reason| (ItemStatus::Unsupported, reason))?;
     let return_type = resolve_bridge_type_from_declaration(specifiers, Some(declarator))
         .map_err(|reason| (ItemStatus::Unsupported, reason))?;
+    if matches!(return_type, BridgeType::ByteBuffer { .. }) {
+        return Err((
+            ItemStatus::Stubbed,
+            "byte-buffer returns require explicit output metadata and are not emitted yet"
+                .to_string(),
+        ));
+    }
 
     let emitted_name = raw_name.to_string();
     let prefixed = format!("c_{}_{}", import_name, emitted_name);
@@ -405,12 +412,30 @@ fn resolve_bridge_type_from_declaration(
 
     if analysis.pointer_depth == 1 {
         return match facts.named {
-            Some(NamedType::Enum(name))
-            | Some(NamedType::Struct(name))
-            | Some(NamedType::Typedef(name)) => Ok(BridgeType::OpaqueHandle {
-                mutable: !facts.is_const,
-                pointee: name,
-            }),
+            Some(NamedType::Enum(name)) | Some(NamedType::Struct(name)) => {
+                Ok(BridgeType::OpaqueHandle {
+                    mutable: !facts.is_const,
+                    pointee: name,
+                })
+            }
+            Some(NamedType::Typedef(name)) => {
+                if is_byte_buffer_scalar(name.as_str()) {
+                    Ok(BridgeType::ByteBuffer {
+                        mutable: !facts.is_const,
+                        element_type: name,
+                    })
+                } else if map_common_typedef_name(name.as_str()).is_some() {
+                    Err(format!(
+                        "raw scalar pointer '{}' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
+                        name
+                    ))
+                } else {
+                    Ok(BridgeType::OpaqueHandle {
+                        mutable: !facts.is_const,
+                        pointee: name,
+                    })
+                }
+            }
             None => {
                 if facts.scalar_key == "char" {
                     Ok(BridgeType::CString)
@@ -425,10 +450,10 @@ fn resolve_bridge_type_from_declaration(
                         pointee: "void".to_string(),
                     })
                 } else {
-                    Ok(BridgeType::OpaqueHandle {
-                        mutable: !facts.is_const,
-                        pointee: facts.scalar_key,
-                    })
+                    Err(format!(
+                        "raw scalar pointer '{}' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
+                        facts.scalar_key
+                    ))
                 }
             }
         };
@@ -626,7 +651,7 @@ fn canonical_scalar_key(tokens: &[&str]) -> Result<String, String> {
 fn map_scalar_key_to_bridge_type(raw: &str) -> Result<BridgeType, String> {
     match raw {
         "void" => Ok(BridgeType::Unit),
-        "bool" => Ok(BridgeType::Bool),
+        "bool" | "_Bool" => Ok(BridgeType::Bool),
         "float" => Ok(BridgeType::Float32),
         "double" => Ok(BridgeType::Float64),
         "char" | "signed char" => Ok(BridgeType::SignedInt("std::os::raw::c_char".to_string())),
@@ -973,10 +998,10 @@ fn parse_c_type(raw: &str) -> Result<BridgeType, String> {
                 element_type: normalized_no_const,
             });
         }
-        return Ok(BridgeType::OpaqueHandle {
-            mutable: !is_const,
-            pointee: normalized_no_const,
-        });
+        return Err(format!(
+            "raw scalar pointer '{}' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
+            normalized_no_const
+        ));
     }
 
     if let Some(mapped) = map_common_typedef_name(&normalized_no_const) {

@@ -5,6 +5,27 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=60b1836f8552bcd3 -->
+## 2026-03-17 16:07:26 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`
+- Git HEAD: `fef4666`
+- Changed files: 7
+- [.M] `crates/kain-c-ffi/src/extract.rs`
+- [.M] `crates/kain-import/src/c/parser.rs`
+- [??] `crates/kain-c-ffi/desktop.ini`
+- [??] `crates/kain-crate-ffi/desktop.ini`
+- [??] `crates/kain-interop/desktop.ini`
+- [??] `crates/kain-node/desktop.ini`
+- [??] `crates/kain-python/desktop.ini`
+
+<!-- polytools-changelog:fingerprint=03dd26b214dea2a0 -->
+## 2026-03-17 13:47:26 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`
+- Git HEAD: `fef4666`
+- Changed files: 2
+- [.M] `crates/kain-c-ffi/src/extract.rs`
+- [.M] `crates/kain-import/src/c/parser.rs`
+
 <!-- polytools-changelog:fingerprint=98af4421ccd99bfc -->
 ## 2026-03-17 13:27:26 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`

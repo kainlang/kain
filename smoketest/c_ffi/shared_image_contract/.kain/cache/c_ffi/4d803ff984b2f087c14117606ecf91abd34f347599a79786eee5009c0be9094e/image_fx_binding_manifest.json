@@ -17,14 +17,147 @@
   "generated_prelude": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\.kain\\cache\\c_ffi\\4d803ff984b2f087c14117606ecf91abd34f347599a79786eee5009c0be9094e\\image_fx_prelude.kn",
   "entries": [
     {
-      "symbol_path": "c::image_fx::ImageWorkspace",
+      "symbol_path": "c::image_fx::FILE",
       "kind": "struct",
       "status": "opaque_handle",
-      "reason": "C struct discovered in header; emitted as type metadata only for now",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::FILE",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
       "emitted_symbol": null
     },
     {
       "symbol_path": "c::image_fx::ImageWorkspace",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::ImageWorkspace",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSMesg",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSMesg",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSMesgQueue",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSMesgQueue",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSPfs",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSPfs",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSPifRam",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSPifRam",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSThread",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSThread",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSTimer",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::OSTimer",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::__OSContRamReadFormat",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::__OSContRamReadFormat",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::bool",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::f32",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::f64",
       "kind": "typedef",
       "status": "type_only",
       "reason": "C typedef discovered in header; emitted as type metadata only for now",
@@ -52,13 +185,6 @@
       "emitted_symbol": "c_image_fx_imagefx_signature"
     },
     {
-      "symbol_path": "c::image_fx::imagefx_workspace_create",
-      "kind": "function",
-      "status": "callable",
-      "reason": null,
-      "emitted_symbol": "c_image_fx_imagefx_workspace_create"
-    },
-    {
       "symbol_path": "c::image_fx::imagefx_workspace_area",
       "kind": "function",
       "status": "callable",
@@ -66,11 +192,151 @@
       "emitted_symbol": "c_image_fx_imagefx_workspace_area"
     },
     {
+      "symbol_path": "c::image_fx::imagefx_workspace_create",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_create"
+    },
+    {
       "symbol_path": "c::image_fx::imagefx_workspace_destroy",
       "kind": "function",
       "status": "callable",
       "reason": null,
       "emitted_symbol": "c_image_fx_imagefx_workspace_destroy"
+    },
+    {
+      "symbol_path": "c::image_fx::int16_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::int32_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::int64_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::int8_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::intptr_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::s16",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::s32",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::s64",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::s8",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::size_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::u16",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::u32",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::u64",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::u8",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::uint16_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::uint32_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::uint64_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::uint8_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::uintptr_t",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
     }
   ]
 }

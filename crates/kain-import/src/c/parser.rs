@@ -672,7 +672,43 @@ fn strip_fallback_annotations(line: &str) -> String {
         }
     }
 
+    strip_leading_uppercase_declaration_macros(&mut bytes);
     String::from_utf8(bytes).unwrap_or_else(|_| line.to_string())
+}
+
+fn strip_leading_uppercase_declaration_macros(bytes: &mut [u8]) {
+    let len = bytes.len();
+    let mut idx = 0usize;
+    while idx < len && bytes[idx].is_ascii_whitespace() {
+        idx += 1;
+    }
+
+    loop {
+        let start = idx;
+        while idx < len && (bytes[idx].is_ascii_alphanumeric() || bytes[idx] == b'_') {
+            idx += 1;
+        }
+        if idx == start {
+            break;
+        }
+
+        let token = std::str::from_utf8(&bytes[start..idx]).unwrap_or("");
+        let looks_like_macro = token
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch == '_' || ch.is_ascii_digit())
+            && token.chars().any(|ch| ch.is_ascii_uppercase());
+        if !looks_like_macro {
+            break;
+        }
+
+        for slot in &mut bytes[start..idx] {
+            *slot = b' ';
+        }
+
+        while idx < len && bytes[idx].is_ascii_whitespace() {
+            idx += 1;
+        }
+    }
 }
 
 fn blank_like(line: &str) -> String {
@@ -885,6 +921,22 @@ mod tests {
         defined.insert("VERSION_US".to_string());
         let sanitized = sanitize_for_preprocessed_parse(source, false, &defined);
         assert!(sanitized.contains("keep_me"));
+    }
+
+    #[test]
+    fn test_parse_source_with_export_macro_prefix_and_bool_return() {
+        let source = r#"
+            #if defined(_WIN32)
+            #define BEACON_EXPORT __declspec(dllexport)
+            #else
+            #define BEACON_EXPORT
+            #endif
+
+            BEACON_EXPORT _Bool beacon_is_even(int value);
+        "#;
+
+        let result = parse_c_source(source);
+        assert!(result.is_ok());
     }
 
     #[test]

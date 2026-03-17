@@ -1,0 +1,47 @@
+use c::cgltf_scene_probe
+
+fn smoke_output(name: String) -> String:
+    return "outputs/" + name
+
+fn scene_asset_path() -> String:
+    return "../../../labs/raw_native_world_lab/assets/city2.glb"
+
+test cgltf_scene_probe_runtime:
+    let probe = cgltf_probe_open(scene_asset_path())
+    assert(cgltf_probe_node_count(probe) > 0, "expected node count")
+    assert(cgltf_probe_mesh_count(probe) > 0, "expected mesh count")
+    assert(cgltf_probe_primitive_count(probe) > 0, "expected primitive count")
+    assert(cgltf_probe_vertex_count(probe) > 0, "expected vertex count")
+    assert(cgltf_probe_scene_name(probe) != "", "expected scene name")
+    cgltf_probe_close(probe)
+
+fn main() -> String:
+    let probe = cgltf_probe_open(scene_asset_path())
+    let node_count = cgltf_probe_node_count(probe)
+    let mesh_count = cgltf_probe_mesh_count(probe)
+    let primitive_count = cgltf_probe_primitive_count(probe)
+    let material_count = cgltf_probe_material_count(probe)
+    let vertex_count = cgltf_probe_vertex_count(probe)
+    let scene_name = cgltf_probe_scene_name(probe)
+    let signature = cgltf_probe_signature(probe)
+    cgltf_probe_close(probe)
+
+    let signature_path = smoke_output("city_probe_signature.txt")
+    let report_path = smoke_output("city_probe_report.txt")
+
+    write_file(signature_path, signature + "\n")
+
+    let report = "cgltf scene probe smoke\n"
+    let report = report + "asset: " + scene_asset_path() + "\n"
+    let report = report + "scene_name: " + scene_name + "\n"
+    let report = report + "nodes: " + str(node_count) + "\n"
+    let report = report + "meshes: " + str(mesh_count) + "\n"
+    let report = report + "primitives: " + str(primitive_count) + "\n"
+    let report = report + "materials: " + str(material_count) + "\n"
+    let report = report + "vertices: " + str(vertex_count) + "\n"
+    let report = report + "signature_path: " + signature_path + "\n"
+    let report = report + "role: kain orchestrated cgltf-backed scene inspection through C FFI\n"
+
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

@@ -15,15 +15,15 @@ mod c:
         fn c_beacon_math_beacon_is_even(value: Int) -> Bool:
             return false
 
-        fn beacon_scale(value: Int, factor: Float) -> Float:
-            return 0.0
-
-        fn c_beacon_math_beacon_scale(value: Int, factor: Float) -> Float:
-            return 0.0
-
         fn beacon_label(id: Int) -> String:
             return ""
 
         fn c_beacon_math_beacon_label(id: Int) -> String:
             return ""
+
+        fn beacon_scale(value: Int, factor: Float) -> Float:
+            return 0.0
+
+        fn c_beacon_math_beacon_scale(value: Int, factor: Float) -> Float:
+            return 0.0
 

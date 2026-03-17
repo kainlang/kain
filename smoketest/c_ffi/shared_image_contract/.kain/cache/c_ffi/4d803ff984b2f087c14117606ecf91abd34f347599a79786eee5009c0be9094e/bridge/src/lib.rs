@@ -179,6 +179,20 @@ fn __kain_c_bridge_imagefx_signature(_env: &mut Env, args: Vec<Value>) -> Result
     Ok(ToKainValue::to_kain_value(text))
 }
 
+fn __kain_c_bridge_imagefx_workspace_area(_env: &mut Env, args: Vec<Value>) -> Result<Value, KainError> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(format!("imagefx_workspace_area expected 1 argument(s), got {}", args.len())));
+    }
+    let library = unsafe { Library::new(SHARED_LIB_PATH) }
+        .map_err(|err| KainError::runtime(format!("Failed to load C shared library {}: {err}", SHARED_LIB_PATH)))?;
+    let mut iter = args.into_iter();
+    let workspace = extract_c_handle(iter.next().expect("checked arg count"), "ImageWorkspace", true)?;
+    let symbol: Symbol<unsafe extern "C" fn(*mut std::ffi::c_void) -> std::os::raw::c_int> = unsafe { library.get(&[105, 109, 97, 103, 101, 102, 120, 95, 119, 111, 114, 107, 115, 112, 97, 99, 101, 95, 97, 114, 101, 97, 0]) }
+        .map_err(|err| KainError::runtime(format!("Missing C symbol {} in {}: {err}", "imagefx_workspace_area", SHARED_LIB_PATH)))?;
+    let result = unsafe { symbol(workspace) };
+    Ok(ToKainValue::to_kain_value(result as i64))
+}
+
 fn __kain_c_bridge_imagefx_workspace_create(_env: &mut Env, args: Vec<Value>) -> Result<Value, KainError> {
     if args.len() != 2 {
         return Err(KainError::runtime(format!("imagefx_workspace_create expected 2 argument(s), got {}", args.len())));
@@ -193,20 +207,6 @@ fn __kain_c_bridge_imagefx_workspace_create(_env: &mut Env, args: Vec<Value>) ->
     let result = unsafe { symbol(width, height) };
     if result.is_null() { return Ok(Value::None); }
     Ok(Value::host_object("kain.c.handle", Arc::new(CAbiOpaqueHandle { pointee: "ImageWorkspace".to_string(), mutable: true, address: result as usize })))
-}
-
-fn __kain_c_bridge_imagefx_workspace_area(_env: &mut Env, args: Vec<Value>) -> Result<Value, KainError> {
-    if args.len() != 1 {
-        return Err(KainError::runtime(format!("imagefx_workspace_area expected 1 argument(s), got {}", args.len())));
-    }
-    let library = unsafe { Library::new(SHARED_LIB_PATH) }
-        .map_err(|err| KainError::runtime(format!("Failed to load C shared library {}: {err}", SHARED_LIB_PATH)))?;
-    let mut iter = args.into_iter();
-    let workspace = extract_c_handle(iter.next().expect("checked arg count"), "ImageWorkspace", true)?;
-    let symbol: Symbol<unsafe extern "C" fn(*mut std::ffi::c_void) -> std::os::raw::c_int> = unsafe { library.get(&[105, 109, 97, 103, 101, 102, 120, 95, 119, 111, 114, 107, 115, 112, 97, 99, 101, 95, 97, 114, 101, 97, 0]) }
-        .map_err(|err| KainError::runtime(format!("Missing C symbol {} in {}: {err}", "imagefx_workspace_area", SHARED_LIB_PATH)))?;
-    let result = unsafe { symbol(workspace) };
-    Ok(ToKainValue::to_kain_value(result as i64))
 }
 
 fn __kain_c_bridge_imagefx_workspace_destroy(_env: &mut Env, args: Vec<Value>) -> Result<Value, KainError> {
@@ -230,10 +230,10 @@ fn register_all(env: &mut Env) {
     env.register_native_fn("c_image_fx_imagefx_invert_rgba", __kain_c_bridge_imagefx_invert_rgba);
     env.register_native_fn("imagefx_signature", __kain_c_bridge_imagefx_signature);
     env.register_native_fn("c_image_fx_imagefx_signature", __kain_c_bridge_imagefx_signature);
-    env.register_native_fn("imagefx_workspace_create", __kain_c_bridge_imagefx_workspace_create);
-    env.register_native_fn("c_image_fx_imagefx_workspace_create", __kain_c_bridge_imagefx_workspace_create);
     env.register_native_fn("imagefx_workspace_area", __kain_c_bridge_imagefx_workspace_area);
     env.register_native_fn("c_image_fx_imagefx_workspace_area", __kain_c_bridge_imagefx_workspace_area);
+    env.register_native_fn("imagefx_workspace_create", __kain_c_bridge_imagefx_workspace_create);
+    env.register_native_fn("c_image_fx_imagefx_workspace_create", __kain_c_bridge_imagefx_workspace_create);
     env.register_native_fn("imagefx_workspace_destroy", __kain_c_bridge_imagefx_workspace_destroy);
     env.register_native_fn("c_image_fx_imagefx_workspace_destroy", __kain_c_bridge_imagefx_workspace_destroy);
 }

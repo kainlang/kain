@@ -263,6 +263,13 @@ static void kain_gl_draw_box(double x, double y, double z, double sx, double sy,
     glPopMatrix();
 }
 
+static int kain_viewport_profile_is(const KainViewportProfile* profile, const char* id) {
+    if (!profile || !id || !id[0] || !profile->id || !profile->id[0]) {
+        return 0;
+    }
+    return _stricmp(profile->id, id) == 0;
+}
+
 static void kain_gl_render_ground(const KainNativeViewportApp* app) {
     int i;
     double half_extent = 40.0;
@@ -302,6 +309,72 @@ static void kain_gl_render_scene_geometry(const KainNativeViewportApp* app) {
 
     if (app->world_asset.loaded) {
         kain_native_scene_asset_render(&app->world_asset);
+        return;
+    }
+
+    if (kain_viewport_profile_is(profile, "magma_terraces")) {
+        int tier;
+        int vent;
+        int shard;
+        int bridge;
+
+        for (tier = 0; tier < 5; ++tier) {
+            double tier_scale = (double)tier;
+            double terrace_size = 26.0 - (tier_scale * 4.2);
+            double terrace_y = 0.9 + (tier_scale * 1.35);
+            double terrace_bob = sin(app->total_time * (0.75 + tier_scale * 0.1) + tier_scale) * 0.08;
+            float shell_mix = 0.26f + (float)(tier * 0.05f);
+            float shell_r = shell_mix * profile->accent_b[0];
+            float shell_g = shell_mix * profile->accent_b[1];
+            float shell_b = shell_mix * profile->accent_b[2];
+            float rim_r = 0.18f + (float)(0.12 * tier);
+            float rim_g = 0.08f + (float)(0.04 * tier);
+            float rim_b = 0.06f + (float)(0.03 * tier);
+
+            kain_gl_draw_box(0.0, terrace_y + terrace_bob, 0.0, terrace_size, 0.65, terrace_size, shell_r, shell_g, shell_b);
+            kain_gl_draw_box(0.0, terrace_y + 0.22 + terrace_bob, 0.0, terrace_size - 1.4, 0.16, terrace_size - 1.4, rim_r, rim_g, rim_b);
+        }
+
+        kain_gl_draw_box(0.0, 6.5 + pulse * 0.45, 0.0, 3.6, 0.45, 3.6, 0.95f, 0.32f, 0.14f);
+        kain_gl_draw_box(0.0, 5.4 + pulse * 0.18, 0.0, 7.2, 0.30, 7.2, 0.32f, 0.08f, 0.05f);
+
+        for (bridge = 0; bridge < 4; ++bridge) {
+            double angle = (double)bridge * (M_PI * 0.5);
+            double bridge_x = cos(angle) * 11.5;
+            double bridge_z = sin(angle) * 11.5;
+            double bridge_scale_x = (bridge % 2 == 0) ? 7.8 : 1.2;
+            double bridge_scale_z = (bridge % 2 == 0) ? 1.2 : 7.8;
+            kain_gl_draw_box(bridge_x, 4.35, bridge_z, bridge_scale_x, 0.22, bridge_scale_z, 0.28f, 0.18f, 0.14f);
+            kain_gl_draw_box(bridge_x, 4.70, bridge_z, bridge_scale_x * 0.92, 0.08, bridge_scale_z * 0.92, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        }
+
+        for (vent = 0; vent < 12; ++vent) {
+            double angle = ((double)vent / 12.0) * M_PI * 2.0;
+            double ring = 10.0 + ((vent % 3) * 2.6);
+            double vent_x = cos(angle) * ring;
+            double vent_z = sin(angle) * ring;
+            double vent_height = 2.8 + ((vent % 4) * 1.45);
+            double vent_tip = 0.18 + sin(app->total_time * 1.8 + vent) * 0.12;
+            float vent_r = 0.28f + (float)(0.07 * (vent % 3));
+            float vent_g = 0.16f + (float)(0.03 * (vent % 2));
+            float vent_b = 0.12f;
+
+            kain_gl_draw_box(vent_x, 1.2 + vent_height * 0.5, vent_z, 1.3, vent_height, 1.3, vent_r, vent_g, vent_b);
+            kain_gl_draw_box(vent_x, 1.45 + vent_height + vent_tip, vent_z, 0.55, 0.35, 0.55, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2]);
+        }
+
+        for (shard = 0; shard < 7; ++shard) {
+            double angle = app->total_time * (0.38 + shard * 0.06) + shard;
+            double ring = 7.5 + shard * 1.55;
+            double shard_x = cos(angle) * ring;
+            double shard_z = sin(angle * 0.92) * ring;
+            double shard_y = 8.5 + sin(app->total_time * 1.2 + shard * 0.7) * 1.8 + shard * 0.28;
+            double shard_scale = 0.6 + ((shard % 3) * 0.22);
+
+            kain_gl_draw_box(shard_x, shard_y, shard_z, shard_scale, 0.18, shard_scale * 1.7, 0.36f, 0.24f, 0.18f);
+            kain_gl_draw_box(shard_x, shard_y + 0.24, shard_z, shard_scale * 0.4, 0.08, shard_scale * 0.9, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        }
+
         return;
     }
 
@@ -481,7 +554,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         : (app->runtime_contract.loaded
             ? (app->world_asset.loaded
                 ? "Runtime contract validated. City world is env-driven through KAIN_NATIVE_WORLD_ASSET."
-                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port.")
+                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces.")
             : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.");
     kain_ui_compiled_overlay_render(&app->surface, app->width, app->height, &app->compiled_ui, &overlay_spec);
 }

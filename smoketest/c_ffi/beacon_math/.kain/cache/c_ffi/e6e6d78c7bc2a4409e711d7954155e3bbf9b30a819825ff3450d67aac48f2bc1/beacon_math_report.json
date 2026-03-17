@@ -1,10 +1,21 @@
 {
   "library_name": "beacon_math",
+  "parser_backend": "kain-import.c + kain-c-ffi",
   "header_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\native/beacon_math.h",
   "shared_lib_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\native/beacon_math.dll",
   "cache_dir": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\e6e6d78c7bc2a4409e711d7954155e3bbf9b30a819825ff3450d67aac48f2bc1",
   "report_json_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\e6e6d78c7bc2a4409e711d7954155e3bbf9b30a819825ff3450d67aac48f2bc1\\beacon_math_report.json",
   "report_text_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\e6e6d78c7bc2a4409e711d7954155e3bbf9b30a819825ff3450d67aac48f2bc1\\beacon_math_report.txt",
+  "manifest_json_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\e6e6d78c7bc2a4409e711d7954155e3bbf9b30a819825ff3450d67aac48f2bc1\\beacon_math_binding_manifest.json",
+  "supported_targets": [
+    "interpret",
+    "test"
+  ],
+  "capabilities": [
+    "binding-report",
+    "classification",
+    "host-backed"
+  ],
   "entries": [
     {
       "symbol_path": "c::beacon_math::beacon_add",
@@ -14,18 +25,18 @@
       "emitted_symbol": "c_beacon_math_beacon_add"
     },
     {
+      "symbol_path": "c::beacon_math::beacon_fill_buffer",
+      "kind": "function",
+      "status": "unsupported",
+      "reason": "raw scalar pointer 'float' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
+      "emitted_symbol": null
+    },
+    {
       "symbol_path": "c::beacon_math::beacon_is_even",
       "kind": "function",
       "status": "callable",
       "reason": null,
       "emitted_symbol": "c_beacon_math_beacon_is_even"
-    },
-    {
-      "symbol_path": "c::beacon_math::beacon_scale",
-      "kind": "function",
-      "status": "callable",
-      "reason": null,
-      "emitted_symbol": "c_beacon_math_beacon_scale"
     },
     {
       "symbol_path": "c::beacon_math::beacon_label",
@@ -37,16 +48,16 @@
     {
       "symbol_path": "c::beacon_math::beacon_payload_bytes",
       "kind": "function",
-      "status": "stubbed",
-      "reason": "unsupported return type 'BEACON_EXPORT const unsigned char*'",
+      "status": "unsupported",
+      "reason": "raw scalar pointer 'int' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
       "emitted_symbol": null
     },
     {
-      "symbol_path": "c::beacon_math::beacon_fill_buffer",
+      "symbol_path": "c::beacon_math::beacon_scale",
       "kind": "function",
-      "status": "stubbed",
-      "reason": "unsupported parameter type 'float*'",
-      "emitted_symbol": null
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_beacon_math_beacon_scale"
     }
   ],
   "source_fingerprints": [

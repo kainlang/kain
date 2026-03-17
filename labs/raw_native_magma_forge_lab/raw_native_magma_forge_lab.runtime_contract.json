@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "required_capabilities": [
+    {
+      "key": "compiler.typed-program",
+      "source": "kain-core",
+      "detail": "Typed frontend output is available for runtime packaging."
+    },
+    {
+      "key": "memory.raw-ops",
+      "source": "kain-core.low_level_memory",
+      "detail": "Target accepts raw memory operation lowering."
+    },
+    {
+      "key": "memory.raw-pointers",
+      "source": "kain-core.low_level_memory",
+      "detail": "Target accepts raw pointer lowering."
+    },
+    {
+      "key": "native.raw-runtime",
+      "source": "runtime/native",
+      "detail": "Program targets the raw native runtime lane."
+    },
+    {
+      "key": "native.viewport-host",
+      "source": "runtime/native",
+      "detail": "Viewport/app-host runtime services are expected in the native lane."
+    },
+    {
+      "key": "runtime.contract.bundle",
+      "source": "kain-core",
+      "detail": "Compiler-owned runtime contract scaffolding emitted."
+    }
+  ],
+  "service_bindings": [
+    {
+      "service": "native.app-host",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "native.asset.gltf",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "native.input",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "native.ui.compiled-bundle",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "native.viewport",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    }
+  ],
+  "items": [
+    {
+      "id": "function:build_forge_report",
+      "name": "build_forge_report",
+      "kind": "function"
+    },
+    {
+      "id": "function:configure_magma_forge",
+      "name": "configure_magma_forge",
+      "kind": "function"
+    },
+    {
+      "id": "function:lab_path",
+      "name": "lab_path",
+      "kind": "function"
+    },
+    {
+      "id": "function:magma_motion_score",
+      "name": "magma_motion_score",
+      "kind": "function"
+    },
+    {
+      "id": "function:magma_particle_budget",
+      "name": "magma_particle_budget",
+      "kind": "function"
+    },
+    {
+      "id": "function:main",
+      "name": "main",
+      "kind": "function"
+    },
+    {
+      "id": "function:terraced_ring_count",
+      "name": "terraced_ring_count",
+      "kind": "function"
+    }
+  ],
+  "reflection": {
+    "emitted": false,
+    "schema_names": [],
+    "notes": [
+      "Runtime contract scaffolding emitted from kain-core.",
+      "Reflection payloads are not emitted yet; schema_names are placeholders for future reflection integration."
+    ]
+  }
+}
