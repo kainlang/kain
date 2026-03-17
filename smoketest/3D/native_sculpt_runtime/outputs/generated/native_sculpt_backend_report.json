@@ -1,0 +1,63 @@
+{
+  "crate_name": "native_sculpt_backend",
+  "package_name": "native_sculpt_backend",
+  "version": "0.1.0",
+  "manifest_path": "\\\\?\\M:\\Code\\Kain\\smoketest\\3D\\native_sculpt_runtime\\local_crate\\Cargo.toml",
+  "resolution_kind": "crate_path",
+  "cache_dir": "M:\\Code\\Kain\\smoketest\\3D\\native_sculpt_runtime\\.kain\\cache\\crate_ffi\\133e116a522ff660ef1696644d2988a2f9d1438a540cdaa6130538d2f79fcc06",
+  "report_json_path": "outputs/generated\\native_sculpt_backend_report.json",
+  "report_text_path": "outputs/generated\\native_sculpt_backend_report.txt",
+  "entries": [
+    {
+      "symbol_path": "NATIVE_SCULPT_RUNTIME_REVISION",
+      "module_path": [],
+      "kind": "constant",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "native_sculpt_curve",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_native_sculpt_backend_native_sculpt_curve"
+    },
+    {
+      "symbol_path": "native_sculpt_forecast",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_native_sculpt_backend_native_sculpt_forecast"
+    },
+    {
+      "symbol_path": "native_sculpt_stroke_energy",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_native_sculpt_backend_native_sculpt_stroke_energy"
+    },
+    {
+      "symbol_path": "native_sculpt_runtime_signature",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_native_sculpt_backend_native_sculpt_runtime_signature"
+    }
+  ],
+  "source_fingerprints": [
+    {
+      "path": "\\\\?\\M:\\Code\\Kain\\smoketest\\3D\\native_sculpt_runtime\\local_crate\\src\\lib.rs",
+      "sha256": "43983c51630597ecf89c31d5b2d485c6cfa6e39e131b1d1e40f5b43aa9fd2d76"
+    }
+  ]
+}

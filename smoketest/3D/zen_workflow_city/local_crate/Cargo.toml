@@ -1,0 +1,10 @@
+[package]
+name = "workflow_city_lab"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "workflow_city_lab"
+path = "src/lib.rs"
+
+[workspace]

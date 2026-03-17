@@ -1,0 +1,190 @@
+use c::cgltf_scene_probe
+use rust::workflow_city_lab
+use std::python::bridge
+use std::python::trimesh
+use std::dcc::mesh
+use std::javascript::bridge
+use std::javascript::web
+
+fn smoke_root() -> String:
+    return "M:/Code/Kain/smoketest/3D/zen_workflow_city"
+
+fn smoke_output(name: String) -> String:
+    return smoke_root() + "/outputs/" + name
+
+fn install_python_kernel():
+    py_bridge_exec("import sys\nif 'helpers' not in sys.path:\n    sys.path.insert(0, 'helpers')\nfrom workflow_city_kernel import kain_workflow_city_scene, kain_workflow_city_mesh, kain_workflow_city_export_any\n")
+
+fn build_modules_html(group_labels, group_colors, group_counts, module_names, module_groups, module_heights, module_energies) -> String:
+    let html = ""
+    let group_index = 0
+    while group_index < len(group_labels):
+        let html = html + "<section class='workflow-card' style='--accent:" + str(group_colors[group_index]) + "'>"
+        let html = html + "<div class='header'><h3>" + str(group_labels[group_index]) + "</h3><span class='count'>" + str(group_counts[group_index]) + " modules</span></div>"
+        let html = html + "<ul>"
+        let module_index = 0
+        while module_index < len(module_names):
+            if module_groups[module_index] == group_index:
+                let html = html + "<li><strong>" + str(module_names[module_index]) + "</strong><span>h " + str(module_heights[module_index]) + " / e " + str(module_energies[module_index]) + "</span></li>"
+            module_index = module_index + 1
+        let html = html + "</ul></section>"
+        group_index = group_index + 1
+    return html
+
+fn build_overview_html(base_info, mutated_info, probe_name: String, c_signature: String, changed_vertices: Int, mesh_info, layout_signature: String) -> String:
+    let html = "<div class='overview'>"
+    let html = html + "<div class='overview-grid'>"
+    let html = html + "<div class='overview-card'><small>Runtime Stack</small><strong>Py + Rust + Kain + C + Node</strong><p>One .kn file drove generation, layout, mutation, validation, and packaging.</p></div>"
+    let html = html + "<div class='overview-card'><small>Geometry</small><strong>" + str(mutated_info.geometry_count) + " scene nodes</strong><p>" + str(mutated_info.vertex_count) + " vertices / " + str(mutated_info.face_count) + " faces after export.</p></div>"
+    let html = html + "<div class='overview-card'><small>Kain Sculpt Pass</small><strong>" + str(changed_vertices) + " vertices moved</strong><p>Shared trimesh mesh was mutated in-place through the DCC bridge before final export.</p></div>"
+    let html = html + "<div class='overview-card'><small>C Probe</small><strong>" + probe_name + "</strong><p>" + c_signature + "</p></div>"
+    let html = html + "<div class='overview-card'><small>Base Export</small><strong>" + str(base_info.bytes) + " bytes</strong><p>Header " + str(base_info.header) + " / extents " + str(base_info.extents) + "</p></div>"
+    let html = html + "<div class='overview-card'><small>Mutated Export</small><strong>" + str(mutated_info.bytes) + " bytes</strong><p>Header " + str(mutated_info.header) + " / extents " + str(mutated_info.extents) + "</p></div>"
+    let html = html + "<div class='overview-card'><small>Mesh Ownership</small><strong>" + str(mesh_info.vertex_ownership) + "</strong><p>Python-origin mesh stayed shared while Kain reshaped it.</p></div>"
+    let html = html + "<div class='overview-card'><small>Layout Signature</small><strong>" + layout_signature + "</strong><p>Rust crate mirrored the ZenDCC workflow structure and computed the city layout.</p></div>"
+    let html = html + "</div></div>"
+    return html
+
+fn sculpt_workflow_crown(geometry: Any, phase: Float) -> Int:
+    let info = dcc_mesh_info(geometry)
+    let index = 0
+    let changed = 0
+    while index < info.vertex_count:
+        let position = dcc_mesh_vertex_at(geometry, index)
+        let x = position[0]
+        let y = position[1]
+        let z = position[2]
+        let radius = sqrt(x * x + z * z)
+        if radius > 1.4 and radius < 13.8 and y > -0.2:
+            let lift = sin(radius * 2.1 + (x * 0.45) - (z * 0.32) + phase) * 0.14
+            let lift = lift + sin((x + z) * 0.16 + phase * 0.5) * 0.05
+            if lift > 0.025 or lift < -0.025:
+                dcc_mesh_set_vertex(geometry, index, [x, y + lift, z])
+                changed = changed + 1
+        index = index + 1
+    return changed
+
+test zen_workflow_city_runtime:
+    install_python_kernel()
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the zen workflow city smoke")
+    assert(py_trimesh_available(), "trimesh must be installed for the zen workflow city smoke")
+
+    let group_labels = workflow_group_labels()
+    let group_colors = workflow_group_colors()
+    let group_anchor_xs = workflow_group_anchor_xs()
+    let group_anchor_zs = workflow_group_anchor_zs()
+    let group_spans = workflow_group_spans()
+    let module_names = workflow_module_names()
+    let module_groups = workflow_module_group_indices()
+    let module_xs = workflow_module_xs()
+    let module_zs = workflow_module_zs()
+    let module_heights = workflow_module_heights()
+    let module_energies = workflow_module_energies()
+    let base_path = smoke_output("workflow_city_test.glb")
+    let scene = py_bridge_call_raw("kain_workflow_city_scene", [group_labels, group_colors, group_anchor_xs, group_anchor_zs, group_spans, module_names, module_groups, module_xs, module_zs, module_heights, module_energies])
+    let exported = py_bridge_call("kain_workflow_city_export_any", [scene, base_path])
+    let probe = cgltf_probe_open(base_path)
+    assert(exported.header == "glTF", "expected glb header")
+    assert(file_exists(base_path), "expected workflow city glb")
+    assert(cgltf_probe_node_count(probe) > 10, "expected useful scene node count")
+    assert(cgltf_probe_mesh_count(probe) > 10, "expected useful scene mesh count")
+    assert(cgltf_probe_vertex_count(probe) > 200, "expected useful scene vertex count")
+    cgltf_probe_close(probe)
+
+fn main() -> String:
+    install_python_kernel()
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the zen workflow city smoke")
+    assert(py_trimesh_available(), "trimesh must be installed for the zen workflow city smoke")
+
+    let group_labels = workflow_group_labels()
+    let group_colors = workflow_group_colors()
+    let group_anchor_xs = workflow_group_anchor_xs()
+    let group_anchor_zs = workflow_group_anchor_zs()
+    let group_spans = workflow_group_spans()
+    let group_counts = workflow_group_module_counts()
+    let module_names = workflow_module_names()
+    let module_groups = workflow_module_group_indices()
+    let module_xs = workflow_module_xs()
+    let module_zs = workflow_module_zs()
+    let module_heights = workflow_module_heights()
+    let module_energies = workflow_module_energies()
+    let base_glb = smoke_output("workflow_city_base.glb")
+    let mutated_glb = smoke_output("workflow_city_mutated.glb")
+    let html_path = smoke_output("workflow_city.html")
+    let report_path = smoke_output("workflow_city_report.txt")
+    let scene_json_path = smoke_output("workflow_city_layout.json")
+
+    let base_scene = py_bridge_call_raw("kain_workflow_city_scene", [group_labels, group_colors, group_anchor_xs, group_anchor_zs, group_spans, module_names, module_groups, module_xs, module_zs, module_heights, module_energies])
+    let base_info = py_bridge_call("kain_workflow_city_export_any", [base_scene, base_glb])
+    let mesh_payload = py_bridge_call_raw("kain_workflow_city_mesh", [group_labels, group_colors, group_anchor_xs, group_anchor_zs, group_spans, module_names, module_groups, module_xs, module_zs, module_heights, module_energies])
+    let geometry = dcc_mesh_from_python_shared(mesh_payload)
+    let mesh_info = dcc_mesh_info(geometry)
+
+    let phase = workflow_total_energy() * 0.17
+    let changed_vertices = sculpt_workflow_crown(geometry, phase)
+    let mutated_info = py_bridge_call("kain_workflow_city_export_any", [dcc_mesh_to_trimesh(geometry), mutated_glb])
+
+    let probe = cgltf_probe_open(mutated_glb)
+    let node_count = cgltf_probe_node_count(probe)
+    let mesh_count = cgltf_probe_mesh_count(probe)
+    let primitive_count = cgltf_probe_primitive_count(probe)
+    let material_count = cgltf_probe_material_count(probe)
+    let probe_vertex_total = cgltf_probe_vertex_count(probe)
+    let scene_name = cgltf_probe_scene_name(probe)
+    let c_signature = cgltf_probe_signature(probe)
+    cgltf_probe_close(probe)
+
+    let layout_signature = workflow_city_signature(changed_vertices)
+    let overview_html = build_overview_html(base_info, mutated_info, scene_name, c_signature, changed_vertices, mesh_info, layout_signature)
+    let modules_html = build_modules_html(group_labels, group_colors, group_counts, module_names, module_groups, module_heights, module_energies)
+    let helper = js_bridge_import("./helpers/workflow_city_studio.mjs")
+    let document = js_bridge_call_method_raw(helper, "makeWorkflowCityDocument", ["Zen Workflow City", base_glb, mutated_glb, layout_signature, overview_html, modules_html])
+
+    let layout_json = "{\n"
+    let layout_json = layout_json + "  \"revision\": " + str(WORKFLOW_CITY_REVISION) + ",\n"
+    let layout_json = layout_json + "  \"signature\": \"" + layout_signature + "\",\n"
+    let layout_json = layout_json + "  \"groups\": " + js_web_json_stringify(group_labels) + ",\n"
+    let layout_json = layout_json + "  \"group_colors\": " + js_web_json_stringify(group_colors) + ",\n"
+    let layout_json = layout_json + "  \"module_names\": " + js_web_json_stringify(module_names) + ",\n"
+    let layout_json = layout_json + "  \"module_groups\": " + js_web_json_stringify(module_groups) + ",\n"
+    let layout_json = layout_json + "  \"module_xs\": " + js_web_json_stringify(module_xs) + ",\n"
+    let layout_json = layout_json + "  \"module_zs\": " + js_web_json_stringify(module_zs) + ",\n"
+    let layout_json = layout_json + "  \"module_heights\": " + js_web_json_stringify(module_heights) + ",\n"
+    let layout_json = layout_json + "  \"module_energies\": " + js_web_json_stringify(module_energies) + "\n"
+    let layout_json = layout_json + "}\n"
+
+    let report = "Zen workflow city smoke\n"
+    let report = report + "revision: " + str(WORKFLOW_CITY_REVISION) + "\n"
+    let report = report + "layout_signature: " + layout_signature + "\n"
+    let report = report + "base_glb: " + base_glb + "\n"
+    let report = report + "mutated_glb: " + mutated_glb + "\n"
+    let report = report + "html_path: " + html_path + "\n"
+    let report = report + "scene_json_path: " + scene_json_path + "\n"
+    let report = report + "base_header: " + str(base_info.header) + "\n"
+    let report = report + "base_geometry_count: " + str(base_info.geometry_count) + "\n"
+    let report = report + "base_vertex_count: " + str(base_info.vertex_count) + "\n"
+    let report = report + "mutated_header: " + str(mutated_info.header) + "\n"
+    let report = report + "mutated_geometry_count: " + str(mutated_info.geometry_count) + "\n"
+    let report = report + "mutated_vertex_count: " + str(mutated_info.vertex_count) + "\n"
+    let report = report + "mutated_face_count: " + str(mutated_info.face_count) + "\n"
+    let report = report + "mesh_vertex_ownership: " + str(mesh_info.vertex_ownership) + "\n"
+    let report = report + "mesh_vertex_count: " + str(mesh_info.vertex_count) + "\n"
+    let report = report + "changed_vertices: " + str(changed_vertices) + "\n"
+    let report = report + "probe_scene_name: " + scene_name + "\n"
+    let report = report + "probe_nodes: " + str(node_count) + "\n"
+    let report = report + "probe_meshes: " + str(mesh_count) + "\n"
+    let report = report + "probe_primitives: " + str(primitive_count) + "\n"
+    let report = report + "probe_materials: " + str(material_count) + "\n"
+    let report = report + "probe_vertices: " + str(probe_vertex_total) + "\n"
+    let report = report + "probe_signature: " + c_signature + "\n"
+    let report = report + "python_role: generated the workflow city geometry through trimesh\n"
+    let report = report + "cargo_role: computed the ZenDCC workflow district layout and signature math\n"
+    let report = report + "kain_role: mutated the shared 3D mesh, authored the dossier, and coordinated all runtimes\n"
+    let report = report + "c_role: validated the final glb through cgltf scene inspection\n"
+    let report = report + "node_role: packaged a self-contained interactive three-powered viewer document\n"
+
+    js_web_document_write(html_path, document)
+    write_file(scene_json_path, layout_json)
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

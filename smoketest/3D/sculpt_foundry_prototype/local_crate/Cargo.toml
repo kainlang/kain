@@ -1,0 +1,10 @@
+[package]
+name = "sculpt_foundry_backend"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "sculpt_foundry_backend"
+path = "src/lib.rs"
+
+[workspace]

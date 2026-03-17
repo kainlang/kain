@@ -1,0 +1,10 @@
+{
+  "contract": "kain.sculpt.prototype",
+  "revision": 1,
+  "tool": "Voxel Clay",
+  "layer": "Primary Bust",
+  "curve": [51, 47, 44, 40, 37, 34, 31, 28, 25, 22, 19, 17, 15, 12, 10, 8, 7, 5, 4, 3, 2, 1, 0, 0],
+  "forecast": [158000, 335499, 24],
+  "stroke_energy": 271,
+  "signature": "VoxelClay:PrimaryBust:e271:p335499"
+}

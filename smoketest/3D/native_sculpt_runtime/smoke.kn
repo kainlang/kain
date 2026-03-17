@@ -1,0 +1,164 @@
+use rust::native_sculpt_backend
+use c::native_sculpt_host
+
+fn smoke_output(name: String) -> String:
+    return "outputs/" + name
+
+fn max_value(values: Any) -> Int:
+    let best = values[0]
+    let i = 1
+    while i < len(values):
+        if values[i] > best:
+            best = values[i]
+        i = i + 1
+    return best
+
+fn polyline_points(values: Any, width: Int, height: Int) -> String:
+    let points = []
+    let peak = max_value(values)
+    let safe_peak = peak
+    if safe_peak <= 0:
+        safe_peak = 1
+    let last = len(values) - 1
+    let i = 0
+    while i < len(values):
+        let x = 0
+        if last != 0:
+            x = (i * width) / last
+        let y = height - ((values[i] * height) / safe_peak)
+        push(points, str(x) + "," + str(y))
+        i = i + 1
+    return join(points, " ")
+
+fn graph_svg(values: Any) -> String:
+    let points = polyline_points(values, 420, 110)
+    let svg = "<svg viewBox='0 0 420 110' class='falloff-graph' role='img' aria-label='Brush falloff graph'>"
+    let svg = svg + "<defs><linearGradient id='curveGradient' x1='0%' y1='0%' x2='100%' y2='0%'><stop offset='0%' stop-color='#f97316'/><stop offset='100%' stop-color='#22d3ee'/></linearGradient></defs>"
+    let svg = svg + "<rect x='0' y='0' width='420' height='110' rx='16' fill='rgba(255,255,255,0.02)'/>"
+    let svg = svg + "<polyline fill='none' stroke='url(#curveGradient)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round' points='" + points + "'/>"
+    let svg = svg + "</svg>"
+    return svg
+
+fn metric_card(title: String, value: String, detail: String, accent: String) -> String:
+    return "<div class='metric-card'><p class='metric-title'>" + title + "</p><p class='metric-value' style='color:" + accent + "'>" + value + "</p><p class='metric-detail'>" + detail + "</p></div>"
+
+fn layer_row(name: String, detail: String, active: Bool) -> String:
+    let class_name = "layer-row"
+    if active:
+        class_name = "layer-row active"
+    return "<div class='" + class_name + "'><div><p class='layer-name'>" + name + "</p><p class='layer-detail'>" + detail + "</p></div><div class='layer-flag'>LIVE</div></div>"
+
+fn build_dashboard_html(curve: Any, forecast: Any, energy: Int, runtime_signature: String, frame_count: Int, avg_fps_x100: Int) -> String:
+    let layers = []
+    push(layers, layer_row("Primary Bust", str(forecast[0]) + " polys / active target", true))
+    push(layers, layer_row("Secondary Planes", "pinch + trim support", false))
+    push(layers, layer_row("Surface Breakup", "micro cavity pass", false))
+
+    let metrics = []
+    push(metrics, metric_card("Stroke Energy", str(energy), "Rust backend estimate for the active brush packet", "#f97316"))
+    push(metrics, metric_card("Target Polycount", str(forecast[1]), "Forecast before full live dyn-topo runtime ownership", "#38bdf8"))
+    push(metrics, metric_card("Average FPS", str(avg_fps_x100 / 100) + "." + str(avg_fps_x100 % 100), "Measured by the native C window loop during the smoke run", "#a78bfa"))
+
+    let graph = graph_svg(curve)
+
+    let html = "<!doctype html>\n"
+    let html = html + "<html lang='en'><head><meta charset='utf-8' /><meta name='viewport' content='width=device-width, initial-scale=1' /><title>Native Sculpt Runtime Prototype</title>"
+    let html = html + "<style>:root { color-scheme: dark; --bg-top: #111827; --bg-bottom: #050811; --panel: rgba(8, 12, 20, 0.9); --line: rgba(148,163,184,0.18); --accent: #f97316; --cool: #38bdf8; --text: #edf5ff; --muted: #8aa9c7; }"
+    let html = html + "* { box-sizing: border-box; } body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top, var(--bg-top) 0%, var(--bg-bottom) 76%); color: var(--text); font-family: 'Space Grotesk', 'Segoe UI Variable', sans-serif; }"
+    let html = html + ".shell { width: min(96vw, 1540px); margin: 22px auto; padding: 20px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.08); background: rgba(4, 7, 14, 0.9); box-shadow: 0 42px 140px rgba(0,0,0,0.48); }"
+    let html = html + ".topbar { display: flex; justify-content: space-between; gap: 18px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }"
+    let html = html + ".eyebrow { margin: 0 0 4px; font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--cool); } h1 { margin: 0; font-size: 30px; letter-spacing: -0.04em; } .sub { margin: 6px 0 0; color: var(--muted); max-width: 920px; line-height: 1.45; }"
+    let html = html + ".workspace { display: grid; grid-template-columns: 1.4fr 0.9fr; gap: 18px; } .panel { border-radius: 24px; border: 1px solid var(--line); background: var(--panel); padding: 16px; } .panel-title { margin: 0 0 12px; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }"
+    let html = html + ".capture { width: 100%; display: block; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); background: #08101a; } .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; } .metric-card { padding: 14px; border-radius: 18px; background: rgba(255,255,255,0.03); }"
+    let html = html + ".metric-title { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); } .metric-value { margin: 0 0 6px; font-size: 24px; font-weight: 700; } .metric-detail { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }"
+    let html = html + ".layer-stack { display: grid; gap: 10px; } .layer-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: rgba(255,255,255,0.02); } .layer-row.active { border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.08); }"
+    let html = html + ".layer-name { margin: 0 0 4px; font-weight: 600; } .layer-detail { margin: 0; color: var(--muted); font-size: 12px; } .layer-flag { color: var(--accent); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; } .footer { margin-top: 16px; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }"
+    let html = html + "@media (max-width: 1180px) { .workspace { grid-template-columns: 1fr; } .metric-grid { grid-template-columns: 1fr; } }</style></head><body>"
+    let html = html + "<main class='shell'><header class='topbar'><div><p class='eyebrow'>Kain Frontend / Rust Semantics / C Native Host</p><h1>Native Sculpt Runtime Prototype</h1><p class='sub'>Kain authors the sculpt session and tool contract, Rust computes sculpt-facing backend values, and a C native host owns the real Win32 window, message loop, frame pacing, and viewport capture.</p></div></header>"
+    let html = html + "<section class='workspace'><section class='panel'><p class='panel-title'>Captured Native Viewport</p><img class='capture' src='native_sculpt_runtime_capture.bmp' alt='Native sculpt runtime capture' /><div class='metric-grid'>" + join(metrics, "") + "</div><div class='footer'><span>frame_count: " + str(frame_count) + "</span><span>signature: " + runtime_signature + "</span><span>capture: native_sculpt_runtime_capture.bmp</span></div></section>"
+    let html = html + "<aside class='panel'><p class='panel-title'>Brush Falloff</p>" + graph + "<p class='panel-title' style='margin-top:18px'>Scene Layers</p><div class='layer-stack'>" + join(layers, "") + "</div><p class='panel-title' style='margin-top:18px'>Pipeline Position</p><div class='metric-card'><p class='metric-title'>Status</p><p class='metric-value' style='color:#22d3ee'>Prototype</p><p class='metric-detail'>This proves the next lane: Kain can already drive a native viewport/runtime host while keeping sculpt semantics in authored code instead of burying them in the host layer.</p></div></aside></section></main></body></html>"
+    return html
+
+fn int_array_json(values: Any) -> String:
+    let parts = []
+    let i = 0
+    while i < len(values):
+        push(parts, str(values[i]))
+        i = i + 1
+    return "[" + join(parts, ", ") + "]"
+
+fn build_contract_json(curve: Any, forecast: Any, energy: Int, runtime_signature: String, frame_count: Int, checksum: Int) -> String:
+    let json = "{\n"
+    let json = json + "  \"contract\": \"kain.native_sculpt_runtime.prototype\",\n"
+    let json = json + "  \"revision\": " + str(NATIVE_SCULPT_RUNTIME_REVISION) + ",\n"
+    let json = json + "  \"curve\": " + int_array_json(curve) + ",\n"
+    let json = json + "  \"forecast\": " + int_array_json(forecast) + ",\n"
+    let json = json + "  \"stroke_energy\": " + str(energy) + ",\n"
+    let json = json + "  \"frame_count\": " + str(frame_count) + ",\n"
+    let json = json + "  \"checksum\": " + str(checksum) + ",\n"
+    let json = json + "  \"runtime_signature\": \"" + runtime_signature + "\"\n"
+    let json = json + "}\n"
+    return json
+
+test native_sculpt_runtime_backend_contract:
+    assert(NATIVE_SCULPT_RUNTIME_REVISION == 1, "expected native sculpt runtime revision")
+    let curve = rust_native_sculpt_backend_native_sculpt_curve(68, 72, 54, 24)
+    let forecast = rust_native_sculpt_backend_native_sculpt_forecast(158000, 1, 61, 5)
+    let energy = rust_native_sculpt_backend_native_sculpt_stroke_energy(68, 72, 19, 1)
+    let signature = rust_native_sculpt_backend_native_sculpt_runtime_signature("VoxelClay", energy, forecast[1])
+    assert(len(curve) == 24, "expected curve samples")
+    assert(curve[0] > curve[len(curve) - 1], "expected curve falloff")
+    assert(forecast[1] > forecast[0], "expected target polycount growth")
+    assert(energy > 0, "expected positive sculpt energy")
+    assert(contains(signature, "VoxelClay"), "expected signature to include tool")
+
+fn main() -> String:
+    let curve = rust_native_sculpt_backend_native_sculpt_curve(68, 72, 54, 24)
+    let forecast = rust_native_sculpt_backend_native_sculpt_forecast(158000, 1, 61, 5)
+    let energy = rust_native_sculpt_backend_native_sculpt_stroke_energy(68, 72, 19, 1)
+    let authored_signature = rust_native_sculpt_backend_native_sculpt_runtime_signature("VoxelClay", energy, forecast[1])
+
+    let capture_path = smoke_output("native_sculpt_runtime_capture.bmp")
+    let dashboard_path = smoke_output("native_sculpt_runtime_dashboard.html")
+    let contract_path = smoke_output("native_sculpt_runtime_contract.json")
+    let report_path = smoke_output("native_sculpt_runtime_report.txt")
+
+    let runtime = c_native_sculpt_host_native_sculpt_runtime_create(960, 640, 68, 72, 54, forecast[1], "Kain Native Sculpt Runtime")
+    let success = c_native_sculpt_host_native_sculpt_runtime_run(runtime, 1200, capture_path)
+    let frame_count = c_native_sculpt_host_native_sculpt_runtime_frame_count(runtime)
+    let message_count = c_native_sculpt_host_native_sculpt_runtime_message_count(runtime)
+    let mouse_moves = c_native_sculpt_host_native_sculpt_runtime_mouse_move_count(runtime)
+    let last_x = c_native_sculpt_host_native_sculpt_runtime_last_brush_x(runtime)
+    let last_y = c_native_sculpt_host_native_sculpt_runtime_last_brush_y(runtime)
+    let avg_fps_x100 = c_native_sculpt_host_native_sculpt_runtime_average_fps_x100(runtime)
+    let checksum = c_native_sculpt_host_native_sculpt_runtime_checksum(runtime)
+    let runtime_signature = c_native_sculpt_host_native_sculpt_runtime_signature(runtime)
+
+    let html = build_dashboard_html(curve, forecast, energy, runtime_signature, frame_count, avg_fps_x100)
+    let contract = build_contract_json(curve, forecast, energy, runtime_signature, frame_count, checksum)
+
+    let report = "Native Sculpt Runtime Prototype\n"
+    let report = report + "revision: " + str(NATIVE_SCULPT_RUNTIME_REVISION) + "\n"
+    let report = report + "success: " + str(success) + "\n"
+    let report = report + "frame_count: " + str(frame_count) + "\n"
+    let report = report + "message_count: " + str(message_count) + "\n"
+    let report = report + "mouse_moves: " + str(mouse_moves) + "\n"
+    let report = report + "average_fps_x100: " + str(avg_fps_x100) + "\n"
+    let report = report + "last_brush: [" + str(last_x) + ", " + str(last_y) + "]\n"
+    let report = report + "stroke_energy: " + str(energy) + "\n"
+    let report = report + "forecast_target_polys: " + str(forecast[1]) + "\n"
+    let report = report + "checksum: " + str(checksum) + "\n"
+    let report = report + "authored_signature: " + authored_signature + "\n"
+    let report = report + "runtime_signature: " + runtime_signature + "\n"
+    let report = report + "frontend_role: Kain authored the sculpt session, tool semantics, contract JSON, and operator dashboard\n"
+    let report = report + "rust_role: local crate supplied brush falloff, stroke energy, and sculpt target forecast\n"
+    let report = report + "c_role: native host owned Win32 windowing, message pump, frame pacing, viewport rasterization, and capture output\n"
+    let report = report + "status: this is the right next lane for a native sculpt runtime; the remaining jump is shared live mesh mutation and GPU-backed viewport services\n"
+
+    write_file(dashboard_path, html)
+    write_file(contract_path, contract)
+    write_file(report_path, report + "\n")
+    c_native_sculpt_host_native_sculpt_runtime_destroy(runtime)
+
+    println(report)
+    return report

@@ -1,0 +1,95 @@
+{
+  "schema_version": "kain-c-ffi-manifest-v1",
+  "library_name": "native_sculpt_host",
+  "parser_backend": "kain-import.c + kain-c-ffi",
+  "supported_targets": [
+    "interpret",
+    "test"
+  ],
+  "capabilities": [
+    "binding-report",
+    "host-backed",
+    "opaque-handle"
+  ],
+  "generated_module": "M:\\Code\\Kain\\smoketest\\3D\\native_sculpt_runtime\\.kain\\cache\\c_ffi\\cc5eb063e37008247ee7e56a467ab78b4372a9c4b49236f27047f34c5e6e7f03\\native_sculpt_host.kn",
+  "generated_prelude": "M:\\Code\\Kain\\smoketest\\3D\\native_sculpt_runtime\\.kain\\cache\\c_ffi\\cc5eb063e37008247ee7e56a467ab78b4372a9c4b49236f27047f34c5e6e7f03\\native_sculpt_host_prelude.kn",
+  "entries": [
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_average_fps_x100",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_average_fps_x100"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_checksum",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_checksum"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_create",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_create"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_destroy",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_destroy"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_frame_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_frame_count"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_last_brush_x",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_last_brush_x"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_last_brush_y",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_last_brush_y"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_message_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_message_count"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_mouse_move_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_mouse_move_count"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_run",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_run"
+    },
+    {
+      "symbol_path": "c::native_sculpt_host::native_sculpt_runtime_signature",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_native_sculpt_host_native_sculpt_runtime_signature"
+    }
+  ]
+}

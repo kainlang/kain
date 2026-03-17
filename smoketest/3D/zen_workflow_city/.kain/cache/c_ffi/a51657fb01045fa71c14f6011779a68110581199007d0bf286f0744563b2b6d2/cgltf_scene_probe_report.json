@@ -1,0 +1,104 @@
+{
+  "library_name": "cgltf_scene_probe",
+  "parser_backend": "kain-import.c + kain-c-ffi",
+  "header_path": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\native/cgltf_scene_probe.h",
+  "shared_lib_path": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\native/cgltf_scene_probe.dll",
+  "cache_dir": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\.kain\\cache\\c_ffi\\a51657fb01045fa71c14f6011779a68110581199007d0bf286f0744563b2b6d2",
+  "report_json_path": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\.kain\\cache\\c_ffi\\a51657fb01045fa71c14f6011779a68110581199007d0bf286f0744563b2b6d2\\cgltf_scene_probe_report.json",
+  "report_text_path": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\.kain\\cache\\c_ffi\\a51657fb01045fa71c14f6011779a68110581199007d0bf286f0744563b2b6d2\\cgltf_scene_probe_report.txt",
+  "manifest_json_path": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\.kain\\cache\\c_ffi\\a51657fb01045fa71c14f6011779a68110581199007d0bf286f0744563b2b6d2\\cgltf_scene_probe_binding_manifest.json",
+  "supported_targets": [
+    "interpret",
+    "test"
+  ],
+  "capabilities": [
+    "binding-report",
+    "host-backed",
+    "opaque-handle"
+  ],
+  "entries": [
+    {
+      "symbol_path": "c::cgltf_scene_probe::CgltfSceneProbe",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; pointer-based usage can bind as an opaque handle",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::CgltfSceneProbe",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_close",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_close"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_material_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_material_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_mesh_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_mesh_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_node_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_node_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_open",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_open"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_primitive_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_primitive_count"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_scene_name",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_scene_name"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_signature",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_signature"
+    },
+    {
+      "symbol_path": "c::cgltf_scene_probe::cgltf_probe_vertex_count",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_cgltf_scene_probe_cgltf_probe_vertex_count"
+    }
+  ],
+  "source_fingerprints": [
+    {
+      "path": "M:\\Code\\Kain\\smoketest\\3D\\zen_workflow_city\\native/cgltf_scene_probe.h",
+      "sha256": "da4409f5d9696485b23a8a3a88b6d3cdb2a27dfcf211ab1604dfbf8f16c439ed"
+    }
+  ]
+}
