@@ -66,13 +66,20 @@ pub struct FileFingerprint {
 pub enum ItemStatus {
     Callable,
     TypeOnly,
+    OpaqueHandle,
     Stubbed,
+    Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItemKind {
     Function,
+    Struct,
+    Enum,
+    Typedef,
+    Callback,
+    Global,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,11 +94,15 @@ pub struct BindingReportEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BindingReport {
     pub library_name: String,
+    pub parser_backend: String,
     pub header_path: String,
     pub shared_lib_path: Option<String>,
     pub cache_dir: String,
     pub report_json_path: String,
     pub report_text_path: String,
+    pub manifest_json_path: String,
+    pub supported_targets: Vec<String>,
+    pub capabilities: Vec<String>,
     pub entries: Vec<BindingReportEntry>,
     pub source_fingerprints: Vec<FileFingerprint>,
 }
@@ -120,16 +131,19 @@ pub enum BridgeType {
     Float32,
     Float64,
     CString,
+    ByteBuffer { mutable: bool, element_type: String },
+    OpaqueHandle { mutable: bool, pointee: String },
 }
 
 impl BridgeType {
-    pub fn render_kain(&self) -> &'static str {
+    pub fn render_kain(&self) -> String {
         match self {
-            Self::Unit => "Unit",
-            Self::Bool => "Bool",
-            Self::SignedInt(_) | Self::UnsignedInt(_) => "Int",
-            Self::Float32 | Self::Float64 => "Float",
-            Self::CString => "String",
+            Self::Unit => "Unit".to_string(),
+            Self::Bool => "Bool".to_string(),
+            Self::SignedInt(_) | Self::UnsignedInt(_) => "Int".to_string(),
+            Self::Float32 | Self::Float64 => "Float".to_string(),
+            Self::CString => "String".to_string(),
+            Self::ByteBuffer { .. } | Self::OpaqueHandle { .. } => "Any".to_string(),
         }
     }
 
@@ -140,17 +154,32 @@ impl BridgeType {
             Self::SignedInt(_) | Self::UnsignedInt(_) => "0",
             Self::Float32 | Self::Float64 => "0.0",
             Self::CString => "\"\"",
+            Self::ByteBuffer { .. } | Self::OpaqueHandle { .. } => "()",
         }
     }
 
-    pub fn render_rust_ffi(&self) -> &str {
+    pub fn render_rust_ffi(&self) -> String {
         match self {
-            Self::Unit => "()",
-            Self::Bool => "bool",
-            Self::SignedInt(name) | Self::UnsignedInt(name) => name.as_str(),
-            Self::Float32 => "f32",
-            Self::Float64 => "f64",
-            Self::CString => "*const std::os::raw::c_char",
+            Self::Unit => "()".to_string(),
+            Self::Bool => "bool".to_string(),
+            Self::SignedInt(name) | Self::UnsignedInt(name) => name.clone(),
+            Self::Float32 => "f32".to_string(),
+            Self::Float64 => "f64".to_string(),
+            Self::CString => "*const std::os::raw::c_char".to_string(),
+            Self::ByteBuffer { mutable, .. } => {
+                if *mutable {
+                    "*mut u8".to_string()
+                } else {
+                    "*const u8".to_string()
+                }
+            }
+            Self::OpaqueHandle { mutable, .. } => {
+                if *mutable {
+                    "*mut std::ffi::c_void".to_string()
+                } else {
+                    "*const std::ffi::c_void".to_string()
+                }
+            }
         }
     }
 }
@@ -169,6 +198,19 @@ pub struct GeneratedArtifacts {
     pub bridge_source: String,
     pub report: BindingReport,
     pub report_text: String,
+    pub manifest_json: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BindingManifest {
+    pub schema_version: String,
+    pub library_name: String,
+    pub parser_backend: String,
+    pub supported_targets: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub generated_module: String,
+    pub generated_prelude: String,
+    pub entries: Vec<BindingReportEntry>,
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +223,7 @@ pub struct ImportCOutput {
     pub prelude_path: PathBuf,
     pub report_json_path: PathBuf,
     pub report_text_path: PathBuf,
+    pub manifest_json_path: PathBuf,
     pub bridge_manifest_path: PathBuf,
     pub bridge_source_path: PathBuf,
     pub dylib_path: Option<PathBuf>,

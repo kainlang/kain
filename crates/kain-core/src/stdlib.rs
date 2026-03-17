@@ -497,14 +497,14 @@ pub(crate) fn load_kn_files_from_dir(path: &std::path::Path) -> Option<String> {
     Some(concatenated)
 }
 
-const DEFAULT_PROFILE_ORDER: &[&str] = &["ue5", ""];
+const DEFAULT_PROFILE_ORDER: &[&str] = &[""];
 
 const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
     (CompileTarget::Ue5, &["ue5", ""]),
     (CompileTarget::Ue5Editor, &["ue5", ""]),
     (CompileTarget::Usf, &["ue5", ""]),
-    (CompileTarget::Hlsl, &["ue5", ""]),
-    (CompileTarget::Spirv, &["ue5", ""]),
+    (CompileTarget::Hlsl, &[""]),
+    (CompileTarget::Spirv, &[""]),
     (CompileTarget::Wasm, &[""]),
     (CompileTarget::Js, &[""]),
     (CompileTarget::Ts, &[""]),
@@ -815,7 +815,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_stdlib_prefers_ue5_subdirectory() {
+    fn test_load_stdlib_prefers_root_profile_by_default() {
         let temp_dir = TempDir::new().unwrap();
         let stdlib_dir = create_test_stdlib_dir(&temp_dir);
 
@@ -831,9 +831,9 @@ mod tests {
 
         let result = load_stdlib();
 
-        // Should prefer ue5/ subdirectory
-        assert!(result.contains("// ue5 content"));
-        assert!(!result.contains("// root content"));
+        // Generic loads should stay universal and avoid UE5-only overlays.
+        assert!(result.contains("// root content"));
+        assert!(!result.contains("// ue5 content"));
 
         // Clean up
         env::remove_var("KAIN_STDLIB_PATH");
@@ -896,7 +896,19 @@ mod tests {
             .iter()
             .map(|p| (*p).to_string())
             .collect::<Vec<_>>();
+        let spirv_profiles = target_profiles(CompileTarget::Spirv)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
+        let hlsl_profiles = target_profiles(CompileTarget::Hlsl)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
         let ue5_profiles = target_profiles(CompileTarget::Ue5)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
+        let usf_profiles = target_profiles(CompileTarget::Usf)
             .iter()
             .map(|p| (*p).to_string())
             .collect::<Vec<_>>();
@@ -905,8 +917,19 @@ mod tests {
         assert!(ts_stdlib.contains("// root stdlib"));
         assert!(!ts_stdlib.contains("// ue5 stdlib"));
 
+        let spirv_stdlib = load_stdlib_from_profiles(&roots, &spirv_profiles);
+        assert!(spirv_stdlib.contains("// root stdlib"));
+        assert!(!spirv_stdlib.contains("// ue5 stdlib"));
+
+        let hlsl_stdlib = load_stdlib_from_profiles(&roots, &hlsl_profiles);
+        assert!(hlsl_stdlib.contains("// root stdlib"));
+        assert!(!hlsl_stdlib.contains("// ue5 stdlib"));
+
         let ue5_stdlib = load_stdlib_from_profiles(&roots, &ue5_profiles);
         assert!(ue5_stdlib.contains("// ue5 stdlib"));
+
+        let usf_stdlib = load_stdlib_from_profiles(&roots, &usf_profiles);
+        assert!(usf_stdlib.contains("// ue5 stdlib"));
     }
 
     #[test]

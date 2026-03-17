@@ -33,6 +33,8 @@
                 └── 📂 z80
     └── 📂 kain-build
         └── 📂 src
+    └── 📂 kain-c-ffi
+        └── 📂 src
     └── 📂 kain-core
         └── 📂 src
         └── 📂 tests
@@ -57,6 +59,8 @@
         └── 📂 tests
             └── 📂 abi_corpus
                 └── 📂 fixtures
+    └── 📂 kain-interop
+        └── 📂 src
     └── 📂 kain-node
         └── 📂 src
     └── 📂 kain-omni

@@ -281,7 +281,7 @@ fn test_load_kn_files_alphabetical_ordering() {
 }
 
 #[test]
-fn test_load_stdlib_with_ue5_subdirectory() {
+fn test_load_stdlib_with_ue5_subdirectory_keeps_root_default() {
     let test_dir = TempTestDir::new("ue5_subdir");
     test_dir.create_dir("stdlib/ue5");
     test_dir.create_file(
@@ -298,14 +298,14 @@ fn test_load_stdlib_with_ue5_subdirectory() {
     // Clean up env var
     env::remove_var("KAIN_STDLIB_PATH");
 
-    // Should prefer ue5/ subdirectory over root
+    // Generic loads should stay on the universal root profile.
     assert!(
-        result.contains("fn get_location()"),
-        "Should load from ue5/ subdirectory"
+        result.contains("fn generic()"),
+        "Should load the root stdlib by default"
     );
     assert!(
-        !result.contains("fn generic()"),
-        "Should not load from root when ue5/ exists"
+        !result.contains("fn get_location()"),
+        "Should not pull in ue5/ overlays for generic loads"
     );
 }
 

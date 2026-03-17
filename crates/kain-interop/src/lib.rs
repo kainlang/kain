@@ -62,6 +62,15 @@ impl KainSharedBuffer {
         })
     }
 
+    pub fn replace_bytes(&self, bytes: Vec<u8>) -> KainResult<()> {
+        let mut guard = self
+            .bytes
+            .write()
+            .map_err(|_| KainError::runtime("failed to write shared buffer bytes"))?;
+        *guard = bytes;
+        Ok(())
+    }
+
     pub fn bytes(&self) -> Vec<u8> {
         self.bytes.read().unwrap().clone()
     }
@@ -73,26 +82,7 @@ impl KainSharedBuffer {
 
 impl KainSharedImage {
     pub fn owned(metadata: SharedImageMetadata, bytes: Vec<u8>) -> KainResult<Arc<Self>> {
-        if metadata.representation == "raster" {
-            let row_stride = if metadata.row_stride > 0 {
-                metadata.row_stride as usize
-            } else if metadata.width > 0 && metadata.channels > 0 {
-                (metadata.width * metadata.channels) as usize
-            } else {
-                0
-            };
-            let expected = if metadata.height > 0 && row_stride > 0 {
-                metadata.height as usize * row_stride
-            } else {
-                0
-            };
-            if expected > 0 && bytes.len() != expected {
-                return Err(KainError::runtime(format!(
-                    "kain_shared_image: raster byte length mismatch, expected {expected}, got {}",
-                    bytes.len()
-                )));
-            }
-        }
+        validate_shared_image_bytes(&metadata, bytes.len())?;
 
         let shape = if metadata.representation == "raster" && metadata.height > 0 {
             if metadata.channels > 0 {
@@ -146,6 +136,34 @@ impl KainSharedImage {
     pub fn bytes(&self) -> Vec<u8> {
         self.buffer.bytes()
     }
+
+    pub fn replace_bytes(&self, bytes: Vec<u8>) -> KainResult<()> {
+        validate_shared_image_bytes(&self.metadata, bytes.len())?;
+        self.buffer.replace_bytes(bytes)
+    }
+}
+
+fn validate_shared_image_bytes(metadata: &SharedImageMetadata, byte_len: usize) -> KainResult<()> {
+    if metadata.representation == "raster" {
+        let row_stride = if metadata.row_stride > 0 {
+            metadata.row_stride as usize
+        } else if metadata.width > 0 && metadata.channels > 0 {
+            (metadata.width * metadata.channels) as usize
+        } else {
+            0
+        };
+        let expected = if metadata.height > 0 && row_stride > 0 {
+            metadata.height as usize * row_stride
+        } else {
+            0
+        };
+        if expected > 0 && byte_len != expected {
+            return Err(KainError::runtime(format!(
+                "kain_shared_image: raster byte length mismatch, expected {expected}, got {byte_len}",
+            )));
+        }
+    }
+    Ok(())
 }
 
 pub fn register() {

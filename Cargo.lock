@@ -2676,6 +2676,8 @@ version = "0.1.0"
 dependencies = [
  "heck 0.5.0",
  "kain-core",
+ "kain-import",
+ "kain-interop",
  "libloading 0.8.9",
  "once_cell",
  "regex",

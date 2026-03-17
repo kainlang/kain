@@ -3,12 +3,14 @@ use crate::model::{
     ItemKind, ItemStatus, ResolvedCLibrary,
 };
 use kain_core::error::KainError;
+use kain_import::c::{import_c_file_with_options, CImportOptions};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::fs;
 
 pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBundle, KainError> {
+    validate_header_with_kain_import(resolved)?;
     let source = fs::read_to_string(&resolved.header_path).map_err(KainError::Io)?;
     let sanitized = strip_comments(&source);
     let prototypes = collect_function_prototypes(&sanitized);
@@ -18,7 +20,7 @@ pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBund
     };
 
     let mut functions = Vec::new();
-    let mut report_entries = Vec::new();
+    let mut report_entries = collect_type_entries(&resolved.import_name, &sanitized);
 
     for prototype in prototypes {
         match parse_function_binding(&resolved.import_name, &prototype, &resolved.config.symbols) {
@@ -32,11 +34,11 @@ pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBund
                 });
                 functions.push(binding);
             }
-            Err((name, reason)) => {
+            Err((name, status, reason)) => {
                 report_entries.push(BindingReportEntry {
                     symbol_path: format!("c::{}::{}", resolved.import_name, name),
                     kind: ItemKind::Function,
-                    status: ItemStatus::Stubbed,
+                    status,
                     reason: Some(reason),
                     emitted_symbol: None,
                 });
@@ -56,6 +58,43 @@ struct RawPrototype {
     return_type: String,
     name: String,
     args: String,
+}
+
+fn validate_header_with_kain_import(resolved: &ResolvedCLibrary) -> Result<(), KainError> {
+    let mut options = CImportOptions::default();
+    options.include_paths = resolved
+        .global_config
+        .include_paths
+        .iter()
+        .chain(resolved.config.include_paths.iter())
+        .map(|value| value.display().to_string())
+        .collect();
+    options.defines = resolved
+        .global_config
+        .defines
+        .iter()
+        .chain(resolved.config.defines.iter())
+        .cloned()
+        .collect();
+    options.cpp_options = resolved
+        .global_config
+        .cpp_options
+        .iter()
+        .chain(resolved.config.cpp_options.iter())
+        .cloned()
+        .collect();
+    options.cpp_command = resolved
+        .config
+        .cpp_command
+        .clone()
+        .or_else(|| resolved.global_config.cpp_command.clone());
+    import_c_file_with_options(&resolved.header_path, &options).map_err(|err| {
+        KainError::runtime(format!(
+            "kain-import could not parse C FFI header '{}': {err}",
+            resolved.header_path.display()
+        ))
+    })?;
+    Ok(())
 }
 
 fn collect_function_prototypes(source: &str) -> Vec<RawPrototype> {
@@ -78,19 +117,68 @@ fn collect_function_prototypes(source: &str) -> Vec<RawPrototype> {
         .collect()
 }
 
+fn collect_type_entries(import_name: &str, source: &str) -> Vec<BindingReportEntry> {
+    static TYPEDEF_STRUCT_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?m)^\s*typedef\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)").expect("struct regex")
+    });
+    static TYPEDEF_ENUM_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?m)^\s*typedef\s+enum\s+([A-Za-z_][A-Za-z0-9_]*)").expect("enum regex")
+    });
+    static TYPEDEF_ALIAS_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?m)^\s*typedef\s+.+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*;").expect("typedef regex")
+    });
+
+    let mut entries = Vec::new();
+    for captures in TYPEDEF_STRUCT_REGEX.captures_iter(source) {
+        let Some(name) = captures.get(1) else {
+            continue;
+        };
+        entries.push(BindingReportEntry {
+            symbol_path: format!("c::{}::{}", import_name, name.as_str()),
+            kind: ItemKind::Struct,
+            status: ItemStatus::OpaqueHandle,
+            reason: Some("C struct discovered in header; emitted as type metadata only for now".to_string()),
+            emitted_symbol: None,
+        });
+    }
+    for captures in TYPEDEF_ENUM_REGEX.captures_iter(source) {
+        let Some(name) = captures.get(1) else {
+            continue;
+        };
+        entries.push(BindingReportEntry {
+            symbol_path: format!("c::{}::{}", import_name, name.as_str()),
+            kind: ItemKind::Enum,
+            status: ItemStatus::TypeOnly,
+            reason: Some("C enum discovered in header; emitted as type metadata only for now".to_string()),
+            emitted_symbol: None,
+        });
+    }
+    for captures in TYPEDEF_ALIAS_REGEX.captures_iter(source) {
+        let Some(name) = captures.get(1) else {
+            continue;
+        };
+        entries.push(BindingReportEntry {
+            symbol_path: format!("c::{}::{}", import_name, name.as_str()),
+            kind: ItemKind::Typedef,
+            status: ItemStatus::TypeOnly,
+            reason: Some("C typedef discovered in header; emitted as type metadata only for now".to_string()),
+            emitted_symbol: None,
+        });
+    }
+    entries.sort_by(|left, right| left.symbol_path.cmp(&right.symbol_path));
+    entries.dedup_by(|left, right| left.symbol_path == right.symbol_path && left.kind == right.kind);
+    entries
+}
+
 fn parse_function_binding(
     import_name: &str,
     prototype: &RawPrototype,
     symbol_overrides: &std::collections::BTreeMap<String, String>,
-) -> Result<CFunctionBinding, (String, String)> {
-    let return_type = parse_c_type(&prototype.return_type).ok_or_else(|| {
-        (
-            prototype.name.clone(),
-            format!("unsupported return type '{}'", prototype.return_type),
-        )
-    })?;
-    let params =
-        parse_params(&prototype.args).map_err(|reason| (prototype.name.clone(), reason))?;
+) -> Result<CFunctionBinding, (String, ItemStatus, String)> {
+    let return_type = parse_c_type(&prototype.return_type)
+        .map_err(|reason| (prototype.name.clone(), ItemStatus::Unsupported, reason))?;
+    let params = parse_params(&prototype.args)
+        .map_err(|reason| (prototype.name.clone(), ItemStatus::Unsupported, reason))?;
     let emitted_name = prototype.name.clone();
     let prefixed = format!("c_{}_{}", import_name, emitted_name);
     let symbol_name = symbol_overrides
@@ -116,11 +204,12 @@ fn parse_params(args: &str) -> Result<Vec<BridgeParam>, String> {
     for (index, raw) in trimmed.split(',').enumerate() {
         let token = raw.trim();
         if token.contains('(') || token.contains(')') {
-            return Err(format!("unsupported parameter declaration '{}'", token));
+            return Err(format!(
+                "function-pointer or callback parameters are not supported yet: '{token}'"
+            ));
         }
         let (ty_raw, name) = split_type_and_name(token, index);
-        let ty = parse_c_type(ty_raw.as_str())
-            .ok_or_else(|| format!("unsupported parameter type '{}'", ty_raw))?;
+        let ty = parse_c_type(ty_raw.as_str())?;
         params.push(BridgeParam { name, ty });
     }
     Ok(params)
@@ -150,7 +239,7 @@ fn split_type_and_name(token: &str, index: usize) -> (String, String) {
     (token.to_string(), format!("arg{}", index + 1))
 }
 
-fn parse_c_type(raw: &str) -> Option<BridgeType> {
+fn parse_c_type(raw: &str) -> Result<BridgeType, String> {
     let mut normalized = raw
         .replace('\t', " ")
         .replace("extern ", "")
@@ -163,6 +252,7 @@ fn parse_c_type(raw: &str) -> Option<BridgeType> {
     while normalized.contains("  ") {
         normalized = normalized.replace("  ", " ");
     }
+    let is_const = normalized.contains("const ");
     let pointer_depth = normalized.chars().filter(|ch| *ch == '*').count();
     normalized = normalized.replace('*', " ");
     while normalized.contains("  ") {
@@ -176,57 +266,78 @@ fn parse_c_type(raw: &str) -> Option<BridgeType> {
         .trim()
         .to_string();
 
-    if pointer_depth == 1 && normalized_no_const == "char" {
-        return Some(BridgeType::CString);
+    if pointer_depth > 1 {
+        return Err(format!(
+            "multi-level pointers are not supported yet: '{raw}'"
+        ));
     }
-    if pointer_depth > 0 {
-        return None;
+    if pointer_depth == 1 {
+        if normalized_no_const == "char" {
+            return Ok(BridgeType::CString);
+        }
+        if is_byte_buffer_type(&normalized_no_const) {
+            return Ok(BridgeType::ByteBuffer {
+                mutable: !is_const,
+                element_type: normalized_no_const,
+            });
+        }
+        return Ok(BridgeType::OpaqueHandle {
+            mutable: !is_const,
+            pointee: normalized_no_const,
+        });
     }
 
     match normalized_no_const.as_str() {
-        "void" => Some(BridgeType::Unit),
-        "bool" | "_Bool" => Some(BridgeType::Bool),
-        "float" => Some(BridgeType::Float32),
-        "double" => Some(BridgeType::Float64),
+        "void" => Ok(BridgeType::Unit),
+        "bool" | "_Bool" => Ok(BridgeType::Bool),
+        "float" => Ok(BridgeType::Float32),
+        "double" => Ok(BridgeType::Float64),
         "int" | "signed" | "signed int" => {
-            Some(BridgeType::SignedInt("std::os::raw::c_int".to_string()))
+            Ok(BridgeType::SignedInt("std::os::raw::c_int".to_string()))
         }
         "unsigned" | "unsigned int" => {
-            Some(BridgeType::UnsignedInt("std::os::raw::c_uint".to_string()))
+            Ok(BridgeType::UnsignedInt("std::os::raw::c_uint".to_string()))
         }
         "short" | "short int" | "signed short" | "signed short int" => {
-            Some(BridgeType::SignedInt("std::os::raw::c_short".to_string()))
+            Ok(BridgeType::SignedInt("std::os::raw::c_short".to_string()))
         }
         "unsigned short" | "unsigned short int" => {
-            Some(BridgeType::UnsignedInt("std::os::raw::c_ushort".to_string()))
+            Ok(BridgeType::UnsignedInt("std::os::raw::c_ushort".to_string()))
         }
         "long" | "long int" | "signed long" | "signed long int" => {
-            Some(BridgeType::SignedInt("std::os::raw::c_long".to_string()))
+            Ok(BridgeType::SignedInt("std::os::raw::c_long".to_string()))
         }
         "unsigned long" | "unsigned long int" => {
-            Some(BridgeType::UnsignedInt("std::os::raw::c_ulong".to_string()))
+            Ok(BridgeType::UnsignedInt("std::os::raw::c_ulong".to_string()))
         }
         "long long" | "long long int" | "signed long long" | "signed long long int" => {
-            Some(BridgeType::SignedInt(
+            Ok(BridgeType::SignedInt(
                 "std::os::raw::c_longlong".to_string(),
             ))
         }
-        "unsigned long long" | "unsigned long long int" => Some(BridgeType::UnsignedInt(
+        "unsigned long long" | "unsigned long long int" => Ok(BridgeType::UnsignedInt(
             "std::os::raw::c_ulonglong".to_string(),
         )),
-        "size_t" => Some(BridgeType::UnsignedInt("usize".to_string())),
-        "ptrdiff_t" | "intptr_t" => Some(BridgeType::SignedInt("isize".to_string())),
-        "uintptr_t" => Some(BridgeType::UnsignedInt("usize".to_string())),
-        "int8_t" => Some(BridgeType::SignedInt("i8".to_string())),
-        "uint8_t" => Some(BridgeType::UnsignedInt("u8".to_string())),
-        "int16_t" => Some(BridgeType::SignedInt("i16".to_string())),
-        "uint16_t" => Some(BridgeType::UnsignedInt("u16".to_string())),
-        "int32_t" => Some(BridgeType::SignedInt("i32".to_string())),
-        "uint32_t" => Some(BridgeType::UnsignedInt("u32".to_string())),
-        "int64_t" => Some(BridgeType::SignedInt("i64".to_string())),
-        "uint64_t" => Some(BridgeType::UnsignedInt("u64".to_string())),
-        _ => None,
+        "size_t" => Ok(BridgeType::UnsignedInt("usize".to_string())),
+        "ptrdiff_t" | "intptr_t" => Ok(BridgeType::SignedInt("isize".to_string())),
+        "uintptr_t" => Ok(BridgeType::UnsignedInt("usize".to_string())),
+        "int8_t" => Ok(BridgeType::SignedInt("i8".to_string())),
+        "uint8_t" => Ok(BridgeType::UnsignedInt("u8".to_string())),
+        "int16_t" => Ok(BridgeType::SignedInt("i16".to_string())),
+        "uint16_t" => Ok(BridgeType::UnsignedInt("u16".to_string())),
+        "int32_t" => Ok(BridgeType::SignedInt("i32".to_string())),
+        "uint32_t" => Ok(BridgeType::UnsignedInt("u32".to_string())),
+        "int64_t" => Ok(BridgeType::SignedInt("i64".to_string())),
+        "uint64_t" => Ok(BridgeType::UnsignedInt("u64".to_string())),
+        other => Err(format!("unsupported value type '{other}'")),
     }
+}
+
+fn is_byte_buffer_type(raw: &str) -> bool {
+    matches!(
+        raw,
+        "uint8_t" | "unsigned char" | "char8_t" | "std::byte" | "int8_t"
+    )
 }
 
 fn strip_declspec_like(raw: &str) -> String {
