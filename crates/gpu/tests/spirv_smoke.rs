@@ -132,6 +132,26 @@ shader compute scalar_ctor_smoke(id: UVec3) -> Vec4:
 }
 
 #[test]
+fn spirv_smoke_vector_constructor_mixed_args() {
+    let src = r#"
+shader compute vec_ctor_mixed_args_smoke(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let i = id.x
+    let v = vec3(src[i], src[i] * 0.5, 1.0 - src[i])
+    let out_color = vec4(v, 1.0)
+    dst[i] = out_color
+    return out_color
+"#;
+
+    assert_valid_spirv_case("vec_ctor_mixed_args_smoke", src);
+}
+
+#[test]
 fn spirv_smoke_complex_compute_flow() {
     let src = r#"
 shader compute complex_flow_smoke(id: UVec3) -> Vec4:

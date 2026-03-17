@@ -22,6 +22,8 @@ Current shared-contract helpers:
 - `c_bridge_shared_buffer_info`
 - `c_bridge_shared_buffer_bytes`
 - `c_bridge_shared_buffer_from_bytes`
+- `c_bridge_shared_buffer_replace_bytes`
 - `c_bridge_shared_image_info`
 - `c_bridge_shared_image_bytes`
 - `c_bridge_shared_image_from_bytes`
+- `c_bridge_shared_image_replace_bytes`

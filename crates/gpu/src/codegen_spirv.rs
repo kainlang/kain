@@ -1,7 +1,7 @@
 //! SPIR-V Code Generation for GPU shaders
 
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
+    BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
@@ -122,7 +122,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     }
 
     // Outputs
-    let output_var = if !is_void(&shader.ast.outputs) {
+    let output_var = if exec_model != ExecutionModel::GLCompute && !is_void(&shader.ast.outputs) {
         let output_ty = map_ast_type(b, &shader.ast.outputs);
         let ptr_ty = b.type_pointer(None, StorageClass::Output, output_ty);
         let var = b.variable(ptr_ty, None, StorageClass::Output, None);
@@ -827,15 +827,15 @@ fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
             if let Expr::Ident(fn_name, _) = callee.as_ref() {
                 match (fn_name.as_str(), args.len()) {
                     // Constructors
-                    ("vec2" | "Vec2", 2) => Some(named("Vec2")),
-                    ("vec3" | "Vec3", 3) => Some(named("Vec3")),
-                    ("vec4" | "Vec4", 4) => Some(named("Vec4")),
-                    ("ivec2" | "IVec2", 2) => Some(named("IVec2")),
-                    ("ivec3" | "IVec3", 3) => Some(named("IVec3")),
-                    ("ivec4" | "IVec4", 4) => Some(named("IVec4")),
-                    ("uvec2" | "UVec2", 2) => Some(named("UVec2")),
-                    ("uvec3" | "UVec3", 3) => Some(named("UVec3")),
-                    ("uvec4" | "UVec4", 4) => Some(named("UVec4")),
+                    ("vec2" | "Vec2", n) if n > 0 => Some(named("Vec2")),
+                    ("vec3" | "Vec3", n) if n > 0 => Some(named("Vec3")),
+                    ("vec4" | "Vec4", n) if n > 0 => Some(named("Vec4")),
+                    ("ivec2" | "IVec2", n) if n > 0 => Some(named("IVec2")),
+                    ("ivec3" | "IVec3", n) if n > 0 => Some(named("IVec3")),
+                    ("ivec4" | "IVec4", n) if n > 0 => Some(named("IVec4")),
+                    ("uvec2" | "UVec2", n) if n > 0 => Some(named("UVec2")),
+                    ("uvec3" | "UVec3", n) if n > 0 => Some(named("UVec3")),
+                    ("uvec4" | "UVec4", n) if n > 0 => Some(named("UVec4")),
                     ("Float", 1) => Some(named("Float")),
                     ("Int", 1) => Some(named("Int")),
                     ("UInt", 1) => Some(named("UInt")),
@@ -893,6 +893,114 @@ fn collect_binding_types_seeded(
     out: &mut Vec<(String, Type)>,
 ) {
     collect_block_types(block, &mut { seed }, out);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum VectorScalarKind {
+    Float,
+    Int,
+    UInt,
+}
+
+fn vector_ctor_spec(name: &str) -> Option<(VectorScalarKind, usize, &'static str)> {
+    match name {
+        "vec2" | "Vec2" => Some((VectorScalarKind::Float, 2, "Vec2")),
+        "vec3" | "Vec3" => Some((VectorScalarKind::Float, 3, "Vec3")),
+        "vec4" | "Vec4" => Some((VectorScalarKind::Float, 4, "Vec4")),
+        "ivec2" | "IVec2" => Some((VectorScalarKind::Int, 2, "IVec2")),
+        "ivec3" | "IVec3" => Some((VectorScalarKind::Int, 3, "IVec3")),
+        "ivec4" | "IVec4" => Some((VectorScalarKind::Int, 4, "IVec4")),
+        "uvec2" | "UVec2" => Some((VectorScalarKind::UInt, 2, "UVec2")),
+        "uvec3" | "UVec3" => Some((VectorScalarKind::UInt, 3, "UVec3")),
+        "uvec4" | "UVec4" => Some((VectorScalarKind::UInt, 4, "UVec4")),
+        _ => None,
+    }
+}
+
+fn cast_to_vector_scalar(
+    ctx: &mut ShaderContext,
+    value_id: u32,
+    value_ty: &Type,
+    scalar_kind: VectorScalarKind,
+) -> u32 {
+    match scalar_kind {
+        VectorScalarKind::Float => cast_to_f32(ctx, value_id, value_ty),
+        VectorScalarKind::Int => cast_to_i32(ctx, value_id, value_ty),
+        VectorScalarKind::UInt => cast_to_u32(ctx, value_id, value_ty),
+    }
+}
+
+fn scalar_spv_for_vector_kind(ctx: &mut ShaderContext, scalar_kind: VectorScalarKind) -> u32 {
+    match scalar_kind {
+        VectorScalarKind::Float => ctx.b.type_float(32),
+        VectorScalarKind::Int => ctx.b.type_int(32, 1),
+        VectorScalarKind::UInt => ctx.b.type_int(32, 0),
+    }
+}
+
+fn emit_vector_constructor(
+    ctx: &mut ShaderContext,
+    expr: &Expr,
+    scalar_kind: VectorScalarKind,
+    width: usize,
+    result_type_name: &'static str,
+    args: &[CallArg],
+) -> KainResult<(u32, Type)> {
+    let scalar_spv = scalar_spv_for_vector_kind(ctx, scalar_kind);
+    let vector_spv = ctx.b.type_vector(scalar_spv, width as u32);
+    let mut components = Vec::with_capacity(width);
+
+    for arg in args {
+        let (value_id, value_ty) = emit_expr(ctx, &arg.value)?;
+        let coerced = cast_to_vector_scalar(ctx, value_id, &value_ty, scalar_kind);
+        let dim = numeric_dim(&value_ty);
+        if dim == 0 {
+            return Err(KainError::codegen(
+                format!(
+                    "Unsupported argument type '{:?}' for {} constructor",
+                    value_ty,
+                    result_type_name
+                ),
+                expr.span(),
+            ));
+        }
+        if dim == 1 {
+            components.push(coerced);
+            continue;
+        }
+        for i in 0..dim {
+            let component = ctx
+                .b
+                .composite_extract(scalar_spv, None, coerced, vec![i as u32])
+                .unwrap();
+            components.push(component);
+        }
+    }
+
+    if components.len() != width {
+        return Err(KainError::codegen(
+            format!(
+                "{} constructor expects {} scalar component(s), got {}",
+                result_type_name,
+                width,
+                components.len()
+            ),
+            expr.span(),
+        ));
+    }
+
+    let res_id = ctx
+        .b
+        .composite_construct(vector_spv, None, components)
+        .unwrap();
+    Ok((
+        res_id,
+        Type::Named {
+            name: result_type_name.into(),
+            generics: vec![],
+            span: expr.span(),
+        },
+    ))
 }
 
 fn internal_hoist_name(prefix: &str, span: kain_core::span::Span) -> String {
@@ -1408,166 +1516,21 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
         }
         Expr::Call { callee, args, .. } => {
             if let Expr::Ident(name, _) = &**callee {
+                if let Some((scalar_kind, width, result_name)) = vector_ctor_spec(name.as_str()) {
+                    return emit_vector_constructor(
+                        ctx,
+                        expr,
+                        scalar_kind,
+                        width,
+                        result_name,
+                        args,
+                    );
+                }
+
                 let float = ctx.b.type_float(32);
-                let int = ctx.b.type_int(32, 1);
-                let uint = ctx.b.type_int(32, 0);
 
                 // Vector constructors
                 match name.as_str() {
-                    "vec2" | "Vec2" if args.len() == 2 => {
-                        let vec2 = ctx.b.type_vector(float, 2);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(vec2, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "Vec2".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "vec3" | "Vec3" if args.len() == 3 => {
-                        let vec3 = ctx.b.type_vector(float, 3);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(vec3, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "Vec3".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "vec4" | "Vec4" if args.len() == 4 => {
-                        let vec4 = ctx.b.type_vector(float, 4);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(vec4, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "Vec4".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "uvec2" | "UVec2" if args.len() == 2 => {
-                        let uvec2 = ctx.b.type_vector(uint, 2);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(uvec2, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "UVec2".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "uvec3" | "UVec3" if args.len() == 3 => {
-                        let uvec3 = ctx.b.type_vector(uint, 3);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(uvec3, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "UVec3".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "uvec4" | "UVec4" if args.len() == 4 => {
-                        let uvec4 = ctx.b.type_vector(uint, 4);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(uvec4, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "UVec4".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "ivec2" | "IVec2" if args.len() == 2 => {
-                        let ivec2 = ctx.b.type_vector(int, 2);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(ivec2, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "IVec2".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "ivec3" | "IVec3" if args.len() == 3 => {
-                        let ivec3 = ctx.b.type_vector(int, 3);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(ivec3, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "IVec3".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-                    "ivec4" | "IVec4" if args.len() == 4 => {
-                        let ivec4 = ctx.b.type_vector(int, 4);
-                        let mut components = vec![];
-                        for arg in args {
-                            let (val, _) = emit_expr(ctx, &arg.value)?;
-                            components.push(val);
-                        }
-                        let res_id = ctx.b.composite_construct(ivec4, None, components).unwrap();
-                        return Ok((
-                            res_id,
-                            Type::Named {
-                                name: "IVec4".into(),
-                                generics: vec![],
-                                span: expr.span(),
-                            },
-                        ));
-                    }
-
                     // Scalar constructors/casts (Float(x), Int(x), UInt(x), Bool(x))
                     "float" | "Float" if args.len() == 1 => {
                         let cast_expr = Expr::Cast {

@@ -1,0 +1,7 @@
+# Generated import shim for C library image_fx
+use c::image_fx::c_image_fx_imagefx_checksum as c_image_fx_imagefx_checksum
+use c::image_fx::c_image_fx_imagefx_invert_rgba as c_image_fx_imagefx_invert_rgba
+use c::image_fx::c_image_fx_imagefx_signature as c_image_fx_imagefx_signature
+use c::image_fx::c_image_fx_imagefx_workspace_create as c_image_fx_imagefx_workspace_create
+use c::image_fx::c_image_fx_imagefx_workspace_area as c_image_fx_imagefx_workspace_area
+use c::image_fx::c_image_fx_imagefx_workspace_destroy as c_image_fx_imagefx_workspace_destroy

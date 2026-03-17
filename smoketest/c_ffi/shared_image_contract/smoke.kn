@@ -1,0 +1,61 @@
+use c::image_fx
+use std::python::bridge
+use std::c::bridge
+
+fn smoke_output(name: String) -> String:
+    return "outputs/" + name
+
+fn install_python_kernel():
+    py_bridge_exec("import numpy as np\n\ndef make_image(width, height):\n    xs = np.linspace(0, 255, width, dtype=np.uint8)\n    ys = np.linspace(24, 216, height, dtype=np.uint8)\n    image = np.zeros((height, width, 4), dtype=np.uint8)\n    image[:, :, 0] = xs[np.newaxis, :]\n    image[:, :, 1] = ys[:, np.newaxis]\n    image[:, :, 2] = ((xs[np.newaxis, :] // 2) + (ys[:, np.newaxis] // 3)).astype(np.uint8)\n    image[:, :, 3] = 255\n    return image\n")
+
+test c_ffi_shared_image_contract_roundtrip:
+    install_python_kernel()
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the shared image contract smoke")
+    let raw = py_bridge_call_raw("make_image", [32, 20])
+    let shared_image = py_bridge_shared_image(raw)
+    let info = c_bridge_shared_image_info(shared_image)
+    let checksum_before = imagefx_checksum(shared_image, info.byte_length)
+    imagefx_invert_rgba(shared_image, info.byte_length)
+    let checksum_after = imagefx_checksum(shared_image, info.byte_length)
+    let workspace = imagefx_workspace_create(info.width, info.height)
+    let area = imagefx_workspace_area(workspace)
+    imagefx_workspace_destroy(workspace)
+    assert(checksum_before != checksum_after, "expected in-place C image mutation")
+    assert(area == info.width * info.height, "expected opaque workspace handle to roundtrip")
+    assert(imagefx_signature(info.width, info.height, checksum_after) != "", "expected image signature")
+
+fn main() -> String:
+    install_python_kernel()
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the shared image contract smoke")
+
+    let width = 72
+    let height = 48
+    let raw = py_bridge_call_raw("make_image", [width, height])
+    let shared_image = py_bridge_shared_image(raw)
+    let info = c_bridge_shared_image_info(shared_image)
+    let checksum_before = imagefx_checksum(shared_image, info.byte_length)
+    imagefx_invert_rgba(shared_image, info.byte_length)
+    let checksum_after = imagefx_checksum(shared_image, info.byte_length)
+    let signature = imagefx_signature(info.width, info.height, checksum_after)
+    let workspace = imagefx_workspace_create(info.width, info.height)
+    let area = imagefx_workspace_area(workspace)
+    imagefx_workspace_destroy(workspace)
+
+    let report_path = smoke_output("shared_image_contract_report.txt")
+    let report = "Python + C shared image contract smoke\n"
+    let report = report + "dims: " + str(info.width) + "x" + str(info.height) + "\n"
+    let report = report + "channels: " + str(info.channels) + "\n"
+    let report = report + "representation: " + info.representation + "\n"
+    let report = report + "source_runtime: " + info.source_runtime + "\n"
+    let report = report + "byte_length: " + str(info.byte_length) + "\n"
+    let report = report + "checksum_before: " + str(checksum_before) + "\n"
+    let report = report + "checksum_after: " + str(checksum_after) + "\n"
+    let report = report + "signature: " + signature + "\n"
+    let report = report + "workspace_area: " + str(area) + "\n"
+    let report = report + "python_role: generated uint8 rgba raster image\n"
+    let report = report + "c_role: mutated shared image bytes, computed checksum, and round-tripped opaque handle\n"
+    let report = report + "kain_role: materialized the shared contract and orchestrated the full runtime flow\n"
+
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

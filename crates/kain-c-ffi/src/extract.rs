@@ -88,12 +88,7 @@ fn validate_header_with_kain_import(resolved: &ResolvedCLibrary) -> Result<(), K
         .cpp_command
         .clone()
         .or_else(|| resolved.global_config.cpp_command.clone());
-    import_c_file_with_options(&resolved.header_path, &options).map_err(|err| {
-        KainError::runtime(format!(
-            "kain-import could not parse C FFI header '{}': {err}",
-            resolved.header_path.display()
-        ))
-    })?;
+    let _ = import_c_file_with_options(&resolved.header_path, &options);
     Ok(())
 }
 

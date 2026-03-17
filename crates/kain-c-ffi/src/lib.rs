@@ -6,8 +6,8 @@ mod model;
 pub use config::{CFfiConfig, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
 pub use model::{
-    ArtifactMode, BindingReport, BindingReportEntry, ImportCOptions, ImportCOutput, ItemKind,
-    ItemStatus, PrepareContext, ResolvedCLibrary,
+    ArtifactMode, BindingManifest, BindingReport, BindingReportEntry, ImportCOptions,
+    ImportCOutput, ItemKind, ItemStatus, PrepareContext, ResolvedCLibrary,
 };
 
 use extract::extract_binding_bundle;
@@ -468,6 +468,73 @@ mod tests {
         }
     }
 
+    #[test]
+    fn c_ffi_can_mutate_shared_images_and_roundtrip_opaque_handles() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, dll_path) = image_fx_fixture_paths(&native_dir);
+        fs::write(
+            &header_path,
+            "#if defined(_WIN32)\n#define IMAGEFX_EXPORT __declspec(dllexport)\n#else\n#define IMAGEFX_EXPORT\n#endif\n#include <stddef.h>\n#include <stdint.h>\ntypedef struct ImageWorkspace ImageWorkspace;\nIMAGEFX_EXPORT uint64_t imagefx_checksum(const uint8_t* pixels, size_t len);\nIMAGEFX_EXPORT void imagefx_invert_rgba(uint8_t* pixels, size_t len);\nIMAGEFX_EXPORT const char* imagefx_signature(int width, int height, uint64_t checksum);\nIMAGEFX_EXPORT ImageWorkspace* imagefx_workspace_create(int width, int height);\nIMAGEFX_EXPORT int imagefx_workspace_area(ImageWorkspace* workspace);\nIMAGEFX_EXPORT void imagefx_workspace_destroy(ImageWorkspace* workspace);\n",
+        )
+        .expect("header");
+        fs::write(
+            &source_path,
+            "#include \"image_fx.h\"\n#include <stdio.h>\n#include <stdlib.h>\nstruct ImageWorkspace { int width; int height; };\nstatic char G_SIGNATURE[96];\nuint64_t imagefx_checksum(const uint8_t* pixels, size_t len) { uint64_t checksum = 1469598103934665603ull; size_t index = 0; while (index < len) { checksum ^= (uint64_t)pixels[index]; checksum *= 1099511628211ull; index += 1; } return checksum; }\nvoid imagefx_invert_rgba(uint8_t* pixels, size_t len) { size_t index = 0; while (index + 3 < len) { pixels[index] = (uint8_t)(255 - pixels[index]); pixels[index + 1] = (uint8_t)(255 - pixels[index + 1]); pixels[index + 2] = (uint8_t)(255 - pixels[index + 2]); index += 4; } }\nconst char* imagefx_signature(int width, int height, uint64_t checksum) { snprintf(G_SIGNATURE, sizeof(G_SIGNATURE), \"imagefx:%dx%d:%llu\", width, height, (unsigned long long)checksum); return G_SIGNATURE; }\nImageWorkspace* imagefx_workspace_create(int width, int height) { ImageWorkspace* workspace = (ImageWorkspace*)malloc(sizeof(ImageWorkspace)); if (!workspace) { return NULL; } workspace->width = width; workspace->height = height; return workspace; }\nint imagefx_workspace_area(ImageWorkspace* workspace) { if (!workspace) { return 0; } return workspace->width * workspace->height; }\nvoid imagefx_workspace_destroy(ImageWorkspace* workspace) { if (workspace) { free(workspace); } }\n",
+        )
+        .expect("source");
+        compile_shared_library(&source_path, &dll_path);
+        fs::write(
+            root.join("KAIN.toml"),
+            format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"image_fx\"\nheader = \"{}\"\nshared_lib = \"{}\"\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                dll_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/")
+            ),
+        )
+        .expect("manifest");
+
+        let source = "use c::image_fx\nfn main() -> String:\n    let bytes = [0, 12, 24, 255, 20, 40, 60, 255]\n    let image = kain_shared_image_from_bytes(bytes, 2, 1, 4, \"HWC\", \"rgba8\", \"image/x-kain-raster\")\n    let info = kain_shared_image_info(image)\n    let before = imagefx_checksum(image, info.byte_length)\n    imagefx_invert_rgba(image, info.byte_length)\n    let after = imagefx_checksum(image, info.byte_length)\n    let workspace = imagefx_workspace_create(info.width, info.height)\n    let area = imagefx_workspace_area(workspace)\n    imagefx_workspace_destroy(workspace)\n    let mutated = kain_shared_image_bytes(image)\n    assert(before != after, \"expected checksum mutation\")\n    assert(mutated[0] == 255, \"expected first channel to invert\")\n    assert(area == info.width * info.height, \"expected opaque handle roundtrip\")\n    return imagefx_signature(info.width, info.height, after)\n";
+        let augmented = augment_source_for_runtime(
+            source,
+            CompileTarget::Interpret,
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("augment");
+
+        kain_interop::register();
+        let stdlib = kain_core::stdlib::load_stdlib_for_target(CompileTarget::Interpret);
+        let full_source = format!("{stdlib}\n{augmented}");
+        let tokens = Lexer::new(&full_source).tokenize().expect("tokens");
+        let span_mapper = SpanMapper::new(&full_source);
+        let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("parse");
+        kain_core::comptime::eval_program(&mut ast).expect("comptime");
+        let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
+        let result = interpret(&typed).expect("interpret");
+        match result {
+            Value::String(value) => assert!(value.starts_with("imagefx:2x1:")),
+            other => panic!("expected imagefx signature, got {other:?}"),
+        }
+    }
+
     fn c_fixture_paths(native_dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
         let header = native_dir.join("beacon_math.h");
         let source = native_dir.join("beacon_math.c");
@@ -477,6 +544,19 @@ mod tests {
             native_dir.join("libbeacon_math.dylib")
         } else {
             native_dir.join("libbeacon_math.so")
+        };
+        (header, source, dll)
+    }
+
+    fn image_fx_fixture_paths(native_dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
+        let header = native_dir.join("image_fx.h");
+        let source = native_dir.join("image_fx.c");
+        let dll = if cfg!(target_os = "windows") {
+            native_dir.join("image_fx.dll")
+        } else if cfg!(target_os = "macos") {
+            native_dir.join("libimage_fx.dylib")
+        } else {
+            native_dir.join("libimage_fx.so")
         };
         (header, source, dll)
     }

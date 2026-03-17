@@ -7,6 +7,9 @@ pub fn c_bridge_shared_buffer_bytes(target: Any) -> Any:
 pub fn c_bridge_shared_buffer_from_bytes(bytes: Any, element_type: String, shape: Any, format: String, mime_type: String) -> Any:
     return kain_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)
 
+pub fn c_bridge_shared_buffer_replace_bytes(target: Any, bytes: Any) -> Unit:
+    return kain_shared_buffer_replace_bytes(target, bytes)
+
 pub fn c_bridge_shared_image_info(target: Any) -> Any:
     return kain_shared_image_info(target)
 
@@ -15,3 +18,6 @@ pub fn c_bridge_shared_image_bytes(target: Any) -> Any:
 
 pub fn c_bridge_shared_image_from_bytes(bytes: Any, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any:
     return kain_shared_image_from_bytes(bytes, width, height, channels, layout, pixel_format, mime_type)
+
+pub fn c_bridge_shared_image_replace_bytes(target: Any, bytes: Any) -> Unit:
+    return kain_shared_image_replace_bytes(target, bytes)

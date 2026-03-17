@@ -342,6 +342,12 @@ fn register_interop_stdlib(stdlib: &mut StdLib) {
             doc: "Create a neutral Kain shared buffer from raw bytes",
         },
         BuiltinFn {
+            name: "kain_shared_buffer_replace_bytes",
+            params: vec![("target", "Any"), ("bytes", "Any")],
+            return_type: "Unit",
+            doc: "Replace the bytes behind a neutral Kain shared buffer",
+        },
+        BuiltinFn {
             name: "kain_shared_image_info",
             params: vec![("target", "Any")],
             return_type: "Any",
@@ -367,6 +373,12 @@ fn register_interop_stdlib(stdlib: &mut StdLib) {
             return_type: "Any",
             doc: "Create a neutral Kain shared raster image from bytes",
         },
+        BuiltinFn {
+            name: "kain_shared_image_replace_bytes",
+            params: vec![("target", "Any"), ("bytes", "Any")],
+            return_type: "Unit",
+            doc: "Replace the bytes behind a neutral Kain shared image",
+        },
     ] {
         stdlib.functions.insert(
             builtin.name.to_string(),
@@ -382,11 +394,19 @@ fn register_interop_env(env: &mut Env) {
         "kain_shared_buffer_from_bytes",
         builtin_shared_buffer_from_bytes,
     );
+    env.register_native_fn(
+        "kain_shared_buffer_replace_bytes",
+        builtin_shared_buffer_replace_bytes,
+    );
     env.register_native_fn("kain_shared_image_info", builtin_shared_image_info);
     env.register_native_fn("kain_shared_image_bytes", builtin_shared_image_bytes);
     env.register_native_fn(
         "kain_shared_image_from_bytes",
         builtin_shared_image_from_bytes,
+    );
+    env.register_native_fn(
+        "kain_shared_image_replace_bytes",
+        builtin_shared_image_replace_bytes,
     );
 }
 
@@ -438,6 +458,18 @@ fn builtin_shared_buffer_from_bytes(_env: &mut Env, args: Vec<Value>) -> KainRes
         labels: vec!["kain".to_string(), "buffer".to_string()],
     };
     Ok(shared_buffer_value(KainSharedBuffer::owned(metadata, bytes)))
+}
+
+fn builtin_shared_buffer_replace_bytes(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "kain_shared_buffer_replace_bytes: expected (target, bytes)",
+        ));
+    }
+    let buffer = extract_shared_buffer(&args[0])?;
+    let bytes = value_to_bytes("kain_shared_buffer_replace_bytes", &args[1])?;
+    buffer.replace_bytes(bytes)?;
+    Ok(Value::Unit)
 }
 
 fn builtin_shared_image_info(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -503,6 +535,18 @@ fn builtin_shared_image_from_bytes(_env: &mut Env, args: Vec<Value>) -> KainResu
         bytes,
     )?;
     Ok(shared_image_value(image))
+}
+
+fn builtin_shared_image_replace_bytes(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 2 {
+        return Err(KainError::runtime(
+            "kain_shared_image_replace_bytes: expected (target, bytes)",
+        ));
+    }
+    let image = extract_shared_image(&args[0])?;
+    let bytes = value_to_bytes("kain_shared_image_replace_bytes", &args[1])?;
+    image.replace_bytes(bytes)?;
+    Ok(Value::Unit)
 }
 
 fn int_list_to_value(values: &[i64]) -> Value {

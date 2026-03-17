@@ -1,0 +1,85 @@
+{
+  "library_name": "image_fx",
+  "parser_backend": "kain-import.c + kain-c-ffi",
+  "header_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\native/image_fx.h",
+  "shared_lib_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\native/image_fx.dll",
+  "cache_dir": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\.kain\\cache\\c_ffi\\4d803ff984b2f087c14117606ecf91abd34f347599a79786eee5009c0be9094e",
+  "report_json_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\.kain\\cache\\c_ffi\\4d803ff984b2f087c14117606ecf91abd34f347599a79786eee5009c0be9094e\\image_fx_report.json",
+  "report_text_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\.kain\\cache\\c_ffi\\4d803ff984b2f087c14117606ecf91abd34f347599a79786eee5009c0be9094e\\image_fx_report.txt",
+  "manifest_json_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\.kain\\cache\\c_ffi\\4d803ff984b2f087c14117606ecf91abd34f347599a79786eee5009c0be9094e\\image_fx_binding_manifest.json",
+  "supported_targets": [
+    "interpret",
+    "test"
+  ],
+  "capabilities": [
+    "binding-report",
+    "host-backed",
+    "opaque-handle",
+    "shared-buffer",
+    "shared-image"
+  ],
+  "entries": [
+    {
+      "symbol_path": "c::image_fx::ImageWorkspace",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::ImageWorkspace",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_checksum",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_checksum"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_invert_rgba",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_invert_rgba"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_signature",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_signature"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_workspace_create",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_create"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_workspace_area",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_area"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_workspace_destroy",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_destroy"
+    }
+  ],
+  "source_fingerprints": [
+    {
+      "path": "M:\\Code\\Kain\\smoketest\\c_ffi\\shared_image_contract\\native/image_fx.h",
+      "sha256": "c6d18ae37ffade546b82d64d7cd559114fde09531c76092a3fc35c34e47eed90"
+    }
+  ]
+}

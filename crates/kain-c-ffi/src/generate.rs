@@ -199,10 +199,9 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
     output.push_str("use kain_core::error::KainError;\n");
     output.push_str("use kain_core::runtime::{Env, Value};\n");
     output.push_str("use kain_host::{FromKainValue, ToKainValue};\n");
-    output.push_str("use kain_interop::{extract_shared_buffer, extract_shared_image};\n");
     output.push_str("use libloading::{Library, Symbol};\n");
     output.push_str("use std::ffi::{c_void, CStr, CString};\n");
-    output.push_str("use std::sync::Arc;\n\n");
+    output.push_str("use std::sync::{Arc, RwLock};\n\n");
     output.push_str(&format!("const SHARED_LIB_PATH: &str = {:?};\n\n", shared_lib_path));
     output.push_str(
         r#"#[derive(Clone)]
@@ -218,27 +217,35 @@ struct ByteBufferArg {
 }
 
 enum ByteBufferWriteback {
-    SharedBuffer(Arc<kain_interop::KainSharedBuffer>),
-    SharedImage(Arc<kain_interop::KainSharedImage>),
+    SharedBuffer(Value),
+    SharedImage(Value),
 }
 
 impl ByteBufferArg {
-    fn from_value(value: Value, mutable: bool) -> Result<Self, KainError> {
-        if let Ok(image) = extract_shared_image(&value) {
+    fn from_value(env: &mut Env, value: Value, mutable: bool) -> Result<Self, KainError> {
+        if value.host_object_label() == Some("kain.shared.image") {
+            let snapshot = env.call_named_function(
+                "kain_shared_image_bytes",
+                vec![value.clone()],
+            )?;
             return Ok(Self {
-                bytes: image.bytes(),
+                bytes: bytes_from_value(snapshot)?,
                 writeback: if mutable {
-                    Some(ByteBufferWriteback::SharedImage(image))
+                    Some(ByteBufferWriteback::SharedImage(value))
                 } else {
                     None
                 },
             });
         }
-        if let Ok(buffer) = extract_shared_buffer(&value) {
+        if value.host_object_label() == Some("kain.shared.buffer") {
+            let snapshot = env.call_named_function(
+                "kain_shared_buffer_bytes",
+                vec![value.clone()],
+            )?;
             return Ok(Self {
-                bytes: buffer.bytes(),
+                bytes: bytes_from_value(snapshot)?,
                 writeback: if mutable {
-                    Some(ByteBufferWriteback::SharedBuffer(buffer))
+                    Some(ByteBufferWriteback::SharedBuffer(value))
                 } else {
                     None
                 },
@@ -258,13 +265,35 @@ impl ByteBufferArg {
         self.bytes.as_mut_ptr()
     }
 
-    fn commit(self) -> Result<(), KainError> {
+    fn commit(self, env: &mut Env) -> Result<(), KainError> {
         match self.writeback {
-            Some(ByteBufferWriteback::SharedBuffer(buffer)) => buffer.replace_bytes(self.bytes),
-            Some(ByteBufferWriteback::SharedImage(image)) => image.replace_bytes(self.bytes),
+            Some(ByteBufferWriteback::SharedBuffer(buffer)) => {
+                env.call_named_function(
+                    "kain_shared_buffer_replace_bytes",
+                    vec![buffer, bytes_to_value(&self.bytes)],
+                )?;
+                Ok(())
+            }
+            Some(ByteBufferWriteback::SharedImage(image)) => {
+                env.call_named_function(
+                    "kain_shared_image_replace_bytes",
+                    vec![image, bytes_to_value(&self.bytes)],
+                )?;
+                Ok(())
+            }
             None => Ok(()),
         }
     }
+}
+
+fn bytes_from_value(value: Value) -> Result<Vec<u8>, KainError> {
+    <Vec<u8> as FromKainValue>::from_kain_value(value)
+}
+
+fn bytes_to_value(bytes: &[u8]) -> Value {
+    Value::Array(Arc::new(RwLock::new(
+        bytes.iter().map(|value| Value::Int(*value as i64)).collect(),
+    )))
 }
 
 fn extract_c_handle(
@@ -329,12 +358,14 @@ fn render_bridge_wrapper(binding: &CFunctionBinding) -> String {
         binding.params.len()
     ));
     output.push_str(&format!(
-        "        return Err(KainError::runtime(format!(\\\"{} expected {} argument(s), got {{}}\\\", args.len())));\n",
+        "        return Err(KainError::runtime(format!(\"{} expected {} argument(s), got {{}}\", args.len())));\n",
         binding.emitted_name,
         binding.params.len()
     ));
     output.push_str("    }\n");
-    output.push_str("    let library = unsafe { Library::new(SHARED_LIB_PATH) }.map_err(|err| KainError::runtime(format!(\"Failed to load C shared library '{}': {err}\", SHARED_LIB_PATH)))?;\n");
+    output.push_str(
+        "    let library = unsafe { Library::new(SHARED_LIB_PATH) }\n        .map_err(|err| KainError::runtime(format!(\"Failed to load C shared library {}: {err}\", SHARED_LIB_PATH)))?;\n",
+    );
     output.push_str("    let mut iter = args.into_iter();\n");
     for (index, param) in binding.params.iter().enumerate() {
         output.push_str(&render_param_conversion(index, param, &mut post_call));
@@ -347,7 +378,7 @@ fn render_bridge_wrapper(binding: &CFunctionBinding) -> String {
         .join(", ");
     let ffi_return = binding.return_type.render_rust_ffi();
     output.push_str(&format!(
-        "    let symbol: Symbol<unsafe extern \"C\" fn({ffi_params}) -> {ffi_return}> = unsafe {{ library.get(&{:?}) }}.map_err(|err| KainError::runtime(format!(\"Missing C symbol '{}' in '{{}}': {{err}}\", SHARED_LIB_PATH)))?;\n",
+        "    let symbol: Symbol<unsafe extern \"C\" fn({ffi_params}) -> {ffi_return}> = unsafe {{ library.get(&{:?}) }}\n        .map_err(|err| KainError::runtime(format!(\"Missing C symbol {{}} in {{}}: {{err}}\", {:?}, SHARED_LIB_PATH)))?;\n",
         format!("{}\0", binding.symbol_name).as_bytes(),
         binding.symbol_name
     ));
@@ -402,14 +433,14 @@ fn render_param_conversion(
         ),
         BridgeType::ByteBuffer { mutable, .. } => {
             if *mutable {
-                post_call.push(format!("    __{}_buffer.commit()?;\n", param.name));
+                post_call.push(format!("    __{}_buffer.commit(_env)?;\n", param.name));
                 format!(
-                    "    let mut __{}_buffer = ByteBufferArg::from_value(iter.next().expect(\"checked arg count\"), true)?;\n    let {} = __{}_buffer.as_mut_ptr();\n",
+                    "    let mut __{}_buffer = ByteBufferArg::from_value(_env, iter.next().expect(\"checked arg count\"), true)?;\n    let {} = __{}_buffer.as_mut_ptr();\n",
                     param.name, param.name, param.name
                 )
             } else {
                 format!(
-                    "    let __{}_buffer = ByteBufferArg::from_value(iter.next().expect(\"checked arg count\"), false)?;\n    let {} = __{}_buffer.as_ptr();\n",
+                    "    let __{}_buffer = ByteBufferArg::from_value(_env, iter.next().expect(\"checked arg count\"), false)?;\n    let {} = __{}_buffer.as_ptr();\n",
                     param.name, param.name, param.name
                 )
             }
