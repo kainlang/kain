@@ -28,6 +28,7 @@ mod types;
 use crate::Result;
 use kain_core::ast::Program;
 use kain_core::language_features::LanguageCapabilities;
+use lang_c::ast::TranslationUnit;
 use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
@@ -54,6 +55,15 @@ pub fn import_c_file_with_options(path: &Path, options: &CImportOptions) -> Resu
         kain_core::default_language_capabilities(),
         options,
     )
+}
+
+/// Parse a single C file into a lang-c translation unit using the same importer pipeline.
+pub fn parse_c_file_ast_with_options(
+    path: &Path,
+    options: &CImportOptions,
+) -> Result<TranslationUnit> {
+    let parsed = parser::parse_c_file_with_metadata(path, options)?;
+    Ok(parsed.unit)
 }
 
 /// Import a single C file with an explicit KAIN language capability profile.

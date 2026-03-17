@@ -1,0 +1,5 @@
+# Generated import shim for crate quad_prism_lab
+use rust::quad_prism_lab::rust_quad_prism_lab_quad_prism_checksum as rust_quad_prism_lab_quad_prism_checksum
+use rust::quad_prism_lab::rust_quad_prism_lab_quad_prism_bands as rust_quad_prism_lab_quad_prism_bands
+use rust::quad_prism_lab::rust_quad_prism_lab_quad_prism_signature as rust_quad_prism_lab_quad_prism_signature
+use rust::quad_prism_lab::rust_quad_prism_lab_quad_prism_phase_stamp as rust_quad_prism_lab_quad_prism_phase_stamp

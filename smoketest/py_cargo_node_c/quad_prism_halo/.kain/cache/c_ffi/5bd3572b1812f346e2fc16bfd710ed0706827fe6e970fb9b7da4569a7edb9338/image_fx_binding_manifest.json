@@ -1,0 +1,76 @@
+{
+  "schema_version": "kain-c-ffi-manifest-v1",
+  "library_name": "image_fx",
+  "parser_backend": "kain-import.c + kain-c-ffi",
+  "supported_targets": [
+    "interpret",
+    "test"
+  ],
+  "capabilities": [
+    "binding-report",
+    "host-backed",
+    "opaque-handle",
+    "shared-buffer",
+    "shared-image"
+  ],
+  "generated_module": "M:\\Code\\Kain\\smoketest\\py_cargo_node_c\\quad_prism_halo\\.kain\\cache\\c_ffi\\5bd3572b1812f346e2fc16bfd710ed0706827fe6e970fb9b7da4569a7edb9338\\image_fx.kn",
+  "generated_prelude": "M:\\Code\\Kain\\smoketest\\py_cargo_node_c\\quad_prism_halo\\.kain\\cache\\c_ffi\\5bd3572b1812f346e2fc16bfd710ed0706827fe6e970fb9b7da4569a7edb9338\\image_fx_prelude.kn",
+  "entries": [
+    {
+      "symbol_path": "c::image_fx::ImageWorkspace",
+      "kind": "struct",
+      "status": "opaque_handle",
+      "reason": "C struct discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::ImageWorkspace",
+      "kind": "typedef",
+      "status": "type_only",
+      "reason": "C typedef discovered in header; emitted as type metadata only for now",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_checksum",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_checksum"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_halo_rgba",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_halo_rgba"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_signature",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_signature"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_workspace_create",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_create"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_workspace_area",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_area"
+    },
+    {
+      "symbol_path": "c::image_fx::imagefx_workspace_destroy",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_image_fx_imagefx_workspace_destroy"
+    }
+  ]
+}

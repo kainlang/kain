@@ -1,0 +1,63 @@
+{
+  "crate_name": "quad_prism_lab",
+  "package_name": "quad_prism_lab",
+  "version": "0.1.0",
+  "manifest_path": "\\\\?\\M:\\Code\\Kain\\smoketest\\py_cargo_node_c\\quad_prism_halo\\local_crate\\Cargo.toml",
+  "resolution_kind": "crate_path",
+  "cache_dir": "M:\\Code\\Kain\\smoketest\\py_cargo_node_c\\quad_prism_halo\\.kain\\cache\\crate_ffi\\6dd1402c0b6d25b2b6161a3006c196116448db35023abf26311bccd5ed8891a3",
+  "report_json_path": "outputs/generated\\quad_prism_lab_report.json",
+  "report_text_path": "outputs/generated\\quad_prism_lab_report.txt",
+  "entries": [
+    {
+      "symbol_path": "QUAD_PRISM_REVISION",
+      "module_path": [],
+      "kind": "constant",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "quad_prism_checksum",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_quad_prism_lab_quad_prism_checksum"
+    },
+    {
+      "symbol_path": "quad_prism_bands",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_quad_prism_lab_quad_prism_bands"
+    },
+    {
+      "symbol_path": "quad_prism_signature",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_quad_prism_lab_quad_prism_signature"
+    },
+    {
+      "symbol_path": "quad_prism_phase_stamp",
+      "module_path": [],
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "docs": [],
+      "emitted_symbol": "rust_quad_prism_lab_quad_prism_phase_stamp"
+    }
+  ],
+  "source_fingerprints": [
+    {
+      "path": "\\\\?\\M:\\Code\\Kain\\smoketest\\py_cargo_node_c\\quad_prism_halo\\local_crate\\src\\lib.rs",
+      "sha256": "976b9a8e42e69966c92acc932e4235813a356e715ce52f6a5cb5ef722db0a7b4"
+    }
+  ]
+}

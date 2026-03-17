@@ -1,0 +1,27 @@
+[package]
+name = "py_cargo_node_c_quad_prism_halo"
+version = "0.1.0"
+
+[build]
+entry = "smoke.kn"
+output = "outputs"
+targets = ["run", "test"]
+
+[node_ffi]
+command = "node"
+args = []
+cwd = "."
+
+[rust_ffi]
+manifest_path = "../../../Cargo.toml"
+
+[[rust_ffi.path_crates]]
+name = "quad_prism_lab"
+path = "local_crate"
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "image_fx"
+header = "native/image_fx.h"
+shared_lib = "native/image_fx.dll"

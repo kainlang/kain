@@ -1,0 +1,19 @@
+[package]
+name = "kain_crate_ffi_bridge_quad_prism_lab"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kain-core = { path = "M:\\Code\\Kain\\crates\\kain-core" }
+kain-host = { path = "M:\\Code\\Kain\\crates\\kain-host", default-features = false }
+quad_prism_lab = { package = "quad_prism_lab", path = "\\\\?\\M:\\Code\\Kain\\smoketest\\py_cargo_node_c\\quad_prism_halo\\local_crate" }
+
+[profile.dev]
+debug = 0
+panic = "unwind"
+
+[workspace]
+resolver = "2"

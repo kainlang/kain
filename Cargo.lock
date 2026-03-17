@@ -2678,6 +2678,7 @@ dependencies = [
  "kain-core",
  "kain-import",
  "kain-interop",
+ "lang-c",
  "libloading 0.8.9",
  "once_cell",
  "regex",
