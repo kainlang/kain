@@ -1,0 +1,67 @@
+use std::python::bridge
+use std::python::trimesh
+use std::dcc::mesh
+
+fn smoke_root() -> String:
+    return "M:/Code/Kain/smoketest/python/trimesh_glb_forge"
+
+fn smoke_output(name: String) -> String:
+    return smoke_root() + "/outputs/" + name
+
+fn install_trimesh_kernel():
+    py_bridge_exec("import math\nimport os\nimport numpy as np\nimport trimesh\n\ndef kain_trimesh_scene():\n    scene = trimesh.Scene()\n    floor = trimesh.creation.box(extents=(2.6, 2.6, 0.12))\n    floor.visual.vertex_colors = np.tile(np.array([[35, 42, 58, 255]], dtype=np.uint8), (len(floor.vertices), 1))\n    floor.apply_translation((0.0, 0.0, -0.25))\n    scene.add_geometry(floor, geom_name='floor')\n    core = trimesh.creation.icosphere(subdivisions=3, radius=0.48)\n    heat = np.clip((core.vertices[:, 2] + 0.5) * 255.0, 0, 255).astype(np.uint8)\n    core.visual.vertex_colors = np.stack([255 - heat // 3, 110 + heat // 3, 80 + heat // 2, np.full_like(heat, 255)], axis=1)\n    scene.add_geometry(core, geom_name='core')\n    ring = trimesh.creation.cylinder(radius=0.95, height=0.09, sections=48)\n    ring.apply_transform(trimesh.transformations.rotation_matrix(math.radians(78.0), [1, 0, 0]))\n    ring.visual.vertex_colors = np.tile(np.array([[120, 220, 255, 255]], dtype=np.uint8), (len(ring.vertices), 1))\n    scene.add_geometry(ring, geom_name='ring')\n    return scene\n\ndef kain_trimesh_mesh():\n    return kain_trimesh_scene().dump(concatenate=True)\n\ndef kain_trimesh_export_any(target, path):\n    if isinstance(target, trimesh.Scene):\n        scene = target\n    else:\n        scene = trimesh.Scene(target)\n    blob = scene.export(file_type='glb')\n    with open(path, 'wb') as handle:\n        handle.write(blob)\n    combined = scene.dump(concatenate=True)\n    extents = combined.extents.tolist() if combined is not None else [0.0, 0.0, 0.0]\n    return {'path': path, 'bytes': len(blob), 'header': blob[:4].decode('ascii'), 'geometry_count': len(scene.geometry), 'vertex_count': int(len(combined.vertices)), 'face_count': int(len(combined.faces)), 'extents': extents}\n")
+
+test trimesh_glb_smoke:
+    install_trimesh_kernel()
+    assert(py_trimesh_available(), "trimesh must be installed for this smoke test")
+    let glb_path = smoke_output("trimesh_scene.glb")
+    let export_info = py_bridge_call("kain_trimesh_export_any", [py_bridge_call_raw("kain_trimesh_scene", []), glb_path])
+    assert(export_info.header == "glTF", "expected glb header")
+    assert(export_info.geometry_count == 3, "expected 3 scene objects")
+    assert(export_info.vertex_count > 100, "expected useful mesh density")
+    assert(file_exists(glb_path), "expected glb output")
+
+test trimesh_shared_geometry_lane:
+    install_trimesh_kernel()
+    let mesh_payload = py_bridge_call_raw("kain_trimesh_mesh", [])
+    let geometry = dcc_mesh_from_python_shared(mesh_payload)
+    let info = dcc_mesh_info(geometry)
+    assert(info.vertex_ownership == "shared", "expected shared mesh ownership")
+    let before = py_geometry_vertex(py_geometry_view(mesh_payload), 0)
+    dcc_mesh_set_vertex(geometry, 0, [before[0], before[1] + 0.3, before[2]])
+    assert(py_geometry_vertex(py_geometry_view(mesh_payload), 0)[1] == before[1] + 0.3, "expected in-place trimesh sync")
+
+fn main() -> String:
+    install_trimesh_kernel()
+    assert(py_trimesh_available(), "trimesh must be installed for this smoke test")
+
+    let scene_path = smoke_output("trimesh_scene.glb")
+    let mutated_path = smoke_output("trimesh_scene_mutated.glb")
+    let report_path = smoke_output("trimesh_scene_report.txt")
+
+    let scene_info = py_bridge_call("kain_trimesh_export_any", [py_bridge_call_raw("kain_trimesh_scene", []), scene_path])
+    let mesh_payload = py_bridge_call_raw("kain_trimesh_mesh", [])
+    let geometry = dcc_mesh_from_python_shared(mesh_payload)
+    let geom_info = dcc_mesh_info(geometry)
+    let vertex_before = py_geometry_vertex(py_geometry_view(mesh_payload), 0)
+    dcc_mesh_set_vertex(geometry, 0, [vertex_before[0], vertex_before[1] + 0.35, vertex_before[2] + 0.1])
+    let vertex_after = py_geometry_vertex(py_geometry_view(mesh_payload), 0)
+    let mutated_export = py_bridge_call("kain_trimesh_export_any", [dcc_mesh_to_trimesh(geometry), mutated_path])
+
+    let report = "Trimesh GLB forge smoke\n"
+    let report = report + "scene_header: " + str(scene_info.header) + "\n"
+    let report = report + "scene_bytes: " + str(scene_info.bytes) + "\n"
+    let report = report + "scene_geometry_count: " + str(scene_info.geometry_count) + "\n"
+    let report = report + "vertex_count: " + str(scene_info.vertex_count) + "\n"
+    let report = report + "face_count: " + str(scene_info.face_count) + "\n"
+    let report = report + "extents: " + str(scene_info.extents) + "\n"
+    let report = report + "vertex_ownership: " + str(geom_info.vertex_ownership) + "\n"
+    let report = report + "vertex_before: " + str(vertex_before) + "\n"
+    let report = report + "vertex_after: " + str(vertex_after) + "\n"
+    let report = report + "mutated_header: " + str(mutated_export.header) + "\n"
+    let report = report + "mutated_bytes: " + str(mutated_export.bytes) + "\n"
+    let report = report + "scene_path: " + scene_path + "\n"
+    let report = report + "mutated_path: " + mutated_path
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

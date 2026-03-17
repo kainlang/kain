@@ -1178,6 +1178,7 @@ impl Scene {
             animations: Vec::new(),
             particle_emitters: Vec::new(),
             black_hole: None,
+            terrain_surfaces: Vec::new(),
         };
 
         for root in &self.root_nodes {

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use crate::{ColorRgb, Transform, Vec3};
 
@@ -170,6 +170,24 @@ pub struct BlackHole {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct TerrainSurface {
+    pub id: String,
+    pub mesh_id: String,
+    pub center: Vec3,
+    pub half_extents: Vec3,
+    pub resolution: [usize; 2],
+    pub base_height: f32,
+    pub height_amplitude: f32,
+    pub terrace_step: f32,
+    pub rim_strength: f32,
+    pub ripple_amplitude: f32,
+    pub ripple_frequency: f32,
+    pub flow_speed: f32,
+    pub caldera_radius: f32,
+    pub caldera_depth: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct SceneDescription {
     pub name: String,
     pub viewport_summary: String,
@@ -182,6 +200,7 @@ pub struct SceneDescription {
     pub animations: Vec<SceneAnimation>,
     pub particle_emitters: Vec<ParticleEmitter>,
     pub black_hole: Option<BlackHole>,
+    pub terrain_surfaces: Vec<TerrainSurface>,
 }
 
 impl SceneDescription {
@@ -217,6 +236,95 @@ impl SceneDescription {
             }
         }
         instances
+    }
+
+    pub fn resolved_mesh(&self, mesh_id: &str, time_seconds: f32) -> Option<Cow<'_, Mesh>> {
+        if let Some(mesh) = self.meshes.get(mesh_id) {
+            return Some(Cow::Borrowed(mesh));
+        }
+        self.terrain_surfaces
+            .iter()
+            .find(|surface| surface.mesh_id == mesh_id)
+            .map(|surface| Cow::Owned(surface.generate_mesh(time_seconds)))
+    }
+
+    pub fn ground_height_at(&self, world_position: Vec3, time_seconds: f32) -> Option<f32> {
+        self.terrain_surfaces
+            .iter()
+            .filter_map(|surface| surface.height_at_world_position(world_position, time_seconds))
+            .max_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal))
+    }
+}
+
+impl TerrainSurface {
+    pub fn height_at_world_position(&self, world_position: Vec3, time_seconds: f32) -> Option<f32> {
+        let half_extent_x = self.half_extents.x.max(0.001);
+        let half_extent_z = self.half_extents.z.max(0.001);
+        let local_x = (world_position.x - self.center.x) / half_extent_x;
+        let local_z = (world_position.z - self.center.z) / half_extent_z;
+        if local_x.abs() > 1.0 || local_z.abs() > 1.0 {
+            return None;
+        }
+        Some(self.center.y + sample_terrain_height(self, local_x, local_z, time_seconds))
+    }
+
+    pub fn generate_mesh(&self, time_seconds: f32) -> Mesh {
+        let segments_x = self.resolution[0].max(2);
+        let segments_z = self.resolution[1].max(2);
+        let mut heights = vec![0.0; segments_x * segments_z];
+        let index_of = |x: usize, z: usize| -> usize { z * segments_x + x };
+
+        for z in 0..segments_z {
+            let tz = z as f32 / (segments_z - 1) as f32;
+            let local_z = tz * 2.0 - 1.0;
+            for x in 0..segments_x {
+                let tx = x as f32 / (segments_x - 1) as f32;
+                let local_x = tx * 2.0 - 1.0;
+                heights[index_of(x, z)] = sample_terrain_height(self, local_x, local_z, time_seconds);
+            }
+        }
+
+        let mut vertices = Vec::with_capacity(segments_x * segments_z);
+        for z in 0..segments_z {
+            let tz = z as f32 / (segments_z - 1) as f32;
+            let local_z = tz * 2.0 - 1.0;
+            for x in 0..segments_x {
+                let tx = x as f32 / (segments_x - 1) as f32;
+                let local_x = tx * 2.0 - 1.0;
+                let world_x = self.center.x + local_x * self.half_extents.x;
+                let world_z = self.center.z + local_z * self.half_extents.z;
+                let world_y = self.center.y + heights[index_of(x, z)];
+
+                let left = heights[index_of(x.saturating_sub(1), z)];
+                let right = heights[index_of((x + 1).min(segments_x - 1), z)];
+                let down = heights[index_of(x, z.saturating_sub(1))];
+                let up = heights[index_of(x, (z + 1).min(segments_z - 1))];
+                let tangent_x =
+                    Vec3::new(2.0 * self.half_extents.x / (segments_x - 1) as f32, right - left, 0.0);
+                let tangent_z =
+                    Vec3::new(0.0, up - down, 2.0 * self.half_extents.z / (segments_z - 1) as f32);
+                let normal = tangent_z.cross(tangent_x).normalize();
+
+                vertices.push(Vertex {
+                    position: Vec3::new(world_x, world_y, world_z),
+                    normal,
+                });
+            }
+        }
+
+        let mut triangles = Vec::with_capacity((segments_x - 1) * (segments_z - 1) * 2);
+        for z in 0..segments_z - 1 {
+            for x in 0..segments_x - 1 {
+                let a = index_of(x, z);
+                let b = index_of(x + 1, z);
+                let c = index_of(x + 1, z + 1);
+                let d = index_of(x, z + 1);
+                triangles.push([a, b, c]);
+                triangles.push([a, c, d]);
+            }
+        }
+
+        Mesh { vertices, triangles }
     }
 }
 
@@ -328,26 +436,21 @@ fn build_magma_terraces_scene() -> SceneDescription {
         },
     );
 
-    let terrace_specs = [
-        ("terrace_base", -2.8, 16.0, 14.0, "basalt"),
-        ("terrace_mid_outer", -1.8, 12.0, 10.0, "ash"),
-        ("terrace_mid_inner", -0.9, 8.8, 7.2, "basalt"),
-        ("terrace_upper", 0.0, 6.0, 4.8, "ash"),
-        ("caldera_rim", 1.1, 3.7, 3.0, "basalt"),
-        ("magma_lake", 1.22, 2.2, 1.8, "magma"),
-    ];
-
     let mut instances = Vec::new();
-    for (id, y, sx, sz, material) in terrace_specs {
-        instances.push(SceneInstance {
-            id: id.to_string(),
-            mesh: "floor".to_string(),
-            material: material.to_string(),
-            transform: Transform::identity()
-                .with_translation(Vec3::new(0.0, y, 0.0))
-                .with_scale(Vec3::new(sx, 1.0, sz)),
-        });
-    }
+    instances.push(SceneInstance {
+        id: "terrain_body".to_string(),
+        mesh: "terrain_heightfield".to_string(),
+        material: "ash".to_string(),
+        transform: Transform::identity(),
+    });
+    instances.push(SceneInstance {
+        id: "magma_lake".to_string(),
+        mesh: "floor".to_string(),
+        material: "magma".to_string(),
+        transform: Transform::identity()
+            .with_translation(Vec3::new(0.0, -0.35, 0.0))
+            .with_scale(Vec3::new(2.8, 1.0, 2.4)),
+    });
 
     let ring_columns = [
         (6.2, -0.9, 0.68, 1.4, 16usize, "ash"),
@@ -604,6 +707,22 @@ fn build_magma_terraces_scene() -> SceneDescription {
             },
         ],
         black_hole: None,
+        terrain_surfaces: vec![TerrainSurface {
+            id: "terrace_caldera".to_string(),
+            mesh_id: "terrain_heightfield".to_string(),
+            center: Vec3::new(0.0, -1.45, 0.0),
+            half_extents: Vec3::new(15.0, 0.0, 13.0),
+            resolution: [80, 72],
+            base_height: 0.0,
+            height_amplitude: 1.25,
+            terrace_step: 0.46,
+            rim_strength: 2.8,
+            ripple_amplitude: 0.18,
+            ripple_frequency: 8.2,
+            flow_speed: 0.72,
+            caldera_radius: 0.34,
+            caldera_depth: 2.2,
+        }],
     }
 }
 
@@ -805,6 +924,7 @@ fn build_luminous_port_scene() -> SceneDescription {
             depth_test: false,
         }],
         black_hole: None,
+        terrain_surfaces: Vec::new(),
     }
 }
 
@@ -954,6 +1074,7 @@ fn build_retirement_demo_scene() -> SceneDescription {
         ],
         particle_emitters: Vec::new(),
         black_hole: None,
+        terrain_surfaces: Vec::new(),
     }
 }
 
@@ -1106,7 +1227,61 @@ fn build_kerr_black_hole_scene() -> SceneDescription {
             lens_color: ColorRgb::new(0.25, 0.55, 1.0),
             disk_color: ColorRgb::new(1.0, 0.64, 0.18),
         }),
+        terrain_surfaces: Vec::new(),
     }
+}
+
+fn sample_terrain_height(
+    surface: &TerrainSurface,
+    local_x: f32,
+    local_z: f32,
+    time_seconds: f32,
+) -> f32 {
+    let radius = (local_x * local_x + local_z * local_z).sqrt();
+    let basin_t = 1.0
+        - smoothstep(
+            surface.caldera_radius * 0.20,
+            surface.caldera_radius.max(surface.caldera_radius * 0.95),
+            radius.min(1.0),
+        );
+    let rim_t = smoothstep(surface.caldera_radius * 0.72, 1.0, radius.min(1.0));
+    let ridge_noise = ((local_x * 4.4 + time_seconds * 0.22).sin()
+        * (local_z * 3.8 - time_seconds * 0.16).cos())
+        * surface.height_amplitude
+        * 0.14;
+    let flow_wave = (((local_x + local_z) * surface.ripple_frequency) + time_seconds * surface.flow_speed)
+        .sin()
+        * surface.ripple_amplitude;
+    let counter_wave = (((local_x - local_z) * (surface.ripple_frequency * 0.72))
+        - time_seconds * (surface.flow_speed * 0.58))
+        .cos()
+        * surface.ripple_amplitude
+        * 0.55;
+    let core_heat = (1.0 - smoothstep(0.0, surface.caldera_radius * 0.88, radius.min(1.0)))
+        * surface.height_amplitude
+        * 0.34
+        * ((time_seconds * (surface.flow_speed * 1.85)) + radius * 11.0).sin();
+    let raw_height = surface.base_height
+        + rim_t * surface.rim_strength
+        - basin_t * surface.caldera_depth
+        + ridge_noise
+        + flow_wave
+        + counter_wave
+        + core_heat;
+    if surface.terrace_step <= f32::EPSILON {
+        raw_height
+    } else {
+        let terraced = (raw_height / surface.terrace_step).round() * surface.terrace_step;
+        terraced + flow_wave * 0.22 + core_heat * 0.35
+    }
+}
+
+fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
+    if (edge1 - edge0).abs() <= f32::EPSILON {
+        return if value >= edge1 { 1.0 } else { 0.0 };
+    }
+    let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 fn mesh_cube() -> Mesh {
@@ -1278,6 +1453,13 @@ mod tests {
         assert!(default_scene.black_hole.is_none());
         assert_eq!(magma_scene.name, "magma_terraces");
         assert!(magma_scene.particle_emitters.len() >= 4);
+        assert!(!magma_scene.terrain_surfaces.is_empty());
+        assert!(magma_scene
+            .resolved_mesh("terrain_heightfield", 1.0)
+            .is_some());
+        assert!(magma_scene
+            .ground_height_at(Vec3::new(0.0, 2.0, 0.0), 1.0)
+            .is_some());
         assert_eq!(scene.name, "kerr_black_hole");
         assert!(!scene.particle_emitters.is_empty());
         assert!(scene.black_hole.is_some());

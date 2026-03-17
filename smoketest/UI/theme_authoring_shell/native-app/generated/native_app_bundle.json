@@ -1,0 +1,1069 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "app_name": "ui-smoke-theme-authoring-shell",
+    "window_title": "UI Smoke - Theme Authoring Shell",
+    "root_component": "App",
+    "source_file_name": "smoke.kn",
+    "initial_window_size": [
+      1440.0,
+      920.0
+    ]
+  },
+  "output": {
+    "tree": {
+      "root": 8,
+      "nodes": {
+        "1": {
+          "id": 1,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "hero"
+            },
+            "text": {
+              "String": "Compiler-owned theme registry"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "hero",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "2": {
+          "id": 2,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "Smoke proves theme blocks, widget maps, and text roles lower canonically."
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "3": {
+          "id": 3,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "metric"
+            },
+            "text": {
+              "String": "3 authored scopes"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "metric",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "4": {
+          "id": 4,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "muted"
+            },
+            "text": {
+              "String": "Theme directives are stripped from the visible tree."
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "muted",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "5": {
+          "id": 5,
+          "identity_key": null,
+          "kind": "Inspector",
+          "props": {
+            "tag": {
+              "String": "inspector"
+            },
+            "title": {
+              "String": "Selection"
+            }
+          },
+          "children": [
+            3,
+            4
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "hero",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "6": {
+          "id": 6,
+          "identity_key": null,
+          "kind": "Panel",
+          "props": {
+            "tag": {
+              "String": "panel"
+            },
+            "title": {
+              "String": "Theme Authoring Shell"
+            }
+          },
+          "children": [
+            1,
+            2,
+            5
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [
+              "dense",
+              "accent"
+            ],
+            "theme_scope": "app_shell",
+            "variant": "hero",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "7": {
+          "id": 7,
+          "identity_key": null,
+          "kind": "Slot",
+          "props": {
+            "tag": {
+              "String": "slot"
+            }
+          },
+          "children": [
+            6
+          ],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "8": {
+          "id": 8,
+          "identity_key": null,
+          "kind": {
+            "ComponentRef": "App"
+          },
+          "props": {},
+          "children": [
+            7
+          ],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        }
+      }
+    },
+    "patches": [
+      {
+        "CreateNode": {
+          "node": {
+            "id": 1,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "hero"
+              },
+              "text": {
+                "String": "Compiler-owned theme registry"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "hero",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 2,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "Smoke proves theme blocks, widget maps, and text roles lower canonically."
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 3,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "metric"
+              },
+              "text": {
+                "String": "3 authored scopes"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "metric",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 4,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "muted"
+              },
+              "text": {
+                "String": "Theme directives are stripped from the visible tree."
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "muted",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 5,
+            "identity_key": null,
+            "kind": "Inspector",
+            "props": {
+              "tag": {
+                "String": "inspector"
+              },
+              "title": {
+                "String": "Selection"
+              }
+            },
+            "children": [
+              3,
+              4
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "hero",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 5,
+          "children": [
+            3,
+            4
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 6,
+            "identity_key": null,
+            "kind": "Panel",
+            "props": {
+              "tag": {
+                "String": "panel"
+              },
+              "title": {
+                "String": "Theme Authoring Shell"
+              }
+            },
+            "children": [
+              1,
+              2,
+              5
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [
+                "dense",
+                "accent"
+              ],
+              "theme_scope": "app_shell",
+              "variant": "hero",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 6,
+          "children": [
+            1,
+            2,
+            5
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 7,
+            "identity_key": null,
+            "kind": "Slot",
+            "props": {
+              "tag": {
+                "String": "slot"
+              }
+            },
+            "children": [
+              6
+            ],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 7,
+          "children": [
+            6
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 8,
+            "identity_key": null,
+            "kind": {
+              "ComponentRef": "App"
+            },
+            "props": {},
+            "children": [
+              7
+            ],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 8,
+          "children": [
+            7
+          ]
+        }
+      },
+      {
+        "SetRoot": {
+          "id": 8
+        }
+      }
+    ],
+    "systems": {
+      "computed": [],
+      "resources": [],
+      "transactions": [],
+      "focus_graph": {
+        "scopes": [],
+        "default_scope": null
+      },
+      "event_routes": [],
+      "animation_tracks": [],
+      "surfaces": [],
+      "scheduler": {
+        "phases": [
+          "Signals",
+          "Resources",
+          "Layout",
+          "Animation",
+          "Patches",
+          "Effects"
+        ],
+        "pending": []
+      },
+      "selection_model": {
+        "scopes": [],
+        "active_scope": null
+      },
+      "command_buffer": {
+        "pending": []
+      },
+      "theme_registry": {
+        "active_theme": "forge",
+        "scopes": [
+          {
+            "name": "app_shell",
+            "selector": "app-shell",
+            "parent": null
+          }
+        ],
+        "semantic_tokens": [
+          {
+            "name": "surface.background",
+            "category": "color",
+            "value": {
+              "String": "#101418"
+            }
+          },
+          {
+            "name": "text.default",
+            "category": "color",
+            "value": {
+              "String": "#f3f5f7"
+            }
+          },
+          {
+            "name": "variant.hero.surface.mode",
+            "category": "surface",
+            "value": {
+              "String": "glass"
+            }
+          },
+          {
+            "name": "variant.hero.accent.color",
+            "category": "color",
+            "value": {
+              "String": "#4dd0e1"
+            }
+          },
+          {
+            "name": "widget.panel.variant.hero.density",
+            "category": "layout",
+            "value": {
+              "String": "compact"
+            }
+          },
+          {
+            "name": "widget.panel.variant.hero.surface.padding",
+            "category": "space",
+            "value": {
+              "Int": 14
+            }
+          },
+          {
+            "name": "widget.text.variant.hero.body.size",
+            "category": "type",
+            "value": {
+              "Int": 30
+            }
+          }
+        ],
+        "variants": [
+          {
+            "scope": "app_shell",
+            "name": "hero",
+            "tokens": [
+              "variant.hero.surface.mode",
+              "variant.hero.accent.color",
+              "widget.panel.variant.hero.density",
+              "widget.panel.variant.hero.surface.padding",
+              "widget.text.variant.hero.body.size"
+            ]
+          }
+        ],
+        "diff_keys": [
+          "app_shell"
+        ]
+      },
+      "workspace_layout": {
+        "roots": [],
+        "persistence_key": null,
+        "virtualization_enabled": false
+      },
+      "hot_reload": {
+        "preserve_focus": true,
+        "preserve_selection": true,
+        "preserve_docking": true,
+        "preserve_animation_state": true,
+        "preserve_session_state": true,
+        "identity_aliases": []
+      },
+      "signal_values": {},
+      "animation_state": {},
+      "session_state": {}
+    }
+  },
+  "native_projection": {
+    "root_id": 8,
+    "primary_panel_title": "Theme Authoring Shell",
+    "primary_viewport_title": null,
+    "primary_viewport_scene": null,
+    "nodes": [
+      {
+        "id": 8,
+        "parent_id": null,
+        "depth": 0,
+        "kind": "ComponentRef",
+        "title": null,
+        "text": null,
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 1
+      },
+      {
+        "id": 7,
+        "parent_id": 8,
+        "depth": 1,
+        "kind": "Slot",
+        "title": null,
+        "text": null,
+        "tag": "slot",
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 1
+      },
+      {
+        "id": 6,
+        "parent_id": 7,
+        "depth": 2,
+        "kind": "Panel",
+        "title": "Theme Authoring Shell",
+        "text": null,
+        "tag": "panel",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 3
+      },
+      {
+        "id": 1,
+        "parent_id": 6,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Compiler-owned theme registry",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 2,
+        "parent_id": 6,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Smoke proves theme blocks, widget maps, and text roles lower canonically.",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 5,
+        "parent_id": 6,
+        "depth": 3,
+        "kind": "Inspector",
+        "title": "Selection",
+        "text": null,
+        "tag": "inspector",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 2
+      },
+      {
+        "id": 3,
+        "parent_id": 5,
+        "depth": 4,
+        "kind": "Text",
+        "title": null,
+        "text": "3 authored scopes",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 4,
+        "parent_id": 5,
+        "depth": 4,
+        "kind": "Text",
+        "title": null,
+        "text": "Theme directives are stripped from the visible tree.",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      }
+    ]
+  }
+}

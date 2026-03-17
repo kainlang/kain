@@ -203,7 +203,8 @@ impl CpuPickingService {
                     continue;
                 }
             }
-            let mesh = scene.meshes.get(&instance.mesh)?;
+            let mesh = scene.resolved_mesh(&instance.mesh, query.scene_time_seconds)?;
+            let mesh = mesh.as_ref();
             let model = instance.transform.matrix();
 
             for triangle in &mesh.triangles {
@@ -358,6 +359,7 @@ mod tests {
             animations: vec![],
             particle_emitters: vec![],
             black_hole: None,
+            terrain_surfaces: vec![],
         }
     }
 

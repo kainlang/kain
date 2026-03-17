@@ -10,6 +10,7 @@ pub use kain_core::*;
 pub mod error;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub mod gpu_artifacts;
+pub mod import_crate;
 pub mod import_asm;
 pub mod import_c;
 pub mod import_rust;
@@ -93,8 +94,22 @@ pub fn compile_runtime_contract_bundle(
     kain_driver::compile_runtime_contract_bundle(source, target)
 }
 
+pub fn compile_realtime_app_bundle(
+    source: &str,
+    target: CompileTarget,
+    root_component: Option<&str>,
+) -> Result<kain_driver::RealtimeAppBundleOutput, KainError> {
+    kain_driver::compile_realtime_app_bundle(source, target, root_component)
+}
+
 pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     kain_driver::compile_spirv_binary(source)
+}
+
+pub fn compile_shader_artifact_bundle(
+    source: &str,
+) -> Result<kain_driver::ShaderArtifactBundleOutput, KainError> {
+    kain_driver::compile_shader_artifact_bundle(source)
 }
 
 // Helper functions for main.rs

@@ -1,0 +1,1723 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "app_name": "ui-smoke-surface-modes-gallery",
+    "window_title": "UI Smoke - Surface Modes Gallery",
+    "root_component": "App",
+    "source_file_name": "smoke.kn",
+    "initial_window_size": [
+      1440.0,
+      920.0
+    ]
+  },
+  "output": {
+    "tree": {
+      "root": 13,
+      "nodes": {
+        "1": {
+          "id": 1,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "title"
+            },
+            "text": {
+              "String": "Layered shell"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "title",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "2": {
+          "id": 2,
+          "identity_key": null,
+          "kind": "Panel",
+          "props": {
+            "tag": {
+              "String": "panel"
+            },
+            "title": {
+              "String": "Panels"
+            }
+          },
+          "children": [
+            1
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": "gallery",
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "3": {
+          "id": 3,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "Glass chrome"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "4": {
+          "id": 4,
+          "identity_key": null,
+          "kind": "Inspector",
+          "props": {
+            "tag": {
+              "String": "inspector"
+            },
+            "title": {
+              "String": "Inspector"
+            }
+          },
+          "children": [
+            3
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": "gallery",
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "5": {
+          "id": 5,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "Flat structure"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "6": {
+          "id": 6,
+          "identity_key": null,
+          "kind": "Tree",
+          "props": {
+            "tag": {
+              "String": "tree"
+            },
+            "title": {
+              "String": "Tree"
+            }
+          },
+          "children": [
+            5
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": "gallery",
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "7": {
+          "id": 7,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "Canvas treatment"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "8": {
+          "id": 8,
+          "identity_key": null,
+          "kind": "Graph",
+          "props": {
+            "tag": {
+              "String": "graph"
+            },
+            "title": {
+              "String": "Graph"
+            }
+          },
+          "children": [
+            7
+          ],
+          "layout": {
+            "kind": "Absolute",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": "gallery",
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "9": {
+          "id": 9,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "Accent strip"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "10": {
+          "id": 10,
+          "identity_key": null,
+          "kind": "Timeline",
+          "props": {
+            "tag": {
+              "String": "timeline"
+            },
+            "title": {
+              "String": "Timeline"
+            }
+          },
+          "children": [
+            9
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": "gallery",
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "11": {
+          "id": 11,
+          "identity_key": null,
+          "kind": "Viewport3D",
+          "props": {
+            "scene": {
+              "String": "luminous_port"
+            },
+            "tag": {
+              "String": "viewport3d"
+            },
+            "title": {
+              "String": "Viewport"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Absolute",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": "gallery",
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "12": {
+          "id": 12,
+          "identity_key": null,
+          "kind": "Slot",
+          "props": {
+            "tag": {
+              "String": "slot"
+            }
+          },
+          "children": [
+            2,
+            4,
+            6,
+            8,
+            10,
+            11
+          ],
+          "layout": {
+            "kind": "Grid",
+            "gap": 12.0,
+            "padding": 12.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "13": {
+          "id": 13,
+          "identity_key": null,
+          "kind": {
+            "ComponentRef": "App"
+          },
+          "props": {},
+          "children": [
+            12
+          ],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        }
+      }
+    },
+    "patches": [
+      {
+        "CreateNode": {
+          "node": {
+            "id": 1,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "title"
+              },
+              "text": {
+                "String": "Layered shell"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "title",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 2,
+            "identity_key": null,
+            "kind": "Panel",
+            "props": {
+              "tag": {
+                "String": "panel"
+              },
+              "title": {
+                "String": "Panels"
+              }
+            },
+            "children": [
+              1
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": "gallery",
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 2,
+          "children": [
+            1
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 3,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "Glass chrome"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 4,
+            "identity_key": null,
+            "kind": "Inspector",
+            "props": {
+              "tag": {
+                "String": "inspector"
+              },
+              "title": {
+                "String": "Inspector"
+              }
+            },
+            "children": [
+              3
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": "gallery",
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 4,
+          "children": [
+            3
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 5,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "Flat structure"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 6,
+            "identity_key": null,
+            "kind": "Tree",
+            "props": {
+              "tag": {
+                "String": "tree"
+              },
+              "title": {
+                "String": "Tree"
+              }
+            },
+            "children": [
+              5
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": "gallery",
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 6,
+          "children": [
+            5
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 7,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "Canvas treatment"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 8,
+            "identity_key": null,
+            "kind": "Graph",
+            "props": {
+              "tag": {
+                "String": "graph"
+              },
+              "title": {
+                "String": "Graph"
+              }
+            },
+            "children": [
+              7
+            ],
+            "layout": {
+              "kind": "Absolute",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": "gallery",
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 8,
+          "children": [
+            7
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 9,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "Accent strip"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 10,
+            "identity_key": null,
+            "kind": "Timeline",
+            "props": {
+              "tag": {
+                "String": "timeline"
+              },
+              "title": {
+                "String": "Timeline"
+              }
+            },
+            "children": [
+              9
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": "gallery",
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 10,
+          "children": [
+            9
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 11,
+            "identity_key": null,
+            "kind": "Viewport3D",
+            "props": {
+              "scene": {
+                "String": "luminous_port"
+              },
+              "tag": {
+                "String": "viewport3d"
+              },
+              "title": {
+                "String": "Viewport"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Absolute",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": "gallery",
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 12,
+            "identity_key": null,
+            "kind": "Slot",
+            "props": {
+              "tag": {
+                "String": "slot"
+              }
+            },
+            "children": [
+              2,
+              4,
+              6,
+              8,
+              10,
+              11
+            ],
+            "layout": {
+              "kind": "Grid",
+              "gap": 12.0,
+              "padding": 12.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 12,
+          "children": [
+            2,
+            4,
+            6,
+            8,
+            10,
+            11
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 13,
+            "identity_key": null,
+            "kind": {
+              "ComponentRef": "App"
+            },
+            "props": {},
+            "children": [
+              12
+            ],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 13,
+          "children": [
+            12
+          ]
+        }
+      },
+      {
+        "SetRoot": {
+          "id": 13
+        }
+      }
+    ],
+    "systems": {
+      "computed": [],
+      "resources": [],
+      "transactions": [],
+      "focus_graph": {
+        "scopes": [],
+        "default_scope": null
+      },
+      "event_routes": [],
+      "animation_tracks": [
+        {
+          "id": "animation.node.6",
+          "target": 6,
+          "property": "surface.opacity",
+          "duration_ms": 180,
+          "trigger": "Mount",
+          "easing": "EaseOut",
+          "preserve_on_reload": true
+        },
+        {
+          "id": "animation.node.8",
+          "target": 8,
+          "property": "surface.opacity",
+          "duration_ms": 180,
+          "trigger": "Mount",
+          "easing": "EaseOut",
+          "preserve_on_reload": true
+        },
+        {
+          "id": "animation.node.10",
+          "target": 10,
+          "property": "surface.opacity",
+          "duration_ms": 180,
+          "trigger": "Mount",
+          "easing": "EaseOut",
+          "preserve_on_reload": true
+        },
+        {
+          "id": "animation.node.11",
+          "target": 11,
+          "property": "surface.opacity",
+          "duration_ms": 180,
+          "trigger": "Mount",
+          "easing": "EaseOut",
+          "preserve_on_reload": true
+        }
+      ],
+      "surfaces": [
+        {
+          "id": "surface.node.6",
+          "kind": "Tree",
+          "node": 6,
+          "title": "Tree"
+        },
+        {
+          "id": "surface.node.8",
+          "kind": "Graph",
+          "node": 8,
+          "title": "Graph"
+        },
+        {
+          "id": "surface.node.10",
+          "kind": "Timeline",
+          "node": 10,
+          "title": "Timeline"
+        },
+        {
+          "id": "surface.node.11",
+          "kind": "Viewport3D",
+          "node": 11,
+          "title": "Viewport"
+        }
+      ],
+      "scheduler": {
+        "phases": [
+          "Signals",
+          "Resources",
+          "Layout",
+          "Animation",
+          "Patches",
+          "Effects"
+        ],
+        "pending": [
+          {
+            "phase": "Animation",
+            "label": "animation-pass-node-6",
+            "target_nodes": [
+              6
+            ]
+          },
+          {
+            "phase": "Animation",
+            "label": "animation-pass-node-8",
+            "target_nodes": [
+              8
+            ]
+          },
+          {
+            "phase": "Animation",
+            "label": "animation-pass-node-10",
+            "target_nodes": [
+              10
+            ]
+          },
+          {
+            "phase": "Animation",
+            "label": "animation-pass-node-11",
+            "target_nodes": [
+              11
+            ]
+          }
+        ]
+      },
+      "selection_model": {
+        "scopes": [],
+        "active_scope": null
+      },
+      "command_buffer": {
+        "pending": []
+      },
+      "theme_registry": {
+        "active_theme": "surface_gallery",
+        "scopes": [
+          {
+            "name": "gallery",
+            "selector": "surface-gallery",
+            "parent": null
+          }
+        ],
+        "semantic_tokens": [
+          {
+            "name": "widget.panel.surface.mode",
+            "category": "panel",
+            "value": {
+              "String": "layered"
+            }
+          },
+          {
+            "name": "widget.inspector.surface.mode",
+            "category": "inspector",
+            "value": {
+              "String": "glass"
+            }
+          },
+          {
+            "name": "widget.tree.surface.mode",
+            "category": "tree",
+            "value": {
+              "String": "flat"
+            }
+          },
+          {
+            "name": "widget.graph.surface.mode",
+            "category": "graph",
+            "value": {
+              "String": "canvas"
+            }
+          },
+          {
+            "name": "widget.timeline.surface.mode",
+            "category": "timeline",
+            "value": {
+              "String": "accent"
+            }
+          },
+          {
+            "name": "widget.viewport3d.surface.mode",
+            "category": "viewport3d",
+            "value": {
+              "String": "ghost"
+            }
+          }
+        ],
+        "variants": [],
+        "diff_keys": [
+          "gallery"
+        ]
+      },
+      "workspace_layout": {
+        "roots": [],
+        "persistence_key": null,
+        "virtualization_enabled": false
+      },
+      "hot_reload": {
+        "preserve_focus": true,
+        "preserve_selection": true,
+        "preserve_docking": true,
+        "preserve_animation_state": true,
+        "preserve_session_state": true,
+        "identity_aliases": []
+      },
+      "signal_values": {},
+      "animation_state": {},
+      "session_state": {}
+    }
+  },
+  "native_projection": {
+    "root_id": 13,
+    "primary_panel_title": "Panels",
+    "primary_viewport_title": "Viewport",
+    "primary_viewport_scene": "luminous_port",
+    "nodes": [
+      {
+        "id": 13,
+        "parent_id": null,
+        "depth": 0,
+        "kind": "ComponentRef",
+        "title": null,
+        "text": null,
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 1
+      },
+      {
+        "id": 12,
+        "parent_id": 13,
+        "depth": 1,
+        "kind": "Slot",
+        "title": null,
+        "text": null,
+        "tag": "slot",
+        "scene": null,
+        "layout_kind": "Grid",
+        "child_count": 6
+      },
+      {
+        "id": 2,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Panel",
+        "title": "Panels",
+        "text": null,
+        "tag": "panel",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 1
+      },
+      {
+        "id": 1,
+        "parent_id": 2,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Layered shell",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 4,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Inspector",
+        "title": "Inspector",
+        "text": null,
+        "tag": "inspector",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 1
+      },
+      {
+        "id": 3,
+        "parent_id": 4,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Glass chrome",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 6,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Tree",
+        "title": "Tree",
+        "text": null,
+        "tag": "tree",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 1
+      },
+      {
+        "id": 5,
+        "parent_id": 6,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Flat structure",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 8,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Graph",
+        "title": "Graph",
+        "text": null,
+        "tag": "graph",
+        "scene": null,
+        "layout_kind": "Absolute",
+        "child_count": 1
+      },
+      {
+        "id": 7,
+        "parent_id": 8,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Canvas treatment",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 10,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Timeline",
+        "title": "Timeline",
+        "text": null,
+        "tag": "timeline",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 1
+      },
+      {
+        "id": 9,
+        "parent_id": 10,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Accent strip",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 11,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Viewport3D",
+        "title": "Viewport",
+        "text": null,
+        "tag": "viewport3d",
+        "scene": "luminous_port",
+        "layout_kind": "Absolute",
+        "child_count": 0
+      }
+    ]
+  }
+}

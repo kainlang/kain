@@ -5,14 +5,26 @@
 //! through the CLI binary.
 
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::Mutex;
 
 use kain_core::ast::Program;
 use kain_core::error::KainError;
 use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::runtime;
 use kain_core::{
-    comptime, diagnostics, emit_runtime_contract_bundle, monomorphize, stdlib, types,
-    CompileTarget, Lexer, Parser, RuntimeContractBundle, TypedProgram,
+    comptime, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle, monomorphize,
+    realtime_app_bundle_to_json, stdlib, types, CompileTarget, Lexer, Parser,
+    RealtimeAppBundle, RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
+};
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+use kain_core::{
+    bytes_to_hex, shader_artifact_bundle_to_json, DerivedShaderArtifact, ShaderArtifactFormat,
+    ShaderDebugBundle, ShaderEntryPoint, ShaderIoField, ShaderReflectionShader,
+    ShaderReflectionSummary, ShaderResourceLayout, ShaderSourceMapEntry,
+    ShaderSpecializationConstant, ShaderStageMetadata, SpirvModuleArtifact,
+    SHADER_ARTIFACT_SCHEMA_VERSION,
 };
 
 #[cfg(feature = "sys")]
@@ -137,10 +149,21 @@ pub struct DriverSession {
 }
 
 #[derive(Debug, Clone)]
-pub struct GpuArtifactOutput {
+pub struct ShaderArtifactBundleOutput {
+    pub bundle: ShaderArtifactBundle,
+    pub bundle_json: String,
     pub spirv: Vec<u8>,
     pub rust_host: String,
     pub reflection_json: String,
+    pub derived_hlsl: Option<String>,
+}
+
+pub type GpuArtifactOutput = ShaderArtifactBundleOutput;
+
+#[derive(Debug, Clone)]
+pub struct RealtimeAppBundleOutput {
+    pub bundle: RealtimeAppBundle,
+    pub bundle_json: String,
 }
 
 #[derive(Debug, Clone)]
@@ -176,6 +199,9 @@ impl DriverSession {
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
         kain_python::register();
+        kain_crate_ffi::register();
+
+        let source = prepare_rust_ffi_source(source, target)?;
 
         let stdlib_source = stdlib::load_stdlib_for_target(target);
         let full_source = format!("{stdlib_source}\n{source}");
@@ -212,6 +238,28 @@ impl DriverSession {
     ) -> Result<RuntimeContractBundle, KainError> {
         let typed = self.frontend_to_typed_program(source, target)?;
         Ok(emit_runtime_contract_bundle(&typed, target))
+    }
+
+    pub fn compile_realtime_app_bundle(
+        &self,
+        source: &str,
+        target: CompileTarget,
+        root_component: Option<&str>,
+    ) -> Result<RealtimeAppBundleOutput, KainError> {
+        let typed = self.frontend_to_typed_program(source, target)?;
+        let resolved_root_component = root_component
+            .map(str::to_string)
+            .or_else(|| discover_root_component_name(&typed));
+        let ui_output = if let Some(root_component) = resolved_root_component.as_deref() {
+            Some(kain_core::build_ui_output_from_source(source, root_component)?)
+        } else {
+            None
+        };
+        let bundle = emit_realtime_app_bundle(&typed, ui_output.as_ref(), target);
+        let bundle_json = realtime_app_bundle_to_json(&bundle).map_err(|err| {
+            KainError::runtime(format!("Failed to serialize realtime app bundle JSON: {err}"))
+        })?;
+        Ok(RealtimeAppBundleOutput { bundle, bundle_json })
     }
 
     pub fn compile(&self, source: &str, target: CompileTarget) -> Result<String, KainError> {
@@ -317,19 +365,51 @@ impl DriverSession {
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
-    pub fn compile_gpu_artifacts(&self, source: &str) -> Result<GpuArtifactOutput, KainError> {
+    pub fn compile_shader_artifact_bundle(
+        &self,
+        source: &str,
+    ) -> Result<ShaderArtifactBundleOutput, KainError> {
         let typed_program = self.frontend_to_typed_program(source, CompileTarget::Spirv)?;
         let spirv = gpu::generate_spirv(&typed_program)?;
         let rust_host = sys::generate_rust_gpu_host_wrappers(&typed_program)?;
+        let reflection = sys::collect_gpu_artifacts(&typed_program);
         let reflection_json = sys::collect_gpu_artifacts_json(&typed_program).map_err(|err| {
             KainError::runtime(format!("Failed to serialize GPU reflection JSON: {err}"))
         })?;
+        let derived_hlsl = Some(gpu::generate_hlsl(&typed_program)?);
+        let bundle = build_shader_artifact_bundle(
+            &reflection,
+            &spirv,
+            derived_hlsl.as_deref(),
+            "<input>",
+        );
+        let bundle_json = shader_artifact_bundle_to_json(&bundle).map_err(|err| {
+            KainError::runtime(format!("Failed to serialize shader artifact bundle JSON: {err}"))
+        })?;
 
-        Ok(GpuArtifactOutput {
+        Ok(ShaderArtifactBundleOutput {
+            bundle,
+            bundle_json,
             spirv,
             rust_host,
             reflection_json,
+            derived_hlsl,
         })
+    }
+
+    #[cfg(not(all(feature = "gpu", feature = "sys")))]
+    pub fn compile_shader_artifact_bundle(
+        &self,
+        _source: &str,
+    ) -> Result<ShaderArtifactBundleOutput, KainError> {
+        Err(KainError::runtime(
+            "GPU artifact generation requires both gpu and sys features",
+        ))
+    }
+
+    #[cfg(all(feature = "gpu", feature = "sys"))]
+    pub fn compile_gpu_artifacts(&self, source: &str) -> Result<GpuArtifactOutput, KainError> {
+        self.compile_shader_artifact_bundle(source)
     }
 
     #[cfg(not(all(feature = "gpu", feature = "sys")))]
@@ -400,6 +480,7 @@ impl DriverSession {
         copyright: Option<&str>,
         metadata_dir: Option<PathBuf>,
     ) -> Result<ue5::Ue5Output, KainError> {
+        let source = prepare_rust_ffi_source(source, CompileTarget::Ue5)?;
         let stdlib_source = stdlib::load_stdlib_for_target(CompileTarget::Ue5);
         let full_source = format!("{stdlib_source}\n{source}");
 
@@ -514,6 +595,14 @@ impl DriverSession {
     }
 }
 
+fn prepare_rust_ffi_source(source: &str, target: CompileTarget) -> Result<String, KainError> {
+    let prepare = kain_crate_ffi::PrepareContext {
+        current_dir: std::env::current_dir().ok(),
+        manifest_path: None,
+    };
+    kain_crate_ffi::augment_source_for_runtime(source, target, &prepare)
+}
+
 fn find_target_spec_by_alias(alias: &str) -> Option<&'static TargetSpec> {
     let normalized = alias.trim().to_ascii_lowercase();
     TARGET_SPECS.iter().find(|spec| {
@@ -574,8 +663,192 @@ pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     DriverSession::default().compile_spirv_binary(source)
 }
 
+pub fn compile_shader_artifact_bundle(source: &str) -> Result<ShaderArtifactBundleOutput, KainError> {
+    DriverSession::default().compile_shader_artifact_bundle(source)
+}
+
+pub fn compile_realtime_app_bundle(
+    source: &str,
+    target: CompileTarget,
+    root_component: Option<&str>,
+) -> Result<RealtimeAppBundleOutput, KainError> {
+    DriverSession::default().compile_realtime_app_bundle(source, target, root_component)
+}
+
+fn discover_root_component_name(program: &TypedProgram) -> Option<String> {
+    program.items.iter().find_map(|item| match item {
+        TypedItem::Component(component) => Some(component.ast.name.clone()),
+        _ => None,
+    })
+}
+
 pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainError> {
     DriverSession::default().compile_gpu_artifacts(source)
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn build_shader_artifact_bundle(
+    reflection: &sys::RustGpuArtifactOutput,
+    spirv: &[u8],
+    derived_hlsl: Option<&str>,
+    source_origin: &str,
+) -> ShaderArtifactBundle {
+    let module_name = if reflection.shaders.is_empty() {
+        "kain_shader_program".to_string()
+    } else {
+        reflection
+            .shaders
+            .iter()
+            .map(|shader| shader.name.as_str())
+            .collect::<Vec<_>>()
+            .join("__")
+    };
+
+    let mut resource_layouts = Vec::new();
+    let mut entry_points = Vec::new();
+    let mut stage_metadata = Vec::new();
+    let mut specialization_constants = Vec::new();
+    let mut reflection_shaders = Vec::new();
+    let mut source_map = Vec::new();
+    let mut stage_hints = Vec::new();
+
+    for shader in &reflection.shaders {
+        let stage = shader_stage_name(shader.stage).to_string();
+        stage_hints.push(stage.clone());
+        entry_points.push(ShaderEntryPoint {
+            shader: shader.name.clone(),
+            module_name: module_name.clone(),
+            entry_point: shader.entry_point.clone(),
+            stage: stage.clone(),
+        });
+        stage_metadata.push(ShaderStageMetadata {
+            shader: shader.name.clone(),
+            stage: stage.clone(),
+            entry_point: shader.entry_point.clone(),
+            input_count: shader.inputs.len(),
+            binding_count: shader.bindings.len(),
+            output_type: shader.output_type.clone(),
+        });
+        source_map.push(ShaderSourceMapEntry {
+            shader: shader.name.clone(),
+            source_origin: source_origin.to_string(),
+            module_name: module_name.clone(),
+            entry_point: shader.entry_point.clone(),
+        });
+
+        let normalized_bindings = shader
+            .bindings
+            .iter()
+            .map(|binding| {
+                let layout = ShaderResourceLayout {
+                    shader: shader.name.clone(),
+                    name: binding.name.clone(),
+                    binding: binding.binding,
+                    descriptor_set: binding.descriptor_set,
+                    ty: binding.ty.clone(),
+                    kind: shader_binding_kind_name(binding.kind).to_string(),
+                };
+                if matches!(
+                    binding.kind,
+                    sys::RustGpuBindingKind::LocalSize | sys::RustGpuBindingKind::SpecializationConstant
+                ) {
+                    specialization_constants.push(ShaderSpecializationConstant {
+                        shader: shader.name.clone(),
+                        name: binding.name.clone(),
+                        binding: binding.binding,
+                        descriptor_set: binding.descriptor_set,
+                        ty: binding.ty.clone(),
+                        source_kind: shader_binding_kind_name(binding.kind).to_string(),
+                    });
+                }
+                layout
+            })
+            .collect::<Vec<_>>();
+
+        resource_layouts.extend(normalized_bindings.iter().cloned());
+        reflection_shaders.push(ShaderReflectionShader {
+            shader: shader.name.clone(),
+            stage,
+            entry_point: shader.entry_point.clone(),
+            inputs: shader
+                .inputs
+                .iter()
+                .map(|input| ShaderIoField {
+                    name: input.name.clone(),
+                    ty: input.ty.clone(),
+                })
+                .collect(),
+            bindings: normalized_bindings,
+            output_type: shader.output_type.clone(),
+        });
+    }
+
+    stage_hints.sort();
+    stage_hints.dedup();
+
+    let mut derived_outputs = Vec::new();
+    if let Some(hlsl) = derived_hlsl {
+        derived_outputs.push(DerivedShaderArtifact {
+            format: ShaderArtifactFormat::Hlsl,
+            module_name: module_name.clone(),
+            contents: hlsl.to_string(),
+        });
+    }
+
+    ShaderArtifactBundle {
+        schema_version: SHADER_ARTIFACT_SCHEMA_VERSION,
+        canonical_native_payload: ShaderArtifactFormat::Spirv,
+        spirv_modules: vec![SpirvModuleArtifact {
+            module_name: module_name.clone(),
+            byte_len: spirv.len(),
+            bytes_hex: bytes_to_hex(spirv),
+            entry_points: entry_points
+                .iter()
+                .map(|entry| entry.entry_point.clone())
+                .collect(),
+            stage_hints,
+        }],
+        reflection: ShaderReflectionSummary {
+            emitted: !reflection_shaders.is_empty(),
+            shaders: reflection_shaders,
+            notes: vec![
+                "Compiler-owned shader artifact bundle emitted from kain-driver.".to_string(),
+                "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs.".to_string(),
+            ],
+        },
+        resource_layouts,
+        entry_points,
+        stage_metadata,
+        specialization_constants,
+        debug: ShaderDebugBundle {
+            source_map,
+            notes: vec![
+                "Shader bundle source map is currently scoped to shader entry points.".to_string(),
+            ],
+        },
+        derived_outputs,
+    }
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn shader_stage_name(stage: sys::RustGpuShaderStage) -> &'static str {
+    match stage {
+        sys::RustGpuShaderStage::Vertex => "vertex",
+        sys::RustGpuShaderStage::Fragment => "fragment",
+        sys::RustGpuShaderStage::Compute => "compute",
+        sys::RustGpuShaderStage::Surface => "surface",
+    }
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn shader_binding_kind_name(kind: sys::RustGpuBindingKind) -> &'static str {
+    match kind {
+        sys::RustGpuBindingKind::StorageBuffer => "storage_buffer",
+        sys::RustGpuBindingKind::Sampler2D => "sampler_2d",
+        sys::RustGpuBindingKind::Uniform => "uniform",
+        sys::RustGpuBindingKind::LocalSize => "local_size",
+        sys::RustGpuBindingKind::SpecializationConstant => "specialization_constant",
+    }
 }
 
 #[cfg(feature = "sys")]
@@ -682,6 +955,9 @@ fn find_metadata_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    static TEST_CWD_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn parse_typescript_aliases() {
@@ -720,5 +996,223 @@ test smoke:
         .unwrap();
 
         assert_eq!(output, "Tests passed");
+    }
+
+    #[test]
+    fn interpret_target_supports_rust_crate_imports_from_kain_manifest() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let crate_dir = temp.path().join("sample_ffi");
+        let crate_src_dir = crate_dir.join("src");
+        fs::create_dir_all(&crate_src_dir).expect("crate src dir");
+        fs::write(
+            crate_dir.join("Cargo.toml"),
+            r#"[package]
+name = "sample_ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "sample_ffi"
+path = "src/lib.rs"
+"#,
+        )
+        .expect("sample ffi cargo");
+        fs::write(
+            crate_src_dir.join("lib.rs"),
+            r#"pub fn add(lhs: i64, rhs: i64) -> i64 {
+    lhs + rhs
+}
+"#,
+        )
+        .expect("sample ffi source");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"[workspace]
+members = ["sample_ffi"]
+resolver = "2"
+"#,
+        )
+        .expect("workspace cargo manifest");
+        fs::write(
+            temp.path().join("KAIN.toml"),
+            format!(
+                r#"[package]
+name = "crate_ffi_smoke"
+version = "0.1.0"
+
+[build]
+entry = "src/main.kn"
+output = "dist"
+targets = ["run"]
+
+[rust_ffi]
+manifest_path = '{}'
+
+[[rust_ffi.path_crates]]
+name = "sample_ffi"
+path = '{}'
+"#,
+                temp.path().join("Cargo.toml").display(),
+                crate_dir.display()
+            ),
+        )
+        .expect("kain manifest");
+
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            compile(
+                r#"
+use rust::sample_ffi
+
+fn main() -> Int:
+    return add(20, 22)
+"#,
+                CompileTarget::Interpret,
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let output = result.expect("crate ffi interpret output");
+        assert_eq!(output, "42");
+        assert!(
+            temp.path()
+                .join(".kain")
+                .join("cache")
+                .join("crate_ffi")
+                .exists(),
+            "crate ffi cache should be materialized"
+        );
+    }
+
+    #[test]
+    fn non_host_targets_reject_rust_crate_ffi_imports() {
+        let error = compile(
+            r#"
+use rust::sample_ffi
+
+fn main() -> Int:
+    return 1
+"#,
+            CompileTarget::Ts,
+        )
+        .expect_err("non-host target should reject rust crate ffi");
+
+        assert!(
+            error
+                .to_string()
+                .contains("Rust crate FFI is only available in host-backed Kain execution lanes for now")
+        );
+    }
+
+    #[test]
+    fn test_target_supports_rust_crate_imports_from_kain_manifest() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let crate_dir = temp.path().join("sample_test_ffi");
+        let crate_src_dir = crate_dir.join("src");
+        fs::create_dir_all(&crate_src_dir).expect("crate src dir");
+        fs::write(
+            crate_dir.join("Cargo.toml"),
+            r#"[package]
+name = "sample_test_ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "sample_test_ffi"
+path = "src/lib.rs"
+"#,
+        )
+        .expect("sample ffi cargo");
+        fs::write(
+            crate_src_dir.join("lib.rs"),
+            r#"pub fn add(lhs: i64, rhs: i64) -> i64 {
+    lhs + rhs
+}
+"#,
+        )
+        .expect("sample ffi source");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"[workspace]
+members = ["sample_test_ffi"]
+resolver = "2"
+"#,
+        )
+        .expect("workspace cargo manifest");
+        fs::write(
+            temp.path().join("KAIN.toml"),
+            format!(
+                r#"[package]
+name = "crate_ffi_test_smoke"
+version = "0.1.0"
+
+[build]
+entry = "src/main.kn"
+output = "dist"
+targets = ["test"]
+
+[rust_ffi]
+manifest_path = '{}'
+
+[[rust_ffi.path_crates]]
+name = "sample_test_ffi"
+path = '{}'
+"#,
+                temp.path().join("Cargo.toml").display(),
+                crate_dir.display()
+            ),
+        )
+        .expect("kain manifest");
+
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            compile(
+                r#"
+use rust::sample_test_ffi
+
+test crate_ffi:
+    assert(add(1, 2) == 3, "crate ffi test should pass")
+"#,
+                CompileTarget::Test,
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let output = result.expect("crate ffi test output");
+        assert_eq!(output, "Tests passed");
+    }
+
+    #[cfg(all(feature = "gpu", feature = "sys"))]
+    #[test]
+    fn compile_shader_artifact_bundle_emits_canonical_spirv_bundle() {
+        let output = compile_shader_artifact_bundle(
+            r#"
+shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform center: Vec4 @1
+    uniform brush_alpha: Sampler2D @2
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform CFG_HIGH_QUALITY: UInt @101
+
+    let idx = id.x
+    let pos = positions[idx]
+    return vec4(pos.x + center.x, pos.y, pos.z, 1.0)
+"#,
+        )
+        .expect("shader artifact bundle should compile");
+
+        assert_eq!(
+            output.bundle.canonical_native_payload,
+            ShaderArtifactFormat::Spirv
+        );
+        assert_eq!(output.bundle.spirv_modules.len(), 1);
+        assert!(output.bundle.spirv_modules[0].byte_len > 0);
+        assert!(output.bundle_json.contains("\"canonical_native_payload\": \"spirv\""));
+        assert!(output.bundle_json.contains("\"spirv_modules\""));
+        assert!(output.derived_hlsl.is_some());
     }
 }

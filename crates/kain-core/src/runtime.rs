@@ -1839,6 +1839,11 @@ impl Env {
 
     pub fn register_typed_program(&mut self, program: &TypedProgram) -> KainResult<()> {
         for item in &program.items {
+            if let TypedItem::Mod(module) = item {
+                self.register_inline_module(&module.ast, &[])?;
+            }
+        }
+        for item in &program.items {
             self.register_typed_item(item)?;
         }
         Ok(())
@@ -2082,6 +2087,7 @@ pub fn interpret(program: &TypedProgram) -> KainResult<Value> {
 
 pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> KainResult<Value> {
     env.register_typed_program(program)?;
+    env.apply_registered_extensions();
     if env.functions.contains_key("main") {
         env.call_named_function("main", Vec::new())
     } else {
@@ -3749,6 +3755,12 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
     // Initialize env
     let mut env = Env::new();
 
+    for item in &program.items {
+        if let crate::types::TypedItem::Mod(module) = item {
+            env.register_inline_module(&module.ast, &[])?;
+        }
+    }
+
     // Register items first (functions, etc.)
     for item in &program.items {
         match item {
@@ -3783,6 +3795,7 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
             _ => {}
         }
     }
+    env.apply_registered_extensions();
 
     // Run tests
     for item in &program.items {

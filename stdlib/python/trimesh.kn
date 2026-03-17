@@ -1,0 +1,34 @@
+pub fn py_trimesh_available() -> Bool:
+    py_exec("import importlib.util\n\ndef __kain_trimesh_available():\n    return importlib.util.find_spec('trimesh') is not None\n")
+    return py_call("__kain_trimesh_available", [])
+
+pub fn py_trimesh_require() -> Any:
+    assert(py_trimesh_available(), "trimesh must be installed")
+    return py_import("trimesh")
+
+pub fn py_trimesh_icosphere(subdivisions: Int, radius: Float) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "subdivisions", subdivisions)
+    map_set(kwargs, "radius", radius)
+    return py_call(py_trimesh_require(), "creation.icosphere", [], kwargs)
+
+pub fn py_trimesh_box(extents: Any) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "extents", extents)
+    return py_call(py_trimesh_require(), "creation.box", [], kwargs)
+
+pub fn py_trimesh_cylinder(radius: Float, height: Float, sections: Int) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "radius", radius)
+    map_set(kwargs, "height", height)
+    map_set(kwargs, "sections", sections)
+    return py_call(py_trimesh_require(), "creation.cylinder", [], kwargs)
+
+pub fn py_trimesh_geometry_shared(target: Any) -> Any:
+    return kain_geometry_from_py_shared(target)
+
+pub fn py_trimesh_geometry_owned(target: Any) -> Any:
+    return kain_geometry_from_py_owned(target)
+
+pub fn py_trimesh_from_geometry(geometry: Any) -> Any:
+    return kain_geometry_to_py(geometry, "trimesh")

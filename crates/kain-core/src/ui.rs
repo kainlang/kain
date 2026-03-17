@@ -8,8 +8,10 @@ use crate::parser::Parser;
 use crate::runtime::{eval_expr, Env, Value};
 use crate::span::Span;
 use kain_ui::{
-    default_layout_for_tag, render_debug_tree, widget_kind_for_tag, UiBuildOutput, UiNode,
-    UiTreeBuilder, UiValue, UiWidgetKind,
+    default_layout_for_tag, render_debug_tree, widget_kind_for_tag, UiBuildOutput, UiDockPlacement,
+    UiLayoutAlignment, UiLength, UiLengthUnit, UiNode, UiOverflowBehavior, UiStyleState,
+    UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant, UiTreeBuilder, UiValue,
+    UiWidgetKind,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -343,10 +345,17 @@ pub fn lower_value_to_ui_tree(value: Value) -> UiBuildOutput {
 
 /// Lower a runtime VNode tree into the semantic `kain-ui` tree.
 pub fn lower_vnode_to_ui_tree(root: &VNode) -> UiBuildOutput {
-    let mut builder = UiTreeBuilder::new();
-    let root_id = lower_vnode_into_tree(&mut builder, root);
-    builder.set_root(root_id);
-    builder.finish()
+    let mut lowering = UiLowering::default();
+    let root_id = lower_vnode_into_tree(&mut lowering, root)
+        .unwrap_or_else(|| allocate_empty_root(&mut lowering.builder));
+    lowering.builder.set_root(root_id);
+
+    let mut output = lowering.builder.finish();
+    if !theme_registry_is_empty(&lowering.authored_theme) {
+        output.systems.theme_registry =
+            merge_authored_theme_registry(&output.systems.theme_registry, lowering.authored_theme);
+    }
+    output
 }
 
 /// Render the semantic tree into a text debug view.
@@ -446,31 +455,48 @@ fn coerce_value_to_vnode(value: Value) -> VNode {
     }
 }
 
-fn lower_vnode_into_tree(builder: &mut UiTreeBuilder, node: &VNode) -> kain_ui::UiNodeId {
+struct UiLowering {
+    builder: UiTreeBuilder,
+    authored_theme: UiThemeRegistry,
+}
+
+impl Default for UiLowering {
+    fn default() -> Self {
+        Self {
+            builder: UiTreeBuilder::new(),
+            authored_theme: UiThemeRegistry {
+                active_theme: None,
+                ..UiThemeRegistry::default()
+            },
+        }
+    }
+}
+
+fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain_ui::UiNodeId> {
     match node {
         VNode::Text(text) => {
-            let id = builder.alloc_id();
+            let id = lowering.builder.alloc_id();
             let mut ui_node = UiNode::new(id, UiWidgetKind::Text);
             ui_node
                 .props
                 .insert("text".to_string(), UiValue::String(text.clone()));
-            builder.add_node(ui_node);
-            id
+            lowering.builder.add_node(ui_node);
+            Some(id)
         }
         VNode::Fragment(children) => {
             let child_ids = children
                 .iter()
-                .map(|child| lower_vnode_into_tree(builder, child))
+                .filter_map(|child| lower_vnode_into_tree(lowering, child))
                 .collect::<Vec<_>>();
-            let id = builder.alloc_id();
+            let id = lowering.builder.alloc_id();
             let mut ui_node = UiNode::new(id, UiWidgetKind::Slot);
             ui_node.layout = default_layout_for_tag("slot");
             ui_node.children = child_ids.clone();
-            builder.add_node(ui_node);
+            lowering.builder.add_node(ui_node);
             if !child_ids.is_empty() {
-                builder.replace_children(id, child_ids);
+                lowering.builder.replace_children(id, child_ids);
             }
-            id
+            Some(id)
         }
         VNode::Element {
             tag,
@@ -478,11 +504,20 @@ fn lower_vnode_into_tree(builder: &mut UiTreeBuilder, node: &VNode) -> kain_ui::
             children,
             key,
         } => {
+            if tag.eq_ignore_ascii_case("theme") {
+                extract_theme_block(&mut lowering.authored_theme, attrs, children);
+                return None;
+            }
+
+            if tag.eq_ignore_ascii_case("text") {
+                return Some(lower_text_element(lowering, attrs, children, key));
+            }
+
             let child_ids = children
                 .iter()
-                .map(|child| lower_vnode_into_tree(builder, child))
+                .filter_map(|child| lower_vnode_into_tree(lowering, child))
                 .collect::<Vec<_>>();
-            let id = builder.alloc_id();
+            let id = lowering.builder.alloc_id();
             let mut ui_node = UiNode::new(id, widget_kind_for_tag(tag));
             ui_node.layout = layout_from_attrs(tag, attrs);
             ui_node.children = child_ids.clone();
@@ -494,18 +529,21 @@ fn lower_vnode_into_tree(builder: &mut UiTreeBuilder, node: &VNode) -> kain_ui::
                     .props
                     .insert("key".to_string(), UiValue::String(key.clone()));
             }
+            apply_canonical_attrs_to_ui_node(&mut ui_node, tag, attrs);
             apply_attrs_to_ui_props(&mut ui_node.props, attrs);
-            builder.add_node(ui_node);
+            lowering.builder.add_node(ui_node);
             if !child_ids.is_empty() {
-                builder.replace_children(id, child_ids);
+                lowering.builder.replace_children(id, child_ids);
             }
-            id
+            Some(id)
         }
         VNode::Component { instance, rendered } => {
-            let rendered_id = lower_vnode_into_tree(builder, rendered);
-            let id = builder.alloc_id();
+            let rendered_id = lower_vnode_into_tree(lowering, rendered);
+            let id = lowering.builder.alloc_id();
             let mut ui_node = UiNode::new(id, UiWidgetKind::ComponentRef(instance.name.clone()));
-            ui_node.children = vec![rendered_id];
+            if let Some(rendered_id) = rendered_id {
+                ui_node.children = vec![rendered_id];
+            }
             for (name, value) in &instance.props {
                 ui_node
                     .props
@@ -516,9 +554,11 @@ fn lower_vnode_into_tree(builder: &mut UiTreeBuilder, node: &VNode) -> kain_ui::
                     .props
                     .insert(format!("state.{name}"), runtime_value_to_ui_value(value));
             }
-            builder.add_node(ui_node);
-            builder.replace_children(id, vec![rendered_id]);
-            id
+            lowering.builder.add_node(ui_node);
+            if let Some(rendered_id) = rendered_id {
+                lowering.builder.replace_children(id, vec![rendered_id]);
+            }
+            Some(id)
         }
     }
 }
@@ -527,9 +567,15 @@ fn apply_attrs_to_ui_props(props: &mut BTreeMap<String, UiValue>, attrs: &[UIAtt
     for attr in attrs {
         match attr {
             UIAttr::Property { name, value } => {
+                if should_skip_prop_attr(name) {
+                    continue;
+                }
                 props.insert(name.clone(), runtime_value_to_ui_value(value));
             }
             UIAttr::Bool { name, value } => {
+                if should_skip_prop_attr(name) {
+                    continue;
+                }
                 props.insert(name.clone(), UiValue::Bool(*value));
             }
             UIAttr::Event { name, event, .. } => {
@@ -540,6 +586,38 @@ fn apply_attrs_to_ui_props(props: &mut BTreeMap<String, UiValue>, attrs: &[UIAtt
             }
         }
     }
+}
+
+fn lower_text_element(
+    lowering: &mut UiLowering,
+    attrs: &[UIAttr],
+    children: &[VNode],
+    key: &Option<String>,
+) -> kain_ui::UiNodeId {
+    let id = lowering.builder.alloc_id();
+    let mut ui_node = UiNode::new(id, UiWidgetKind::Text);
+    ui_node.layout = layout_from_attrs("text", attrs);
+    if let Some(key) = key {
+        ui_node
+            .props
+            .insert("key".to_string(), UiValue::String(key.clone()));
+    }
+    ui_node.props.insert(
+        "text".to_string(),
+        UiValue::String(render_text_children(children)),
+    );
+    apply_canonical_attrs_to_ui_node(&mut ui_node, "text", attrs);
+    apply_attrs_to_ui_props(&mut ui_node.props, attrs);
+    lowering.builder.add_node(ui_node);
+    id
+}
+
+fn allocate_empty_root(builder: &mut UiTreeBuilder) -> kain_ui::UiNodeId {
+    let id = builder.alloc_id();
+    let mut ui_node = UiNode::new(id, UiWidgetKind::Slot);
+    ui_node.layout = default_layout_for_tag("slot");
+    builder.add_node(ui_node);
+    id
 }
 
 fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
@@ -559,10 +637,145 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
             UIAttr::Property { name, value } if name == "padding" => {
                 layout.padding = runtime_value_to_f32(value).unwrap_or(layout.padding);
             }
+            UIAttr::Property { name, value } if name == "min_width" => {
+                layout.min_width = runtime_value_to_f32(value).or(layout.min_width);
+            }
+            UIAttr::Property { name, value } if name == "min_height" => {
+                layout.min_height = runtime_value_to_f32(value).or(layout.min_height);
+            }
+            UIAttr::Property { name, value } if name == "max_width" => {
+                layout.max_width = runtime_value_to_f32(value).or(layout.max_width);
+            }
+            UIAttr::Property { name, value } if name == "max_height" => {
+                layout.max_height = runtime_value_to_f32(value).or(layout.max_height);
+            }
+            UIAttr::Property { name, value } if name == "width" => {
+                layout.width = parse_ui_length_value(value).or(layout.width);
+            }
+            UIAttr::Property { name, value } if name == "height" => {
+                layout.height = parse_ui_length_value(value).or(layout.height);
+            }
+            UIAttr::Property { name, value } if name == "flex_grow" => {
+                layout.flex_grow = runtime_value_to_f32(value).unwrap_or(layout.flex_grow);
+            }
+            UIAttr::Property { name, value } if name == "flex_shrink" => {
+                layout.flex_shrink = runtime_value_to_f32(value).unwrap_or(layout.flex_shrink);
+            }
+            UIAttr::Property { name, value } if name == "align" || name == "align_items" => {
+                if let Some(alignment) = value_as_str(value).and_then(parse_layout_alignment) {
+                    layout.align_items = alignment;
+                }
+            }
+            UIAttr::Property { name, value } if name == "justify" || name == "justify_content" => {
+                if let Some(alignment) = value_as_str(value).and_then(parse_layout_alignment) {
+                    layout.justify_content = alignment;
+                }
+            }
+            UIAttr::Property { name, value } if name == "overflow" => {
+                if let Some(behavior) = value_as_str(value).and_then(parse_overflow_behavior) {
+                    layout.overflow_x = behavior;
+                    layout.overflow_y = behavior;
+                }
+            }
+            UIAttr::Property { name, value } if name == "overflow_x" => {
+                if let Some(behavior) = value_as_str(value).and_then(parse_overflow_behavior) {
+                    layout.overflow_x = behavior;
+                }
+            }
+            UIAttr::Property { name, value } if name == "overflow_y" => {
+                if let Some(behavior) = value_as_str(value).and_then(parse_overflow_behavior) {
+                    layout.overflow_y = behavior;
+                }
+            }
+            UIAttr::Property { name, value } if name == "dock" => {
+                layout.dock = value_as_str(value)
+                    .and_then(parse_dock_placement)
+                    .or(layout.dock);
+            }
+            UIAttr::Property { name, value } if name == "split_ratio" => {
+                layout.split_ratio = runtime_value_to_f32(value).or(layout.split_ratio);
+            }
+            UIAttr::Property { name, value } if name == "persistent_layout_id" => {
+                layout.persistent_layout_id = value_as_str(value).map(ToString::to_string);
+            }
+            UIAttr::Bool { name, value } if name == "resizable" => {
+                layout.resizable = *value;
+            }
+            UIAttr::Property { name, value } if name == "resizable" => {
+                if let Some(value) = value_as_bool(value) {
+                    layout.resizable = value;
+                }
+            }
             _ => {}
         }
     }
     layout
+}
+
+fn apply_canonical_attrs_to_ui_node(node: &mut UiNode, tag: &str, attrs: &[UIAttr]) {
+    if let Some(scope) = attr_string(attrs, "scope").or_else(|| attr_string(attrs, "theme_scope")) {
+        node.style.theme_scope = Some(scope);
+    }
+
+    if let Some(variant) = attr_string(attrs, "variant") {
+        node.style.variant = Some(variant);
+    }
+
+    node.style
+        .classes
+        .extend(attr_list(attrs, &["class", "classes"]));
+    node.style.tokens.extend(attr_list(attrs, &["tokens"]));
+
+    for state in attr_list(attrs, &["states"]) {
+        if let Some(parsed) = parse_style_state(&state) {
+            if !node.style.states.contains(&parsed) {
+                node.style.states.push(parsed);
+            }
+        }
+    }
+
+    if let Some(role) = attr_string(attrs, "role") {
+        node.props
+            .insert("role".to_string(), UiValue::String(role.clone()));
+        if tag.eq_ignore_ascii_case("text") && node.style.variant.is_none() {
+            node.style.variant = Some(role);
+        }
+    }
+}
+
+fn should_skip_prop_attr(name: &str) -> bool {
+    matches!(
+        name,
+        "layout"
+            | "gap"
+            | "padding"
+            | "min_width"
+            | "min_height"
+            | "max_width"
+            | "max_height"
+            | "width"
+            | "height"
+            | "flex_grow"
+            | "flex_shrink"
+            | "align"
+            | "align_items"
+            | "justify"
+            | "justify_content"
+            | "overflow"
+            | "overflow_x"
+            | "overflow_y"
+            | "dock"
+            | "split_ratio"
+            | "resizable"
+            | "persistent_layout_id"
+            | "scope"
+            | "theme_scope"
+            | "variant"
+            | "class"
+            | "classes"
+            | "tokens"
+            | "states"
+    )
 }
 
 fn parse_layout_kind(name: &str) -> Option<kain_ui::UiLayoutKind> {
@@ -584,10 +797,119 @@ fn parse_layout_kind(name: &str) -> Option<kain_ui::UiLayoutKind> {
         .map(|(_, kind)| *kind)
 }
 
+fn parse_layout_alignment(value: &str) -> Option<UiLayoutAlignment> {
+    const ALIGNMENTS: &[(&str, UiLayoutAlignment)] = &[
+        ("start", UiLayoutAlignment::Start),
+        ("center", UiLayoutAlignment::Center),
+        ("end", UiLayoutAlignment::End),
+        ("stretch", UiLayoutAlignment::Stretch),
+        ("space-between", UiLayoutAlignment::SpaceBetween),
+        ("space_between", UiLayoutAlignment::SpaceBetween),
+        ("between", UiLayoutAlignment::SpaceBetween),
+    ];
+
+    ALIGNMENTS
+        .iter()
+        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(value))
+        .map(|(_, alignment)| *alignment)
+}
+
+fn parse_overflow_behavior(value: &str) -> Option<UiOverflowBehavior> {
+    const BEHAVIORS: &[(&str, UiOverflowBehavior)] = &[
+        ("visible", UiOverflowBehavior::Visible),
+        ("hidden", UiOverflowBehavior::Hidden),
+        ("scroll", UiOverflowBehavior::Scroll),
+        ("auto", UiOverflowBehavior::Auto),
+    ];
+
+    BEHAVIORS
+        .iter()
+        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(value))
+        .map(|(_, behavior)| *behavior)
+}
+
+fn parse_dock_placement(value: &str) -> Option<UiDockPlacement> {
+    const PLACEMENTS: &[(&str, UiDockPlacement)] = &[
+        ("center", UiDockPlacement::Center),
+        ("left", UiDockPlacement::Left),
+        ("right", UiDockPlacement::Right),
+        ("top", UiDockPlacement::Top),
+        ("bottom", UiDockPlacement::Bottom),
+        ("tab", UiDockPlacement::Tab),
+    ];
+
+    PLACEMENTS
+        .iter()
+        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(value))
+        .map(|(_, placement)| *placement)
+}
+
+fn parse_style_state(value: &str) -> Option<UiStyleState> {
+    const STATES: &[(&str, UiStyleState)] = &[
+        ("hovered", UiStyleState::Hovered),
+        ("active", UiStyleState::Active),
+        ("focused", UiStyleState::Focused),
+        ("disabled", UiStyleState::Disabled),
+        ("selected", UiStyleState::Selected),
+        ("dragging", UiStyleState::Dragging),
+    ];
+
+    STATES
+        .iter()
+        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(value))
+        .map(|(_, state)| *state)
+}
+
+fn parse_ui_length_value(value: &Value) -> Option<UiLength> {
+    match value {
+        Value::Int(value) => Some(UiLength {
+            value: *value as f32,
+            unit: UiLengthUnit::Px,
+        }),
+        Value::Float(value) => Some(UiLength {
+            value: *value as f32,
+            unit: UiLengthUnit::Px,
+        }),
+        Value::String(value) => parse_ui_length(value),
+        _ => None,
+    }
+}
+
+fn parse_ui_length(value: &str) -> Option<UiLength> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if trimmed.eq_ignore_ascii_case("auto") {
+        return Some(UiLength {
+            value: 0.0,
+            unit: UiLengthUnit::Auto,
+        });
+    }
+
+    for (suffix, unit) in [
+        ("px", UiLengthUnit::Px),
+        ("%", UiLengthUnit::Percent),
+        ("fr", UiLengthUnit::Fr),
+    ] {
+        if let Some(raw) = trimmed.strip_suffix(suffix) {
+            let value = raw.trim().parse::<f32>().ok()?;
+            return Some(UiLength { value, unit });
+        }
+    }
+
+    trimmed.parse::<f32>().ok().map(|value| UiLength {
+        value,
+        unit: UiLengthUnit::Px,
+    })
+}
+
 fn runtime_value_to_f32(value: &Value) -> Option<f32> {
     match value {
         Value::Int(value) => Some(*value as f32),
         Value::Float(value) => Some(*value as f32),
+        Value::String(value) => value.trim().parse::<f32>().ok(),
         _ => None,
     }
 }
@@ -601,6 +923,377 @@ fn runtime_value_to_ui_value(value: &Value) -> UiValue {
         Value::String(value) => UiValue::String(value.clone()),
         Value::JSX(node) => UiValue::String(render_to_string(node)),
         _ => UiValue::String(value.to_string()),
+    }
+}
+
+fn extract_theme_block(registry: &mut UiThemeRegistry, attrs: &[UIAttr], children: &[VNode]) {
+    if registry.active_theme.is_none() {
+        registry.active_theme = theme_block_name(attrs);
+    }
+
+    for child in children {
+        extract_theme_directive(registry, child, None);
+    }
+}
+
+fn extract_theme_directive(
+    registry: &mut UiThemeRegistry,
+    node: &VNode,
+    inherited_scope: Option<&str>,
+) {
+    match node {
+        VNode::Element {
+            tag,
+            attrs,
+            children,
+            ..
+        } if tag.eq_ignore_ascii_case("scope") => {
+            let Some(name) = attr_string(attrs, "name") else {
+                return;
+            };
+            push_theme_scope(
+                registry,
+                UiThemeScope {
+                    selector: attr_string(attrs, "selector")
+                        .unwrap_or_else(|| format!("scope:{name}")),
+                    parent: attr_string(attrs, "parent"),
+                    name: name.clone(),
+                },
+            );
+            push_theme_diff_key(registry, name.clone());
+            for child in children {
+                extract_theme_directive(registry, child, Some(name.as_str()));
+            }
+        }
+        VNode::Element {
+            tag,
+            attrs,
+            children,
+            ..
+        } if tag.eq_ignore_ascii_case("token") => {
+            if let Some(token) = theme_token_from_attrs(attrs, None) {
+                push_theme_token(registry, token);
+            }
+            for child in children {
+                extract_theme_directive(registry, child, inherited_scope);
+            }
+        }
+        VNode::Element {
+            tag,
+            attrs,
+            children,
+            ..
+        } if tag.eq_ignore_ascii_case("variant") => {
+            let Some(name) = attr_string(attrs, "name") else {
+                return;
+            };
+            let scope = attr_string(attrs, "scope")
+                .or_else(|| inherited_scope.map(ToString::to_string))
+                .unwrap_or_else(|| "default".to_string());
+            let mut tokens = attr_list(attrs, &["tokens"]);
+            for child in children {
+                if let Some(token) =
+                    theme_token_from_vnode(child, Some(&format!("variant.{name}.")))
+                {
+                    tokens.push(token.name.clone());
+                    push_theme_token(registry, token);
+                } else {
+                    extract_theme_directive(registry, child, Some(scope.as_str()));
+                }
+            }
+            push_theme_variant(
+                registry,
+                UiThemeVariant {
+                    scope,
+                    name,
+                    tokens,
+                },
+            );
+        }
+        VNode::Element {
+            tag,
+            attrs,
+            children,
+            ..
+        } if tag.eq_ignore_ascii_case("widget") => {
+            let Some(kind) = attr_string(attrs, "kind") else {
+                return;
+            };
+            let scope = attr_string(attrs, "scope")
+                .or_else(|| inherited_scope.map(ToString::to_string))
+                .unwrap_or_else(|| "default".to_string());
+            let variant = attr_string(attrs, "variant");
+            let prefix = if let Some(variant) = variant.as_deref() {
+                format!("widget.{kind}.variant.{variant}.")
+            } else {
+                format!("widget.{kind}.")
+            };
+            let mut tokens = attr_list(attrs, &["tokens"]);
+            for child in children {
+                if let Some(token) = theme_token_from_vnode(child, Some(prefix.as_str())) {
+                    tokens.push(token.name.clone());
+                    push_theme_token(registry, token);
+                } else {
+                    extract_theme_directive(registry, child, Some(scope.as_str()));
+                }
+            }
+            if let Some(variant) = variant {
+                push_theme_variant(
+                    registry,
+                    UiThemeVariant {
+                        scope,
+                        name: variant,
+                        tokens,
+                    },
+                );
+            }
+        }
+        VNode::Element {
+            tag,
+            attrs,
+            children,
+            ..
+        } if tag.eq_ignore_ascii_case("textvariant") => {
+            let mut widget_attrs = attrs.to_vec();
+            if attr_string(attrs, "kind").is_none() {
+                widget_attrs.push(UIAttr::Property {
+                    name: "kind".to_string(),
+                    value: Value::String("text".to_string()),
+                });
+            }
+            if attr_string(attrs, "variant").is_none() {
+                if let Some(name) = attr_string(attrs, "name") {
+                    widget_attrs.push(UIAttr::Property {
+                        name: "variant".to_string(),
+                        value: Value::String(name),
+                    });
+                }
+            }
+            extract_theme_directive(
+                registry,
+                &VNode::Element {
+                    tag: "widget".to_string(),
+                    attrs: widget_attrs,
+                    children: children.to_vec(),
+                    key: None,
+                },
+                inherited_scope,
+            );
+        }
+        VNode::Element { children, .. } | VNode::Fragment(children) => {
+            for child in children {
+                extract_theme_directive(registry, child, inherited_scope);
+            }
+        }
+        VNode::Component { rendered, .. } => {
+            extract_theme_directive(registry, rendered, inherited_scope);
+        }
+        VNode::Text(_) => {}
+    }
+}
+
+fn theme_block_name(attrs: &[UIAttr]) -> Option<String> {
+    match attr_value(attrs, "active") {
+        Some(Value::String(name)) if !name.trim().is_empty() => Some(name.clone()),
+        Some(value) if value_as_bool(value) == Some(true) => attr_string(attrs, "name"),
+        Some(_) => None,
+        None => attr_string(attrs, "name"),
+    }
+}
+
+fn theme_token_from_vnode(node: &VNode, prefix: Option<&str>) -> Option<UiThemeToken> {
+    match node {
+        VNode::Element {
+            tag,
+            attrs,
+            children: _,
+            ..
+        } if tag.eq_ignore_ascii_case("token") => theme_token_from_attrs(attrs, prefix),
+        VNode::Component { rendered, .. } => theme_token_from_vnode(rendered, prefix),
+        _ => None,
+    }
+}
+
+fn theme_token_from_attrs(attrs: &[UIAttr], prefix: Option<&str>) -> Option<UiThemeToken> {
+    let name = attr_string(attrs, "name")?;
+    let value = attr_value(attrs, "value")?;
+    let full_name = format!("{}{}", prefix.unwrap_or_default(), name);
+    Some(UiThemeToken {
+        category: attr_string(attrs, "category")
+            .unwrap_or_else(|| infer_theme_token_category(&full_name)),
+        name: full_name,
+        value: runtime_value_to_ui_value(value),
+    })
+}
+
+fn infer_theme_token_category(name: &str) -> String {
+    let category = name
+        .split('.')
+        .find(|segment| {
+            !segment.eq_ignore_ascii_case("widget") && !segment.eq_ignore_ascii_case("variant")
+        })
+        .unwrap_or("generic");
+    category.to_string()
+}
+
+fn merge_authored_theme_registry(
+    derived: &UiThemeRegistry,
+    authored: UiThemeRegistry,
+) -> UiThemeRegistry {
+    let mut merged = UiThemeRegistry {
+        active_theme: authored
+            .active_theme
+            .or_else(|| derived.active_theme.clone()),
+        ..UiThemeRegistry::default()
+    };
+
+    for scope in &derived.scopes {
+        push_theme_scope(&mut merged, scope.clone());
+    }
+    for key in &derived.diff_keys {
+        push_theme_diff_key(&mut merged, key.clone());
+    }
+    for scope in authored.scopes {
+        push_theme_scope(&mut merged, scope);
+    }
+    for token in authored.semantic_tokens {
+        push_theme_token(&mut merged, token);
+    }
+    for variant in authored.variants {
+        push_theme_variant(&mut merged, variant);
+    }
+    for key in authored.diff_keys {
+        push_theme_diff_key(&mut merged, key);
+    }
+
+    merged
+}
+
+fn theme_registry_is_empty(registry: &UiThemeRegistry) -> bool {
+    registry.active_theme.is_none()
+        && registry.scopes.is_empty()
+        && registry.semantic_tokens.is_empty()
+        && registry.variants.is_empty()
+        && registry.diff_keys.is_empty()
+}
+
+fn push_theme_scope(registry: &mut UiThemeRegistry, scope: UiThemeScope) {
+    if let Some(existing) = registry
+        .scopes
+        .iter_mut()
+        .find(|entry| entry.name == scope.name)
+    {
+        *existing = scope;
+    } else {
+        registry.scopes.push(scope);
+    }
+}
+
+fn push_theme_token(registry: &mut UiThemeRegistry, token: UiThemeToken) {
+    if let Some(existing) = registry
+        .semantic_tokens
+        .iter_mut()
+        .find(|entry| entry.name == token.name)
+    {
+        *existing = token;
+    } else {
+        registry.semantic_tokens.push(token);
+    }
+}
+
+fn push_theme_variant(registry: &mut UiThemeRegistry, variant: UiThemeVariant) {
+    if let Some(existing) = registry
+        .variants
+        .iter_mut()
+        .find(|entry| entry.scope == variant.scope && entry.name == variant.name)
+    {
+        for token in variant.tokens {
+            if !existing.tokens.contains(&token) {
+                existing.tokens.push(token);
+            }
+        }
+    } else {
+        registry.variants.push(variant);
+    }
+}
+
+fn push_theme_diff_key(registry: &mut UiThemeRegistry, key: String) {
+    if !registry.diff_keys.contains(&key) {
+        registry.diff_keys.push(key);
+    }
+}
+
+fn render_text_children(children: &[VNode]) -> String {
+    children
+        .iter()
+        .map(render_to_string)
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn attr_value<'a>(attrs: &'a [UIAttr], name: &str) -> Option<&'a Value> {
+    attrs.iter().find_map(|attr| match attr {
+        UIAttr::Property {
+            name: attr_name,
+            value,
+        } if attr_name == name => Some(value),
+        _ => None,
+    })
+}
+
+fn attr_string(attrs: &[UIAttr], name: &str) -> Option<String> {
+    match attrs.iter().find(|attr| match attr {
+        UIAttr::Property {
+            name: attr_name, ..
+        }
+        | UIAttr::Bool {
+            name: attr_name, ..
+        }
+        | UIAttr::Event {
+            name: attr_name, ..
+        } => attr_name == name,
+    }) {
+        Some(UIAttr::Property { value, .. }) => value_as_str(value).map(ToString::to_string),
+        Some(UIAttr::Bool { value, .. }) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn attr_list(attrs: &[UIAttr], names: &[&str]) -> Vec<String> {
+    let mut values = Vec::new();
+    for name in names {
+        if let Some(value) = attr_string(attrs, name) {
+            for entry in value
+                .split(|c: char| c == ',' || c == '|' || c.is_whitespace())
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+            {
+                let entry = entry.to_string();
+                if !values.contains(&entry) {
+                    values.push(entry);
+                }
+            }
+        }
+    }
+    values
+}
+
+fn value_as_str(value: &Value) -> Option<&str> {
+    match value {
+        Value::String(value) => Some(value.as_str()),
+        _ => None,
+    }
+}
+
+fn value_as_bool(value: &Value) -> Option<bool> {
+    match value {
+        Value::Bool(value) => Some(*value),
+        Value::String(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "true" | "yes" | "on" => Some(true),
+            "false" | "no" | "off" => Some(false),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -967,6 +1660,151 @@ component App():
         assert!(debug.contains("Panel"));
         assert!(debug.contains("Inspector"));
         assert!(debug.contains("Ready"));
+    }
+
+    #[test]
+    fn test_build_ui_output_from_source_extracts_theme_blocks_and_text_roles() {
+        let source = r##"
+component App():
+    render <slot>
+        <theme name="forge">
+            <scope name="app_shell" selector="app-shell" />
+            <token name="surface.background" category="color" value="#101418" />
+            <variant scope="app_shell" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+            </variant>
+            <widget kind="panel" scope="app_shell" variant="hero">
+                <token name="surface.padding" category="space" value={14} />
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <textvariant scope="app_shell" name="hero">
+                <token name="body.size" category="type" value={30} />
+            </textvariant>
+        </theme>
+        <panel scope="app_shell" variant="hero" class="dense accent">
+            <text role="hero">Studio</text>
+        </panel>
+    </slot>
+"##;
+
+        let output = build_ui_output_from_source(source, "App").expect("source should render");
+        let registry = &output.systems.theme_registry;
+
+        assert_eq!(registry.active_theme.as_deref(), Some("forge"));
+        assert!(registry
+            .scopes
+            .iter()
+            .any(|scope| scope.name == "app_shell" && scope.selector == "app-shell"));
+        assert!(registry
+            .semantic_tokens
+            .iter()
+            .any(|token| token.name == "surface.background"
+                && token.value == UiValue::String("#101418".to_string())));
+        assert!(registry
+            .semantic_tokens
+            .iter()
+            .any(|token| token.name == "variant.hero.surface.mode"
+                && token.value == UiValue::String("glass".to_string())));
+        assert!(registry.semantic_tokens.iter().any(|token| token.name
+            == "widget.panel.variant.hero.surface.padding"
+            && token.value == UiValue::Int(14)));
+        assert!(registry
+            .semantic_tokens
+            .iter()
+            .any(|token| token.name == "widget.text.variant.hero.body.size"
+                && token.value == UiValue::Int(30)));
+        assert!(registry.variants.iter().any(|variant| {
+            variant.scope == "app_shell"
+                && variant.name == "hero"
+                && variant
+                    .tokens
+                    .contains(&"widget.panel.variant.hero.density".to_string())
+                && variant
+                    .tokens
+                    .contains(&"widget.text.variant.hero.body.size".to_string())
+        }));
+        assert!(!registry
+            .semantic_tokens
+            .iter()
+            .any(|token| token.name == "text.default"));
+
+        let root = output.tree.root_node().expect("root node should exist");
+        assert_eq!(root.kind, UiWidgetKind::ComponentRef("App".to_string()));
+        assert_eq!(output.tree.nodes.len(), 4);
+
+        let slot = output
+            .tree
+            .node(root.children[0])
+            .expect("slot node should exist");
+        assert_eq!(slot.kind, UiWidgetKind::Slot);
+
+        let panel = output
+            .tree
+            .node(slot.children[0])
+            .expect("panel node should exist");
+        assert_eq!(panel.kind, UiWidgetKind::Panel);
+        assert_eq!(panel.style.theme_scope.as_deref(), Some("app_shell"));
+        assert_eq!(panel.style.variant.as_deref(), Some("hero"));
+        assert!(panel.style.classes.contains(&"dense".to_string()));
+        assert!(panel.style.classes.contains(&"accent".to_string()));
+
+        let text = output
+            .tree
+            .node(panel.children[0])
+            .expect("text node should exist");
+        assert_eq!(text.kind, UiWidgetKind::Text);
+        assert_eq!(text.style.variant.as_deref(), Some("hero"));
+        assert_eq!(
+            text.props.get("role"),
+            Some(&UiValue::String("hero".to_string()))
+        );
+        assert_eq!(
+            text.props.get("text"),
+            Some(&UiValue::String("Studio".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_layout_attrs_lower_into_semantic_layout() {
+        let source = r#"
+component App():
+    render <panel layout="dock" dock="left" split_ratio={0.25} width="35%" min_width={220} max_width={480} flex_grow={1} flex_shrink={0} align="stretch" justify="space-between" overflow="hidden" resizable={true} persistent_layout_id="shell_left" />
+"#;
+
+        let output = build_ui_output_from_source(source, "App").expect("source should render");
+        let root = output.tree.root_node().expect("root node should exist");
+        let panel = output
+            .tree
+            .node(root.children[0])
+            .expect("panel node should exist");
+
+        assert_eq!(panel.layout.kind, kain_ui::UiLayoutKind::Dock);
+        assert_eq!(panel.layout.dock, Some(UiDockPlacement::Left));
+        assert_eq!(panel.layout.split_ratio, Some(0.25));
+        assert_eq!(
+            panel.layout.width.map(|value| value.unit),
+            Some(UiLengthUnit::Percent)
+        );
+        assert_eq!(panel.layout.width.map(|value| value.value), Some(35.0));
+        assert_eq!(panel.layout.min_width, Some(220.0));
+        assert_eq!(panel.layout.max_width, Some(480.0));
+        assert_eq!(panel.layout.flex_grow, 1.0);
+        assert_eq!(panel.layout.flex_shrink, 0.0);
+        assert_eq!(panel.layout.align_items, UiLayoutAlignment::Stretch);
+        assert_eq!(
+            panel.layout.justify_content,
+            UiLayoutAlignment::SpaceBetween
+        );
+        assert_eq!(panel.layout.overflow_x, UiOverflowBehavior::Hidden);
+        assert_eq!(panel.layout.overflow_y, UiOverflowBehavior::Hidden);
+        assert!(panel.layout.resizable);
+        assert_eq!(
+            panel.layout.persistent_layout_id.as_deref(),
+            Some("shell_left")
+        );
+        assert!(!panel.props.contains_key("layout"));
+        assert!(!panel.props.contains_key("dock"));
+        assert!(!panel.props.contains_key("resizable"));
     }
 
     #[test]

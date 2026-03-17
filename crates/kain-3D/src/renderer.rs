@@ -258,9 +258,9 @@ impl SoftwareRenderer {
 
         for instance in scene.animated_instances(time_seconds) {
             let mesh = scene
-                .meshes
-                .get(&instance.mesh)
+                .resolved_mesh(&instance.mesh, time_seconds)
                 .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
+            let mesh = mesh.as_ref();
             let material = scene
                 .materials
                 .get(&instance.material)

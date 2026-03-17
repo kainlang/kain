@@ -55,6 +55,13 @@ enum SharedScalarKind {
     Float,
 }
 
+#[derive(Clone, Copy)]
+enum MaterializationMode {
+    Auto,
+    Shared,
+    Owned,
+}
+
 #[derive(Clone)]
 struct SharedPythonBuffer {
     owner: PyObject,
@@ -295,6 +302,18 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Materialize a Python image payload into a Kain-owned typed image buffer",
         },
         BuiltinFn {
+            name: "kain_image_from_py_shared",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python image payload with required shared backing; errors if zero-copy is unavailable",
+        },
+        BuiltinFn {
+            name: "kain_image_from_py_owned",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python image payload into an owned Kain buffer without shared backing",
+        },
+        BuiltinFn {
             name: "kain_image_info",
             params: vec![("image", "Any")],
             return_type: "Any",
@@ -330,6 +349,18 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             doc: "Materialize a Python tensor payload into a Kain-owned typed tensor buffer",
         },
         BuiltinFn {
+            name: "kain_tensor_from_py_shared",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python tensor payload with required shared backing; errors if zero-copy is unavailable",
+        },
+        BuiltinFn {
+            name: "kain_tensor_from_py_owned",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python tensor payload into an owned Kain buffer without shared backing",
+        },
+        BuiltinFn {
             name: "kain_tensor_info",
             params: vec![("tensor", "Any")],
             return_type: "Any",
@@ -358,6 +389,18 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             params: vec![("target", "Any")],
             return_type: "Any",
             doc: "Materialize Python geometry into a Kain-owned typed geometry buffer",
+        },
+        BuiltinFn {
+            name: "kain_geometry_from_py_shared",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize Python geometry with required shared backing; errors if zero-copy is unavailable",
+        },
+        BuiltinFn {
+            name: "kain_geometry_from_py_owned",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize Python geometry into owned Kain buffers without shared backing",
         },
         BuiltinFn {
             name: "kain_geometry_info",
@@ -451,16 +494,22 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("py_tensor_get", py_tensor_get_native);
     env.register_native_fn("py_tensor_set", py_tensor_set_native);
     env.register_native_fn("kain_image_from_py", kain_image_from_py_native);
+    env.register_native_fn("kain_image_from_py_shared", kain_image_from_py_shared_native);
+    env.register_native_fn("kain_image_from_py_owned", kain_image_from_py_owned_native);
     env.register_native_fn("kain_image_info", kain_image_info_native);
     env.register_native_fn("kain_image_pixel", kain_image_pixel_native);
     env.register_native_fn("kain_image_set_pixel", kain_image_set_pixel_native);
     env.register_native_fn("kain_image_to_py", kain_image_to_py_native);
     env.register_native_fn("kain_tensor_from_py", kain_tensor_from_py_native);
+    env.register_native_fn("kain_tensor_from_py_shared", kain_tensor_from_py_shared_native);
+    env.register_native_fn("kain_tensor_from_py_owned", kain_tensor_from_py_owned_native);
     env.register_native_fn("kain_tensor_info", kain_tensor_info_native);
     env.register_native_fn("kain_tensor_get", kain_tensor_get_native);
     env.register_native_fn("kain_tensor_set", kain_tensor_set_native);
     env.register_native_fn("kain_tensor_to_py", kain_tensor_to_py_native);
     env.register_native_fn("kain_geometry_from_py", kain_geometry_from_py_native);
+    env.register_native_fn("kain_geometry_from_py_shared", kain_geometry_from_py_shared_native);
+    env.register_native_fn("kain_geometry_from_py_owned", kain_geometry_from_py_owned_native);
     env.register_native_fn("kain_geometry_info", kain_geometry_info_native);
     env.register_native_fn("kain_geometry_vertex", kain_geometry_vertex_native);
     env.register_native_fn("kain_geometry_set_vertex", kain_geometry_set_vertex_native);
@@ -1096,11 +1145,16 @@ fn py_geometry_set_face_native(_env: &mut Env, args: Vec<Value>) -> KainResult<V
     })
 }
 
-fn kain_image_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+fn kain_image_from_py_impl(
+    env: &mut Env,
+    args: Vec<Value>,
+    mode: MaterializationMode,
+    fn_name: &str,
+) -> KainResult<Value> {
     if args.len() != 1 {
-        return Err(KainError::runtime(
-            "kain_image_from_py: expected 1 argument (target)",
-        ));
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected 1 argument (target)"
+        )));
     }
 
     let state = python_scope_state(env)?;
@@ -1109,8 +1163,30 @@ fn kain_image_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Valu
         let scope_dict = scope_dict_from_guard(py, &scope)?;
         let target = resolve_python_target(py, scope_dict, &args[0])?;
         let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
-        build_native_image(target.as_ref(py), &metadata)
+        build_native_image(target.as_ref(py), &metadata, mode, fn_name)
     })
+}
+
+fn kain_image_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_image_from_py_impl(env, args, MaterializationMode::Auto, "kain_image_from_py")
+}
+
+fn kain_image_from_py_shared_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_image_from_py_impl(
+        env,
+        args,
+        MaterializationMode::Shared,
+        "kain_image_from_py_shared",
+    )
+}
+
+fn kain_image_from_py_owned_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_image_from_py_impl(
+        env,
+        args,
+        MaterializationMode::Owned,
+        "kain_image_from_py_owned",
+    )
 }
 
 fn kain_image_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -1173,11 +1249,16 @@ fn kain_image_set_pixel_native(_env: &mut Env, args: Vec<Value>) -> KainResult<V
     Ok(Value::Unit)
 }
 
-fn kain_tensor_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+fn kain_tensor_from_py_impl(
+    env: &mut Env,
+    args: Vec<Value>,
+    mode: MaterializationMode,
+    fn_name: &str,
+) -> KainResult<Value> {
     if args.len() != 1 {
-        return Err(KainError::runtime(
-            "kain_tensor_from_py: expected 1 argument (target)",
-        ));
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected 1 argument (target)"
+        )));
     }
 
     let state = python_scope_state(env)?;
@@ -1186,8 +1267,30 @@ fn kain_tensor_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Val
         let scope_dict = scope_dict_from_guard(py, &scope)?;
         let target = resolve_python_target(py, scope_dict, &args[0])?;
         let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
-        build_native_tensor(target.as_ref(py), &metadata)
+        build_native_tensor(target.as_ref(py), &metadata, mode, fn_name)
     })
+}
+
+fn kain_tensor_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_tensor_from_py_impl(env, args, MaterializationMode::Auto, "kain_tensor_from_py")
+}
+
+fn kain_tensor_from_py_shared_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_tensor_from_py_impl(
+        env,
+        args,
+        MaterializationMode::Shared,
+        "kain_tensor_from_py_shared",
+    )
+}
+
+fn kain_tensor_from_py_owned_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_tensor_from_py_impl(
+        env,
+        args,
+        MaterializationMode::Owned,
+        "kain_tensor_from_py_owned",
+    )
 }
 
 fn kain_tensor_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -1226,11 +1329,16 @@ fn kain_tensor_set_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value>
     Ok(Value::Unit)
 }
 
-fn kain_geometry_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+fn kain_geometry_from_py_impl(
+    env: &mut Env,
+    args: Vec<Value>,
+    mode: MaterializationMode,
+    fn_name: &str,
+) -> KainResult<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(KainError::runtime(
-            "kain_geometry_from_py: expected (target) or (vertices, indices)",
-        ));
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected (target) or (vertices, indices)"
+        )));
     }
 
     let state = python_scope_state(env)?;
@@ -1254,8 +1362,32 @@ fn kain_geometry_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<V
             &vertex_metadata,
             index_metadata.as_ref(),
             source.as_ref().map(|value| value.as_ref(py)),
+            mode,
+            fn_name,
         )
     })
+}
+
+fn kain_geometry_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_geometry_from_py_impl(env, args, MaterializationMode::Auto, "kain_geometry_from_py")
+}
+
+fn kain_geometry_from_py_shared_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_geometry_from_py_impl(
+        env,
+        args,
+        MaterializationMode::Shared,
+        "kain_geometry_from_py_shared",
+    )
+}
+
+fn kain_geometry_from_py_owned_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    kain_geometry_from_py_impl(
+        env,
+        args,
+        MaterializationMode::Owned,
+        "kain_geometry_from_py_owned",
+    )
 }
 
 fn kain_geometry_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -2481,7 +2613,46 @@ fn shared_buffer_set_value(
     })
 }
 
-fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
+fn resolve_native_scalar_buffer(
+    py: Python<'_>,
+    target: &PyAny,
+    metadata: &PythonPayloadMetadata,
+    mode: MaterializationMode,
+    fn_name: &str,
+) -> KainResult<NativeScalarBuffer> {
+    match mode {
+        MaterializationMode::Auto => Ok(
+            try_build_shared_native_scalar_buffer(py, target, metadata)?.unwrap_or(
+                decode_native_scalar_buffer(
+                    export_payload_bytes(py, target)?.as_ref(py),
+                    &metadata.dtype,
+                )?,
+            ),
+        ),
+        MaterializationMode::Shared => try_build_shared_native_scalar_buffer(py, target, metadata)?
+            .ok_or_else(|| {
+                KainError::runtime(format!(
+                    "{fn_name}: shared backing is unavailable for {} {} (backend={}, dtype={}, shape={:?})",
+                    metadata.kind,
+                    metadata.label,
+                    metadata.backend,
+                    metadata.dtype,
+                    metadata.shape
+                ))
+            }),
+        MaterializationMode::Owned => Ok(decode_native_scalar_buffer(
+            export_payload_bytes(py, target)?.as_ref(py),
+            &metadata.dtype,
+        )?),
+    }
+}
+
+fn build_native_image(
+    target: &PyAny,
+    metadata: &PythonPayloadMetadata,
+    mode: MaterializationMode,
+    fn_name: &str,
+) -> KainResult<Value> {
     let info = build_image_info(metadata)?;
     let fields = struct_fields_from_value(info);
     let layout = struct_string_field(&fields, "layout")?;
@@ -2489,15 +2660,11 @@ fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainR
     let width = struct_int_field(&fields, "width")?;
     let height = struct_int_field(&fields, "height")?;
     let channels = struct_int_field(&fields, "channels")?;
-    let data = try_build_shared_native_scalar_buffer(target.py(), target, metadata)?
-        .unwrap_or(decode_native_scalar_buffer(
-            export_payload_bytes(target.py(), target)?.as_ref(target.py()),
-            &metadata.dtype,
-        )?);
+    let data = resolve_native_scalar_buffer(target.py(), target, metadata, mode, fn_name)?;
     let expected_len = checked_element_count(&metadata.shape)?;
     if data.len() != expected_len {
         return Err(KainError::runtime(format!(
-            "kain_image_from_py: decoded {} values but expected {expected_len}",
+            "{fn_name}: decoded {} values but expected {expected_len}",
             data.len()
         )));
     }
@@ -2518,16 +2685,17 @@ fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainR
     ))
 }
 
-fn build_native_tensor(target: &PyAny, metadata: &PythonPayloadMetadata) -> KainResult<Value> {
-    let data = try_build_shared_native_scalar_buffer(target.py(), target, metadata)?
-        .unwrap_or(decode_native_scalar_buffer(
-            export_payload_bytes(target.py(), target)?.as_ref(target.py()),
-            &metadata.dtype,
-        )?);
+fn build_native_tensor(
+    target: &PyAny,
+    metadata: &PythonPayloadMetadata,
+    mode: MaterializationMode,
+    fn_name: &str,
+) -> KainResult<Value> {
+    let data = resolve_native_scalar_buffer(target.py(), target, metadata, mode, fn_name)?;
     let expected_len = checked_element_count(&metadata.shape)?;
     if data.len() != expected_len {
         return Err(KainError::runtime(format!(
-            "kain_tensor_from_py: decoded {} values but expected {expected_len}",
+            "{fn_name}: decoded {} values but expected {expected_len}",
             data.len()
         )));
     }
@@ -2549,36 +2717,32 @@ fn build_native_geometry(
     vertex_metadata: &PythonPayloadMetadata,
     index_metadata: Option<&PythonPayloadMetadata>,
     source: Option<&PyAny>,
+    mode: MaterializationMode,
+    fn_name: &str,
 ) -> KainResult<Value> {
     let info = build_geometry_info(vertex_metadata, index_metadata)?;
     let fields = struct_fields_from_value(info);
     let components = struct_int_field(&fields, "components")?;
     let face_size = struct_int_field(&fields, "face_size")?;
 
-    let vertex_buffer = try_build_shared_native_scalar_buffer(vertices.py(), vertices, vertex_metadata)?
-        .unwrap_or(decode_native_scalar_buffer(
-            export_payload_bytes(vertices.py(), vertices)?.as_ref(vertices.py()),
-            &vertex_metadata.dtype,
-        )?);
+    let vertex_buffer =
+        resolve_native_scalar_buffer(vertices.py(), vertices, vertex_metadata, mode, fn_name)?;
     let expected_vertex_len = checked_element_count(&vertex_metadata.shape)?;
     if vertex_buffer.len() != expected_vertex_len {
         return Err(KainError::runtime(format!(
-            "kain_geometry_from_py: decoded {} vertex values but expected {expected_vertex_len}",
+            "{fn_name}: decoded {} vertex values but expected {expected_vertex_len}",
             vertex_buffer.len()
         )));
     }
 
     let index_buffer = match (indices, index_metadata) {
         (Some(indices), Some(metadata)) => {
-            let buffer = try_build_shared_native_scalar_buffer(indices.py(), indices, metadata)?
-                .unwrap_or(decode_native_scalar_buffer(
-                    export_payload_bytes(indices.py(), indices)?.as_ref(indices.py()),
-                    &metadata.dtype,
-                )?);
+            let buffer =
+                resolve_native_scalar_buffer(indices.py(), indices, metadata, mode, fn_name)?;
             let expected_index_len = checked_element_count(&metadata.shape)?;
             if buffer.len() != expected_index_len {
                 return Err(KainError::runtime(format!(
-                    "kain_geometry_from_py: decoded {} index values but expected {expected_index_len}",
+                    "{fn_name}: decoded {} index values but expected {expected_index_len}",
                     buffer.len()
                 )));
             }
@@ -2618,6 +2782,14 @@ fn native_image_info_value(image: &KainNativeImage) -> Value {
         "storage".to_string(),
         Value::String(image.data.scalar_kind().to_string()),
     );
+    fields.insert(
+        "ownership".to_string(),
+        Value::String(if image.data.is_shared() {
+            "shared".to_string()
+        } else {
+            "owned".to_string()
+        }),
+    );
     fields.insert("zero_copy".to_string(), Value::Bool(image.data.is_shared()));
     fields.insert(
         "source_backend".to_string(),
@@ -2640,6 +2812,14 @@ fn native_tensor_info_value(tensor: &KainNativeTensor) -> Value {
     fields.insert(
         "storage".to_string(),
         Value::String(tensor.data.scalar_kind().to_string()),
+    );
+    fields.insert(
+        "ownership".to_string(),
+        Value::String(if tensor.data.is_shared() {
+            "shared".to_string()
+        } else {
+            "owned".to_string()
+        }),
     );
     fields.insert("zero_copy".to_string(), Value::Bool(tensor.data.is_shared()));
     fields.insert(
@@ -2679,6 +2859,14 @@ fn native_geometry_info_value(geometry: &KainNativeGeometry) -> Value {
         Value::Bool(geometry.vertices.is_shared()),
     );
     fields.insert(
+        "vertex_ownership".to_string(),
+        Value::String(if geometry.vertices.is_shared() {
+            "shared".to_string()
+        } else {
+            "owned".to_string()
+        }),
+    );
+    fields.insert(
         "shared_indices".to_string(),
         Value::Bool(
             geometry
@@ -2686,6 +2874,21 @@ fn native_geometry_info_value(geometry: &KainNativeGeometry) -> Value {
                 .as_ref()
                 .map(|value| value.is_shared())
                 .unwrap_or(false),
+        ),
+    );
+    fields.insert(
+        "index_ownership".to_string(),
+        Value::String(
+            if geometry
+                .indices
+                .as_ref()
+                .map(|value| value.is_shared())
+                .unwrap_or(false)
+            {
+                "shared".to_string()
+            } else {
+                "owned".to_string()
+            },
         ),
     );
     fields.insert(
@@ -3794,6 +3997,7 @@ fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResu
 #[cfg(test)]
 mod tests {
     use super::register;
+    use kain_core::error::KainResult;
     use kain_core::diagnostics::SpanMapper;
     use kain_core::lexer::Lexer;
     use kain_core::parser::Parser;
@@ -4231,6 +4435,36 @@ fn main():
     }
 
     #[test]
+    fn python_bridge_supports_explicit_image_ownership_modes_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping explicit image ownership test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    return np.zeros((4, 5, 4), dtype=np.uint8)")
+    let image = py_call_raw("make_image", [])
+    let shared_image = kain_image_from_py_shared(image)
+    let owned = kain_image_from_py_owned(image)
+    assert(kain_image_info(shared_image).ownership == "shared", "expected shared ownership mode")
+    assert(kain_image_info(owned).ownership == "owned", "expected owned ownership mode")
+    kain_image_set_pixel(shared_image, 3, 2, [5, 6, 7, 255])
+    kain_image_set_pixel(owned, 1, 1, [101, 102, 103, 255])
+    assert(py_image_pixel(py_image_view(image), 3, 2)[2] == 7, "shared mode should sync to original")
+    assert(py_image_pixel(py_image_view(image), 1, 1)[2] == 0, "owned mode should not sync to original")
+    return kain_image_pixel(owned, 1, 1)[2]
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 103),
+            other => panic!("expected explicit image ownership test to return Int(103), got {other:?}"),
+        }
+    }
+
+    #[test]
     fn python_bridge_exports_native_images_back_to_numpy_when_available() {
         if !numpy_available() {
             eprintln!("skipping native image export test because numpy is not installed");
@@ -4306,6 +4540,61 @@ fn main():
             Value::Float(value) => assert_eq!(value, 42.5),
             other => panic!("expected native tensor sync to return Float(42.5), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn python_bridge_supports_explicit_tensor_ownership_modes_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping explicit tensor ownership test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_tensor():\n    return np.arange(0, 12, dtype=np.float32).reshape(3, 4)")
+    let tensor = py_call_raw("make_tensor", [])
+    let shared_tensor = kain_tensor_from_py_shared(tensor)
+    let owned = kain_tensor_from_py_owned(tensor)
+    assert(kain_tensor_info(shared_tensor).ownership == "shared", "expected shared tensor ownership")
+    assert(kain_tensor_info(owned).ownership == "owned", "expected owned tensor ownership")
+    kain_tensor_set(shared_tensor, [1, 2], 55.5)
+    kain_tensor_set(owned, [0, 1], 99.0)
+    assert(py_tensor_get(py_tensor_view(tensor), [1, 2]) == 55.5, "shared tensor should sync to original")
+    assert(py_tensor_get(py_tensor_view(tensor), [0, 1]) == 1.0, "owned tensor should stay detached")
+    return kain_tensor_get(owned, [0, 1])
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 99.0),
+            other => panic!("expected explicit tensor ownership test to return Float(99.0), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_rejects_required_shared_tensor_when_zero_copy_is_unavailable() {
+        if !numpy_available() {
+            eprintln!("skipping required shared tensor failure test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source_result(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_tensor():\n    return np.arange(0, 12, dtype=np.float32)[::2]")
+    let tensor = py_call_raw("make_tensor", [])
+    let native = kain_tensor_from_py_shared(tensor)
+    return kain_tensor_get(native, [1])
+"#,
+        );
+
+        let err = result.expect_err("expected shared tensor materialization to fail for a strided slice");
+        let err_text = format!("{err:?}");
+        assert!(
+            err_text.contains("kain_tensor_from_py_shared: shared backing is unavailable"),
+            "expected shared-mode error, got {err_text}"
+        );
     }
 
     #[test]
@@ -4391,6 +4680,36 @@ fn main():
     }
 
     #[test]
+    fn python_bridge_supports_explicit_geometry_ownership_modes_when_available() {
+        if !trimesh_available() {
+            eprintln!("skipping explicit geometry ownership test because trimesh is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import trimesh\ndef make_mesh():\n    return trimesh.creation.icosphere(subdivisions=1, radius=1.0)")
+    let mesh = py_call_raw("make_mesh", [])
+    let shared_geometry = kain_geometry_from_py_shared(mesh)
+    let owned = kain_geometry_from_py_owned(mesh)
+    assert(kain_geometry_info(shared_geometry).vertex_ownership == "shared", "expected shared vertex ownership")
+    assert(kain_geometry_info(owned).vertex_ownership == "owned", "expected owned vertex ownership")
+    kain_geometry_set_vertex(shared_geometry, 0, [0.25, 1.25, 0.75])
+    kain_geometry_set_vertex(owned, 1, [3.0, 4.0, 5.0])
+    assert(py_geometry_vertex(py_geometry_view(mesh), 0)[1] == 1.25, "shared geometry should sync to original")
+    assert(py_geometry_vertex(py_geometry_view(mesh), 1)[1] != 4.0, "owned geometry should stay detached")
+    return kain_geometry_vertex(owned, 1)[1]
+"#,
+        );
+
+        match result {
+            Value::Float(value) => assert_eq!(value, 4.0),
+            other => panic!("expected explicit geometry ownership test to return Float(4.0), got {other:?}"),
+        }
+    }
+
+    #[test]
     fn python_bridge_exports_native_geometry_back_to_trimesh_when_available() {
         if !numpy_available() || !trimesh_available() {
             eprintln!("skipping native geometry export test because numpy or trimesh is not installed");
@@ -4438,7 +4757,7 @@ fn main():
         }
     }
 
-    fn interpret_source(source: &str) -> Value {
+    fn interpret_source_result(source: &str) -> KainResult<Value> {
         let _guard = python_test_lock().lock().unwrap();
         register();
 
@@ -4449,7 +4768,11 @@ fn main():
             .unwrap();
         kain_core::comptime::eval_program(&mut ast).unwrap();
         let typed = types::check(&ast, &span_mapper, "<test>").unwrap();
-        interpret(&typed).unwrap()
+        interpret(&typed)
+    }
+
+    fn interpret_source(source: &str) -> Value {
+        interpret_source_result(source).unwrap()
     }
 
     fn numpy_available() -> bool {

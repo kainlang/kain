@@ -15,6 +15,8 @@ pub struct PackageManifest {
     pub ue5: Option<Ue5Config>,
     #[serde(default)]
     pub r#rust: Option<RustBuildConfig>,
+    #[serde(default)]
+    pub rust_ffi: Option<kain_crate_ffi::RustFfiConfig>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -324,6 +326,7 @@ impl PackageManifest {
             dependencies: HashMap::new(),
             ue5: None,
             r#rust: None,
+            rust_ffi: None,
         }
     }
 }

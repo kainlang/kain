@@ -836,7 +836,9 @@ fn write_gpu_artifacts_bundle(
     let spirv_path = with_file_name_suffix(output, "", "spv");
     let rust_path = with_file_name_suffix(output, ".gpu", "rs");
     let json_path = with_file_name_suffix(output, ".reflect", "json");
-    for path in [&spirv_path, &rust_path, &json_path] {
+    let bundle_path = with_file_name_suffix(output, ".shader_bundle", "json");
+    let hlsl_path = with_file_name_suffix(output, ".derived", "hlsl");
+    for path in [&spirv_path, &rust_path, &json_path, &bundle_path, &hlsl_path] {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -844,7 +846,13 @@ fn write_gpu_artifacts_bundle(
     fs::write(&spirv_path, &artifacts.spirv)?;
     fs::write(&rust_path, artifacts.rust_host.as_bytes())?;
     fs::write(&json_path, artifacts.reflection_json.as_bytes())?;
-    Ok(vec![spirv_path, rust_path, json_path])
+    fs::write(&bundle_path, artifacts.bundle_json.as_bytes())?;
+    let mut written = vec![spirv_path, rust_path, json_path, bundle_path];
+    if let Some(hlsl) = &artifacts.derived_hlsl {
+        fs::write(&hlsl_path, hlsl.as_bytes())?;
+        written.push(hlsl_path);
+    }
+    Ok(written)
 }
 
 fn compile_rust_bundle(

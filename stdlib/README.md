@@ -9,6 +9,13 @@
 
 The KAIN standard library provides 377 pre-written functions automatically available in all UE5 plugin compilations. The stdlib eliminates boilerplate code by providing common patterns for actor lifecycle, gameplay mechanics, shader algorithms, world interactions, math operations, material control, particle systems, skeletal mesh animation, and utility functions.
 
+This repo also now includes an early non-UE5 wrapper layer for embedded Python and DCC payloads:
+
+- `stdlib/python/`: first-party wrappers over the Python bridge
+- `stdlib/dcc/`: Kain-native image, tensor, and mesh semantics on top of Python-backed data
+
+Those modules are documented separately in [`stdlib/python/README.md`](./python/README.md) and [`stdlib/dcc/README.md`](./dcc/README.md).
+
 **Key Benefits:**
 - **Zero Configuration:** Works out-of-box for all Factory plugins without KAIN.toml changes
 - **Automatic Discovery:** Stdlib files discovered via KAIN_STDLIB_PATH env var, then filesystem walking

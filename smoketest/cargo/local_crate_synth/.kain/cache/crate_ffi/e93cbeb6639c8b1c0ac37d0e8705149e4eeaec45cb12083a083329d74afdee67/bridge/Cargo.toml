@@ -1,0 +1,19 @@
+[package]
+name = "kain_crate_ffi_bridge_cargo_smoke_lab"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kain-core = { path = "M:\\Code\\Kain\\crates\\kain-core" }
+kain-host = { path = "M:\\Code\\Kain\\crates\\kain-host", default-features = false }
+cargo_smoke_lab = { package = "cargo_smoke_lab", path = "\\\\?\\M:\\Code\\Kain\\smoketest\\cargo\\local_crate_synth\\local_crate" }
+
+[profile.dev]
+debug = 0
+panic = "unwind"
+
+[workspace]
+resolver = "2"

@@ -1,43 +1,15 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{frontend_to_typed_program, target_extension, CompileTarget};
+use crate::{compile_shader_artifact_bundle, target_extension, CompileTarget};
 use kain_core::error::KainError;
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
-use kain_sys_codegen::{
-    collect_gpu_artifacts, collect_gpu_artifacts_json, generate_rust_gpu_host_wrappers,
-    RustGpuArtifactOutput,
-};
-
-#[cfg(feature = "gpu")]
-use gpu;
-
-#[cfg(all(feature = "gpu", feature = "sys"))]
-#[derive(Debug, Clone)]
-pub struct GpuArtifactOutput {
-    pub spirv: Vec<u8>,
-    pub rust_host: String,
-    pub reflection_json: String,
-    pub metadata: RustGpuArtifactOutput,
-}
+pub type GpuArtifactOutput = kain_driver::ShaderArtifactBundleOutput;
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainError> {
-    let typed_program = frontend_to_typed_program(source, CompileTarget::Spirv)?;
-    let spirv = gpu::generate_spirv(&typed_program)?;
-    let rust_host = generate_rust_gpu_host_wrappers(&typed_program)?;
-    let reflection_json = collect_gpu_artifacts_json(&typed_program).map_err(|err| {
-        KainError::runtime(format!("Failed to serialize GPU reflection JSON: {}", err))
-    })?;
-    let metadata = collect_gpu_artifacts(&typed_program);
-
-    Ok(GpuArtifactOutput {
-        spirv,
-        rust_host,
-        reflection_json,
-        metadata,
-    })
+    compile_shader_artifact_bundle(source)
 }
 
 #[cfg(not(all(feature = "gpu", feature = "sys")))]
@@ -60,8 +32,10 @@ pub fn write_gpu_artifacts_bundle(
     let spirv_path = with_file_name_suffix(&base_path, "", "spv");
     let rust_path = with_file_name_suffix(&base_path, ".gpu", "rs");
     let json_path = with_file_name_suffix(&base_path, ".reflect", "json");
+    let bundle_path = with_file_name_suffix(&base_path, ".shader_bundle", "json");
+    let hlsl_path = with_file_name_suffix(&base_path, ".derived", "hlsl");
 
-    for path in [&spirv_path, &rust_path, &json_path] {
+    for path in [&spirv_path, &rust_path, &json_path, &bundle_path, &hlsl_path] {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| {
                 KainError::runtime(format!(
@@ -94,8 +68,26 @@ pub fn write_gpu_artifacts_bundle(
             err
         ))
     })?;
+    fs::write(&bundle_path, artifacts.bundle_json.as_bytes()).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to write shader bundle output {}: {}",
+            bundle_path.display(),
+            err
+        ))
+    })?;
+    let mut written = vec![spirv_path, rust_path, json_path, bundle_path];
+    if let Some(hlsl) = &artifacts.derived_hlsl {
+        fs::write(&hlsl_path, hlsl.as_bytes()).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to write derived HLSL output {}: {}",
+                hlsl_path.display(),
+                err
+            ))
+        })?;
+        written.push(hlsl_path);
+    }
 
-    Ok(vec![spirv_path, rust_path, json_path])
+    Ok(written)
 }
 
 #[cfg(all(feature = "gpu", feature = "sys"))]

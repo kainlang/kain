@@ -1,14 +1,18 @@
-use std::{borrow::Cow, mem::size_of, sync::mpsc};
+use std::{mem::size_of, sync::mpsc};
 
 use bytemuck::{Pod, Zeroable};
+use kain_core::ShaderArtifactBundle;
 use wgpu::util::DeviceExt;
 
 use crate::renderer::{
     RenderBackend, RenderError, RenderFrame, RenderResolution, RenderStats, RenderViewSettings,
 };
+use crate::shader_bundle::{
+    default_viewport_shader_bundle, wgsl_module_source, VIEWPORT_SHADER_MODULE_NAME,
+};
 use crate::{
-    CpuPickingService, ManipulatorMode, Mat4, Mesh, PickTargetId, PickingQuery, PickingRay,
-    SceneCatalog, SceneDescription, Vec3,
+    CameraPose, CpuPickingService, ManipulatorMode, Mat4, Mesh, ParticleEmitter, PickTargetId,
+    PickingQuery, PickingRay, SceneCatalog, SceneDescription, Vec3,
 };
 
 const MAX_DIRECTIONAL_LIGHTS: usize = 2;
@@ -16,224 +20,6 @@ const MAX_POINT_LIGHTS: usize = 4;
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 const PICK_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
-
-const WGPU_VIEWPORT_SHADER: &str = r#"
-struct SceneUniforms {
-    view_proj: mat4x4<f32>,
-    camera_position: vec4<f32>,
-    ambient_color_intensity: vec4<f32>,
-    directional_directions: array<vec4<f32>, 2>,
-    directional_colors: array<vec4<f32>, 2>,
-    point_positions_intensity: array<vec4<f32>, 4>,
-    point_colors_range: array<vec4<f32>, 4>,
-    counts: vec4<u32>,
-    background_top: vec4<f32>,
-    background_bottom: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> scene: SceneUniforms;
-
-struct SceneVertexInput {
-    @location(0) position_and_ambient: vec4<f32>,
-    @location(1) normal_and_diffuse: vec4<f32>,
-    @location(2) base_color_and_specular_strength: vec4<f32>,
-    @location(3) specular_color_and_shininess: vec4<f32>,
-};
-
-struct SceneVertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) world_position: vec3<f32>,
-    @location(1) world_normal: vec3<f32>,
-    @location(2) base_color: vec3<f32>,
-    @location(3) ambient_strength: f32,
-    @location(4) diffuse_strength: f32,
-    @location(5) specular_color: vec3<f32>,
-    @location(6) specular_strength: f32,
-    @location(7) shininess: f32,
-};
-
-struct BackgroundVertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) gradient_t: f32,
-};
-
-struct PickVertexInput {
-    @location(0) world_position: vec4<f32>,
-    @location(1) instance_id: u32,
-};
-
-struct PickVertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) @interpolate(flat) instance_id: u32,
-};
-
-struct GizmoVertexInput {
-    @location(0) world_position: vec4<f32>,
-    @location(1) color: vec4<f32>,
-};
-
-struct GizmoVertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-};
-
-@vertex
-fn scene_vs_main(input: SceneVertexInput) -> SceneVertexOutput {
-    var output: SceneVertexOutput;
-    let world_position = vec4<f32>(input.position_and_ambient.xyz, 1.0);
-    output.clip_position = scene.view_proj * world_position;
-    output.world_position = input.position_and_ambient.xyz;
-    output.world_normal = normalize(input.normal_and_diffuse.xyz);
-    output.base_color = input.base_color_and_specular_strength.xyz;
-    output.ambient_strength = input.position_and_ambient.w;
-    output.diffuse_strength = input.normal_and_diffuse.w;
-    output.specular_color = input.specular_color_and_shininess.xyz;
-    output.specular_strength = input.base_color_and_specular_strength.w;
-    output.shininess = input.specular_color_and_shininess.w;
-    return output;
-}
-
-@vertex
-fn background_vs_main(@builtin(vertex_index) vertex_index: u32) -> BackgroundVertexOutput {
-    var positions = array<vec2<f32>, 3>(
-        vec2<f32>(-1.0, -3.0),
-        vec2<f32>(3.0, 1.0),
-        vec2<f32>(-1.0, 1.0),
-    );
-
-    let position = positions[vertex_index];
-    var output: BackgroundVertexOutput;
-    output.clip_position = vec4<f32>(position, 0.0, 1.0);
-    output.gradient_t = clamp(1.0 - ((position.y * 0.5) + 0.5), 0.0, 1.0);
-    return output;
-}
-
-fn directional_light(
-    light_direction: vec3<f32>,
-    light_color: vec3<f32>,
-    intensity: f32,
-    normal: vec3<f32>,
-    view_direction: vec3<f32>,
-    base_color: vec3<f32>,
-    diffuse_strength: f32,
-    specular_color: vec3<f32>,
-    specular_strength: f32,
-    shininess: f32,
-) -> vec3<f32> {
-    let to_light = normalize(-light_direction);
-    let diffuse = max(dot(normal, to_light), 0.0) * diffuse_strength;
-    let halfway = normalize(to_light + view_direction);
-    let specular = pow(max(dot(normal, halfway), 0.0), max(shininess, 1.0)) * specular_strength;
-    return ((base_color * diffuse) + (specular_color * specular)) * light_color * intensity;
-}
-
-fn point_light(
-    light_position: vec3<f32>,
-    light_color: vec3<f32>,
-    intensity: f32,
-    range: f32,
-    world_position: vec3<f32>,
-    normal: vec3<f32>,
-    view_direction: vec3<f32>,
-    base_color: vec3<f32>,
-    diffuse_strength: f32,
-    specular_color: vec3<f32>,
-    specular_strength: f32,
-    shininess: f32,
-) -> vec3<f32> {
-    let to_light = light_position - world_position;
-    let distance = max(length(to_light), 0.0001);
-    let direction = to_light / distance;
-    let attenuation = pow(max(1.0 - (distance / max(range, 0.001)), 0.0), 2.0);
-    let diffuse = max(dot(normal, direction), 0.0) * diffuse_strength;
-    let reflected = normalize((normal * (2.0 * dot(normal, direction))) - direction);
-    let specular = pow(max(dot(reflected, view_direction), 0.0), max(shininess, 1.0)) * specular_strength;
-    return ((base_color * diffuse) + (specular_color * specular)) * light_color * intensity * attenuation;
-}
-
-@fragment
-fn scene_fs_main(input: SceneVertexOutput) -> @location(0) vec4<f32> {
-    let normal = normalize(input.world_normal);
-    let view_direction = normalize(scene.camera_position.xyz - input.world_position);
-    var color =
-        scene.ambient_color_intensity.xyz *
-        scene.ambient_color_intensity.w *
-        input.base_color *
-        input.ambient_strength;
-
-    for (var index: u32 = 0u; index < scene.counts.x; index = index + 1u) {
-        let light_direction = scene.directional_directions[index];
-        let light_color = scene.directional_colors[index];
-        color += directional_light(
-            light_direction.xyz,
-            light_color.xyz,
-            light_direction.w,
-            normal,
-            view_direction,
-            input.base_color,
-            input.diffuse_strength,
-            input.specular_color,
-            input.specular_strength,
-            input.shininess,
-        );
-    }
-
-    for (var index: u32 = 0u; index < scene.counts.y; index = index + 1u) {
-        let light_position = scene.point_positions_intensity[index];
-        let light_color = scene.point_colors_range[index];
-        color += point_light(
-            light_position.xyz,
-            light_color.xyz,
-            light_position.w,
-            light_color.w,
-            input.world_position,
-            normal,
-            view_direction,
-            input.base_color,
-            input.diffuse_strength,
-            input.specular_color,
-            input.specular_strength,
-            input.shininess,
-        );
-    }
-
-    return vec4<f32>(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
-}
-
-@fragment
-fn background_fs_main(input: BackgroundVertexOutput) -> @location(0) vec4<f32> {
-    let t = clamp(input.gradient_t, 0.0, 1.0);
-    let color = scene.background_top.xyz * (1.0 - t) + scene.background_bottom.xyz * t;
-    return vec4<f32>(color, 1.0);
-}
-
-@vertex
-fn pick_vs_main(input: PickVertexInput) -> PickVertexOutput {
-    var output: PickVertexOutput;
-    output.clip_position = scene.view_proj * vec4<f32>(input.world_position.xyz, 1.0);
-    output.instance_id = input.instance_id;
-    return output;
-}
-
-@fragment
-fn pick_fs_main(input: PickVertexOutput) -> @location(0) u32 {
-    return input.instance_id;
-}
-
-@vertex
-fn gizmo_vs_main(input: GizmoVertexInput) -> GizmoVertexOutput {
-    var output: GizmoVertexOutput;
-    output.clip_position = scene.view_proj * vec4<f32>(input.world_position.xyz, 1.0);
-    output.color = input.color;
-    return output;
-}
-
-@fragment
-fn gizmo_fs_main(input: GizmoVertexOutput) -> @location(0) vec4<f32> {
-    return input.color;
-}
-"#;
 
 #[derive(Debug)]
 pub struct WgpuRendererInitError {
@@ -259,11 +45,14 @@ impl std::error::Error for WgpuRendererInitError {}
 pub struct WgpuRenderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    shader_bundle: ShaderArtifactBundle,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     background_pipeline: wgpu::RenderPipeline,
     scene_pipeline: wgpu::RenderPipeline,
     pick_pipeline: wgpu::RenderPipeline,
+    particle_depth_pipeline: wgpu::RenderPipeline,
+    particle_overlay_pipeline: wgpu::RenderPipeline,
     gizmo_pipeline: wgpu::RenderPipeline,
     target: Option<WgpuFrameTarget>,
 }
@@ -283,7 +72,7 @@ struct WgpuFrameTarget {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-struct GpuVertex {
+pub struct GpuVertex {
     position_and_ambient: [f32; 4],
     normal_and_diffuse: [f32; 4],
     base_color_and_specular_strength: [f32; 4],
@@ -312,7 +101,7 @@ impl PickVertex {
         },
     ];
 
-    fn layout() -> wgpu::VertexBufferLayout<'static> {
+    pub fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -323,9 +112,18 @@ impl PickVertex {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-struct GizmoVertex {
+pub struct GizmoVertex {
     world_position: [f32; 4],
     color: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ParticleVertex {
+    world_position: [f32; 4],
+    color: [f32; 4],
+    quad_uv: [f32; 2],
+    _padding: [f32; 2],
 }
 
 impl GizmoVertex {
@@ -334,7 +132,35 @@ impl GizmoVertex {
         1 => Float32x4
     ];
 
-    fn layout() -> wgpu::VertexBufferLayout<'static> {
+    pub fn layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
+
+impl ParticleVertex {
+    const ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
+        wgpu::VertexAttribute {
+            offset: 0,
+            shader_location: 0,
+            format: wgpu::VertexFormat::Float32x4,
+        },
+        wgpu::VertexAttribute {
+            offset: size_of::<[f32; 4]>() as u64,
+            shader_location: 1,
+            format: wgpu::VertexFormat::Float32x4,
+        },
+        wgpu::VertexAttribute {
+            offset: (size_of::<[f32; 4]>() * 2) as u64,
+            shader_location: 2,
+            format: wgpu::VertexFormat::Float32x2,
+        },
+    ];
+
+    pub fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -351,7 +177,7 @@ impl GpuVertex {
         3 => Float32x4
     ];
 
-    fn layout() -> wgpu::VertexBufferLayout<'static> {
+    pub fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -362,7 +188,7 @@ impl GpuVertex {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-struct SceneUniforms {
+pub struct SceneUniforms {
     view_proj: [[f32; 4]; 4],
     camera_position: [f32; 4],
     ambient_color_intensity: [f32; 4],
@@ -377,10 +203,16 @@ struct SceneUniforms {
 
 impl WgpuRenderer {
     pub fn new() -> Result<Self, WgpuRendererInitError> {
-        pollster::block_on(Self::new_async())
+        Self::new_with_shader_bundle(default_viewport_shader_bundle())
     }
 
-    async fn new_async() -> Result<Self, WgpuRendererInitError> {
+    pub fn new_with_shader_bundle(
+        shader_bundle: ShaderArtifactBundle,
+    ) -> Result<Self, WgpuRendererInitError> {
+        pollster::block_on(Self::new_async(shader_bundle))
+    }
+
+    async fn new_async(shader_bundle: ShaderArtifactBundle) -> Result<Self, WgpuRendererInitError> {
         let instance = wgpu::Instance::default();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -406,9 +238,11 @@ impl WgpuRenderer {
                 WgpuRendererInitError::new(format!("failed to create WGPU device: {err}"))
             })?;
 
+        let shader_source = wgsl_module_source(&shader_bundle, VIEWPORT_SHADER_MODULE_NAME)
+            .map_err(WgpuRendererInitError::new)?;
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("kain-3d-wgpu-shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(WGPU_VIEWPORT_SHADER)),
+            source: wgpu::ShaderSource::Wgsl(shader_source),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -567,6 +401,69 @@ impl WgpuRenderer {
             cache: None,
         });
 
+        let particle_blend = wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+        };
+        let particle_pipeline_descriptor =
+            |label: &'static str, depth_compare: wgpu::CompareFunction| {
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(label),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: Some("particle_vs_main"),
+                        compilation_options: Default::default(),
+                        buffers: &[ParticleVertex::layout()],
+                    },
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: None,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        unclipped_depth: false,
+                        conservative: false,
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: DEPTH_FORMAT,
+                        depth_write_enabled: false,
+                        depth_compare,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: wgpu::MultisampleState::default(),
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: Some("particle_fs_main"),
+                        compilation_options: Default::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: COLOR_FORMAT,
+                            blend: Some(particle_blend),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    multiview: None,
+                    cache: None,
+                })
+            };
+        let particle_depth_pipeline = particle_pipeline_descriptor(
+            "kain-3d-particle-depth-pipeline",
+            wgpu::CompareFunction::LessEqual,
+        );
+        let particle_overlay_pipeline = particle_pipeline_descriptor(
+            "kain-3d-particle-overlay-pipeline",
+            wgpu::CompareFunction::Always,
+        );
+
         let gizmo_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("kain-3d-gizmo-pipeline"),
             layout: Some(&pipeline_layout),
@@ -610,14 +507,21 @@ impl WgpuRenderer {
         Ok(Self {
             device,
             queue,
+            shader_bundle,
             uniform_buffer,
             uniform_bind_group,
             background_pipeline,
             scene_pipeline,
             pick_pipeline,
+            particle_depth_pipeline,
+            particle_overlay_pipeline,
             gizmo_pipeline,
             target: None,
         })
+    }
+
+    pub fn shader_bundle(&self) -> &ShaderArtifactBundle {
+        &self.shader_bundle
     }
 
     fn render_catalog_scene_internal(
@@ -648,32 +552,57 @@ impl WgpuRenderer {
         let depth_view = target.depth_view.clone();
         let readback_buffer = target.readback_buffer.clone();
         let padded_bytes_per_row = target.padded_bytes_per_row;
-        let uniforms = build_scene_uniforms(scene, time_seconds, resolution, view);
-        self.queue
-            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+        let prepared = prepare_wgpu_frame(scene, time_seconds, resolution, view)?;
+        self.queue.write_buffer(
+            &self.uniform_buffer,
+            0,
+            bytemuck::bytes_of(&prepared.uniforms),
+        );
 
-        let (vertices, mut stats) = build_gpu_scene(scene, time_seconds)?;
-        let gizmo_vertices = build_gizmo_vertices(scene, time_seconds, view);
-        let vertex_buffer = if vertices.is_empty() {
+        let vertex_buffer = if prepared.scene_vertices.is_empty() {
             None
         } else {
             Some(
                 self.device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("kain-3d-scene-vertex-buffer"),
-                        contents: bytemuck::cast_slice(&vertices),
+                        contents: bytemuck::cast_slice(&prepared.scene_vertices),
                         usage: wgpu::BufferUsages::VERTEX,
                     }),
             )
         };
-        let gizmo_buffer = if gizmo_vertices.is_empty() {
+        let depth_particle_buffer = if prepared.depth_particles.is_empty() {
+            None
+        } else {
+            Some(
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("kain-3d-particle-depth-buffer"),
+                        contents: bytemuck::cast_slice(&prepared.depth_particles),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    }),
+            )
+        };
+        let overlay_particle_buffer = if prepared.overlay_particles.is_empty() {
+            None
+        } else {
+            Some(
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("kain-3d-particle-overlay-buffer"),
+                        contents: bytemuck::cast_slice(&prepared.overlay_particles),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    }),
+            )
+        };
+        let gizmo_buffer = if prepared.gizmo_vertices.is_empty() {
             None
         } else {
             Some(
                 self.device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("kain-3d-gizmo-vertex-buffer"),
-                        contents: bytemuck::cast_slice(&gizmo_vertices),
+                        contents: bytemuck::cast_slice(&prepared.gizmo_vertices),
                         usage: wgpu::BufferUsages::VERTEX,
                     }),
             )
@@ -715,13 +644,25 @@ impl WgpuRenderer {
             if let Some(vertex_buffer) = vertex_buffer.as_ref() {
                 render_pass.set_pipeline(&self.scene_pipeline);
                 render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                render_pass.draw(0..vertices.len() as u32, 0..1);
+                render_pass.draw(0..prepared.scene_vertices.len() as u32, 0..1);
+            }
+
+            if let Some(depth_particle_buffer) = depth_particle_buffer.as_ref() {
+                render_pass.set_pipeline(&self.particle_depth_pipeline);
+                render_pass.set_vertex_buffer(0, depth_particle_buffer.slice(..));
+                render_pass.draw(0..prepared.depth_particles.len() as u32, 0..1);
+            }
+
+            if let Some(overlay_particle_buffer) = overlay_particle_buffer.as_ref() {
+                render_pass.set_pipeline(&self.particle_overlay_pipeline);
+                render_pass.set_vertex_buffer(0, overlay_particle_buffer.slice(..));
+                render_pass.draw(0..prepared.overlay_particles.len() as u32, 0..1);
             }
 
             if let Some(gizmo_buffer) = gizmo_buffer.as_ref() {
                 render_pass.set_pipeline(&self.gizmo_pipeline);
                 render_pass.set_vertex_buffer(0, gizmo_buffer.slice(..));
-                render_pass.draw(0..gizmo_vertices.len() as u32, 0..1);
+                render_pass.draw(0..prepared.gizmo_vertices.len() as u32, 0..1);
             }
         }
 
@@ -756,6 +697,7 @@ impl WgpuRenderer {
             padded_bytes_per_row,
         )
         .map_err(|err| RenderError::BackendFailure(err.to_string()))?;
+        let mut stats = prepared.stats;
         stats.pixels_shaded = resolution.width * resolution.height;
 
         Ok(RenderFrame {
@@ -945,19 +887,47 @@ impl RenderBackend for WgpuRenderer {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct PreparedWgpuFrame {
+    pub uniforms: SceneUniforms,
+    pub scene_vertices: Vec<GpuVertex>,
+    pub depth_particles: Vec<ParticleVertex>,
+    pub overlay_particles: Vec<ParticleVertex>,
+    pub gizmo_vertices: Vec<GizmoVertex>,
+    pub stats: RenderStats,
+}
+
+pub fn prepare_wgpu_frame(
+    scene: &SceneDescription,
+    time_seconds: f32,
+    resolution: RenderResolution,
+    view: &RenderViewSettings,
+) -> Result<PreparedWgpuFrame, RenderError> {
+    let active_camera = resolve_camera_pose(scene, time_seconds, view);
+    let uniforms = build_scene_uniforms(scene, time_seconds, resolution, view);
+    let (scene_vertices, mut stats) = build_gpu_scene(scene, time_seconds)?;
+    let (depth_particles, overlay_particles, particle_count) =
+        build_particle_vertices(scene, time_seconds, &active_camera);
+    stats.particles_submitted = particle_count;
+    stats.particles_shaded = particle_count;
+    let gizmo_vertices = build_gizmo_vertices(scene, time_seconds, view);
+    Ok(PreparedWgpuFrame {
+        uniforms,
+        scene_vertices,
+        depth_particles,
+        overlay_particles,
+        gizmo_vertices,
+        stats,
+    })
+}
+
 fn build_scene_uniforms(
     scene: &SceneDescription,
     time_seconds: f32,
     resolution: RenderResolution,
     view: &RenderViewSettings,
 ) -> SceneUniforms {
-    let default_camera_pose;
-    let camera = if let Some(camera) = view.camera.as_ref() {
-        camera
-    } else {
-        default_camera_pose = scene.camera.pose_at(time_seconds);
-        &default_camera_pose
-    };
+    let camera = resolve_camera_pose(scene, time_seconds, view);
 
     let aspect_ratio = resolution.width as f32 / resolution.height as f32;
     let view_matrix = Mat4::look_at(camera.position, camera.target, camera.up);
@@ -1053,9 +1023,9 @@ fn build_gpu_scene(
 
     for instance in animated_instances {
         let mesh = scene
-            .meshes
-            .get(&instance.mesh)
+            .resolved_mesh(&instance.mesh, time_seconds)
             .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
+        let mesh = mesh.as_ref();
         let material = scene
             .materials
             .get(&instance.material)
@@ -1065,19 +1035,13 @@ fn build_gpu_scene(
         append_mesh_vertices(&mut vertices, mesh, &instance.transform, material);
     }
 
-    let particle_count = scene
-        .particle_emitters
-        .iter()
-        .map(|emitter| emitter.particle_count)
-        .sum();
-
     Ok((
         vertices,
         RenderStats {
             triangles_submitted,
             triangles_rasterized: triangles_submitted,
             pixels_shaded: 0,
-            particles_submitted: particle_count,
+            particles_submitted: 0,
             particles_shaded: 0,
         },
     ))
@@ -1134,9 +1098,9 @@ fn build_pick_scene(
 
     for (instance_index, instance) in animated_instances.iter().enumerate() {
         let mesh = scene
-            .meshes
-            .get(&instance.mesh)
+            .resolved_mesh(&instance.mesh, time_seconds)
             .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
+        let mesh = mesh.as_ref();
         let object_id = (instance_index + 1) as u32;
         targets.push(PickTargetId {
             instance_id: instance.id.clone(),
@@ -1157,6 +1121,178 @@ fn build_pick_scene(
     }
 
     Ok((vertices, targets))
+}
+
+fn resolve_camera_pose(
+    scene: &SceneDescription,
+    time_seconds: f32,
+    view: &RenderViewSettings,
+) -> CameraPose {
+    if let Some(camera) = view.camera.as_ref() {
+        camera.clone()
+    } else {
+        scene.camera.pose_at(time_seconds)
+    }
+}
+
+fn build_particle_vertices(
+    scene: &SceneDescription,
+    time_seconds: f32,
+    camera: &CameraPose,
+) -> (Vec<ParticleVertex>, Vec<ParticleVertex>, usize) {
+    let mut depth_vertices = Vec::new();
+    let mut overlay_vertices = Vec::new();
+    let mut particle_count = 0usize;
+    let camera_forward = camera.forward();
+    let camera_right = camera.right();
+    let camera_up = camera_right.cross(camera_forward).normalize();
+
+    for emitter in &scene.particle_emitters {
+        let axis = emitter.axis_or_up();
+        let (basis_u, basis_v) = orthonormal_basis(axis);
+        for index in 0..emitter.particle_count {
+            particle_count += 1;
+            let sample = sample_particle(emitter, index, time_seconds, axis, basis_u, basis_v);
+            let to_camera = (camera.position - sample.world_position)
+                .length()
+                .max(0.001);
+            let world_radius = (sample.radius * (0.8 + sample.emissive_strength * 0.6))
+                .clamp(0.04, 1.6)
+                * (1.0 + 0.08 / to_camera);
+            let target_vertices = if sample.depth_test {
+                &mut depth_vertices
+            } else {
+                &mut overlay_vertices
+            };
+            append_particle_billboard(
+                target_vertices,
+                sample.world_position,
+                camera_right,
+                camera_up,
+                world_radius,
+                [
+                    sample.color[0],
+                    sample.color[1],
+                    sample.color[2],
+                    sample.emissive_strength,
+                ],
+            );
+        }
+    }
+
+    (depth_vertices, overlay_vertices, particle_count)
+}
+
+fn append_particle_billboard(
+    vertices: &mut Vec<ParticleVertex>,
+    center: Vec3,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    radius: f32,
+    color: [f32; 4],
+) {
+    let right = camera_right * radius;
+    let up = camera_up * radius;
+    let corners = [
+        (center - right - up, [-1.0, -1.0]),
+        (center + right - up, [1.0, -1.0]),
+        (center + right + up, [1.0, 1.0]),
+        (center - right + up, [-1.0, 1.0]),
+    ];
+    let indices = [0usize, 1, 2, 0, 2, 3];
+    for index in indices {
+        let (position, quad_uv) = corners[index];
+        vertices.push(ParticleVertex {
+            world_position: [position.x, position.y, position.z, 1.0],
+            color,
+            quad_uv,
+            _padding: [0.0; 2],
+        });
+    }
+}
+
+fn sample_particle(
+    emitter: &ParticleEmitter,
+    index: usize,
+    time_seconds: f32,
+    axis: Vec3,
+    basis_u: Vec3,
+    basis_v: Vec3,
+) -> ParticleSample {
+    let seed = index as f32 + 1.0;
+    let phase = hash01(seed * 0.73) * std::f32::consts::TAU;
+    let radius = lerp(
+        emitter.radial_range[0],
+        emitter.radial_range[1],
+        hash01(seed * 1.31),
+    );
+    let vertical_extent = lerp(
+        emitter.vertical_range[0],
+        emitter.vertical_range[1],
+        hash01(seed * 2.17),
+    );
+    let size = lerp(
+        emitter.particle_size_range[0],
+        emitter.particle_size_range[1],
+        hash01(seed * 2.81),
+    );
+    let color_mix = hash01(seed * 3.61);
+    let angular_velocity = emitter.orbit_radians_per_second
+        * (1.0 + emitter.swirl * (hash01(seed * 4.73) * 2.0 - 1.0));
+    let angle = phase + time_seconds * angular_velocity;
+    let vertical_wave =
+        vertical_extent * (time_seconds * (0.55 + hash01(seed * 5.11)) + phase).sin();
+    let drift_cycle = hash01(seed * 6.07)
+        + time_seconds * (0.08 + emitter.orbit_radians_per_second.abs() * 0.025);
+    let drift_t = fract01(drift_cycle) * 2.0 - 1.0;
+
+    ParticleSample {
+        world_position: emitter.center
+            + basis_u * angle.cos() * radius
+            + basis_v * angle.sin() * radius
+            + axis * vertical_wave
+            + emitter.drift * drift_t,
+        color: [
+            emitter.color_start.r * (1.0 - color_mix) + emitter.color_end.r * color_mix,
+            emitter.color_start.g * (1.0 - color_mix) + emitter.color_end.g * color_mix,
+            emitter.color_start.b * (1.0 - color_mix) + emitter.color_end.b * color_mix,
+        ],
+        radius: size,
+        emissive_strength: emitter.emissive_strength.max(0.05),
+        depth_test: emitter.depth_test,
+    }
+}
+
+fn orthonormal_basis(axis: Vec3) -> (Vec3, Vec3) {
+    let helper = if axis.y.abs() > 0.92 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::UP
+    };
+    let basis_u = axis.cross(helper).normalize();
+    let basis_v = axis.cross(basis_u).normalize();
+    (basis_u, basis_v)
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ParticleSample {
+    world_position: Vec3,
+    color: [f32; 3],
+    radius: f32,
+    emissive_strength: f32,
+    depth_test: bool,
+}
+
+fn hash01(seed: f32) -> f32 {
+    fract01((seed * 12.9898).sin() * 43_758.547)
+}
+
+fn fract01(value: f32) -> f32 {
+    value - value.floor()
+}
+
+fn lerp(start: f32, end: f32, t: f32) -> f32 {
+    start + (end - start) * t
 }
 
 fn build_gizmo_vertices(

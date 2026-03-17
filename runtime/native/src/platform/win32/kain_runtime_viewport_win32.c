@@ -1,6 +1,7 @@
 #include "../../../include/kain_runtime_win32.h"
 #include "../../../include/kain_runtime_asset.h"
 #include "../../../include/kain_runtime_contract.h"
+#include "../../../include/kain_runtime_realtime.h"
 #include "../../../include/kain_runtime_ui.h"
 
 #ifdef _WIN32
@@ -26,6 +27,7 @@ typedef struct {
     KainWin32MouseCapture mouse_capture;
     KainRuntimeContractBundle runtime_contract;
     KainRuntimeContractValidation contract_validation;
+    KainRuntimeRealtimeBundle realtime_bundle;
     KainUiCompiledBundle compiled_ui;
     KainNativeSceneAsset world_asset;
     HWND hwnd;
@@ -64,7 +66,7 @@ static void kain_native_viewport_try_load_compiled_ui(KainNativeViewportApp* app
     }
 
     if (kain_ui_compiled_bundle_load_from_env(KAIN_UI_COMPILED_BUNDLE_ENV, &app->compiled_ui)) {
-        if (app->compiled_ui.primary_viewport_scene[0]) {
+        if (!app->realtime_bundle.loaded && app->compiled_ui.primary_viewport_scene[0]) {
             app->settings.profile = kain_find_viewport_profile(app->compiled_ui.primary_viewport_scene);
         }
     } else {
@@ -82,6 +84,28 @@ static void kain_native_viewport_try_load_runtime_contract(KainNativeViewportApp
             &app->runtime_contract
         )) {
         kain_runtime_contract_init(&app->runtime_contract);
+    }
+}
+
+static void kain_native_viewport_try_load_realtime_bundle(KainNativeViewportApp* app) {
+    if (!app) {
+        return;
+    }
+
+    if (!kain_runtime_realtime_load_for_current_process(
+            KAIN_RUNTIME_REALTIME_ENV,
+            &app->realtime_bundle
+        )) {
+        kain_runtime_realtime_init(&app->realtime_bundle);
+        return;
+    }
+
+    if (app->realtime_bundle.primary_scene[0]) {
+        const KainViewportProfile* profile =
+            kain_find_viewport_profile(app->realtime_bundle.primary_scene);
+        if (profile) {
+            app->settings.profile = profile;
+        }
     }
 }
 
@@ -336,10 +360,11 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     char subtitle_line[256];
     char stats_line[256];
     char asset_line[256];
+    char realtime_line[256];
     char config_line[256];
     char contract_line[256];
     char validation_line[256];
-    const char* live_lines[5];
+    const char* live_lines[6];
     const char* help_lines[1];
     KainUiCompiledOverlaySpec overlay_spec;
     const KainViewportProfile* profile = app->settings.profile;
@@ -409,11 +434,32 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
             service_line
         );
     }
+    if (app->realtime_bundle.loaded) {
+        snprintf(
+            realtime_line,
+            sizeof(realtime_line),
+            "realtime %s via %s  |  viewport %s  |  materials %d  |  shader refs %d",
+            app->realtime_bundle.target[0] ? app->realtime_bundle.target : "unknown",
+            app->realtime_bundle.load_origin[0] ? app->realtime_bundle.load_origin : "path",
+            app->realtime_bundle.primary_scene[0] ? app->realtime_bundle.primary_scene : "none",
+            app->realtime_bundle.material_count,
+            app->realtime_bundle.shader_ref_count
+        );
+    } else {
+        snprintf(
+            realtime_line,
+            sizeof(realtime_line),
+            "realtime missing  |  expected %s beside the executable or via %s",
+            KAIN_RUNTIME_REALTIME_SIDECAR_SUFFIX,
+            KAIN_RUNTIME_REALTIME_ENV
+        );
+    }
     live_lines[0] = stats_line;
     live_lines[1] = config_line;
     live_lines[2] = asset_line;
-    live_lines[3] = contract_line;
-    live_lines[4] = validation_line;
+    live_lines[3] = realtime_line;
+    live_lines[4] = contract_line;
+    live_lines[5] = validation_line;
     help_lines[0] = "WASD move  |  Space jump  |  Shift sprint  |  Click capture mouse  |  Esc release";
 
     ZeroMemory(&overlay_spec, sizeof(overlay_spec));
@@ -427,7 +473,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     overlay_spec.fallback_title = "KAIN RAW NATIVE VIEWPORT";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
-    overlay_spec.live_line_count = 5;
+    overlay_spec.live_line_count = 6;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 1;
     overlay_spec.fallback_hint = app->contract_validation.warning_count > 0
@@ -706,6 +752,7 @@ static void kain_run_native_viewport(double x, double y, const char* window_titl
     if (!kain_native_viewport_validate_runtime_contract(&app)) {
         return;
     }
+    kain_native_viewport_try_load_realtime_bundle(&app);
     kain_native_viewport_try_load_compiled_ui(&app);
     kain_native_scene_asset_init(&app.world_asset);
     app.width = app.settings.window_width;

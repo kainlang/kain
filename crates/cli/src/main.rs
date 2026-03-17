@@ -1,6 +1,7 @@
 //! KAIN Compiler CLI
 
 use clap::Parser as ClapParser;
+use cli::import_crate;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_rust;
@@ -12,12 +13,13 @@ use cli::packager;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    compile, compile_runtime_contract_bundle, parse_compile_target, supported_targets_csv,
-    target_extension, CompileTarget, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA,
-    BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME,
-    LANGUAGE_NAME, VERSION,
+    compile, compile_realtime_app_bundle, compile_runtime_contract_bundle, parse_compile_target,
+    supported_targets_csv, target_extension, CompileTarget, BUILD_GIT_COMMIT_COUNT,
+    BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE,
+    BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
 use serde::Deserialize;
+use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -364,6 +366,44 @@ enum Commands {
         report_json: Option<PathBuf>,
     },
 
+    /// Import a Rust crate into KAIN through the crate FFI layer
+    ImportCrate {
+        /// Crate import name used by `use rust::<crate_name>`
+        crate_name: String,
+
+        /// Cargo manifest used for workspace/dependency resolution
+        #[arg(long)]
+        manifest_path: Option<PathBuf>,
+
+        /// Explicit local crate folder or Cargo.toml for standalone crates
+        #[arg(long)]
+        crate_path: Option<PathBuf>,
+
+        /// Generated artifact mode: live, generate, or both
+        #[arg(long, default_value = "both")]
+        mode: String,
+
+        /// Output directory for generated KAIN files and reports
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Override report JSON path
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+
+        /// Cargo feature list for the resolved crate
+        #[arg(long, value_delimiter = ',')]
+        features: Vec<String>,
+
+        /// Enable all crate features
+        #[arg(long)]
+        all_features: bool,
+
+        /// Disable default crate features
+        #[arg(long)]
+        no_default_features: bool,
+    },
+
     /// Import TypeScript source code into KAIN
     ImportTs {
         /// Input TypeScript source file or directory
@@ -517,6 +557,15 @@ fn run_compile(
                         }
                         Err(err) => {
                             eprintln!(" Failed to write runtime contract artifact: {}", err);
+                            return false;
+                        }
+                    }
+                    match write_realtime_app_artifact(&source, target, &output_path, None) {
+                        Ok(realtime_path) => {
+                            println!(" Realtime bundle: {}", realtime_path.display());
+                        }
+                        Err(err) => {
+                            eprintln!(" Failed to write realtime app artifact: {}", err);
                             return false;
                         }
                     }
@@ -862,6 +911,17 @@ fn run_compile(
             eprint!("{}", diag.format_error(&e));
             false
         }
+    }
+}
+
+fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "live" => Ok(ArtifactMode::Live),
+        "generate" | "gen" => Ok(ArtifactMode::Generate),
+        "both" => Ok(ArtifactMode::Both),
+        other => Err(format!(
+            "Unknown crate FFI mode '{other}'. Use one of: live, generate, both"
+        )),
     }
 }
 
@@ -1302,6 +1362,40 @@ fn main() {
                         }
                     }
                 }
+                Some(Commands::ImportCrate {
+                    crate_name,
+                    manifest_path,
+                    crate_path,
+                    mode,
+                    output,
+                    report_json,
+                    features,
+                    all_features,
+                    no_default_features,
+                }) => {
+                    let mode = match parse_artifact_mode(&mode) {
+                        Ok(value) => value,
+                        Err(err) => {
+                            eprintln!("❌ import-crate failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                    let options = ImportCrateOptions {
+                        manifest_path,
+                        crate_path,
+                        output_dir: output,
+                        report_json,
+                        mode,
+                        features,
+                        all_features,
+                        no_default_features,
+                    };
+
+                    if let Err(err) = import_crate::import_crate(&crate_name, options) {
+                        eprintln!("❌ import-crate failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
                 Some(Commands::ImportTs {
                     input,
                     output,
@@ -1510,6 +1604,10 @@ fn runtime_contract_artifact_path(output_path: &Path) -> PathBuf {
     output_path.with_extension("runtime_contract.json")
 }
 
+fn realtime_app_artifact_path(output_path: &Path) -> PathBuf {
+    output_path.with_extension("realtime_app.json")
+}
+
 fn write_runtime_contract_artifact(
     source: &str,
     target: CompileTarget,
@@ -1537,6 +1635,34 @@ fn write_runtime_contract_artifact(
         )
     })?;
     Ok(contract_path)
+}
+
+fn write_realtime_app_artifact(
+    source: &str,
+    target: CompileTarget,
+    output_path: &Path,
+    root_component: Option<&str>,
+) -> Result<PathBuf, String> {
+    let bundle_output =
+        compile_realtime_app_bundle(source, target, root_component).map_err(|err| err.to_string())?;
+    let realtime_path = realtime_app_artifact_path(output_path);
+    if let Some(parent) = realtime_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "unable to create realtime app directory {}: {}",
+                parent.display(),
+                err
+            )
+        })?;
+    }
+    fs::write(&realtime_path, bundle_output.bundle_json.as_bytes()).map_err(|err| {
+        format!(
+            "unable to write realtime app artifact {}: {}",
+            realtime_path.display(),
+            err
+        )
+    })?;
+    Ok(realtime_path)
 }
 
 fn find_runtime_c() -> Option<PathBuf> {

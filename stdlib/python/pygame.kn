@@ -1,0 +1,19 @@
+pub fn py_pygame_available() -> Bool:
+    py_exec("import importlib.util\n\ndef __kain_pygame_available():\n    return importlib.util.find_spec('pygame') is not None\n")
+    return py_call("__kain_pygame_available", [])
+
+pub fn py_pygame_require() -> Any:
+    assert(py_pygame_available(), "pygame must be installed")
+    return py_import("pygame")
+
+pub fn py_pygame_set_dummy_video_driver():
+    py_exec("import os\nos.environ.setdefault('SDL_VIDEODRIVER', 'dummy')")
+
+pub fn py_pygame_image_shared(target: Any) -> Any:
+    return kain_image_from_py_shared(target)
+
+pub fn py_pygame_image_owned(target: Any) -> Any:
+    return kain_image_from_py_owned(target)
+
+pub fn py_pygame_from_image(image: Any) -> Any:
+    return kain_image_to_py(image, "numpy")

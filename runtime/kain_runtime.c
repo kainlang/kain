@@ -3,6 +3,7 @@
 
 #include "native/src/core/kain_runtime_core.c"
 #include "native/src/core/kain_runtime_contract.c"
+#include "native/src/core/kain_runtime_realtime.c"
 #include "native/src/asset/kain_asset_gltf.c"
 #include "native/src/gfx/opengl/kain_gl_win32_host.c"
 #include "native/src/platform/win32/kain_win32_app_host.c"

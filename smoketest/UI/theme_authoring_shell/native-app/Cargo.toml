@@ -1,0 +1,9 @@
+[package]
+name = "ui-smoke-theme-authoring-shell"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+kain-ui-native = { path = "../../../../crates/kain-ui-native" }

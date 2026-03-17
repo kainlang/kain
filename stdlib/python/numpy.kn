@@ -1,0 +1,53 @@
+pub fn py_numpy_available() -> Bool:
+    py_exec("import importlib.util\n\ndef __kain_numpy_available():\n    return importlib.util.find_spec('numpy') is not None\n")
+    return py_call("__kain_numpy_available", [])
+
+pub fn py_numpy_require() -> Any:
+    assert(py_numpy_available(), "numpy must be installed")
+    return py_import("numpy")
+
+pub fn py_numpy_array(data: Any) -> Any:
+    return py_call(py_numpy_require(), "array", [data])
+
+pub fn py_numpy_as_array(data: Any) -> Any:
+    return py_call(py_numpy_require(), "asarray", [data])
+
+pub fn py_numpy_zeros(shape: Any, dtype: String) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "dtype", dtype)
+    return py_call(py_numpy_require(), "zeros", [shape], kwargs)
+
+pub fn py_numpy_ones(shape: Any, dtype: String) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "dtype", dtype)
+    return py_call(py_numpy_require(), "ones", [shape], kwargs)
+
+pub fn py_numpy_linspace(start: Float, stop: Float, count: Int) -> Any:
+    return py_call(py_numpy_require(), "linspace", [start, stop, count])
+
+pub fn py_numpy_image_shared(target: Any) -> Any:
+    return kain_image_from_py_shared(target)
+
+pub fn py_numpy_image_owned(target: Any) -> Any:
+    return kain_image_from_py_owned(target)
+
+pub fn py_numpy_tensor_shared(target: Any) -> Any:
+    return kain_tensor_from_py_shared(target)
+
+pub fn py_numpy_tensor_owned(target: Any) -> Any:
+    return kain_tensor_from_py_owned(target)
+
+pub fn py_numpy_geometry_shared(target: Any) -> Any:
+    return kain_geometry_from_py_shared(target)
+
+pub fn py_numpy_geometry_owned(target: Any) -> Any:
+    return kain_geometry_from_py_owned(target)
+
+pub fn py_numpy_from_image(image: Any) -> Any:
+    return kain_image_to_py(image, "numpy")
+
+pub fn py_numpy_from_tensor(tensor: Any) -> Any:
+    return kain_tensor_to_py(tensor, "numpy")
+
+pub fn py_numpy_from_geometry(geometry: Any) -> Any:
+    return kain_geometry_to_py(geometry, "dict")

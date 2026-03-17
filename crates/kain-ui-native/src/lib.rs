@@ -3,21 +3,33 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::PathBuf,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
+use egui_wgpu::{self, CallbackTrait, ScreenDescriptor};
 use kain_3d::{
-    CameraPose, CpuPickingService, ManipulatorMode, PickingHit, PickingQuery, PickingRay,
-    PickingService, RenderBackend, RenderResolution, RenderStats, RenderViewSettings, SceneCatalog,
-    SoftwareRenderer, Vec3, WgpuRenderer,
+    default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
+    CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ParticleVertex, PickingHit,
+    PickingQuery, PickingRay, PickingService, PreparedWgpuFrame, RenderBackend, RenderResolution,
+    RenderStats, RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms,
+    SoftwareRenderer, Vec3, WgpuRenderer, VIEWPORT_SHADER_MODULE_NAME,
 };
-use kain_core::{build_ui_output_from_source, render_ui_output_debug};
+use kain_core::{
+    build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
+    shader_artifact_bundle_from_json, CompiledMaterialDefinition, RealtimeAppBundle,
+    RealtimeSceneBinding, RealtimeShaderBundleRef, ShaderArtifactBundle,
+};
 use kain_ui::{
-    ui_runtime_bundle_from_json, ui_runtime_bundle_from_output, ui_runtime_bundle_to_json,
-    validate_ui_runtime_bundle, UiBuildOutput, UiLayoutKind, UiNode, UiPatch, UiRuntimeBundle,
-    UiRuntimeMetadata, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
+    ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
+    ui_runtime_bundle_to_json, ui_step_animation_runtime, validate_ui_runtime_bundle,
+    UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength, UiLengthUnit, UiNode,
+    UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle, UiRuntimeMetadata,
+    UiStyleState, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
+    UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
+use wgpu::util::DeviceExt;
 
 pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = UI_RUNTIME_BUNDLE_SCHEMA_VERSION;
 pub type KainUiNativeRuntimeMetadata = UiRuntimeMetadata;
@@ -28,6 +40,8 @@ const DEFAULT_VIEWPORT_RENDER_INTERVAL_IDLE_MS: u64 = 180;
 const DEFAULT_VIEWPORT_RENDER_INTERVAL_INTERACTIVE_MS: u64 = 66;
 const DEFAULT_VIEWPORT_STARTUP_DELAY_MS: u64 = 350;
 const DEFAULT_VIEWPORT_MAX_AXIS_PX: u64 = 640;
+const KAIN_UI_NATIVE_REALTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_REALTIME_BUNDLE";
+const KAIN_UI_NATIVE_SHADER_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_SHADER_BUNDLE";
 
 pub const KAIN_UI_NATIVE_DEMO_SOURCE: &str = r#"
 component App():
@@ -151,27 +165,30 @@ impl KainUiNativeRuntimeSettings {
     }
 
     fn eframe_renderer(self) -> eframe::Renderer {
-        eframe::Renderer::Glow
+        match self.renderer {
+            NativeRendererPreference::Glow => eframe::Renderer::Glow,
+            NativeRendererPreference::Wgpu => eframe::Renderer::Wgpu,
+        }
     }
 
     fn renderer_label(self) -> &'static str {
         match self.renderer {
             NativeRendererPreference::Glow => "software",
-            NativeRendererPreference::Wgpu => "wgpu",
+            NativeRendererPreference::Wgpu => "wgpu-readback",
         }
     }
 
     fn effective_renderer_label(self) -> &'static str {
         match self.renderer {
             NativeRendererPreference::Glow => "software",
-            NativeRendererPreference::Wgpu => "pending-app-init",
+            NativeRendererPreference::Wgpu => "wgpu-readback-pending-app-init",
         }
     }
 }
 
 fn parse_renderer_preference(value: &str) -> NativeRendererPreference {
     match value.to_ascii_lowercase().as_str() {
-        "wgpu" => NativeRendererPreference::Wgpu,
+        "wgpu" | "wgpu-readback" | "wgpu-surface" => NativeRendererPreference::Wgpu,
         _ => NativeRendererPreference::Glow,
     }
 }
@@ -193,6 +210,53 @@ fn env_bool(key: &str) -> Option<bool> {
 
 fn env_u64(key: &str) -> Option<u64> {
     env_var_trimmed(key).and_then(|value| value.parse::<u64>().ok())
+}
+
+fn load_json_string_from_env(key: &str) -> Option<(String, String)> {
+    let path = env_var_trimmed(key)?;
+    let json = std::fs::read_to_string(&path).ok()?;
+    Some((json, path))
+}
+
+fn load_realtime_bundle_from_env() -> Option<(RealtimeAppBundle, String)> {
+    let (json, path) = load_json_string_from_env(KAIN_UI_NATIVE_REALTIME_BUNDLE_ENV)?;
+    realtime_app_bundle_from_json(&json)
+        .ok()
+        .map(|bundle| (bundle, path))
+}
+
+fn load_shader_bundle_from_env() -> Option<(ShaderArtifactBundle, String)> {
+    let (json, path) = load_json_string_from_env(KAIN_UI_NATIVE_SHADER_BUNDLE_ENV)?;
+    shader_artifact_bundle_from_json(&json)
+        .ok()
+        .map(|bundle| (bundle, path))
+}
+
+impl RealtimeBundleCatalog {
+    fn from_bundle(bundle: &RealtimeAppBundle) -> Self {
+        Self {
+            scenes_by_viewport: bundle
+                .render
+                .scenes
+                .iter()
+                .cloned()
+                .map(|scene| (scene.viewport_node.clone(), scene))
+                .collect(),
+            materials_by_id: bundle
+                .render
+                .materials
+                .iter()
+                .cloned()
+                .map(|material| (material.id.clone(), material))
+                .collect(),
+            shader_refs_by_key: bundle
+                .shader_bundle_refs
+                .iter()
+                .cloned()
+                .map(|shader_ref| (shader_ref.key.clone(), shader_ref))
+                .collect(),
+        }
+    }
 }
 
 fn color_bg_top() -> Color32 {
@@ -245,6 +309,1373 @@ fn color_success() -> Color32 {
 
 fn color_muted_text() -> Color32 {
     Color32::from_rgb(160, 171, 186)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeSurfaceMode {
+    Flat,
+    Layered,
+    Glass,
+    Canvas,
+    Accent,
+    Ghost,
+}
+
+impl NativeSurfaceMode {
+    fn from_str(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "flat" => Some(Self::Flat),
+            "layered" | "elevated" => Some(Self::Layered),
+            "glass" | "frosted" => Some(Self::Glass),
+            "canvas" | "viewport" => Some(Self::Canvas),
+            "accent" | "hero" => Some(Self::Accent),
+            "ghost" | "outline" | "minimal" => Some(Self::Ghost),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeDensity {
+    Compact,
+    Cozy,
+    Spacious,
+}
+
+impl NativeDensity {
+    fn from_str(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "compact" | "dense" | "tight" => Some(Self::Compact),
+            "spacious" | "airy" | "loose" => Some(Self::Spacious),
+            "cozy" | "comfortable" | "default" => Some(Self::Cozy),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct NativeThemePalette {
+    bg_top: Color32,
+    bg_bottom: Color32,
+    surface_base: Color32,
+    surface_alt: Color32,
+    surface_raised: Color32,
+    surface_overlay: Color32,
+    outline_soft: Color32,
+    outline_bright: Color32,
+    accent: Color32,
+    accent_soft: Color32,
+    highlight: Color32,
+    success: Color32,
+    text: Color32,
+    text_muted: Color32,
+}
+
+impl Default for NativeThemePalette {
+    fn default() -> Self {
+        Self {
+            bg_top: color_bg_top(),
+            bg_bottom: color_bg_bottom(),
+            surface_base: color_surface(),
+            surface_alt: color_surface_alt(),
+            surface_raised: color_surface_raised(),
+            surface_overlay: color_surface_overlay(),
+            outline_soft: color_outline_soft(),
+            outline_bright: color_outline_bright(),
+            accent: color_accent(),
+            accent_soft: color_accent_soft(),
+            highlight: color_highlight(),
+            success: color_success(),
+            text: Color32::from_rgb(239, 243, 248),
+            text_muted: color_muted_text(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct NativeThemeMetrics {
+    frame_padding: f32,
+    tight_padding: f32,
+    section_gap: f32,
+    content_gap: f32,
+    radius_small: f32,
+    radius_medium: f32,
+    radius_large: f32,
+}
+
+impl NativeThemeMetrics {
+    fn from_density(density: NativeDensity, spacing_scale: f32, radius_scale: f32) -> Self {
+        let spacing_scale = spacing_scale.clamp(0.6, 1.8);
+        let radius_scale = radius_scale.clamp(0.5, 1.8);
+        let (frame_padding, tight_padding, section_gap, content_gap) = match density {
+            NativeDensity::Compact => (10.0, 8.0, 6.0, 8.0),
+            NativeDensity::Cozy => (14.0, 10.0, 8.0, 12.0),
+            NativeDensity::Spacious => (18.0, 14.0, 10.0, 16.0),
+        };
+        let (radius_small, radius_medium, radius_large) = match density {
+            NativeDensity::Compact => (7.0, 11.0, 15.0),
+            NativeDensity::Cozy => (9.0, 14.0, 18.0),
+            NativeDensity::Spacious => (12.0, 18.0, 24.0),
+        };
+
+        Self {
+            frame_padding: frame_padding * spacing_scale,
+            tight_padding: tight_padding * spacing_scale,
+            section_gap: section_gap * spacing_scale,
+            content_gap: content_gap * spacing_scale,
+            radius_small: radius_small * radius_scale,
+            radius_medium: radius_medium * radius_scale,
+            radius_large: radius_large * radius_scale,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct NativeTypography {
+    heading: f32,
+    section: f32,
+    body: f32,
+    small: f32,
+    code: f32,
+}
+
+impl NativeTypography {
+    fn from_density(density: NativeDensity, type_scale: f32) -> Self {
+        let type_scale = type_scale.clamp(0.75, 1.7);
+        let (heading, section, body, small, code) = match density {
+            NativeDensity::Compact => (20.0, 16.0, 13.5, 11.0, 10.5),
+            NativeDensity::Cozy => (22.0, 17.5, 14.5, 11.5, 11.0),
+            NativeDensity::Spacious => (25.0, 19.5, 15.5, 12.5, 11.5),
+        };
+        Self {
+            heading: heading * type_scale,
+            section: section * type_scale,
+            body: body * type_scale,
+            small: small * type_scale,
+            code: code * type_scale,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct NativeAppTheme {
+    name: String,
+    density: NativeDensity,
+    palette: NativeThemePalette,
+    metrics: NativeThemeMetrics,
+    typography: NativeTypography,
+    chrome_mode: NativeSurfaceMode,
+    panel_mode: NativeSurfaceMode,
+    inspector_mode: NativeSurfaceMode,
+    tree_mode: NativeSurfaceMode,
+    graph_mode: NativeSurfaceMode,
+    timeline_mode: NativeSurfaceMode,
+    viewport_mode: NativeSurfaceMode,
+    element_mode: NativeSurfaceMode,
+    global_values: BTreeMap<String, UiValue>,
+}
+
+impl Default for NativeAppTheme {
+    fn default() -> Self {
+        let density = NativeDensity::Cozy;
+        Self {
+            name: "default".to_string(),
+            density,
+            palette: NativeThemePalette::default(),
+            metrics: NativeThemeMetrics::from_density(density, 1.0, 1.0),
+            typography: NativeTypography::from_density(density, 1.0),
+            chrome_mode: NativeSurfaceMode::Glass,
+            panel_mode: NativeSurfaceMode::Layered,
+            inspector_mode: NativeSurfaceMode::Glass,
+            tree_mode: NativeSurfaceMode::Ghost,
+            graph_mode: NativeSurfaceMode::Canvas,
+            timeline_mode: NativeSurfaceMode::Accent,
+            viewport_mode: NativeSurfaceMode::Canvas,
+            element_mode: NativeSurfaceMode::Ghost,
+            global_values: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct NativeWidgetTheme {
+    mode: NativeSurfaceMode,
+    fill: Color32,
+    stroke: Color32,
+    canvas_fill: Color32,
+    overlay_fill: Color32,
+    accent: Color32,
+    title_color: Color32,
+    body_color: Color32,
+    muted_color: Color32,
+    tag_color: Color32,
+    radius: f32,
+    padding: f32,
+    gap: f32,
+    title_size: f32,
+    body_size: f32,
+    tag_size: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeTextRole {
+    Body,
+    Hero,
+    Title,
+    Eyebrow,
+    Caption,
+    Muted,
+    Code,
+    Metric,
+}
+
+impl NativeWidgetTheme {
+    fn from_kind(kind: &UiWidgetKind, app_theme: &NativeAppTheme) -> Self {
+        let mode = match kind {
+            UiWidgetKind::Panel => app_theme.panel_mode,
+            UiWidgetKind::Inspector => app_theme.inspector_mode,
+            UiWidgetKind::Tree => app_theme.tree_mode,
+            UiWidgetKind::Graph => app_theme.graph_mode,
+            UiWidgetKind::Timeline => app_theme.timeline_mode,
+            UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => app_theme.viewport_mode,
+            UiWidgetKind::Element(_) => app_theme.element_mode,
+            _ => NativeSurfaceMode::Flat,
+        };
+
+        let (fill, stroke, canvas_fill, overlay_fill) =
+            surface_colors_for_mode(mode, &app_theme.palette);
+        let (radius, padding) = match kind {
+            UiWidgetKind::Panel => (
+                app_theme.metrics.radius_large,
+                app_theme.metrics.frame_padding,
+            ),
+            UiWidgetKind::Graph | UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => (
+                app_theme.metrics.radius_large,
+                app_theme.metrics.tight_padding,
+            ),
+            UiWidgetKind::Timeline => (
+                app_theme.metrics.radius_medium,
+                app_theme.metrics.tight_padding,
+            ),
+            UiWidgetKind::Inspector | UiWidgetKind::Tree => (
+                app_theme.metrics.radius_medium,
+                app_theme.metrics.tight_padding,
+            ),
+            _ => (
+                app_theme.metrics.radius_small,
+                app_theme.metrics.tight_padding,
+            ),
+        };
+
+        let title_color = match kind {
+            UiWidgetKind::Timeline => app_theme.palette.highlight,
+            UiWidgetKind::Graph | UiWidgetKind::Tree => app_theme.palette.accent_soft,
+            _ => app_theme.palette.text,
+        };
+
+        Self {
+            mode,
+            fill,
+            stroke,
+            canvas_fill,
+            overlay_fill,
+            accent: app_theme.palette.accent,
+            title_color,
+            body_color: app_theme.palette.text,
+            muted_color: app_theme.palette.text_muted,
+            tag_color: app_theme.palette.accent_soft,
+            radius,
+            padding,
+            gap: app_theme.metrics.content_gap,
+            title_size: app_theme.typography.section,
+            body_size: app_theme.typography.body,
+            tag_size: app_theme.typography.small,
+        }
+    }
+
+    fn chrome(app_theme: &NativeAppTheme) -> Self {
+        let (fill, stroke, canvas_fill, overlay_fill) =
+            surface_colors_for_mode(app_theme.chrome_mode, &app_theme.palette);
+        Self {
+            mode: app_theme.chrome_mode,
+            fill,
+            stroke,
+            canvas_fill,
+            overlay_fill,
+            accent: app_theme.palette.accent,
+            title_color: app_theme.palette.text,
+            body_color: app_theme.palette.text,
+            muted_color: app_theme.palette.text_muted,
+            tag_color: app_theme.palette.accent_soft,
+            radius: app_theme.metrics.radius_medium,
+            padding: app_theme.metrics.tight_padding,
+            gap: app_theme.metrics.section_gap,
+            title_size: app_theme.typography.section,
+            body_size: app_theme.typography.body,
+            tag_size: app_theme.typography.small,
+        }
+    }
+}
+
+fn alpha_tint(color: Color32, alpha_factor: f32) -> Color32 {
+    let alpha = ((color.a() as f32) * alpha_factor.clamp(0.0, 1.0)).round() as u8;
+    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
+}
+
+fn surface_colors_for_mode(
+    mode: NativeSurfaceMode,
+    palette: &NativeThemePalette,
+) -> (Color32, Color32, Color32, Color32) {
+    match mode {
+        NativeSurfaceMode::Flat => (
+            palette.surface_base,
+            palette.outline_soft,
+            palette.bg_top,
+            palette.surface_overlay,
+        ),
+        NativeSurfaceMode::Layered => (
+            palette.surface_alt,
+            palette.outline_soft,
+            palette.bg_top,
+            palette.surface_overlay,
+        ),
+        NativeSurfaceMode::Glass => (
+            alpha_tint(palette.surface_raised, 0.82),
+            alpha_tint(palette.accent_soft, 0.68),
+            alpha_tint(palette.bg_top, 0.92),
+            alpha_tint(palette.surface_overlay, 0.86),
+        ),
+        NativeSurfaceMode::Canvas => (
+            palette.surface_base,
+            palette.outline_bright,
+            palette.bg_top,
+            alpha_tint(palette.surface_overlay, 0.92),
+        ),
+        NativeSurfaceMode::Accent => (
+            alpha_tint(palette.accent, 0.18),
+            palette.accent_soft,
+            alpha_tint(palette.bg_top, 0.94),
+            alpha_tint(palette.surface_overlay, 0.88),
+        ),
+        NativeSurfaceMode::Ghost => (
+            Color32::from_rgba_unmultiplied(0, 0, 0, 0),
+            alpha_tint(palette.outline_soft, 0.8),
+            alpha_tint(palette.bg_top, 0.88),
+            alpha_tint(palette.surface_overlay, 0.72),
+        ),
+    }
+}
+
+fn native_theme_preset(name: &str) -> NativeAppTheme {
+    let mut theme = NativeAppTheme::default();
+    theme.name = name.to_string();
+    match name.trim().to_ascii_lowercase().as_str() {
+        "forge" => {
+            theme.density = NativeDensity::Compact;
+            theme.palette = NativeThemePalette {
+                bg_top: Color32::from_rgb(18, 14, 12),
+                bg_bottom: Color32::from_rgb(31, 24, 20),
+                surface_base: Color32::from_rgb(39, 30, 25),
+                surface_alt: Color32::from_rgb(53, 39, 31),
+                surface_raised: Color32::from_rgb(68, 48, 35),
+                surface_overlay: Color32::from_rgba_unmultiplied(13, 9, 7, 214),
+                outline_soft: Color32::from_rgb(120, 89, 70),
+                outline_bright: Color32::from_rgb(231, 154, 83),
+                accent: Color32::from_rgb(233, 119, 51),
+                accent_soft: Color32::from_rgb(255, 184, 123),
+                highlight: Color32::from_rgb(255, 216, 137),
+                success: Color32::from_rgb(162, 223, 141),
+                text: Color32::from_rgb(247, 240, 233),
+                text_muted: Color32::from_rgb(193, 175, 161),
+            };
+            theme.chrome_mode = NativeSurfaceMode::Accent;
+            theme.panel_mode = NativeSurfaceMode::Layered;
+            theme.inspector_mode = NativeSurfaceMode::Flat;
+            theme.tree_mode = NativeSurfaceMode::Ghost;
+            theme.graph_mode = NativeSurfaceMode::Canvas;
+            theme.timeline_mode = NativeSurfaceMode::Accent;
+            theme.viewport_mode = NativeSurfaceMode::Glass;
+        }
+        "signal" => {
+            theme.density = NativeDensity::Cozy;
+            theme.palette = NativeThemePalette {
+                bg_top: Color32::from_rgb(10, 12, 24),
+                bg_bottom: Color32::from_rgb(14, 18, 37),
+                surface_base: Color32::from_rgb(18, 24, 43),
+                surface_alt: Color32::from_rgb(24, 32, 56),
+                surface_raised: Color32::from_rgb(33, 43, 72),
+                surface_overlay: Color32::from_rgba_unmultiplied(8, 10, 24, 214),
+                outline_soft: Color32::from_rgb(87, 99, 142),
+                outline_bright: Color32::from_rgb(255, 118, 181),
+                accent: Color32::from_rgb(255, 91, 168),
+                accent_soft: Color32::from_rgb(255, 172, 214),
+                highlight: Color32::from_rgb(255, 214, 120),
+                success: Color32::from_rgb(130, 233, 201),
+                text: Color32::from_rgb(244, 245, 253),
+                text_muted: Color32::from_rgb(176, 184, 211),
+            };
+            theme.chrome_mode = NativeSurfaceMode::Glass;
+            theme.panel_mode = NativeSurfaceMode::Glass;
+            theme.inspector_mode = NativeSurfaceMode::Layered;
+            theme.tree_mode = NativeSurfaceMode::Ghost;
+            theme.graph_mode = NativeSurfaceMode::Accent;
+            theme.timeline_mode = NativeSurfaceMode::Canvas;
+            theme.viewport_mode = NativeSurfaceMode::Canvas;
+        }
+        "paper" => {
+            theme.density = NativeDensity::Spacious;
+            theme.palette = NativeThemePalette {
+                bg_top: Color32::from_rgb(240, 234, 224),
+                bg_bottom: Color32::from_rgb(226, 219, 209),
+                surface_base: Color32::from_rgb(252, 248, 241),
+                surface_alt: Color32::from_rgb(244, 238, 229),
+                surface_raised: Color32::from_rgb(255, 252, 247),
+                surface_overlay: Color32::from_rgba_unmultiplied(244, 238, 229, 228),
+                outline_soft: Color32::from_rgb(167, 146, 121),
+                outline_bright: Color32::from_rgb(84, 122, 184),
+                accent: Color32::from_rgb(55, 98, 166),
+                accent_soft: Color32::from_rgb(103, 142, 205),
+                highlight: Color32::from_rgb(186, 127, 52),
+                success: Color32::from_rgb(77, 142, 93),
+                text: Color32::from_rgb(46, 40, 34),
+                text_muted: Color32::from_rgb(103, 92, 81),
+            };
+            theme.chrome_mode = NativeSurfaceMode::Layered;
+            theme.panel_mode = NativeSurfaceMode::Flat;
+            theme.inspector_mode = NativeSurfaceMode::Ghost;
+            theme.tree_mode = NativeSurfaceMode::Ghost;
+            theme.graph_mode = NativeSurfaceMode::Canvas;
+            theme.timeline_mode = NativeSurfaceMode::Accent;
+            theme.viewport_mode = NativeSurfaceMode::Canvas;
+        }
+        _ => {}
+    }
+    theme.metrics = NativeThemeMetrics::from_density(theme.density, 1.0, 1.0);
+    theme.typography = NativeTypography::from_density(theme.density, 1.0);
+    theme
+}
+
+fn resolve_app_theme(output: &UiBuildOutput) -> NativeAppTheme {
+    let root_resolved = output
+        .tree
+        .root
+        .and_then(|root_id| output.tree.node(root_id))
+        .map(|node| ui_resolve_theme_for_node(node, &output.systems.theme_registry))
+        .unwrap_or_default();
+
+    let theme_name = theme_lookup_string(
+        None,
+        &root_resolved.values,
+        &["theme.name", "app.theme", "theme.active"],
+    )
+    .or_else(|| output.systems.theme_registry.active_theme.clone())
+    .unwrap_or_else(|| "default".to_string());
+
+    let mut theme = native_theme_preset(&theme_name);
+    theme.global_values = root_resolved.values.clone();
+
+    if let Some(density) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["theme.density", "layout.density", "density"],
+    )
+    .and_then(|value| NativeDensity::from_str(&value))
+    {
+        theme.density = density;
+    }
+
+    let spacing_scale = theme_lookup_f32(
+        None,
+        &theme.global_values,
+        &["theme.spacing.scale", "spacing.scale"],
+    )
+    .unwrap_or(1.0);
+    let radius_scale = theme_lookup_f32(
+        None,
+        &theme.global_values,
+        &["theme.radius.scale", "radius.scale", "corner.scale"],
+    )
+    .unwrap_or(1.0);
+    let type_scale = theme_lookup_f32(
+        None,
+        &theme.global_values,
+        &["theme.typography.scale", "typography.scale", "font.scale"],
+    )
+    .unwrap_or(1.0);
+
+    theme.metrics = NativeThemeMetrics::from_density(theme.density, spacing_scale, radius_scale);
+    theme.typography = NativeTypography::from_density(theme.density, type_scale);
+
+    theme.palette.bg_top = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &[
+            "theme.background.top",
+            "theme.bg.top",
+            "theme.surface.background",
+            "surface.background",
+        ],
+        theme.palette.bg_top,
+    );
+    theme.palette.bg_bottom = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.background.bottom", "theme.bg.bottom"],
+        theme.palette.bg_bottom,
+    );
+    theme.palette.surface_base = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &[
+            "theme.surface.base",
+            "theme.surface.default",
+            "surface.fill",
+        ],
+        theme.palette.surface_base,
+    );
+    theme.palette.surface_alt = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.surface.alt", "theme.surface.secondary"],
+        theme.palette.surface_alt,
+    );
+    theme.palette.surface_raised = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.surface.raised", "theme.surface.elevated"],
+        theme.palette.surface_raised,
+    );
+    theme.palette.surface_overlay = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.surface.overlay", "surface.overlay"],
+        theme.palette.surface_overlay,
+    );
+    theme.palette.outline_soft = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.outline.soft", "outline.soft"],
+        theme.palette.outline_soft,
+    );
+    theme.palette.outline_bright = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.outline.bright", "outline.bright"],
+        theme.palette.outline_bright,
+    );
+    theme.palette.accent = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.accent.primary", "theme.accent", "accent.color"],
+        theme.palette.accent,
+    );
+    theme.palette.accent_soft = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.accent.soft", "accent.soft"],
+        theme.palette.accent_soft,
+    );
+    theme.palette.highlight = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.highlight", "highlight.color"],
+        theme.palette.highlight,
+    );
+    theme.palette.success = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.success", "success.color"],
+        theme.palette.success,
+    );
+    theme.palette.text = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.text.default", "text.default", "text.color"],
+        theme.palette.text,
+    );
+    theme.palette.text_muted = theme_lookup_color(
+        None,
+        &theme.global_values,
+        &["theme.text.muted", "text.muted"],
+        theme.palette.text_muted,
+    );
+
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["theme.chrome.mode", "chrome.surface.mode"],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.chrome_mode = mode;
+    }
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["widget.panel.surface.mode", "panel.surface.mode"],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.panel_mode = mode;
+    }
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["widget.inspector.surface.mode", "inspector.surface.mode"],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.inspector_mode = mode;
+    }
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["widget.tree.surface.mode", "tree.surface.mode"],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.tree_mode = mode;
+    }
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["widget.graph.surface.mode", "graph.surface.mode"],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.graph_mode = mode;
+    }
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &["widget.timeline.surface.mode", "timeline.surface.mode"],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.timeline_mode = mode;
+    }
+    if let Some(mode) = theme_lookup_string(
+        None,
+        &theme.global_values,
+        &[
+            "widget.viewport3d.surface.mode",
+            "widget.viewport2d.surface.mode",
+            "viewport.surface.mode",
+        ],
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.viewport_mode = mode;
+    }
+
+    theme
+}
+
+fn show_runtime_topbar(app_theme: &NativeAppTheme) -> bool {
+    theme_lookup_bool(
+        None,
+        &app_theme.global_values,
+        &[
+            "theme.chrome.topbar.visible",
+            "chrome.topbar.visible",
+            "host.topbar.visible",
+        ],
+    )
+    .unwrap_or(true)
+}
+
+fn resolve_widget_theme(
+    node: &UiNode,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+) -> NativeWidgetTheme {
+    let local = ui_resolve_theme_for_node(node, theme_registry);
+    let widget_key = widget_kind_key(&node.kind);
+    let variant = node.style.variant.as_deref();
+    let mut theme = NativeWidgetTheme::from_kind(&node.kind, app_theme);
+
+    if let Some(mode) = theme_lookup_widget_string(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.mode",
+    )
+    .and_then(|value| NativeSurfaceMode::from_str(&value))
+    {
+        theme.mode = mode;
+        let (fill, stroke, canvas_fill, overlay_fill) =
+            surface_colors_for_mode(mode, &app_theme.palette);
+        theme.fill = fill;
+        theme.stroke = stroke;
+        theme.canvas_fill = canvas_fill;
+        theme.overlay_fill = overlay_fill;
+    }
+
+    theme.fill = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.fill",
+        theme.fill,
+    );
+    theme.stroke = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.stroke",
+        theme.stroke,
+    );
+    theme.canvas_fill = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.canvas",
+        theme.canvas_fill,
+    );
+    theme.overlay_fill = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.overlay",
+        theme.overlay_fill,
+    );
+    theme.accent = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "accent.color",
+        theme.accent,
+    );
+    theme.title_color = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "title.color",
+        theme.title_color,
+    );
+    theme.body_color = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "text.color",
+        theme.body_color,
+    );
+    theme.muted_color = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "text.muted",
+        theme.muted_color,
+    );
+    theme.tag_color = theme_lookup_widget_color(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "tag.color",
+        theme.tag_color,
+    );
+
+    if let Some(radius) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.radius",
+    ) {
+        theme.radius = radius.max(0.0);
+    }
+    if let Some(padding) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.padding",
+    ) {
+        theme.padding = padding.max(0.0);
+    }
+    if let Some(gap) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "layout.gap",
+    ) {
+        theme.gap = gap.max(0.0);
+    }
+    if let Some(title_size) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "title.size",
+    ) {
+        theme.title_size = title_size.max(10.0);
+    }
+    if let Some(body_size) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "body.size",
+    ) {
+        theme.body_size = body_size.max(8.0);
+    }
+    if let Some(tag_size) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "tag.size",
+    ) {
+        theme.tag_size = tag_size.max(8.0);
+    }
+    if let Some(alpha) = theme_lookup_widget_f32(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "surface.alpha",
+    ) {
+        theme.fill = alpha_tint(theme.fill, alpha);
+    }
+    if let Some(density) = theme_lookup_widget_string(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "density",
+    )
+    .and_then(|value| NativeDensity::from_str(&value))
+    {
+        let metrics = NativeThemeMetrics::from_density(density, 1.0, 1.0);
+        theme.padding = metrics.tight_padding;
+        theme.gap = metrics.content_gap;
+    }
+
+    for class_name in &node.style.classes {
+        match class_name.trim().to_ascii_lowercase().as_str() {
+            "hero" | "accent" => {
+                theme.mode = NativeSurfaceMode::Accent;
+                let (fill, stroke, canvas_fill, overlay_fill) =
+                    surface_colors_for_mode(theme.mode, &app_theme.palette);
+                theme.fill = fill;
+                theme.stroke = stroke;
+                theme.canvas_fill = canvas_fill;
+                theme.overlay_fill = overlay_fill;
+                theme.title_size *= 1.08;
+            }
+            "glass" | "frosted" => {
+                theme.mode = NativeSurfaceMode::Glass;
+                let (fill, stroke, canvas_fill, overlay_fill) =
+                    surface_colors_for_mode(theme.mode, &app_theme.palette);
+                theme.fill = fill;
+                theme.stroke = stroke;
+                theme.canvas_fill = canvas_fill;
+                theme.overlay_fill = overlay_fill;
+            }
+            "ghost" | "minimal" => {
+                theme.mode = NativeSurfaceMode::Ghost;
+                let (fill, stroke, canvas_fill, overlay_fill) =
+                    surface_colors_for_mode(theme.mode, &app_theme.palette);
+                theme.fill = fill;
+                theme.stroke = stroke;
+                theme.canvas_fill = canvas_fill;
+                theme.overlay_fill = overlay_fill;
+            }
+            "compact" | "dense" | "tight" => {
+                theme.padding *= 0.78;
+                theme.gap *= 0.78;
+                theme.title_size *= 0.95;
+                theme.body_size *= 0.95;
+            }
+            "spacious" | "airy" => {
+                theme.padding *= 1.18;
+                theme.gap *= 1.18;
+                theme.title_size *= 1.05;
+            }
+            "muted" => {
+                theme.title_color = app_theme.palette.text_muted;
+                theme.body_color = app_theme.palette.text_muted;
+                theme.fill = alpha_tint(theme.fill, 0.78);
+            }
+            "selected" => {
+                theme.stroke = app_theme.palette.accent_soft;
+                theme.fill = alpha_tint(theme.fill, 0.95);
+            }
+            _ => {}
+        }
+    }
+
+    for state in &node.style.states {
+        match state {
+            UiStyleState::Hovered => {
+                theme.stroke = app_theme.palette.accent;
+            }
+            UiStyleState::Active | UiStyleState::Focused => {
+                theme.stroke = app_theme.palette.outline_bright;
+                theme.title_color = app_theme.palette.highlight;
+            }
+            UiStyleState::Selected => {
+                theme.stroke = app_theme.palette.highlight;
+                theme.fill = alpha_tint(theme.fill, 0.98);
+            }
+            UiStyleState::Disabled => {
+                theme.fill = alpha_tint(theme.fill, 0.55);
+                theme.body_color = alpha_tint(theme.body_color, 0.65);
+                theme.title_color = alpha_tint(theme.title_color, 0.75);
+            }
+            UiStyleState::Dragging => {
+                theme.stroke = app_theme.palette.success;
+            }
+        }
+    }
+
+    if node.layout.padding > 0.0 {
+        theme.padding = node.layout.padding;
+    }
+    if node.layout.gap > 0.0 {
+        theme.gap = node.layout.gap;
+    }
+
+    theme
+}
+
+fn widget_kind_key(kind: &UiWidgetKind) -> &'static str {
+    match kind {
+        UiWidgetKind::Panel => "panel",
+        UiWidgetKind::Inspector => "inspector",
+        UiWidgetKind::Graph => "graph",
+        UiWidgetKind::Timeline => "timeline",
+        UiWidgetKind::Table => "table",
+        UiWidgetKind::Tree => "tree",
+        UiWidgetKind::Viewport2D => "viewport2d",
+        UiWidgetKind::Viewport3D => "viewport3d",
+        UiWidgetKind::Overlay => "overlay",
+        UiWidgetKind::Slot => "slot",
+        UiWidgetKind::Text => "text",
+        UiWidgetKind::ComponentRef(_) => "component",
+        UiWidgetKind::Element(_) => "element",
+    }
+}
+
+fn candidate_theme_keys(widget_key: &str, variant: Option<&str>, property: &str) -> Vec<String> {
+    let mut keys = Vec::with_capacity(4);
+    if let Some(variant) = variant {
+        keys.push(format!("widget.{widget_key}.variant.{variant}.{property}"));
+        keys.push(format!("variant.{variant}.{property}"));
+    }
+    keys.push(format!("widget.{widget_key}.{property}"));
+    keys.push(property.to_string());
+    keys
+}
+
+fn theme_lookup_widget_string(
+    local: &UiResolvedTheme,
+    global: &BTreeMap<String, UiValue>,
+    widget_key: &str,
+    variant: Option<&str>,
+    property: &str,
+) -> Option<String> {
+    let keys = candidate_theme_keys(widget_key, variant, property);
+    let refs = keys.iter().map(String::as_str).collect::<Vec<_>>();
+    let empty = BTreeMap::new();
+    theme_lookup_string(Some(&local.values), &empty, &refs)
+        .or_else(|| theme_lookup_string(None, global, &refs))
+}
+
+fn theme_lookup_widget_f32(
+    local: &UiResolvedTheme,
+    global: &BTreeMap<String, UiValue>,
+    widget_key: &str,
+    variant: Option<&str>,
+    property: &str,
+) -> Option<f32> {
+    let keys = candidate_theme_keys(widget_key, variant, property);
+    let refs = keys.iter().map(String::as_str).collect::<Vec<_>>();
+    let empty = BTreeMap::new();
+    theme_lookup_f32(Some(&local.values), &empty, &refs)
+        .or_else(|| theme_lookup_f32(None, global, &refs))
+}
+
+fn theme_lookup_widget_color(
+    local: &UiResolvedTheme,
+    global: &BTreeMap<String, UiValue>,
+    widget_key: &str,
+    variant: Option<&str>,
+    property: &str,
+    fallback: Color32,
+) -> Color32 {
+    let keys = candidate_theme_keys(widget_key, variant, property);
+    let refs = keys.iter().map(String::as_str).collect::<Vec<_>>();
+    let empty = BTreeMap::new();
+    theme_lookup_color_option(Some(&local.values), &empty, &refs)
+        .or_else(|| theme_lookup_color_option(None, global, &refs))
+        .unwrap_or(fallback)
+}
+
+fn theme_lookup_string(
+    local: Option<&BTreeMap<String, UiValue>>,
+    global: &BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<String> {
+    keys.iter().find_map(|key| {
+        theme_lookup_value(local, global, key, 0).and_then(|value| match value {
+            UiValue::String(value) => Some(value.clone()),
+            _ => None,
+        })
+    })
+}
+
+fn theme_lookup_f32(
+    local: Option<&BTreeMap<String, UiValue>>,
+    global: &BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<f32> {
+    keys.iter()
+        .find_map(|key| theme_lookup_value(local, global, key, 0).and_then(ui_value_as_f32))
+}
+
+fn theme_lookup_bool(
+    local: Option<&BTreeMap<String, UiValue>>,
+    global: &BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<bool> {
+    keys.iter()
+        .find_map(|key| theme_lookup_value(local, global, key, 0).and_then(ui_value_as_bool))
+}
+
+fn theme_lookup_color(
+    local: Option<&BTreeMap<String, UiValue>>,
+    global: &BTreeMap<String, UiValue>,
+    keys: &[&str],
+    fallback: Color32,
+) -> Color32 {
+    theme_lookup_color_option(local, global, keys).unwrap_or(fallback)
+}
+
+fn theme_lookup_color_option(
+    local: Option<&BTreeMap<String, UiValue>>,
+    global: &BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<Color32> {
+    keys.iter()
+        .find_map(|key| theme_lookup_value(local, global, key, 0).and_then(ui_value_as_color))
+}
+
+fn theme_lookup_value<'a>(
+    local: Option<&'a BTreeMap<String, UiValue>>,
+    global: &'a BTreeMap<String, UiValue>,
+    key: &str,
+    depth: usize,
+) -> Option<&'a UiValue> {
+    if depth > 8 {
+        return None;
+    }
+    let value = local
+        .and_then(|values| values.get(key))
+        .or_else(|| global.get(key))?;
+
+    if let UiValue::String(alias) = value {
+        let alias = alias.trim();
+        if alias != key
+            && (local.is_some_and(|values| values.contains_key(alias))
+                || global.contains_key(alias))
+        {
+            return theme_lookup_value(local, global, alias, depth + 1).or(Some(value));
+        }
+    }
+
+    Some(value)
+}
+
+fn ui_value_as_f32(value: &UiValue) -> Option<f32> {
+    match value {
+        UiValue::Float(value) => Some(*value as f32),
+        UiValue::Int(value) => Some(*value as f32),
+        UiValue::String(value) => value.parse::<f32>().ok(),
+        _ => None,
+    }
+}
+
+fn ui_value_as_bool(value: &UiValue) -> Option<bool> {
+    match value {
+        UiValue::Bool(value) => Some(*value),
+        UiValue::Int(value) => Some(*value != 0),
+        UiValue::Float(value) => Some(value.abs() > f64::EPSILON),
+        UiValue::String(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn ui_value_as_i64(value: &UiValue) -> Option<i64> {
+    match value {
+        UiValue::Int(value) => Some(*value),
+        UiValue::Float(value) => Some(*value as i64),
+        UiValue::String(value) => value.parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+fn ui_value_as_color(value: &UiValue) -> Option<Color32> {
+    match value {
+        UiValue::String(value) => parse_theme_color(value),
+        _ => None,
+    }
+}
+
+fn parse_theme_color(value: &str) -> Option<Color32> {
+    let trimmed = value.trim();
+    if let Some(hex) = trimmed.strip_prefix('#') {
+        return match hex.len() {
+            6 => {
+                let rgb = u32::from_str_radix(hex, 16).ok()?;
+                Some(Color32::from_rgb(
+                    ((rgb >> 16) & 0xff) as u8,
+                    ((rgb >> 8) & 0xff) as u8,
+                    (rgb & 0xff) as u8,
+                ))
+            }
+            8 => {
+                let rgba = u32::from_str_radix(hex, 16).ok()?;
+                Some(Color32::from_rgba_unmultiplied(
+                    ((rgba >> 24) & 0xff) as u8,
+                    ((rgba >> 16) & 0xff) as u8,
+                    ((rgba >> 8) & 0xff) as u8,
+                    (rgba & 0xff) as u8,
+                ))
+            }
+            _ => None,
+        };
+    }
+
+    match trimmed.to_ascii_lowercase().as_str() {
+        "white" => Some(Color32::WHITE),
+        "black" => Some(Color32::BLACK),
+        "transparent" => Some(Color32::from_rgba_unmultiplied(0, 0, 0, 0)),
+        _ => None,
+    }
+}
+
+fn themed_frame(theme: &NativeWidgetTheme) -> Frame {
+    Frame::new()
+        .fill(theme.fill)
+        .stroke(Stroke::new(1.0, theme.stroke))
+        .corner_radius(theme.radius)
+        .inner_margin(theme.padding)
+}
+
+fn apply_runtime_visuals(ctx: &egui::Context, app_theme: &NativeAppTheme) {
+    let mut visuals = egui::Visuals::dark();
+    visuals.override_text_color = Some(app_theme.palette.text);
+    visuals.panel_fill = app_theme.palette.bg_bottom;
+    visuals.window_fill = app_theme.palette.bg_bottom;
+    visuals.faint_bg_color = app_theme.palette.surface_base;
+    visuals.extreme_bg_color = app_theme.palette.bg_top;
+    visuals.widgets.noninteractive.bg_fill = app_theme.palette.surface_base;
+    visuals.widgets.noninteractive.fg_stroke.color = app_theme.palette.text_muted;
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, app_theme.palette.outline_soft);
+    visuals.widgets.inactive.bg_fill = app_theme.palette.surface_alt;
+    visuals.widgets.inactive.fg_stroke.color = app_theme.palette.accent_soft;
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, app_theme.palette.outline_soft);
+    visuals.widgets.hovered.bg_fill = app_theme.palette.surface_raised;
+    visuals.widgets.hovered.fg_stroke.color = app_theme.palette.text;
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, app_theme.palette.accent);
+    visuals.widgets.active.bg_fill = alpha_tint(app_theme.palette.accent, 0.22);
+    visuals.widgets.active.fg_stroke.color = app_theme.palette.text;
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0, app_theme.palette.accent_soft);
+    visuals.widgets.open.bg_fill = app_theme.palette.surface_raised;
+    visuals.selection.bg_fill = alpha_tint(app_theme.palette.accent, 0.36);
+    visuals.selection.stroke.color = app_theme.palette.accent_soft;
+    visuals.hyperlink_color = app_theme.palette.highlight;
+    visuals.window_stroke = Stroke::new(1.0, app_theme.palette.outline_soft);
+    ctx.set_visuals(visuals);
+
+    let mut style = (*ctx.style()).clone();
+    style.spacing.item_spacing =
+        egui::vec2(app_theme.metrics.content_gap, app_theme.metrics.section_gap);
+    style.spacing.button_padding = egui::vec2(
+        app_theme.metrics.tight_padding,
+        app_theme.metrics.tight_padding * 0.7,
+    );
+    style.spacing.indent = app_theme.metrics.content_gap + 4.0;
+    style.text_styles.insert(
+        egui::TextStyle::Heading,
+        egui::FontId::proportional(app_theme.typography.heading),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Body,
+        egui::FontId::proportional(app_theme.typography.body),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Button,
+        egui::FontId::proportional(app_theme.typography.body),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Small,
+        egui::FontId::proportional(app_theme.typography.small),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Monospace,
+        egui::FontId::monospace(app_theme.typography.code),
+    );
+    ctx.set_style(style);
+}
+
+fn resolve_text_role(node: &UiNode) -> NativeTextRole {
+    if let Some(role) = prop_text(node, "role").or_else(|| prop_text(node, "text.role")) {
+        return parse_text_role(role);
+    }
+    if let Some(variant) = node.style.variant.as_deref() {
+        return parse_text_role(variant);
+    }
+    for class_name in &node.style.classes {
+        let role = parse_text_role(class_name);
+        if role != NativeTextRole::Body {
+            return role;
+        }
+    }
+    NativeTextRole::Body
+}
+
+fn parse_text_role(value: &str) -> NativeTextRole {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "hero" | "display" => NativeTextRole::Hero,
+        "title" | "heading" | "section" => NativeTextRole::Title,
+        "eyebrow" | "kicker" | "label" => NativeTextRole::Eyebrow,
+        "caption" | "small" => NativeTextRole::Caption,
+        "muted" | "secondary" => NativeTextRole::Muted,
+        "code" | "mono" | "monospace" => NativeTextRole::Code,
+        "metric" | "stat" | "numeric" => NativeTextRole::Metric,
+        _ => NativeTextRole::Body,
+    }
+}
+
+fn render_text_node(
+    ui: &mut egui::Ui,
+    node: &UiNode,
+    app_theme: &NativeAppTheme,
+    presentation: NativeNodePresentation,
+) {
+    let role = resolve_text_role(node);
+    let text = prop_text(node, "text").unwrap_or_default();
+    let (size, color, monospace, strong) = match role {
+        NativeTextRole::Hero => (
+            app_theme.typography.heading * 1.3,
+            app_theme.palette.text,
+            false,
+            true,
+        ),
+        NativeTextRole::Title => (
+            app_theme.typography.section * 1.1,
+            app_theme.palette.text,
+            false,
+            true,
+        ),
+        NativeTextRole::Eyebrow => (
+            app_theme.typography.small,
+            app_theme.palette.accent_soft,
+            true,
+            false,
+        ),
+        NativeTextRole::Caption => (
+            app_theme.typography.small,
+            app_theme.palette.text_muted,
+            false,
+            false,
+        ),
+        NativeTextRole::Muted => (
+            app_theme.typography.body,
+            app_theme.palette.text_muted,
+            false,
+            false,
+        ),
+        NativeTextRole::Code => (
+            app_theme.typography.code,
+            app_theme.palette.highlight,
+            true,
+            false,
+        ),
+        NativeTextRole::Metric => (
+            app_theme.typography.heading * 1.15,
+            app_theme.palette.highlight,
+            true,
+            true,
+        ),
+        NativeTextRole::Body => (
+            app_theme.typography.body,
+            app_theme.palette.text,
+            false,
+            false,
+        ),
+    };
+
+    let mut rich = RichText::new(text)
+        .size(size)
+        .color(apply_node_presentation_to_color(color, presentation));
+    if monospace {
+        rich = rich.monospace();
+    }
+    if strong {
+        rich = rich.strong();
+    }
+    ui.label(rich);
+}
+
+fn layout_align(align: UiLayoutAlignment) -> Align {
+    match align {
+        UiLayoutAlignment::Start | UiLayoutAlignment::Stretch | UiLayoutAlignment::SpaceBetween => {
+            Align::Min
+        }
+        UiLayoutAlignment::Center => Align::Center,
+        UiLayoutAlignment::End => Align::Max,
+    }
+}
+
+fn resolve_ui_length(length: Option<UiLength>, available: f32) -> Option<f32> {
+    let length = length?;
+    match length.unit {
+        UiLengthUnit::Px => Some(length.value.max(0.0)),
+        UiLengthUnit::Percent => Some((available * (length.value / 100.0)).max(0.0)),
+        UiLengthUnit::Fr => Some((available * length.value.max(0.0)).max(0.0)),
+        UiLengthUnit::Auto => None,
+    }
+}
+
+fn apply_node_layout_constraints(ui: &mut egui::Ui, node: &UiNode) {
+    if let Some(min_width) = node.layout.min_width {
+        ui.set_min_width(min_width.max(0.0));
+    }
+    if let Some(min_height) = node.layout.min_height {
+        ui.set_min_height(min_height.max(0.0));
+    }
+    if let Some(max_width) = node.layout.max_width {
+        ui.set_max_width(max_width.max(0.0));
+    }
+    if let Some(max_height) = node.layout.max_height {
+        ui.set_max_height(max_height.max(0.0));
+    }
+
+    let available = ui.available_size_before_wrap();
+    if let Some(width) = resolve_ui_length(node.layout.width, available.x) {
+        ui.set_width(width);
+    }
+    if let Some(height) = resolve_ui_length(node.layout.height, available.y) {
+        ui.set_height(height);
+    }
 }
 
 impl Default for KainUiNativeAppConfig {
@@ -365,9 +1796,10 @@ fn run_output(
     eframe::run_native(
         &window_title,
         options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
             trace_runtime("run_native: creation_context received");
             Ok(Box::new(KainUiNativeApp::new(
+                cc,
                 config.clone(),
                 output.clone(),
                 boot_mode,
@@ -397,12 +1829,71 @@ impl AppBootMode {
 struct ViewportSurfaceState {
     texture: Option<egui::TextureHandle>,
     scene_name: String,
+    bundle_viewport_node: Option<String>,
+    bundle_material_refs: Vec<String>,
+    bundle_shader_ref_keys: Vec<String>,
+    bundle_warning: Option<String>,
     controller: ViewportCameraController,
     last_render_at: Option<Instant>,
     last_stats: RenderStats,
     selected_instance_id: Option<String>,
     manipulator_mode: ManipulatorMode,
     last_pick: Option<PickingHit>,
+    presented_state: Option<Arc<Mutex<PresentedViewportGpuState>>>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct RealtimeBundleCatalog {
+    scenes_by_viewport: BTreeMap<String, RealtimeSceneBinding>,
+    materials_by_id: BTreeMap<String, CompiledMaterialDefinition>,
+    shader_refs_by_key: BTreeMap<String, RealtimeShaderBundleRef>,
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedViewportBinding {
+    viewport_node: Option<String>,
+    scene_name: String,
+    material_refs: Vec<String>,
+    shader_ref_keys: Vec<String>,
+    warning: Option<String>,
+}
+
+#[derive(Clone, Copy)]
+struct PresentedViewportHost {
+    target_format: wgpu::TextureFormat,
+}
+
+struct PresentedViewportGpuState {
+    target_format: wgpu::TextureFormat,
+    resources: Option<PresentedViewportGpuResources>,
+    prepared_frame: Option<PreparedWgpuFrame>,
+    draw_data: Option<PresentedViewportDrawData>,
+}
+
+struct PresentedViewportGpuResources {
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
+    background_pipeline: wgpu::RenderPipeline,
+    scene_pipeline: wgpu::RenderPipeline,
+    particle_depth_pipeline: wgpu::RenderPipeline,
+    particle_overlay_pipeline: wgpu::RenderPipeline,
+    gizmo_pipeline: wgpu::RenderPipeline,
+}
+
+struct PresentedViewportDrawData {
+    scene_buffer: Option<wgpu::Buffer>,
+    scene_len: u32,
+    depth_particle_buffer: Option<wgpu::Buffer>,
+    depth_particle_len: u32,
+    overlay_particle_buffer: Option<wgpu::Buffer>,
+    overlay_particle_len: u32,
+    gizmo_buffer: Option<wgpu::Buffer>,
+    gizmo_len: u32,
+}
+
+#[derive(Clone)]
+struct PresentedViewportCallback {
+    state: Arc<Mutex<PresentedViewportGpuState>>,
 }
 
 struct ViewportCameraController {
@@ -410,6 +1901,9 @@ struct ViewportCameraController {
     yaw: f32,
     pitch: f32,
     move_speed: f32,
+    vertical_velocity: f32,
+    eye_height: f32,
+    grounded: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -437,6 +1931,9 @@ impl ViewportCameraController {
             yaw: forward.z.atan2(forward.x),
             pitch: forward.y.clamp(-0.999, 0.999).asin(),
             move_speed: 7.5,
+            vertical_velocity: 0.0,
+            eye_height: 1.7,
+            grounded: false,
         }
     }
 
@@ -471,7 +1968,7 @@ impl ViewportCameraController {
     }
 
     fn right(&self) -> Vec3 {
-        self.planar_forward().cross(Vec3::UP).normalize()
+        Vec3::UP.cross(self.planar_forward()).normalize()
     }
 
     fn recenter(&mut self, pose: &CameraPose) {
@@ -485,8 +1982,10 @@ struct KainUiNativeApp {
     output: UiBuildOutput,
     debug_tree: String,
     scene_catalog: SceneCatalog,
+    realtime_catalog: RealtimeBundleCatalog,
     renderer: Box<dyn RenderBackend>,
     active_renderer_label: String,
+    presented_viewport_host: Option<PresentedViewportHost>,
     viewport_surfaces: BTreeMap<kain_ui::UiNodeId, ViewportSurfaceState>,
     viewport_input: ViewportInputSnapshot,
     start_time: Instant,
@@ -495,16 +1994,44 @@ struct KainUiNativeApp {
     boot_mode: AppBootMode,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct NativeNodePresentation {
+    opacity: f32,
+    translate_y: f32,
+}
+
+impl Default for NativeNodePresentation {
+    fn default() -> Self {
+        Self {
+            opacity: 1.0,
+            translate_y: 0.0,
+        }
+    }
+}
+
 impl KainUiNativeApp {
     fn new(
+        cc: &eframe::CreationContext<'_>,
         config: KainUiNativeAppConfig,
         output: UiBuildOutput,
         boot_mode: AppBootMode,
         runtime_settings: KainUiNativeRuntimeSettings,
     ) -> Self {
-        let (renderer, active_renderer_label) = select_viewport_renderer(runtime_settings);
+        let realtime_bundle = load_realtime_bundle_from_env();
+        let shader_bundle = load_shader_bundle_from_env();
+        let realtime_bundle_origin = realtime_bundle.as_ref().map(|(_, path)| path.clone());
+        let shader_bundle_origin = shader_bundle.as_ref().map(|(_, path)| path.clone());
+        let realtime_catalog = realtime_bundle
+            .as_ref()
+            .map(|(bundle, _)| RealtimeBundleCatalog::from_bundle(bundle))
+            .unwrap_or_default();
+        let (renderer, active_renderer_label, presented_viewport_host) = select_viewport_renderer(
+            runtime_settings,
+            cc,
+            shader_bundle.as_ref().map(|(bundle, _)| bundle),
+        );
         trace_runtime(format!(
-            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={}",
+            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} realtime_bundle={} shader_bundle={}",
             config.window_title,
             config.root_component,
             boot_mode.label(),
@@ -512,6 +2039,12 @@ impl KainUiNativeApp {
             active_renderer_label,
             runtime_settings.show_runtime_inspector,
             runtime_settings.enable_viewports,
+            realtime_bundle_origin
+                .as_deref()
+                .unwrap_or("<none>"),
+            shader_bundle_origin
+                .as_deref()
+                .unwrap_or("<none>"),
         ));
         let debug_tree = render_ui_output_debug(&output);
         Self {
@@ -520,8 +2053,10 @@ impl KainUiNativeApp {
             output,
             debug_tree,
             scene_catalog: SceneCatalog::default(),
+            realtime_catalog,
             renderer,
             active_renderer_label,
+            presented_viewport_host,
             viewport_surfaces: BTreeMap::new(),
             viewport_input: ViewportInputSnapshot::default(),
             start_time: Instant::now(),
@@ -532,26 +2067,431 @@ impl KainUiNativeApp {
     }
 }
 
+fn resolve_node_animation_progress(output: &UiBuildOutput, node: &UiNode) -> Option<f32> {
+    let track_id = format!("animation.node.{}", node.id.0);
+    let has_track = output
+        .systems
+        .animation_tracks
+        .iter()
+        .any(|track| track.id == track_id && track.target == node.id);
+    if !has_track {
+        return None;
+    }
+
+    Some(
+        output
+            .systems
+            .animation_state
+            .get(&track_id)
+            .map(|state| state.eased_progress)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0),
+    )
+}
+
+fn resolve_node_presentation(output: &UiBuildOutput, node: &UiNode) -> NativeNodePresentation {
+    let progress = resolve_node_animation_progress(output, node).unwrap_or(1.0);
+    NativeNodePresentation {
+        opacity: (0.22 + progress * 0.78).clamp(0.0, 1.0),
+        translate_y: ((1.0 - progress) * 22.0).max(0.0),
+    }
+}
+
+fn apply_node_presentation_to_theme(
+    mut theme: NativeWidgetTheme,
+    presentation: NativeNodePresentation,
+) -> NativeWidgetTheme {
+    theme.fill = alpha_tint(theme.fill, presentation.opacity);
+    theme.stroke = alpha_tint(theme.stroke, presentation.opacity);
+    theme.canvas_fill = alpha_tint(theme.canvas_fill, presentation.opacity);
+    theme.overlay_fill = alpha_tint(theme.overlay_fill, presentation.opacity);
+    theme.accent = alpha_tint(theme.accent, presentation.opacity);
+    theme.title_color = alpha_tint(theme.title_color, presentation.opacity);
+    theme.body_color = alpha_tint(theme.body_color, presentation.opacity);
+    theme.muted_color = alpha_tint(theme.muted_color, presentation.opacity);
+    theme.tag_color = alpha_tint(theme.tag_color, presentation.opacity);
+    theme
+}
+
+fn apply_node_presentation_to_color(
+    color: Color32,
+    presentation: NativeNodePresentation,
+) -> Color32 {
+    alpha_tint(color, presentation.opacity)
+}
+
 fn select_viewport_renderer(
     runtime_settings: KainUiNativeRuntimeSettings,
-) -> (Box<dyn RenderBackend>, String) {
+    cc: &eframe::CreationContext<'_>,
+    shader_bundle: Option<&ShaderArtifactBundle>,
+) -> (
+    Box<dyn RenderBackend>,
+    String,
+    Option<PresentedViewportHost>,
+) {
     match runtime_settings.renderer {
         NativeRendererPreference::Glow => (
             Box::new(SoftwareRenderer::default()),
             "software".to_string(),
+            None,
         ),
-        NativeRendererPreference::Wgpu => match WgpuRenderer::new() {
-            Ok(renderer) => (Box::new(renderer), "wgpu".to_string()),
+        NativeRendererPreference::Wgpu => match shader_bundle
+            .cloned()
+            .map(|bundle| match WgpuRenderer::new_with_shader_bundle(bundle) {
+                Ok(renderer) => Ok(renderer),
+                Err(err) => {
+                    trace_runtime(format!(
+                        "viewport_renderer: external_shader_bundle_failed fallback=default_wgpu error={err}"
+                    ));
+                    WgpuRenderer::new()
+                }
+            })
+            .unwrap_or_else(WgpuRenderer::new)
+        {
+            Ok(renderer) => {
+                let presented_viewport_host = cc
+                    .wgpu_render_state
+                    .as_ref()
+                    .map(|render_state| PresentedViewportHost {
+                        target_format: render_state.target_format,
+                    });
+                let active_renderer_label = if presented_viewport_host.is_some() {
+                    "wgpu-surface".to_string()
+                } else {
+                    "wgpu-readback".to_string()
+                };
+                (
+                    Box::new(renderer),
+                    active_renderer_label,
+                    presented_viewport_host,
+                )
+            }
             Err(err) => {
                 trace_runtime(format!(
                     "viewport_renderer: requested=wgpu fallback=software error={err}"
                 ));
                 (
                     Box::new(SoftwareRenderer::default()),
-                    "software-fallback".to_string(),
+                    "software".to_string(),
+                    None,
                 )
             }
         },
+    }
+}
+
+impl PresentedViewportGpuState {
+    fn new(target_format: wgpu::TextureFormat) -> Self {
+        Self {
+            target_format,
+            resources: None,
+            prepared_frame: None,
+            draw_data: None,
+        }
+    }
+}
+
+impl CallbackTrait for PresentedViewportCallback {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _screen_descriptor: &ScreenDescriptor,
+        _egui_encoder: &mut wgpu::CommandEncoder,
+        _callback_resources: &mut egui_wgpu::CallbackResources,
+    ) -> Vec<wgpu::CommandBuffer> {
+        let Ok(mut state) = self.state.lock() else {
+            return Vec::new();
+        };
+        if state.resources.is_none() {
+            match build_presented_viewport_resources(device, state.target_format) {
+                Ok(resources) => state.resources = Some(resources),
+                Err(err) => {
+                    trace_runtime(format!("viewport_presented: init_failed error={err}"));
+                    return Vec::new();
+                }
+            }
+        }
+        let Some(resources) = state.resources.as_ref() else {
+            return Vec::new();
+        };
+        let Some(prepared_frame) = state.prepared_frame.as_ref() else {
+            return Vec::new();
+        };
+        queue.write_buffer(
+            &resources.uniform_buffer,
+            0,
+            bytemuck::bytes_of(&prepared_frame.uniforms),
+        );
+        state.draw_data = Some(build_presented_draw_data(device, prepared_frame));
+        Vec::new()
+    }
+
+    fn paint(
+        &self,
+        info: egui::PaintCallbackInfo,
+        render_pass: &mut wgpu::RenderPass<'static>,
+        _callback_resources: &egui_wgpu::CallbackResources,
+    ) {
+        let Ok(state) = self.state.lock() else {
+            return;
+        };
+        let Some(resources) = state.resources.as_ref() else {
+            return;
+        };
+        let Some(draw_data) = state.draw_data.as_ref() else {
+            return;
+        };
+        let viewport = info.viewport_in_pixels();
+        let clip = info.clip_rect_in_pixels();
+        render_pass.set_viewport(
+            viewport.left_px as f32,
+            viewport.top_px as f32,
+            viewport.width_px as f32,
+            viewport.height_px as f32,
+            0.0,
+            1.0,
+        );
+        render_pass.set_scissor_rect(
+            clip.left_px.max(0) as u32,
+            clip.top_px.max(0) as u32,
+            clip.width_px.max(1) as u32,
+            clip.height_px.max(1) as u32,
+        );
+        render_pass.set_bind_group(0, &resources.uniform_bind_group, &[]);
+        render_pass.set_pipeline(&resources.background_pipeline);
+        render_pass.draw(0..3, 0..1);
+
+        if let Some(buffer) = draw_data.scene_buffer.as_ref() {
+            render_pass.set_pipeline(&resources.scene_pipeline);
+            render_pass.set_vertex_buffer(0, buffer.slice(..));
+            render_pass.draw(0..draw_data.scene_len, 0..1);
+        }
+        if let Some(buffer) = draw_data.depth_particle_buffer.as_ref() {
+            render_pass.set_pipeline(&resources.particle_depth_pipeline);
+            render_pass.set_vertex_buffer(0, buffer.slice(..));
+            render_pass.draw(0..draw_data.depth_particle_len, 0..1);
+        }
+        if let Some(buffer) = draw_data.overlay_particle_buffer.as_ref() {
+            render_pass.set_pipeline(&resources.particle_overlay_pipeline);
+            render_pass.set_vertex_buffer(0, buffer.slice(..));
+            render_pass.draw(0..draw_data.overlay_particle_len, 0..1);
+        }
+        if let Some(buffer) = draw_data.gizmo_buffer.as_ref() {
+            render_pass.set_pipeline(&resources.gizmo_pipeline);
+            render_pass.set_vertex_buffer(0, buffer.slice(..));
+            render_pass.draw(0..draw_data.gizmo_len, 0..1);
+        }
+    }
+}
+
+fn build_presented_viewport_resources(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+) -> Result<PresentedViewportGpuResources, String> {
+    let shader_bundle = default_viewport_shader_bundle();
+    let shader_source = wgsl_module_source(&shader_bundle, VIEWPORT_SHADER_MODULE_NAME)
+        .map_err(|err| err.to_string())?;
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("kain-ui-native-presented-viewport-shader"),
+        source: wgpu::ShaderSource::Wgsl(shader_source),
+    });
+
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("kain-ui-native-presented-viewport-bind-layout"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    });
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("kain-ui-native-presented-viewport-pipeline-layout"),
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[],
+    });
+    let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("kain-ui-native-presented-viewport-uniform-buffer"),
+        size: std::mem::size_of::<SceneUniforms>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("kain-ui-native-presented-viewport-bind-group"),
+        layout: &bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniform_buffer.as_entire_binding(),
+        }],
+    });
+
+    let color_target = Some(wgpu::ColorTargetState {
+        format: target_format,
+        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+        write_mask: wgpu::ColorWrites::ALL,
+    });
+
+    let background_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("kain-ui-native-presented-background-pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("background_vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("background_fs_main"),
+            compilation_options: Default::default(),
+            targets: &[color_target.clone()],
+        }),
+        multiview: None,
+        cache: None,
+    });
+    let scene_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("kain-ui-native-presented-scene-pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("scene_vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[GpuVertex::layout()],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("scene_fs_main"),
+            compilation_options: Default::default(),
+            targets: &[color_target.clone()],
+        }),
+        multiview: None,
+        cache: None,
+    });
+    let particle_pipeline = |label: &'static str, entry: &'static str| {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("particle_vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[ParticleVertex::layout()],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some(entry),
+                compilation_options: Default::default(),
+                targets: &[color_target.clone()],
+            }),
+            multiview: None,
+            cache: None,
+        })
+    };
+    let particle_depth_pipeline = particle_pipeline(
+        "kain-ui-native-presented-particle-depth-pipeline",
+        "particle_fs_main",
+    );
+    let particle_overlay_pipeline = particle_pipeline(
+        "kain-ui-native-presented-particle-overlay-pipeline",
+        "particle_fs_main",
+    );
+    let gizmo_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("kain-ui-native-presented-gizmo-pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("gizmo_vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[GizmoVertex::layout()],
+        },
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::LineList,
+            ..Default::default()
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("gizmo_fs_main"),
+            compilation_options: Default::default(),
+            targets: &[color_target],
+        }),
+        multiview: None,
+        cache: None,
+    });
+
+    Ok(PresentedViewportGpuResources {
+        uniform_buffer,
+        uniform_bind_group,
+        background_pipeline,
+        scene_pipeline,
+        particle_depth_pipeline,
+        particle_overlay_pipeline,
+        gizmo_pipeline,
+    })
+}
+
+fn build_presented_draw_data(
+    device: &wgpu::Device,
+    prepared_frame: &PreparedWgpuFrame,
+) -> PresentedViewportDrawData {
+    PresentedViewportDrawData {
+        scene_len: prepared_frame.scene_vertices.len() as u32,
+        scene_buffer: buffer_for_vertices(
+            device,
+            "kain-ui-native-presented-scene-buffer",
+            &prepared_frame.scene_vertices,
+        ),
+        depth_particle_len: prepared_frame.depth_particles.len() as u32,
+        depth_particle_buffer: buffer_for_vertices(
+            device,
+            "kain-ui-native-presented-depth-particles",
+            &prepared_frame.depth_particles,
+        ),
+        overlay_particle_len: prepared_frame.overlay_particles.len() as u32,
+        overlay_particle_buffer: buffer_for_vertices(
+            device,
+            "kain-ui-native-presented-overlay-particles",
+            &prepared_frame.overlay_particles,
+        ),
+        gizmo_len: prepared_frame.gizmo_vertices.len() as u32,
+        gizmo_buffer: buffer_for_vertices(
+            device,
+            "kain-ui-native-presented-gizmo-buffer",
+            &prepared_frame.gizmo_vertices,
+        ),
+    }
+}
+
+fn buffer_for_vertices<T: bytemuck::Pod>(
+    device: &wgpu::Device,
+    label: &'static str,
+    vertices: &[T],
+) -> Option<wgpu::Buffer> {
+    if vertices.is_empty() {
+        None
+    } else {
+        Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(label),
+                contents: bytemuck::cast_slice(vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        )
     }
 }
 
@@ -564,171 +2504,184 @@ impl eframe::App for KainUiNativeApp {
             .clamp(1.0 / 240.0, 0.050);
         self.last_frame_instant = frame_now;
 
-        apply_demo_visuals(ctx);
+        let app_theme = resolve_app_theme(&self.output);
+        apply_runtime_visuals(ctx, &app_theme);
         ctx.request_repaint_after(Duration::from_millis(
             self.runtime_settings.repaint_interval_ms,
         ));
         self.viewport_input = snapshot_viewport_input(ctx);
         self.viewport_surfaces
             .retain(|id, _| self.output.tree.nodes.contains_key(id));
+        let animation_delta_ms = (self.frame_dt_seconds * 1000.0).round().clamp(1.0, 64.0) as u32;
+        let _ = ui_step_animation_runtime(&mut self.output.systems, animation_delta_ms);
+        let theme_registry = self.output.systems.theme_registry.clone();
 
-        trace_runtime("app_update: topbar");
-        egui::TopBottomPanel::top("kain_ui_native_topbar")
-            .resizable(false)
-            .show(ctx, |ui| {
-                Frame::new()
-                    .fill(color_bg_top())
-                    .inner_margin(egui::Margin::same(8))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.heading(
-                                RichText::new(&self.config.window_title)
-                                    .size(20.0)
-                                    .color(Color32::from_rgb(241, 245, 250)),
-                            );
-                            ui.add_space(6.0);
-                            ui.label(
-                                RichText::new(format!(
-                                    "{} nodes  |  {} patches",
-                                    self.output.tree.nodes.len(),
-                                    self.output.patches.len()
-                                ))
-                                .monospace()
-                                .color(color_accent_soft()),
-                            );
-                            ui.add_space(6.0);
-                            ui.label(
-                                RichText::new(format!("boot: {}", self.boot_mode.label()))
-                                    .monospace()
-                                    .color(color_success()),
-                            );
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                ui.label(
-                                    RichText::new(format!("root: {}", self.config.root_component))
-                                        .monospace()
-                                        .color(color_highlight()),
+        if show_runtime_topbar(&app_theme) {
+            trace_runtime("app_update: topbar");
+            egui::TopBottomPanel::top("kain_ui_native_topbar")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    Frame::new()
+                        .fill(NativeWidgetTheme::chrome(&app_theme).fill)
+                        .stroke(Stroke::new(
+                            1.0,
+                            NativeWidgetTheme::chrome(&app_theme).stroke,
+                        ))
+                        .corner_radius(app_theme.metrics.radius_medium)
+                        .inner_margin(app_theme.metrics.tight_padding)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.heading(
+                                    RichText::new(&self.config.window_title)
+                                        .size(app_theme.typography.heading)
+                                        .color(app_theme.palette.text),
                                 );
+                                ui.add_space(6.0);
+                                ui.label(
+                                    RichText::new(format!(
+                                        "{} nodes  |  {} patches",
+                                        self.output.tree.nodes.len(),
+                                        self.output.patches.len()
+                                    ))
+                                    .monospace()
+                                    .color(app_theme.palette.accent_soft),
+                                );
+                                ui.add_space(6.0);
+                                ui.label(
+                                    RichText::new(format!("boot: {}", self.boot_mode.label()))
+                                        .monospace()
+                                        .color(app_theme.palette.success),
+                                );
+                                ui.add_space(6.0);
+                                ui.label(
+                                    RichText::new(format!("theme: {}", app_theme.name))
+                                        .monospace()
+                                        .color(app_theme.palette.accent),
+                                );
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "root: {}",
+                                            self.config.root_component
+                                        ))
+                                        .monospace()
+                                        .color(app_theme.palette.highlight),
+                                    );
+                                });
                             });
                         });
-                    });
                 });
-        
+        }
 
         if self.runtime_settings.show_runtime_inspector {
             trace_runtime("app_update: inspector");
             egui::SidePanel::right("kain_ui_native_inspector")
-                .default_width(360.0)
+                .default_width(match app_theme.density {
+                    NativeDensity::Compact => 320.0,
+                    NativeDensity::Cozy => 360.0,
+                    NativeDensity::Spacious => 420.0,
+                })
                 .show(ctx, |ui| {
-                    ui.heading("Runtime Inspector");
-                    ui.label("Retained semantic tree, emitted patch stream, and compiled viewport surfaces.");
-                    ui.separator();
-                    ui.label(
-                        RichText::new(format!("boot source: {}", self.boot_mode.label()))
-                            .monospace()
-                            .color(Color32::from_rgb(173, 216, 255)),
-                    );
+                    themed_frame(&NativeWidgetTheme::chrome(&app_theme)).show(ui, |ui| {
+                        ui.heading(RichText::new("Runtime Inspector").color(app_theme.palette.text));
+                        ui.label(
+                            RichText::new(
+                                "Retained semantic tree, emitted patch stream, and compiled viewport surfaces.",
+                            )
+                            .size(app_theme.typography.body)
+                            .color(app_theme.palette.text_muted),
+                        );
+                        ui.separator();
+                        ui.label(
+                            RichText::new(format!("boot source: {}", self.boot_mode.label()))
+                                .monospace()
+                                .color(app_theme.palette.accent_soft),
+                        );
+                        ui.label(
+                            RichText::new(format!("active theme: {}", app_theme.name))
+                                .monospace()
+                                .color(app_theme.palette.highlight),
+                        );
 
-                    ui.collapsing("Semantic Tree", |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            ui.code(&self.debug_tree);
+                        ui.collapsing("Semantic Tree", |ui| {
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                ui.code(&self.debug_tree);
+                            });
                         });
-                    });
 
-                    ui.separator();
-                    ui.heading("Patch Stream");
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            for patch in &self.output.patches {
-                                ui.label(RichText::new(format!("{patch:?}")).monospace());
+                        ui.separator();
+                        ui.heading(RichText::new("Patch Stream").color(app_theme.palette.text));
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                for patch in &self.output.patches {
+                                    ui.label(RichText::new(format!("{patch:?}")).monospace());
+                                }
+                            });
+
+                        ui.separator();
+                        ui.heading(RichText::new("Runtime Systems").color(app_theme.palette.text));
+                        ui.label(format!(
+                            "computed={} surfaces={} animations={} theme_scopes={} dock_roots={}",
+                            self.output.systems.computed.len(),
+                            self.output.systems.surfaces.len(),
+                            self.output.systems.animation_tracks.len(),
+                            self.output.systems.theme_registry.scopes.len(),
+                            self.output.systems.workspace_layout.roots.len(),
+                        ));
+                        ui.label(format!(
+                            "focus_scopes={} selection_scopes={} scheduler_pending={} reload_aliases={}",
+                            self.output.systems.focus_graph.scopes.len(),
+                            self.output.systems.selection_model.scopes.len(),
+                            self.output.systems.scheduler.pending.len(),
+                            self.output.systems.hot_reload.identity_aliases.len(),
+                        ));
+
+                        ui.collapsing("Theme Scopes", |ui| {
+                            for scope in &self.output.systems.theme_registry.scopes {
+                                ui.label(
+                                    RichText::new(format!("{} -> {}", scope.name, scope.selector))
+                                        .monospace(),
+                                );
                             }
                         });
 
-                    ui.separator();
-                    ui.heading("Runtime Systems");
-                    ui.label(format!(
-                        "computed={} surfaces={} animations={} theme_scopes={} dock_roots={}",
-                        self.output.systems.computed.len(),
-                        self.output.systems.surfaces.len(),
-                        self.output.systems.animation_tracks.len(),
-                        self.output.systems.theme_registry.scopes.len(),
-                        self.output.systems.workspace_layout.roots.len(),
-                    ));
-                    ui.label(format!(
-                        "focus_scopes={} selection_scopes={} scheduler_pending={} reload_aliases={}",
-                        self.output.systems.focus_graph.scopes.len(),
-                        self.output.systems.selection_model.scopes.len(),
-                        self.output.systems.scheduler.pending.len(),
-                        self.output.systems.hot_reload.identity_aliases.len(),
-                    ));
+                        ui.collapsing("Scheduler", |ui| {
+                            for entry in &self.output.systems.scheduler.pending {
+                                ui.label(
+                                    RichText::new(format!("{:?}: {}", entry.phase, entry.label))
+                                        .monospace(),
+                                );
+                            }
+                        });
 
-                    ui.collapsing("Theme Scopes", |ui| {
-                        for scope in &self.output.systems.theme_registry.scopes {
-                            ui.label(
-                                RichText::new(format!("{} -> {}", scope.name, scope.selector))
-                                    .monospace(),
-                            );
-                        }
-                    });
-
-                    ui.collapsing("Scheduler", |ui| {
-                        for entry in &self.output.systems.scheduler.pending {
-                            ui.label(
-                                RichText::new(format!("{:?}: {}", entry.phase, entry.label))
-                                    .monospace(),
-                            );
-                        }
-                    });
-
-                    ui.collapsing("Hot Reload", |ui| {
-                        for alias in &self.output.systems.hot_reload.identity_aliases {
-                            ui.label(
-                                RichText::new(format!("{} -> {}", alias.from, alias.to))
-                                    .monospace(),
-                            );
-                        }
+                        ui.collapsing("Hot Reload", |ui| {
+                            for alias in &self.output.systems.hot_reload.identity_aliases {
+                                ui.label(
+                                    RichText::new(format!("{} -> {}", alias.from, alias.to))
+                                        .monospace(),
+                                );
+                            }
+                        });
                     });
                 });
         }
 
         trace_runtime("app_update: central_panel");
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(color_bg_bottom()).inner_margin(12.0))
+            .frame(
+                Frame::new()
+                    .fill(app_theme.palette.bg_bottom)
+                    .inner_margin(app_theme.metrics.frame_padding),
+            )
             .show(ctx, |ui| {
                 if let Some(root_id) = self.output.tree.root {
                     let tree = self.output.tree.clone();
-                    render_node(self, ui, ctx, &tree, root_id);
+                    render_node(self, ui, ctx, &tree, &theme_registry, &app_theme, root_id);
                 }
             });
         trace_runtime("app_update: end");
     }
-}
-
-fn apply_demo_visuals(ctx: &egui::Context) {
-    let mut visuals = egui::Visuals::dark();
-    visuals.override_text_color = Some(Color32::from_rgb(239, 243, 248));
-    visuals.panel_fill = color_bg_bottom();
-    visuals.window_fill = color_bg_bottom();
-    visuals.faint_bg_color = color_surface();
-    visuals.extreme_bg_color = color_bg_top();
-    visuals.widgets.noninteractive.bg_fill = color_surface();
-    visuals.widgets.noninteractive.fg_stroke.color = color_muted_text();
-    visuals.widgets.inactive.bg_fill = color_surface_alt();
-    visuals.widgets.inactive.fg_stroke.color = color_accent_soft();
-    visuals.widgets.hovered.bg_fill = color_surface_raised();
-    visuals.widgets.hovered.fg_stroke.color = Color32::WHITE;
-    visuals.widgets.active.bg_fill = Color32::from_rgb(28, 70, 94);
-    visuals.widgets.active.fg_stroke.color = Color32::WHITE;
-    visuals.widgets.open.bg_fill = color_surface_raised();
-    visuals.selection.bg_fill = Color32::from_rgb(24, 93, 131);
-    visuals.selection.stroke.color = color_accent_soft();
-    visuals.hyperlink_color = color_highlight();
-    visuals.window_stroke = Stroke::new(1.0, color_outline_soft());
-    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, color_outline_soft());
-    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, color_outline_soft());
-    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, color_accent());
-    visuals.widgets.active.bg_stroke = Stroke::new(1.0, color_accent());
-    ctx.set_visuals(visuals);
 }
 
 fn render_node(
@@ -736,6 +2689,8 @@ fn render_node(
     ui: &mut egui::Ui,
     ctx: &egui::Context,
     tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
     id: kain_ui::UiNodeId,
 ) {
     let Some(node) = tree.node(id) else {
@@ -743,146 +2698,179 @@ fn render_node(
         return;
     };
 
-    match &node.kind {
-        UiWidgetKind::Text => {
-            ui.label(prop_text(node, "text").unwrap_or_default());
+    ui.scope(|ui| {
+        let presentation = resolve_node_presentation(&app.output, node);
+        if presentation.translate_y > f32::EPSILON {
+            ui.add_space(presentation.translate_y);
         }
-        UiWidgetKind::Panel => {
-            let title = prop_text(node, "title").unwrap_or("Panel");
-            Frame::new()
-                .fill(color_surface_alt())
-                .stroke(Stroke::new(1.0, color_outline_soft()))
-                .corner_radius(14.0)
-                .inner_margin(14.0)
-                .show(ui, |ui| {
+        apply_node_layout_constraints(ui, node);
+
+        match &node.kind {
+            UiWidgetKind::Text => {
+                render_text_node(ui, node, app_theme, presentation);
+            }
+            UiWidgetKind::Panel => {
+                let title = prop_text(node, "title").unwrap_or("Panel");
+                let theme = apply_node_presentation_to_theme(
+                    resolve_widget_theme(node, theme_registry, app_theme),
+                    presentation,
+                );
+                themed_frame(&theme).show(ui, |ui| {
                     ui.label(
                         RichText::new(title)
                             .strong()
-                            .size(18.0)
-                            .color(Color32::from_rgb(243, 247, 251)),
+                            .size(theme.title_size)
+                            .color(theme.title_color),
                     );
-                    ui.add_space(10.0);
-                    render_children(app, ui, ctx, tree, node);
+                    ui.add_space(theme.gap * 0.8);
+                    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
                 });
-        }
-        UiWidgetKind::Inspector => {
-            let title = prop_text(node, "title").unwrap_or("Inspector");
-            Frame::new()
-                .fill(color_surface())
-                .stroke(Stroke::new(1.0, color_outline_soft()))
-                .corner_radius(12.0)
-                .inner_margin(12.0)
-                .show(ui, |ui| {
+            }
+            UiWidgetKind::Inspector => {
+                let title = prop_text(node, "title").unwrap_or("Inspector");
+                let theme = apply_node_presentation_to_theme(
+                    resolve_widget_theme(node, theme_registry, app_theme),
+                    presentation,
+                );
+                themed_frame(&theme).show(ui, |ui| {
                     egui::CollapsingHeader::new(
-                        RichText::new(title).strong().color(color_highlight()),
+                        RichText::new(title)
+                            .strong()
+                            .size(theme.title_size)
+                            .color(theme.title_color),
                     )
                     .default_open(true)
                     .show(ui, |ui| {
-                        render_children(app, ui, ctx, tree, node);
+                        render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
                     });
                 });
-        }
-        UiWidgetKind::Tree => {
-            let title = prop_text(node, "title").unwrap_or("Tree");
-            Frame::new()
-                .fill(color_surface())
-                .stroke(Stroke::new(1.0, color_outline_soft()))
-                .corner_radius(12.0)
-                .inner_margin(12.0)
-                .show(ui, |ui| {
-                    egui::CollapsingHeader::new(RichText::new(title).color(color_accent_soft()))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            render_children(app, ui, ctx, tree, node);
-                        });
+            }
+            UiWidgetKind::Tree => {
+                let title = prop_text(node, "title").unwrap_or("Tree");
+                let theme = apply_node_presentation_to_theme(
+                    resolve_widget_theme(node, theme_registry, app_theme),
+                    presentation,
+                );
+                themed_frame(&theme).show(ui, |ui| {
+                    egui::CollapsingHeader::new(
+                        RichText::new(title)
+                            .size(theme.title_size)
+                            .color(theme.title_color),
+                    )
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                    });
                 });
-        }
-        UiWidgetKind::Graph => {
-            render_surface_frame(
-                ui,
-                node,
-                "Graph Canvas",
-                Vec2::new(ui.available_width().max(280.0), 220.0),
-                egui::Sense::hover(),
-                |ui, rect, _response| {
-                    let painter = ui.painter();
-                    painter.rect_filled(rect.shrink(4.0), 12.0, color_bg_top());
-                    for i in 0..3 {
-                        let x = rect.left() + 40.0 + (i as f32 * 140.0);
-                        let y = rect.top() + 50.0 + ((i % 2) as f32 * 70.0);
-                        let node_rect =
-                            egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(112.0, 50.0));
-                        painter.rect_filled(node_rect, 10.0, Color32::from_rgb(21, 91, 123));
-                        painter.rect_stroke(
-                            node_rect,
-                            10.0,
-                            Stroke::new(1.0, color_accent_soft()),
-                            egui::StrokeKind::Inside,
+            }
+            UiWidgetKind::Graph => {
+                render_surface_frame(
+                    ui,
+                    node,
+                    theme_registry,
+                    app_theme,
+                    presentation,
+                    "Graph Canvas",
+                    Vec2::new(ui.available_width().max(280.0), 220.0),
+                    egui::Sense::hover(),
+                    |ui, rect, _response, theme| {
+                        let painter = ui.painter();
+                        let inner_radius = (theme.radius - 4.0).max(6.0);
+                        painter.rect_filled(rect.shrink(4.0), inner_radius, theme.canvas_fill);
+                        for i in 0..3 {
+                            let x = rect.left() + 40.0 + (i as f32 * 140.0);
+                            let y = rect.top() + 50.0 + ((i % 2) as f32 * 70.0);
+                            let node_rect =
+                                egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(112.0, 50.0));
+                            painter.rect_filled(node_rect, 10.0, alpha_tint(theme.accent, 0.22));
+                            painter.rect_stroke(
+                                node_rect,
+                                10.0,
+                                Stroke::new(1.0, theme.tag_color),
+                                egui::StrokeKind::Inside,
+                            );
+                        }
+                    },
+                );
+            }
+            UiWidgetKind::Timeline => {
+                render_surface_frame(
+                    ui,
+                    node,
+                    theme_registry,
+                    app_theme,
+                    presentation,
+                    "Timeline",
+                    Vec2::new(ui.available_width().max(280.0), 120.0),
+                    egui::Sense::hover(),
+                    |ui, rect, _response, theme| {
+                        let painter = ui.painter();
+                        let inner_radius = (theme.radius - 4.0).max(6.0);
+                        painter.rect_filled(rect.shrink(4.0), inner_radius, theme.canvas_fill);
+                        for tick in 0..12 {
+                            let x = rect.left() + 20.0 + (tick as f32 * 48.0);
+                            painter.line_segment(
+                                [
+                                    egui::pos2(x, rect.top() + 16.0),
+                                    egui::pos2(x, rect.bottom() - 16.0),
+                                ],
+                                Stroke::new(1.0, theme.stroke),
+                            );
+                        }
+                        let clip = egui::Rect::from_min_size(
+                            egui::pos2(rect.left() + 64.0, rect.center().y - 14.0),
+                            Vec2::new(220.0, 28.0),
                         );
-                    }
-                },
-            );
-        }
-        UiWidgetKind::Timeline => {
-            render_surface_frame(
-                ui,
-                node,
-                "Timeline",
-                Vec2::new(ui.available_width().max(280.0), 120.0),
-                egui::Sense::hover(),
-                |ui, rect, _response| {
-                    let painter = ui.painter();
-                    painter.rect_filled(rect.shrink(4.0), 10.0, color_bg_top());
-                    for tick in 0..12 {
-                        let x = rect.left() + 20.0 + (tick as f32 * 48.0);
-                        painter.line_segment(
-                            [
-                                egui::pos2(x, rect.top() + 16.0),
-                                egui::pos2(x, rect.bottom() - 16.0),
-                            ],
-                            Stroke::new(1.0, color_outline_soft()),
-                        );
-                    }
-                    let clip = egui::Rect::from_min_size(
-                        egui::pos2(rect.left() + 64.0, rect.center().y - 14.0),
-                        Vec2::new(220.0, 28.0),
-                    );
-                    painter.rect_filled(clip, 8.0, color_highlight());
-                },
-            );
-        }
-        UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => {
-            let label = match node.kind {
-                UiWidgetKind::Viewport2D => "Viewport 2D",
-                _ => "Viewport 3D",
-            };
-            render_viewport_surface(app, ui, ctx, node, label);
-        }
-        UiWidgetKind::ComponentRef(name) => {
-            ui.label(
-                RichText::new(format!("component {name}"))
-                    .monospace()
-                    .color(Color32::from_rgb(246, 211, 101)),
-            );
-            render_children(app, ui, ctx, tree, node);
-        }
-        UiWidgetKind::Element(tag) => {
-            Frame::group(ui.style())
-                .fill(Color32::from_rgb(23, 30, 39))
-                .inner_margin(8.0)
-                .show(ui, |ui| {
+                        painter.rect_filled(clip, 8.0, alpha_tint(theme.accent, 0.9));
+                    },
+                );
+            }
+            UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => {
+                let label = match node.kind {
+                    UiWidgetKind::Viewport2D => "Viewport 2D",
+                    _ => "Viewport 3D",
+                };
+                render_viewport_surface(
+                    app,
+                    ui,
+                    ctx,
+                    node,
+                    theme_registry,
+                    app_theme,
+                    presentation,
+                    label,
+                );
+            }
+            UiWidgetKind::ComponentRef(name) => {
+                ui.label(
+                    RichText::new(format!("component {name}"))
+                        .monospace()
+                        .color(apply_node_presentation_to_color(
+                            app_theme.palette.highlight,
+                            presentation,
+                        )),
+                );
+                render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+            }
+            UiWidgetKind::Element(tag) => {
+                let theme = apply_node_presentation_to_theme(
+                    resolve_widget_theme(node, theme_registry, app_theme),
+                    presentation,
+                );
+                themed_frame(&theme).show(ui, |ui| {
                     ui.small(
                         RichText::new(format!("<{tag}>"))
                             .monospace()
-                            .color(Color32::from_rgb(173, 216, 255)),
+                            .color(theme.tag_color),
                     );
-                    render_children(app, ui, ctx, tree, node);
+                    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
                 });
+            }
+            UiWidgetKind::Table | UiWidgetKind::Overlay | UiWidgetKind::Slot => {
+                render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+            }
         }
-        UiWidgetKind::Table | UiWidgetKind::Overlay | UiWidgetKind::Slot => {
-            render_children(app, ui, ctx, tree, node);
-        }
-    }
+    });
 }
 
 fn render_children(
@@ -890,19 +2878,177 @@ fn render_children(
     ui: &mut egui::Ui,
     ctx: &egui::Context,
     tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
     node: &UiNode,
 ) {
+    let item_spacing = ui.spacing().item_spacing;
+    let layout_gap = if node.layout.gap > 0.0 {
+        node.layout.gap
+    } else {
+        app_theme.metrics.content_gap
+    };
+    ui.spacing_mut().item_spacing = egui::vec2(layout_gap, layout_gap);
+    let overflow_x = matches!(
+        node.layout.overflow_x,
+        UiOverflowBehavior::Scroll | UiOverflowBehavior::Auto
+    );
+    let overflow_y = matches!(
+        node.layout.overflow_y,
+        UiOverflowBehavior::Scroll | UiOverflowBehavior::Auto
+    );
+
+    if overflow_x || overflow_y {
+        let scroll_area = if overflow_x && overflow_y {
+            egui::ScrollArea::both()
+        } else if overflow_x {
+            egui::ScrollArea::horizontal()
+        } else {
+            egui::ScrollArea::vertical()
+        };
+        scroll_area.auto_shrink([false, false]).show(ui, |ui| {
+            render_children_content(app, ui, ctx, tree, theme_registry, app_theme, node, layout_gap);
+        });
+    } else {
+        render_children_content(app, ui, ctx, tree, theme_registry, app_theme, node, layout_gap);
+    }
+
+    ui.spacing_mut().item_spacing = item_spacing;
+}
+
+fn render_children_content(
+    app: &mut KainUiNativeApp,
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    node: &UiNode,
+    layout_gap: f32,
+) {
+    let cross_align = layout_align(node.layout.align_items);
+
     match node.layout.kind {
         UiLayoutKind::FlexRow => {
-            ui.horizontal_top(|ui| {
+            ui.with_layout(Layout::left_to_right(cross_align), |ui| {
                 for child in &node.children {
-                    render_node(app, ui, ctx, tree, *child);
+                    render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
                 }
             });
         }
+        UiLayoutKind::FlexColumn => {
+            ui.with_layout(Layout::top_down(cross_align), |ui| {
+                for child in &node.children {
+                    render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                }
+            });
+        }
+        UiLayoutKind::Grid => {
+            let columns = node
+                .props
+                .get("columns")
+                .and_then(ui_value_as_i64)
+                .unwrap_or(2)
+                .max(1) as usize;
+            egui::Grid::new(format!("kain_ui_native_grid_{}", node.id.0))
+                .num_columns(columns)
+                .spacing(egui::vec2(layout_gap, layout_gap))
+                .show(ui, |ui| {
+                    for (index, child) in node.children.iter().enumerate() {
+                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                        if (index + 1) % columns == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
+        }
+        UiLayoutKind::Stack | UiLayoutKind::Absolute => {
+            let overlay_theme = resolve_widget_theme(node, theme_registry, app_theme);
+            for (index, child) in node.children.iter().enumerate() {
+                if index > 0 {
+                    ui.add_space(-overlay_theme.gap * 0.35);
+                }
+                ui.scope(|ui| {
+                    ui.set_width(ui.available_width());
+                    render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                });
+            }
+        }
+        UiLayoutKind::Dock => {
+            let split = node.layout.split_ratio.unwrap_or(0.28).clamp(0.15, 0.65);
+            let mut left = Vec::new();
+            let mut right = Vec::new();
+            let mut top = Vec::new();
+            let mut bottom = Vec::new();
+            let mut center = Vec::new();
+
+            for child in &node.children {
+                let placement = tree
+                    .node(*child)
+                    .and_then(|child_node| child_node.layout.dock)
+                    .unwrap_or(kain_ui::UiDockPlacement::Center);
+                match placement {
+                    kain_ui::UiDockPlacement::Left => left.push(*child),
+                    kain_ui::UiDockPlacement::Right => right.push(*child),
+                    kain_ui::UiDockPlacement::Top => top.push(*child),
+                    kain_ui::UiDockPlacement::Bottom => bottom.push(*child),
+                    _ => center.push(*child),
+                }
+            }
+
+            if !top.is_empty() {
+                ui.scope(|ui| {
+                    ui.set_width(ui.available_width());
+                    for child in &top {
+                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    }
+                });
+                ui.add_space(layout_gap);
+            }
+
+            ui.horizontal_top(|ui| {
+                if !left.is_empty() {
+                    let width = ui.available_width() * split;
+                    ui.scope(|ui| {
+                        ui.set_width(width);
+                        for child in &left {
+                            render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                        }
+                    });
+                    ui.add_space(layout_gap);
+                }
+
+                ui.scope(|ui| {
+                    for child in &center {
+                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    }
+                });
+
+                if !right.is_empty() {
+                    ui.add_space(layout_gap);
+                    let width = ui.available_width() * split;
+                    ui.scope(|ui| {
+                        ui.set_width(width);
+                        for child in &right {
+                            render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                        }
+                    });
+                }
+            });
+
+            if !bottom.is_empty() {
+                ui.add_space(layout_gap);
+                ui.scope(|ui| {
+                    ui.set_width(ui.available_width());
+                    for child in &bottom {
+                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    }
+                });
+            }
+        }
         _ => {
             for child in &node.children {
-                render_node(app, ui, ctx, tree, *child);
+                render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
             }
         }
     }
@@ -913,48 +3059,65 @@ fn render_viewport_surface(
     ui: &mut egui::Ui,
     ctx: &egui::Context,
     node: &UiNode,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    presentation: NativeNodePresentation,
     fallback_title: &str,
 ) {
     render_surface_frame(
         ui,
         node,
+        theme_registry,
+        app_theme,
+        presentation,
         fallback_title,
         Vec2::new(
             ui.available_width().max(420.0),
             ui.available_height().clamp(420.0, 780.0),
         ),
         egui::Sense::click_and_drag(),
-        |ui, rect, response| {
+        |ui, rect, response, theme| {
             let painter = ui.painter();
             let inner_rect = rect.shrink(4.0);
-            let scene_name = prop_text(node, "scene")
-                .unwrap_or(app.scene_catalog.default_scene.as_str())
-                .to_string();
+            let binding = resolve_viewport_binding(app, node);
+            let scene_name = binding.scene_name.clone();
             trace_runtime(format!(
-                "viewport: enter node={} scene={} enabled={}",
-                node.id.0, scene_name, app.runtime_settings.enable_viewports
+                "viewport: enter node={} scene={} bundle_node={} enabled={}",
+                node.id.0,
+                scene_name,
+                binding
+                    .viewport_node
+                    .as_deref()
+                    .unwrap_or("<prop-or-default>"),
+                app.runtime_settings.enable_viewports
             ));
             if !app.runtime_settings.enable_viewports {
-                painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
+                painter.rect_filled(inner_rect, theme.radius.max(10.0), theme.canvas_fill);
                 painter.text(
                     inner_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     "viewport runtime disabled by KAIN_UI_NATIVE_ENABLE_VIEWPORTS=0",
-                    egui::FontId::proportional(15.0),
-                    Color32::from_rgb(246, 211, 101),
+                    egui::FontId::proportional(theme.body_size),
+                    app_theme.palette.highlight,
                 );
                 trace_runtime(format!("viewport: skipped node={}", node.id.0));
                 return;
             }
             let elapsed_seconds = app.start_time.elapsed().as_secs_f32();
-            let resolution =
-                viewport_render_resolution(inner_rect.size(), app.runtime_settings.viewport_max_axis_px);
-            let Some((reference_pose, viewport_summary)) = app
-                .scene_catalog
-                .scene(&scene_name)
-                .map(|scene| (scene.camera.pose_at(0.0), scene.viewport_summary.clone()))
+            let resolution = viewport_render_resolution(
+                inner_rect.size(),
+                app.runtime_settings.viewport_max_axis_px,
+            );
+            let Some((scene_snapshot, reference_pose, viewport_summary)) =
+                app.scene_catalog.scene(&scene_name).map(|scene| {
+                    (
+                        scene.clone(),
+                        scene.camera.pose_at(0.0),
+                        scene.viewport_summary.clone(),
+                    )
+                })
             else {
-                painter.rect_filled(inner_rect, 12.0, Color32::from_rgb(10, 14, 18));
+                painter.rect_filled(inner_rect, theme.radius.max(10.0), theme.canvas_fill);
                 painter.text(
                     inner_rect.center(),
                     egui::Align2::CENTER_CENTER,
@@ -971,28 +3134,60 @@ fn render_viewport_surface(
                     .or_insert_with(|| ViewportSurfaceState {
                         texture: None,
                         scene_name: scene_name.clone(),
+                        bundle_viewport_node: binding.viewport_node.clone(),
+                        bundle_material_refs: binding.material_refs.clone(),
+                        bundle_shader_ref_keys: binding.shader_ref_keys.clone(),
+                        bundle_warning: binding.warning.clone(),
                         controller: ViewportCameraController::from_pose(&reference_pose),
                         last_render_at: None,
                         last_stats: RenderStats::default(),
                         selected_instance_id: None,
                         manipulator_mode: ManipulatorMode::Translate,
                         last_pick: None,
+                        presented_state: app.presented_viewport_host.map(|host| {
+                            Arc::new(Mutex::new(PresentedViewportGpuState::new(
+                                host.target_format,
+                            )))
+                        }),
                     });
             trace_runtime(format!("viewport: state_ready node={}", node.id.0));
             if surface.scene_name != scene_name {
                 surface.scene_name = scene_name.clone();
+                surface.bundle_viewport_node = binding.viewport_node.clone();
+                surface.bundle_material_refs = binding.material_refs.clone();
+                surface.bundle_shader_ref_keys = binding.shader_ref_keys.clone();
+                surface.bundle_warning = binding.warning.clone();
                 surface.controller.recenter(&reference_pose);
                 surface.texture = None;
                 surface.last_render_at = None;
                 surface.last_stats = RenderStats::default();
                 surface.selected_instance_id = None;
                 surface.last_pick = None;
+                if let Some(host) = app.presented_viewport_host {
+                    surface.presented_state = Some(Arc::new(Mutex::new(
+                        PresentedViewportGpuState::new(host.target_format),
+                    )));
+                } else {
+                    surface.presented_state = None;
+                }
+            } else {
+                surface.bundle_viewport_node = binding.viewport_node.clone();
+                surface.bundle_material_refs = binding.material_refs.clone();
+                surface.bundle_shader_ref_keys = binding.shader_ref_keys.clone();
+                surface.bundle_warning = binding.warning.clone();
             }
             sync_viewport_input(
                 &app.viewport_input,
                 response,
                 &reference_pose,
                 &mut surface.controller,
+                app.frame_dt_seconds,
+            );
+            apply_viewport_grounding(
+                &scene_snapshot,
+                &app.viewport_input,
+                &mut surface.controller,
+                elapsed_seconds,
                 app.frame_dt_seconds,
             );
             if response.hovered() || response.has_focus() {
@@ -1067,7 +3262,8 @@ fn render_viewport_surface(
             };
             let should_render = elapsed_seconds
                 >= (app.runtime_settings.viewport_startup_delay_ms as f32 / 1000.0)
-                && (surface.texture.is_none()
+                && ((surface.presented_state.is_some() && surface.last_render_at.is_none())
+                    || surface.texture.is_none()
                     || surface
                         .last_render_at
                         .is_none_or(|instant| instant.elapsed() >= render_interval));
@@ -1084,54 +3280,129 @@ fn render_viewport_surface(
             if should_render {
                 let render_start = Instant::now();
 
-                match app.renderer.render_catalog_scene_with_view(
-                    &app.scene_catalog,
-                    &scene_name,
-                    elapsed_seconds,
-                    resolution,
-                    &render_view,
-                ) {
-                    Ok(frame) => {
-                        let image = egui::ColorImage::from_rgba_unmultiplied(
-                            [frame.width, frame.height],
-                            &frame.rgba,
-                        );
-                        let texture_name = format!("kain_viewport_surface_{}", node.id.0);
-                        if let Some(texture) = surface.texture.as_mut() {
-                            texture.set(image, egui::TextureOptions::LINEAR);
-                        } else {
-                            surface.texture = Some(ctx.load_texture(
-                                texture_name,
-                                image,
-                                egui::TextureOptions::LINEAR,
+                if let Some(presented_state) = surface.presented_state.as_ref() {
+                    match prepare_wgpu_frame(
+                        &scene_snapshot,
+                        elapsed_seconds,
+                        resolution,
+                        &render_view,
+                    ) {
+                        Ok(prepared_frame) => {
+                            surface.last_stats = prepared_frame.stats.clone();
+                            surface.last_render_at = Some(Instant::now());
+                            if let Ok(mut state) = presented_state.lock() {
+                                state.prepared_frame = Some(prepared_frame);
+                            }
+                            trace_runtime(format!(
+                                "viewport: presented node={} ms={} tris={} particles={}",
+                                node.id.0,
+                                render_start.elapsed().as_millis(),
+                                surface.last_stats.triangles_submitted,
+                                surface.last_stats.particles_submitted
                             ));
                         }
-                        surface.last_stats = frame.stats;
-                        surface.last_render_at = Some(Instant::now());
-                        trace_runtime(format!(
-                            "viewport: rendered node={} ms={} tris={} particles={}",
-                            node.id.0,
-                            render_start.elapsed().as_millis(),
-                            surface.last_stats.triangles_submitted,
-                            surface.last_stats.particles_submitted
-                        ));
+                        Err(err) => {
+                            trace_runtime(format!(
+                                "viewport: failed node={} error={err}",
+                                node.id.0
+                            ));
+                            painter.rect_filled(
+                                inner_rect,
+                                theme.radius.max(10.0),
+                                theme.canvas_fill,
+                            );
+                            painter.text(
+                                inner_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                format!("Viewport render failed:\n{err}"),
+                                egui::FontId::proportional(16.0),
+                                Color32::LIGHT_RED,
+                            );
+                            return;
+                        }
                     }
-                    Err(err) => {
-                        trace_runtime(format!("viewport: failed node={} error={err}", node.id.0));
-                        painter.rect_filled(inner_rect, 14.0, color_bg_top());
-                        painter.text(
-                            inner_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            format!("Viewport render failed:\n{err}"),
-                            egui::FontId::proportional(16.0),
-                            Color32::LIGHT_RED,
-                        );
-                        return;
+                } else {
+                    match app.renderer.render_catalog_scene_with_view(
+                        &app.scene_catalog,
+                        &scene_name,
+                        elapsed_seconds,
+                        resolution,
+                        &render_view,
+                    ) {
+                        Ok(frame) => {
+                            let image = egui::ColorImage::from_rgba_unmultiplied(
+                                [frame.width, frame.height],
+                                &frame.rgba,
+                            );
+                            let texture_name = format!("kain_viewport_surface_{}", node.id.0);
+                            if let Some(texture) = surface.texture.as_mut() {
+                                texture.set(image, egui::TextureOptions::LINEAR);
+                            } else {
+                                surface.texture = Some(ctx.load_texture(
+                                    texture_name,
+                                    image,
+                                    egui::TextureOptions::LINEAR,
+                                ));
+                            }
+                            surface.last_stats = frame.stats;
+                            surface.last_render_at = Some(Instant::now());
+                            trace_runtime(format!(
+                                "viewport: rendered node={} ms={} tris={} particles={}",
+                                node.id.0,
+                                render_start.elapsed().as_millis(),
+                                surface.last_stats.triangles_submitted,
+                                surface.last_stats.particles_submitted
+                            ));
+                        }
+                        Err(err) => {
+                            trace_runtime(format!(
+                                "viewport: failed node={} error={err}",
+                                node.id.0
+                            ));
+                            painter.rect_filled(
+                                inner_rect,
+                                theme.radius.max(10.0),
+                                theme.canvas_fill,
+                            );
+                            painter.text(
+                                inner_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                format!("Viewport render failed:\n{err}"),
+                                egui::FontId::proportional(16.0),
+                                Color32::LIGHT_RED,
+                            );
+                            return;
+                        }
                     }
                 }
             }
 
-            if let Some(texture) = surface.texture.as_ref() {
+            if let Some(presented_state) = surface.presented_state.as_ref() {
+                let has_frame = presented_state
+                    .lock()
+                    .ok()
+                    .and_then(|state| state.prepared_frame.as_ref().map(|_| ()))
+                    .is_some();
+                if has_frame {
+                    painter.add(egui::Shape::Callback(
+                        egui_wgpu::Callback::new_paint_callback(
+                            inner_rect,
+                            PresentedViewportCallback {
+                                state: Arc::clone(presented_state),
+                            },
+                        ),
+                    ));
+                } else {
+                    painter.rect_filled(inner_rect, theme.radius.max(10.0), theme.canvas_fill);
+                    painter.text(
+                        inner_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "warming native viewport...",
+                        egui::FontId::proportional(theme.title_size),
+                        theme.tag_color,
+                    );
+                }
+            } else if let Some(texture) = surface.texture.as_ref() {
                 painter.image(
                     texture.id(),
                     inner_rect,
@@ -1139,40 +3410,45 @@ fn render_viewport_surface(
                     Color32::WHITE,
                 );
             } else {
-                painter.rect_filled(inner_rect, 14.0, color_bg_top());
+                painter.rect_filled(inner_rect, theme.radius.max(10.0), theme.canvas_fill);
                 painter.text(
                     inner_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     "warming native viewport...",
-                    egui::FontId::proportional(18.0),
-                    color_accent_soft(),
+                    egui::FontId::proportional(theme.title_size),
+                    theme.tag_color,
                 );
             }
             painter.rect_stroke(
                 inner_rect,
-                14.0,
-                Stroke::new(1.0, color_outline_bright()),
+                theme.radius.max(10.0),
+                Stroke::new(1.0, theme.stroke),
                 egui::StrokeKind::Inside,
             );
 
             let overlay_rect = egui::Rect::from_min_size(
                 inner_rect.min + egui::vec2(12.0, 12.0),
-                Vec2::new(336.0, 108.0),
+                Vec2::new(372.0, 142.0),
             );
-            painter.rect_filled(overlay_rect, 12.0, color_surface_overlay());
+            painter.rect_filled(overlay_rect, 12.0, theme.overlay_fill);
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 10.0),
                 egui::Align2::LEFT_TOP,
-                format!("scene: {scene_name}"),
+                match surface.bundle_viewport_node.as_deref() {
+                    Some(viewport_node) => {
+                        format!("scene: {scene_name}  |  bundle: {viewport_node}")
+                    }
+                    None => format!("scene: {scene_name}"),
+                },
                 egui::FontId::monospace(13.0),
-                color_highlight(),
+                app_theme.palette.highlight,
             );
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 28.0),
                 egui::Align2::LEFT_TOP,
                 format!("renderer: {}", app.active_renderer_label),
                 egui::FontId::monospace(11.0),
-                color_success(),
+                app_theme.palette.success,
             );
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 44.0),
@@ -1184,7 +3460,7 @@ fn render_viewport_surface(
                     surface.last_stats.pixels_shaded
                 ),
                 egui::FontId::monospace(12.0),
-                color_accent_soft(),
+                app_theme.palette.accent_soft,
             );
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 61.0),
@@ -1195,59 +3471,89 @@ fn render_viewport_surface(
                     surface.manipulator_mode
                 ),
                 egui::FontId::monospace(10.5),
-                color_muted_text(),
+                app_theme.palette.text_muted,
             );
+            let material_line = if surface.bundle_material_refs.is_empty() {
+                "materials: none".to_string()
+            } else {
+                format!("materials: {}", surface.bundle_material_refs.join(", "))
+            };
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 77.0),
                 egui::Align2::LEFT_TOP,
-                format!(
-                    "particles: {} submitted / {} blended",
-                    surface.last_stats.particles_submitted, surface.last_stats.particles_shaded
-                ),
-                egui::FontId::monospace(11.0),
-                color_success(),
+                material_line,
+                egui::FontId::monospace(10.5),
+                app_theme.palette.success,
             );
-            let camera_position = surface.controller.position;
             painter.text(
                 overlay_rect.min + egui::vec2(10.0, 93.0),
                 egui::Align2::LEFT_TOP,
+                if surface.bundle_shader_ref_keys.is_empty() {
+                    format!(
+                        "particles: {} submitted / {} blended",
+                        surface.last_stats.particles_submitted, surface.last_stats.particles_shaded
+                    )
+                } else {
+                    format!("shader refs: {}", surface.bundle_shader_ref_keys.join(", "))
+                },
+                egui::FontId::monospace(10.0),
+                app_theme.palette.accent_soft,
+            );
+            let camera_position = surface.controller.position;
+            painter.text(
+                overlay_rect.min + egui::vec2(10.0, 109.0),
+                egui::Align2::LEFT_TOP,
                 format!(
-                    "cam: [{:.1}, {:.1}, {:.1}]  speed: {:.1}",
+                    "cam: [{:.1}, {:.1}, {:.1}]  speed: {:.1}  {}",
                     camera_position.x,
                     camera_position.y,
                     camera_position.z,
-                    surface.controller.move_speed
+                    surface.controller.move_speed,
+                    if surface.controller.grounded {
+                        "grounded"
+                    } else {
+                        "falling"
+                    }
                 ),
-                egui::FontId::monospace(11.0),
-                color_accent_soft(),
+                egui::FontId::monospace(10.0),
+                app_theme.palette.accent_soft,
             );
+            if let Some(warning) = surface.bundle_warning.as_deref() {
+                painter.text(
+                    overlay_rect.min + egui::vec2(10.0, 125.0),
+                    egui::Align2::LEFT_TOP,
+                    format!("bundle warning: {warning}"),
+                    egui::FontId::monospace(9.5),
+                    Color32::LIGHT_RED,
+                );
+            }
             let controls_rect = egui::Rect::from_min_size(
                 egui::pos2(inner_rect.left() + 12.0, inner_rect.bottom() - 38.0),
                 Vec2::new(420.0, 26.0),
             );
-            painter.rect_filled(controls_rect, 10.0, color_surface_overlay());
+            painter.rect_filled(controls_rect, 10.0, theme.overlay_fill);
             painter.text(
                 controls_rect.center(),
                 egui::Align2::CENTER_CENTER,
                 "roam WASD + QE  |  drag to look  |  wheel changes speed  |  T / R / Y gizmos",
                 egui::FontId::monospace(10.5),
                 if response.has_focus() || response.hovered() {
-                    color_highlight()
+                    app_theme.palette.highlight
                 } else {
-                    color_muted_text()
+                    app_theme.palette.text_muted
                 },
             );
             let summary_rect = egui::Rect::from_min_size(
                 egui::pos2(inner_rect.right() - 250.0, inner_rect.top() + 12.0),
                 Vec2::new(238.0, 40.0),
             );
-            painter.rect_filled(summary_rect, 10.0, color_surface_overlay());
+            painter.rect_filled(summary_rect, 10.0, theme.overlay_fill);
             painter.text(
                 summary_rect.min + egui::vec2(10.0, 8.0),
                 egui::Align2::LEFT_TOP,
                 viewport_summary.as_str(),
                 egui::FontId::monospace(10.5),
-                color_accent_soft(),
+                app_theme.palette.accent_soft,
             );
             if let Some(hit) = surface.last_pick.as_ref() {
                 painter.text(
@@ -1262,47 +3568,107 @@ fn render_viewport_surface(
                         hit.position.z
                     ),
                     egui::FontId::monospace(10.0),
-                    color_highlight(),
+                    app_theme.palette.highlight,
                 );
             }
         },
     );
 }
 
+fn resolve_viewport_binding(app: &KainUiNativeApp, node: &UiNode) -> ResolvedViewportBinding {
+    let viewport_node = format!("surface.node.{}", node.id.0);
+    if let Some(binding) = app.realtime_catalog.scenes_by_viewport.get(&viewport_node) {
+        let mut warnings = Vec::new();
+        for material_ref in &binding.material_refs {
+            if !app
+                .realtime_catalog
+                .materials_by_id
+                .contains_key(material_ref)
+            {
+                warnings.push(format!("missing material `{material_ref}`"));
+            }
+        }
+        for shader_ref_key in &binding.shader_bundle_ref_keys {
+            if !app
+                .realtime_catalog
+                .shader_refs_by_key
+                .contains_key(shader_ref_key)
+            {
+                warnings.push(format!("missing shader ref `{shader_ref_key}`"));
+            }
+        }
+        return ResolvedViewportBinding {
+            viewport_node: Some(viewport_node),
+            scene_name: binding.scene.clone(),
+            material_refs: binding.material_refs.clone(),
+            shader_ref_keys: binding.shader_bundle_ref_keys.clone(),
+            warning: (!warnings.is_empty()).then(|| warnings.join(" | ")),
+        };
+    }
+
+    ResolvedViewportBinding {
+        viewport_node: None,
+        scene_name: prop_text(node, "scene")
+            .unwrap_or(app.scene_catalog.default_scene.as_str())
+            .to_string(),
+        material_refs: prop_text(node, "material")
+            .map(|value| vec![value.to_string()])
+            .unwrap_or_default(),
+        shader_ref_keys: Vec::new(),
+        warning: None,
+    }
+}
+
 fn render_surface_frame(
     ui: &mut egui::Ui,
     node: &UiNode,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    presentation: NativeNodePresentation,
     fallback_title: &str,
     desired_size: Vec2,
     sense: egui::Sense,
-    paint: impl FnOnce(&mut egui::Ui, egui::Rect, &egui::Response),
+    paint: impl FnOnce(&mut egui::Ui, egui::Rect, &egui::Response, &NativeWidgetTheme),
 ) {
     let title = prop_text(node, "title").unwrap_or(fallback_title);
-    Frame::new()
-        .fill(color_surface())
-        .stroke(Stroke::new(1.0, color_outline_soft()))
-        .corner_radius(16.0)
-        .inner_margin(14.0)
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(title)
-                        .strong()
-                        .size(16.5)
-                        .color(Color32::from_rgb(241, 245, 250)),
+    let theme = apply_node_presentation_to_theme(
+        resolve_widget_theme(node, theme_registry, app_theme),
+        presentation,
+    );
+    themed_frame(&theme).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(title)
+                    .strong()
+                    .size(theme.title_size)
+                    .color(theme.title_color),
+            );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.small(
+                    RichText::new(format!("{:?}", node.kind))
+                        .monospace()
+                        .color(theme.tag_color),
                 );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if let Some(variant) = node.style.variant.as_deref() {
                     ui.small(
-                        RichText::new(format!("{:?}", node.kind))
+                        RichText::new(format!("#{variant}"))
                             .monospace()
-                            .color(color_accent_soft()),
+                            .color(theme.muted_color),
                     );
-                });
+                }
+                for class_name in node.style.classes.iter().take(2).rev() {
+                    ui.small(
+                        RichText::new(format!(".{class_name}"))
+                            .monospace()
+                            .color(theme.muted_color),
+                    );
+                }
             });
-            ui.add_space(8.0);
-            let (rect, response) = ui.allocate_exact_size(desired_size, sense);
-            paint(ui, rect, &response);
         });
+        ui.add_space(theme.gap * 0.6);
+        let (rect, response) = ui.allocate_exact_size(desired_size, sense);
+        paint(ui, rect, &response, &theme);
+    });
 }
 
 fn snapshot_viewport_input(ctx: &egui::Context) -> ViewportInputSnapshot {
@@ -1382,6 +3748,42 @@ fn sync_viewport_input(
     }
 }
 
+fn apply_viewport_grounding(
+    scene: &SceneDescription,
+    input: &ViewportInputSnapshot,
+    controller: &mut ViewportCameraController,
+    scene_time_seconds: f32,
+    dt_seconds: f32,
+) {
+    let Some(ground_y) = scene.ground_height_at(controller.position, scene_time_seconds) else {
+        controller.grounded = false;
+        return;
+    };
+    let target_eye_height = ground_y + controller.eye_height;
+    if input.move_up || input.move_down {
+        controller.grounded = false;
+        controller.vertical_velocity = 0.0;
+        return;
+    }
+
+    if controller.position.y <= target_eye_height + 0.08 {
+        controller.position.y = target_eye_height;
+        controller.vertical_velocity = 0.0;
+        controller.grounded = true;
+        return;
+    }
+
+    controller.vertical_velocity -= 28.0 * dt_seconds;
+    controller.position.y += controller.vertical_velocity * dt_seconds;
+    if controller.position.y <= target_eye_height {
+        controller.position.y = target_eye_height;
+        controller.vertical_velocity = 0.0;
+        controller.grounded = true;
+    } else {
+        controller.grounded = false;
+    }
+}
+
 fn viewport_render_resolution(size: Vec2, max_axis_px: u64) -> RenderResolution {
     let width = size.x.max(32.0);
     let height = size.y.max(32.0);
@@ -1420,6 +3822,7 @@ pub fn summarize_patches(patches: &[UiPatch]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kain_ui::{ui_runtime_systems_from_tree, UiNodeId};
 
     #[test]
     fn runtime_bundle_json_round_trip_preserves_compiled_ui_output() {
@@ -1436,5 +3839,152 @@ mod tests {
         );
         assert_eq!(decoded.metadata.root_component, "App");
         assert_eq!(decoded.output, output);
+    }
+
+    #[test]
+    fn app_theme_global_widget_maps_flow_into_child_widgets() {
+        let child_id = UiNodeId(2);
+        let output = themed_test_output(None);
+        let app_theme = resolve_app_theme(&output);
+        let child = output
+            .tree
+            .node(child_id)
+            .expect("child panel should exist");
+        let widget_theme = resolve_widget_theme(child, &output.systems.theme_registry, &app_theme);
+
+        assert_eq!(app_theme.density, NativeDensity::Compact);
+        assert_eq!(widget_theme.mode, NativeSurfaceMode::Glass);
+        assert_eq!(widget_theme.fill, Color32::from_rgb(0x22, 0x33, 0x44));
+    }
+
+    #[test]
+    fn node_local_style_overrides_global_widget_theme() {
+        let child_id = UiNodeId(2);
+        let mut child_overrides = BTreeMap::new();
+        child_overrides.insert(
+            "surface.mode".to_string(),
+            UiValue::String("accent".to_string()),
+        );
+        child_overrides.insert(
+            "surface.fill".to_string(),
+            UiValue::String("#aa5522".to_string()),
+        );
+        let output = themed_test_output(Some(child_overrides));
+        let app_theme = resolve_app_theme(&output);
+        let child = output
+            .tree
+            .node(child_id)
+            .expect("child panel should exist");
+        let widget_theme = resolve_widget_theme(child, &output.systems.theme_registry, &app_theme);
+
+        assert_eq!(widget_theme.mode, NativeSurfaceMode::Accent);
+        assert_eq!(widget_theme.fill, Color32::from_rgb(0xaa, 0x55, 0x22));
+    }
+
+    #[test]
+    fn widget_classes_and_states_shift_theme_behavior() {
+        let output = themed_test_output(None);
+        let app_theme = resolve_app_theme(&output);
+        let mut node = UiNode::new(UiNodeId(99), UiWidgetKind::Inspector);
+        node.style.classes = vec!["compact".to_string(), "hero".to_string()];
+        node.style.states = vec![UiStyleState::Focused, UiStyleState::Selected];
+
+        let widget_theme = resolve_widget_theme(&node, &output.systems.theme_registry, &app_theme);
+
+        assert_eq!(widget_theme.mode, NativeSurfaceMode::Accent);
+        assert_eq!(widget_theme.stroke, app_theme.palette.highlight);
+        assert!(widget_theme.padding < app_theme.metrics.tight_padding);
+    }
+
+    #[test]
+    fn text_roles_resolve_from_variant_and_class() {
+        let mut hero = UiNode::new(UiNodeId(7), UiWidgetKind::Text);
+        hero.style.variant = Some("hero".to_string());
+        assert_eq!(resolve_text_role(&hero), NativeTextRole::Hero);
+
+        let mut code = UiNode::new(UiNodeId(8), UiWidgetKind::Text);
+        code.style.classes.push("code".to_string());
+        assert_eq!(resolve_text_role(&code), NativeTextRole::Code);
+    }
+
+    #[test]
+    fn app_theme_can_hide_runtime_topbar() {
+        let mut output = themed_test_output(None);
+        let root = output
+            .tree
+            .root
+            .and_then(|root_id| output.tree.nodes.get_mut(&root_id))
+            .expect("root node should exist");
+        root.style.values.insert(
+            "theme.chrome.topbar.visible".to_string(),
+            UiValue::Bool(false),
+        );
+
+        let app_theme = resolve_app_theme(&output);
+
+        assert!(!show_runtime_topbar(&app_theme));
+    }
+
+    #[test]
+    fn node_presentation_reflects_mount_animation_progress() {
+        let output = build_output(&KainUiNativeAppConfig::default())
+            .expect("demo source should compile for animation coverage");
+        let mut systems = output.systems.clone();
+        let first_tick = ui_step_animation_runtime(&mut systems, 30);
+        let animated_frame = first_tick
+            .iter()
+            .find(|frame| frame.property == "surface.opacity" && !frame.completed)
+            .expect("panel surfaces should emit in-flight mount animation tracks");
+
+        let mut animated_output = output.clone();
+        animated_output.systems = systems;
+        let child = animated_output
+            .tree
+            .node(animated_frame.target)
+            .expect("animated surface target should exist");
+        let presentation = resolve_node_presentation(&animated_output, child);
+
+        assert!(presentation.opacity > 0.22 && presentation.opacity < 1.0);
+        assert!(presentation.translate_y > 0.0);
+    }
+
+    fn themed_test_output(child_values: Option<BTreeMap<String, UiValue>>) -> UiBuildOutput {
+        let root_id = UiNodeId(1);
+        let child_id = UiNodeId(2);
+
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.children.push(child_id);
+        root.style.values.insert(
+            "theme.density".to_string(),
+            UiValue::String("compact".to_string()),
+        );
+        root.style.values.insert(
+            "widget.panel.surface.mode".to_string(),
+            UiValue::String("glass".to_string()),
+        );
+        root.style.values.insert(
+            "widget.panel.surface.fill".to_string(),
+            UiValue::String("theme.surface.background".to_string()),
+        );
+        root.style.values.insert(
+            "theme.surface.background".to_string(),
+            UiValue::String("#223344".to_string()),
+        );
+
+        let mut child = UiNode::new(child_id, UiWidgetKind::Panel);
+        if let Some(values) = child_values {
+            child.style.values.extend(values);
+        }
+
+        let mut tree = UiTree::default();
+        tree.root = Some(root_id);
+        tree.nodes.insert(root_id, root);
+        tree.nodes.insert(child_id, child);
+
+        UiBuildOutput {
+            tree: tree.clone(),
+            patches: Vec::new(),
+            systems: ui_runtime_systems_from_tree(&tree),
+        }
     }
 }

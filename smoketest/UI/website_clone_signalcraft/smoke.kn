@@ -1,0 +1,165 @@
+component App():
+    render <slot layout="column" gap={18} padding={18} overflow_y="scroll">
+        <theme name="signal">
+            <scope name="site" selector="signal-site" />
+            <token name="theme.chrome.topbar.visible" category="chrome" value={false} />
+            <token name="theme.spacing.scale" category="space" value={1.08} />
+            <token name="theme.radius.scale" category="surface" value={1.18} />
+            <token name="theme.typography.scale" category="type" value={1.04} />
+            <token name="theme.background.top" category="color" value="#070b14" />
+            <token name="theme.background.bottom" category="color" value="#0a1221" />
+            <token name="theme.surface.base" category="color" value="#0f1a2f" />
+            <token name="theme.surface.alt" category="color" value="#13213c" />
+            <token name="theme.surface.raised" category="color" value="#182948" />
+            <token name="theme.surface.overlay" category="color" value="#0b1326dd" />
+            <token name="theme.accent.primary" category="color" value="#6dd3ff" />
+            <token name="theme.accent.soft" category="color" value="#b0ecff" />
+            <token name="theme.highlight" category="color" value="#ffd36b" />
+            <token name="theme.text.default" category="color" value="#f6fbff" />
+            <token name="theme.text.muted" category="color" value="#9eb7cd" />
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+            <variant scope="site" name="nav">
+                <token name="surface.mode" category="surface" value="ghost" />
+            </variant>
+            <variant scope="site" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="accent.color" category="color" value="#6dd3ff" />
+            </variant>
+            <variant scope="site" name="section">
+                <token name="surface.mode" category="surface" value="layered" />
+            </variant>
+            <variant scope="site" name="card">
+                <token name="surface.mode" category="surface" value="flat" />
+            </variant>
+            <widget kind="panel" scope="site" variant="nav">
+                <token name="density" category="layout" value="compact" />
+                <token name="surface.padding" category="space" value={10} />
+            </widget>
+            <widget kind="panel" scope="site" variant="hero">
+                <token name="density" category="layout" value="compact" />
+                <token name="surface.padding" category="space" value={18} />
+            </widget>
+            <widget kind="panel" scope="site" variant="section">
+                <token name="surface.padding" category="space" value={16} />
+            </widget>
+            <widget kind="panel" scope="site" variant="card">
+                <token name="surface.padding" category="space" value={14} />
+            </widget>
+            <textvariant scope="site" name="hero">
+                <token name="body.size" category="type" value={32} />
+            </textvariant>
+        </theme>
+
+        <panel scope="site" variant="nav" layout="row" gap={14} class="compact">
+            <slot layout="column" gap={3}>
+                <text role="eyebrow">SIGNALCRAFT</text>
+                <text role="caption">Realtime storefront operating system</text>
+            </slot>
+            <slot layout="row" gap={10}>
+                <text role="caption">Overview</text>
+                <text role="caption">Platform</text>
+                <text role="caption">Stories</text>
+                <text role="caption">Pricing</text>
+                <text role="caption">Docs</text>
+            </slot>
+        </panel>
+
+        <panel title="Hero" scope="site" variant="hero" layout="grid" columns={2} gap={18}>
+            <slot layout="column" gap={12}>
+                <text role="eyebrow">Design systems for teams shipping in motion</text>
+                <text role="hero" variant="hero">A landing-page style native UI proving theme, scroll, and motion together.</text>
+                <text role="muted">Signalcraft packages campaigns, dashboards, launch rails, and 3D previews into one authored Kain surface.</text>
+                <slot layout="row" gap={12}>
+                    <panel scope="site" variant="card">
+                        <text role="metric">48h</text>
+                        <text role="caption">From blank shell to launch page</text>
+                    </panel>
+                    <panel scope="site" variant="card">
+                        <text role="metric">12</text>
+                        <text role="caption">Reusable content blocks</text>
+                    </panel>
+                    <panel scope="site" variant="card">
+                        <text role="metric">1x</text>
+                        <text role="caption">Theme-authored runtime bundle</text>
+                    </panel>
+                </slot>
+                <panel scope="site" variant="card" title="Launch Brief">
+                    <text role="title">High-signal product storytelling</text>
+                    <text role="caption">This section is intended to read like a marketing hero instead of a tool inspector.</text>
+                </panel>
+            </slot>
+            <viewport3d title="Studio Preview" scene="luminous_port" />
+        </panel>
+
+        <panel title="Feature Reel" scope="site" variant="section" layout="column" gap={12}>
+            <text role="title">Horizontal scrolling content rail</text>
+            <text role="caption">Cards should animate in on mount and allow sideways browsing inside the page.</text>
+            <slot layout="row" gap={12} overflow_x="scroll">
+                <panel scope="site" variant="card" min_width={250}>
+                    <text role="title">Campaign boards</text>
+                    <text role="caption">Launch calendars, owners, and live conversion snapshots in one surface.</text>
+                </panel>
+                <panel scope="site" variant="card" min_width={250}>
+                    <text role="title">Design handoff</text>
+                    <text role="caption">Hero copy, art direction, and layout variants stay bundled with the app.</text>
+                </panel>
+                <panel scope="site" variant="card" min_width={250}>
+                    <text role="title">Motion-aware shell</text>
+                    <text role="caption">Native mount animation now shows real entrance movement instead of hard cuts.</text>
+                </panel>
+                <panel scope="site" variant="card" min_width={250}>
+                    <text role="title">Scroll-native story rails</text>
+                    <text role="caption">Overflow regions prove that sections can behave like a landing site, not just a tool dock.</text>
+                </panel>
+                <panel scope="site" variant="card" min_width={250}>
+                    <text role="title">Embedded preview</text>
+                    <text role="caption">A native viewport can sit inside a launch page as a premium product teaser.</text>
+                </panel>
+            </slot>
+        </panel>
+
+        <panel title="Narrative" scope="site" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="site" variant="card">
+                <text role="eyebrow">01</text>
+                <text role="title">Top bar</text>
+                <text role="caption">A lightweight site nav instead of a workstation rail.</text>
+            </panel>
+            <panel scope="site" variant="card">
+                <text role="eyebrow">02</text>
+                <text role="title">Landing flow</text>
+                <text role="caption">Stacked sections and CTAs mirror a commercial homepage rhythm.</text>
+            </panel>
+            <panel scope="site" variant="card">
+                <text role="eyebrow">03</text>
+                <text role="title">Scroll regions</text>
+                <text role="caption">Nested vertical and horizontal overflow show that content density can vary without collapsing.</text>
+            </panel>
+        </panel>
+
+        <panel title="Release Notes" scope="site" variant="section" layout="column" gap={12} max_height={240} overflow_y="scroll">
+            <text role="title">Vertical scrolling proof</text>
+            <panel scope="site" variant="card"><text role="caption">Week 1: authored the theme registry and moved widget maps out of the one-shell graphite preset.</text></panel>
+            <panel scope="site" variant="card"><text role="caption">Week 2: layout lowering learned dock, grid, constraints, and denser spacing behavior.</text></panel>
+            <panel scope="site" variant="card"><text role="caption">Week 3: compiler-side theme blocks, variants, classes, text roles, and token scopes became first-class.</text></panel>
+            <panel scope="site" variant="card"><text role="caption">Week 4: native host gained scroll areas and visible mount animation playback for semantic surfaces.</text></panel>
+            <panel scope="site" variant="card"><text role="caption">Week 5: landing-page smoke tests started proving that Kain UI can look like product software, not just editor chrome.</text></panel>
+            <panel scope="site" variant="card"><text role="caption">Week 6: next target is richer interaction flow, sticky rails, and authorable motion tracks.</text></panel>
+        </panel>
+
+        <panel title="Analytics Snapshot" scope="site" variant="section" layout="grid" columns={2} gap={16}>
+            <graph title="Conversion Graph">
+                <text role="caption">Narrative visual module</text>
+            </graph>
+            <timeline title="Launch Timeline">
+                <text role="caption">Roadmap visual module</text>
+            </timeline>
+        </panel>
+
+        <panel title="Footer" scope="site" variant="nav" layout="row" gap={16}>
+            <text role="caption">Signalcraft Native Smoke</text>
+            <text role="caption">Theme-driven</text>
+            <text role="caption">Scrollable</text>
+            <text role="caption">Animated on mount</text>
+        </panel>
+    </slot>

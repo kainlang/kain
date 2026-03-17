@@ -5,6 +5,7 @@ mod math;
 mod prelude;
 mod renderer;
 mod scene;
+mod shader_bundle;
 mod wgpu_renderer;
 
 pub use authoring::{
@@ -28,6 +29,13 @@ pub use renderer::{
 pub use scene::{
     BackgroundGradient, BlackHole, Camera, CameraPose, DirectionalLight, LightingRig, Material,
     Mesh, ParticleEmitter, PointLight, SceneAnimation, SceneCatalog, SceneDescription,
-    SceneInstance, Vertex,
+    SceneInstance, TerrainSurface, Vertex,
 };
-pub use wgpu_renderer::{WgpuRenderer, WgpuRendererInitError};
+pub use shader_bundle::{
+    default_viewport_shader_bundle, wgsl_module_source, VIEWPORT_SHADER_MODULE_NAME,
+    VIEWPORT_SHADER_SOURCE_ORIGIN,
+};
+pub use wgpu_renderer::{
+    GpuVertex, GizmoVertex, ParticleVertex, PreparedWgpuFrame, SceneUniforms, WgpuRenderer,
+    WgpuRendererInitError, prepare_wgpu_frame,
+};

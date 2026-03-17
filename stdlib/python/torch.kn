@@ -1,0 +1,26 @@
+pub fn py_torch_available() -> Bool:
+    py_exec("import importlib.util\n\ndef __kain_torch_available():\n    return importlib.util.find_spec('torch') is not None\n")
+    return py_call("__kain_torch_available", [])
+
+pub fn py_torch_require() -> Any:
+    assert(py_torch_available(), "torch must be installed")
+    return py_import("torch")
+
+pub fn py_torch_zeros(shape: Any, dtype: String) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "dtype", py_getattr(py_torch_require(), dtype))
+    return py_call(py_torch_require(), "zeros", [shape], kwargs)
+
+pub fn py_torch_arange(start: Int, stop: Int, dtype: String) -> Any:
+    let kwargs = map_new()
+    map_set(kwargs, "dtype", py_getattr(py_torch_require(), dtype))
+    return py_call(py_torch_require(), "arange", [start, stop], kwargs)
+
+pub fn py_torch_tensor_shared(target: Any) -> Any:
+    return kain_tensor_from_py_shared(target)
+
+pub fn py_torch_tensor_owned(target: Any) -> Any:
+    return kain_tensor_from_py_owned(target)
+
+pub fn py_torch_from_tensor(tensor: Any) -> Any:
+    return kain_tensor_to_py(tensor, "torch")

@@ -1,0 +1,23 @@
+pub fn dcc_tensor_from_python_auto(target: Any) -> Any:
+    return kain_tensor_from_py(target)
+
+pub fn dcc_tensor_from_python_shared(target: Any) -> Any:
+    return kain_tensor_from_py_shared(target)
+
+pub fn dcc_tensor_from_python_owned(target: Any) -> Any:
+    return kain_tensor_from_py_owned(target)
+
+pub fn dcc_tensor_info(tensor: Any) -> Any:
+    return kain_tensor_info(tensor)
+
+pub fn dcc_tensor_get(tensor: Any, indices: Any) -> Any:
+    return kain_tensor_get(tensor, indices)
+
+pub fn dcc_tensor_set(tensor: Any, indices: Any, value: Any):
+    kain_tensor_set(tensor, indices, value)
+
+pub fn dcc_tensor_to_numpy(tensor: Any) -> Any:
+    return kain_tensor_to_py(tensor, "numpy")
+
+pub fn dcc_tensor_to_torch(tensor: Any) -> Any:
+    return kain_tensor_to_py(tensor, "torch")

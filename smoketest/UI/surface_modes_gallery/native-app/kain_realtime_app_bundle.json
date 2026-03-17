@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "render": {
+    "scenes": [
+      {
+        "viewport_node": "surface.node.11",
+        "viewport_kind": "viewport3d",
+        "scene": "luminous_port",
+        "title": "Viewport",
+        "material_refs": [],
+        "shader_bundle_ref_keys": []
+      }
+    ],
+    "materials": []
+  },
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "tool.graph",
+    "tool.timeline",
+    "viewport.3d"
+  ],
+  "requirements": [
+    "host.native-ui",
+    "runtime.contract.bundle",
+    "scene.runtime-bundle",
+    "shader.bundle.metadata",
+    "viewport.presented-or-fallback"
+  ]
+}

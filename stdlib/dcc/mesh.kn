@@ -1,0 +1,29 @@
+pub fn dcc_mesh_from_python_auto(target: Any) -> Any:
+    return kain_geometry_from_py(target)
+
+pub fn dcc_mesh_from_python_shared(target: Any) -> Any:
+    return kain_geometry_from_py_shared(target)
+
+pub fn dcc_mesh_from_python_owned(target: Any) -> Any:
+    return kain_geometry_from_py_owned(target)
+
+pub fn dcc_mesh_info(geometry: Any) -> Any:
+    return kain_geometry_info(geometry)
+
+pub fn dcc_mesh_vertex_at(geometry: Any, index: Int) -> Any:
+    return kain_geometry_vertex(geometry, index)
+
+pub fn dcc_mesh_set_vertex(geometry: Any, index: Int, value: Any):
+    kain_geometry_set_vertex(geometry, index, value)
+
+pub fn dcc_mesh_face_at(geometry: Any, index: Int) -> Any:
+    return kain_geometry_face(geometry, index)
+
+pub fn dcc_mesh_set_face(geometry: Any, index: Int, value: Any):
+    kain_geometry_set_face(geometry, index, value)
+
+pub fn dcc_mesh_to_trimesh(geometry: Any) -> Any:
+    return kain_geometry_to_py(geometry, "trimesh")
+
+pub fn dcc_mesh_to_dict(geometry: Any) -> Any:
+    return kain_geometry_to_py(geometry, "dict")

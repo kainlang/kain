@@ -201,12 +201,6 @@
           "identity_key": null,
           "kind": "Panel",
           "props": {
-            "gap": {
-              "Int": 14
-            },
-            "layout": {
-              "String": "row"
-            },
             "tag": {
               "String": "panel"
             },
@@ -397,12 +391,6 @@
           "identity_key": null,
           "kind": "Panel",
           "props": {
-            "gap": {
-              "Int": 12
-            },
-            "layout": {
-              "String": "row"
-            },
             "tag": {
               "String": "panel"
             },
@@ -452,9 +440,6 @@
           "identity_key": null,
           "kind": "Panel",
           "props": {
-            "gap": {
-              "Int": 14
-            },
             "tag": {
               "String": "panel"
             },
@@ -504,15 +489,6 @@
           "identity_key": null,
           "kind": "Panel",
           "props": {
-            "gap": {
-              "Int": 16
-            },
-            "layout": {
-              "String": "dock"
-            },
-            "padding": {
-              "Int": 16
-            },
             "tag": {
               "String": "panel"
             },
@@ -824,12 +800,6 @@
             "identity_key": null,
             "kind": "Panel",
             "props": {
-              "gap": {
-                "Int": 14
-              },
-              "layout": {
-                "String": "row"
-              },
               "tag": {
                 "String": "panel"
               },
@@ -1045,12 +1015,6 @@
             "identity_key": null,
             "kind": "Panel",
             "props": {
-              "gap": {
-                "Int": 12
-              },
-              "layout": {
-                "String": "row"
-              },
               "tag": {
                 "String": "panel"
               },
@@ -1113,9 +1077,6 @@
             "identity_key": null,
             "kind": "Panel",
             "props": {
-              "gap": {
-                "Int": 14
-              },
               "tag": {
                 "String": "panel"
               },
@@ -1178,15 +1139,6 @@
             "identity_key": null,
             "kind": "Panel",
             "props": {
-              "gap": {
-                "Int": 16
-              },
-              "layout": {
-                "String": "dock"
-              },
-              "padding": {
-                "Int": 16
-              },
               "tag": {
                 "String": "panel"
               },

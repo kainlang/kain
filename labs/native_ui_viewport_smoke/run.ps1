@@ -29,7 +29,7 @@ $launchExePath = $candidates |
 
 $env:KAIN_UI_NATIVE_VIEWPORT_RENDERER = if ($Software) { "glow" } else { "wgpu" }
 $env:KAIN_UI_NATIVE_SHOW_INSPECTOR = if ($Inspector) { "1" } else { "0" }
-$env:KAIN_UI_NATIVE_VIEWPORT_MAX_AXIS = "720"
+$env:KAIN_UI_NATIVE_VIEWPORT_MAX_AXIS = "1440"
 $env:KAIN_UI_NATIVE_VIEWPORT_INTERACTIVE_MS = "33"
 $env:KAIN_UI_NATIVE_VIEWPORT_IDLE_MS = "90"
 $env:KAIN_UI_NATIVE_VIEWPORT_STARTUP_MS = "120"
@@ -42,6 +42,7 @@ if ($Trace) {
 }
 
 Write-Host ("Renderer preference: " + $env:KAIN_UI_NATIVE_VIEWPORT_RENDERER)
+Write-Host ("Viewport max axis: " + $env:KAIN_UI_NATIVE_VIEWPORT_MAX_AXIS)
 Write-Host ("Runtime inspector: " + $(if ($Inspector) { "on" } else { "off" }))
 Write-Host ("Launching visual smoke viewport: " + $launchExePath)
 Start-Process -FilePath $launchExePath | Out-Null

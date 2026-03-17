@@ -1,0 +1,114 @@
+use std::python::bridge
+use std::python::numpy
+use std::dcc::image
+use std::dcc::tensor
+use std::dcc::mesh
+
+fn smoke_root() -> String:
+    return "M:/Code/Kain/smoketest/python/numpy_supernova"
+
+fn smoke_output(name: String) -> String:
+    return smoke_root() + "/outputs/" + name
+
+fn install_numpy_kernel():
+    py_bridge_exec("import os\nimport numpy as np\n\ndef kain_numpy_supernova(width, height):\n    x = np.linspace(-1.2, 1.2, width, dtype=np.float32)\n    y = np.linspace(-1.0, 1.0, height, dtype=np.float32)\n    xx, yy = np.meshgrid(x, y)\n    rr = np.sqrt(xx * xx + yy * yy) + 1e-5\n    theta = np.arctan2(yy, xx)\n    spiral = np.sin(18.0 * theta + 14.0 / (rr + 0.08))\n    shock = np.cos(42.0 * rr - 9.0 * theta)\n    petals = np.sin(7.0 * theta) * np.exp(-rr * 2.4)\n    lattice = np.sin((xx * xx - yy * yy) * 15.0)\n    field = 0.58 * spiral + 0.42 * shock + 0.55 * petals + 0.25 * lattice\n    fy = np.fft.fftfreq(height).reshape(-1, 1)\n    fx = np.fft.fftfreq(width).reshape(1, -1)\n    radius = np.sqrt(fx * fx + fy * fy)\n    mask = np.exp(-(radius / 0.17) ** 2)\n    filtered = np.fft.ifft2(np.fft.fft2(field) * mask).real.astype(np.float32)\n    energy = filtered - filtered.min()\n    energy = energy / max(float(energy.max()), 1e-6)\n    red = np.clip(255.0 * np.power(energy, 0.72), 0, 255).astype(np.uint8)\n    green = np.clip(255.0 * np.power(np.roll(energy, 9, axis=1), 1.1), 0, 255).astype(np.uint8)\n    blue = np.clip(255.0 * np.power(np.roll(energy, 13, axis=0), 1.6), 0, 255).astype(np.uint8)\n    alpha = np.full_like(red, 255, dtype=np.uint8)\n    rgba = np.dstack([red, green, blue, alpha]).astype(np.uint8, copy=False)\n    return np.require(rgba, dtype=np.uint8, requirements=['C', 'W', 'A'])\n\ndef kain_numpy_volume(size):\n    axis = np.linspace(-1.0, 1.0, size, dtype=np.float32)\n    zz, yy, xx = np.meshgrid(axis, axis, axis, indexing='ij')\n    volume = np.sin(9.0 * xx * yy) + np.cos(7.0 * yy * zz) + np.sin(11.0 * zz * xx)\n    volume = volume.astype(np.float32, copy=False)\n    return np.require(volume, dtype=np.float32, requirements=['C', 'W', 'A'])\n\ndef kain_numpy_point_cloud(count):\n    width = 320\n    height = 240\n    rgba = kain_numpy_supernova(width, height)\n    energy = rgba[:, :, 0].astype(np.float32) / 255.0\n    ys, xs = np.nonzero(energy > 0.74)\n    if len(xs) == 0:\n        return np.zeros((0, 3), dtype=np.float32)\n    z = energy[ys, xs] * 1.8 - 0.9\n    verts = np.stack([\n        (xs / max(width - 1, 1) - 0.5) * 2.4,\n        (ys / max(height - 1, 1) - 0.5) * -1.8,\n        z,\n    ], axis=1).astype(np.float32, copy=False)\n    if len(verts) > count:\n        indices = np.linspace(0, len(verts) - 1, count, dtype=np.int32)\n        verts = verts[indices]\n    return np.require(verts, dtype=np.float32, requirements=['C', 'W', 'A'])\n\ndef kain_numpy_save_ppm(rgba, path):\n    rgba = np.require(rgba, dtype=np.uint8, requirements=['C'])\n    rgb = rgba[:, :, :3]\n    header = f'P6\\n{rgb.shape[1]} {rgb.shape[0]}\\n255\\n'.encode('ascii')\n    with open(path, 'wb') as handle:\n        handle.write(header)\n        handle.write(rgb.tobytes())\n    return {'path': path, 'bytes': os.path.getsize(path), 'width': int(rgb.shape[1]), 'height': int(rgb.shape[0])}\n\ndef kain_numpy_save_ply(points, path):\n    points = np.require(points, dtype=np.float32, requirements=['C'])\n    header = ''.join([\n        'ply\\n',\n        'format ascii 1.0\\n',\n        f'element vertex {len(points)}\\n',\n        'property float x\\n',\n        'property float y\\n',\n        'property float z\\n',\n        'end_header\\n',\n    ])\n    with open(path, 'w', encoding='utf-8') as handle:\n        handle.write(header)\n        for point in points:\n            handle.write(f'{float(point[0])} {float(point[1])} {float(point[2])}\\n')\n    return {'path': path, 'bytes': os.path.getsize(path), 'count': int(len(points))}\n")
+
+fn geometry_to_ply(points) -> String:
+    let info = dcc_mesh_info(points)
+    let ply = "ply\n"
+    let ply = ply + "format ascii 1.0\n"
+    let ply = ply + "element vertex " + str(info.vertex_count) + "\n"
+    let ply = ply + "property float x\n"
+    let ply = ply + "property float y\n"
+    let ply = ply + "property float z\n"
+    let ply = ply + "end_header\n"
+    let i = 0
+    while i < info.vertex_count:
+        let point = dcc_mesh_vertex_at(points, i)
+        ply = ply + str(point[0]) + " " + str(point[1]) + " " + str(point[2]) + "\n"
+        i = i + 1
+    return ply
+
+test numpy_supernova_image_lane:
+    install_numpy_kernel()
+    assert(py_numpy_available(), "numpy must be installed for this smoke test")
+    let rgba = py_bridge_call_raw("kain_numpy_supernova", [448, 256])
+    let native_image = dcc_image_from_python_shared(rgba)
+    let info = dcc_image_info(native_image)
+    assert(info.width == 448, "expected image width")
+    assert(info.height == 256, "expected image height")
+    assert(info.zero_copy == true, "expected shared image backing")
+    assert(dcc_image_pixel_at(native_image, 224, 128)[0] >= 0, "expected readable pixel sample")
+
+test numpy_supernova_tensor_lane:
+    install_numpy_kernel()
+    let volume = dcc_tensor_from_python_shared(py_bridge_call_raw("kain_numpy_volume", [40]))
+    let info = dcc_tensor_info(volume)
+    assert(info.zero_copy == true, "expected shared volume backing")
+    assert(info.shape[0] == 40, "expected cubic volume")
+    dcc_tensor_set(volume, [20, 20, 20], 9.5)
+    assert(dcc_tensor_get(volume, [20, 20, 20]) == 9.5, "expected writable shared tensor")
+
+test numpy_supernova_point_cloud_lane:
+    install_numpy_kernel()
+    let points = dcc_mesh_from_python_owned(py_bridge_call_raw("kain_numpy_point_cloud", [1800]))
+    let info = dcc_mesh_info(points)
+    assert(info.vertex_count > 1000, "expected dense point cloud")
+    assert(info.vertex_ownership == "owned", "expected detached point cloud ownership")
+
+fn main() -> String:
+    install_numpy_kernel()
+    assert(py_numpy_available(), "numpy must be installed for this smoke test")
+
+    let width = 512
+    let height = 320
+    let native_image = dcc_image_from_python_shared(py_bridge_call_raw("kain_numpy_supernova", [width, height]))
+    let image_info = dcc_image_info(native_image)
+    let center_before = dcc_image_pixel_at(native_image, width / 2, height / 2)
+
+    let i = 0
+    while i < width:
+        let y = (i * height) / width
+        dcc_image_set_pixel(native_image, i, y, [255, 240, 220, 255])
+        i = i + 1
+
+    let j = 0
+    while j < height:
+        dcc_image_set_pixel(native_image, width / 2, j, [90, 255, 255, 255])
+        j = j + 1
+
+    let volume = dcc_tensor_from_python_shared(py_bridge_call_raw("kain_numpy_volume", [48]))
+    let volume_info = dcc_tensor_info(volume)
+    let volume_before = dcc_tensor_get(volume, [24, 24, 24])
+    dcc_tensor_set(volume, [24, 24, 24], 12.0)
+    let volume_after = dcc_tensor_get(volume, [24, 24, 24])
+
+    let points = dcc_mesh_from_python_owned(py_bridge_call_raw("kain_numpy_point_cloud", [2400]))
+    let points_info = dcc_mesh_info(points)
+    let first_point = dcc_mesh_vertex_at(points, 0)
+
+    let ppm_path = smoke_output("numpy_supernova.ppm")
+    let ply_path = smoke_output("numpy_supernova_points.ply")
+    let report_path = smoke_output("numpy_supernova_report.txt")
+
+    let ppm_info = py_bridge_call("kain_numpy_save_ppm", [dcc_image_to_numpy(native_image), ppm_path])
+    write_file(ply_path, geometry_to_ply(points))
+
+    let report = "NumPy supernova smoke\n"
+    let report = report + "image_dims: " + str(image_info.width) + "x" + str(image_info.height) + "x" + str(image_info.channels) + "\n"
+    let report = report + "image_zero_copy: " + str(image_info.zero_copy) + "\n"
+    let report = report + "center_before: " + str(center_before) + "\n"
+    let report = report + "center_after: " + str(dcc_image_pixel_at(native_image, width / 2, height / 2)) + "\n"
+    let report = report + "volume_shape: " + str(volume_info.shape) + "\n"
+    let report = report + "volume_zero_copy: " + str(volume_info.zero_copy) + "\n"
+    let report = report + "volume_before: " + str(volume_before) + "\n"
+    let report = report + "volume_after: " + str(volume_after) + "\n"
+    let report = report + "point_count: " + str(points_info.vertex_count) + "\n"
+    let report = report + "point_ownership: " + str(points_info.vertex_ownership) + "\n"
+    let report = report + "first_point: " + str(first_point) + "\n"
+    let report = report + "ppm_bytes: " + str(ppm_info.bytes) + "\n"
+    let report = report + "ppm_path: " + ppm_path + "\n"
+    let report = report + "ply_path: " + ply_path
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

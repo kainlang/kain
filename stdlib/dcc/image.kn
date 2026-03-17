@@ -1,0 +1,23 @@
+pub fn dcc_image_from_python_auto(target: Any) -> Any:
+    return kain_image_from_py(target)
+
+pub fn dcc_image_from_python_shared(target: Any) -> Any:
+    return kain_image_from_py_shared(target)
+
+pub fn dcc_image_from_python_owned(target: Any) -> Any:
+    return kain_image_from_py_owned(target)
+
+pub fn dcc_image_info(image: Any) -> Any:
+    return kain_image_info(image)
+
+pub fn dcc_image_pixel_at(image: Any, x: Int, y: Int) -> Any:
+    return kain_image_pixel(image, x, y)
+
+pub fn dcc_image_set_pixel(image: Any, x: Int, y: Int, value: Any):
+    kain_image_set_pixel(image, x, y, value)
+
+pub fn dcc_image_to_numpy(image: Any) -> Any:
+    return kain_image_to_py(image, "numpy")
+
+pub fn dcc_image_to_torch(image: Any) -> Any:
+    return kain_image_to_py(image, "torch")

@@ -3,13 +3,13 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
-use crate::{DriverSession, RustBundleOutput};
+use crate::{DriverSession, RustBundleOutput, ShaderArtifactBundleOutput};
 use kain_core::ast::Item;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::{
-    build_ui_output_from_source, runtime_contract_bundle_to_json, CompileTarget, Lexer, Parser,
-    RuntimeContractBundle,
+    build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
+    CompileTarget, Lexer, Parser, RealtimeAppBundle, RuntimeContractBundle,
 };
 use kain_ui::{
     ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeMetadata,
@@ -17,6 +17,8 @@ use kain_ui::{
 
 const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
 const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json";
+const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: &str = "kain_realtime_app_bundle.json";
+const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -54,6 +56,8 @@ pub struct NativeAppMetadata {
 pub struct NativeAppBundle {
     pub metadata: NativeAppMetadata,
     pub runtime_contract: RuntimeContractBundle,
+    pub realtime: RealtimeAppBundle,
+    pub shader_bundle: Option<ShaderArtifactBundleOutput>,
     pub ui: UiBuildOutput,
     pub rust: RustBundleOutput,
 }
@@ -111,6 +115,10 @@ impl DriverSession {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| root_component.clone());
         let runtime_contract = self.compile_runtime_contract_bundle(source, CompileTarget::Rust)?;
+        let realtime = self
+            .compile_realtime_app_bundle(source, CompileTarget::Rust, Some(&root_component))?
+            .bundle;
+        let shader_bundle = self.compile_shader_artifact_bundle(source).ok();
         let ui = build_ui_output_from_source(source, &root_component)?;
         let rust = self.compile_rust_artifact_bundle(source, config.include_spirv)?;
 
@@ -123,6 +131,8 @@ impl DriverSession {
                 initial_window_size: config.initial_window_size,
             },
             runtime_contract,
+            realtime,
+            shader_bundle,
             ui,
             rust,
         })
@@ -163,6 +173,22 @@ impl DriverSession {
             .map_err(io_error("write native app runtime contract"))?;
         artifact_paths.push(runtime_contract_path);
 
+        let realtime_bundle_path = artifact_root.join(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME);
+        let realtime_bundle_json = render_realtime_bundle_json(bundle)?;
+        fs::write(&realtime_bundle_path, realtime_bundle_json.as_bytes())
+            .map_err(io_error("write native app realtime bundle"))?;
+        artifact_paths.push(realtime_bundle_path.clone());
+
+        let shader_bundle_path = if let Some(shader_bundle) = &bundle.shader_bundle {
+            let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME);
+            fs::write(&path, shader_bundle.bundle_json.as_bytes())
+                .map_err(io_error("write native app shader bundle"))?;
+            artifact_paths.push(path.clone());
+            Some(path)
+        } else {
+            None
+        };
+
         let primary_path = artifact_root.join(&bundle.rust.bundle.primary.suggested_file_name);
         fs::write(
             &primary_path,
@@ -199,7 +225,21 @@ impl DriverSession {
             &runtime_bundle_path,
         )
         .unwrap_or_else(|| runtime_bundle_path.clone());
-        let main_rs = render_main_rs(&runtime_bundle_include_path, &config.runtime_crate_name);
+        let realtime_bundle_file_name = realtime_bundle_path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .unwrap_or(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME);
+        let shader_bundle_file_name = shader_bundle_path.as_ref().and_then(|path| {
+            path.file_name()
+                .and_then(OsStr::to_str)
+                .map(ToOwned::to_owned)
+        });
+        let main_rs = render_main_rs(
+            &runtime_bundle_include_path,
+            &config.runtime_crate_name,
+            realtime_bundle_file_name,
+            shader_bundle_file_name.as_deref(),
+        );
         fs::write(&main_rs_path, main_rs.as_bytes())
             .map_err(io_error("write native app entrypoint"))?;
 
@@ -213,6 +253,22 @@ impl DriverSession {
         } else {
             None
         };
+
+        if let (Some(executable_path), Some(output_dir)) = (
+            executable_path.as_ref(),
+            config.executable_output_dir.as_deref(),
+        ) {
+            copy_runtime_sidecars_to_executable_dir(
+                executable_path,
+                output_dir,
+                &artifact_paths,
+                &[
+                    NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME,
+                    NATIVE_APP_REALTIME_BUNDLE_FILE_NAME,
+                    NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
+                ],
+            )?;
+        }
 
         Ok(NativeAppMaterializedPaths {
             project_dir: project_dir.clone(),
@@ -297,14 +353,53 @@ fn render_manifest(
     )
 }
 
-fn render_main_rs(runtime_bundle_include_path: &Path, runtime_crate_name: &str) -> String {
+fn render_main_rs(
+    runtime_bundle_include_path: &Path,
+    runtime_crate_name: &str,
+    realtime_bundle_file_name: &str,
+    shader_bundle_file_name: Option<&str>,
+) -> String {
     let runtime_bundle_include_path =
         rust_string_literal(&path_for_toml(runtime_bundle_include_path));
     let runtime_module_name = runtime_crate_name.replace('-', "_");
+    let realtime_bundle_file_name = rust_string_literal(realtime_bundle_file_name);
+    let shader_bundle_env = shader_bundle_file_name.map(rust_string_literal);
+    let shader_bundle_setter = shader_bundle_env
+        .as_deref()
+        .map(|file_name| {
+            format!(
+                "    if let Some(path) = resolve_runtime_sidecar({file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_SHADER_BUNDLE\", &path);\n    }}\n"
+            )
+        })
+        .unwrap_or_default();
 
     format!(
-        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
+        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{shader_bundle_setter}    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
+}
+
+fn copy_runtime_sidecars_to_executable_dir(
+    executable_path: &Path,
+    output_dir: &Path,
+    artifact_paths: &[PathBuf],
+    file_names: &[&str],
+) -> Result<(), KainError> {
+    let Some(executable_dir) = executable_path.parent() else {
+        return Ok(());
+    };
+    if executable_dir != output_dir {
+        return Ok(());
+    }
+    for file_name in file_names {
+        if let Some(source) = artifact_paths
+            .iter()
+            .find(|path| path.file_name().and_then(OsStr::to_str) == Some(*file_name))
+        {
+            let destination = executable_dir.join(file_name);
+            fs::copy(source, &destination).map_err(io_error("copy native app runtime sidecar"))?;
+        }
+    }
+    Ok(())
 }
 
 fn build_native_app_executable(
@@ -459,6 +554,15 @@ fn render_runtime_contract_json(bundle: &NativeAppBundle) -> Result<String, Kain
     runtime_contract_bundle_to_json(&bundle.runtime_contract).map_err(|err| {
         KainError::runtime(format!(
             "Failed to serialize runtime contract bundle for {}: {err}",
+            bundle.metadata.app_name
+        ))
+    })
+}
+
+fn render_realtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
+    realtime_app_bundle_to_json(&bundle.realtime).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to serialize realtime app bundle for {}: {err}",
             bundle.metadata.app_name
         ))
     })
