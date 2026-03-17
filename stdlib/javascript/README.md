@@ -53,8 +53,11 @@ It now also has higher-level payload adapters for web-facing artifacts:
 
 - document payloads via `js_web_document_info`, `js_web_document_text`, and `js_web_document_write`
 - image or canvas payloads via `js_web_image_info`, `js_web_image_bytes`, `js_web_image_write`, `js_web_canvas_info`, and `js_web_canvas_write`
+- shared contract materialization via `js_web_shared_buffer(...)` and `js_web_shared_image(...)`
 
 Those payload adapters are designed for helpers that return structured objects such as:
 
 - `{ kind: "document", mime_type: "text/html", text: "<!doctype html>..." }`
 - `{ kind: "canvas", mime_type: "image/svg+xml", width, height, text: "<svg...>", bytes: Uint8Array(...) }`
+
+If you want a runtime-neutral payload that can move into Rust crate FFI or future C/C++ bridges, convert it into the shared contract first with `js_web_shared_buffer(...)` or `js_web_shared_image(...)`.

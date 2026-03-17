@@ -198,11 +198,14 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
+        kain_c_ffi::register();
+        kain_interop::register();
         kain_node::register();
         kain_python::register();
         kain_crate_ffi::register();
 
-        let source = kain_node::prepare_source_for_runtime(source, target)?;
+        let source = prepare_c_ffi_source(source, target)?;
+        let source = kain_node::prepare_source_for_runtime(&source, target)?;
         let source = prepare_rust_ffi_source(&source, target)?;
 
         let stdlib_source = stdlib::load_stdlib_for_target(target);
@@ -609,6 +612,14 @@ fn prepare_rust_ffi_source(source: &str, target: CompileTarget) -> Result<String
         manifest_path: None,
     };
     kain_crate_ffi::augment_source_for_runtime(source, target, &prepare)
+}
+
+fn prepare_c_ffi_source(source: &str, target: CompileTarget) -> Result<String, KainError> {
+    let prepare = kain_c_ffi::PrepareContext {
+        current_dir: std::env::current_dir().ok(),
+        manifest_path: None,
+    };
+    kain_c_ffi::augment_source_for_runtime(source, target, &prepare)
 }
 
 fn find_target_spec_by_alias(alias: &str) -> Option<&'static TargetSpec> {

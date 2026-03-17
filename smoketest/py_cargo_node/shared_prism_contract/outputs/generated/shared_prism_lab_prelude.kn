@@ -1,0 +1,4 @@
+# Generated import shim for crate shared_prism_lab
+use rust::shared_prism_lab::rust_shared_prism_lab_shared_prism_checksum as rust_shared_prism_lab_shared_prism_checksum
+use rust::shared_prism_lab::rust_shared_prism_lab_shared_prism_bands as rust_shared_prism_lab_shared_prism_bands
+use rust::shared_prism_lab::rust_shared_prism_lab_shared_prism_signature as rust_shared_prism_lab_shared_prism_signature

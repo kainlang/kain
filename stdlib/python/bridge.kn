@@ -47,3 +47,9 @@ pub fn py_bridge_setattr(target: Any, name: String, value: Any):
 
 pub fn py_bridge_hasattr(target: Any, name: String) -> Bool:
     return py_hasattr(target, name)
+
+pub fn py_bridge_shared_buffer(target: Any) -> Any:
+    return kain_shared_buffer_from_py(target)
+
+pub fn py_bridge_shared_image(target: Any) -> Any:
+    return kain_shared_image_from_py(target)

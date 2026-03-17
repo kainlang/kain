@@ -6,8 +6,10 @@ description = "Embeddable Rust-native compiler driver for KAIN"
 license = "MIT"
 
 [dependencies]
+kain-c-ffi = { path = "../kain-c-ffi" }
 kain-core = { path = "../kain-core" }
 kain-crate-ffi = { path = "../kain-crate-ffi" }
+kain-interop = { path = "../kain-interop" }
 kain-node = { path = "../kain-node" }
 kain-python = { path = "../kain-python" }
 kain-ui = { path = "../kain-ui" }

@@ -70,6 +70,12 @@ pub fn js_web_image_write(path: String, target: Any):
 pub fn js_web_canvas_write(path: String, target: Any):
     js_web_image_write(path, target)
 
+pub fn js_web_shared_buffer(target: Any) -> Any:
+    return kain_shared_buffer_from_js(target)
+
+pub fn js_web_shared_image(target: Any) -> Any:
+    return kain_shared_image_from_js(target)
+
 pub fn js_web_html_document(title: String, body: String, background: String, accent: String) -> String:
     let html = "<!doctype html>\n"
     let html = html + "<html lang='en'>\n"

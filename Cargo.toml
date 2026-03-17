@@ -2,6 +2,8 @@
 members = [
     # ── KAIN pipeline ────────────────────────────────────────────────────────
     "crates/kain-core",
+    "crates/kain-interop",
+    "crates/kain-c-ffi",
     "crates/kain-node",
     "crates/kain-python",
     "crates/kain-3D",

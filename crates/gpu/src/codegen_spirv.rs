@@ -15,6 +15,7 @@ use std::collections::{HashMap, HashSet};
 
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     let mut builder = Builder::new();
+    let mut emitted_shaders = 0_u32;
 
     // Set capabilities and memory model
     builder.capability(Capability::Shader);
@@ -24,10 +25,20 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     for item in &program.items {
         if let TypedItem::Shader(shader) = item {
             emit_shader(&mut builder, shader)?;
+            emitted_shaders += 1;
         }
     }
 
     let module = builder.module();
+    if emitted_shaders == 0 || module.entry_points.is_empty() {
+        return Err(KainError::codegen(
+            format!(
+                "SPIR-V backend emitted no entry points for {} typed shader item(s)",
+                emitted_shaders
+            ),
+            kain_core::span::Span::default(),
+        ));
+    }
     let bytes: Vec<u8> = module
         .assemble()
         .iter()

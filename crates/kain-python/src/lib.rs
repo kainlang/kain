@@ -4,6 +4,10 @@ use std::sync::{Arc, Once, RwLock};
 use kain_core::error::{KainError, KainResult};
 use kain_core::runtime::{register_env_extension, Env, Value};
 use kain_core::stdlib::{register_stdlib_extension, BuiltinFn, StdLib};
+use kain_interop::{
+    shared_buffer_value, shared_image_value, KainSharedBuffer, KainSharedImage,
+    SharedBufferMetadata, SharedImageMetadata,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyDict, PyList, PyTuple};
 
@@ -115,6 +119,7 @@ struct KainNativeGeometry {
 
 pub fn register() {
     REGISTER.call_once(|| {
+        kain_interop::register();
         register_stdlib_extension("python", register_python_stdlib);
         register_env_extension("python", register_python_env);
     });
@@ -438,6 +443,18 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
             return_type: "Any",
             doc: "Export a Kain-owned typed geometry buffer back into Python arrays, dict payloads, or trimesh objects",
         },
+        BuiltinFn {
+            name: "kain_shared_buffer_from_py",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python buffer-capable payload into the neutral Kain shared buffer contract",
+        },
+        BuiltinFn {
+            name: "kain_shared_image_from_py",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a Python uint8 image payload into the neutral Kain shared image contract",
+        },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
     }
@@ -516,6 +533,8 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("kain_geometry_face", kain_geometry_face_native);
     env.register_native_fn("kain_geometry_set_face", kain_geometry_set_face_native);
     env.register_native_fn("kain_geometry_to_py", kain_geometry_to_py_native);
+    env.register_native_fn("kain_shared_buffer_from_py", kain_shared_buffer_from_py_native);
+    env.register_native_fn("kain_shared_image_from_py", kain_shared_image_from_py_native);
 }
 
 fn py_eval_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -1390,6 +1409,101 @@ fn kain_geometry_from_py_owned_native(env: &mut Env, args: Vec<Value>) -> KainRe
     )
 }
 
+fn kain_shared_buffer_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_shared_buffer_from_py: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        let bytes = python_bytes_to_vec(export_payload_bytes(py, target.as_ref(py))?.as_ref(py))?;
+        let buffer = KainSharedBuffer::owned(
+            SharedBufferMetadata {
+                element_type: shared_element_type_from_python_dtype(&metadata.dtype)?,
+                element_size: metadata.item_size.max(1),
+                shape: if metadata.shape.is_empty() {
+                    vec![bytes.len() as i64]
+                } else {
+                    metadata.shape.clone()
+                },
+                strides: if metadata.strides.is_empty() {
+                    vec![metadata.item_size.max(1)]
+                } else {
+                    metadata.strides.clone()
+                },
+                format: metadata.format.clone(),
+                mime_type: Some("application/octet-stream".to_string()),
+                source_runtime: "python".to_string(),
+                source_backend: Some(metadata.backend.clone()),
+                ownership: "owned".to_string(),
+                labels: vec![metadata.kind.clone(), metadata.label.clone()],
+            },
+            bytes,
+        );
+        Ok(shared_buffer_value(buffer))
+    })
+}
+
+fn kain_shared_image_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(
+            "kain_shared_image_from_py: expected 1 argument (target)",
+        ));
+    }
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let target = resolve_python_target(py, scope_dict, &args[0])?;
+        let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
+        let info = build_image_info(&metadata)?;
+        let fields = struct_fields_from_value(info);
+        let width = struct_int_field(&fields, "width")?;
+        let height = struct_int_field(&fields, "height")?;
+        let channels = struct_int_field(&fields, "channels")?;
+        let layout = struct_string_field(&fields, "layout")?;
+        let dtype = shared_element_type_from_python_dtype(&metadata.dtype)?;
+        if dtype != "u8" {
+            return Err(KainError::runtime(format!(
+                "kain_shared_image_from_py: only uint8-style image payloads are supported today, got {}",
+                metadata.dtype
+            )));
+        }
+        let bytes = python_bytes_to_vec(export_payload_bytes(py, target.as_ref(py))?.as_ref(py))?;
+        let image = KainSharedImage::owned(
+            SharedImageMetadata {
+                representation: "raster".to_string(),
+                width,
+                height,
+                channels,
+                layout,
+                pixel_format: infer_python_pixel_format(channels, &metadata.dtype),
+                mime_type: "image/x-kain-raster".to_string(),
+                row_stride: width.saturating_mul(channels),
+                color_space: "srgb".to_string(),
+                alpha_mode: if channels == 4 {
+                    "straight".to_string()
+                } else {
+                    "opaque".to_string()
+                },
+                source_runtime: "python".to_string(),
+                source_backend: Some(metadata.backend.clone()),
+                ownership: "owned".to_string(),
+                labels: vec![metadata.kind.clone(), metadata.label.clone()],
+            },
+            bytes,
+        )?;
+        Ok(shared_image_value(image))
+    })
+}
+
 fn kain_geometry_info_native(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     if args.len() != 1 {
         return Err(KainError::runtime(
@@ -1756,6 +1870,54 @@ fn export_payload_bytes(py: Python<'_>, target: &PyAny) -> KainResult<PyObject> 
         .call_method0("tobytes")
         .map(|value| value.into_py(py))
         .map_err(|err| KainError::runtime(format!("Python buffer export error: {err}")))
+}
+
+fn python_bytes_to_vec(value: &PyAny) -> KainResult<Vec<u8>> {
+    if let Ok(bytes) = value.downcast::<PyBytes>() {
+        return Ok(bytes.as_bytes().to_vec());
+    }
+    if let Ok(bytes) = value.downcast::<PyByteArray>() {
+        return Ok(bytes.to_vec());
+    }
+    value.extract::<Vec<u8>>()
+        .map_err(|err| KainError::runtime(format!("Python bytes conversion error: {err}")))
+}
+
+fn shared_element_type_from_python_dtype(dtype: &str) -> KainResult<String> {
+    Ok(match dtype {
+        "uint8" | "ubyte" => "u8",
+        "int8" | "byte" => "i8",
+        "uint16" => "u16",
+        "int16" => "i16",
+        "uint32" => "u32",
+        "int32" => "i32",
+        "uint64" => "u64",
+        "int64" => "i64",
+        "float32" => "f32",
+        "float64" | "double" => "f64",
+        "bool" | "bool_" => "bool",
+        other => {
+            return Err(KainError::runtime(format!(
+                "Unsupported Python dtype for shared interop contract: {other}"
+            )))
+        }
+    }
+    .to_string())
+}
+
+fn infer_python_pixel_format(channels: i64, dtype: &str) -> String {
+    let suffix = match dtype {
+        "uint8" | "ubyte" => "8",
+        "uint16" => "16",
+        _ => "x",
+    };
+    match channels {
+        1 => format!("r{suffix}"),
+        2 => format!("rg{suffix}"),
+        3 => format!("rgb{suffix}"),
+        4 => format!("rgba{suffix}"),
+        _ => format!("channels-{channels}-{dtype}"),
+    }
 }
 
 fn metadata_to_value(name: &str, metadata: &PythonPayloadMetadata) -> Value {
@@ -4061,6 +4223,8 @@ mod tests {
         assert!(stdlib.functions.contains_key("kain_geometry_face"));
         assert!(stdlib.functions.contains_key("kain_geometry_set_face"));
         assert!(stdlib.functions.contains_key("kain_geometry_to_py"));
+        assert!(stdlib.functions.contains_key("kain_shared_buffer_from_py"));
+        assert!(stdlib.functions.contains_key("kain_shared_image_from_py"));
     }
 
     #[test]
@@ -4431,6 +4595,36 @@ fn main():
         match result {
             Value::Int(value) => assert_eq!(value, 7),
             other => panic!("expected native image sync to return Int(7), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_bridge_materializes_shared_image_contracts_when_available() {
+        if !numpy_available() {
+            eprintln!("skipping shared image contract test because numpy is not installed");
+            return;
+        }
+
+        let result = interpret_source(
+            r#"
+fn main():
+    py_exec("import numpy as np\ndef make_image():\n    return np.zeros((5, 7, 3), dtype=np.uint8)")
+    let shared_image = kain_shared_image_from_py(py_call_raw("make_image", []))
+    let info = kain_shared_image_info(shared_image)
+    return [info.source_runtime, info.width, info.height, info.channels, info.byte_length]
+"#,
+        );
+
+        match result {
+            Value::Array(values) => {
+                let values = values.read().unwrap();
+                assert!(matches!(values[0], Value::String(ref value) if value == "python"));
+                assert!(matches!(values[1], Value::Int(7)));
+                assert!(matches!(values[2], Value::Int(5)));
+                assert!(matches!(values[3], Value::Int(3)));
+                assert!(matches!(values[4], Value::Int(105)));
+            }
+            other => panic!("expected shared image metadata array, got {other:?}"),
         }
     }
 

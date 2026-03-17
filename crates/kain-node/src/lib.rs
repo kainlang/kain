@@ -9,6 +9,10 @@ use kain_core::error::{KainError, KainResult};
 use kain_core::runtime::{register_env_extension, Env, Value};
 use kain_core::stdlib::{register_stdlib_extension, BuiltinFn, StdLib};
 use kain_core::CompileTarget;
+use kain_interop::{
+    shared_buffer_value, shared_image_value, KainSharedBuffer, KainSharedImage,
+    SharedBufferMetadata, SharedImageMetadata,
+};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
@@ -187,6 +191,13 @@ function normalizeImagePayload(target) {
       extension: inferExtension(mimeType, 'txt'),
       width: 0,
       height: 0,
+      channels: 0,
+      row_stride: 0,
+      layout: '',
+      pixel_format: '',
+      representation: 'encoded',
+      color_space: 'srgb',
+      alpha_mode: 'opaque',
       byte_length: utf8View(text).byteLength,
       text,
       bytes: utf8View(text),
@@ -209,12 +220,21 @@ function normalizeImagePayload(target) {
     'text/plain';
   const width = Number(target.width ?? 0);
   const height = Number(target.height ?? 0);
+  const channels = Number(target.channels ?? 0);
+  const rowStride = Number(target.row_stride ?? (Number.isFinite(width) && Number.isFinite(channels) ? width * channels : 0));
   return {
     kind: typeof target.kind === 'string' ? target.kind : 'image',
     mime_type: mimeType,
     extension: typeof target.extension === 'string' ? target.extension : inferExtension(mimeType, text != null ? 'txt' : 'bin'),
     width: Number.isFinite(width) ? width : 0,
     height: Number.isFinite(height) ? height : 0,
+    channels: Number.isFinite(channels) ? channels : 0,
+    row_stride: Number.isFinite(rowStride) ? rowStride : 0,
+    layout: typeof target.layout === 'string' ? target.layout : '',
+    pixel_format: typeof target.pixel_format === 'string' ? target.pixel_format : '',
+    representation: typeof target.representation === 'string' ? target.representation : (bytes && width > 0 && height > 0 ? 'raster' : 'encoded'),
+    color_space: typeof target.color_space === 'string' ? target.color_space : 'srgb',
+    alpha_mode: typeof target.alpha_mode === 'string' ? target.alpha_mode : (channels === 4 ? 'straight' : 'opaque'),
     byte_length: bytes ? bytes.byteLength : utf8View(text ?? '').byteLength,
     text,
     bytes: bytes ?? (text != null ? utf8View(text) : null),
@@ -336,6 +356,13 @@ async function handleRequest(message) {
         extension: payload.extension,
         width: payload.width,
         height: payload.height,
+        channels: payload.channels,
+        row_stride: payload.row_stride,
+        layout: payload.layout,
+        pixel_format: payload.pixel_format,
+        representation: payload.representation,
+        color_space: payload.color_space,
+        alpha_mode: payload.alpha_mode,
         byte_length: payload.byte_length,
       };
     }
@@ -430,6 +457,7 @@ struct NodeObjectRef {
 
 pub fn register() {
     REGISTER.call_once(|| {
+        kain_interop::register();
         register_stdlib_extension("javascript", register_node_stdlib);
         register_env_extension("javascript", register_node_env);
     });
@@ -572,6 +600,18 @@ fn register_node_stdlib(stdlib: &mut StdLib) {
             return_type: "Any",
             doc: "Extract the raw byte buffer handle from a JavaScript image payload",
         },
+        BuiltinFn {
+            name: "kain_shared_buffer_from_js",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a JavaScript typed-array or buffer payload into the neutral Kain shared buffer contract",
+        },
+        BuiltinFn {
+            name: "kain_shared_image_from_js",
+            params: vec![("target", "Any")],
+            return_type: "Any",
+            doc: "Materialize a JavaScript image payload into the neutral Kain shared image contract",
+        },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
     }
@@ -611,6 +651,8 @@ fn register_node_env(env: &mut Env) {
     env.register_native_fn("js_image_text", builtin_js_image_text);
     env.register_native_fn("js_image_bytes", builtin_js_image_bytes);
     env.register_native_fn("js_image_buffer", builtin_js_image_buffer);
+    env.register_native_fn("kain_shared_buffer_from_js", builtin_kain_shared_buffer_from_js);
+    env.register_native_fn("kain_shared_image_from_js", builtin_kain_shared_image_from_js);
 }
 
 fn builtin_js_eval(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -811,6 +853,103 @@ fn builtin_js_image_buffer(env: &mut Env, args: Vec<Value>) -> KainResult<Value>
     )?)
 }
 
+fn builtin_kain_shared_buffer_from_js(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let target = args
+        .first()
+        .ok_or_else(|| KainError::runtime("kain_shared_buffer_from_js expects target"))?;
+    let info = request_node(
+        env,
+        json!({
+            "op": "buffer_info",
+            "target": value_to_wire(target)?,
+        }),
+    )?;
+    let bytes = request_node(
+        env,
+        json!({
+            "op": "buffer_bytes",
+            "target": value_to_wire(target)?,
+        }),
+    )?;
+    let buffer = KainSharedBuffer::owned(
+        SharedBufferMetadata {
+            element_type: json_string_field(&info, "dtype").unwrap_or_else(|| "u8".to_string()),
+            element_size: 1,
+            shape: vec![json_i64_field(&info, "length")
+                .unwrap_or_else(|| json_i64_field(&info, "byte_length").unwrap_or(0))],
+            strides: vec![1],
+            format: Some(json_string_field(&info, "kind").unwrap_or_else(|| "buffer".to_string())),
+            mime_type: Some("application/octet-stream".to_string()),
+            source_runtime: "javascript".to_string(),
+            source_backend: Some("node".to_string()),
+            ownership: "owned".to_string(),
+            labels: vec![json_string_field(&info, "kind").unwrap_or_else(|| "buffer".to_string())],
+        },
+        json_u8_vec("kain_shared_buffer_from_js", &bytes)?,
+    );
+    Ok(shared_buffer_value(buffer))
+}
+
+fn builtin_kain_shared_image_from_js(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let target = args
+        .first()
+        .ok_or_else(|| KainError::runtime("kain_shared_image_from_js expects target"))?;
+    let info = request_node(
+        env,
+        json!({
+            "op": "image_info",
+            "target": value_to_wire(target)?,
+        }),
+    )?;
+    let bytes = request_node(
+        env,
+        json!({
+            "op": "image_bytes",
+            "target": value_to_wire(target)?,
+        }),
+    )?;
+    let channels = json_i64_field(&info, "channels").unwrap_or(0);
+    let width = json_i64_field(&info, "width").unwrap_or(0);
+    let image = KainSharedImage::owned(
+        SharedImageMetadata {
+            representation: json_string_field(&info, "representation")
+                .unwrap_or_else(|| "encoded".to_string()),
+            width,
+            height: json_i64_field(&info, "height").unwrap_or(0),
+            channels,
+            layout: json_string_field(&info, "layout").unwrap_or_default(),
+            pixel_format: json_string_field(&info, "pixel_format").unwrap_or_else(|| {
+                if channels == 4 {
+                    "rgba8".to_string()
+                } else if channels == 3 {
+                    "rgb8".to_string()
+                } else {
+                    "encoded".to_string()
+                }
+            }),
+            mime_type: json_string_field(&info, "mime_type")
+                .unwrap_or_else(|| "application/octet-stream".to_string()),
+            row_stride: json_i64_field(&info, "row_stride")
+                .unwrap_or(width.saturating_mul(channels)),
+            color_space: json_string_field(&info, "color_space")
+                .unwrap_or_else(|| "srgb".to_string()),
+            alpha_mode: json_string_field(&info, "alpha_mode").unwrap_or_else(|| {
+                if channels == 4 {
+                    "straight".to_string()
+                } else {
+                    "opaque".to_string()
+                }
+            }),
+            source_runtime: "javascript".to_string(),
+            source_backend: Some("node".to_string()),
+            ownership: "owned".to_string(),
+            labels: vec![json_string_field(&info, "kind").unwrap_or_else(|| "image".to_string())],
+        },
+        json_u8_vec("kain_shared_image_from_js", &bytes)?,
+    )?;
+    Ok(shared_image_value(image))
+}
+
 fn call_like(
     env: &mut Env,
     args: &[Value],
@@ -988,6 +1127,40 @@ fn wire_to_value(value: &JsonValue) -> KainResult<Value> {
             ))
         }
     }
+}
+
+fn json_string_field(value: &JsonValue, field: &str) -> Option<String> {
+    value
+        .get(field)
+        .and_then(|value| value.as_str())
+        .map(ToString::to_string)
+}
+
+fn json_i64_field(value: &JsonValue, field: &str) -> Option<i64> {
+    value.get(field).and_then(|value| value.as_i64())
+}
+
+fn json_u8_vec(fn_name: &str, value: &JsonValue) -> KainResult<Vec<u8>> {
+    let Some(items) = value.as_array() else {
+        return Err(KainError::runtime(format!(
+            "{fn_name}: expected byte array from Node bridge"
+        )));
+    };
+    let mut bytes = Vec::with_capacity(items.len());
+    for (index, item) in items.iter().enumerate() {
+        let Some(value) = item.as_u64() else {
+            return Err(KainError::runtime(format!(
+                "{fn_name}: byte {index} was not an unsigned integer"
+            )));
+        };
+        let byte = u8::try_from(value).map_err(|_| {
+            KainError::runtime(format!(
+                "{fn_name}: byte {index} value {value} is outside u8 range"
+            ))
+        })?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
 }
 
 fn request_node(env: &Env, request: JsonValue) -> KainResult<JsonValue> {
@@ -1278,6 +1451,8 @@ mod tests {
         assert!(stdlib.functions.contains_key("js_image_text"));
         assert!(stdlib.functions.contains_key("js_image_bytes"));
         assert!(stdlib.functions.contains_key("js_image_buffer"));
+        assert!(stdlib.functions.contains_key("kain_shared_buffer_from_js"));
+        assert!(stdlib.functions.contains_key("kain_shared_image_from_js"));
     }
 
     #[test]
@@ -1375,6 +1550,32 @@ fn main():
                 assert!(matches!(values[6], Value::String(ref value) if value == "canvas"));
             }
             other => panic!("expected Array payload metadata, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn javascript_can_materialize_shared_image_contracts() {
+        let result = interpret_source(
+            r#"
+fn main():
+    let image = js_eval_raw("({ kind: 'image', width: 8, height: 4, channels: 3, layout: 'HWC', pixel_format: 'rgb8', representation: 'raster', mime_type: 'image/x-kain-raster', bytes: new Uint8Array(8 * 4 * 3).fill(17) })")
+    let shared_image = kain_shared_image_from_js(image)
+    let info = kain_shared_image_info(shared_image)
+    return [info.source_runtime, info.width, info.height, info.channels, info.representation, info.byte_length]
+"#,
+        );
+
+        match result {
+            Value::Array(values) => {
+                let values = values.read().unwrap();
+                assert!(matches!(values[0], Value::String(ref value) if value == "javascript"));
+                assert!(matches!(values[1], Value::Int(8)));
+                assert!(matches!(values[2], Value::Int(4)));
+                assert!(matches!(values[3], Value::Int(3)));
+                assert!(matches!(values[4], Value::String(ref value) if value == "raster"));
+                assert!(matches!(values[5], Value::Int(96)));
+            }
+            other => panic!("expected shared image metadata array, got {other:?}"),
         }
     }
 

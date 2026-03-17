@@ -1,0 +1,58 @@
+{
+  "library_name": "beacon_math",
+  "header_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\native/beacon_math.h",
+  "shared_lib_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\native/beacon_math.dll",
+  "cache_dir": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\4ee042349e910afa43c9912b0852d06dec350acb37813ecfefa92bf817a6dac5",
+  "report_json_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\4ee042349e910afa43c9912b0852d06dec350acb37813ecfefa92bf817a6dac5\\beacon_math_report.json",
+  "report_text_path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\.kain\\cache\\c_ffi\\4ee042349e910afa43c9912b0852d06dec350acb37813ecfefa92bf817a6dac5\\beacon_math_report.txt",
+  "entries": [
+    {
+      "symbol_path": "c::beacon_math::beacon_add",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_beacon_math_beacon_add"
+    },
+    {
+      "symbol_path": "c::beacon_math::beacon_is_even",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_beacon_math_beacon_is_even"
+    },
+    {
+      "symbol_path": "c::beacon_math::beacon_scale",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_beacon_math_beacon_scale"
+    },
+    {
+      "symbol_path": "c::beacon_math::beacon_label",
+      "kind": "function",
+      "status": "callable",
+      "reason": null,
+      "emitted_symbol": "c_beacon_math_beacon_label"
+    },
+    {
+      "symbol_path": "c::beacon_math::beacon_payload_bytes",
+      "kind": "function",
+      "status": "stubbed",
+      "reason": "unsupported return type 'BEACON_EXPORT const unsigned char*'",
+      "emitted_symbol": null
+    },
+    {
+      "symbol_path": "c::beacon_math::beacon_fill_buffer",
+      "kind": "function",
+      "status": "stubbed",
+      "reason": "unsupported parameter type 'float*'",
+      "emitted_symbol": null
+    }
+  ],
+  "source_fingerprints": [
+    {
+      "path": "M:\\Code\\Kain\\smoketest\\c_ffi\\beacon_math\\native/beacon_math.h",
+      "sha256": "dbd033570ebfe7156850d65c7f4233206f8df92de50bc283c7bc176d27933645"
+    }
+  ]
+}

@@ -13,9 +13,10 @@ This repo also now includes an early non-UE5 wrapper layer for embedded Python a
 
 - `stdlib/python/`: first-party wrappers over the Python bridge
 - `stdlib/javascript/`: first-party wrappers over the JavaScript / Node bridge
+- `stdlib/interop/`: neutral shared contracts for cross-runtime image and buffer payloads
 - `stdlib/dcc/`: Kain-native image, tensor, and mesh semantics on top of Python-backed data
 
-Those modules are documented separately in [`stdlib/python/README.md`](./python/README.md), [`stdlib/javascript/README.md`](./javascript/README.md), and [`stdlib/dcc/README.md`](./dcc/README.md).
+Those modules are documented separately in [`stdlib/python/README.md`](./python/README.md), [`stdlib/javascript/README.md`](./javascript/README.md), [`stdlib/interop/README.md`](./interop/README.md), and [`stdlib/dcc/README.md`](./dcc/README.md).
 
 **Key Benefits:**
 - **Zero Configuration:** Works out-of-box for all Factory plugins without KAIN.toml changes

@@ -1,0 +1,88 @@
+use std::python::bridge
+use std::javascript::bridge
+use std::javascript::web
+use std::interop::bridge
+use rust::shared_prism_lab
+
+fn smoke_output(name: String) -> String:
+    return "outputs/" + name
+
+fn install_python_kernel():
+    py_bridge_exec("import sys\nif 'helpers' not in sys.path:\n    sys.path.insert(0, 'helpers')\nfrom prism_kernel import make_prism_image\n")
+
+fn build_legend(info, checksum: Int, signature: String, bands) -> String:
+    let legend = "<p>Shared contract source: " + info.source_runtime
+    let legend = legend + " / backend " + str(info.source_backend) + "</p>"
+    let legend = legend + "<p>Representation: " + info.representation + " / pixel format " + info.pixel_format + "</p>"
+    let legend = legend + "<p>Checksum: " + str(checksum) + " / signature " + signature + "</p>"
+    let legend = legend + "<p>Band anchors: " + str(bands[0]) + ", " + str(bands[1]) + ", " + str(bands[2]) + "</p>"
+    return legend
+
+test shared_prism_contract_roundtrip:
+    install_python_kernel()
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the shared prism smoke")
+    assert(SHARED_PRISM_REVISION == 4, "expected shared prism revision")
+    let raw = py_bridge_call_raw("make_prism_image", [64, 40])
+    let shared_image = py_bridge_shared_image(raw)
+    let info = interop_shared_image_info(shared_image)
+    let bytes = interop_shared_image_bytes(shared_image)
+    let checksum = shared_prism_checksum(bytes)
+    let helper = js_bridge_import("./helpers/payload_studio.mjs")
+    let ppm = js_bridge_call_method_raw(helper, "makePpmPayload", ["shared_prism_contract", info.width, info.height, bytes, shared_prism_signature("prism", info.width, info.height, checksum)])
+    let node_shared = js_web_shared_image(ppm)
+    let node_info = interop_shared_image_info(node_shared)
+    assert(info.contract == "kain.shared.image", "expected neutral image contract")
+    assert(info.source_runtime == "python", "expected python source runtime")
+    assert(info.width == 64 and info.height == 40, "expected python image dimensions")
+    assert(node_info.source_runtime == "javascript", "expected node roundtrip contract")
+    assert(node_info.representation == "encoded", "expected encoded node image representation")
+    assert(shared_prism_signature("prism", info.width, info.height, checksum) != "", "expected signature")
+
+fn main() -> String:
+    install_python_kernel()
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the shared prism smoke")
+
+    let width = 160
+    let height = 96
+    let raw = py_bridge_call_raw("make_prism_image", [width, height])
+    let shared_image = py_bridge_shared_image(raw)
+    let info = interop_shared_image_info(shared_image)
+    let bytes = interop_shared_image_bytes(shared_image)
+    let checksum = shared_prism_checksum(bytes)
+    let signature = shared_prism_signature("prism", info.width, info.height, checksum)
+    let bands = shared_prism_bands(info.width, 3)
+    let snapshot = interop_shared_buffer_from_bytes(bytes, "u8", [len(bytes)], "rgb8", "application/octet-stream")
+    let snapshot_info = interop_shared_buffer_info(snapshot)
+    let legend = build_legend(info, checksum, signature, bands)
+    let helper = js_bridge_import("./helpers/payload_studio.mjs")
+    let ppm = js_bridge_call_method_raw(helper, "makePpmPayload", ["shared_prism_contract", info.width, info.height, bytes, signature])
+    let html = js_bridge_call_method_raw(helper, "makeViewerDocument", ["Shared Prism Contract", info.width, info.height, bytes, signature, checksum, legend])
+    let node_shared = js_web_shared_image(ppm)
+    let node_info = interop_shared_image_info(node_shared)
+
+    let html_path = smoke_output("shared_prism_contract.html")
+    let ppm_path = smoke_output("shared_prism_contract.ppm")
+    let report_path = smoke_output("shared_prism_contract_report.txt")
+    let report = "Python + Cargo + Node shared prism contract smoke\n"
+    let report = report + "revision: " + str(SHARED_PRISM_REVISION) + "\n"
+    let report = report + "signature: " + signature + "\n"
+    let report = report + "source_runtime: " + info.source_runtime + "\n"
+    let report = report + "source_backend: " + str(info.source_backend) + "\n"
+    let report = report + "dims: " + str(info.width) + "x" + str(info.height) + "\n"
+    let report = report + "channels: " + str(info.channels) + "\n"
+    let report = report + "checksum: " + str(checksum) + "\n"
+    let report = report + "snapshot_bytes: " + str(snapshot_info.byte_length) + "\n"
+    let report = report + "node_roundtrip_runtime: " + node_info.source_runtime + "\n"
+    let report = report + "node_roundtrip_representation: " + node_info.representation + "\n"
+    let report = report + "python_role: generated uint8 raster image\n"
+    let report = report + "cargo_role: computed checksum, band anchors, and signature\n"
+    let report = report + "kain_role: materialized neutral contract, built legend/report, and drove the orchestration\n"
+    let report = report + "node_role: encoded ppm payload and emitted browser viewer html\n"
+    let report = report + "html_path: " + html_path + "\n"
+    let report = report + "ppm_path: " + ppm_path + "\n"
+
+    js_web_document_write(html_path, html)
+    js_web_image_write(ppm_path, ppm)
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

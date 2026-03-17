@@ -1,0 +1,18 @@
+[package]
+name = "kain-c-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+once_cell = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+heck = { workspace = true }
+libloading = "0.8"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3.8"

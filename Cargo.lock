@@ -2671,6 +2671,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-c-ffi"
+version = "0.1.0"
+dependencies = [
+ "heck 0.5.0",
+ "kain-core",
+ "libloading 0.8.9",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "kain-core"
 version = "0.1.0"
 dependencies = [
@@ -2712,8 +2728,10 @@ name = "kain-driver"
 version = "0.1.0"
 dependencies = [
  "gpu",
+ "kain-c-ffi",
  "kain-core",
  "kain-crate-ffi",
+ "kain-interop",
  "kain-node",
  "kain-python",
  "kain-sys-codegen",
@@ -2753,6 +2771,7 @@ version = "0.1.0"
 dependencies = [
  "kain-core",
  "lang-c",
+ "pretty_assertions",
  "proc-macro2",
  "serde",
  "serde_json",
@@ -2766,10 +2785,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-interop"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+]
+
+[[package]]
 name = "kain-node"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "kain-interop",
  "once_cell",
  "regex",
  "serde",
@@ -2803,6 +2830,7 @@ name = "kain-python"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "kain-interop",
  "pyo3",
 ]
 

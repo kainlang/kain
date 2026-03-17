@@ -1,0 +1,20 @@
+[package]
+name = "py_cargo_node_shared_prism_contract"
+version = "0.1.0"
+
+[build]
+entry = "smoke.kn"
+output = "outputs"
+targets = ["run", "test"]
+
+[node_ffi]
+command = "node"
+args = []
+cwd = "."
+
+[rust_ffi]
+manifest_path = "../../../Cargo.toml"
+
+[[rust_ffi.path_crates]]
+name = "shared_prism_lab"
+path = "local_crate"
