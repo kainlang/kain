@@ -12,6 +12,13 @@ This directory contains runtime-specific harnesses and ABI parity tests for the 
 
 **Critical Rule:** Future phases MUST extend this harness family instead of scattering ad hoc checks across the codebase. All runtime behavior validation should be centralized here.
 
+## Reality Check (March 18, 2026)
+
+- `runtime/conformance/run_all.sh --verbose` currently passes all 10 registered categories on the active Windows lane
+- `abi_parity`, `actor_runtime`, `async_runtime`, `ui_runtime`, `graphics_runtime`, `hot_reload`, `host_bridge`, and `platform_parity` are compile-and-run harnesses with timeout-guarded execution
+- `reflection/` and `diagnostics/` are still placeholder category runners today; they report status and return success, but they do not yet provide the same end-to-end executable coverage as the other categories
+- Treat the green aggregate run as strong progress, not as proof that reflection and diagnostics are fully conformance-complete
+
 ---
 
 ## Conformance Test Categories

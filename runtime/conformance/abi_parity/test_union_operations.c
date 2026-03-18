@@ -60,7 +60,7 @@ int test_union_get_basic(void) {
     u.int_val = 42;
     
     /* Read int_val field */
-    int32_t result = __kain_union_get(
+    int32_t result = TEST_UNION_GET(
         u,
         "int_val",
         "int32_t",
@@ -74,7 +74,7 @@ int test_union_get_basic(void) {
     }
     
     /* Read as float (type punning) */
-    float float_result = __kain_union_get(
+    float float_result = TEST_UNION_GET(
         u,
         "float_val",
         "float",
@@ -101,7 +101,7 @@ int test_union_set_basic(void) {
     
     /* Set int_val field */
     int32_t new_int = 100;
-    int32_t returned = __kain_union_set(
+    int32_t returned = TEST_UNION_SET(
         u,
         "int_val",
         "int32_t",
@@ -121,7 +121,7 @@ int test_union_set_basic(void) {
     
     /* Set float_val field */
     float new_float = 3.14f;
-    float returned_float = __kain_union_set(
+    float returned_float = TEST_UNION_SET(
         u,
         "float_val",
         "float",
@@ -149,7 +149,7 @@ int test_union_wrap_basic(void) {
     memset(&u, 0xFF, sizeof(u)); /* Fill with garbage */
     
     /* Initialize with int_val */
-    u = __kain_union_wrap(
+    u = TEST_UNION_WRAP(
         u,
         "int_val",
         "int32_t",
@@ -163,7 +163,7 @@ int test_union_wrap_basic(void) {
     }
     
     /* Initialize with float_val */
-    u = __kain_union_wrap(
+    u = TEST_UNION_WRAP(
         u,
         "float_val",
         "float",
@@ -183,28 +183,28 @@ int test_union_wrap_basic(void) {
 int test_union_different_sizes(void) {
     printf("\nTest 4: Union operations with different field sizes\n");
     
-    SizedUnion u;
+    SizedUnion u = {0};
     
     /* Set byte_val (1 byte) */
-    u = __kain_union_wrap(u, "byte_val", "int8_t", 1, sizeof(SizedUnion), (int8_t)42);
+    u = TEST_UNION_WRAP(u, "byte_val", "int8_t", 1, sizeof(SizedUnion), (int8_t)42);
     if (u.byte_val != 42) {
         TEST_FAIL("union_wrap byte_val failed: %d", u.byte_val);
     }
     
     /* Set short_val (2 bytes) */
-    u = __kain_union_wrap(u, "short_val", "int16_t", 2, sizeof(SizedUnion), (int16_t)1000);
+    u = TEST_UNION_WRAP(u, "short_val", "int16_t", 2, sizeof(SizedUnion), (int16_t)1000);
     if (u.short_val != 1000) {
         TEST_FAIL("union_wrap short_val failed: %d", u.short_val);
     }
     
     /* Set int_val (4 bytes) */
-    u = __kain_union_wrap(u, "int_val", "int32_t", 4, sizeof(SizedUnion), (int32_t)100000);
+    u = TEST_UNION_WRAP(u, "int_val", "int32_t", 4, sizeof(SizedUnion), (int32_t)100000);
     if (u.int_val != 100000) {
         TEST_FAIL("union_wrap int_val failed: %d", u.int_val);
     }
     
     /* Set long_val (8 bytes) */
-    u = __kain_union_wrap(u, "long_val", "int64_t", 8, sizeof(SizedUnion), (int64_t)10000000000LL);
+    u = TEST_UNION_WRAP(u, "long_val", "int64_t", 8, sizeof(SizedUnion), (int64_t)10000000000LL);
     if (u.long_val != 10000000000LL) {
         TEST_FAIL("union_wrap long_val failed: %lld", (long long)u.long_val);
     }
@@ -221,7 +221,7 @@ int test_union_zero_initialization(void) {
     
     /* union_set should zero the entire union before setting */
     int32_t small_value = 1;
-    __kain_union_set(u, "int_val", "int32_t", sizeof(int32_t), sizeof(SimpleUnion), small_value);
+    (void)TEST_UNION_SET(u, "int_val", "int32_t", sizeof(int32_t), sizeof(SimpleUnion), small_value);
     
     /* Check that the union was zeroed (at least the int_val part) */
     if (u.int_val != 1) {
@@ -230,7 +230,7 @@ int test_union_zero_initialization(void) {
     
     /* union_wrap should also zero the union */
     memset(&u, 0xFF, sizeof(u));
-    u = __kain_union_wrap(u, "int_val", "int32_t", sizeof(int32_t), sizeof(SimpleUnion), 1);
+    u = TEST_UNION_WRAP(u, "int_val", "int32_t", sizeof(int32_t), sizeof(SimpleUnion), 1);
     
     if (u.int_val != 1) {
         TEST_FAIL("union_wrap did not properly initialize: %d", u.int_val);
@@ -249,7 +249,7 @@ int test_union_type_punning(void) {
     u.int_val = 0x42000000;
     
     /* Read as float (type punning) */
-    float float_result = __kain_union_get(
+    float float_result = TEST_UNION_GET(
         u,
         "float_val",
         "float",
@@ -271,10 +271,10 @@ int test_union_type_punning(void) {
     
     /* Set as float */
     float new_float = 3.14159f;
-    __kain_union_set(u, "float_val", "float", sizeof(float), sizeof(SimpleUnion), new_float);
+    (void)TEST_UNION_SET(u, "float_val", "float", sizeof(float), sizeof(SimpleUnion), new_float);
     
     /* Read as int (type punning) */
-    int32_t int_result = __kain_union_get(
+    int32_t int_result = TEST_UNION_GET(
         u,
         "int_val",
         "int32_t",
@@ -308,7 +308,7 @@ int test_union_fallback_value(void) {
     u.int_val = 0;
     
     /* Read with a fallback */
-    int32_t result = __kain_union_get(
+    int32_t result = TEST_UNION_GET(
         u,
         "int_val",
         "int32_t",
@@ -335,7 +335,7 @@ int test_union_partial_overlap(void) {
     u.long_val = 0x123456789ABCDEF0LL;
     
     /* Read int_val (4 bytes) - should get lower 32 bits on little-endian */
-    int32_t int_result = __kain_union_get(
+    int32_t int_result = TEST_UNION_GET(
         u,
         "int_val",
         "int32_t",
@@ -350,7 +350,7 @@ int test_union_partial_overlap(void) {
     }
     
     /* Read short_val (2 bytes) */
-    int16_t short_result = __kain_union_get(
+    int16_t short_result = TEST_UNION_GET(
         u,
         "short_val",
         "int16_t",

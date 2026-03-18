@@ -26,6 +26,18 @@ That means this document must stay grounded in the lanes that are already real i
 - `kain-sys-codegen` backend/runtime ABI parity
 - `runtime/native` core, viewport, input, app-host, asset, and UI modules
 
+## March 18, 2026 Update
+
+Since this matrix was first written, the native runtime lane has moved materially:
+
+- the conformance runner now passes all 10 registered categories on Windows
+- actor bootstrap, mailbox semantics, links/monitors, registry, and bounded scheduler coverage are live, though deeper supervision and scheduler policy remain partial
+- async/timer runtime support is live and the compiler/runtime contract now emits async requirements
+- hot reload compatibility, lifecycle hooks, host bridge ABI checks, and platform-boundary metadata are in place
+- UI runtime and graphics runtime are meaningfully farther along, but raw-native/Rust-native UI parity and full material/compute execution remain partial
+
+The practical consequence is that this document should now be read as a guidance matrix sitting on top of a real partially-complete native runtime, not a thin speculative substrate.
+
 ---
 
 ## 2. Current Active Platform Spine

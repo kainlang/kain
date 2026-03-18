@@ -1,8 +1,8 @@
 # KAIN Native Runtime Completion Tracker
 
 **Spec:** `.kiro/specs/kain-native-runtime-completion`  
-**Last Updated:** 2026-03-17  
-**Status:** Phase 0 - Baseline Runtime Audit, Harnesses, and Guardrails
+**Last Updated:** 2026-03-18  
+**Status:** Reality checkpoint - Phases 0-5, 7, 10, 11, and 12 are materially complete; Phases 6, 8, 9, and 13 remain partial
 
 ---
 
@@ -15,6 +15,47 @@ This document tracks the implementation progress of the KAIN Native Runtime Comp
 - Known blocking gaps and open issues
 - Validation status and test coverage
 - Cross-references to related work and dependencies
+
+## March 18, 2026 Reality Update
+
+This section is the current source of truth. Older detailed phase tables below were produced during the long-haul run and should be treated as historical logs until they are fully rewritten.
+
+### Phase Status Snapshot
+
+| Phase | Status | Notes |
+|------|--------|-------|
+| 0. Baseline audit and harnesses | ✅ Complete | Conformance harness family exists and is the shared validation spine. |
+| 1. ABI, service tables, version metadata | ✅ Complete | ABI metadata, service registry, startup validation, and driver threading are in place. |
+| 2. Diagnostics hardening | ✅ Complete | Runtime diagnostics/error-code scaffolding landed, but see conformance note below. |
+| 3. Reflection payload emission and consumption | ✅ Complete | Compiler emission, bundle materialization, native loading, and validation exist. |
+| 4. Low-level memory helper ABI parity | ✅ Complete | ABI parity tests are now runnable through the conformance harness. |
+| 5. Actor bootstrap and minimal actor runtime | ✅ Complete | The broken bootstrap path was replaced and the actor lane is executable. |
+| 6. Full actor runtime semantics | ⚠️ Partial | Monitors/links/registry/backpressure are live, but supervision policy and scheduler depth remain partial. |
+| 7. Native async, futures, and timers | ✅ Complete | Async executor/timers landed, and compiler/runtime contract metadata now expresses async requirements. |
+| 8. UI runtime and component convergence | ⚠️ Partial | Runtime bundle validation, focus routing, and editable groundwork are in; Rust-native/raw-native parity remains partial. |
+| 9. Shader, material, and compute runtime | ⚠️ Partial | Artifact validation and metadata loading are in; full material lifecycle and compute execution remain partial. |
+| 10. Hot reload, compatibility, lifecycle APIs | ✅ Complete | Compatibility validation, lifecycle hooks, migration/state transfer, and rejection rules are present. |
+| 11. Host bridge and foreign runtime services | ✅ Complete | Host bridge registry, module ABI checks, and conformance tests are in place. |
+| 12. Cross-platform runtime boundaries | ✅ Complete | Win32 boundaries were isolated and Linux/macOS stubs plus contract-visible availability landed. |
+| 13. End-to-end conformance and repo hardening | ⚠️ Partial | The suite is green, but parity/docs/final-lane claims still need careful truth-keeping. |
+| 14. Ongoing discipline tasks | 🔄 Ongoing | Remains continuous project discipline. |
+
+### Validation Snapshot
+
+- `runtime/conformance/run_all.sh --verbose` passes all 10 registered categories on Windows as of March 18, 2026
+- `cargo test -p kain-core runtime_contract` passes
+- `cargo test -p kain-driver native_app` passes
+- `abi_parity`, `actor_runtime`, `async_runtime`, `ui_runtime`, `graphics_runtime`, `hot_reload`, `host_bridge`, and `platform_parity` are executable harnesses
+- `reflection/` and `diagnostics/` remain placeholder category runners today, so their green status should not be overstated
+
+### Remaining Honest Gaps
+
+- 6.4 supervision policies are still partial
+- 6.5 scheduler policy depth is still partial
+- 8.5 raw-native vs Rust-native UI bundle parity is still partial
+- 9.4 material/runtime resource lifetime work is still partial
+- 9.5 compute execution support is still partial
+- 13.1, 13.2, and 13.4 should remain partial until the parity/final-lane claims are backed by deeper end-to-end proof
 
 ---
 

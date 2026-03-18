@@ -33,6 +33,24 @@ That means Kain currently has a mismatch:
 
 This document exists to close that gap in a disciplined way.
 
+## March 18, 2026 Update
+
+The gap described above is still real, but it is narrower than it was when this roadmap was drafted.
+
+- actor bootstrap, mailbox/runtime semantics, registry, monitors, links, and timeout-safe actor conformance are now in the native lane
+- async task execution, timers, wake/poll, and async contract metadata are now in the native lane
+- hot reload compatibility, lifecycle APIs, migration/state transfer hooks, and host bridge contracts are now present
+- platform boundaries are explicit, with Linux/macOS stub services and contract-visible availability
+- UI runtime and graphics runtime moved from \"thin host only\" into materially useful partial implementations
+
+The remaining honest gap is not \"nothing exists.\" It is that several advanced lanes are still partial rather than fully system-complete:
+
+- richer supervision policy and scheduler depth
+- Rust-native versus raw-native UI bundle parity
+- full material/resource lifetime management
+- true compute execution support
+- deeper reflection/diagnostics conformance coverage
+
 ---
 
 ## 2. Current State
@@ -817,4 +835,3 @@ That is how Kain gets:
 - real runtime robustness
 
 without turning into a pile of disconnected features.
-

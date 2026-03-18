@@ -12,9 +12,19 @@ Execution rules for the agent:
 - prefer canonical headers, tables, manifests, and schemas over scattered helper additions
 - update docs and tests in the same phase that changes runtime behavior
 
+## March 18, 2026 Reality Check
+
+- Windows conformance currently passes all 10 registered categories through `runtime/conformance/run_all.sh`
+- `cargo test -p kain-core runtime_contract` and `cargo test -p kain-driver native_app` are passing
+- Reflection and diagnostics still need deeper end-to-end conformance runners, so the green suite should not be overstated as total feature closure
+- Phase 6, Task 6.4 and Task 6.5 remain partial
+- Phase 8, Task 8.5 remains partial
+- Phase 9, Task 9.4 and Task 9.5 remain partial
+- Phase 13 remains partial until parity/docs/final-lane claims are fully tightened
+
 ## Tasks
 
-- [~] 0. Phase 0: Baseline Runtime Audit, Harnesses, and Guardrails
+- [x] 0. Phase 0: Baseline Runtime Audit, Harnesses, and Guardrails
   - [x] 0.1 Create a runtime completion tracker doc
     - Add a progress doc under `runtime/` that mirrors this spec's phases and records implementation status, open issues, and validation status
     - Record the current runtime ABI version, native runtime manifest contents, and known blocking gaps
@@ -41,7 +51,7 @@ Execution rules for the agent:
     - Prove existing contract/realtime/UI bundle startup paths still work before deeper refactors begin
     - Record failures instead of silently working around them
 
-- [ ] 1. Phase 1: Canonical ABI, Service Tables, and Version Metadata
+- [x] 1. Phase 1: Canonical ABI, Service Tables, and Version Metadata
   - [x] 1.1 Define native runtime ABI versioning
     - Add canonical ABI version constants and runtime version metadata in `runtime/native/include`
     - Expose runtime version/build information programmatically
@@ -221,7 +231,7 @@ Execution rules for the agent:
     - Test child failure, restart, shutdown, monitored exits, bounded mailbox behavior, and registry cleanup
     - _Requirements: 6.2, 6.3, 6.4, 6.5, 13.2_
 
-- [~] 7. Phase 7: Native Async, Futures, and Timers
+- [x] 7. Phase 7: Native Async, Futures, and Timers
   - [x] 7.1 Define async/task ABI and runtime data structures
     - Add task/future handles, state enums, wake records, and timer records in native headers
     - _Requirements: 7.1, 7.5_
@@ -240,7 +250,7 @@ Execution rules for the agent:
     - Document and implement native ownership/lifetime rules for task handles, future results, and cross-boundary values
     - _Requirements: 7.4, 7.5_
 
-  - [~] 7.5 Extend compiler/runtime contracts for async requirements
+  - [x] 7.5 Extend compiler/runtime contracts for async requirements
     - Ensure compiler-emitted capabilities and runtime service bindings can express async/timer requirements
     - _Requirements: 1.2, 7.1, 7.6_
 
@@ -303,7 +313,7 @@ Execution rules for the agent:
     - Validate artifact loading, binding validation, material parameter wiring, compute dispatch, and compatibility failures
     - _Requirements: 9.2, 9.3, 9.4, 13.5_
 
-- [~] 10. Phase 10: Hot Reload, Compatibility, and Lifecycle APIs
+- [x] 10. Phase 10: Hot Reload, Compatibility, and Lifecycle APIs
   - [x] 10.1 Add compatibility metadata emission in compiler/driver lanes
     - Extend runtime contract or companion artifacts with compatibility classes, migration hints, and install/update metadata
     - _Requirements: 10.1, 10.5, 10.6_
@@ -328,7 +338,7 @@ Execution rules for the agent:
     - Test compatible update, incompatible update, missing migration, and startup version mismatch
     - _Requirements: 10.1, 10.2, 10.3, 13.4_
 
-- [~] 11. Phase 11: Host Bridge, Plugin Bridge, and Foreign Runtime Services
+- [x] 11. Phase 11: Host Bridge, Plugin Bridge, and Foreign Runtime Services
   - [x] 11.1 Define native host service registration ABI
     - Add service registration/discovery APIs for host-provided capabilities
     - Keep the API capability-aware and versioned
@@ -351,7 +361,7 @@ Execution rules for the agent:
     - Validate service registration, missing capability failure, module ABI mismatch, and module removal
     - _Requirements: 11.1, 11.2, 11.4, 11.5_
 
-- [~] 12. Phase 12: Cross-Platform Runtime Boundaries
+- [x] 12. Phase 12: Cross-Platform Runtime Boundaries
   - [x] 12.1 Audit and isolate Win32 assumptions
     - Move platform-neutral logic into core modules and headers
     - Leave Win32-only implementations behind explicit platform service boundaries
@@ -362,7 +372,7 @@ Execution rules for the agent:
     - Ensure unsupported features fail cleanly rather than through missing symbols
     - _Requirements: 12.2, 12.3, 12.4_
 
-  - [~] 12.3 Make platform availability contract-visible
+  - [x] 12.3 Make platform availability contract-visible
     - Extend runtime capability metadata so platform-specific service availability is explicit
     - _Requirements: 12.3_
 
@@ -379,7 +389,7 @@ Execution rules for the agent:
     - Compare `kain-core`, `kain-driver`, `kain-sys-codegen`, and `runtime/native` behavior against the canonical runtime ABI and feature matrix
     - _Requirements: 1.4, 3.4, 13.1, 13.6_
 
-  - [~] 13.3 Update runtime docs and matrices
+  - [x] 13.3 Update runtime docs and matrices
     - Update `runtime/KAIN_NATIVE_RUNTIME_FEATURE_MATRIX.md`, `docs/KAIN_CORE_RUNTIME_IMPLEMENTATION_MATRIX_2026.md`, `docs/KAIN_CORE_RUNTIME_ROADMAP_2026.md`, and any related docs to reflect the new reality
     - _Requirements: 14.4, 14.5_
 

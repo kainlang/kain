@@ -1,6 +1,6 @@
 # Kain Native Runtime Feature Matrix
 
-_Last updated: 2026-03-17_
+_Last updated: 2026-03-18_
 
 ## Purpose
 
@@ -43,6 +43,11 @@ The current native runtime materially supports:
 - OpenGL viewport hosting
 - GLTF asset loading
 - compiled UI bundle ingestion and overlay rendering
+- actor bootstrap, mailboxes, monitors, links, registry, and supervision scaffolding
+- async task execution, wake/poll, timers, and cancellation
+- hot reload compatibility validation, lifecycle hooks, and migration scaffolding
+- host bridge registration and module ABI validation
+- explicit platform-boundary services with Linux/macOS stub coverage
 - a small core utility layer for memory, strings, arrays, maps, sockets, threads, and queues
 
 It does **not** yet provide a full native implementation of:
@@ -50,10 +55,8 @@ It does **not** yet provide a full native implementation of:
 - Erlang-style actors
 - Zig-style comptime
 - macro/staged metaprogramming parity
-- async/futures runtime
 - reflection-driven runtime services
 - modern shader/material/compute execution
-- hot reload and state migration
 - full component/UI runtime behavior
 - cross-platform native host parity
 - end-to-end backend/runtime conformance guarantees
@@ -63,8 +66,8 @@ It does **not** yet provide a full native implementation of:
 | Area | `kain-core` status | Native/C runtime status | Missing to reach the advertised vision |
 | --- | --- | --- | --- |
 | Core host runtime substrate | `Strong` | `Partial` | Core allocation, thread spawn, basic collections, file IO, sockets, and queue primitives exist, but there is no full service model, capability negotiation, allocator diagnostics, or hardened lifecycle API. |
-| Runtime contract sidecars | `Partial` | `Partial` | Contract bundle generation exists, and native validation/parsing exists, but reflection payloads are not emitted, service metadata is shallow, versioning is thin, and contracts are not yet rich enough to drive dynamic runtime behavior. |
-| Reflection/type schema runtime | `Scaffold` | `Missing` | Need emitted reflection payloads, runtime type registry, schema-driven layout APIs, reflective message/component metadata, and dynamic introspection services. |
+| Runtime contract sidecars | `Partial` | `Partial` | Contract bundle generation, native validation/parsing, compatibility metadata, async requirements, and platform availability metadata now exist, but the contract still is not rich enough to drive fully dynamic runtime behavior across every subsystem. |
+| Reflection/type schema runtime | `Partial` | `Partial` | Compiler-emitted reflection payloads and native loading/validation now exist, but generalized type registries, richer reflective message/component metadata, and dynamic introspection services remain incomplete. |
 | Actor model | `Partial` | `Partial` | Native runtime now has actor spawn, mailbox, monitors, links, supervision, registry, lifecycle tests, and scheduler validation, but it still lacks typed mailboxes, selective receive, crash isolation hardening, and remote/distributed actor support. |
 | Actor scheduling/runtime policy | `Scaffold` | `Partial` | Mailbox ownership, bounded queues, and scheduler fairness tests now exist, but deeper policy like crash containment metrics, richer supervisor restart modes, and observability are still missing. |
 | Async/await and futures | `Partial` | `Partial` | Native runtime now has task spawn/poll/await/cancel, timers, async sleep, wake handles, and conformance coverage, but it is still a small fixed-capacity executor rather than a broader effect-aware runtime. |
