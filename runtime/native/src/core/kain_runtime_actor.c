@@ -84,6 +84,10 @@ static void kain_scheduler_init(void);
 static void kain_scheduler_shutdown(void);
 static void kain_scheduler_enqueue(KainActorId actor_id);
 static KainActorId kain_scheduler_dequeue(void);
+static void kain_actor_handle_child_exit(KainActorState_Internal* child);
+static int kain_actor_should_restart(KainActorState_Internal* child);
+static KainActorId kain_actor_restart_child(KainActorState_Internal* child, KainDiagnostic* diag);
+static void kain_actor_escalate_to_supervisor(KainActorState_Internal* child);
 
 /*
  * Initialize Actor Runtime
@@ -294,6 +298,11 @@ static void* kain_actor_thread_proc(void* param) {
         ? KAIN_ACTOR_STATE_TERMINATED 
         : KAIN_ACTOR_STATE_FAILED;
     
+    /* Handle supervision if actor has a supervisor */
+    if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
+        kain_actor_handle_child_exit(actor);
+    }
+    
     /* Notify monitors and propagate links */
     kain_actor_notify_monitors(actor);
     if (exit_reason != KAIN_ACTOR_EXIT_NORMAL) {
@@ -389,8 +398,20 @@ KainActorId kain_actor_spawn(
         actor->supervisor.strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ONE;
         actor->supervisor.restart_count = 0;
         actor->supervisor.last_restart_time = 0;
+        actor->supervisor.restart_window_start = 0;
     } else {
         actor->supervisor.supervisor_id = KAIN_ACTOR_ID_INVALID;
+    }
+
+    /* Store spawn config for potential restart */
+    actor->spawn_config.bootstrap_fn = config->bootstrap_fn;
+    actor->spawn_config.user_data = config->user_data;
+    actor->spawn_config.mailbox_capacity = config->mailbox_capacity;
+    if (config->name[0] != '\0') {
+        strncpy(actor->spawn_config.name, config->name, KAIN_ACTOR_NAME_MAX - 1);
+        actor->spawn_config.name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
+    } else {
+        actor->spawn_config.name[0] = '\0';
     }
 
     /* Insert into actor table */
@@ -837,6 +858,16 @@ int kain_actor_monitor(
         return -1;
     }
 
+    /* Check if monitor already exists */
+    KainActorMonitor* existing = monitor_actor->monitors;
+    while (existing != NULL) {
+        if (existing->monitored_id == monitored_id) {
+            /* Already monitoring */
+            return 0;
+        }
+        existing = existing->next;
+    }
+
     /* Create monitor record */
     KainActorMonitor* monitor = (KainActorMonitor*)malloc(sizeof(KainActorMonitor));
     if (monitor == NULL) {
@@ -858,6 +889,46 @@ int kain_actor_monitor(
     return 0;
 }
 
+int kain_actor_demonitor(
+    KainActorId monitor_id,
+    KainActorId monitored_id,
+    KainDiagnostic* diag
+) {
+    KainActorState_Internal* monitor_actor = kain_actor_table_get(monitor_id);
+    if (monitor_actor == NULL) {
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_NOT_FOUND;
+            snprintf(diag->message, sizeof(diag->message), "Monitor actor not found");
+        }
+        return -1;
+    }
+
+    /* Find and remove monitor */
+    KainActorMonitor** monitor_ptr = &monitor_actor->monitors;
+    while (*monitor_ptr != NULL) {
+        KainActorMonitor* monitor = *monitor_ptr;
+        if (monitor->monitored_id == monitored_id) {
+            *monitor_ptr = monitor->next;
+            free(monitor);
+            return 0;
+        }
+        monitor_ptr = &monitor->next;
+    }
+
+    /* Monitor not found */
+    if (diag != NULL) {
+        kain_diagnostic_init(diag);
+        diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+        diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+        diag->code = KAIN_DIAG_CODE_ACTOR_MONITOR_FAILED;
+        snprintf(diag->message, sizeof(diag->message), "Monitor relationship not found");
+    }
+    return -1;
+}
+
 static void kain_actor_notify_monitors(KainActorState_Internal* actor) {
     /* Find all actors monitoring this one and send notifications */
     for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {
@@ -867,10 +938,12 @@ static void kain_actor_notify_monitors(KainActorState_Internal* actor) {
         KainActorMonitor* monitor = other->monitors;
         while (monitor != NULL) {
             if (monitor->monitored_id == actor->actor_id) {
-                /* Send exit notification message */
+                /* Send exit notification message with exit reason encoded in type_tag */
                 KainActorMessage msg = {0};
-                msg.type_tag = 0xDEAD; /* Special monitor notification tag */
+                msg.type_tag = 0xDEAD0000ULL | (unsigned long long)actor->exit_reason;
                 msg.sender_id = actor->actor_id;
+                msg.data = NULL;
+                msg.data_size = 0;
                 kain_actor_send(other->actor_id, &msg, NULL);
             }
             monitor = monitor->next;
@@ -901,9 +974,20 @@ int kain_actor_link(
         return -1;
     }
 
-    /* Create link record */
-    KainActorLink* link = (KainActorLink*)malloc(sizeof(KainActorLink));
-    if (link == NULL) {
+    /* Check if link already exists on actor_a */
+    KainActorLink* existing = actor_a_state->links;
+    while (existing != NULL) {
+        if ((existing->actor_a == actor_a && existing->actor_b == actor_b) ||
+            (existing->actor_a == actor_b && existing->actor_b == actor_a)) {
+            /* Link already exists */
+            return 0;
+        }
+        existing = existing->next;
+    }
+
+    /* Create link record on actor_a */
+    KainActorLink* link_a = (KainActorLink*)malloc(sizeof(KainActorLink));
+    if (link_a == NULL) {
         if (diag != NULL) {
             kain_diagnostic_init(diag);
             diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
@@ -914,10 +998,29 @@ int kain_actor_link(
         return -1;
     }
 
-    link->actor_a = actor_a;
-    link->actor_b = actor_b;
-    link->next = actor_a_state->links;
-    actor_a_state->links = link;
+    /* Create link record on actor_b (bidirectional) */
+    KainActorLink* link_b = (KainActorLink*)malloc(sizeof(KainActorLink));
+    if (link_b == NULL) {
+        free(link_a);
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_LINK_FAILED;
+            snprintf(diag->message, sizeof(diag->message), "Link allocation failed");
+        }
+        return -1;
+    }
+
+    link_a->actor_a = actor_a;
+    link_a->actor_b = actor_b;
+    link_a->next = actor_a_state->links;
+    actor_a_state->links = link_a;
+
+    link_b->actor_a = actor_a;
+    link_b->actor_b = actor_b;
+    link_b->next = actor_b_state->links;
+    actor_b_state->links = link_b;
 
     return 0;
 }
@@ -928,32 +1031,73 @@ int kain_actor_unlink(
     KainDiagnostic* diag
 ) {
     KainActorState_Internal* actor_a_state = kain_actor_table_get(actor_a);
-    if (actor_a_state == NULL) {
+    KainActorState_Internal* actor_b_state = kain_actor_table_get(actor_b);
+    
+    int found_a = 0;
+    int found_b = 0;
+
+    /* Remove link from actor_a */
+    if (actor_a_state != NULL) {
+        KainActorLink** link_ptr = &actor_a_state->links;
+        while (*link_ptr != NULL) {
+            KainActorLink* link = *link_ptr;
+            if ((link->actor_a == actor_a && link->actor_b == actor_b) ||
+                (link->actor_a == actor_b && link->actor_b == actor_a)) {
+                *link_ptr = link->next;
+                free(link);
+                found_a = 1;
+                break;
+            }
+            link_ptr = &link->next;
+        }
+    }
+
+    /* Remove link from actor_b */
+    if (actor_b_state != NULL) {
+        KainActorLink** link_ptr = &actor_b_state->links;
+        while (*link_ptr != NULL) {
+            KainActorLink* link = *link_ptr;
+            if ((link->actor_a == actor_a && link->actor_b == actor_b) ||
+                (link->actor_a == actor_b && link->actor_b == actor_a)) {
+                *link_ptr = link->next;
+                free(link);
+                found_b = 1;
+                break;
+            }
+            link_ptr = &link->next;
+        }
+    }
+
+    if (!found_a && !found_b) {
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_LINK_FAILED;
+            snprintf(diag->message, sizeof(diag->message), "Link not found");
+        }
         return -1;
     }
 
-    /* Find and remove link */
-    KainActorLink** link_ptr = &actor_a_state->links;
-    while (*link_ptr != NULL) {
-        KainActorLink* link = *link_ptr;
-        if ((link->actor_a == actor_a && link->actor_b == actor_b) ||
-            (link->actor_a == actor_b && link->actor_b == actor_a)) {
-            *link_ptr = link->next;
-            free(link);
-            return 0;
-        }
-        link_ptr = &link->next;
-    }
-
-    return -1;
+    return 0;
 }
 
 static void kain_actor_propagate_links(KainActorState_Internal* actor) {
-    /* Terminate all linked actors */
+    /* Terminate all linked actors on abnormal exit */
     KainActorLink* link = actor->links;
     while (link != NULL) {
         KainActorId other_id = (link->actor_a == actor->actor_id) ? link->actor_b : link->actor_a;
-        kain_actor_kill(other_id, NULL);
+        
+        /* Check if other actor still exists and is not already terminated */
+        KainActorState_Internal* other_actor = kain_actor_table_get(other_id);
+        if (other_actor != NULL && 
+            other_actor->state != KAIN_ACTOR_STATE_TERMINATED &&
+            other_actor->state != KAIN_ACTOR_STATE_FAILED) {
+            /* Kill linked actor with appropriate exit reason */
+            other_actor->exit_reason = KAIN_ACTOR_EXIT_KILLED;
+            kain_actor_kill(other_id, NULL);
+        }
+        
         link = link->next;
     }
 }
@@ -1213,6 +1357,11 @@ static void* kain_scheduler_worker_thread(void* param) {
                 ? KAIN_ACTOR_STATE_TERMINATED 
                 : KAIN_ACTOR_STATE_FAILED;
             
+            /* Handle supervision if actor has a supervisor */
+            if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
+                kain_actor_handle_child_exit(actor);
+            }
+            
             kain_actor_notify_monitors(actor);
             if (exit_reason != KAIN_ACTOR_EXIT_NORMAL) {
                 kain_actor_propagate_links(actor);
@@ -1357,4 +1506,227 @@ static KainActorId kain_scheduler_dequeue(void) {
     
     free(node);
     return actor_id;
+}
+
+/*
+ * Supervision Policy Implementation
+ *
+ * Implements restart, shutdown, and escalation policies for supervisors.
+ *
+ * Requirements: 6.2, 6.3, 6.4
+ */
+
+/*
+ * Determine if a child actor should be restarted based on restart policy
+ */
+static int kain_actor_should_restart(KainActorState_Internal* child) {
+    if (child == NULL || child->supervisor.supervisor_id == KAIN_ACTOR_ID_INVALID) {
+        return 0;
+    }
+
+    KainRestartPolicy policy = child->supervisor.restart_policy;
+    KainActorExitReason exit_reason = child->exit_reason;
+
+    switch (policy) {
+        case KAIN_RESTART_POLICY_PERMANENT:
+            /* Always restart, regardless of exit reason */
+            return 1;
+
+        case KAIN_RESTART_POLICY_TEMPORARY:
+            /* Never restart */
+            return 0;
+
+        case KAIN_RESTART_POLICY_TRANSIENT:
+            /* Restart only on abnormal exit */
+            return (exit_reason != KAIN_ACTOR_EXIT_NORMAL && 
+                    exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN);
+
+        default:
+            return 0;
+    }
+}
+
+/*
+ * Check if restart limit has been exceeded within the time window
+ */
+static int kain_actor_restart_limit_exceeded(KainActorState_Internal* child) {
+    time_t current_time = time(NULL);
+    
+    /* Initialize restart window if this is the first restart */
+    if (child->supervisor.restart_window_start == 0) {
+        child->supervisor.restart_window_start = current_time;
+        child->supervisor.restart_count = 0;
+        return 0;
+    }
+    
+    /* Check if we're still within the restart window */
+    time_t window_elapsed = current_time - child->supervisor.restart_window_start;
+    
+    if (window_elapsed > KAIN_SUPERVISION_RESTART_WINDOW_SECONDS) {
+        /* Window expired, reset counters */
+        child->supervisor.restart_window_start = current_time;
+        child->supervisor.restart_count = 0;
+        return 0;
+    }
+    
+    /* Check if restart count exceeds limit */
+    return (child->supervisor.restart_count >= KAIN_SUPERVISION_MAX_RESTARTS);
+}
+
+/*
+ * Restart a child actor with the same configuration
+ */
+static KainActorId kain_actor_restart_child(KainActorState_Internal* child, KainDiagnostic* diag) {
+    if (child == NULL) {
+        return KAIN_ACTOR_ID_INVALID;
+    }
+
+    /* Create spawn config from stored configuration */
+    KainActorSpawnConfig config;
+    kain_actor_spawn_config_init(&config);
+    config.bootstrap_fn = child->spawn_config.bootstrap_fn;
+    config.user_data = child->spawn_config.user_data;
+    config.mailbox_capacity = child->spawn_config.mailbox_capacity;
+    config.supervisor_id = child->supervisor.supervisor_id;
+    config.restart_policy = child->supervisor.restart_policy;
+    
+    if (child->spawn_config.name[0] != '\0') {
+        strncpy(config.name, child->spawn_config.name, KAIN_ACTOR_NAME_MAX - 1);
+        config.name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
+    }
+
+    /* Spawn new actor instance */
+    KainActorId new_id = kain_actor_spawn(&config, diag);
+    
+    if (new_id != KAIN_ACTOR_ID_INVALID) {
+        /* Update restart tracking in the new actor instance */
+        KainActorState_Internal* new_actor = kain_actor_table_get(new_id);
+        if (new_actor != NULL) {
+            new_actor->supervisor.restart_count = child->supervisor.restart_count + 1;
+            new_actor->supervisor.last_restart_time = time(NULL);
+            new_actor->supervisor.restart_window_start = child->supervisor.restart_window_start;
+        }
+    }
+
+    return new_id;
+}
+
+/*
+ * Escalate failure to parent supervisor
+ */
+static void kain_actor_escalate_to_supervisor(KainActorState_Internal* child) {
+    if (child == NULL || child->supervisor.supervisor_id == KAIN_ACTOR_ID_INVALID) {
+        return;
+    }
+
+    KainActorState_Internal* supervisor = kain_actor_table_get(child->supervisor.supervisor_id);
+    if (supervisor == NULL) {
+        return;
+    }
+
+    /* Terminate supervisor with escalation exit reason */
+    supervisor->exit_reason = KAIN_ACTOR_EXIT_SUPERVISOR_ESCALATION;
+    supervisor->state = KAIN_ACTOR_STATE_FAILED;
+    
+    /* Notify supervisor's monitors */
+    kain_actor_notify_monitors(supervisor);
+    
+    /* Propagate to supervisor's links if abnormal */
+    kain_actor_propagate_links(supervisor);
+    
+    /* If supervisor also has a supervisor, escalate further */
+    if (supervisor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
+        kain_actor_handle_child_exit(supervisor);
+    }
+}
+
+/*
+ * Apply supervision strategy when a child exits
+ */
+static void kain_actor_apply_supervision_strategy(
+    KainActorState_Internal* supervisor,
+    KainActorState_Internal* failed_child
+) {
+    if (supervisor == NULL || failed_child == NULL) {
+        return;
+    }
+
+    KainSupervisionStrategy strategy = failed_child->supervisor.strategy;
+
+    switch (strategy) {
+        case KAIN_SUPERVISION_STRATEGY_ONE_FOR_ONE:
+            /* Only restart the failed child (already handled in kain_actor_handle_child_exit) */
+            break;
+
+        case KAIN_SUPERVISION_STRATEGY_ONE_FOR_ALL:
+            /* Terminate all children and restart them */
+            /* Find all children of this supervisor */
+            for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {
+                KainActorState_Internal* actor = g_actor_table.actors[i];
+                if (actor != NULL && 
+                    actor->supervisor.supervisor_id == supervisor->actor_id &&
+                    actor->actor_id != failed_child->actor_id) {
+                    /* Shutdown sibling actor */
+                    kain_actor_shutdown(actor->actor_id, NULL);
+                }
+            }
+            break;
+
+        case KAIN_SUPERVISION_STRATEGY_REST_FOR_ONE:
+            /* Terminate all children started after the failed child */
+            /* This requires tracking child start order, which we don't have yet */
+            /* For now, treat as ONE_FOR_ALL */
+            for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {
+                KainActorState_Internal* actor = g_actor_table.actors[i];
+                if (actor != NULL && 
+                    actor->supervisor.supervisor_id == supervisor->actor_id &&
+                    actor->actor_id != failed_child->actor_id) {
+                    kain_actor_shutdown(actor->actor_id, NULL);
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+/*
+ * Handle child actor exit and apply supervision policies
+ */
+static void kain_actor_handle_child_exit(KainActorState_Internal* child) {
+    if (child == NULL || child->supervisor.supervisor_id == KAIN_ACTOR_ID_INVALID) {
+        return;
+    }
+
+    KainActorState_Internal* supervisor = kain_actor_table_get(child->supervisor.supervisor_id);
+    if (supervisor == NULL) {
+        /* Supervisor no longer exists, nothing to do */
+        return;
+    }
+
+    /* Check if child should be restarted */
+    if (!kain_actor_should_restart(child)) {
+        /* No restart needed, just cleanup */
+        return;
+    }
+
+    /* Check if restart limit has been exceeded */
+    if (kain_actor_restart_limit_exceeded(child)) {
+        /* Restart limit exceeded, escalate to parent supervisor */
+        kain_actor_escalate_to_supervisor(child);
+        return;
+    }
+
+    /* Apply supervision strategy */
+    kain_actor_apply_supervision_strategy(supervisor, child);
+
+    /* Attempt to restart the child */
+    KainDiagnostic diag;
+    KainActorId new_id = kain_actor_restart_child(child, &diag);
+
+    if (new_id == KAIN_ACTOR_ID_INVALID) {
+        /* Restart failed, escalate to parent supervisor */
+        kain_actor_escalate_to_supervisor(child);
+    }
 }
