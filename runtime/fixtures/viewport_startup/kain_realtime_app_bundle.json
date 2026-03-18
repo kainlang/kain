@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "render": {
+    "scenes": [
+      {
+        "viewport_node": "surface.node.1",
+        "viewport_kind": "viewport3d",
+        "scene": "empty_scene",
+        "title": "Minimal Viewport",
+        "material_refs": [],
+        "shader_bundle_ref_keys": []
+      }
+    ],
+    "materials": []
+  },
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "viewport.3d"
+  ],
+  "requirements": [
+    "host.native-ui",
+    "runtime.contract.bundle",
+    "scene.runtime-bundle",
+    "viewport.presented-or-fallback"
+  ]
+}

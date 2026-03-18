@@ -1,0 +1,12 @@
+// Minimal UI bundle startup smoke fixture
+// Purpose: Validate compiled UI bundle loading and component metadata
+// Requirements: 4.2, 8.1, 13.4, 13.5
+
+// This is the simplest possible UI component that triggers compiled UI bundle emission.
+// It has no interactivity, no complex layout, no state - just enough to validate
+// that the native runtime can load and parse a compiled UI bundle.
+
+component MinimalUI():
+    render <panel title="UI Startup Smoke">
+        <label>UI bundle loaded successfully</label>
+    </panel>

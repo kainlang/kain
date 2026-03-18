@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "required_capabilities": [
+    {
+      "key": "compiler.typed-program",
+      "source": "kain-core",
+      "detail": "Typed frontend output is available for runtime packaging."
+    },
+    {
+      "key": "runtime.contract.bundle",
+      "source": "kain-core",
+      "detail": "Compiler-owned runtime contract scaffolding emitted."
+    },
+    {
+      "key": "runtime.realtime-bundle",
+      "source": "kain-core",
+      "detail": "Program can participate in realtime bundle materialization."
+    }
+  ],
+  "service_bindings": [
+    {
+      "service": "driver.bundle",
+      "provider": "kain-driver",
+      "lane": "rust-native"
+    },
+    {
+      "service": "runtime.realtime",
+      "provider": "kain-runtime-realtime",
+      "lane": "native"
+    }
+  ],
+  "items": [
+    {
+      "id": "fn:main",
+      "name": "main",
+      "kind": "function"
+    }
+  ],
+  "reflection": {
+    "emitted": false,
+    "schema_names": [],
+    "notes": [
+      "Minimal realtime startup fixture.",
+      "No reflection payloads emitted yet."
+    ]
+  }
+}

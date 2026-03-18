@@ -643,11 +643,24 @@ int kain_runtime_contract_validate_startup(
     KainRuntimeContractValidation* validation
 ) {
     char services_buffer[192];
+    KainRuntimeVersionInfo version_info;
+    
     if (!validation) {
         return 0;
     }
 
     kain_runtime_contract_validation_init(validation);
+    
+    /* Get current runtime version information */
+    if (kain_runtime_version_get_info(&version_info) == 0) {
+        validation->runtime_abi_version = version_info.abi_version_encoded;
+        kain_runtime_contract_copy_cstr(
+            validation->runtime_abi_version_string,
+            sizeof(validation->runtime_abi_version_string),
+            version_info.abi_version_string
+        );
+    }
+    
     validation->strict_mode = kain_env_flag(KAIN_RUNTIME_CONTRACT_STRICT_ENV, 1);
     validation->required_service_mask = required_service_mask;
     validation->optional_service_mask = optional_service_mask;
@@ -657,6 +670,35 @@ int kain_runtime_contract_validate_startup(
         required_service_mask & ~validation->available_service_mask;
     validation->downgraded_optional_mask =
         optional_service_mask & ~validation->available_service_mask;
+
+    /* Check ABI compatibility if contract is present */
+    if (validation->contract_present && bundle->required_abi_version != 0) {
+        validation->contract_abi_version = bundle->required_abi_version;
+        kain_runtime_version_format_abi(
+            bundle->required_abi_version,
+            validation->contract_abi_version_string,
+            sizeof(validation->contract_abi_version_string)
+        );
+        
+        validation->abi_compatible = kain_runtime_version_check_abi_compatibility(
+            bundle->required_abi_version
+        );
+        
+        if (!validation->abi_compatible) {
+            validation->fatal_error = 1;
+            snprintf(
+                validation->fatal_message,
+                sizeof(validation->fatal_message),
+                "ABI version mismatch. Runtime ABI: %s, Contract requires: %s.",
+                validation->runtime_abi_version_string,
+                validation->contract_abi_version_string
+            );
+            return 0;
+        }
+    } else {
+        /* No ABI version in contract, assume compatible */
+        validation->abi_compatible = 1;
+    }
 
     if (!validation->contract_present) {
         if (validation->strict_mode) {

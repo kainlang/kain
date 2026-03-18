@@ -1,0 +1,13 @@
+// Minimal native viewport startup smoke fixture
+// Purpose: Validate native viewport host startup with Win32 platform services
+// Requirements: 4.2, 8.1, 13.4, 13.5
+
+// This is the simplest possible viewport program that triggers native viewport startup.
+// It has a minimal scene with no geometry, no materials, no shaders - just enough
+// to validate that the native runtime can initialize Win32 app host, input host,
+// OpenGL context, and viewport scene loading.
+
+component ViewportSmoke():
+    render <panel title="Viewport Startup Smoke" layout="dock">
+        <viewport3d title="Minimal Viewport" scene="empty_scene" />
+    </panel>

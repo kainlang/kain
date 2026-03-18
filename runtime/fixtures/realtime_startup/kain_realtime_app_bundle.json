@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "render": {
+    "scenes": [
+      {
+        "viewport_node": "minimal_scene",
+        "viewport_kind": "scene",
+        "scene": "minimal_scene",
+        "title": "Minimal Scene",
+        "material_refs": [],
+        "shader_bundle_ref_keys": []
+      }
+    ],
+    "materials": []
+  },
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [],
+  "requirements": [
+    "runtime.contract.bundle",
+    "scene.runtime-bundle"
+  ]
+}

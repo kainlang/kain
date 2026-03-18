@@ -2,6 +2,7 @@
 #define KAIN_RUNTIME_CONTRACT_H
 
 #include "kain_runtime_win32.h"
+#include "kain_runtime_version.h"
 
 #ifdef _WIN32
 #define KAIN_RUNTIME_CONTRACT_ENV "KAIN_RUNTIME_CONTRACT"
@@ -46,6 +47,7 @@ typedef struct {
     int has_native_asset_gltf;
     int has_native_ui_compiled_bundle;
     unsigned int service_mask;
+    unsigned int required_abi_version;
     char target[KAIN_RUNTIME_CONTRACT_MAX_TARGET];
     char load_origin[KAIN_RUNTIME_CONTRACT_MAX_ORIGIN];
     char source_path[KAIN_RUNTIME_CONTRACT_MAX_PATH];
@@ -61,6 +63,11 @@ typedef struct {
     unsigned int missing_required_mask;
     unsigned int downgraded_optional_mask;
     int warning_count;
+    int abi_compatible;
+    unsigned int runtime_abi_version;
+    unsigned int contract_abi_version;
+    char runtime_abi_version_string[KAIN_RUNTIME_VERSION_STRING_MAX];
+    char contract_abi_version_string[KAIN_RUNTIME_VERSION_STRING_MAX];
     char fatal_message[KAIN_RUNTIME_CONTRACT_MAX_MESSAGE];
     char warnings[KAIN_RUNTIME_CONTRACT_MAX_DIAGNOSTICS][KAIN_RUNTIME_CONTRACT_MAX_MESSAGE];
 } KainRuntimeContractValidation;

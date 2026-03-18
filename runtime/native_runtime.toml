@@ -1,6 +1,7 @@
 name = "kain-native-runtime"
 sources = [
     "native/src/core/kain_runtime_core.c",
+    "native/src/core/kain_runtime_version.c",
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_realtime.c",
     "native/src/asset/kain_asset_gltf.c",

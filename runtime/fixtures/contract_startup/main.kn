@@ -1,0 +1,10 @@
+// Minimal contract startup smoke fixture
+// Purpose: Validate runtime contract loading and validation
+// Requirements: 4.2, 8.1, 13.4, 13.5
+
+// This is the absolute minimum Kain program that produces a runtime contract.
+// It has no actors, no UI, no async, no graphics - just enough to validate
+// that the native runtime can load and parse a contract bundle.
+
+fn main():
+    print("Contract startup smoke: OK")

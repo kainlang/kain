@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "required_capabilities": [
+    {
+      "key": "compiler.typed-program",
+      "source": "kain-core",
+      "detail": "Typed frontend output is available for runtime packaging."
+    },
+    {
+      "key": "runtime.contract.bundle",
+      "source": "kain-core",
+      "detail": "Compiler-owned runtime contract scaffolding emitted."
+    },
+    {
+      "key": "ui.components",
+      "source": "kain-core",
+      "detail": "Program contains declarative UI components."
+    },
+    {
+      "key": "ui.runtime-bundle",
+      "source": "kain-core.ui",
+      "detail": "Program can participate in compiled UI bundle materialization."
+    }
+  ],
+  "service_bindings": [
+    {
+      "service": "driver.bundle",
+      "provider": "kain-driver",
+      "lane": "rust-native"
+    },
+    {
+      "service": "host.ui-native",
+      "provider": "kain-ui-native",
+      "lane": "rust-native"
+    },
+    {
+      "service": "ui.runtime-bundle",
+      "provider": "kain-ui",
+      "lane": "rust-native"
+    }
+  ],
+  "items": [
+    {
+      "id": "component:MinimalUI",
+      "name": "MinimalUI",
+      "kind": "component"
+    }
+  ],
+  "reflection": {
+    "emitted": false,
+    "schema_names": [
+      "MinimalUI"
+    ],
+    "notes": [
+      "Minimal UI startup fixture.",
+      "Reflection payloads are not emitted yet; schema_names are placeholders."
+    ]
+  }
+}
