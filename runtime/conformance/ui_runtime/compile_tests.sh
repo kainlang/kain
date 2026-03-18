@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Compile UI runtime conformance tests and supporting objects.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_DIR="$SCRIPT_DIR/../.."
+NATIVE_SRC="$RUNTIME_DIR/native/src"
+NATIVE_INCLUDE="$RUNTIME_DIR/native/include"
+
+CFLAGS="-I$NATIVE_INCLUDE -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -D_CRT_SECURE_NO_WARNINGS"
+LDFLAGS=""
+
+if [[ -n "${CC:-}" ]]; then
+    C_COMPILER="$CC"
+elif command -v clang > /dev/null 2>&1; then
+    C_COMPILER="clang"
+elif command -v gcc > /dev/null 2>&1; then
+    C_COMPILER="gcc"
+elif command -v cc > /dev/null 2>&1; then
+    C_COMPILER="cc"
+else
+    echo "No supported C compiler found on PATH. Set CC explicitly." >&2
+    exit 1
+fi
+
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+    LDFLAGS="-lws2_32 -luser32 -lgdi32 -lopengl32"
+else
+    LDFLAGS="-lpthread -lm"
+fi
+
+echo "=== Compiling UI Runtime Tests ==="
+echo "Using compiler: $C_COMPILER"
+echo ""
+
+pushd "$SCRIPT_DIR" > /dev/null
+
+rm -f \
+    kain_runtime_win32_shared.o \
+    kain_ui_compiled_bundle.o \
+    kain_ui_runtime.o \
+    kain_ui_compiled_overlay.o \
+    kain_ui_overlay.o \
+    test_ui_runtime_bundle \
+    test_ui_runtime_bundle.exe \
+    test_ui_runtime_focus \
+    test_ui_runtime_focus.exe
+
+echo "Compiling supporting runtime objects..."
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c" -o kain_runtime_win32_shared.o
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_bundle.c" -o kain_ui_compiled_bundle.o
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_runtime.c" -o kain_ui_runtime.o
+
+echo "Compiling overlay sources (compile-only smoke)..."
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_overlay.c" -o kain_ui_compiled_overlay.o
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_overlay.c" -o kain_ui_overlay.o
+
+echo ""
+echo "Compiling test_ui_runtime_bundle..."
+"$C_COMPILER" $CFLAGS test_ui_runtime_bundle.c kain_ui_runtime.o kain_ui_compiled_bundle.o kain_runtime_win32_shared.o -o test_ui_runtime_bundle.exe $LDFLAGS
+
+echo "Compiling test_ui_runtime_focus..."
+"$C_COMPILER" $CFLAGS test_ui_runtime_focus.c kain_ui_runtime.o kain_ui_compiled_bundle.o kain_runtime_win32_shared.o -o test_ui_runtime_focus.exe $LDFLAGS
+
+echo ""
+echo "=== Compilation Complete ==="
+
+popd > /dev/null

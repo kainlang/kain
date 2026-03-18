@@ -192,6 +192,8 @@ typedef struct {
     int restart_count;
     time_t last_restart_time;
     time_t restart_window_start;
+    KainActorExitReason last_child_exit_reason;
+    int restart_limit_hit;
 } KainActorSupervisor;
 
 /*
@@ -269,6 +271,7 @@ typedef struct {
     /* Identity */
     KainActorId actor_id;
     char name[KAIN_ACTOR_NAME_MAX];
+    unsigned long long spawn_sequence;
     
     /* State and lifecycle */
     KainActorState state;
@@ -295,6 +298,12 @@ typedef struct {
     /* Monitors and links */
     KainActorMonitor* monitors;     /* List of actors this actor monitors */
     KainActorLink* links;           /* List of links involving this actor */
+
+    /* Supervision observations */
+    size_t observed_child_exit_count;
+    KainActorId last_observed_child_id;
+    KainActorExitReason last_observed_child_exit_reason;
+    int supervision_limit_hits;
     
     /* Scheduler integration */
     int in_scheduler_queue;         /* 1 if currently in ready queue */
@@ -318,6 +327,31 @@ typedef struct {
  * - Operations on invalid handles return KAIN_ACTOR_NOT_FOUND errors
  */
 typedef struct KainActorHandle KainActorHandle;
+
+typedef struct {
+    KainActorId supervisor_id;
+    KainSupervisionStrategy strategy;
+    KainRestartPolicy restart_policy;
+    int restart_count;
+    time_t last_restart_time;
+    time_t restart_window_start;
+    KainActorExitReason last_child_exit_reason;
+    int restart_limit_hit;
+    size_t observed_child_exit_count;
+    KainActorId last_observed_child_id;
+    KainActorExitReason last_observed_child_exit_reason;
+    int supervision_limit_hits;
+} KainActorSupervisionSnapshot;
+
+typedef struct {
+    size_t queue_depth;
+    size_t max_queue_depth;
+    size_t total_enqueued;
+    size_t total_dequeued;
+    int worker_count;
+    int active_workers;
+    int shutdown;
+} KainActorSchedulerSnapshot;
 
 /*
  * Actor Spawn Configuration
@@ -427,6 +461,17 @@ int kain_actor_kill(
  * Returns the current state of an actor.
  */
 KainActorState kain_actor_get_state(KainActorId actor_id);
+
+/*
+ * Get Supervision Snapshot
+ *
+ * Returns the current supervision state for an actor.
+ */
+int kain_actor_get_supervision_snapshot(
+    KainActorId actor_id,
+    KainActorSupervisionSnapshot* snapshot,
+    KainDiagnostic* diag
+);
 
 /*
  * Monitor Actor
@@ -553,5 +598,12 @@ size_t kain_actor_mailbox_capacity(const KainActorMailbox* mailbox);
  * Returns 1 if the mailbox is at capacity, 0 otherwise.
  */
 int kain_actor_mailbox_is_full(const KainActorMailbox* mailbox);
+
+/*
+ * Get Scheduler Snapshot
+ *
+ * Returns the current scheduler queue and worker statistics.
+ */
+void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot);
 
 #endif /* KAIN_RUNTIME_ACTOR_H */

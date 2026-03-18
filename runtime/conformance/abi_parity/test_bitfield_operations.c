@@ -11,12 +11,21 @@
  */
 
 #include "../../native/include/kain_runtime_memory.h"
+#include "../../native/include/kain_runtime_bitfield.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
 #define TEST_PASS(name) printf("  ✅ PASS: %s\n", name)
 #define TEST_FAIL(name, ...) do { printf("  ❌ FAIL: " name "\n", ##__VA_ARGS__); return 0; } while(0)
+#define TEST_BITFIELD_GET(value, field, unit_offset, bit_offset, width, is_signed, promoted_bits) \
+    __kain_bitfield_get(&(value), field, unit_offset, bit_offset, width, is_signed, promoted_bits)
+#define TEST_BITFIELD_SET(value, field, unit_offset, bit_offset, width, is_signed, promoted_bits, next) \
+    __extension__ ({ \
+        __typeof__(next) _next = (next); \
+        __kain_bitfield_set(&(value), field, unit_offset, bit_offset, width, is_signed, promoted_bits, (int64_t)_next); \
+        _next; \
+    })
 
 /* Test struct with bitfields */
 typedef struct {

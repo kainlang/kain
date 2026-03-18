@@ -28,6 +28,9 @@ sources = [
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_reflection.c",
     "native/src/core/kain_runtime_realtime.c",
+    "native/src/core/kain_runtime_async.c",
+    "native/src/core/kain_runtime_compatibility.c",
+    "native/src/core/kain_runtime_host_bridge.c",
     "native/src/core/kain_runtime_memory.c",
     "native/src/core/kain_runtime_bitfield.c",
     "native/src/core/kain_runtime_union.c",
@@ -37,9 +40,11 @@ sources = [
     "native/src/platform/win32/kain_win32_app_host.c",
     "native/src/platform/win32/kain_win32_input_host.c",
     "native/src/platform/win32/kain_runtime_win32_shared.c",
+    "native/src/platform/kain_runtime_platform.c",
     "native/src/ui/kain_ui_compiled_bundle.c",
     "native/src/ui/kain_ui_compiled_overlay.c",
     "native/src/ui/kain_ui_overlay.c",
+    "native/src/ui/kain_ui_runtime.c",
     "native/src/platform/win32/kain_runtime_viewport_win32.c",
     "native/src/platform/win32/kain_runtime_sculpt_win32.c",
 ]
@@ -154,7 +159,7 @@ key = "async.runtime"
 name = "Async Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Task/future execution, wake/poll, and cancellation"
 
 [[services]]
@@ -162,7 +167,7 @@ key = "async.timers"
 name = "Async Timers"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Timer registration and wake delivery"
 
 [[services]]
@@ -194,7 +199,7 @@ key = "ui.component"
 name = "UI Component Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Component state, invalidation, and event routing"
 
 [[services]]
@@ -202,7 +207,7 @@ key = "compatibility"
 name = "Compatibility and Hot Reload"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Version validation, migration, and hot reload support"
 
 [[services]]
@@ -210,7 +215,7 @@ key = "host.bridge"
 name = "Host Bridge"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Plugin and foreign service integration"
 
 # Platform-Specific Link Dependencies

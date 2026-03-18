@@ -325,7 +325,10 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
 #[cfg(test)]
 mod tests {
     use crate::ui::build_ui_output_from_source;
-    use crate::{diagnostics, emit_realtime_app_bundle, realtime_app_bundle_from_json, types, CompileTarget, Lexer, Parser};
+    use crate::{
+        diagnostics, emit_realtime_app_bundle, realtime_app_bundle_from_json, types, CompileTarget,
+        Lexer, Parser,
+    };
 
     #[test]
     fn emits_realtime_bundle_with_viewport_scene_binding() {

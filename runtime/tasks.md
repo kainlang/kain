@@ -217,26 +217,26 @@ Execution rules for the agent:
     - Integrate blocking waits and sleeps through scheduler-aware primitives where possible
     - _Requirements: 6.5, 6.6, 7.3_
 
-  - [~] 6.6 Add supervision and monitor tests
+  - [x] 6.6 Add supervision and monitor tests
     - Test child failure, restart, shutdown, monitored exits, bounded mailbox behavior, and registry cleanup
     - _Requirements: 6.2, 6.3, 6.4, 6.5, 13.2_
 
 - [~] 7. Phase 7: Native Async, Futures, and Timers
-  - [~] 7.1 Define async/task ABI and runtime data structures
+  - [x] 7.1 Define async/task ABI and runtime data structures
     - Add task/future handles, state enums, wake records, and timer records in native headers
     - _Requirements: 7.1, 7.5_
 
-  - [~] 7.2 Implement native task executor and wake/poll machinery
+  - [x] 7.2 Implement native task executor and wake/poll machinery
     - Add task spawn, poll, wake, completion, and cancellation APIs
     - Integrate them with the scheduler substrate instead of isolated sleeps/threads
     - _Requirements: 7.1, 7.3, 7.4_
 
-  - [~] 7.3 Add timer services
+  - [x] 7.3 Add timer services
     - Implement runtime timer registration, cancellation, and wake delivery
     - Ensure timers work cleanly with actor and task scheduling
     - _Requirements: 7.2, 7.3_
 
-  - [~] 7.4 Define async/runtime value ownership rules
+  - [x] 7.4 Define async/runtime value ownership rules
     - Document and implement native ownership/lifetime rules for task handles, future results, and cross-boundary values
     - _Requirements: 7.4, 7.5_
 
@@ -244,26 +244,26 @@ Execution rules for the agent:
     - Ensure compiler-emitted capabilities and runtime service bindings can express async/timer requirements
     - _Requirements: 1.2, 7.1, 7.6_
 
-  - [~] 7.6 Add async/timer conformance tests
+  - [x] 7.6 Add async/timer conformance tests
     - Test wake, cancellation, timer delay, actor/task interop, and completion diagnostics
     - _Requirements: 7.1, 7.2, 7.4, 13.1_
 
 - [~] 8. Phase 8: UI Runtime and Component Convergence
-  - [~] 8.1 Harden compiled bundle validation
+  - [x] 8.1 Harden compiled bundle validation
     - Expand bundle validation in `runtime/native/src/ui/kain_ui_compiled_bundle.c`
     - Validate node shape, semantic fields, lifecycle metadata, and compatibility versioning
     - _Requirements: 8.1, 8.6_
 
-  - [~] 8.2 Introduce component/runtime state records
+  - [x] 8.2 Introduce component/runtime state records
     - Add component instance/state/invalidation data structures in native UI runtime
     - Preserve current overlay consumption while enabling richer runtime behavior
     - _Requirements: 8.2_
 
-  - [~] 8.3 Implement focus and event routing
+  - [x] 8.3 Implement focus and event routing
     - Extend app/input/UI integration so input events can route to focused or targeted UI elements
     - _Requirements: 8.3, 8.4_
 
-  - [~] 8.4 Add editable control groundwork
+  - [x] 8.4 Add editable control groundwork
     - Implement text input state and event plumbing required for real controls
     - If full controls are too large for one phase, still land the canonical runtime plumbing and capability checks
     - _Requirements: 8.4, 14.5_
@@ -273,20 +273,20 @@ Execution rules for the agent:
     - Add explicit tests where they diverge
     - _Requirements: 8.5_
 
-  - [~] 8.6 Add UI/runtime smoke tests
+  - [x] 8.6 Add UI/runtime smoke tests
     - Prove bundle validation, focus routing, redraw/invalidation, and startup capability checks
     - _Requirements: 8.1, 8.2, 8.3, 13.4, 13.5_
 
 - [~] 9. Phase 9: Shader, Material, and Compute Runtime
-  - [~] 9.1 Define runtime-consumable shader/material/compute artifacts
+  - [x] 9.1 Define runtime-consumable shader/material/compute artifacts
     - Extend compiler/driver artifact schemas so the native runtime can consume modern graphics metadata instead of only narrow realtime summaries
     - _Requirements: 9.1, 9.2_
 
-  - [~] 9.2 Add native artifact loaders and validators
+  - [x] 9.2 Add native artifact loaders and validators
     - Implement native loaders for shader/material/compute artifacts and reflection-driven binding metadata
     - _Requirements: 9.2, 9.3_
 
-  - [~] 9.3 Create a backend contract for graphics execution
+  - [x] 9.3 Create a backend contract for graphics execution
     - Either formalize a backend-neutral runtime interface or define explicit backend contracts starting with the current GL lane
     - Remove as much handwritten one-off binding logic as possible
     - _Requirements: 9.3, 9.5_
@@ -299,65 +299,65 @@ Execution rules for the agent:
     - Add compute pipeline creation, dispatch, synchronization, and diagnostics
     - _Requirements: 9.4_
 
-  - [~] 9.6 Add graphics/runtime smokes
+  - [x] 9.6 Add graphics/runtime smokes
     - Validate artifact loading, binding validation, material parameter wiring, compute dispatch, and compatibility failures
     - _Requirements: 9.2, 9.3, 9.4, 13.5_
 
 - [~] 10. Phase 10: Hot Reload, Compatibility, and Lifecycle APIs
-  - [~] 10.1 Add compatibility metadata emission in compiler/driver lanes
+  - [x] 10.1 Add compatibility metadata emission in compiler/driver lanes
     - Extend runtime contract or companion artifacts with compatibility classes, migration hints, and install/update metadata
     - _Requirements: 10.1, 10.5, 10.6_
 
-  - [~] 10.2 Implement native compatibility validator
+  - [x] 10.2 Implement native compatibility validator
     - Add native runtime code to compare bundle/runtime ABI version, compatibility class, and service deltas
     - _Requirements: 10.1, 10.4, 10.5_
 
-  - [~] 10.3 Add install/update/uninstall lifecycle APIs
+  - [x] 10.3 Add install/update/uninstall lifecycle APIs
     - Implement lifecycle operations for native bundles and runtime modules
     - _Requirements: 10.2, 10.6, 11.5_
 
-  - [~] 10.4 Add state transfer and migration hooks
+  - [x] 10.4 Add state transfer and migration hooks
     - Implement migration boundary APIs for actors, tasks, UI/app state, and runtime-owned services
     - _Requirements: 10.3, 10.4_
 
-  - [~] 10.5 Integrate live update rejection rules
+  - [x] 10.5 Integrate live update rejection rules
     - Reject incompatible hot reloads early with explicit diagnostics
     - _Requirements: 10.2, 10.4_
 
-  - [~] 10.6 Add compatibility and migration tests
+  - [x] 10.6 Add compatibility and migration tests
     - Test compatible update, incompatible update, missing migration, and startup version mismatch
     - _Requirements: 10.1, 10.2, 10.3, 13.4_
 
 - [~] 11. Phase 11: Host Bridge, Plugin Bridge, and Foreign Runtime Services
-  - [~] 11.1 Define native host service registration ABI
+  - [x] 11.1 Define native host service registration ABI
     - Add service registration/discovery APIs for host-provided capabilities
     - Keep the API capability-aware and versioned
     - _Requirements: 11.1, 11.4_
 
-  - [~] 11.2 Add plugin/module ABI validation
+  - [x] 11.2 Add plugin/module ABI validation
     - Validate module ABI version, required services, and lifecycle hooks before activation
     - _Requirements: 11.2, 11.5_
 
-  - [~] 11.3 Define foreign bridge contracts
+  - [x] 11.3 Define foreign bridge contracts
     - Add canonical contracts for Python/Node/Rust-host or other foreign-service lanes where native runtime interop is intended
     - Focus on marshaling, ownership, failure handling, and capability checks
     - _Requirements: 11.3, 11.4, 11.6_
 
-  - [~] 11.4 Add install/uninstall behavior for runtime modules
+  - [x] 11.4 Add install/uninstall behavior for runtime modules
     - Reuse the lifecycle APIs from Phase 10 so extensions behave like first-class runtime modules
     - _Requirements: 11.5_
 
-  - [~] 11.5 Add host/plugin bridge tests
+  - [x] 11.5 Add host/plugin bridge tests
     - Validate service registration, missing capability failure, module ABI mismatch, and module removal
     - _Requirements: 11.1, 11.2, 11.4, 11.5_
 
 - [~] 12. Phase 12: Cross-Platform Runtime Boundaries
-  - [~] 12.1 Audit and isolate Win32 assumptions
+  - [x] 12.1 Audit and isolate Win32 assumptions
     - Move platform-neutral logic into core modules and headers
     - Leave Win32-only implementations behind explicit platform service boundaries
     - _Requirements: 12.1, 12.4_
 
-  - [~] 12.2 Define Linux and macOS platform service stubs
+  - [x] 12.2 Define Linux and macOS platform service stubs
     - Add platform directories, headers, capability declarations, and diagnostic stubs
     - Ensure unsupported features fail cleanly rather than through missing symbols
     - _Requirements: 12.2, 12.3, 12.4_
@@ -366,7 +366,7 @@ Execution rules for the agent:
     - Extend runtime capability metadata so platform-specific service availability is explicit
     - _Requirements: 12.3_
 
-  - [~] 12.4 Add platform boundary tests
+  - [x] 12.4 Add platform boundary tests
     - Validate build-time or startup-time unsupported-platform diagnostics and capability discovery behavior
     - _Requirements: 12.3, 12.4, 12.5_
 

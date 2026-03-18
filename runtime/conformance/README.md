@@ -147,7 +147,24 @@ This directory contains runtime-specific harnesses and ABI parity tests for the 
 
 ---
 
-### 9. Platform Parity Tests (`platform_parity/`)
+### 9. Host Bridge Tests (`host_bridge/`)
+
+**Purpose:** Validate host/plugin bridge registration, ABI validation, and foreign runtime contracts
+
+**Test Areas:**
+- Module install and activation
+- Capability-aware registration
+- Required service validation
+- ABI mismatch rejection
+- Service registration and discovery
+- Module uninstall cleanup
+- Python/Node/Rust/C/Zig bridge contract exposure
+
+**Expected Behavior:** Host bridge modules behave like first-class runtime extensions with explicit diagnostics
+
+---
+
+### 10. Platform Parity Tests (`platform_parity/`)
 
 **Purpose:** Validate cross-platform runtime behavior and capability discovery
 

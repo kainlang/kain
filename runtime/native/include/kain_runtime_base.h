@@ -67,6 +67,7 @@ typedef struct {
 typedef struct MessageNode {
     long long type_tag;
     void* data;
+    unsigned long long sender_id;
     struct MessageNode* next;
 } MessageNode;
 

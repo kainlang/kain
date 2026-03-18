@@ -60,6 +60,10 @@ typedef struct {
     KainActorSchedulerNode* tail;
     int shutdown;
     int active_workers;
+    size_t queue_depth;
+    size_t max_queue_depth;
+    size_t total_enqueued;
+    size_t total_dequeued;
     
 #ifdef _WIN32
     CRITICAL_SECTION lock;
@@ -74,6 +78,7 @@ typedef struct {
 } KainActorScheduler;
 
 static KainActorScheduler g_scheduler = {0};
+static unsigned long long g_actor_spawn_sequence = 1;
 
 /* Forward declarations */
 static void kain_actor_cleanup(KainActorState_Internal* actor);
@@ -82,12 +87,17 @@ static void kain_actor_propagate_links(KainActorState_Internal* actor);
 static unsigned int kain_actor_registry_hash(const char* name);
 static void kain_scheduler_init(void);
 static void kain_scheduler_shutdown(void);
-static void kain_scheduler_enqueue(KainActorId actor_id);
+static void kain_scheduler_enqueue(KainActorState_Internal* actor);
 static KainActorId kain_scheduler_dequeue(void);
 static void kain_actor_handle_child_exit(KainActorState_Internal* child);
 static int kain_actor_should_restart(KainActorState_Internal* child);
 static KainActorId kain_actor_restart_child(KainActorState_Internal* child, KainDiagnostic* diag);
 static void kain_actor_escalate_to_supervisor(KainActorState_Internal* child);
+static void kain_actor_close_mailbox(KainActorState_Internal* actor);
+static void kain_actor_finalize_exit_state(
+    KainActorState_Internal* actor,
+    KainActorExitReason bootstrap_exit_reason
+);
 
 /*
  * Initialize Actor Runtime
@@ -110,6 +120,7 @@ void kain_actor_runtime_init(void) {
     g_actor_table.next_id = 1;
     memset(g_actor_table.actors, 0, sizeof(g_actor_table.actors));
     memset(g_actor_registry.buckets, 0, sizeof(g_actor_registry.buckets));
+    g_actor_spawn_sequence = 1;
 
     /* Initialize scheduler if using pooled mode */
     if (KAIN_SCHEDULER_USE_POOLED) {
@@ -129,7 +140,28 @@ void kain_actor_runtime_shutdown(void) {
         return;
     }
 
-    /* Shutdown scheduler first if using pooled mode */
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+
+    for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {
+        if (g_actor_table.actors[i] != NULL) {
+            kain_actor_close_mailbox(g_actor_table.actors[i]);
+            if (g_actor_table.actors[i]->state == KAIN_ACTOR_STATE_INITIALIZING ||
+                g_actor_table.actors[i]->state == KAIN_ACTOR_STATE_RUNNING) {
+                g_actor_table.actors[i]->state = KAIN_ACTOR_STATE_SHUTTING_DOWN;
+            }
+        }
+    }
+
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
     if (KAIN_SCHEDULER_USE_POOLED) {
         kain_scheduler_shutdown();
     }
@@ -212,6 +244,21 @@ static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox) {
 #endif
 }
 
+static void kain_actor_close_mailbox(KainActorState_Internal* actor) {
+    if (actor == NULL) {
+        return;
+    }
+
+    actor->mailbox.closed = 1;
+#ifdef _WIN32
+    SetEvent(actor->mailbox.not_empty);
+    SetEvent(actor->mailbox.not_full);
+#else
+    pthread_cond_broadcast(&actor->mailbox.not_empty);
+    pthread_cond_broadcast(&actor->mailbox.not_full);
+#endif
+}
+
 /*
  * Actor Table Operations
  */
@@ -237,6 +284,7 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
         if (g_actor_table.actors[i] == NULL) {
             id = i;
             actor->actor_id = id;
+            actor->spawn_sequence = g_actor_spawn_sequence++;
             g_actor_table.actors[i] = actor;
             break;
         }
@@ -292,11 +340,7 @@ static void* kain_actor_thread_proc(void* param) {
         actor->user_data
     );
     
-    /* Update exit state */
-    actor->exit_reason = exit_reason;
-    actor->state = (exit_reason == KAIN_ACTOR_EXIT_NORMAL) 
-        ? KAIN_ACTOR_STATE_TERMINATED 
-        : KAIN_ACTOR_STATE_FAILED;
+    kain_actor_finalize_exit_state(actor, exit_reason);
     
     /* Handle supervision if actor has a supervisor */
     if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
@@ -305,7 +349,8 @@ static void* kain_actor_thread_proc(void* param) {
     
     /* Notify monitors and propagate links */
     kain_actor_notify_monitors(actor);
-    if (exit_reason != KAIN_ACTOR_EXIT_NORMAL) {
+    if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
+        actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
         kain_actor_propagate_links(actor);
     }
     
@@ -314,6 +359,33 @@ static void* kain_actor_thread_proc(void* param) {
 #else
     return NULL;
 #endif
+}
+
+static void kain_actor_finalize_exit_state(
+    KainActorState_Internal* actor,
+    KainActorExitReason bootstrap_exit_reason
+) {
+    KainActorExitReason exit_reason = bootstrap_exit_reason;
+
+    if (actor == NULL) {
+        return;
+    }
+
+    if (actor->mailbox.closed) {
+        if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
+            bootstrap_exit_reason == KAIN_ACTOR_EXIT_NORMAL) {
+            exit_reason = actor->exit_reason;
+        } else if (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN &&
+                   bootstrap_exit_reason == KAIN_ACTOR_EXIT_NORMAL) {
+            exit_reason = KAIN_ACTOR_EXIT_SHUTDOWN;
+        }
+    }
+
+    actor->exit_reason = exit_reason;
+    actor->state = (exit_reason == KAIN_ACTOR_EXIT_NORMAL ||
+                    exit_reason == KAIN_ACTOR_EXIT_SHUTDOWN)
+        ? KAIN_ACTOR_STATE_TERMINATED
+        : KAIN_ACTOR_STATE_FAILED;
 }
 
 /*
@@ -372,6 +444,7 @@ KainActorId kain_actor_spawn(
     actor->monitors = NULL;
     actor->links = NULL;
     actor->in_scheduler_queue = 0;
+    actor->spawn_sequence = 0;
     
     if (config->name[0] != '\0') {
         strncpy(actor->name, config->name, KAIN_ACTOR_NAME_MAX - 1);
@@ -399,6 +472,8 @@ KainActorId kain_actor_spawn(
         actor->supervisor.restart_count = 0;
         actor->supervisor.last_restart_time = 0;
         actor->supervisor.restart_window_start = 0;
+        actor->supervisor.last_child_exit_reason = KAIN_ACTOR_EXIT_NORMAL;
+        actor->supervisor.restart_limit_hit = 0;
     } else {
         actor->supervisor.supervisor_id = KAIN_ACTOR_ID_INVALID;
     }
@@ -432,7 +507,7 @@ KainActorId kain_actor_spawn(
     /* Spawn thread or enqueue to scheduler */
     if (KAIN_SCHEDULER_USE_POOLED) {
         /* Use scheduler work queue */
-        kain_scheduler_enqueue(actor_id);
+        kain_scheduler_enqueue(actor);
     } else {
         /* Use dedicated thread per actor */
 #ifdef _WIN32
@@ -546,6 +621,7 @@ int kain_actor_send(
     }
 
     node->type_tag = message->type_tag;
+    node->sender_id = message->sender_id;
     node->next = NULL;
 
     /* Copy message data */
@@ -646,7 +722,7 @@ int kain_actor_receive(
     message->type_tag = node->type_tag;
     message->data = node->data;
     message->data_size = 0; /* Size not stored in MessageNode */
-    message->sender_id = KAIN_ACTOR_ID_INVALID; /* Not tracked yet */
+    message->sender_id = node->sender_id;
 
     free(node);
 
@@ -703,7 +779,7 @@ int kain_actor_try_receive(
     message->type_tag = node->type_tag;
     message->data = node->data;
     message->data_size = 0;
-    message->sender_id = KAIN_ACTOR_ID_INVALID;
+    message->sender_id = node->sender_id;
 
     free(node);
 
@@ -739,15 +815,9 @@ int kain_actor_shutdown(
     }
 
     /* Mark mailbox as closed */
-    actor->mailbox.closed = 1;
     actor->state = KAIN_ACTOR_STATE_SHUTTING_DOWN;
-
-    /* Signal mailbox to wake up waiting receive */
-#ifdef _WIN32
-    SetEvent(actor->mailbox.not_empty);
-#else
-    pthread_cond_broadcast(&actor->mailbox.not_empty);
-#endif
+    actor->exit_reason = KAIN_ACTOR_EXIT_SHUTDOWN;
+    kain_actor_close_mailbox(actor);
 
     return 0;
 }
@@ -774,22 +844,7 @@ int kain_actor_kill(
 
     actor->exit_reason = KAIN_ACTOR_EXIT_KILLED;
     actor->state = KAIN_ACTOR_STATE_FAILED;
-    actor->mailbox.closed = 1;
-
-    /* Only terminate thread if using thread-per-actor mode */
-    if (!KAIN_SCHEDULER_USE_POOLED) {
-#ifdef _WIN32
-        if (actor->thread_handle != NULL) {
-            TerminateThread(actor->thread_handle, 1);
-            CloseHandle(actor->thread_handle);
-        }
-#else
-        pthread_cancel(actor->thread);
-#endif
-    }
-
-    kain_actor_cleanup(actor);
-    kain_actor_table_remove(actor_id);
+    kain_actor_close_mailbox(actor);
 
     return 0;
 }
@@ -804,6 +859,38 @@ KainActorState kain_actor_get_state(KainActorId actor_id) {
         return KAIN_ACTOR_STATE_UNINITIALIZED;
     }
     return actor->state;
+}
+
+int kain_actor_get_supervision_snapshot(
+    KainActorId actor_id,
+    KainActorSupervisionSnapshot* snapshot,
+    KainDiagnostic* diag
+) {
+    KainActorState_Internal* actor = kain_actor_table_get(actor_id);
+    if (actor == NULL || snapshot == NULL) {
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_NOT_FOUND;
+            snprintf(diag->message, sizeof(diag->message), "Actor not found");
+        }
+        return -1;
+    }
+
+    snapshot->supervisor_id = actor->supervisor.supervisor_id;
+    snapshot->strategy = actor->supervisor.strategy;
+    snapshot->restart_policy = actor->supervisor.restart_policy;
+    snapshot->restart_count = actor->supervisor.restart_count;
+    snapshot->last_restart_time = actor->supervisor.last_restart_time;
+    snapshot->restart_window_start = actor->supervisor.restart_window_start;
+    snapshot->last_child_exit_reason = actor->supervisor.last_child_exit_reason;
+    snapshot->restart_limit_hit = actor->supervisor.restart_limit_hit;
+    snapshot->observed_child_exit_count = actor->observed_child_exit_count;
+    snapshot->last_observed_child_id = actor->last_observed_child_id;
+    snapshot->last_observed_child_exit_reason = actor->last_observed_child_exit_reason;
+    snapshot->supervision_limit_hits = actor->supervision_limit_hits;
+    return 0;
 }
 
 /*
@@ -1284,7 +1371,39 @@ int kain_actor_mailbox_is_full(const KainActorMailbox* mailbox) {
     return mailbox->count >= mailbox->capacity;
 }
 
-/*
+void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot) {
+    if (snapshot == NULL) {
+        return;
+    }
+
+    memset(snapshot, 0, sizeof(*snapshot));
+
+    if (!g_actor_runtime_initialized) {
+        return;
+    }
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_lock(&g_scheduler.lock);
+#endif
+
+    snapshot->queue_depth = g_scheduler.queue_depth;
+    snapshot->max_queue_depth = g_scheduler.max_queue_depth;
+    snapshot->total_enqueued = g_scheduler.total_enqueued;
+    snapshot->total_dequeued = g_scheduler.total_dequeued;
+    snapshot->worker_count = KAIN_SCHEDULER_WORKER_COUNT;
+    snapshot->active_workers = g_scheduler.active_workers;
+    snapshot->shutdown = g_scheduler.shutdown;
+
+#ifdef _WIN32
+    LeaveCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+}
+
+/* 
  * Actor Scheduler Implementation
  *
  * Provides a work-stealing scheduler with a fixed pool of worker threads
@@ -1352,10 +1471,7 @@ static void* kain_scheduler_worker_thread(void* param) {
                 actor->user_data
             );
             
-            actor->exit_reason = exit_reason;
-            actor->state = (exit_reason == KAIN_ACTOR_EXIT_NORMAL) 
-                ? KAIN_ACTOR_STATE_TERMINATED 
-                : KAIN_ACTOR_STATE_FAILED;
+            kain_actor_finalize_exit_state(actor, exit_reason);
             
             /* Handle supervision if actor has a supervisor */
             if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
@@ -1363,11 +1479,26 @@ static void* kain_scheduler_worker_thread(void* param) {
             }
             
             kain_actor_notify_monitors(actor);
-            if (exit_reason != KAIN_ACTOR_EXIT_NORMAL) {
+            if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
+                actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
                 kain_actor_propagate_links(actor);
             }
         }
     }
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_scheduler.lock);
+    if (g_scheduler.active_workers > 0) {
+        g_scheduler.active_workers--;
+    }
+    LeaveCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_lock(&g_scheduler.lock);
+    if (g_scheduler.active_workers > 0) {
+        g_scheduler.active_workers--;
+    }
+    pthread_mutex_unlock(&g_scheduler.lock);
+#endif
     
 #ifdef _WIN32
     return 0;
@@ -1392,6 +1523,10 @@ static void kain_scheduler_init(void) {
     g_scheduler.tail = NULL;
     g_scheduler.shutdown = 0;
     g_scheduler.active_workers = KAIN_SCHEDULER_WORKER_COUNT;
+    g_scheduler.queue_depth = 0;
+    g_scheduler.max_queue_depth = 0;
+    g_scheduler.total_enqueued = 0;
+    g_scheduler.total_dequeued = 0;
     
     /* Spawn worker threads */
     for (int i = 0; i < KAIN_SCHEDULER_WORKER_COUNT; i++) {
@@ -1458,12 +1593,19 @@ static void kain_scheduler_shutdown(void) {
     }
 }
 
-static void kain_scheduler_enqueue(KainActorId actor_id) {
+static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
+    KainActorId actor_id;
     KainActorSchedulerNode* node = (KainActorSchedulerNode*)malloc(sizeof(KainActorSchedulerNode));
     if (node == NULL) {
         return;
     }
     
+    if (actor == NULL) {
+        free(node);
+        return;
+    }
+
+    actor_id = actor->actor_id;
     node->actor_id = actor_id;
     node->next = NULL;
     
@@ -1472,6 +1614,17 @@ static void kain_scheduler_enqueue(KainActorId actor_id) {
 #else
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
+
+    if (g_scheduler.shutdown || actor->in_scheduler_queue) {
+#ifdef _WIN32
+        LeaveCriticalSection(&g_scheduler.lock);
+#else
+        pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+        free(node);
+        return;
+    }
+    actor->in_scheduler_queue = 1;
     
     if (g_scheduler.tail == NULL) {
         g_scheduler.head = node;
@@ -1479,6 +1632,11 @@ static void kain_scheduler_enqueue(KainActorId actor_id) {
     } else {
         g_scheduler.tail->next = node;
         g_scheduler.tail = node;
+    }
+    g_scheduler.queue_depth++;
+    g_scheduler.total_enqueued++;
+    if (g_scheduler.queue_depth > g_scheduler.max_queue_depth) {
+        g_scheduler.max_queue_depth = g_scheduler.queue_depth;
     }
     
 #ifdef _WIN32
@@ -1502,6 +1660,16 @@ static KainActorId kain_scheduler_dequeue(void) {
     g_scheduler.head = node->next;
     if (g_scheduler.head == NULL) {
         g_scheduler.tail = NULL;
+    }
+    if (g_scheduler.queue_depth > 0) {
+        g_scheduler.queue_depth--;
+    }
+    g_scheduler.total_dequeued++;
+    {
+        KainActorState_Internal* actor = kain_actor_table_get(actor_id);
+        if (actor != NULL) {
+            actor->in_scheduler_queue = 0;
+        }
     }
     
     free(node);
@@ -1556,6 +1724,7 @@ static int kain_actor_restart_limit_exceeded(KainActorState_Internal* child) {
     if (child->supervisor.restart_window_start == 0) {
         child->supervisor.restart_window_start = current_time;
         child->supervisor.restart_count = 0;
+        child->supervisor.restart_limit_hit = 0;
         return 0;
     }
     
@@ -1566,11 +1735,17 @@ static int kain_actor_restart_limit_exceeded(KainActorState_Internal* child) {
         /* Window expired, reset counters */
         child->supervisor.restart_window_start = current_time;
         child->supervisor.restart_count = 0;
+        child->supervisor.restart_limit_hit = 0;
         return 0;
     }
     
     /* Check if restart count exceeds limit */
-    return (child->supervisor.restart_count >= KAIN_SUPERVISION_MAX_RESTARTS);
+    if (child->supervisor.restart_count >= KAIN_SUPERVISION_MAX_RESTARTS) {
+        child->supervisor.restart_limit_hit = 1;
+        return 1;
+    }
+    child->supervisor.restart_limit_hit = 0;
+    return 0;
 }
 
 /*
@@ -1599,12 +1774,17 @@ static KainActorId kain_actor_restart_child(KainActorState_Internal* child, Kain
     KainActorId new_id = kain_actor_spawn(&config, diag);
     
     if (new_id != KAIN_ACTOR_ID_INVALID) {
+        time_t now = time(NULL);
+        child->supervisor.restart_count = child->supervisor.restart_count + 1;
+        child->supervisor.last_restart_time = now;
         /* Update restart tracking in the new actor instance */
         KainActorState_Internal* new_actor = kain_actor_table_get(new_id);
         if (new_actor != NULL) {
-            new_actor->supervisor.restart_count = child->supervisor.restart_count + 1;
-            new_actor->supervisor.last_restart_time = time(NULL);
+            new_actor->supervisor.restart_count = child->supervisor.restart_count;
+            new_actor->supervisor.last_restart_time = now;
             new_actor->supervisor.restart_window_start = child->supervisor.restart_window_start;
+            new_actor->supervisor.last_child_exit_reason = child->exit_reason;
+            new_actor->supervisor.restart_limit_hit = child->supervisor.restart_limit_hit;
         }
     }
 
@@ -1673,14 +1853,13 @@ static void kain_actor_apply_supervision_strategy(
             break;
 
         case KAIN_SUPERVISION_STRATEGY_REST_FOR_ONE:
-            /* Terminate all children started after the failed child */
-            /* This requires tracking child start order, which we don't have yet */
-            /* For now, treat as ONE_FOR_ALL */
+            /* Terminate children started after the failed child */
             for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {
                 KainActorState_Internal* actor = g_actor_table.actors[i];
                 if (actor != NULL && 
                     actor->supervisor.supervisor_id == supervisor->actor_id &&
-                    actor->actor_id != failed_child->actor_id) {
+                    actor->actor_id != failed_child->actor_id &&
+                    actor->spawn_sequence > failed_child->spawn_sequence) {
                     kain_actor_shutdown(actor->actor_id, NULL);
                 }
             }
@@ -1705,6 +1884,19 @@ static void kain_actor_handle_child_exit(KainActorState_Internal* child) {
         return;
     }
 
+    {
+        KainActorMessage msg = {0};
+        msg.type_tag = 0xDEAD0000ULL | (unsigned long long)child->exit_reason;
+        msg.sender_id = child->actor_id;
+        kain_actor_send(supervisor->actor_id, &msg, NULL);
+    }
+
+    supervisor->observed_child_exit_count++;
+    supervisor->last_observed_child_id = child->actor_id;
+    supervisor->last_observed_child_exit_reason = child->exit_reason;
+
+    child->supervisor.last_child_exit_reason = child->exit_reason;
+
     /* Check if child should be restarted */
     if (!kain_actor_should_restart(child)) {
         /* No restart needed, just cleanup */
@@ -1713,6 +1905,7 @@ static void kain_actor_handle_child_exit(KainActorState_Internal* child) {
 
     /* Check if restart limit has been exceeded */
     if (kain_actor_restart_limit_exceeded(child)) {
+        supervisor->supervision_limit_hits++;
         /* Restart limit exceeded, escalate to parent supervisor */
         kain_actor_escalate_to_supervisor(child);
         return;

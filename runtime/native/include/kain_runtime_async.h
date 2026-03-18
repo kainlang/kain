@@ -3,6 +3,7 @@
 
 #include "kain_runtime_base.h"
 #include "kain_runtime_diagnostics.h"
+#include <stdatomic.h>
 #include <stddef.h>
 
 /*
@@ -60,12 +61,32 @@ typedef struct KainTaskHandle KainTaskHandle;
  * Future Context
  *
  * Context passed to async functions during polling. Contains wake handle
- * and other runtime state needed for async operations.
+ * and other runtime state needed for async operations. The runtime_data
+ * pointer is owned by the runtime and currently points at a
+ * KainTaskRuntimeState snapshot for the task being polled.
  */
 typedef struct {
     void* wake_handle;
     void* runtime_data;
 } KainFutureContext;
+
+/*
+ * Task Runtime State
+ *
+ * Runtime-owned state snapshot exposed to async task functions through the
+ * future context. This is intended for cooperative polling, wake accounting,
+ * cancellation observation, and timer-driven behavior.
+ */
+typedef struct {
+    KainTaskId task_id;
+    atomic_uint poll_count;
+    atomic_uint wake_count;
+    atomic_uint timer_count;
+    atomic_int wake_requested;
+    atomic_int timer_fired;
+    atomic_int cancelled;
+    atomic_int state_snapshot;
+} KainTaskRuntimeState;
 
 /*
  * Async Task Function

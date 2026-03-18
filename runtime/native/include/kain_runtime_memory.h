@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "kain_runtime_bitfield.h"
+#include "kain_runtime_union.h"
 
 /*
  * KAIN Native Runtime Low-Level Memory Helpers

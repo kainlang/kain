@@ -9,7 +9,8 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
-    CompileTarget, Lexer, Parser, RealtimeAppBundle, RuntimeContractBundle,
+    CompileTarget, Lexer, Parser, RealtimeAppBundle, RuntimeCompatibilityMetadata,
+    RuntimeContractBundle, RuntimePlatformAvailabilityMetadata, RuntimeVersionRecord,
 };
 use kain_ui::{
     ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeMetadata,
@@ -17,6 +18,7 @@ use kain_ui::{
 
 const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
 const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json";
+const NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME: &str = "kain_runtime_compatibility.json";
 const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: &str = "kain_realtime_app_bundle.json";
 const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
 const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: &str = "kain_runtime_version.json";
@@ -58,6 +60,8 @@ pub struct RuntimeVersionMetadata {
     pub abi_version_string: String,
     pub compatibility_class: String,
     pub runtime_lane: String,
+    pub target_platforms: Vec<String>,
+    pub active_platforms: Vec<String>,
 }
 
 impl RuntimeVersionMetadata {
@@ -65,7 +69,7 @@ impl RuntimeVersionMetadata {
     pub fn load_from_runtime_manifest() -> Result<Self, KainError> {
         let manifest_path = find_native_runtime_manifest()
             .ok_or_else(|| KainError::runtime("Could not locate runtime/native_runtime.toml"))?;
-        
+
         let manifest_source = fs::read_to_string(&manifest_path).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to read runtime manifest {}: {}",
@@ -88,6 +92,8 @@ impl RuntimeVersionMetadata {
         struct MetadataSection {
             compatibility_class: String,
             runtime_lane: String,
+            target_platforms: Vec<String>,
+            active_platforms: Vec<String>,
         }
 
         #[derive(serde::Deserialize)]
@@ -113,9 +119,7 @@ impl RuntimeVersionMetadata {
 
         let abi_version_string = format!(
             "{}.{}.{}",
-            manifest.version.abi_major,
-            manifest.version.abi_minor,
-            manifest.version.abi_patch
+            manifest.version.abi_major, manifest.version.abi_minor, manifest.version.abi_patch
         );
 
         Ok(Self {
@@ -129,6 +133,8 @@ impl RuntimeVersionMetadata {
             abi_version_string,
             compatibility_class: manifest.metadata.compatibility_class,
             runtime_lane: manifest.metadata.runtime_lane,
+            target_platforms: manifest.metadata.target_platforms,
+            active_platforms: manifest.metadata.active_platforms,
         })
     }
 }
@@ -246,7 +252,8 @@ impl DriverSession {
             .clone()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| root_component.clone());
-        let runtime_contract = self.compile_runtime_contract_bundle(source, CompileTarget::Rust)?;
+        let mut runtime_contract =
+            self.compile_runtime_contract_bundle(source, CompileTarget::Rust)?;
         let realtime = self
             .compile_realtime_app_bundle(source, CompileTarget::Rust, Some(&root_component))?
             .bundle;
@@ -256,6 +263,13 @@ impl DriverSession {
 
         // Load runtime version metadata
         let runtime_version = RuntimeVersionMetadata::load_from_runtime_manifest().ok();
+        if let Some(runtime_version) = &runtime_version {
+            apply_runtime_compatibility_metadata(
+                &mut runtime_contract.compatibility,
+                runtime_version,
+                &runtime_contract.target,
+            );
+        }
 
         Ok(NativeAppBundle {
             metadata: NativeAppMetadata {
@@ -309,6 +323,16 @@ impl DriverSession {
             .map_err(io_error("write native app runtime contract"))?;
         artifact_paths.push(runtime_contract_path);
 
+        let runtime_compatibility_path =
+            artifact_root.join(NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME);
+        let runtime_compatibility_json = render_runtime_compatibility_json(bundle)?;
+        fs::write(
+            &runtime_compatibility_path,
+            runtime_compatibility_json.as_bytes(),
+        )
+        .map_err(io_error("write native app runtime compatibility"))?;
+        artifact_paths.push(runtime_compatibility_path);
+
         let realtime_bundle_path = artifact_root.join(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME);
         let realtime_bundle_json = render_realtime_bundle_json(bundle)?;
         fs::write(&realtime_bundle_path, realtime_bundle_json.as_bytes())
@@ -317,9 +341,10 @@ impl DriverSession {
 
         // Write runtime version metadata if available
         if let Some(runtime_version) = &bundle.runtime_version {
-            let version_metadata_path = artifact_root.join(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME);
-            let version_metadata_json = serde_json::to_string_pretty(runtime_version)
-                .map_err(|err| {
+            let version_metadata_path =
+                artifact_root.join(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME);
+            let version_metadata_json =
+                serde_json::to_string_pretty(runtime_version).map_err(|err| {
                     KainError::runtime(format!(
                         "Failed to serialize runtime version metadata: {}",
                         err
@@ -332,13 +357,11 @@ impl DriverSession {
 
         // Write reflection payload if available
         if let Some(reflection_payload) = &bundle.runtime_contract.reflection_payload {
-            let reflection_payload_path = artifact_root.join(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
+            let reflection_payload_path =
+                artifact_root.join(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
             let reflection_payload_json = serde_json::to_string_pretty(reflection_payload)
                 .map_err(|err| {
-                    KainError::runtime(format!(
-                        "Failed to serialize reflection payload: {}",
-                        err
-                    ))
+                    KainError::runtime(format!("Failed to serialize reflection payload: {}", err))
                 })?;
             fs::write(&reflection_payload_path, reflection_payload_json.as_bytes())
                 .map_err(io_error("write native runtime reflection payload"))?;
@@ -430,6 +453,7 @@ impl DriverSession {
                 &artifact_paths,
                 &[
                     NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME,
+                    NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME,
                     NATIVE_APP_REALTIME_BUNDLE_FILE_NAME,
                     NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
                     NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
@@ -727,6 +751,65 @@ fn render_runtime_contract_json(bundle: &NativeAppBundle) -> Result<String, Kain
     })
 }
 
+fn render_runtime_compatibility_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
+    serde_json::to_string_pretty(&bundle.runtime_contract.compatibility).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to serialize runtime compatibility bundle for {}: {err}",
+            bundle.metadata.app_name
+        ))
+    })
+}
+
+fn apply_runtime_compatibility_metadata(
+    compatibility: &mut RuntimeCompatibilityMetadata,
+    runtime_version: &RuntimeVersionMetadata,
+    runtime_target: &str,
+) {
+    compatibility.runtime_lane = Some(runtime_version.runtime_lane.clone());
+    compatibility.compatibility_class = Some(runtime_version.compatibility_class.clone());
+    compatibility.runtime_version = Some(RuntimeVersionRecord::new(
+        runtime_version.runtime_major,
+        runtime_version.runtime_minor,
+        runtime_version.runtime_patch,
+        runtime_version.runtime_version_string.clone(),
+    ));
+    compatibility.abi_version = Some(RuntimeVersionRecord::new(
+        runtime_version.abi_major,
+        runtime_version.abi_minor,
+        runtime_version.abi_patch,
+        runtime_version.abi_version_string.clone(),
+    ));
+    compatibility.platform_availability = Some(RuntimePlatformAvailabilityMetadata {
+        schema_version: 1,
+        target_platforms: runtime_version.target_platforms.clone(),
+        active_platforms: runtime_version.active_platforms.clone(),
+        runtime_platform: Some(std::env::consts::OS.to_string()),
+        notes: vec![
+            format!(
+                "Runtime manifest declares target platforms: {}.",
+                runtime_version.target_platforms.join(", ")
+            ),
+            format!(
+                "Runtime manifest declares active platforms: {}.",
+                runtime_version.active_platforms.join(", ")
+            ),
+            format!(
+                "Materialization occurred on host platform '{}'.",
+                std::env::consts::OS
+            ),
+        ],
+    });
+    if compatibility
+        .migration_hints
+        .iter()
+        .all(|hint| !hint.contains("runtime manifest"))
+    {
+        compatibility.migration_hints.push(format!(
+            "Runtime manifest metadata from {runtime_target} should stay in sync with the emitted bundle."
+        ));
+    }
+}
+
 fn render_realtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
     realtime_app_bundle_to_json(&bundle.realtime).map_err(|err| {
         KainError::runtime(format!(
@@ -924,6 +1007,60 @@ component App():
             assert_eq!(version.runtime_version_string, "0.1.0");
             assert_eq!(version.compatibility_class, "experimental");
             assert_eq!(version.runtime_lane, "raw-native");
+            assert!(version
+                .target_platforms
+                .iter()
+                .any(|platform| platform == "windows"));
+            assert!(version
+                .active_platforms
+                .iter()
+                .any(|platform| platform == "windows"));
+            assert_eq!(
+                bundle
+                    .runtime_contract
+                    .compatibility
+                    .compatibility_class
+                    .as_deref(),
+                Some("experimental")
+            );
+            assert_eq!(
+                bundle
+                    .runtime_contract
+                    .compatibility
+                    .runtime_lane
+                    .as_deref(),
+                Some("raw-native")
+            );
+            assert!(bundle
+                .runtime_contract
+                .compatibility
+                .runtime_version
+                .is_some());
+            assert!(bundle.runtime_contract.compatibility.abi_version.is_some());
+            assert!(bundle
+                .runtime_contract
+                .compatibility
+                .platform_availability
+                .is_some());
+            let platform = bundle
+                .runtime_contract
+                .compatibility
+                .platform_availability
+                .as_ref()
+                .unwrap();
+            assert_eq!(platform.schema_version, 1);
+            assert!(platform
+                .target_platforms
+                .iter()
+                .any(|platform| platform == "windows"));
+            assert!(platform
+                .active_platforms
+                .iter()
+                .any(|platform| platform == "windows"));
+            assert_eq!(
+                platform.runtime_platform.as_deref(),
+                Some(std::env::consts::OS)
+            );
         }
 
         let materialized = materialize_native_app_bundle(
@@ -947,10 +1084,18 @@ component App():
                 .artifact_paths
                 .iter()
                 .find(|path| path.ends_with(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME));
-            
+            let compatibility_metadata_path = materialized
+                .artifact_paths
+                .iter()
+                .find(|path| path.ends_with(NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME));
+
             assert!(
                 version_metadata_path.is_some(),
                 "Runtime version metadata file should be written when metadata is available"
+            );
+            assert!(
+                compatibility_metadata_path.is_some(),
+                "Runtime compatibility metadata file should be written when metadata is available"
             );
 
             if let Some(path) = version_metadata_path {
@@ -959,6 +1104,24 @@ component App():
                 assert!(metadata_json.contains("abi_version_string"));
                 assert!(metadata_json.contains("runtime_version_string"));
                 assert!(metadata_json.contains("0.1.0"));
+            }
+
+            if let Some(path) = compatibility_metadata_path {
+                assert!(
+                    path.exists(),
+                    "Runtime compatibility metadata file should exist"
+                );
+                let metadata_json = fs::read_to_string(path).expect("read compatibility metadata");
+                assert!(metadata_json.contains("\"bundle_target\""));
+                assert!(metadata_json.contains("\"runtime_lane\""));
+                assert!(metadata_json.contains("\"compatibility_class\""));
+                assert!(metadata_json.contains("\"platform_availability\""));
+                assert!(metadata_json.contains("\"target_platforms\""));
+                assert!(metadata_json.contains("\"active_platforms\""));
+                assert!(metadata_json.contains("\"runtime_platform\""));
+                assert!(metadata_json.contains("\"install\""));
+                assert!(metadata_json.contains("\"update\""));
+                assert!(metadata_json.contains("\"uninstall\""));
             }
         }
     }

@@ -5,6 +5,52 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=6d745357e1228189 -->
+## 2026-03-18 04:37:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `0ec78eb`
+- Changed files: 11
+- [.M] `runtime/conformance/actor_runtime/test_actor_links`
+- [.M] `runtime/conformance/actor_runtime/test_actor_monitors`
+- [.M] `runtime/conformance/actor_runtime/test_actor_monitors.c`
+- [.M] `runtime/conformance/actor_runtime/test_actor_registry`
+- [.M] `runtime/conformance/actor_runtime/test_actor_scheduler`
+- [.M] `runtime/conformance/actor_runtime/test_actor_spawn_basic`
+- [.M] `runtime/conformance/actor_runtime/test_actor_supervision`
+- [.M] `runtime/conformance/actor_runtime/test_mailbox_backpressure`
+- [.M] `runtime/conformance/run_all.sh`
+- [.M] `runtime/native/include/kain_runtime_base.h`
+- [.M] `runtime/native/src/core/kain_runtime_actor.c`
+
+<!-- polytools-changelog:fingerprint=2451dc0cbc4b9f83 -->
+## 2026-03-18 04:27:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `0ec78eb`
+- Changed files: 10
+- [.M] `runtime/conformance/actor_runtime/test_actor_links`
+- [.M] `runtime/conformance/actor_runtime/test_actor_monitors`
+- [.M] `runtime/conformance/actor_runtime/test_actor_monitors.c`
+- [.M] `runtime/conformance/actor_runtime/test_actor_registry`
+- [.M] `runtime/conformance/actor_runtime/test_actor_scheduler`
+- [.M] `runtime/conformance/actor_runtime/test_actor_spawn_basic`
+- [.M] `runtime/conformance/actor_runtime/test_actor_supervision`
+- [.M] `runtime/conformance/actor_runtime/test_mailbox_backpressure`
+- [.M] `runtime/native/include/kain_runtime_base.h`
+- [.M] `runtime/native/src/core/kain_runtime_actor.c`
+
+<!-- polytools-changelog:fingerprint=1482d3e80ce8ab10 -->
+## 2026-03-18 04:07:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `0ec78eb`
+- Changed files: 7
+- [.M] `runtime/conformance/actor_runtime/test_actor_links`
+- [.M] `runtime/conformance/actor_runtime/test_actor_monitors`
+- [.M] `runtime/conformance/actor_runtime/test_actor_registry`
+- [.M] `runtime/conformance/actor_runtime/test_actor_scheduler`
+- [.M] `runtime/conformance/actor_runtime/test_actor_spawn_basic`
+- [.M] `runtime/conformance/actor_runtime/test_actor_supervision`
+- [.M] `runtime/conformance/actor_runtime/test_mailbox_backpressure`
+
 <!-- polytools-changelog:fingerprint=803419d6c4b45493 -->
 ## 2026-03-18 03:57:28 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

@@ -10,6 +10,7 @@
  */
 
 #include "../../native/include/kain_runtime_memory.h"
+#include "../../native/include/kain_runtime_union.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -17,6 +18,26 @@
 
 #define TEST_PASS(name) printf("  ✅ PASS: %s\n", name)
 #define TEST_FAIL(name, ...) do { printf("  ❌ FAIL: " name "\n", ##__VA_ARGS__); return 0; } while(0)
+#define TEST_UNION_GET(value, field, type_key, byte_size, union_size, fallback) \
+    __extension__ ({ \
+        __typeof__(fallback) _fallback = (fallback); \
+        __typeof__(fallback) _out = _fallback; \
+        __kain_union_get(&(value), field, type_key, byte_size, union_size, &_fallback, &_out, sizeof(_out)); \
+        _out; \
+    })
+#define TEST_UNION_SET(value, field, type_key, byte_size, union_size, next) \
+    __extension__ ({ \
+        __typeof__(next) _next = (next); \
+        __kain_union_set(&(value), field, type_key, byte_size, union_size, &_next, sizeof(_next)); \
+        _next; \
+    })
+#define TEST_UNION_WRAP(value, field, type_key, byte_size, union_size, next) \
+    __extension__ ({ \
+        __typeof__(value) _wrapped = (value); \
+        __typeof__(next) _next = (next); \
+        __kain_union_wrap(&_wrapped, field, type_key, byte_size, union_size, &_next, sizeof(_next)); \
+        _wrapped; \
+    })
 
 /* Test union types */
 typedef union {

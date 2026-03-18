@@ -30,6 +30,7 @@ CATEGORIES=(
     "ui_runtime"
     "graphics_runtime"
     "hot_reload"
+    "host_bridge"
     "platform_parity"
 )
 
@@ -131,18 +132,18 @@ print_result() {
     case $status in
         PASS)
             echo -e "${GREEN}✓${NC} $message"
-            ((PASSED_TESTS++))
+            PASSED_TESTS=$((PASSED_TESTS + 1))
             ;;
         FAIL)
             echo -e "${RED}✗${NC} $message"
-            ((FAILED_TESTS++))
+            FAILED_TESTS=$((FAILED_TESTS + 1))
             ;;
         SKIP)
             echo -e "${YELLOW}○${NC} $message"
-            ((SKIPPED_TESTS++))
+            SKIPPED_TESTS=$((SKIPPED_TESTS + 1))
             ;;
     esac
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
 }
 
 # Run tests for a category

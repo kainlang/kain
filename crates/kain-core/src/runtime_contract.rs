@@ -15,6 +15,7 @@ pub struct RuntimeContractBundle {
     pub service_bindings: Vec<RuntimeServiceBinding>,
     pub items: Vec<RuntimeContractItem>,
     pub reflection: RuntimeReflectionSummary,
+    pub compatibility: RuntimeCompatibilityMetadata,
     pub reflection_payload: Option<RuntimeReflectionPayload>,
 }
 
@@ -30,6 +31,58 @@ pub struct RuntimeServiceBinding {
     pub service: String,
     pub provider: String,
     pub lane: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimePlatformAvailabilityMetadata {
+    pub schema_version: u32,
+    pub target_platforms: Vec<String>,
+    pub active_platforms: Vec<String>,
+    pub runtime_platform: Option<String>,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeVersionRecord {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+    pub string: String,
+}
+
+impl RuntimeVersionRecord {
+    pub fn new(major: u32, minor: u32, patch: u32, string: impl Into<String>) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+            string: string.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeLifecyclePolicy {
+    pub supported: bool,
+    pub mode: String,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeCompatibilityMetadata {
+    pub schema_version: u32,
+    pub bundle_target: String,
+    pub bundle_lane: String,
+    pub runtime_lane: Option<String>,
+    pub compatibility_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_availability: Option<RuntimePlatformAvailabilityMetadata>,
+    pub runtime_version: Option<RuntimeVersionRecord>,
+    pub abi_version: Option<RuntimeVersionRecord>,
+    pub install: RuntimeLifecyclePolicy,
+    pub update: RuntimeLifecyclePolicy,
+    pub uninstall: RuntimeLifecyclePolicy,
+    pub migration_hints: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -114,10 +167,12 @@ pub fn emit_runtime_contract_bundle(
     collect_runtime_items(&program.items, &mut items, &mut reflection_names);
     items.sort_by(|left, right| left.id.cmp(&right.id));
 
-    let mut required_capabilities = collect_runtime_capabilities(program, target);
+    let summary = summarize_items(&program.items);
+
+    let mut required_capabilities = collect_runtime_capabilities(&summary, target);
     required_capabilities.sort_by(|left, right| left.key.cmp(&right.key));
 
-    let mut service_bindings = runtime_service_bindings_for_target(target);
+    let mut service_bindings = runtime_service_bindings_for_target(&summary, target);
     service_bindings.sort_by(|left, right| left.service.cmp(&right.service));
 
     // Emit full reflection payload for LLVM and Rust targets
@@ -141,7 +196,8 @@ pub fn emit_runtime_contract_bundle(
             notes: if reflection_emitted {
                 vec![
                     "Full reflection payload emitted from kain-core.".to_string(),
-                    "Includes type schemas, item metadata, actors, components, and messages.".to_string(),
+                    "Includes type schemas, item metadata, actors, components, and messages."
+                        .to_string(),
                 ]
             } else {
                 vec![
@@ -150,6 +206,7 @@ pub fn emit_runtime_contract_bundle(
                 ]
             },
         },
+        compatibility: runtime_compatibility_metadata(target, reflection_emitted),
         reflection_payload,
     }
 }
@@ -161,7 +218,7 @@ pub fn runtime_contract_bundle_to_json(
 }
 
 fn collect_runtime_capabilities(
-    program: &TypedProgram,
+    summary: &ItemSummary,
     target: CompileTarget,
 ) -> Vec<RuntimeCapability> {
     let mut capabilities = vec![
@@ -193,7 +250,6 @@ fn collect_runtime_capabilities(
         ));
     }
 
-    let summary = summarize_items(&program.items);
     if summary.components > 0 {
         capabilities.push(runtime_capability(
             "ui.components",
@@ -211,6 +267,18 @@ fn collect_runtime_capabilities(
             "actors.syntax",
             "kain-core",
             Some("Program declares actor items that require runtime-backed semantics."),
+        ));
+    }
+    if summary.async_tasks > 0 {
+        capabilities.push(runtime_capability(
+            "async.runtime",
+            "kain-core",
+            Some("Program declares async task items that require the async runtime."),
+        ));
+        capabilities.push(runtime_capability(
+            "async.timers",
+            "kain-core",
+            Some("Program declares async task items that require timer delivery."),
         ));
     }
     if summary.shaders > 0 || summary.material_graphs > 0 || summary.material_functions > 0 {
@@ -254,8 +322,11 @@ fn collect_runtime_capabilities(
     capabilities
 }
 
-fn runtime_service_bindings_for_target(target: CompileTarget) -> Vec<RuntimeServiceBinding> {
-    match target {
+fn runtime_service_bindings_for_target(
+    summary: &ItemSummary,
+    target: CompileTarget,
+) -> Vec<RuntimeServiceBinding> {
+    let mut bindings = match target {
         CompileTarget::Rust => vec![
             runtime_service_binding("driver.bundle", "kain-driver", "rust-native"),
             runtime_service_binding("ui.runtime-bundle", "kain-ui", "rust-native"),
@@ -275,7 +346,39 @@ fn runtime_service_bindings_for_target(target: CompileTarget) -> Vec<RuntimeServ
             vec![runtime_service_binding("host.ue5", "ue5", "ue5")]
         }
         _ => Vec::new(),
+    };
+
+    if summary.async_tasks > 0 {
+        match target {
+            CompileTarget::Rust => {
+                bindings.push(runtime_service_binding(
+                    "async.runtime",
+                    "kain-core",
+                    "rust-native",
+                ));
+                bindings.push(runtime_service_binding(
+                    "async.timers",
+                    "kain-core",
+                    "rust-native",
+                ));
+            }
+            CompileTarget::Llvm => {
+                bindings.push(runtime_service_binding(
+                    "async.runtime",
+                    "runtime/native",
+                    "raw-native",
+                ));
+                bindings.push(runtime_service_binding(
+                    "async.timers",
+                    "runtime/native",
+                    "raw-native",
+                ));
+            }
+            _ => {}
+        }
     }
+
+    bindings
 }
 
 fn runtime_capability(key: &str, source: &str, detail: Option<&str>) -> RuntimeCapability {
@@ -436,10 +539,75 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
     }
 }
 
+fn runtime_lane_name(target: CompileTarget) -> &'static str {
+    match target {
+        CompileTarget::Rust => "rust-native",
+        CompileTarget::Llvm => "raw-native",
+        _ => compile_target_name(target),
+    }
+}
+
+fn runtime_compatibility_metadata(
+    target: CompileTarget,
+    reflection_emitted: bool,
+) -> RuntimeCompatibilityMetadata {
+    RuntimeCompatibilityMetadata {
+        schema_version: RUNTIME_CONTRACT_SCHEMA_VERSION,
+        bundle_target: compile_target_name(target).to_string(),
+        bundle_lane: runtime_lane_name(target).to_string(),
+        runtime_lane: None,
+        compatibility_class: None,
+        platform_availability: None,
+        runtime_version: None,
+        abi_version: None,
+        install: RuntimeLifecyclePolicy {
+            supported: true,
+            mode: "materialize".to_string(),
+            notes: vec![
+                "Bundle sidecars are emitted with the runtime contract.".to_string(),
+                "Install can proceed once version and compatibility metadata are present."
+                    .to_string(),
+            ],
+        },
+        update: RuntimeLifecyclePolicy {
+            supported: true,
+            mode: "compatible-replace".to_string(),
+            notes: vec![
+                "Update is expected to replace a bundle only after compatibility validation passes."
+                    .to_string(),
+                "Migration data is still optional at the compiler layer.".to_string(),
+            ],
+        },
+        uninstall: RuntimeLifecyclePolicy {
+            supported: true,
+            mode: "sidecar-remove".to_string(),
+            notes: vec![
+                "Uninstall removes emitted bundle artifacts together with compatibility metadata."
+                    .to_string(),
+            ],
+        },
+        migration_hints: if reflection_emitted {
+            vec![
+                "Preserve the runtime contract and reflection payload together when updating."
+                    .to_string(),
+                "Validate bundle and runtime version records before activating a replacement."
+                    .to_string(),
+            ]
+        } else {
+            vec![
+                "Populate a reflection payload before relying on live migration flows.".to_string(),
+                "Carry compatibility metadata forward even when reflection is not emitted."
+                    .to_string(),
+            ]
+        },
+    }
+}
+
 #[derive(Default)]
 struct ItemSummary {
     components: usize,
     actors: usize,
+    async_tasks: usize,
     shaders: usize,
     material_graphs: usize,
     material_functions: usize,
@@ -459,6 +627,7 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
         match item {
             TypedItem::Component(_) => summary.components += 1,
             TypedItem::Actor(_) => summary.actors += 1,
+            TypedItem::AsyncTask(_) => summary.async_tasks += 1,
             TypedItem::Shader(_) => summary.shaders += 1,
             TypedItem::MaterialGraph(_) => summary.material_graphs += 1,
             TypedItem::MaterialFunction(_) => summary.material_functions += 1,
@@ -685,8 +854,9 @@ fn type_to_string(ty: &crate::ast::Type) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::AsyncTaskDef;
     use crate::diagnostics::SpanMapper;
-    use crate::{types, Lexer, Parser};
+    use crate::{types, Lexer, Parser, Span};
 
     #[test]
     fn emits_service_bindings_for_rust_lane() {
@@ -718,11 +888,69 @@ component App():
             .iter()
             .any(|capability| capability.key == "ui.runtime-bundle"));
         assert!(bundle.items.iter().any(|item| item.id == "component:App"));
-        
+
         // Check reflection payload is emitted for Rust target
         assert!(bundle.reflection_payload.is_some());
         let payload = bundle.reflection_payload.as_ref().unwrap();
         assert_eq!(payload.components.len(), 1);
         assert_eq!(payload.components[0].name, "App");
+        assert_eq!(
+            bundle.compatibility.schema_version,
+            RUNTIME_CONTRACT_SCHEMA_VERSION
+        );
+        assert_eq!(bundle.compatibility.bundle_target, "rust");
+        assert_eq!(bundle.compatibility.bundle_lane, "rust-native");
+        assert!(bundle.compatibility.install.supported);
+        assert_eq!(bundle.compatibility.update.mode, "compatible-replace");
+        assert!(bundle
+            .compatibility
+            .migration_hints
+            .iter()
+            .any(|hint| hint.contains("reflection payload")));
+    }
+
+    #[test]
+    fn emits_async_requirements_for_async_task_items() {
+        let bundle = emit_runtime_contract_bundle(
+            &TypedProgram {
+                items: vec![TypedItem::AsyncTask(AsyncTaskDef {
+                    name: "LoadAssets".to_string(),
+                    input_fields: Vec::new(),
+                    output_fields: Vec::new(),
+                    callback: None,
+                    do_work: None,
+                    priority: Some(1),
+                    attributes: Vec::new(),
+                    span: Span::default(),
+                })],
+            },
+            CompileTarget::Rust,
+        );
+
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "async.runtime"));
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "async.timers"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "async.runtime"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "async.timers"));
+        assert!(bundle
+            .items
+            .iter()
+            .any(|item| item.id == "async-task:LoadAssets"));
+
+        let json = runtime_contract_bundle_to_json(&bundle).expect("runtime contract json");
+        assert!(json.contains("\"async.runtime\""));
+        assert!(json.contains("\"async.timers\""));
+        assert!(json.contains("\"async-task:LoadAssets\""));
     }
 }

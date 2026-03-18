@@ -109,6 +109,36 @@ int main(void) {
         printf("FAIL: Not all actors completed\n");
         return 1;
     }
+
+    KainActorSchedulerSnapshot scheduler_snapshot;
+    kain_actor_scheduler_snapshot(&scheduler_snapshot);
+
+    printf("Scheduler queue depth: %zu\n", scheduler_snapshot.queue_depth);
+    printf("Scheduler max queue depth: %zu\n", scheduler_snapshot.max_queue_depth);
+    printf("Scheduler enqueued/dequeued: %zu/%zu\n",
+           scheduler_snapshot.total_enqueued,
+           scheduler_snapshot.total_dequeued);
+    printf("Scheduler workers active: %d/%d\n",
+           scheduler_snapshot.active_workers,
+           scheduler_snapshot.worker_count);
+
+    if (scheduler_snapshot.queue_depth != 0) {
+        printf("FAIL: Scheduler queue should be empty after all actors complete\n");
+        return 1;
+    }
+    if (scheduler_snapshot.total_enqueued != NUM_ACTORS ||
+        scheduler_snapshot.total_dequeued != NUM_ACTORS) {
+        printf("FAIL: Scheduler counters should match the number of actors spawned\n");
+        return 1;
+    }
+    if (scheduler_snapshot.max_queue_depth == 0) {
+        printf("FAIL: Scheduler should have observed a non-zero queue depth\n");
+        return 1;
+    }
+    if (scheduler_snapshot.worker_count != 4) {
+        printf("FAIL: Scheduler worker count should remain fixed at the pooled size\n");
+        return 1;
+    }
     
     /* Verify actor states */
     int terminated_count = 0;

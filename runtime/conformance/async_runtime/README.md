@@ -1,70 +1,53 @@
 # Async Runtime Conformance Tests
 
 **Category:** Async Runtime  
-**Purpose:** Validate async/await, futures, timers, and task scheduling
+**Purpose:** Validate the native async/task/timer lane in the KAIN runtime
 
 ---
 
-## Test Coverage
+## Coverage
 
-### Task Spawn and Completion
-- [ ] Basic task spawn
-- [ ] Task with return value
-- [ ] Task spawn failure handling
-- [ ] Task completion notification
-
-### Wake/Poll Mechanics
-- [ ] Task wake from external source
-- [ ] Poll once behavior
-- [ ] Wake queue management
-- [ ] Multiple wake handling
-
-### Timer Operations
-- [ ] Timer registration
-- [ ] Timer cancellation
-- [ ] Timer wake delivery
-- [ ] Multiple concurrent timers
-- [ ] Timer precision and drift
-
-### Cancellation
-- [ ] Task cancellation
-- [ ] Cancellation propagation
-- [ ] Cleanup on cancellation
-- [ ] Cancellation token handling
-
-### Actor/Task Interop
-- [ ] Actor awaiting task
-- [ ] Task sending to actor
-- [ ] Mixed actor/task scheduling
-- [ ] Deadlock prevention
-
-### Scheduler Integration
-- [ ] Task queue management
-- [ ] Fair scheduling
-- [ ] Blocking wait integration
-- [ ] Scheduler overhead
+- Task spawn and completion
+- Task wake / poll mechanics
+- Timer registration and cancellation
+- Task cancellation
+- Async sleep helper
 
 ---
 
-## Running Tests
+## Tests
+
+- `test_task_spawn_basic`
+- `test_task_wake_poll`
+- `test_timer_cancel`
+- `test_task_cancel`
+- `test_async_sleep`
+
+---
+
+## Running
 
 ```bash
-# Run all async runtime tests
+# Run the async conformance lane
 ./run_tests.sh
 
-# Run specific test
-./run_tests.sh test_task_spawn_basic.kn
+# Run with explicit timeout overrides
+./run_tests.sh --compile-timeout 300 --test-timeout 20
 
-# Run on specific backend
-./run_tests.sh --backend llvm
+# Show test output while running
+./run_tests.sh --verbose
 ```
+
+The runner compiles each test with the native async implementation plus the
+diagnostics/version support files, then executes each binary with hard
+timeouts through the shared timeout helper.
 
 ---
 
 ## Notes
 
-- Async runtime tests validate the async/await execution model
-- Tests should be deterministic despite async scheduling
-- Focus on observable behavior and timing guarantees
-- Document any known timing-dependent behavior
-
+- The async tests are deterministic and should not rely on long waits.
+- Timer-based tests keep their delays short and still enforce hard runtime
+  timeouts at the runner level.
+- The runtime exposes `KainTaskRuntimeState` through `KainFutureContext` so
+  task functions can observe wake and timer state without touching actor code.

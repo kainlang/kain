@@ -48,12 +48,12 @@ static KainActorExitReason monitoring_actor_bootstrap(
     KainActorMessage msg;
     KainDiagnostic diag;
     
-    /* Wait for monitor notification (type_tag 0xDEAD) */
+    /* Wait for monitor notification (type_tag 0xDEAD0000 | exit_reason) */
     int result = kain_actor_receive(mailbox, &msg, &diag);
     if (result == 0) {
         printf("Monitoring actor %llu received notification with type_tag: 0x%llx\n", 
                actor_id, msg.type_tag);
-        if (msg.type_tag == 0xDEAD) {
+        if ((msg.type_tag & 0xFFFF0000ULL) == 0xDEAD0000ULL) {
             printf("Monitor notification received from actor %llu\n", msg.sender_id);
             g_monitor_notification_received = 1;
         }
