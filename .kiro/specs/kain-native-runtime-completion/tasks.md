@@ -14,7 +14,7 @@ Execution rules for the agent:
 
 ## Tasks
 
-- [ ] 0. Phase 0: Baseline Runtime Audit, Harnesses, and Guardrails
+- [~] 0. Phase 0: Baseline Runtime Audit, Harnesses, and Guardrails
   - [x] 0.1 Create a runtime completion tracker doc
     - Add a progress doc under `runtime/` that mirrors this spec's phases and records implementation status, open issues, and validation status
     - Record the current runtime ABI version, native runtime manifest contents, and known blocking gaps
@@ -191,23 +191,23 @@ Execution rules for the agent:
     - Add tests for actor exit and mailbox cleanup
     - _Requirements: 5.1, 5.6, 13.2_
 
-- [~] 6. Phase 6: Full Actor Runtime Semantics
-  - [~] 6.1 Add bounded mailbox policy and backpressure
+- [-] 6. Phase 6: Full Actor Runtime Semantics
+  - [x] 6.1 Add bounded mailbox policy and backpressure
     - Implement capacity-aware mailboxes and explicit push failure/blocking behavior
     - Record overload diagnostics and counters
     - _Requirements: 6.1, 6.5_
 
-  - [~] 6.2 Implement actor registry
+  - [x] 6.2 Implement actor registry
     - Add register/lookup/unregister APIs for named actors/services
     - Ensure registry lifetime and cleanup rules are explicit
     - _Requirements: 6.4_
 
-  - [~] 6.3 Implement monitors and links
+  - [x] 6.3 Implement monitors and links
     - Add monitor/link registration and exit propagation semantics
     - Define exit reason structures and crash-containment behavior
     - _Requirements: 6.3_
 
-  - [~] 6.4 Implement supervision policies
+  - [-] 6.4 Implement supervision policies
     - Add restart, shutdown, and escalation policies for supervisors and children
     - Ensure restarts are bounded and observable
     - _Requirements: 6.2, 6.3_

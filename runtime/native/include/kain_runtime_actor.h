@@ -65,6 +65,10 @@ typedef enum {
     KAIN_RESTART_POLICY_TRANSIENT,      /* Restart only on abnormal exit */
 } KainRestartPolicy;
 
+/* Supervision Configuration */
+#define KAIN_SUPERVISION_MAX_RESTARTS 5
+#define KAIN_SUPERVISION_RESTART_WINDOW_SECONDS 60
+
 /* Mailbox Configuration */
 #define KAIN_MAILBOX_DEFAULT_CAPACITY 1024
 #define KAIN_MAILBOX_UNBOUNDED_CAPACITY 0
@@ -77,6 +81,9 @@ typedef enum {
  *
  * Represents a message in an actor's mailbox. Messages carry type metadata
  * and payload data.
+ *
+ * Special type tags:
+ * - 0xDEAD0000 + exit_reason: Monitor notification (exit reason in lower bits)
  */
 typedef struct {
     unsigned long long type_tag;
@@ -184,25 +191,8 @@ typedef struct {
     KainRestartPolicy restart_policy;
     int restart_count;
     time_t last_restart_time;
+    time_t restart_window_start;
 } KainActorSupervisor;
-
-/*
- * Actor Scheduler Queue Node
- *
- * Represents an actor in the scheduler's ready queue.
- *
- * OWNERSHIP:
- * - Owned by the scheduler
- * - Created when actor becomes runnable, destroyed when scheduled
- *
- * LIFETIME:
- * - Transient: exists only while actor is in ready queue
- * - Actor may be enqueued/dequeued multiple times during its lifetime
- */
-typedef struct KainActorSchedulerNode {
-    KainActorId actor_id;
-    struct KainActorSchedulerNode* next;
-} KainActorSchedulerNode;
 
 /*
  * Actor Bootstrap Function
@@ -223,6 +213,36 @@ typedef KainActorExitReason (*KainActorBootstrapFn)(
     KainActorMailbox* mailbox,
     void* user_data
 );
+
+/*
+ * Actor Spawn Configuration (stored for restart)
+ *
+ * Stored configuration needed to restart an actor.
+ */
+typedef struct {
+    KainActorBootstrapFn bootstrap_fn;
+    void* user_data;
+    size_t mailbox_capacity;
+    char name[KAIN_ACTOR_NAME_MAX];
+} KainActorSpawnConfigStored;
+
+/*
+ * Actor Scheduler Queue Node
+ *
+ * Represents an actor in the scheduler's ready queue.
+ *
+ * OWNERSHIP:
+ * - Owned by the scheduler
+ * - Created when actor becomes runnable, destroyed when scheduled
+ *
+ * LIFETIME:
+ * - Transient: exists only while actor is in ready queue
+ * - Actor may be enqueued/dequeued multiple times during its lifetime
+ */
+typedef struct KainActorSchedulerNode {
+    KainActorId actor_id;
+    struct KainActorSchedulerNode* next;
+} KainActorSchedulerNode;
 
 /*
  * Actor State Record
@@ -270,6 +290,7 @@ typedef struct {
     
     /* Supervision */
     KainActorSupervisor supervisor;
+    KainActorSpawnConfigStored spawn_config;  /* Stored for restart */
     
     /* Monitors and links */
     KainActorMonitor* monitors;     /* List of actors this actor monitors */
@@ -411,7 +432,19 @@ KainActorState kain_actor_get_state(KainActorId actor_id);
  * Monitor Actor
  *
  * Registers a monitor relationship. The monitoring actor will receive a
- * notification when the monitored actor exits. Returns 0 on success.
+ * notification message when the monitored actor exits. The notification
+ * message has type_tag = 0xDEAD0000 | exit_reason, where exit_reason
+ * is the KainActorExitReason value.
+ *
+ * Monitor semantics:
+ * - Monitors are unidirectional (A monitors B, but B doesn't monitor A)
+ * - Multiple actors can monitor the same actor
+ * - An actor can monitor multiple actors
+ * - Duplicate monitor registrations are idempotent (no-op)
+ * - Monitors are automatically cleaned up when either actor terminates
+ * - Monitor notifications are sent for ALL exit reasons (normal and abnormal)
+ *
+ * Returns 0 on success, non-zero on error.
  */
 int kain_actor_monitor(
     KainActorId monitor_id,
@@ -420,10 +453,35 @@ int kain_actor_monitor(
 );
 
 /*
+ * Demonitor Actor
+ *
+ * Removes a monitor relationship. After demonitor, the monitoring actor
+ * will no longer receive exit notifications from the monitored actor.
+ *
+ * Returns 0 on success, non-zero if the monitor relationship doesn't exist.
+ */
+int kain_actor_demonitor(
+    KainActorId monitor_id,
+    KainActorId monitored_id,
+    KainDiagnostic* diag
+);
+
+/*
  * Link Actors
  *
- * Creates a bidirectional link between two actors. If either actor exits
- * abnormally, the other will be terminated. Returns 0 on success.
+ * Creates a bidirectional link between two actors. Links provide crash
+ * containment: if either actor exits abnormally, the other will be
+ * terminated with KAIN_ACTOR_EXIT_KILLED.
+ *
+ * Link semantics:
+ * - Links are bidirectional (if A links to B, then B is linked to A)
+ * - Links propagate ONLY on abnormal exit (not KAIN_ACTOR_EXIT_NORMAL)
+ * - Abnormal exits include: KILLED, CRASHED, SUPERVISOR_ESCALATION
+ * - Duplicate link registrations are idempotent (no-op)
+ * - Links are automatically cleaned up when either actor terminates
+ * - Link propagation is immediate and synchronous
+ *
+ * Returns 0 on success, non-zero on error.
  */
 int kain_actor_link(
     KainActorId actor_a,
@@ -434,7 +492,10 @@ int kain_actor_link(
 /*
  * Unlink Actors
  *
- * Removes a link between two actors. Returns 0 on success.
+ * Removes a bidirectional link between two actors. After unlink, the
+ * actors will no longer terminate each other on abnormal exit.
+ *
+ * Returns 0 on success, non-zero if the link doesn't exist.
  */
 int kain_actor_unlink(
     KainActorId actor_a,
