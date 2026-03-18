@@ -146,28 +146,28 @@ Execution rules for the agent:
     - Respect ABI-aware packing, alignment, bit ordering, and ownership behavior
     - _Requirements: 3.2, 3.3, 3.6_
 
-  - [~] 4.4 Align LLVM/runtime helper binding
+  - [x] 4.4 Align LLVM/runtime helper binding
     - Update `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` so emitted calls target the canonical helper surface
     - Add capability failures for unsupported cases instead of silent divergence
     - _Requirements: 1.4, 3.4, 3.5_
 
-  - [~] 4.5 Improve C++ backend clarity or parity path
+  - [x] 4.5 Improve C++ backend clarity or parity path
     - At minimum, make unsupported helper/runtime areas fail explicitly and document that status
     - Where practical, begin aligning helper names/contracts with the canonical ABI even if full parity remains later
     - _Requirements: 1.4, 3.5, 14.5_
 
-  - [~] 4.6 Add ABI parity and conformance tests
+  - [x] 4.6 Add ABI parity and conformance tests
     - Add tests for pointer ops, layout-sensitive operations, unions, bitfields, and load/store helpers
     - Verify emitted LLVM calls match native exports and behavior
     - _Requirements: 3.3, 3.4, 13.1, 13.6_
 
-- [~] 5. Phase 5: Actor Bootstrap Repair and Minimal Real Actor Runtime
-  - [~] 5.1 Replace the `default_actor_run` bootstrap path
+- [-] 5. Phase 5: Actor Bootstrap Repair and Minimal Real Actor Runtime
+  - [x] 5.1 Replace the `default_actor_run` bootstrap path
     - Audit the current actor emission path in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
     - Replace the fallback/default wrapper integration with a real actor bootstrap ABI and runtime entrypoint
     - _Requirements: 5.1, 5.6, 13.2_
 
-  - [~] 5.2 Define actor runtime structs and headers
+  - [-] 5.2 Define actor runtime structs and headers
     - Add actor ID, actor state, mailbox, exit reason, supervisor ref, monitor ref, and scheduler queue declarations
     - Document ownership and lifetime rules
     - _Requirements: 5.2, 6.1, 6.3_

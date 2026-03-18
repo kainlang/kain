@@ -1148,6 +1148,8 @@ impl LlvmGenerator {
     ) -> Option<KainResult<(String, String)>> {
         match func_name {
             "__kain_bind_local" => {
+                // Canonical ABI: i8* __kain_bind_local(i8* ptr)
+                // Requirements: 1.4, 3.2
                 if args.len() != 1 {
                     return Some(Err(KainError::codegen(
                         "__kain_bind_local expects 1 argument",
@@ -1169,12 +1171,21 @@ impl LlvmGenerator {
                         Err(err) => return Some(Err(err)),
                     },
                 };
+                // Cast typed pointer to i8*
+                let ptr_i8 = self.next_reg();
+                self.emit(&format!("  {} = bitcast {}* {} to i8*", ptr_i8, ty, addr));
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_bind_local(i8* {})", result, ptr_i8));
+                // Convert back to i64 for compatibility with existing codegen
                 let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint {}* {} to i64", res, ty, addr));
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
                 Some(Ok((res, "i64".to_string())))
             }
             "__kain_addr_of" => {
-                if args.is_empty() {
+                // Canonical ABI: i8* __kain_addr_of(i8* ptr, i64 size)
+                // Requirements: 1.4, 3.2
+                if args.len() < 1 {
                     return Some(Err(KainError::codegen(
                         "__kain_addr_of expects at least 1 argument",
                         span,
@@ -1184,11 +1195,31 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
+                // Cast typed pointer to i8*
+                let ptr_i8 = self.next_reg();
+                self.emit(&format!("  {} = bitcast {}* {} to i8*", ptr_i8, ty, addr));
+                // Get size (if provided, otherwise use 8 as default)
+                let size = if args.len() > 1 {
+                    match self.compile_expr(&args[1].value) {
+                        Ok((val, _)) => val,
+                        Err(err) => return Some(Err(err)),
+                    }
+                } else {
+                    "8".to_string()
+                };
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_addr_of(i8* {}, i64 {})", result, ptr_i8, size));
+                // Convert to i64
                 let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint {}* {} to i64", res, ty, addr));
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
                 Some(Ok((res, "i64".to_string())))
             }
             "__kain_mem_load" => {
+                // Canonical ABI: void __kain_mem_load(i8* ptr, i8* out, i64 size)
+                // Requirements: 1.4, 3.2
+                // Current implementation uses simplified inline load for i64
+                // TODO: Align with canonical ABI when native runtime implements __kain_mem_load
                 if args.len() != 1 {
                     return Some(Err(KainError::codegen(
                         "__kain_mem_load expects 1 argument",
@@ -1210,6 +1241,10 @@ impl LlvmGenerator {
                 Some(Ok((loaded, "i64".to_string())))
             }
             "__kain_mem_store" => {
+                // Canonical ABI: void __kain_mem_store(i8* ptr, i8* value, i64 size)
+                // Requirements: 1.4, 3.2
+                // Current implementation uses simplified inline store
+                // TODO: Align with canonical ABI when native runtime implements __kain_mem_store
                 if args.len() != 2 {
                     return Some(Err(KainError::codegen(
                         "__kain_mem_store expects 2 arguments",
@@ -1237,9 +1272,11 @@ impl LlvmGenerator {
                 Some(Ok((val, val_ty)))
             }
             "__kain_field_ptr" => {
+                // Canonical ABI: i8* __kain_field_ptr(i8* ptr, const char* field, size_t offset)
+                // Requirements: 1.4, 3.2
                 if args.len() != 3 {
                     return Some(Err(KainError::codegen(
-                        "__kain_field_ptr expects 3 arguments",
+                        "__kain_field_ptr expects 3 arguments (ptr, field_name, offset)",
                         span,
                     )));
                 }
@@ -1248,18 +1285,76 @@ impl LlvmGenerator {
                     Err(err) => return Some(Err(err)),
                 };
                 let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1);
+                
+                // Get field name (for diagnostics, not used in calculation)
+                let field_name = match &args[1].value {
+                    Expr::String(s, _) => s.clone(),
+                    _ => "unknown".to_string(),
+                };
+                let (field_str, _) = self.compile_string_literal(&field_name);
+                
                 let (offset, _) = match self.compile_expr(&args[2].value) {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
+                
+                // Cast base to i8*
+                let base_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i8*", base_ptr, base_i64));
+                
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_field_ptr(i8* {}, i8* {}, i64 {})", 
+                    result, base_ptr, field_str, offset));
+                
+                // Convert to i64
                 let res = self.next_reg();
-                self.emit(&format!("  {} = add i64 {}, {}", res, base_i64, offset));
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
                 Some(Ok((res, "i64".to_string())))
             }
-            "__kain_index_ptr" | "__kain_ptr_offset" => {
+            "__kain_index_ptr" => {
+                // Canonical ABI: i8* __kain_index_ptr(i8* ptr, i64 index, i64 stride)
+                // Requirements: 1.4, 3.2
                 if args.len() != 3 {
                     return Some(Err(KainError::codegen(
-                        format!("{} expects 3 arguments", func_name),
+                        "__kain_index_ptr expects 3 arguments (ptr, index, stride)",
+                        span,
+                    )));
+                }
+                let compiled_base = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1);
+                let (index, _) = match self.compile_expr(&args[1].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let (stride, _) = match self.compile_expr(&args[2].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                
+                // Cast base to i8*
+                let base_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i8*", base_ptr, base_i64));
+                
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_index_ptr(i8* {}, i64 {}, i64 {})", 
+                    result, base_ptr, index, stride));
+                
+                // Convert to i64
+                let res = self.next_reg();
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
+                Some(Ok((res, "i64".to_string())))
+            }
+            "__kain_ptr_offset" => {
+                // Canonical ABI: i8* __kain_ptr_offset(i8* ptr, i64 offset, i64 stride)
+                // Requirements: 1.4, 3.2
+                if args.len() != 3 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_ptr_offset expects 3 arguments (ptr, offset, stride)",
                         span,
                     )));
                 }
@@ -1276,16 +1371,27 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                let scaled = self.next_reg();
-                self.emit(&format!("  {} = mul i64 {}, {}", scaled, offset, stride));
+                
+                // Cast base to i8*
+                let base_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i8*", base_ptr, base_i64));
+                
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_ptr_offset(i8* {}, i64 {}, i64 {})", 
+                    result, base_ptr, offset, stride));
+                
+                // Convert to i64
                 let res = self.next_reg();
-                self.emit(&format!("  {} = add i64 {}, {}", res, base_i64, scaled));
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
                 Some(Ok((res, "i64".to_string())))
             }
             "__kain_alloc" => {
-                if args.is_empty() {
+                // Canonical ABI: i8* __kain_alloc(i64 size, i64 stride, i32 zeroed)
+                // Requirements: 1.4, 3.6
+                if args.len() < 3 {
                     return Some(Err(KainError::codegen(
-                        "__kain_alloc expects arguments",
+                        "__kain_alloc expects 3 arguments (size, stride, zeroed)",
                         span,
                     )));
                 }
@@ -1293,19 +1399,31 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                let raw_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @KAIN_alloc(i64 {})",
-                    raw_ptr, size
-                ));
+                let (stride, _) = match self.compile_expr(&args[1].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let (zeroed, _) = match self.compile_expr(&args[2].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_alloc(i64 {}, i64 {}, i32 {})", 
+                    result, size, stride, zeroed));
+                
+                // Convert to i64
                 let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, raw_ptr));
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
                 Some(Ok((res, "i64".to_string())))
             }
             "__kain_realloc" => {
-                if args.len() < 2 {
+                // Canonical ABI: i8* __kain_realloc(i8* ptr, i64 size, i64 stride, i32 zeroed_new)
+                // Requirements: 1.4, 3.6
+                if args.len() < 4 {
                     return Some(Err(KainError::codegen(
-                        "__kain_realloc expects at least 2 arguments",
+                        "__kain_realloc expects 4 arguments (ptr, size, stride, zeroed_new)",
                         span,
                     )));
                 }
@@ -1318,37 +1436,27 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                let cond = self.next_reg();
-                self.emit(&format!("  {} = icmp eq i64 {}, 0", cond, ptr_i64));
-                let label_alloc = self.next_label();
-                let label_keep = self.next_label();
-                let label_merge = self.next_label();
-                self.emit(&format!(
-                    "  br i1 {}, label %{}, label %{}",
-                    cond, label_alloc, label_keep
-                ));
-                self.emit_label(&label_alloc);
-                let raw_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @KAIN_alloc(i64 {})",
-                    raw_ptr, size
-                ));
-                let alloc_i64 = self.next_reg();
-                self.emit(&format!(
-                    "  {} = ptrtoint i8* {} to i64",
-                    alloc_i64, raw_ptr
-                ));
-                let alloc_block = self.current_block.clone();
-                self.emit(&format!("  br label %{}", label_merge));
-                self.emit_label(&label_keep);
-                let keep_block = self.current_block.clone();
-                self.emit(&format!("  br label %{}", label_merge));
-                self.emit_label(&label_merge);
+                let (stride, _) = match self.compile_expr(&args[2].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let (zeroed_new, _) = match self.compile_expr(&args[3].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                
+                // Cast to i8*
+                let ptr_i8 = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
+                
+                // Call canonical helper
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @__kain_realloc(i8* {}, i64 {}, i64 {}, i32 {})", 
+                    result, ptr_i8, size, stride, zeroed_new));
+                
+                // Convert to i64
                 let res = self.next_reg();
-                self.emit(&format!(
-                    "  {} = phi i64 [ {}, %{} ], [ {}, %{} ]",
-                    res, alloc_i64, alloc_block, ptr_i64, keep_block
-                ));
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
                 Some(Ok((res, "i64".to_string())))
             }
             _ => None,
@@ -3196,9 +3304,10 @@ impl LlvmGenerator {
                     ));
                 }
 
-                // Spawn
-                // Cast func to i8*
-                let func_ptr = "bitcast (void (i8*)* @default_actor_run to i8*)";
+                // Spawn using proper actor bootstrap ABI
+                // Use the actor-specific run function instead of default_actor_run
+                let actor_run_fn = format!("{}_run", actor);
+                let func_ptr = format!("bitcast (void (i8*)* @{} to i8*)", actor_run_fn);
 
                 // Register Destructor if struct has RC fields
                 let has_rc_fields = def.iter().any(|(_, ty)| ty == "i8*" || ty.starts_with("%"));
@@ -3210,6 +3319,7 @@ impl LlvmGenerator {
                     ));
                 }
 
+                // Call KAIN_spawn with the actor-specific entrypoint
                 self.emit(&format!(
                     "  call void @KAIN_spawn(i8* {}, i8* {})",
                     func_ptr, mem_reg

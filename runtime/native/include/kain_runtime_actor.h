@@ -4,6 +4,10 @@
 #include "kain_runtime_base.h"
 #include "kain_runtime_diagnostics.h"
 #include <stddef.h>
+#include <time.h>
+
+/* Forward declarations from kain_runtime_base.h */
+typedef struct MessageNode MessageNode;
 
 /*
  * KAIN Native Runtime Actor ABI
@@ -85,14 +89,192 @@ typedef struct {
  * Actor Mailbox
  *
  * Message queue for an actor. Supports bounded capacity and backpressure.
- * Opaque structure - implementation details in runtime core.
+ *
+ * OWNERSHIP:
+ * - Owned by the actor's runtime state
+ * - Created during actor spawn, destroyed during actor termination
+ * - Thread-safe: multiple senders can send to the same mailbox concurrently
+ * - Only the owning actor can receive from its mailbox
+ *
+ * LIFETIME:
+ * - Lives from actor spawn until actor termination completes
+ * - Messages in the mailbox are freed during mailbox destruction
+ * - Senders must handle mailbox-full backpressure or blocking
  */
-typedef struct KainActorMailbox KainActorMailbox;
+typedef struct KainActorMailbox {
+    /* Message queue storage */
+    MessageNode* head;
+    MessageNode* tail;
+    
+    /* Capacity and backpressure */
+    size_t capacity;        /* 0 = unbounded, >0 = bounded */
+    size_t count;           /* Current message count */
+    
+    /* Synchronization */
+#ifdef _WIN32
+    CRITICAL_SECTION lock;
+    HANDLE not_empty;       /* Signaled when messages available */
+    HANDLE not_full;        /* Signaled when space available */
+#else
+    pthread_mutex_t lock;
+    pthread_cond_t not_empty;
+    pthread_cond_t not_full;
+#endif
+    
+    /* State flags */
+    int closed;             /* 1 if mailbox is closed (actor shutting down) */
+} KainActorMailbox;
+
+/*
+ * Actor Monitor Reference
+ *
+ * Represents a monitor relationship between two actors.
+ *
+ * OWNERSHIP:
+ * - Owned by the monitoring actor's state
+ * - Created during kain_actor_monitor(), destroyed when monitor is removed
+ *   or when either actor terminates
+ *
+ * LIFETIME:
+ * - Lives until explicitly removed or either actor terminates
+ * - When monitored actor exits, a notification message is sent to monitor
+ */
+typedef struct KainActorMonitor {
+    KainActorId monitor_id;     /* Actor doing the monitoring */
+    KainActorId monitored_id;   /* Actor being monitored */
+    struct KainActorMonitor* next;
+} KainActorMonitor;
+
+/*
+ * Actor Link Reference
+ *
+ * Represents a bidirectional link between two actors.
+ *
+ * OWNERSHIP:
+ * - Shared between both linked actors' states
+ * - Created during kain_actor_link(), destroyed during kain_actor_unlink()
+ *   or when either actor terminates
+ *
+ * LIFETIME:
+ * - Lives until explicitly unlinked or either actor terminates
+ * - When one actor exits abnormally, the other is terminated
+ */
+typedef struct KainActorLink {
+    KainActorId actor_a;
+    KainActorId actor_b;
+    struct KainActorLink* next;
+} KainActorLink;
+
+/*
+ * Actor Supervisor Reference
+ *
+ * Represents the supervisor relationship for an actor.
+ *
+ * OWNERSHIP:
+ * - Owned by the child actor's state
+ * - Set during actor spawn if supervisor_id is provided
+ *
+ * LIFETIME:
+ * - Lives for the lifetime of the child actor
+ * - Used to notify supervisor of child exit and apply restart policy
+ */
+typedef struct {
+    KainActorId supervisor_id;
+    KainSupervisionStrategy strategy;
+    KainRestartPolicy restart_policy;
+    int restart_count;
+    time_t last_restart_time;
+} KainActorSupervisor;
+
+/*
+ * Actor Scheduler Queue Node
+ *
+ * Represents an actor in the scheduler's ready queue.
+ *
+ * OWNERSHIP:
+ * - Owned by the scheduler
+ * - Created when actor becomes runnable, destroyed when scheduled
+ *
+ * LIFETIME:
+ * - Transient: exists only while actor is in ready queue
+ * - Actor may be enqueued/dequeued multiple times during its lifetime
+ */
+typedef struct KainActorSchedulerNode {
+    KainActorId actor_id;
+    struct KainActorSchedulerNode* next;
+} KainActorSchedulerNode;
+
+/*
+ * Actor State Record
+ *
+ * Complete runtime state for an actor instance.
+ *
+ * OWNERSHIP:
+ * - Owned by the actor runtime system
+ * - Created during kain_actor_spawn(), destroyed during actor termination cleanup
+ * - Referenced by actor ID in global actor table
+ *
+ * LIFETIME:
+ * - Lives from spawn until termination cleanup completes
+ * - State transitions: UNINITIALIZED -> INITIALIZING -> RUNNING -> 
+ *   (SUSPENDED) -> SHUTTING_DOWN -> TERMINATED/FAILED
+ * - All owned resources (mailbox, monitors, links) are cleaned up during termination
+ *
+ * THREAD SAFETY:
+ * - Actor state is protected by the global actor table lock
+ * - Mailbox has its own synchronization for concurrent sends
+ * - Bootstrap function executes on actor's dedicated thread
+ */
+typedef struct {
+    /* Identity */
+    KainActorId actor_id;
+    char name[KAIN_ACTOR_NAME_MAX];
+    
+    /* State and lifecycle */
+    KainActorState state;
+    KainActorExitReason exit_reason;
+    
+    /* Execution context */
+    KainActorBootstrapFn bootstrap_fn;
+    void* user_data;
+    
+#ifdef _WIN32
+    HANDLE thread_handle;
+    DWORD thread_id;
+#else
+    pthread_t thread;
+#endif
+    
+    /* Mailbox */
+    KainActorMailbox mailbox;
+    
+    /* Supervision */
+    KainActorSupervisor supervisor;
+    
+    /* Monitors and links */
+    KainActorMonitor* monitors;     /* List of actors this actor monitors */
+    KainActorLink* links;           /* List of links involving this actor */
+    
+    /* Scheduler integration */
+    int in_scheduler_queue;         /* 1 if currently in ready queue */
+    
+    /* Diagnostics */
+    KainDiagnostic last_error;
+} KainActorState_Internal;
 
 /*
  * Actor Handle
  *
  * Opaque handle to an actor. Used for sending messages, monitoring, linking.
+ *
+ * OWNERSHIP:
+ * - Lightweight reference to an actor by ID
+ * - Does not own the actor state
+ * - Multiple handles can reference the same actor
+ *
+ * LIFETIME:
+ * - Handle is valid as long as the actor exists
+ * - Operations on invalid handles return KAIN_ACTOR_NOT_FOUND errors
  */
 typedef struct KainActorHandle KainActorHandle;
 

@@ -119,6 +119,76 @@ impl CppGen {
     }
 
     fn write_low_level_memory_helpers(&mut self) {
+        self.write_line("// ============================================================================");
+        self.write_line("// KAIN Low-Level Memory Helper ABI - C++ Backend");
+        self.write_line("// ============================================================================");
+        self.write_line("//");
+        self.write_line("// This backend provides PARTIAL support for the canonical low-level helper");
+        self.write_line("// surface defined in runtime/native/include/kain_runtime_memory.h");
+        self.write_line("//");
+        self.write_line("// SUPPORTED HELPERS:");
+        self.write_line("//   - __kain_union_wrap, __kain_union_get, __kain_union_set (union operations)");
+        self.write_line("//   - __kain_bitfield_get, __kain_bitfield_set (bitfield operations)");
+        self.write_line("//   - __kain_alloc, __kain_realloc (allocation operations - inline)");
+        self.write_line("//");
+        self.write_line("// UNSUPPORTED HELPERS (will cause compile errors if emitted):");
+        self.write_line("//   - __kain_bind_local (pointer binding)");
+        self.write_line("//   - __kain_addr_of (address-of operations)");
+        self.write_line("//   - __kain_ptr_offset (pointer arithmetic)");
+        self.write_line("//   - __kain_field_ptr (field pointer calculation)");
+        self.write_line("//   - __kain_index_ptr (array element pointer)");
+        self.write_line("//   - __kain_mem_load (raw memory load)");
+        self.write_line("//   - __kain_mem_store (raw memory store)");
+        self.write_line("//");
+        self.write_line("// STATUS: The C++ backend currently generates inline code for most operations");
+        self.write_line("// and does not yet emit calls to the canonical pointer/memory helpers.");
+        self.write_line("// Full ABI parity is tracked in task 4.5 of the native runtime completion spec.");
+        self.write_line("//");
+        self.write_line("// For full low-level memory support, use the LLVM backend or native C runtime.");
+        self.write_line("// ============================================================================");
+        self.write_blank();
+        
+        // Forward declarations for unsupported helpers (will cause linker errors if used)
+        self.write_line("// Forward declarations for canonical helpers (UNSUPPORTED - will fail at link time)");
+        self.write_line("template<typename T> T* __kain_bind_local(T* ptr);");
+        self.write_line("template<typename T> T* __kain_addr_of(T* ptr, size_t size);");
+        self.write_line("template<typename T> T* __kain_ptr_offset(T* ptr, int64_t offset, int64_t stride);");
+        self.write_line("template<typename T> void* __kain_field_ptr(T* ptr, const char* field, size_t offset);");
+        self.write_line("template<typename T> T* __kain_index_ptr(T* ptr, int64_t index, int64_t stride);");
+        self.write_line("template<typename T> void __kain_mem_load(const void* ptr, T* out, size_t size);");
+        self.write_line("template<typename T> void __kain_mem_store(void* ptr, const T* value, size_t size);");
+        self.write_blank();
+        
+        // Allocation helpers (inline implementations)
+        self.write_line("// Allocation helpers (inline implementations)");
+        self.write_line("inline void* __kain_alloc(size_t size, size_t stride, int zeroed) {");
+        self.push_indent();
+        self.write_line("const size_t total = size * stride;");
+        self.write_line("if (zeroed) {");
+        self.push_indent();
+        self.write_line("return std::calloc(1, total);");
+        self.pop_indent();
+        self.write_line("} else {");
+        self.push_indent();
+        self.write_line("return std::malloc(total);");
+        self.pop_indent();
+        self.write_line("}");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_blank();
+        
+        self.write_line("inline void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {");
+        self.push_indent();
+        self.write_line("const size_t new_total = size * stride;");
+        self.write_line("void* new_ptr = std::realloc(ptr, new_total);");
+        self.write_line("// Note: zeroed_new not fully implemented - would require tracking old size");
+        self.write_line("return new_ptr;");
+        self.pop_indent();
+        self.write_line("}");
+        self.write_blank();
+        
+        // Union operations (SUPPORTED)
+        self.write_line("// Union operations (SUPPORTED)");
         self.write_line("template<typename TObject, typename TValue> TObject __kain_union_wrap(TObject value, const char*, const char*, long long byte_size, long long union_size, const TValue& active_value) {");
         self.push_indent();
         self.write_line("const auto copy_span = std::min<long long>(std::min<long long>(byte_size, union_size), std::min<long long>(sizeof(TObject), sizeof(TValue)));");
@@ -127,6 +197,8 @@ impl CppGen {
         self.write_line("return value;");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line("template<typename TObject, typename TValue> TValue __kain_union_get(const TObject& value, const char*, const char*, long long byte_size, long long union_size, const TValue& fallback) {");
         self.push_indent();
         self.write_line("TValue result = fallback;");
@@ -137,6 +209,8 @@ impl CppGen {
         self.write_line("return result;");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line("template<typename TObject, typename TValue> TValue __kain_union_set(TObject& value, const char*, const char*, long long byte_size, long long union_size, const TValue& next) {");
         self.push_indent();
         self.write_line("if (union_size > 0) { std::memset(&value, 0, static_cast<size_t>(std::min<long long>(union_size, sizeof(TObject)))); }");
@@ -147,6 +221,10 @@ impl CppGen {
         self.write_line("return next;");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
+        // Bitfield operations (SUPPORTED)
+        self.write_line("// Bitfield operations (SUPPORTED)");
         self.write_line("template<typename TObject> unsigned long long __kain_load_bitfield_unit(const TObject& value, long long unit_offset) {");
         self.push_indent();
         self.write_line("if (unit_offset < 0 || unit_offset >= static_cast<long long>(sizeof(TObject))) { return 0ULL; }");
@@ -156,6 +234,8 @@ impl CppGen {
         self.write_line("return unit;");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line("template<typename TObject> void __kain_store_bitfield_unit(TObject& value, long long unit_offset, unsigned long long unit) {");
         self.push_indent();
         self.write_line("if (unit_offset < 0 || unit_offset >= static_cast<long long>(sizeof(TObject))) { return; }");
@@ -163,6 +243,8 @@ impl CppGen {
         self.write_line("std::memcpy(reinterpret_cast<unsigned char*>(&value) + unit_offset, &unit, static_cast<size_t>(available));");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line("inline unsigned long long __kain_bitfield_mask(long long width) {");
         self.push_indent();
         self.write_line("if (width <= 0) { return 0ULL; }");
@@ -170,6 +252,8 @@ impl CppGen {
         self.write_line("return (1ULL << width) - 1ULL;");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line(
             "inline long long __kain_sign_extend(unsigned long long value, long long width) {",
         );
@@ -184,6 +268,8 @@ impl CppGen {
         self.write_line("return static_cast<long long>(value | full_mask);");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line("template<typename TObject> long long __kain_bitfield_get(const TObject& value, const char*, long long unit_offset, long long bit_offset, long long width, bool is_signed, long long) {");
         self.push_indent();
         self.write_line("const auto mask = __kain_bitfield_mask(width);");
@@ -193,6 +279,8 @@ impl CppGen {
         self.write_line("return is_signed ? __kain_sign_extend(encoded, width) : static_cast<long long>(encoded);");
         self.pop_indent();
         self.write_line("}");
+        self.write_blank();
+        
         self.write_line("template<typename TObject, typename TValue> TValue __kain_bitfield_set(TObject& value, const char*, long long unit_offset, long long bit_offset, long long width, bool is_signed, long long promoted_bits, const TValue& next) {");
         self.push_indent();
         self.write_line("const auto mask = __kain_bitfield_mask(width);");

@@ -211,6 +211,11 @@ void KAIN_spawn(void* func, void* arg) {
     kain_spawn((void (*)(void*))func, arg);
 }
 
+// DEPRECATED: This function was used as a fallback wrapper for actor spawning.
+// As of the actor bootstrap ABI implementation (Requirement 5.1), LLVM codegen
+// now emits actor-specific entrypoints (e.g., ActorName_run) and spawns them
+// directly. This function remains for backward compatibility but should not be
+// used in new code.
 void default_actor_run(void* arg) {
     (void)arg;
     printf("Actor running (default wrapper)\n");
