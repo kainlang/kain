@@ -595,11 +595,11 @@ fn collect_reflection_data(
 
                 let props = component
                     .ast
-                    .params
+                    .props
                     .iter()
                     .map(|p| ReflectedField {
                         name: p.name.clone(),
-                        type_name: p.ty.as_ref().map(type_to_string).unwrap_or_else(|| "Any".to_string()),
+                        type_name: type_to_string(&p.ty),
                         offset_hint: None,
                     })
                     .collect();
@@ -718,5 +718,11 @@ component App():
             .iter()
             .any(|capability| capability.key == "ui.runtime-bundle"));
         assert!(bundle.items.iter().any(|item| item.id == "component:App"));
+        
+        // Check reflection payload is emitted for Rust target
+        assert!(bundle.reflection_payload.is_some());
+        let payload = bundle.reflection_payload.as_ref().unwrap();
+        assert_eq!(payload.components.len(), 1);
+        assert_eq!(payload.components[0].name, "App");
     }
 }

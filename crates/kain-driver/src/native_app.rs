@@ -20,6 +20,7 @@ const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json"
 const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: &str = "kain_realtime_app_bundle.json";
 const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
 const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: &str = "kain_runtime_version.json";
+const NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME: &str = "kain_reflection_payload.json";
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -329,6 +330,21 @@ impl DriverSession {
             artifact_paths.push(version_metadata_path);
         }
 
+        // Write reflection payload if available
+        if let Some(reflection_payload) = &bundle.runtime_contract.reflection_payload {
+            let reflection_payload_path = artifact_root.join(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
+            let reflection_payload_json = serde_json::to_string_pretty(reflection_payload)
+                .map_err(|err| {
+                    KainError::runtime(format!(
+                        "Failed to serialize reflection payload: {}",
+                        err
+                    ))
+                })?;
+            fs::write(&reflection_payload_path, reflection_payload_json.as_bytes())
+                .map_err(io_error("write native runtime reflection payload"))?;
+            artifact_paths.push(reflection_payload_path);
+        }
+
         let shader_bundle_path = if let Some(shader_bundle) = &bundle.shader_bundle {
             let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME);
             fs::write(&path, shader_bundle.bundle_json.as_bytes())
@@ -417,6 +433,7 @@ impl DriverSession {
                     NATIVE_APP_REALTIME_BUNDLE_FILE_NAME,
                     NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
                     NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
+                    NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME,
                 ],
             )?;
         }

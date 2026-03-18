@@ -26,6 +26,7 @@ sources = [
     "native/src/core/kain_runtime_diagnostics.c",
     "native/src/core/kain_runtime_services.c",
     "native/src/core/kain_runtime_contract.c",
+    "native/src/core/kain_runtime_reflection.c",
     "native/src/core/kain_runtime_realtime.c",
     "native/src/asset/kain_asset_gltf.c",
     "native/src/gfx/opengl/kain_gl_win32_host.c",
@@ -125,7 +126,7 @@ key = "reflection"
 name = "Reflection Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Reflection payload loading and runtime type lookup"
 
 [[services]]

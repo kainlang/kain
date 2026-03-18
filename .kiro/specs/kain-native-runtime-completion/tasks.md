@@ -100,32 +100,32 @@ Execution rules for the agent:
     - Test contract mismatch, missing optional service downgrade, invalid bundle path, invalid JSON/schema, and startup failure diagnostics
     - _Requirements: 2.1, 2.2, 2.5, 13.1_
 
-- [-] 3. Phase 3: Reflection Payload Emission and Native Runtime Consumption
-  - [~] 3.1 Extend `kain-core` runtime contract emission
+- [x] 3. Phase 3: Reflection Payload Emission and Native Runtime Consumption
+  - [x] 3.1 Extend `kain-core` runtime contract emission
     - Upgrade `crates/kain-core/src/runtime_contract.rs` so reflection payloads are emitted instead of placeholder-only summaries
     - Add stable schema/version fields and item identity metadata for reflected runtime items
     - _Requirements: 4.1, 4.4, 10.5_
 
-  - [~] 3.2 Introduce compiler-owned reflection artifact structures
+  - [x] 3.2 Introduce compiler-owned reflection artifact structures
     - Add or extend reflection emission modules in `crates/kain-core` and `crates/kain-reflect` as needed
     - Ensure actors, components, messages, services, and host imports can be reflected
     - _Requirements: 4.1, 4.4_
 
-  - [~] 3.3 Extend `kain-driver` native bundle output
+  - [x] 3.3 Extend `kain-driver` native bundle output
     - Update `crates/kain-driver/src/native_app.rs` to write reflection artifacts alongside runtime contract, realtime, and UI bundle outputs
     - Ensure naming and layout are deterministic and documented
     - _Requirements: 4.2, 10.6_
 
-  - [~] 3.4 Add native reflection loader and registry
+  - [x] 3.4 Add native reflection loader and registry
     - Implement native runtime code that loads reflection payloads, validates schema version, and exposes lookup APIs
     - Keep the parser/loader in core runtime modules, not platform-specific files
     - _Requirements: 4.3, 4.4, 4.5_
 
-  - [~] 3.5 Thread reflection metadata into startup validation
+  - [x] 3.5 Thread reflection metadata into startup validation
     - Make startup validation aware of reflection presence, schema compatibility, and reflection-driven service requirements
     - _Requirements: 4.3, 4.5, 8.6_
 
-  - [~] 3.6 Add contract/reflection golden tests
+  - [x] 3.6 Add contract/reflection golden tests
     - Add `kain-core` golden tests for emitted JSON
     - Add native runtime tests for loading valid and invalid reflection payloads
     - _Requirements: 4.1, 4.3, 13.3_
