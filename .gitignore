@@ -49,6 +49,15 @@ backup/
 install-local.ps1
 target-install/
 unreal/UE_API/
+/tmp/
+**/__pycache__/
+generated/**/.~lock.*
+smoketest/**/.kain/cache/
+toolchain/llvm/bin/clang
+toolchain/llvm/bin/clang++
+toolchain/llvm/bin/llvm-ar
+toolchain/llvm/bin/llvm-config
+toolchain/llvm/bin/llvm-ranlib
 /target_selfhost_probe*/
 target_selfhost_probe*/
 target_selfhost_probe/**

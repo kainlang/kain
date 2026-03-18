@@ -872,6 +872,9 @@ fn run_compile(
                         .arg("-Wno-override-module")
                         .arg("-g"); // Debug info
 
+                    runtime_link_libs =
+                        unique_link_libs([runtime_link_libs, default_native_runtime_link_libs()].concat());
+
                     for link_lib in runtime_link_libs {
                         cmd.arg(format!("-l{}", link_lib));
                     }
@@ -1787,7 +1790,11 @@ fn load_native_runtime_manifest(
         sources,
         include_dirs,
         defines: manifest.defines,
-        link_libs: unique_link_libs(platform_link_libs(&manifest.link)),
+        link_libs: unique_link_libs({
+            let mut libs = default_native_runtime_link_libs();
+            libs.extend(platform_link_libs(&manifest.link));
+            libs
+        }),
     })
 }
 
@@ -1910,6 +1917,8 @@ fn default_native_runtime_link_libs() -> Vec<String> {
             "opengl32".to_string(),
             "ws2_32".to_string(),
         ]
+    } else if cfg!(target_os = "linux") {
+        vec!["m".to_string()]
     } else {
         Vec::new()
     }

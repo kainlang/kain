@@ -25,6 +25,10 @@
 #define SOCKET_ERROR -1
 #endif
 
+#ifndef ZeroMemory
+#define ZeroMemory(Destination, Length) memset((Destination), 0, (Length))
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif

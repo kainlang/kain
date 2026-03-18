@@ -2774,6 +2774,7 @@ version = "0.1.0"
 dependencies = [
  "kain-core",
  "lang-c",
+ "pretty_assertions",
  "proc-macro2",
  "serde",
  "serde_json",
