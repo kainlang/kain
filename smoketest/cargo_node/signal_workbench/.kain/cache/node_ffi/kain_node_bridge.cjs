@@ -166,6 +166,13 @@ function normalizeImagePayload(target) {
       extension: inferExtension(mimeType, 'txt'),
       width: 0,
       height: 0,
+      channels: 0,
+      row_stride: 0,
+      layout: '',
+      pixel_format: '',
+      representation: 'encoded',
+      color_space: 'srgb',
+      alpha_mode: 'opaque',
       byte_length: utf8View(text).byteLength,
       text,
       bytes: utf8View(text),
@@ -188,12 +195,21 @@ function normalizeImagePayload(target) {
     'text/plain';
   const width = Number(target.width ?? 0);
   const height = Number(target.height ?? 0);
+  const channels = Number(target.channels ?? 0);
+  const rowStride = Number(target.row_stride ?? (Number.isFinite(width) && Number.isFinite(channels) ? width * channels : 0));
   return {
     kind: typeof target.kind === 'string' ? target.kind : 'image',
     mime_type: mimeType,
     extension: typeof target.extension === 'string' ? target.extension : inferExtension(mimeType, text != null ? 'txt' : 'bin'),
     width: Number.isFinite(width) ? width : 0,
     height: Number.isFinite(height) ? height : 0,
+    channels: Number.isFinite(channels) ? channels : 0,
+    row_stride: Number.isFinite(rowStride) ? rowStride : 0,
+    layout: typeof target.layout === 'string' ? target.layout : '',
+    pixel_format: typeof target.pixel_format === 'string' ? target.pixel_format : '',
+    representation: typeof target.representation === 'string' ? target.representation : (bytes && width > 0 && height > 0 ? 'raster' : 'encoded'),
+    color_space: typeof target.color_space === 'string' ? target.color_space : 'srgb',
+    alpha_mode: typeof target.alpha_mode === 'string' ? target.alpha_mode : (channels === 4 ? 'straight' : 'opaque'),
     byte_length: bytes ? bytes.byteLength : utf8View(text ?? '').byteLength,
     text,
     bytes: bytes ?? (text != null ? utf8View(text) : null),
@@ -315,6 +331,13 @@ async function handleRequest(message) {
         extension: payload.extension,
         width: payload.width,
         height: payload.height,
+        channels: payload.channels,
+        row_stride: payload.row_stride,
+        layout: payload.layout,
+        pixel_format: payload.pixel_format,
+        representation: payload.representation,
+        color_space: payload.color_space,
+        alpha_mode: payload.alpha_mode,
         byte_length: payload.byte_length,
       };
     }

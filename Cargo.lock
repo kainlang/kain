@@ -2843,6 +2843,14 @@ name = "kain-reflect"
 version = "0.1.0"
 
 [[package]]
+name = "kain-runtime-parallel"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kain-sdk"
 version = "0.1.0"
 dependencies = [

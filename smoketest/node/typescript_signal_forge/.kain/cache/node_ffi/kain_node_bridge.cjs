@@ -85,6 +85,137 @@ function resolveTarget(target) {
   return fromWire(target);
 }
 
+const textEncoder = new TextEncoder();
+
+function utf8View(text) {
+  return textEncoder.encode(String(text ?? ''));
+}
+
+function bufferView(target) {
+  if (target == null) return null;
+  if (ArrayBuffer.isView(target)) {
+    return new Uint8Array(target.buffer, target.byteOffset, target.byteLength);
+  }
+  if (target instanceof ArrayBuffer) {
+    return new Uint8Array(target);
+  }
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(target)) {
+    return new Uint8Array(target.buffer, target.byteOffset, target.byteLength);
+  }
+  return null;
+}
+
+function inferExtension(mimeType, fallback) {
+  switch (mimeType) {
+    case 'text/html':
+      return 'html';
+    case 'image/svg+xml':
+      return 'svg';
+    case 'application/json':
+      return 'json';
+    case 'image/png':
+      return 'png';
+    default:
+      return fallback;
+  }
+}
+
+function normalizeDocumentPayload(target) {
+  if (typeof target === 'string') {
+    const text = target;
+    return {
+      kind: 'document',
+      title: '',
+      mime_type: 'text/html',
+      extension: 'html',
+      byte_length: utf8View(text).byteLength,
+      text,
+    };
+  }
+  if (!target || typeof target !== 'object') {
+    throw new Error(`unsupported document payload: ${typeof target}`);
+  }
+  const text =
+    typeof target.text === 'string' ? target.text :
+    typeof target.html === 'string' ? target.html :
+    typeof target.source === 'string' ? target.source :
+    typeof target.document === 'string' ? target.document :
+    null;
+  if (text == null) {
+    throw new Error('document payload is missing a text/html/source field');
+  }
+  const bytes = bufferView(target.bytes);
+  const mimeType = typeof target.mime_type === 'string' ? target.mime_type : 'text/html';
+  return {
+    kind: typeof target.kind === 'string' ? target.kind : 'document',
+    title: typeof target.title === 'string' ? target.title : '',
+    mime_type: mimeType,
+    extension: typeof target.extension === 'string' ? target.extension : inferExtension(mimeType, 'html'),
+    byte_length: bytes ? bytes.byteLength : utf8View(text).byteLength,
+    text,
+  };
+}
+
+function normalizeImagePayload(target) {
+  if (typeof target === 'string') {
+    const text = target;
+    const mimeType = text.trimStart().startsWith('<svg') ? 'image/svg+xml' : 'text/plain';
+    return {
+      kind: 'image',
+      mime_type: mimeType,
+      extension: inferExtension(mimeType, 'txt'),
+      width: 0,
+      height: 0,
+      channels: 0,
+      row_stride: 0,
+      layout: '',
+      pixel_format: '',
+      representation: 'encoded',
+      color_space: 'srgb',
+      alpha_mode: 'opaque',
+      byte_length: utf8View(text).byteLength,
+      text,
+      bytes: utf8View(text),
+    };
+  }
+  if (!target || typeof target !== 'object') {
+    throw new Error(`unsupported image payload: ${typeof target}`);
+  }
+  const text =
+    typeof target.text === 'string' ? target.text :
+    typeof target.svg === 'string' ? target.svg :
+    typeof target.source === 'string' ? target.source :
+    null;
+  const bytes = bufferView(target.bytes ?? target.buffer ?? target.data ?? null);
+  const inferredSvg = text != null && text.trimStart().startsWith('<svg');
+  const mimeType =
+    typeof target.mime_type === 'string' ? target.mime_type :
+    inferredSvg ? 'image/svg+xml' :
+    bytes ? 'application/octet-stream' :
+    'text/plain';
+  const width = Number(target.width ?? 0);
+  const height = Number(target.height ?? 0);
+  const channels = Number(target.channels ?? 0);
+  const rowStride = Number(target.row_stride ?? (Number.isFinite(width) && Number.isFinite(channels) ? width * channels : 0));
+  return {
+    kind: typeof target.kind === 'string' ? target.kind : 'image',
+    mime_type: mimeType,
+    extension: typeof target.extension === 'string' ? target.extension : inferExtension(mimeType, text != null ? 'txt' : 'bin'),
+    width: Number.isFinite(width) ? width : 0,
+    height: Number.isFinite(height) ? height : 0,
+    channels: Number.isFinite(channels) ? channels : 0,
+    row_stride: Number.isFinite(rowStride) ? rowStride : 0,
+    layout: typeof target.layout === 'string' ? target.layout : '',
+    pixel_format: typeof target.pixel_format === 'string' ? target.pixel_format : '',
+    representation: typeof target.representation === 'string' ? target.representation : (bytes && width > 0 && height > 0 ? 'raster' : 'encoded'),
+    color_space: typeof target.color_space === 'string' ? target.color_space : 'srgb',
+    alpha_mode: typeof target.alpha_mode === 'string' ? target.alpha_mode : (channels === 4 ? 'straight' : 'opaque'),
+    byte_length: bytes ? bytes.byteLength : utf8View(text ?? '').byteLength,
+    text,
+    bytes: bytes ?? (text != null ? utf8View(text) : null),
+  };
+}
+
 async function handleRequest(message) {
   switch (message.op) {
     case 'exec': {
@@ -177,6 +308,59 @@ async function handleRequest(message) {
         return Array.from(target.values());
       }
       throw new Error(`target is not buffer-like: ${typeof target}`);
+    }
+    case 'document_info': {
+      const payload = normalizeDocumentPayload(resolveTarget(message.target));
+      return {
+        kind: payload.kind,
+        title: payload.title,
+        mime_type: payload.mime_type,
+        extension: payload.extension,
+        byte_length: payload.byte_length,
+      };
+    }
+    case 'document_text': {
+      const payload = normalizeDocumentPayload(resolveTarget(message.target));
+      return payload.text;
+    }
+    case 'image_info': {
+      const payload = normalizeImagePayload(resolveTarget(message.target));
+      return {
+        kind: payload.kind,
+        mime_type: payload.mime_type,
+        extension: payload.extension,
+        width: payload.width,
+        height: payload.height,
+        channels: payload.channels,
+        row_stride: payload.row_stride,
+        layout: payload.layout,
+        pixel_format: payload.pixel_format,
+        representation: payload.representation,
+        color_space: payload.color_space,
+        alpha_mode: payload.alpha_mode,
+        byte_length: payload.byte_length,
+      };
+    }
+    case 'image_text': {
+      const payload = normalizeImagePayload(resolveTarget(message.target));
+      if (payload.text == null) {
+        throw new Error('image payload does not expose text content');
+      }
+      return payload.text;
+    }
+    case 'image_bytes': {
+      const payload = normalizeImagePayload(resolveTarget(message.target));
+      if (!payload.bytes) {
+        throw new Error('image payload does not expose byte content');
+      }
+      return Array.from(payload.bytes);
+    }
+    case 'image_buffer': {
+      const payload = normalizeImagePayload(resolveTarget(message.target));
+      if (!payload.bytes) {
+        throw new Error('image payload does not expose byte content');
+      }
+      return toWire(payload.bytes, true);
     }
     default:
       throw new Error(`unknown op: ${message.op}`);

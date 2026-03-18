@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "component_count": 5,
+  "toolchains": {
+    "zig": "available",
+    "cargo": "available",
+    "clang": "available"
+  },
+  "lanes": {
+    "shared": 1,
+    "rust": 2,
+    "zig": 2
+  }
+}
+

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "cargo": {
+      "command": "C:/Users/Admin/.cargo/bin/cargo.exe",
+      "fallback": []
+    },
+    "zig": {
+      "command": "C:/Users/Admin/scoop/shims/zig.exe",
+      "fallback": ["zig"]
+    },
+    "clang": {
+      "env": "KAIN_CLANG_PATH"
+    }
+  },
+  "outputs": {
+    "report_dir": "runtime/parallel/reports",
+    "rust_report": "rust_parallel_summary.json",
+    "zig_report": "zig_parallel_summary.json",
+    "combined_report": "parallel_pipeline_report.json"
+  }
+}
