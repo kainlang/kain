@@ -18,21 +18,12 @@ Write-Host "Build complete" -ForegroundColor Green
 
 # Auto-install if this was a release build
 if ($args -contains "--release" -or $args -contains "-r") {
-    Write-Host "Auto-installing to cargo bin..." -ForegroundColor Cyan
-    
-    $source = "target\release\kain.exe"
-    $dest = "$env:USERPROFILE\.cargo\bin\kain.exe"
-    
-    if (Test-Path $source) {
-        try {
-            Copy-Item -Path $source -Destination $dest -Force -ErrorAction Stop
-            Write-Host "Installed to cargo bin" -ForegroundColor Green
-        }
-        catch {
-            Write-Host "Could not install (file may be in use)" -ForegroundColor Yellow
-        }
+    $syncScript = Join-Path $PSScriptRoot "sync-kain-source-of-truth.ps1"
+    if (Test-Path $syncScript) {
+        Write-Host "Refreshing canonical PATH binary..." -ForegroundColor Cyan
+        & $syncScript -SkipBuild
     }
     else {
-        Write-Host "Binary not found: $source" -ForegroundColor Yellow
+        Write-Host "Sync script not found: $syncScript" -ForegroundColor Yellow
     }
 }

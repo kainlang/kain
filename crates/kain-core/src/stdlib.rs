@@ -370,8 +370,11 @@ impl Default for StdLib {
     }
 }
 
-/// Find prioritized list of directories to search for stdlib
-pub(crate) fn find_stdlib_search_roots() -> Vec<std::path::PathBuf> {
+/// Find prioritized list of directories to search for stdlib.
+///
+/// This is also surfaced through `kain doctor` so the active compiler can
+/// explain exactly which stdlib roots it will prefer on the current machine.
+pub fn find_stdlib_search_roots() -> Vec<std::path::PathBuf> {
     use std::env;
     use std::path::PathBuf;
 

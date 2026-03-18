@@ -1489,6 +1489,21 @@ fn main() {
 }
 
 fn print_doctor() {
+    let current_exe = std::env::current_exe().ok();
+    let path_command = which::which("kain").ok();
+    let path_matches = which::which_all("kain")
+        .ok()
+        .map(|mut paths| paths.by_ref().take(4).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let stdlib_roots = kain_core::stdlib::find_stdlib_search_roots();
+    let runtime_c = find_runtime_c();
+    let runtime_manifest = find_native_runtime_manifest();
+    let resolved_clang = if cfg!(feature = "sys") {
+        find_bundled_clang()
+    } else {
+        None
+    };
+
     println!(" KAIN Doctor");
     println!(" Version: {}", VERSION);
     println!(" Build: {}", BUILD_NUMBER);
@@ -1503,9 +1518,24 @@ fn print_doctor() {
         BUILD_TARGET_TRIPLE, BUILD_HOST_TRIPLE
     );
 
-    match std::env::current_exe() {
-        Ok(path) => println!(" Binary Path: {}", path.display()),
-        Err(err) => println!(" Binary Path: <unknown> ({})", err),
+    match &current_exe {
+        Some(path) => {
+            println!(" Binary Path: {}", path.display());
+            println!(" Binary Kind: {}", classify_binary_path(path));
+        }
+        None => println!(" Binary Path: <unknown>"),
+    }
+
+    match &path_command {
+        Some(path) => println!(" PATH kain: {}", path.display()),
+        None => println!(" PATH kain: <not found>"),
+    }
+
+    if !path_matches.is_empty() {
+        println!(" PATH Matches:");
+        for path in &path_matches {
+            println!("   - {}", path.display());
+        }
     }
 
     match std::env::current_dir() {
@@ -1536,10 +1566,44 @@ fn print_doctor() {
         if cfg!(feature = "gpu") { "on" } else { "off" },
         if cfg!(feature = "sys") { "on" } else { "off" },
     );
+
+    println!(
+        " PATH Match Status: {}",
+        doctor_path_status(current_exe.as_deref(), path_command.as_deref())
+    );
+
+    if stdlib_roots.is_empty() {
+        println!(" Resolved Stdlib Roots: <none>");
+    } else {
+        println!(" Resolved Stdlib Roots:");
+        for root in &stdlib_roots {
+            println!("   - {}", root.display());
+        }
+    }
+
+    match runtime_c {
+        Some(path) => println!(" Resolved Runtime C: {}", path.display()),
+        None => println!(" Resolved Runtime C: <not found>"),
+    }
+
+    match runtime_manifest {
+        Some(path) => println!(" Resolved Runtime Manifest: {}", path.display()),
+        None => println!(" Resolved Runtime Manifest: <not found>"),
+    }
+
     if cfg!(feature = "sys") {
-        match find_bundled_clang() {
+        match resolved_clang {
             Some(path) => println!(" Resolved LLVM Clang: {}", path),
             None => println!(" Resolved LLVM Clang: <not found in bundled locations>"),
+        }
+    }
+
+    if let Some(path) = current_exe.as_deref() {
+        if is_repo_target_binary(path) {
+            println!(" Warning: active kain comes from a repo target directory.");
+            println!(
+                "          Refresh/install a stable PATH binary with scripts/sync-kain-source-of-truth.ps1."
+            );
         }
     }
 }
@@ -1554,6 +1618,54 @@ fn format_build_time(unix_time: &str) -> String {
     };
 
     format!("{} (unix {})", dt.to_rfc3339(), unix_time)
+}
+
+fn classify_binary_path(path: &Path) -> &'static str {
+    if is_repo_target_binary(path) {
+        "repo-target"
+    } else if is_cargo_bin_binary(path) {
+        "cargo-bin"
+    } else {
+        "custom"
+    }
+}
+
+fn is_repo_target_binary(path: &Path) -> bool {
+    let normalized = path
+        .to_string_lossy()
+        .replace('/', "\\")
+        .to_ascii_lowercase();
+    normalized.contains("\\target\\debug\\") || normalized.contains("\\target\\release\\")
+}
+
+fn is_cargo_bin_binary(path: &Path) -> bool {
+    let cargo_home = std::env::var_os("CARGO_HOME")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("USERPROFILE").map(|profile| PathBuf::from(profile).join(".cargo"))
+        });
+    cargo_home
+        .map(|home| path.starts_with(home.join("bin")))
+        .unwrap_or(false)
+}
+
+fn doctor_path_status(current_exe: Option<&Path>, path_command: Option<&Path>) -> &'static str {
+    match (current_exe, path_command) {
+        (Some(current), Some(path_entry)) if paths_equivalent(current, path_entry) => {
+            "current process matches PATH"
+        }
+        (Some(_), Some(_)) => "drift: current process differs from PATH",
+        (Some(_), None) => "current process exists, but kain is not resolvable from PATH",
+        (None, Some(_)) => "PATH resolves kain, but current process path is unknown",
+        (None, None) => "unknown",
+    }
+}
+
+fn paths_equivalent(a: &Path, b: &Path) -> bool {
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => a == b,
+    }
 }
 
 fn find_project_root(start: &std::path::Path) -> Option<PathBuf> {
