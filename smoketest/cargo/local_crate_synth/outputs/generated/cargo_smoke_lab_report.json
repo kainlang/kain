@@ -2,11 +2,11 @@
   "crate_name": "cargo_smoke_lab",
   "package_name": "cargo_smoke_lab",
   "version": "0.1.0",
-  "manifest_path": "/home/azureuser/Desktop/godkain/smoketest/cargo/local_crate_synth/local_crate/Cargo.toml",
-  "resolution_kind": "crate_path",
-  "cache_dir": "/home/azureuser/Desktop/godkain/smoketest/cargo/local_crate_synth/.kain/cache/crate_ffi/e7b4df9302b4b087b8411639d32d6ec75babe30d7217cc342c5da0865ed99bfd",
-  "report_json_path": "./outputs/generated/cargo_smoke_lab_report.json",
-  "report_text_path": "./outputs/generated/cargo_smoke_lab_report.txt",
+  "manifest_path": "\\\\?\\M:\\Code\\Kain\\smoketest\\cargo\\local_crate_synth\\local_crate\\Cargo.toml",
+  "resolution_kind": "path_config",
+  "cache_dir": "M:\\Code\\Kain\\smoketest\\cargo\\local_crate_synth\\.kain\\cache\\crate_ffi\\e93cbeb6639c8b1c0ac37d0e8705149e4eeaec45cb12083a083329d74afdee67",
+  "report_json_path": "outputs/generated\\cargo_smoke_lab_report.json",
+  "report_text_path": "outputs/generated\\cargo_smoke_lab_report.txt",
   "entries": [
     {
       "symbol_path": "CARGO_SMOKE_VERSION",
@@ -128,7 +128,7 @@
   ],
   "source_fingerprints": [
     {
-      "path": "/home/azureuser/Desktop/godkain/smoketest/cargo/local_crate_synth/local_crate/src/lib.rs",
+      "path": "\\\\?\\M:\\Code\\Kain\\smoketest\\cargo\\local_crate_synth\\local_crate\\src\\lib.rs",
       "sha256": "be4833b152a9879943ad7a64813e1d308ad85f64c5f1370e50985fec61db84be"
     }
   ]
