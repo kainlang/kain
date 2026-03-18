@@ -203,6 +203,18 @@ int kain_service_registry_validate_required(
 );
 
 /*
+ * Validate Required Services (Collector)
+ *
+ * Checks that all required services are available and adds diagnostics to
+ * the provided collector. Returns the number of failures (missing/failed
+ * required services).
+ */
+int kain_service_registry_validate_required_collector(
+    const KainServiceRegistry* registry,
+    KainDiagnosticCollector* collector
+);
+
+/*
  * Format Service List
  *
  * Formats a human-readable list of services into the output buffer.

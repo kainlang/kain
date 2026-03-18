@@ -959,3 +959,123 @@ int kain_runtime_contract_is_service_available(const char* service_key) {
     
     return 0;
 }
+
+/*
+ * Enhanced Startup Validation with Diagnostic Collection
+ *
+ * This function extends the legacy validation with structured diagnostic
+ * collection and comprehensive reporting. It populates a KainStartupValidationResult
+ * with version information, service status, and collected diagnostics.
+ */
+int kain_runtime_contract_validate_startup_enhanced(
+    const KainRuntimeContractBundle* bundle,
+    unsigned int required_service_mask,
+    unsigned int optional_service_mask,
+    KainStartupValidationResult* result
+) {
+    KainRuntimeContractValidation legacy_validation;
+    KainRuntimeVersionInfo version_info;
+    int validation_passed;
+    int i;
+    
+    if (!result) {
+        return 0;
+    }
+    
+    /* Initialize result structure */
+    kain_startup_validation_result_init(result);
+    
+    /* Get runtime version information */
+    if (kain_runtime_version_get_info(&version_info) == 0) {
+        result->runtime_abi_version = version_info.abi_version_encoded;
+        result->runtime_version = version_info.runtime_version_encoded;
+    }
+    
+    /* Get bundle ABI version if present */
+    if (bundle && bundle->loaded && bundle->required_abi_version != 0) {
+        result->bundle_abi_version = bundle->required_abi_version;
+    }
+    
+    /* Perform legacy validation */
+    validation_passed = kain_runtime_contract_validate_startup(
+        bundle,
+        required_service_mask,
+        optional_service_mask,
+        &legacy_validation
+    );
+    
+    /* Convert legacy validation to diagnostic collection */
+    if (legacy_validation.fatal_error && legacy_validation.fatal_message[0]) {
+        kain_diagnostic_collector_add_new(
+            &result->diagnostics,
+            KAIN_DIAG_SUBSYSTEM_CONTRACT,
+            KAIN_DIAG_SEVERITY_FATAL,
+            KAIN_DIAG_CODE_CONTRACT_MISSING_SERVICE,
+            legacy_validation.fatal_message,
+            NULL,
+            bundle ? bundle->source_path : NULL
+        );
+    }
+    
+    /* Add warnings as diagnostics */
+    for (i = 0; i < legacy_validation.warning_count; i++) {
+        if (legacy_validation.warnings[i][0]) {
+            kain_diagnostic_collector_add_new(
+                &result->diagnostics,
+                KAIN_DIAG_SUBSYSTEM_CONTRACT,
+                KAIN_DIAG_SEVERITY_WARNING,
+                KAIN_DIAG_CODE_SUCCESS,
+                legacy_validation.warnings[i],
+                NULL,
+                bundle ? bundle->source_path : NULL
+            );
+        }
+    }
+    
+    /* Add ABI compatibility diagnostic if mismatch */
+    if (!legacy_validation.abi_compatible) {
+        char detail[256];
+        snprintf(detail, sizeof(detail),
+            "Runtime ABI: %s, Contract requires: %s",
+            legacy_validation.runtime_abi_version_string,
+            legacy_validation.contract_abi_version_string
+        );
+        kain_diagnostic_collector_add_new(
+            &result->diagnostics,
+            KAIN_DIAG_SUBSYSTEM_COMPATIBILITY,
+            KAIN_DIAG_SEVERITY_FATAL,
+            KAIN_DIAG_CODE_COMPAT_VERSION_MISMATCH,
+            "ABI version mismatch",
+            detail,
+            bundle ? bundle->source_path : NULL
+        );
+    }
+    
+    /* Count available services */
+    if (bundle && bundle->loaded) {
+        result->required_services_available = 
+            __builtin_popcount(bundle->service_mask & required_service_mask);
+        result->optional_services_available = 
+            __builtin_popcount(bundle->service_mask & optional_service_mask);
+        result->optional_services_degraded = 
+            __builtin_popcount(optional_service_mask & ~bundle->service_mask);
+    }
+    
+    /* Set validation status */
+    result->validation_passed = validation_passed && !kain_diagnostic_collector_has_fatals(&result->diagnostics);
+    
+    /* Generate summary */
+    if (result->validation_passed) {
+        snprintf(result->summary, sizeof(result->summary),
+            "Startup validation passed. %d required services, %d optional services available.",
+            result->required_services_available,
+            result->optional_services_available
+        );
+    } else {
+        snprintf(result->summary, sizeof(result->summary),
+            "Startup validation failed. See diagnostics for details."
+        );
+    }
+    
+    return result->validation_passed;
+}

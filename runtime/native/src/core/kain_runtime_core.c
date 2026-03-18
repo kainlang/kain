@@ -1,7 +1,28 @@
 #include "../../include/kain_runtime_base.h"
+#include "../../include/kain_runtime_diagnostics.h"
 
 static RcHeader* get_header(void* ptr) {
     return ((RcHeader*)ptr) - 1;
+}
+
+/* Global diagnostic for last error (thread-unsafe, but matches current runtime model) */
+static KainDiagnostic g_last_diagnostic;
+static int g_last_diagnostic_valid = 0;
+
+static void emit_diagnostic(
+    KainDiagSubsystem subsystem,
+    KainDiagSeverity severity,
+    int code,
+    const char* message,
+    const char* detail
+) {
+    kain_diagnostic_create(&g_last_diagnostic, subsystem, severity, code, message, detail, NULL);
+    g_last_diagnostic_valid = 1;
+    
+    /* Print fatal and error diagnostics immediately */
+    if (severity >= KAIN_DIAG_SEVERITY_ERROR) {
+        kain_diagnostic_print(&g_last_diagnostic);
+    }
 }
 
 void array_free_elems(void* ptr);
@@ -27,7 +48,16 @@ long long kain_round_i64(double value) {
 
 void* kain_alloc_rc(size_t size, long long type_tag) {
     RcHeader* header = malloc(sizeof(RcHeader) + size);
-    if (!header) return NULL;
+    if (!header) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Memory allocation failed",
+            "Failed to allocate memory with reference counting header"
+        );
+        return NULL;
+    }
     header->ref_count = 1;
     header->weak_count = 0;
     header->type_tag = type_tag;
@@ -127,17 +157,53 @@ static void* thread_wrapper(void* arg) {
 
 void kain_spawn(void (*func)(void*), void* arg) {
     ThreadArgs* args = (ThreadArgs*)malloc(sizeof(ThreadArgs));
-    if (!args) return;
+    if (!args) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_ACTOR,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED,
+            "Thread spawn failed",
+            "Failed to allocate thread arguments structure"
+        );
+        return;
+    }
     args->func = func;
     args->arg = arg;
     rc_retain(arg);
 
 #ifdef _WIN32
-    CreateThread(NULL, 0, thread_wrapper, args, 0, NULL);
+    {
+        HANDLE thread_handle = CreateThread(NULL, 0, thread_wrapper, args, 0, NULL);
+        if (!thread_handle) {
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_ACTOR,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED,
+                "Thread spawn failed",
+                "CreateThread returned NULL"
+            );
+            rc_release(arg);
+            free(args);
+        }
+    }
 #else
-    pthread_t thread;
-    pthread_create(&thread, NULL, thread_wrapper, args);
-    pthread_detach(thread);
+    {
+        pthread_t thread;
+        int result = pthread_create(&thread, NULL, thread_wrapper, args);
+        if (result != 0) {
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_ACTOR,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED,
+                "Thread spawn failed",
+                "pthread_create returned non-zero"
+            );
+            rc_release(arg);
+            free(args);
+            return;
+        }
+        pthread_detach(thread);
+    }
 #endif
 }
 
@@ -235,6 +301,17 @@ KainArray* array_new(long long cap) {
     arr->len = 0;
     arr->cap = cap < 4 ? 4 : cap;
     arr->data = (long long*)malloc((size_t)arr->cap * sizeof(long long));
+    if (!arr->data) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Array allocation failed",
+            "Failed to allocate array data buffer"
+        );
+        /* Note: arr itself will be cleaned up by RC when released */
+        return NULL;
+    }
     return arr;
 }
 
@@ -252,7 +329,15 @@ void push(void* arr, long long val) {
 
 long long array_get(KainArray* arr, long long index) {
     if (index < 0 || index >= arr->len) {
-        printf("Panic: Index out of bounds %lld\n", index);
+        char detail[128];
+        snprintf(detail, sizeof(detail), "Index %lld out of bounds for array of length %lld", index, arr->len);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_FATAL,
+            KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+            "Array index out of bounds",
+            detail
+        );
         exit(1);
     }
     return arr->data[index];
@@ -260,7 +345,15 @@ long long array_get(KainArray* arr, long long index) {
 
 void array_set(KainArray* arr, long long index, long long val) {
     if (index < 0 || index >= arr->len) {
-        printf("Panic: Index out of bounds %lld\n", index);
+        char detail[128];
+        snprintf(detail, sizeof(detail), "Index %lld out of bounds for array of length %lld", index, arr->len);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_FATAL,
+            KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+            "Array index out of bounds",
+            detail
+        );
         exit(1);
     }
     arr->data[index] = val;
@@ -281,12 +374,35 @@ char* file_read(char* path) {
     FILE* f;
     long size;
     char* buf;
+    
+    if (!path) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "File read failed",
+            "Path is NULL"
+        );
+        return NULL;
+    }
+    
 #ifdef _WIN32
     if (fopen_s(&f, path, "rb") != 0) f = NULL;
 #else
     f = fopen(path, "rb");
 #endif
-    if (!f) return NULL;
+    if (!f) {
+        char detail[256];
+        snprintf(detail, sizeof(detail), "Failed to open file: %s", path);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "File read failed",
+            detail
+        );
+        return NULL;
+    }
 
     fseek(f, 0, SEEK_END);
     size = ftell(f);
@@ -310,12 +426,35 @@ char* read_file(char* path) {
 
 void file_write(char* path, char* content) {
     FILE* f = NULL;
+    
+    if (!path) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "File write failed",
+            "Path is NULL"
+        );
+        return;
+    }
+    
 #ifdef _WIN32
     if (fopen_s(&f, path, "wb") != 0) f = NULL;
 #else
     f = fopen(path, "wb");
 #endif
-    if (!f) return;
+    if (!f) {
+        char detail[256];
+        snprintf(detail, sizeof(detail), "Failed to open file for writing: %s", path);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "File write failed",
+            detail
+        );
+        return;
+    }
     if (content) {
         fprintf(f, "%s", content);
     }
@@ -368,6 +507,17 @@ KainMap* map_new() {
     map->capacity = 16;
     map->count = 0;
     map->entries = (MapEntry*)calloc(16, sizeof(MapEntry));
+    if (!map->entries) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Map allocation failed",
+            "Failed to allocate map entries buffer"
+        );
+        /* Note: map itself will be cleaned up by RC when released */
+        return NULL;
+    }
     return map;
 }
 
@@ -432,7 +582,16 @@ long long map_get(KainMap* map, char* key) {
 
 void* mq_new() {
     MessageQueue* mq = (MessageQueue*)malloc(sizeof(MessageQueue));
-    if (!mq) return NULL;
+    if (!mq) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_ACTOR,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Message queue allocation failed",
+            "Failed to allocate message queue structure"
+        );
+        return NULL;
+    }
     mq->head = NULL;
     mq->tail = NULL;
 #ifdef _WIN32
@@ -539,7 +698,16 @@ long long socket_connect(char* host, long long port) {
     init_winsock();
 #endif
 
-    if (!host || !host[0]) return -1;
+    if (!host || !host[0]) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "Socket connect failed",
+            "Host is NULL or empty"
+        );
+        return -1;
+    }
 
     ZeroMemory(&hints, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -548,6 +716,15 @@ long long socket_connect(char* host, long long port) {
     snprintf(port_text, sizeof(port_text), "%lld", port);
 
     if (getaddrinfo(host, port_text, &hints, &result) != 0) {
+        char detail[256];
+        snprintf(detail, sizeof(detail), "getaddrinfo failed for host: %s, port: %lld", host, port);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "Socket connect failed",
+            detail
+        );
         return -1;
     }
 
@@ -565,6 +742,19 @@ long long socket_connect(char* host, long long port) {
     }
 
     freeaddrinfo(result);
+    
+    {
+        char detail[256];
+        snprintf(detail, sizeof(detail), "Failed to connect to host: %s, port: %lld", host, port);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_SERVICE_UNAVAILABLE,
+            "Socket connect failed",
+            detail
+        );
+    }
+    
     return -1;
 }
 
@@ -611,4 +801,17 @@ int deep_eq(void* a, void* b) {
     }
 
     return 0;
+}
+
+/* Public API to retrieve last diagnostic */
+int kain_runtime_get_last_diagnostic(KainDiagnostic* out) {
+    if (!out || !g_last_diagnostic_valid) {
+        return 0;
+    }
+    memcpy(out, &g_last_diagnostic, sizeof(KainDiagnostic));
+    return 1;
+}
+
+void kain_runtime_clear_last_diagnostic(void) {
+    g_last_diagnostic_valid = 0;
 }

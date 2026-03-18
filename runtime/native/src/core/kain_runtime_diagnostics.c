@@ -296,7 +296,6 @@ int kain_startup_validation_result_format(
     size_t out_size
 ) {
     int written = 0;
-    char version_str[64];
     
     if (!result || !out || out_size == 0) {
         return 0;

@@ -15,6 +15,7 @@ pub struct RuntimeContractBundle {
     pub service_bindings: Vec<RuntimeServiceBinding>,
     pub items: Vec<RuntimeContractItem>,
     pub reflection: RuntimeReflectionSummary,
+    pub reflection_payload: Option<RuntimeReflectionPayload>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,6 +46,65 @@ pub struct RuntimeReflectionSummary {
     pub notes: Vec<String>,
 }
 
+/// Full reflection payload with type schemas and item metadata
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeReflectionPayload {
+    pub schema_version: u32,
+    pub types: Vec<ReflectedType>,
+    pub items: Vec<ReflectedItem>,
+    pub actors: Vec<ReflectedActor>,
+    pub components: Vec<ReflectedComponent>,
+    pub messages: Vec<ReflectedMessage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectedType {
+    pub type_id: u64,
+    pub name: String,
+    pub kind: String,
+    pub size_hint: Option<usize>,
+    pub fields: Vec<ReflectedField>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectedField {
+    pub name: String,
+    pub type_name: String,
+    pub offset_hint: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectedItem {
+    pub item_id: u64,
+    pub name: String,
+    pub kind: String,
+    pub module_path: String,
+    pub type_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectedActor {
+    pub item_id: u64,
+    pub name: String,
+    pub message_types: Vec<String>,
+    pub state_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectedComponent {
+    pub item_id: u64,
+    pub name: String,
+    pub props: Vec<ReflectedField>,
+    pub state_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectedMessage {
+    pub item_id: u64,
+    pub name: String,
+    pub fields: Vec<ReflectedField>,
+}
+
 pub fn emit_runtime_contract_bundle(
     program: &TypedProgram,
     target: CompileTarget,
@@ -60,6 +120,15 @@ pub fn emit_runtime_contract_bundle(
     let mut service_bindings = runtime_service_bindings_for_target(target);
     service_bindings.sort_by(|left, right| left.service.cmp(&right.service));
 
+    // Emit full reflection payload for LLVM and Rust targets
+    let reflection_payload = if matches!(target, CompileTarget::Llvm | CompileTarget::Rust) {
+        Some(emit_reflection_payload(program))
+    } else {
+        None
+    };
+
+    let reflection_emitted = reflection_payload.is_some();
+
     RuntimeContractBundle {
         schema_version: RUNTIME_CONTRACT_SCHEMA_VERSION,
         target: compile_target_name(target).to_string(),
@@ -67,14 +136,21 @@ pub fn emit_runtime_contract_bundle(
         service_bindings,
         items,
         reflection: RuntimeReflectionSummary {
-            emitted: false,
+            emitted: reflection_emitted,
             schema_names: reflection_names.into_iter().collect(),
-            notes: vec![
-                "Runtime contract scaffolding emitted from kain-core.".to_string(),
-                "Reflection payloads are not emitted yet; schema_names are placeholders for future reflection integration."
-                    .to_string(),
-            ],
+            notes: if reflection_emitted {
+                vec![
+                    "Full reflection payload emitted from kain-core.".to_string(),
+                    "Includes type schemas, item metadata, actors, components, and messages.".to_string(),
+                ]
+            } else {
+                vec![
+                    "Runtime contract scaffolding emitted from kain-core.".to_string(),
+                    "Reflection payloads are not emitted for this target.".to_string(),
+                ]
+            },
         },
+        reflection_payload,
     }
 }
 
@@ -392,6 +468,217 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
             TypedItem::Mod(module) => summarize_items_into(&module.items, summary),
             _ => {}
         }
+    }
+}
+
+fn emit_reflection_payload(program: &TypedProgram) -> RuntimeReflectionPayload {
+    let mut types = Vec::new();
+    let mut items = Vec::new();
+    let mut actors = Vec::new();
+    let mut components = Vec::new();
+    let mut messages = Vec::new();
+    let mut type_id_counter = 1u64;
+    let mut item_id_counter = 1u64;
+
+    collect_reflection_data(
+        &program.items,
+        "",
+        &mut types,
+        &mut items,
+        &mut actors,
+        &mut components,
+        &mut messages,
+        &mut type_id_counter,
+        &mut item_id_counter,
+    );
+
+    RuntimeReflectionPayload {
+        schema_version: RUNTIME_CONTRACT_SCHEMA_VERSION,
+        types,
+        items,
+        actors,
+        components,
+        messages,
+    }
+}
+
+fn collect_reflection_data(
+    typed_items: &[TypedItem],
+    module_path: &str,
+    types: &mut Vec<ReflectedType>,
+    items: &mut Vec<ReflectedItem>,
+    actors: &mut Vec<ReflectedActor>,
+    components: &mut Vec<ReflectedComponent>,
+    messages: &mut Vec<ReflectedMessage>,
+    type_id_counter: &mut u64,
+    item_id_counter: &mut u64,
+) {
+    for item in typed_items {
+        match item {
+            TypedItem::Struct(struct_def) => {
+                let type_id = *type_id_counter;
+                *type_id_counter += 1;
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                let fields = struct_def
+                    .ast
+                    .fields
+                    .iter()
+                    .map(|f| ReflectedField {
+                        name: f.name.clone(),
+                        type_name: type_to_string(&f.ty),
+                        offset_hint: None,
+                    })
+                    .collect();
+
+                types.push(ReflectedType {
+                    type_id,
+                    name: struct_def.ast.name.clone(),
+                    kind: "struct".to_string(),
+                    size_hint: None,
+                    fields,
+                });
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: struct_def.ast.name.clone(),
+                    kind: "struct".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: Some(type_id),
+                });
+            }
+            TypedItem::Enum(enum_def) => {
+                let type_id = *type_id_counter;
+                *type_id_counter += 1;
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                types.push(ReflectedType {
+                    type_id,
+                    name: enum_def.ast.name.clone(),
+                    kind: "enum".to_string(),
+                    size_hint: None,
+                    fields: Vec::new(),
+                });
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: enum_def.ast.name.clone(),
+                    kind: "enum".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: Some(type_id),
+                });
+            }
+            TypedItem::Actor(actor) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: actor.ast.name.clone(),
+                    kind: "actor".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+
+                actors.push(ReflectedActor {
+                    item_id,
+                    name: actor.ast.name.clone(),
+                    message_types: Vec::new(),
+                    state_type: None,
+                });
+            }
+            TypedItem::Component(component) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                let props = component
+                    .ast
+                    .params
+                    .iter()
+                    .map(|p| ReflectedField {
+                        name: p.name.clone(),
+                        type_name: p.ty.as_ref().map(type_to_string).unwrap_or_else(|| "Any".to_string()),
+                        offset_hint: None,
+                    })
+                    .collect();
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: component.ast.name.clone(),
+                    kind: "component".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+
+                components.push(ReflectedComponent {
+                    item_id,
+                    name: component.ast.name.clone(),
+                    props,
+                    state_type: None,
+                });
+            }
+            TypedItem::Function(function) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: function.ast.name.clone(),
+                    kind: "function".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+            }
+            TypedItem::Mod(module) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: module.ast.name.clone(),
+                    kind: "mod".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+
+                let nested_path = if module_path.is_empty() {
+                    module.ast.name.clone()
+                } else {
+                    format!("{}::{}", module_path, module.ast.name)
+                };
+
+                collect_reflection_data(
+                    &module.items,
+                    &nested_path,
+                    types,
+                    items,
+                    actors,
+                    components,
+                    messages,
+                    type_id_counter,
+                    item_id_counter,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
+fn type_to_string(ty: &crate::ast::Type) -> String {
+    match ty {
+        crate::ast::Type::Named { name, .. } => name.clone(),
+        crate::ast::Type::Tuple(_, _) => "Tuple".to_string(),
+        crate::ast::Type::Array(_, _, _) => "Array".to_string(),
+        crate::ast::Type::Slice(_, _) => "Slice".to_string(),
+        crate::ast::Type::Ref { inner, .. } => format!("&{}", type_to_string(inner)),
+        crate::ast::Type::Ptr { inner, .. } => format!("*{}", type_to_string(inner)),
+        crate::ast::Type::Option(inner, _) => format!("Option<{}>", type_to_string(inner)),
+        crate::ast::Type::Result(ok, _, _) => format!("Result<{}>", type_to_string(ok)),
+        crate::ast::Type::Unit(_) => "Unit".to_string(),
+        crate::ast::Type::Never(_) => "Never".to_string(),
+        _ => "Unknown".to_string(),
     }
 }
 

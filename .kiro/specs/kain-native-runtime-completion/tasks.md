@@ -75,32 +75,32 @@ Execution rules for the agent:
     - Validate required vs optional service reporting
     - _Requirements: 1.5, 2.2, 2.5, 13.1_
 
-- [ ] 2. Phase 2: Structured Diagnostics and Failure Model Hardening
-  - [-] 2.1 Add native runtime diagnostic record types
+- [x] 2. Phase 2: Structured Diagnostics and Failure Model Hardening
+  - [x] 2.1 Add native runtime diagnostic record types
     - Create diagnostic structs/enums for subsystem, code, severity, summary, detail, and source path
     - Expose APIs for collecting and reporting diagnostics during startup and runtime operations
     - _Requirements: 2.1, 2.2, 2.6_
 
-  - [~] 2.2 Replace primitive error paths in native core helpers
+  - [x] 2.2 Replace primitive error paths in native core helpers
     - Audit `runtime/native/src/core/kain_runtime_core.c` and related startup paths for print-only/null-only failures
     - Convert these to explicit diagnostics while preserving call-site compatibility where necessary
     - _Requirements: 2.1, 2.3, 14.6_
 
-  - [~] 2.3 Harden startup validation reports
+  - [x] 2.3 Harden startup validation reports
     - Extend runtime contract validation results to include runtime version, ABI version, subsystem codes, and downgrade information
     - Surface these through viewport/sculpt/app-host startup
     - _Requirements: 2.2, 2.5, 8.6_
 
-  - [~] 2.4 Define stable native runtime error codes
+  - [x] 2.4 Define stable native runtime error codes
     - Create a documented error code family for contract, reflection, actor, async, UI, graphics, platform, and compatibility failures
     - Add docs and tests so codes stay stable
     - _Requirements: 2.1, 2.3, 14.4_
 
-  - [~] 2.5 Add diagnostics conformance tests
+  - [x] 2.5 Add diagnostics conformance tests
     - Test contract mismatch, missing optional service downgrade, invalid bundle path, invalid JSON/schema, and startup failure diagnostics
     - _Requirements: 2.1, 2.2, 2.5, 13.1_
 
-- [ ] 3. Phase 3: Reflection Payload Emission and Native Runtime Consumption
+- [-] 3. Phase 3: Reflection Payload Emission and Native Runtime Consumption
   - [~] 3.1 Extend `kain-core` runtime contract emission
     - Upgrade `crates/kain-core/src/runtime_contract.rs` so reflection payloads are emitted instead of placeholder-only summaries
     - Add stable schema/version fields and item identity metadata for reflected runtime items
@@ -130,7 +130,7 @@ Execution rules for the agent:
     - Add native runtime tests for loading valid and invalid reflection payloads
     - _Requirements: 4.1, 4.3, 13.3_
 
-- [ ] 4. Phase 4: Low-Level Memory Helper ABI Parity
+- [~] 4. Phase 4: Low-Level Memory Helper ABI Parity
   - [~] 4.1 Inventory canonical low-level helper requirements
     - Derive the actual helper surface from `crates/kain-core/src/low_level_memory.rs` and `LOW_LEVEL_MEMORY_STATUS.md`
     - Produce an implementation checklist mapping compiler expectations to native helper exports
@@ -161,7 +161,7 @@ Execution rules for the agent:
     - Verify emitted LLVM calls match native exports and behavior
     - _Requirements: 3.3, 3.4, 13.1, 13.6_
 
-- [ ] 5. Phase 5: Actor Bootstrap Repair and Minimal Real Actor Runtime
+- [~] 5. Phase 5: Actor Bootstrap Repair and Minimal Real Actor Runtime
   - [~] 5.1 Replace the `default_actor_run` bootstrap path
     - Audit the current actor emission path in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
     - Replace the fallback/default wrapper integration with a real actor bootstrap ABI and runtime entrypoint
@@ -191,7 +191,7 @@ Execution rules for the agent:
     - Add tests for actor exit and mailbox cleanup
     - _Requirements: 5.1, 5.6, 13.2_
 
-- [ ] 6. Phase 6: Full Actor Runtime Semantics
+- [~] 6. Phase 6: Full Actor Runtime Semantics
   - [~] 6.1 Add bounded mailbox policy and backpressure
     - Implement capacity-aware mailboxes and explicit push failure/blocking behavior
     - Record overload diagnostics and counters
@@ -221,7 +221,7 @@ Execution rules for the agent:
     - Test child failure, restart, shutdown, monitored exits, bounded mailbox behavior, and registry cleanup
     - _Requirements: 6.2, 6.3, 6.4, 6.5, 13.2_
 
-- [ ] 7. Phase 7: Native Async, Futures, and Timers
+- [~] 7. Phase 7: Native Async, Futures, and Timers
   - [~] 7.1 Define async/task ABI and runtime data structures
     - Add task/future handles, state enums, wake records, and timer records in native headers
     - _Requirements: 7.1, 7.5_
@@ -248,7 +248,7 @@ Execution rules for the agent:
     - Test wake, cancellation, timer delay, actor/task interop, and completion diagnostics
     - _Requirements: 7.1, 7.2, 7.4, 13.1_
 
-- [ ] 8. Phase 8: UI Runtime and Component Convergence
+- [~] 8. Phase 8: UI Runtime and Component Convergence
   - [~] 8.1 Harden compiled bundle validation
     - Expand bundle validation in `runtime/native/src/ui/kain_ui_compiled_bundle.c`
     - Validate node shape, semantic fields, lifecycle metadata, and compatibility versioning
@@ -277,7 +277,7 @@ Execution rules for the agent:
     - Prove bundle validation, focus routing, redraw/invalidation, and startup capability checks
     - _Requirements: 8.1, 8.2, 8.3, 13.4, 13.5_
 
-- [ ] 9. Phase 9: Shader, Material, and Compute Runtime
+- [~] 9. Phase 9: Shader, Material, and Compute Runtime
   - [~] 9.1 Define runtime-consumable shader/material/compute artifacts
     - Extend compiler/driver artifact schemas so the native runtime can consume modern graphics metadata instead of only narrow realtime summaries
     - _Requirements: 9.1, 9.2_
@@ -303,7 +303,7 @@ Execution rules for the agent:
     - Validate artifact loading, binding validation, material parameter wiring, compute dispatch, and compatibility failures
     - _Requirements: 9.2, 9.3, 9.4, 13.5_
 
-- [ ] 10. Phase 10: Hot Reload, Compatibility, and Lifecycle APIs
+- [~] 10. Phase 10: Hot Reload, Compatibility, and Lifecycle APIs
   - [~] 10.1 Add compatibility metadata emission in compiler/driver lanes
     - Extend runtime contract or companion artifacts with compatibility classes, migration hints, and install/update metadata
     - _Requirements: 10.1, 10.5, 10.6_
@@ -328,7 +328,7 @@ Execution rules for the agent:
     - Test compatible update, incompatible update, missing migration, and startup version mismatch
     - _Requirements: 10.1, 10.2, 10.3, 13.4_
 
-- [ ] 11. Phase 11: Host Bridge, Plugin Bridge, and Foreign Runtime Services
+- [~] 11. Phase 11: Host Bridge, Plugin Bridge, and Foreign Runtime Services
   - [~] 11.1 Define native host service registration ABI
     - Add service registration/discovery APIs for host-provided capabilities
     - Keep the API capability-aware and versioned
@@ -351,7 +351,7 @@ Execution rules for the agent:
     - Validate service registration, missing capability failure, module ABI mismatch, and module removal
     - _Requirements: 11.1, 11.2, 11.4, 11.5_
 
-- [ ] 12. Phase 12: Cross-Platform Runtime Boundaries
+- [~] 12. Phase 12: Cross-Platform Runtime Boundaries
   - [~] 12.1 Audit and isolate Win32 assumptions
     - Move platform-neutral logic into core modules and headers
     - Leave Win32-only implementations behind explicit platform service boundaries
@@ -370,7 +370,7 @@ Execution rules for the agent:
     - Validate build-time or startup-time unsupported-platform diagnostics and capability discovery behavior
     - _Requirements: 12.3, 12.4, 12.5_
 
-- [ ] 13. Phase 13: End-to-End Conformance and Repo Hardening
+- [~] 13. Phase 13: End-to-End Conformance and Repo Hardening
   - [~] 13.1 Add end-to-end native bundle tests
     - Cover native app bundle emission, runtime contract/reflection loading, realtime/UI bundle loading, and startup validation
     - _Requirements: 4.2, 10.6, 13.4_
@@ -398,7 +398,7 @@ Execution rules for the agent:
       - explicit cross-platform boundaries
     - Record any remaining non-goals explicitly instead of leaving them ambiguous
 
-- [ ] 14. Ongoing Discipline Tasks
+- [~] 14. Ongoing Discipline Tasks
   - [~] 14.1 Update tests alongside every runtime-facing change
     - No runtime ABI, codegen binding, or contract change lands without test updates
     - _Requirements: 13.1, 14.4_

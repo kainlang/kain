@@ -221,6 +221,61 @@ int kain_service_registry_validate_required(
     return failures;
 }
 
+int kain_service_registry_validate_required_collector(
+    const KainServiceRegistry* registry,
+    KainDiagnosticCollector* collector
+) {
+    int i;
+    int failures = 0;
+    
+    if (!registry || !collector) {
+        return -1;
+    }
+    
+    for (i = 0; i < registry->service_count; i++) {
+        const KainServiceDescriptor* service = &registry->services[i];
+        
+        /* Only check required services */
+        if (service->requirement != KAIN_SERVICE_REQUIREMENT_REQUIRED) {
+            continue;
+        }
+        
+        /* Check if service is available */
+        if (service->status == KAIN_SERVICE_STATUS_AVAILABLE) {
+            continue;
+        }
+        
+        /* Service is required but not available */
+        failures++;
+        
+        /* Add diagnostic to collector */
+        char message[KAIN_DIAG_MESSAGE_MAX];
+        char detail[KAIN_DIAG_DETAIL_MAX];
+        
+        snprintf(message, sizeof(message),
+            "Required service '%s' is not available", service->key);
+        
+        snprintf(detail, sizeof(detail),
+            "Service: %s\nStatus: %s\nProvider: %d",
+            service->name,
+            service->status == KAIN_SERVICE_STATUS_UNAVAILABLE ? "unavailable" :
+            service->status == KAIN_SERVICE_STATUS_DEGRADED ? "degraded" : "failed",
+            service->provider);
+        
+        kain_diagnostic_collector_add_new(
+            collector,
+            KAIN_DIAG_SUBSYSTEM_CONTRACT,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_CONTRACT_MISSING_SERVICE,
+            message,
+            detail,
+            NULL
+        );
+    }
+    
+    return failures;
+}
+
 int kain_service_registry_format_list(
     const KainServiceRegistry* registry,
     char* out,

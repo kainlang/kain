@@ -113,4 +113,18 @@ void kain_runtime_contract_populate_service_registry(KainServiceRegistry* regist
  */
 int kain_runtime_contract_is_service_available(const char* service_key);
 
+/*
+ * Enhanced Startup Validation with Diagnostic Collection
+ *
+ * Extended validation that populates a KainStartupValidationResult with
+ * comprehensive version information, service status, and structured diagnostics.
+ * This is the preferred validation function for new code.
+ */
+int kain_runtime_contract_validate_startup_enhanced(
+    const KainRuntimeContractBundle* bundle,
+    unsigned int required_service_mask,
+    unsigned int optional_service_mask,
+    KainStartupValidationResult* result
+);
+
 #endif
