@@ -331,12 +331,36 @@ Conformance tests are designed to be run in CI/CD pipelines:
 
 ---
 
+## Implemented Tests
+
+### Phase 1: Canonical ABI, Service Tables, and Version Metadata
+
+- **01_abi_version/** - Runtime version information API tests
+  - Validates ABI version exposure
+  - Validates runtime version exposure
+  - Validates build information
+  - Validates version formatting and compatibility checking
+
+- **02_service_registry/** - Service registry conformance tests
+  - Validates service registration and lookup
+  - Validates service availability checking
+  - Validates service counting by status and requirement
+  - Validates required service validation
+
+- **03_abi_startup_validation/** - ABI and startup validation tests (Task 1.6)
+  - Validates runtime version exposure (Requirements 1.5, 2.2)
+  - Validates service registry resolution (Requirements 2.5)
+  - Validates startup mismatch failures (Requirements 2.2, 2.5)
+  - Validates required vs optional service reporting (Requirements 13.1)
+
+---
+
 ## Phase-by-Phase Test Expansion
 
 As the native runtime completion work progresses, conformance tests will be added in phases:
 
-- **Phase 0:** Test infrastructure and baseline (this task)
-- **Phase 1:** ABI parity and service table tests
+- **Phase 0:** Test infrastructure and baseline ✅
+- **Phase 1:** ABI parity and service table tests ✅
 - **Phase 2:** Diagnostics and error code tests
 - **Phase 3:** Reflection payload tests
 - **Phase 4:** Low-level memory helper tests

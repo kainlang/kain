@@ -198,4 +198,156 @@ const char* kain_diagnostic_subsystem_name(KainDiagSubsystem subsystem);
  */
 const char* kain_diagnostic_severity_name(KainDiagSeverity severity);
 
+/*
+ * Diagnostic Collector
+ *
+ * A structure for collecting multiple diagnostics during startup and runtime
+ * operations. Provides buffering and batch reporting capabilities.
+ */
+#define KAIN_DIAG_COLLECTOR_MAX_DIAGNOSTICS 32
+
+typedef struct {
+    KainDiagnostic diagnostics[KAIN_DIAG_COLLECTOR_MAX_DIAGNOSTICS];
+    int count;
+    int error_count;
+    int warning_count;
+    int fatal_count;
+} KainDiagnosticCollector;
+
+/*
+ * Initialize Diagnostic Collector
+ *
+ * Clears the collector and prepares it for diagnostic collection.
+ */
+void kain_diagnostic_collector_init(KainDiagnosticCollector* collector);
+
+/*
+ * Add Diagnostic to Collector
+ *
+ * Adds a diagnostic to the collector. Returns 0 on success, -1 if the
+ * collector is full. Updates severity counters automatically.
+ */
+int kain_diagnostic_collector_add(
+    KainDiagnosticCollector* collector,
+    const KainDiagnostic* diag
+);
+
+/*
+ * Add Diagnostic to Collector (Create and Add)
+ *
+ * Convenience function that creates a diagnostic and adds it to the collector
+ * in one call. Returns 0 on success, -1 if the collector is full.
+ */
+int kain_diagnostic_collector_add_new(
+    KainDiagnosticCollector* collector,
+    KainDiagSubsystem subsystem,
+    KainDiagSeverity severity,
+    int code,
+    const char* message,
+    const char* detail,
+    const char* source_path
+);
+
+/*
+ * Check if Collector Has Errors
+ *
+ * Returns 1 if the collector contains any error or fatal diagnostics, 0 otherwise.
+ */
+int kain_diagnostic_collector_has_errors(const KainDiagnosticCollector* collector);
+
+/*
+ * Check if Collector Has Fatals
+ *
+ * Returns 1 if the collector contains any fatal diagnostics, 0 otherwise.
+ */
+int kain_diagnostic_collector_has_fatals(const KainDiagnosticCollector* collector);
+
+/*
+ * Get Diagnostic Count by Severity
+ *
+ * Returns the number of diagnostics with the given severity level.
+ */
+int kain_diagnostic_collector_count_by_severity(
+    const KainDiagnosticCollector* collector,
+    KainDiagSeverity severity
+);
+
+/*
+ * Print All Diagnostics in Collector
+ *
+ * Prints all collected diagnostics to stderr/stdout based on severity.
+ * Useful for batch reporting during startup or after operations.
+ */
+void kain_diagnostic_collector_print_all(const KainDiagnosticCollector* collector);
+
+/*
+ * Format Diagnostic Summary
+ *
+ * Formats a summary of collected diagnostics (counts by severity) into the
+ * output buffer. Returns number of characters written (excluding null terminator).
+ */
+int kain_diagnostic_collector_format_summary(
+    const KainDiagnosticCollector* collector,
+    char* out,
+    size_t out_size
+);
+
+/*
+ * Clear Collector
+ *
+ * Clears all diagnostics from the collector and resets counters.
+ */
+void kain_diagnostic_collector_clear(KainDiagnosticCollector* collector);
+
+/*
+ * Startup Validation Result
+ *
+ * Aggregates diagnostics, version information, and validation status from
+ * runtime startup. Used for comprehensive startup reporting.
+ */
+typedef struct {
+    /* Version Information */
+    unsigned int runtime_abi_version;
+    unsigned int runtime_version;
+    unsigned int bundle_abi_version;
+    
+    /* Validation Status */
+    int validation_passed;
+    int required_services_available;
+    int optional_services_available;
+    int optional_services_degraded;
+    
+    /* Diagnostics */
+    KainDiagnosticCollector diagnostics;
+    
+    /* Summary Strings */
+    char summary[256];
+} KainStartupValidationResult;
+
+/*
+ * Initialize Startup Validation Result
+ *
+ * Clears the result structure and prepares it for validation reporting.
+ */
+void kain_startup_validation_result_init(KainStartupValidationResult* result);
+
+/*
+ * Format Startup Validation Report
+ *
+ * Formats a comprehensive startup validation report including version info,
+ * service status, and diagnostics. Returns number of characters written.
+ */
+int kain_startup_validation_result_format(
+    const KainStartupValidationResult* result,
+    char* out,
+    size_t out_size
+);
+
+/*
+ * Print Startup Validation Report
+ *
+ * Prints a comprehensive startup validation report to stdout/stderr.
+ */
+void kain_startup_validation_result_print(const KainStartupValidationResult* result);
+
 #endif /* KAIN_RUNTIME_DIAGNOSTICS_H */

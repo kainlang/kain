@@ -65,18 +65,18 @@ Execution rules for the agent:
     - Make runtime source/service declaration more transparent and machine-checkable
     - _Requirements: 1.3, 2.4, 14.2_
 
-  - [-] 1.5 Teach CLI/driver startup flows about runtime version metadata
+  - [x] 1.5 Teach CLI/driver startup flows about runtime version metadata
     - Update `crates/cli` and `crates/kain-driver` paths that materialize or resolve native runtime artifacts so runtime version metadata is preserved
     - Ensure bundle output includes the metadata required for startup validation
     - _Requirements: 2.4, 10.1, 10.6_
 
-  - [~] 1.6 Add ABI and startup validation tests
+  - [x] 1.6 Add ABI and startup validation tests
     - Add tests covering runtime version exposure, service registry resolution, and startup mismatch failures
     - Validate required vs optional service reporting
     - _Requirements: 1.5, 2.2, 2.5, 13.1_
 
 - [ ] 2. Phase 2: Structured Diagnostics and Failure Model Hardening
-  - [~] 2.1 Add native runtime diagnostic record types
+  - [-] 2.1 Add native runtime diagnostic record types
     - Create diagnostic structs/enums for subsystem, code, severity, summary, detail, and source path
     - Expose APIs for collecting and reporting diagnostics during startup and runtime operations
     - _Requirements: 2.1, 2.2, 2.6_
