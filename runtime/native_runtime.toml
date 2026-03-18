@@ -31,6 +31,7 @@ sources = [
     "native/src/core/kain_runtime_memory.c",
     "native/src/core/kain_runtime_bitfield.c",
     "native/src/core/kain_runtime_union.c",
+    "native/src/core/kain_runtime_actor.c",
     "native/src/asset/kain_asset_gltf.c",
     "native/src/gfx/opengl/kain_gl_win32_host.c",
     "native/src/platform/win32/kain_win32_app_host.c",
@@ -137,7 +138,7 @@ key = "actor.runtime"
 name = "Actor Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Actor spawn, mailbox, lifecycle, and scheduling"
 
 [[services]]
@@ -145,7 +146,7 @@ key = "actor.registry"
 name = "Actor Registry"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 description = "Named actor registration and lookup"
 
 [[services]]

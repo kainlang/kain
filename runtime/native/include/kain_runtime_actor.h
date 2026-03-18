@@ -205,6 +205,26 @@ typedef struct KainActorSchedulerNode {
 } KainActorSchedulerNode;
 
 /*
+ * Actor Bootstrap Function
+ *
+ * Entry point for actor execution. Called by the runtime when an actor starts.
+ * The actor should process messages from its mailbox and perform its work.
+ *
+ * Parameters:
+ *   actor_id - The ID of this actor
+ *   mailbox - The actor's mailbox for receiving messages
+ *   user_data - User-provided data passed during spawn
+ *
+ * Returns:
+ *   Exit reason for the actor
+ */
+typedef KainActorExitReason (*KainActorBootstrapFn)(
+    KainActorId actor_id,
+    KainActorMailbox* mailbox,
+    void* user_data
+);
+
+/*
  * Actor State Record
  *
  * Complete runtime state for an actor instance.
@@ -279,26 +299,6 @@ typedef struct {
 typedef struct KainActorHandle KainActorHandle;
 
 /*
- * Actor Bootstrap Function
- *
- * Entry point for actor execution. Called by the runtime when an actor starts.
- * The actor should process messages from its mailbox and perform its work.
- *
- * Parameters:
- *   actor_id - The ID of this actor
- *   mailbox - The actor's mailbox for receiving messages
- *   user_data - User-provided data passed during spawn
- *
- * Returns:
- *   Exit reason for the actor
- */
-typedef KainActorExitReason (*KainActorBootstrapFn)(
-    KainActorId actor_id,
-    KainActorMailbox* mailbox,
-    void* user_data
-);
-
-/*
  * Actor Spawn Configuration
  *
  * Configuration for spawning a new actor.
@@ -311,6 +311,20 @@ typedef struct {
     KainActorId supervisor_id;
     char name[KAIN_ACTOR_NAME_MAX];
 } KainActorSpawnConfig;
+
+/*
+ * Initialize Actor Runtime
+ *
+ * Must be called before any actor operations.
+ */
+void kain_actor_runtime_init(void);
+
+/*
+ * Shutdown Actor Runtime
+ *
+ * Terminates all actors and cleans up resources.
+ */
+void kain_actor_runtime_shutdown(void);
 
 /*
  * Initialize Actor Spawn Configuration

@@ -130,7 +130,7 @@ Execution rules for the agent:
     - Add native runtime tests for loading valid and invalid reflection payloads
     - _Requirements: 4.1, 4.3, 13.3_
 
-- [-] 4. Phase 4: Low-Level Memory Helper ABI Parity
+- [x] 4. Phase 4: Low-Level Memory Helper ABI Parity
   - [x] 4.1 Inventory canonical low-level helper requirements
     - Derive the actual helper surface from `crates/kain-core/src/low_level_memory.rs` and `LOW_LEVEL_MEMORY_STATUS.md`
     - Produce an implementation checklist mapping compiler expectations to native helper exports
@@ -161,32 +161,32 @@ Execution rules for the agent:
     - Verify emitted LLVM calls match native exports and behavior
     - _Requirements: 3.3, 3.4, 13.1, 13.6_
 
-- [-] 5. Phase 5: Actor Bootstrap Repair and Minimal Real Actor Runtime
+- [x] 5. Phase 5: Actor Bootstrap Repair and Minimal Real Actor Runtime
   - [x] 5.1 Replace the `default_actor_run` bootstrap path
     - Audit the current actor emission path in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
     - Replace the fallback/default wrapper integration with a real actor bootstrap ABI and runtime entrypoint
     - _Requirements: 5.1, 5.6, 13.2_
 
-  - [-] 5.2 Define actor runtime structs and headers
+  - [x] 5.2 Define actor runtime structs and headers
     - Add actor ID, actor state, mailbox, exit reason, supervisor ref, monitor ref, and scheduler queue declarations
     - Document ownership and lifetime rules
     - _Requirements: 5.2, 6.1, 6.3_
 
-  - [~] 5.3 Implement mailbox-backed actor spawn and shutdown
+  - [x] 5.3 Implement mailbox-backed actor spawn and shutdown
     - Add actor creation, mailbox init, lifecycle transitions, and deterministic cleanup
     - Keep old raw thread helpers available only where still needed as low-level substrate, not as actor semantics
     - _Requirements: 5.2, 5.5, 6.1_
 
-  - [~] 5.4 Add actor identity and typed message metadata plumbing
+  - [x] 5.4 Add actor identity and typed message metadata plumbing
     - Thread message type tags and actor IDs through send/receive paths
     - Ensure actor bootstrap receives enough metadata to tie runtime behavior back to reflected or compiled identity
     - _Requirements: 5.3, 6.4_
 
-  - [~] 5.5 Surface actor diagnostics and cleanup behavior
+  - [x] 5.5 Surface actor diagnostics and cleanup behavior
     - Emit explicit diagnostics on actor spawn failure, mailbox overflow, invalid message delivery, and actor shutdown
     - _Requirements: 5.4, 5.5, 6.5_
 
-  - [~] 5.6 Add actor bootstrap smoke tests
+  - [x] 5.6 Add actor bootstrap smoke tests
     - Add native/LLVM actor smokes proving emitted actors run through the correct bootstrap path
     - Add tests for actor exit and mailbox cleanup
     - _Requirements: 5.1, 5.6, 13.2_
