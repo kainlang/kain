@@ -1,4 +1,5 @@
 #include "../../include/kain_runtime_contract.h"
+#include "../../include/kain_runtime_services.h"
 
 #ifdef _WIN32
 typedef struct {
@@ -786,3 +787,175 @@ int kain_runtime_contract_validate_startup(
     return 1;
 }
 #endif
+
+/*
+ * Populate Service Registry with Native Runtime Services
+ *
+ * This function registers all current native runtime services with the
+ * canonical service registry. It preserves the existing service handling
+ * while enabling registry-driven resolution.
+ */
+void kain_runtime_contract_populate_service_registry(KainServiceRegistry* registry) {
+    if (!registry) {
+        return;
+    }
+    
+    /* Register native.app-host service */
+    kain_service_registry_register(
+        registry,
+        KAIN_SERVICE_KEY_PLATFORM_APP_HOST,
+        "Native App Host",
+        "Win32 application host and window management",
+        KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_REQUIRED,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    );
+    
+    /* Register native.input service */
+    kain_service_registry_register(
+        registry,
+        KAIN_SERVICE_KEY_PLATFORM_INPUT,
+        "Native Input",
+        "Win32 input capture and event handling",
+        KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_REQUIRED,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    );
+    
+    /* Register native.viewport service */
+    kain_service_registry_register(
+        registry,
+        KAIN_SERVICE_KEY_GFX_VIEWPORT,
+        "Native Viewport",
+        "Win32 viewport host and OpenGL rendering",
+        KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_REQUIRED,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    );
+    
+    /* Register native.asset.gltf service */
+    kain_service_registry_register(
+        registry,
+        KAIN_SERVICE_KEY_ASSET_GLTF,
+        "glTF Asset Loader",
+        "glTF 2.0 asset loading and parsing",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    );
+    
+    /* Register native.ui.compiled-bundle service */
+    kain_service_registry_register(
+        registry,
+        KAIN_SERVICE_KEY_UI_BUNDLE,
+        "Compiled UI Bundle",
+        "Compiled UI bundle loading and overlay rendering",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    );
+}
+
+/*
+ * Lookup Service by Legacy Key
+ *
+ * Maps legacy service keys (native.app-host, etc.) to canonical service keys.
+ * This preserves compatibility with existing contract validation while
+ * enabling registry-driven resolution.
+ */
+static const char* kain_runtime_contract_map_legacy_service_key(const char* legacy_key) {
+    if (!legacy_key) {
+        return NULL;
+    }
+    
+#ifdef _WIN32
+    if (_stricmp(legacy_key, "native.app-host") == 0) {
+#else
+    if (strcasecmp(legacy_key, "native.app-host") == 0) {
+#endif
+        return KAIN_SERVICE_KEY_PLATFORM_APP_HOST;
+    }
+#ifdef _WIN32
+    if (_stricmp(legacy_key, "native.input") == 0) {
+#else
+    if (strcasecmp(legacy_key, "native.input") == 0) {
+#endif
+        return KAIN_SERVICE_KEY_PLATFORM_INPUT;
+    }
+#ifdef _WIN32
+    if (_stricmp(legacy_key, "native.viewport") == 0) {
+#else
+    if (strcasecmp(legacy_key, "native.viewport") == 0) {
+#endif
+        return KAIN_SERVICE_KEY_GFX_VIEWPORT;
+    }
+#ifdef _WIN32
+    if (_stricmp(legacy_key, "native.asset.gltf") == 0) {
+#else
+    if (strcasecmp(legacy_key, "native.asset.gltf") == 0) {
+#endif
+        return KAIN_SERVICE_KEY_ASSET_GLTF;
+    }
+#ifdef _WIN32
+    if (_stricmp(legacy_key, "native.ui.compiled-bundle") == 0) {
+#else
+    if (strcasecmp(legacy_key, "native.ui.compiled-bundle") == 0) {
+#endif
+        return KAIN_SERVICE_KEY_UI_BUNDLE;
+    }
+    
+    return legacy_key;
+}
+
+/*
+ * Check Service Availability via Registry
+ *
+ * Queries the service registry for service availability. Falls back to
+ * legacy hardcoded checks if registry is not available.
+ */
+int kain_runtime_contract_is_service_available(const char* service_key) {
+    KainServiceRegistry* registry;
+    const char* canonical_key;
+    
+    if (!service_key) {
+        return 0;
+    }
+    
+    /* Map legacy key to canonical key */
+    canonical_key = kain_runtime_contract_map_legacy_service_key(service_key);
+    
+    /* Try registry lookup first */
+    registry = kain_service_registry_global();
+    if (registry && registry->initialized && registry->service_count > 0) {
+        return kain_service_registry_is_available(registry, canonical_key);
+    }
+    
+    /* Fall back to legacy hardcoded checks */
+#ifdef _WIN32
+    if (_stricmp(service_key, "native.app-host") == 0 ||
+        _stricmp(service_key, "native.input") == 0 ||
+        _stricmp(service_key, "native.viewport") == 0 ||
+        _stricmp(service_key, "native.asset.gltf") == 0 ||
+        _stricmp(service_key, "native.ui.compiled-bundle") == 0) {
+#else
+    if (strcasecmp(service_key, "native.app-host") == 0 ||
+        strcasecmp(service_key, "native.input") == 0 ||
+        strcasecmp(service_key, "native.viewport") == 0 ||
+        strcasecmp(service_key, "native.asset.gltf") == 0 ||
+        strcasecmp(service_key, "native.ui.compiled-bundle") == 0) {
+#endif
+        return 1;
+    }
+    
+    return 0;
+}

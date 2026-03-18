@@ -225,9 +225,9 @@ The native runtime now exposes canonical ABI version constants:
 | Task | Status | Notes |
 |------|--------|-------|
 | 1.1 Define native runtime ABI versioning | ✅ Complete | Added `kain_runtime_version.h`, `kain_runtime_version.c`, integrated into contract validation, conformance test passing |
-| 1.2 Introduce canonical runtime service table headers | ⏸️ Not Started | |
-| 1.3 Implement runtime capability/service registry | ⏸️ Not Started | |
-| 1.4 Extend `native_runtime.toml` and metadata | ⏸️ Not Started | |
+| 1.2 Introduce canonical runtime service table headers | ✅ Complete | Added `kain_runtime_services.h`, `kain_runtime_diagnostics.h`, service registry implementation |
+| 1.3 Implement runtime capability/service registry | ✅ Complete | Service registry with lookup, validation, status tracking, conformance tests passing |
+| 1.4 Extend `native_runtime.toml` and metadata | ✅ Complete | Extended TOML with version/service metadata, added JSON metadata file, documentation |
 | 1.5 Teach CLI/driver about runtime version metadata | ⏸️ Not Started | |
 | 1.6 Add ABI and startup validation tests | ⏸️ Not Started | |
 
@@ -237,9 +237,17 @@ The native runtime now exposes canonical ABI version constants:
 - ✅ Added ABI version fields to `KainRuntimeContractBundle` structure
 - ✅ Extended `KainRuntimeContractValidation` with ABI compatibility checking
 - ✅ Integrated ABI version validation into `kain_runtime_contract_validate_startup()`
-- ✅ Updated `runtime/native_runtime.toml` to include new version source file
+- ✅ Created `runtime/native/include/kain_runtime_services.h` with service registry API
+- ✅ Implemented `runtime/native/src/core/kain_runtime_services.c` with service registry
+- ✅ Created `runtime/native/include/kain_runtime_diagnostics.h` with diagnostic structures
+- ✅ Implemented `runtime/native/src/core/kain_runtime_diagnostics.c` with diagnostic API
+- ✅ Extended `native_runtime.toml` with version metadata, service declarations, and platform info
+- ✅ Created `runtime/native_runtime_metadata.json` with machine-readable metadata
+- ✅ Created `runtime/NATIVE_RUNTIME_METADATA.md` documentation
+- ✅ Updated `runtime/native_runtime.toml` to include new source files
 - ✅ Created conformance test: `runtime/conformance/01_abi_version/test_version_info.c`
-- ✅ Verified native runtime compiles successfully (41,336 bytes)
+- ✅ Created conformance test: `runtime/conformance/02_service_registry/test_service_registry.c`
+- ✅ Verified native runtime compiles successfully
 - ✅ All conformance tests pass
 
 **Open Issues:**

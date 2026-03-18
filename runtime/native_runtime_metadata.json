@@ -1,0 +1,316 @@
+{
+  "runtime_name": "kain-native-runtime",
+  "runtime_lane": "raw-native",
+  "version": {
+    "runtime": {
+      "major": 0,
+      "minor": 1,
+      "patch": 0,
+      "string": "0.1.0"
+    },
+    "abi": {
+      "major": 0,
+      "minor": 1,
+      "patch": 0,
+      "string": "0.1.0",
+      "encoded": 256
+    }
+  },
+  "metadata": {
+    "description": "KAIN native C runtime for compiled programs",
+    "compatibility_class": "experimental",
+    "target_platforms": ["windows", "linux", "macos"],
+    "active_platforms": ["windows"],
+    "build_requirements": {
+      "c_standard": "C99",
+      "compiler": "MSVC, GCC, or Clang",
+      "dependencies": ["Windows SDK (for Win32 builds)"]
+    }
+  },
+  "sources": {
+    "core": [
+      "native/src/core/kain_runtime_core.c",
+      "native/src/core/kain_runtime_version.c",
+      "native/src/core/kain_runtime_diagnostics.c",
+      "native/src/core/kain_runtime_services.c",
+      "native/src/core/kain_runtime_contract.c",
+      "native/src/core/kain_runtime_realtime.c"
+    ],
+    "asset": [
+      "native/src/asset/kain_asset_gltf.c"
+    ],
+    "graphics": [
+      "native/src/gfx/opengl/kain_gl_win32_host.c"
+    ],
+    "platform_win32": [
+      "native/src/platform/win32/kain_win32_app_host.c",
+      "native/src/platform/win32/kain_win32_input_host.c",
+      "native/src/platform/win32/kain_runtime_win32_shared.c",
+      "native/src/platform/win32/kain_runtime_viewport_win32.c",
+      "native/src/platform/win32/kain_runtime_sculpt_win32.c"
+    ],
+    "ui": [
+      "native/src/ui/kain_ui_compiled_bundle.c",
+      "native/src/ui/kain_ui_compiled_overlay.c",
+      "native/src/ui/kain_ui_overlay.c"
+    ]
+  },
+  "include_dirs": [
+    "native/include"
+  ],
+  "services": [
+    {
+      "key": "base.memory",
+      "name": "Base Memory Services",
+      "provider": "native-core",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Core allocation, retain/release, and memory management",
+      "implementation_files": ["native/src/core/kain_runtime_core.c"],
+      "header_files": ["native/include/kain_runtime_base.h"]
+    },
+    {
+      "key": "base.diagnostics",
+      "name": "Base Diagnostics",
+      "provider": "native-core",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Structured diagnostics and error reporting",
+      "implementation_files": ["native/src/core/kain_runtime_diagnostics.c"],
+      "header_files": ["native/include/kain_runtime_diagnostics.h"]
+    },
+    {
+      "key": "contract",
+      "name": "Runtime Contract",
+      "provider": "native-core",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Runtime contract bundle loading and validation",
+      "implementation_files": ["native/src/core/kain_runtime_contract.c"],
+      "header_files": ["native/include/kain_runtime_contract.h"]
+    },
+    {
+      "key": "platform.app-host",
+      "name": "Native App Host",
+      "provider": "platform-win32",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "platforms": ["windows"],
+      "description": "Win32 application host and window management",
+      "implementation_files": ["native/src/platform/win32/kain_win32_app_host.c"],
+      "header_files": ["native/include/kain_runtime_app_host.h"]
+    },
+    {
+      "key": "platform.input",
+      "name": "Native Input",
+      "provider": "platform-win32",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "platforms": ["windows"],
+      "description": "Win32 input capture and event handling",
+      "implementation_files": ["native/src/platform/win32/kain_win32_input_host.c"],
+      "header_files": ["native/include/kain_runtime_input.h"]
+    },
+    {
+      "key": "gfx.viewport",
+      "name": "Native Viewport",
+      "provider": "platform-win32",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "platforms": ["windows"],
+      "description": "Win32 viewport host and OpenGL rendering",
+      "implementation_files": [
+        "native/src/platform/win32/kain_runtime_viewport_win32.c",
+        "native/src/gfx/opengl/kain_gl_win32_host.c"
+      ],
+      "header_files": ["native/include/kain_runtime_viewport.h"]
+    },
+    {
+      "key": "asset.gltf",
+      "name": "glTF Asset Loader",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "glTF 2.0 asset loading and parsing",
+      "implementation_files": ["native/src/asset/kain_asset_gltf.c"],
+      "header_files": ["native/include/kain_asset_gltf.h"]
+    },
+    {
+      "key": "asset.realtime",
+      "name": "Realtime Bundle Loader",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Realtime bundle loading and scene management",
+      "implementation_files": ["native/src/core/kain_runtime_realtime.c"],
+      "header_files": ["native/include/kain_runtime_realtime.h"]
+    },
+    {
+      "key": "ui.bundle",
+      "name": "Compiled UI Bundle",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Compiled UI bundle loading and overlay rendering",
+      "implementation_files": [
+        "native/src/ui/kain_ui_compiled_bundle.c",
+        "native/src/ui/kain_ui_compiled_overlay.c",
+        "native/src/ui/kain_ui_overlay.c"
+      ],
+      "header_files": [
+        "native/include/kain_ui_compiled_bundle.h",
+        "native/include/kain_ui_overlay.h"
+      ]
+    },
+    {
+      "key": "reflection",
+      "name": "Reflection Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Reflection payload loading and runtime type lookup",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "actor.runtime",
+      "name": "Actor Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Actor spawn, mailbox, lifecycle, and scheduling",
+      "implementation_files": [],
+      "header_files": ["native/include/kain_runtime_actor.h"]
+    },
+    {
+      "key": "actor.registry",
+      "name": "Actor Registry",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Named actor registration and lookup",
+      "implementation_files": [],
+      "header_files": ["native/include/kain_runtime_actor.h"]
+    },
+    {
+      "key": "async.runtime",
+      "name": "Async Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Task/future execution, wake/poll, and cancellation",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "async.timers",
+      "name": "Async Timers",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Timer registration and wake delivery",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "gfx.shader",
+      "name": "Shader Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Shader artifact loading and validation",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "gfx.material",
+      "name": "Material Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Material instance management and resource binding",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "gfx.compute",
+      "name": "Compute Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Compute pipeline creation and dispatch",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "ui.component",
+      "name": "UI Component Runtime",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Component state, invalidation, and event routing",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "compatibility",
+      "name": "Compatibility and Hot Reload",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Version validation, migration, and hot reload support",
+      "implementation_files": [],
+      "header_files": []
+    },
+    {
+      "key": "host.bridge",
+      "name": "Host Bridge",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "abi_version": "0.1.0",
+      "description": "Plugin and foreign service integration",
+      "implementation_files": [],
+      "header_files": []
+    }
+  ],
+  "link_dependencies": {
+    "windows": [
+      "legacy_stdio_definitions",
+      "user32",
+      "gdi32",
+      "opengl32",
+      "ws2_32"
+    ],
+    "linux": [],
+    "macos": []
+  },
+  "validation": {
+    "schema_version": "1.0.0",
+    "last_updated": "2025-01-01",
+    "validation_commands": [
+      "cargo test --package kain-core",
+      "cargo test --package kain-driver",
+      "cargo test --package kain-sys-codegen"
+    ]
+  }
+}

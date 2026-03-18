@@ -1,7 +1,30 @@
 name = "kain-native-runtime"
+
+# Runtime Version and ABI Metadata
+# These values must match the constants defined in runtime/native/include/kain_runtime_version.h
+[version]
+runtime_major = 0
+runtime_minor = 1
+runtime_patch = 0
+abi_major = 0
+abi_minor = 1
+abi_patch = 0
+
+# Runtime Metadata
+[metadata]
+description = "KAIN native C runtime for compiled programs"
+target_platforms = ["windows", "linux", "macos"]
+active_platforms = ["windows"]  # Currently implemented platforms
+runtime_lane = "raw-native"
+compatibility_class = "experimental"  # experimental, stable, production
+
+# Core Runtime Sources
+# These provide the foundational runtime services and ABI
 sources = [
     "native/src/core/kain_runtime_core.c",
     "native/src/core/kain_runtime_version.c",
+    "native/src/core/kain_runtime_diagnostics.c",
+    "native/src/core/kain_runtime_services.c",
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_realtime.c",
     "native/src/asset/kain_asset_gltf.c",
@@ -15,8 +38,177 @@ sources = [
     "native/src/platform/win32/kain_runtime_viewport_win32.c",
     "native/src/platform/win32/kain_runtime_sculpt_win32.c",
 ]
+
 include_dirs = ["native/include"]
 
+# Runtime Services Declaration
+# These services are registered at runtime initialization and used for capability discovery
+# Service keys must match the constants defined in runtime/native/include/kain_runtime_services.h
+[[services]]
+key = "base.memory"
+name = "Base Memory Services"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Core allocation, retain/release, and memory management"
+
+[[services]]
+key = "base.diagnostics"
+name = "Base Diagnostics"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Structured diagnostics and error reporting"
+
+[[services]]
+key = "contract"
+name = "Runtime Contract"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Runtime contract bundle loading and validation"
+
+[[services]]
+key = "platform.app-host"
+name = "Native App Host"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Win32 application host and window management"
+
+[[services]]
+key = "platform.input"
+name = "Native Input"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Win32 input capture and event handling"
+
+[[services]]
+key = "gfx.viewport"
+name = "Native Viewport"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Win32 viewport host and OpenGL rendering"
+
+[[services]]
+key = "asset.gltf"
+name = "glTF Asset Loader"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "glTF 2.0 asset loading and parsing"
+
+[[services]]
+key = "asset.realtime"
+name = "Realtime Bundle Loader"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Realtime bundle loading and scene management"
+
+[[services]]
+key = "ui.bundle"
+name = "Compiled UI Bundle"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compiled UI bundle loading and overlay rendering"
+
+# Future/Planned Services (not yet implemented)
+[[services]]
+key = "reflection"
+name = "Reflection Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Reflection payload loading and runtime type lookup"
+
+[[services]]
+key = "actor.runtime"
+name = "Actor Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Actor spawn, mailbox, lifecycle, and scheduling"
+
+[[services]]
+key = "actor.registry"
+name = "Actor Registry"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Named actor registration and lookup"
+
+[[services]]
+key = "async.runtime"
+name = "Async Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Task/future execution, wake/poll, and cancellation"
+
+[[services]]
+key = "async.timers"
+name = "Async Timers"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Timer registration and wake delivery"
+
+[[services]]
+key = "gfx.shader"
+name = "Shader Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Shader artifact loading and validation"
+
+[[services]]
+key = "gfx.material"
+name = "Material Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Material instance management and resource binding"
+
+[[services]]
+key = "gfx.compute"
+name = "Compute Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Compute pipeline creation and dispatch"
+
+[[services]]
+key = "ui.component"
+name = "UI Component Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Component state, invalidation, and event routing"
+
+[[services]]
+key = "compatibility"
+name = "Compatibility and Hot Reload"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Version validation, migration, and hot reload support"
+
+[[services]]
+key = "host.bridge"
+name = "Host Bridge"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Plugin and foreign service integration"
+
+# Platform-Specific Link Dependencies
 [link]
 windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32"]
 linux = []

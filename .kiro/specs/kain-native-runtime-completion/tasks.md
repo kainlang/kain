@@ -54,18 +54,18 @@ Execution rules for the agent:
     - Ensure current core/app/input/viewport/UI services map cleanly into the new model
     - _Requirements: 1.1, 1.2, 14.1_
 
-  - [-] 1.3 Implement a runtime capability/service registry
+  - [x] 1.3 Implement a runtime capability/service registry
     - Add table-driven capability and service descriptors in native core sources
     - Replace narrow hardcoded service checks with canonical registry-driven resolution where practical
     - Preserve current `native.app-host`, `native.input`, `native.viewport`, `native.asset.gltf`, and `native.ui.compiled-bundle` service handling
     - _Requirements: 1.2, 1.5, 2.6, 14.1_
 
-  - [~] 1.4 Extend `native_runtime.toml` and related runtime metadata
+  - [x] 1.4 Extend `native_runtime.toml` and related runtime metadata
     - Add explicit runtime ABI/version/service metadata to the manifest or companion metadata
     - Make runtime source/service declaration more transparent and machine-checkable
     - _Requirements: 1.3, 2.4, 14.2_
 
-  - [~] 1.5 Teach CLI/driver startup flows about runtime version metadata
+  - [-] 1.5 Teach CLI/driver startup flows about runtime version metadata
     - Update `crates/cli` and `crates/kain-driver` paths that materialize or resolve native runtime artifacts so runtime version metadata is preserved
     - Ensure bundle output includes the metadata required for startup validation
     - _Requirements: 2.4, 10.1, 10.6_

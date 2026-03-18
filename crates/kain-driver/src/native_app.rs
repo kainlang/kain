@@ -19,6 +19,7 @@ const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
 const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json";
 const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: &str = "kain_realtime_app_bundle.json";
 const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
+const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: &str = "kain_runtime_version.json";
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -43,6 +44,135 @@ impl Default for NativeAppBundleConfig {
     }
 }
 
+/// Runtime version metadata loaded from native_runtime.toml
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RuntimeVersionMetadata {
+    pub runtime_major: u32,
+    pub runtime_minor: u32,
+    pub runtime_patch: u32,
+    pub abi_major: u32,
+    pub abi_minor: u32,
+    pub abi_patch: u32,
+    pub runtime_version_string: String,
+    pub abi_version_string: String,
+    pub compatibility_class: String,
+    pub runtime_lane: String,
+}
+
+impl RuntimeVersionMetadata {
+    /// Load runtime version metadata from native_runtime.toml
+    pub fn load_from_runtime_manifest() -> Result<Self, KainError> {
+        let manifest_path = find_native_runtime_manifest()
+            .ok_or_else(|| KainError::runtime("Could not locate runtime/native_runtime.toml"))?;
+        
+        let manifest_source = fs::read_to_string(&manifest_path).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to read runtime manifest {}: {}",
+                manifest_path.display(),
+                err
+            ))
+        })?;
+
+        #[derive(serde::Deserialize)]
+        struct VersionSection {
+            runtime_major: u32,
+            runtime_minor: u32,
+            runtime_patch: u32,
+            abi_major: u32,
+            abi_minor: u32,
+            abi_patch: u32,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct MetadataSection {
+            compatibility_class: String,
+            runtime_lane: String,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RuntimeManifest {
+            version: VersionSection,
+            metadata: MetadataSection,
+        }
+
+        let manifest: RuntimeManifest = toml::from_str(&manifest_source).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to parse runtime manifest {}: {}",
+                manifest_path.display(),
+                err
+            ))
+        })?;
+
+        let runtime_version_string = format!(
+            "{}.{}.{}",
+            manifest.version.runtime_major,
+            manifest.version.runtime_minor,
+            manifest.version.runtime_patch
+        );
+
+        let abi_version_string = format!(
+            "{}.{}.{}",
+            manifest.version.abi_major,
+            manifest.version.abi_minor,
+            manifest.version.abi_patch
+        );
+
+        Ok(Self {
+            runtime_major: manifest.version.runtime_major,
+            runtime_minor: manifest.version.runtime_minor,
+            runtime_patch: manifest.version.runtime_patch,
+            abi_major: manifest.version.abi_major,
+            abi_minor: manifest.version.abi_minor,
+            abi_patch: manifest.version.abi_patch,
+            runtime_version_string,
+            abi_version_string,
+            compatibility_class: manifest.metadata.compatibility_class,
+            runtime_lane: manifest.metadata.runtime_lane,
+        })
+    }
+}
+
+fn find_native_runtime_manifest() -> Option<PathBuf> {
+    // Try KAIN_RUNTIME_MANIFEST environment variable
+    if let Ok(explicit) = std::env::var("KAIN_RUNTIME_MANIFEST") {
+        let candidate = PathBuf::from(explicit);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    // Try relative to current directory
+    if let Ok(mut dir) = std::env::current_dir() {
+        for _ in 0..10 {
+            let candidate = dir.join("runtime").join("native_runtime.toml");
+            if candidate.exists() {
+                return Some(candidate);
+            }
+            match dir.parent() {
+                Some(parent) => dir = parent.to_path_buf(),
+                None => break,
+            }
+        }
+    }
+
+    // Try relative to executable
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
+            loop {
+                let candidate = dir.join("runtime").join("native_runtime.toml");
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+                if !dir.pop() {
+                    break;
+                }
+            }
+        }
+    }
+
+    None
+}
+
 #[derive(Debug, Clone)]
 pub struct NativeAppMetadata {
     pub app_name: String,
@@ -60,6 +190,7 @@ pub struct NativeAppBundle {
     pub shader_bundle: Option<ShaderArtifactBundleOutput>,
     pub ui: UiBuildOutput,
     pub rust: RustBundleOutput,
+    pub runtime_version: Option<RuntimeVersionMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,6 +253,9 @@ impl DriverSession {
         let ui = build_ui_output_from_source(source, &root_component)?;
         let rust = self.compile_rust_artifact_bundle(source, config.include_spirv)?;
 
+        // Load runtime version metadata
+        let runtime_version = RuntimeVersionMetadata::load_from_runtime_manifest().ok();
+
         Ok(NativeAppBundle {
             metadata: NativeAppMetadata {
                 app_name,
@@ -135,6 +269,7 @@ impl DriverSession {
             shader_bundle,
             ui,
             rust,
+            runtime_version,
         })
     }
 
@@ -178,6 +313,21 @@ impl DriverSession {
         fs::write(&realtime_bundle_path, realtime_bundle_json.as_bytes())
             .map_err(io_error("write native app realtime bundle"))?;
         artifact_paths.push(realtime_bundle_path.clone());
+
+        // Write runtime version metadata if available
+        if let Some(runtime_version) = &bundle.runtime_version {
+            let version_metadata_path = artifact_root.join(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME);
+            let version_metadata_json = serde_json::to_string_pretty(runtime_version)
+                .map_err(|err| {
+                    KainError::runtime(format!(
+                        "Failed to serialize runtime version metadata: {}",
+                        err
+                    ))
+                })?;
+            fs::write(&version_metadata_path, version_metadata_json.as_bytes())
+                .map_err(io_error("write native runtime version metadata"))?;
+            artifact_paths.push(version_metadata_path);
+        }
 
         let shader_bundle_path = if let Some(shader_bundle) = &bundle.shader_bundle {
             let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME);
@@ -266,6 +416,7 @@ impl DriverSession {
                     NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME,
                     NATIVE_APP_REALTIME_BUNDLE_FILE_NAME,
                     NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
+                    NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
                 ],
             )?;
         }
@@ -726,5 +877,72 @@ component App():
             .artifact_paths
             .iter()
             .any(|path| path.ends_with(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME)));
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_includes_runtime_version_metadata() {
+        let temp = TempDir::new().expect("temp dir");
+        let project_dir = temp.path().join("native-app-with-version");
+        let source = r#"
+component App():
+    render <panel title="Version Test" />
+"#;
+        let bundle = compile_native_app_bundle(
+            source,
+            &NativeAppBundleConfig {
+                source_file_name: Some("version_test.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        // Check that runtime version metadata was loaded (if manifest is available)
+        if bundle.runtime_version.is_some() {
+            let version = bundle.runtime_version.as_ref().unwrap();
+            assert_eq!(version.abi_major, 0);
+            assert_eq!(version.abi_minor, 1);
+            assert_eq!(version.runtime_major, 0);
+            assert_eq!(version.runtime_minor, 1);
+            assert_eq!(version.abi_version_string, "0.1.0");
+            assert_eq!(version.runtime_version_string, "0.1.0");
+            assert_eq!(version.compatibility_class, "experimental");
+            assert_eq!(version.runtime_lane, "raw-native");
+        }
+
+        let materialized = materialize_native_app_bundle(
+            source,
+            &bundle,
+            &NativeAppMaterializationConfig {
+                project_dir: project_dir.clone(),
+                runtime_crate_name: "kain-ui-native".to_string(),
+                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
+                artifact_output_dir: PathBuf::from("generated"),
+                build_executable: false,
+                release: false,
+                executable_output_dir: None,
+            },
+        )
+        .expect("materialization should succeed");
+
+        // Check if runtime version metadata file was written (if metadata was available)
+        if bundle.runtime_version.is_some() {
+            let version_metadata_path = materialized
+                .artifact_paths
+                .iter()
+                .find(|path| path.ends_with(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME));
+            
+            assert!(
+                version_metadata_path.is_some(),
+                "Runtime version metadata file should be written when metadata is available"
+            );
+
+            if let Some(path) = version_metadata_path {
+                assert!(path.exists(), "Runtime version metadata file should exist");
+                let metadata_json = fs::read_to_string(path).expect("read version metadata");
+                assert!(metadata_json.contains("abi_version_string"));
+                assert!(metadata_json.contains("runtime_version_string"));
+                assert!(metadata_json.contains("0.1.0"));
+            }
+        }
     }
 }

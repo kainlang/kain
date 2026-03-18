@@ -3,6 +3,7 @@
 
 #include "kain_runtime_win32.h"
 #include "kain_runtime_version.h"
+#include "kain_runtime_services.h"
 
 #ifdef _WIN32
 #define KAIN_RUNTIME_CONTRACT_ENV "KAIN_RUNTIME_CONTRACT"
@@ -94,5 +95,22 @@ void kain_runtime_contract_format_service_mask(
     size_t out_cap
 );
 #endif
+
+/*
+ * Populate Service Registry
+ *
+ * Registers all current native runtime services with the canonical service
+ * registry. This enables registry-driven service resolution while preserving
+ * existing service handling.
+ */
+void kain_runtime_contract_populate_service_registry(KainServiceRegistry* registry);
+
+/*
+ * Check Service Availability
+ *
+ * Queries the service registry for service availability. Falls back to
+ * legacy hardcoded checks if registry is not available.
+ */
+int kain_runtime_contract_is_service_available(const char* service_key);
 
 #endif
