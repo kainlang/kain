@@ -10,7 +10,7 @@ echo Updating KAIN compiler...
 echo ============================================================================
 echo.
 
-cargo install --path crates/cli --force
+powershell -ExecutionPolicy Bypass -File "%~dp0sync-kain-source-of-truth.ps1" -PersistUserEnv
 
 if !ERRORLEVEL! neq 0 (
     echo.
@@ -25,7 +25,7 @@ echo ===========================================================================
 echo [SUCCESS] KAIN compiler updated!
 echo ============================================================================
 echo.
-echo Installed to: C:\Users\Admin\.cargo\bin\kain.exe
+echo Installed and refreshed via sync-kain-source-of-truth.ps1
 echo.
 
 exit /b 0

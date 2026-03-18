@@ -670,6 +670,11 @@ STDLIB: print, read_file, write_file, http_get, json_parse
 ## AGENT INSTRUCTIONS
 
 ### General Instructions
+Compiler source of truth:
+- Use `kain` from PATH for normal workflows.
+- If the compiler changed, run `scripts/sync-kain-source-of-truth.ps1`.
+- Do not use `cargo run -p cli` except when explicitly working on the CLI itself.
+
 When user asks to:
 1. **"Write a shader"** → Use `shader fragment/vertex/compute/surface` syntax
 2. **"Compile for UE5"** → Use `-t usf` for shaders, `-t ue5` for game code
@@ -694,7 +699,9 @@ When user asks to:
 18. **"UE5 best practices"** → Refer to UE5_GODMODE_GUIDE.md for patterns and workflow
 
 ## CRITICAL RULES
-- Always use `kain` (NOT `kain`)
+- Always use `kain` from PATH
+- Refresh the canonical PATH binary with `scripts/sync-kain-source-of-truth.ps1` after CLI/compiler changes
+- Avoid `cargo run -p cli` for normal builds, smokes, and agent workflows
 - USF target auto-generates `.h` file
 - Permutation uniforms MUST start with `CFG_` or `ENABLE_`
 - Binding slots `@N` must be unique per shader
