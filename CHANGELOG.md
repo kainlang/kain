@@ -5,6 +5,50 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=803419d6c4b45493 -->
+## 2026-03-18 03:57:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `0a072af`
+- Changed files: 38
+- [.D] `runtime/BASELINE_CHECKPOINT_REPORT.md`
+- [.D] `runtime/KAIN_NATIVE_RUNTIME_FEATURE_MATRIX.md`
+- [.D] `runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md`
+- [.D] `runtime/NATIVE_RUNTIME_COMPLETION_TRACKER.md`
+- [.D] `runtime/NATIVE_RUNTIME_METADATA.md`
+- [.D] `runtime/NATIVE_RUNTIME_VALIDATION.md`
+- [.D] `runtime/PHASE_1_TASK_1_2_VERIFICATION.md`
+- [.D] `runtime/PHASE_2_COMPLETION_SUMMARY.md`
+- [.D] `runtime/PHASE_5_COMPLETION_SUMMARY.md`
+- [.D] `runtime/TASK_1_1_SUMMARY.md`
+- [.D] `runtime/TASK_1_2_SUMMARY.md`
+- [.D] `runtime/TASK_1_3_SUMMARY.md`
+- [.D] `runtime/TASK_1_4_SUMMARY.md`
+- [.D] `runtime/TASK_2_1_SUMMARY.md`
+- [.D] `runtime/TASK_4_3_SUMMARY.md`
+- [.D] `runtime/TASK_4_4_SUMMARY.md`
+- [.D] `runtime/TASK_6_3_COMPLETION_SUMMARY.md`
+- [.M] `runtime/conformance/actor_runtime/run_tests.sh`
+- [??] `runtime/agentchecklist.md`
+- [??] `runtime/changelogs/BASELINE_CHECKPOINT_REPORT.md`
+- [??] `runtime/changelogs/KAIN_NATIVE_RUNTIME_FEATURE_MATRIX.md`
+- [??] `runtime/changelogs/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md`
+- [??] `runtime/changelogs/NATIVE_RUNTIME_COMPLETION_TRACKER.md`
+- [??] `runtime/changelogs/NATIVE_RUNTIME_METADATA.md`
+- [??] `runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md`
+- [??] `runtime/changelogs/PHASE_1_TASK_1_2_VERIFICATION.md`
+- [??] `runtime/changelogs/PHASE_2_COMPLETION_SUMMARY.md`
+- [??] `runtime/changelogs/PHASE_5_COMPLETION_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_1_1_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_1_2_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_1_3_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_1_4_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_2_1_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_4_3_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_4_4_SUMMARY.md`
+- [??] `runtime/changelogs/TASK_6_3_COMPLETION_SUMMARY.md`
+- [??] `runtime/conformance/_shared/run_with_timeout.py`
+- [??] `runtime/tasks.md`
+
 <!-- polytools-changelog:fingerprint=619b858211e118b0 -->
 ## 2026-03-18 02:07:28 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
