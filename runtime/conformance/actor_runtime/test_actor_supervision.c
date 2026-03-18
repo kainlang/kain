@@ -22,6 +22,29 @@
 /* Counters for child restarts */
 static int g_child_start_count = 0;
 static int g_bounded_child_start_count = 0;
+static int g_one_for_all_start_count = 0;
+static int g_rest_for_one_start_count = 0;
+
+static KainActorExitReason waiting_child_bootstrap(
+    KainActorId actor_id,
+    KainActorMailbox* mailbox,
+    void* user_data
+) {
+    const char* label = (const char*)user_data;
+    KainActorMessage msg;
+    KainDiagnostic diag;
+
+    printf("Waiting child %s (%llu) starting\n", label ? label : "unnamed", actor_id);
+
+    while (kain_actor_receive(mailbox, &msg, &diag) == 0) {
+        if (msg.data != NULL) {
+            free(msg.data);
+        }
+    }
+
+    printf("Waiting child %s (%llu) shutting down\n", label ? label : "unnamed", actor_id);
+    return KAIN_ACTOR_EXIT_SHUTDOWN;
+}
 
 /* Child actor that crashes on first run, succeeds on restart */
 static KainActorExitReason supervised_child_bootstrap(
@@ -101,6 +124,48 @@ static KainActorExitReason temporary_child_bootstrap(
     (void)user_data;
     printf("Temporary child %llu starting and exiting normally\n", actor_id);
     sleep(1);
+    return KAIN_ACTOR_EXIT_NORMAL;
+}
+
+static KainActorExitReason one_for_all_child_bootstrap(
+    KainActorId actor_id,
+    KainActorMailbox* mailbox,
+    void* user_data
+) {
+    (void)mailbox;
+    (void)user_data;
+
+    g_one_for_all_start_count++;
+    printf("One-for-all child %llu starting (attempt %d)\n", actor_id, g_one_for_all_start_count);
+    sleep(1);
+
+    if (g_one_for_all_start_count == 1) {
+        printf("One-for-all child %llu crashing on first attempt\n", actor_id);
+        return KAIN_ACTOR_EXIT_CRASHED;
+    }
+
+    printf("One-for-all child %llu recovered\n", actor_id);
+    return KAIN_ACTOR_EXIT_NORMAL;
+}
+
+static KainActorExitReason rest_for_one_child_bootstrap(
+    KainActorId actor_id,
+    KainActorMailbox* mailbox,
+    void* user_data
+) {
+    (void)mailbox;
+    (void)user_data;
+
+    g_rest_for_one_start_count++;
+    printf("Rest-for-one child %llu starting (attempt %d)\n", actor_id, g_rest_for_one_start_count);
+    sleep(1);
+
+    if (g_rest_for_one_start_count == 1) {
+        printf("Rest-for-one child %llu crashing on first attempt\n", actor_id);
+        return KAIN_ACTOR_EXIT_CRASHED;
+    }
+
+    printf("Rest-for-one child %llu recovered\n", actor_id);
     return KAIN_ACTOR_EXIT_NORMAL;
 }
 
@@ -272,6 +337,107 @@ int main(void) {
     }
     if (transient_snapshot.restart_limit_hit) {
         printf("FAIL: Transient child should not hit the restart limit in this smoke\n");
+        return 1;
+    }
+
+    /* Test 4: One-for-all strategy should shut down sibling children */
+    printf("\n--- Test 4: One-For-All Strategy ---\n");
+
+    g_one_for_all_start_count = 0;
+
+    KainActorSpawnConfig one_for_all_waiter_a;
+    kain_actor_spawn_config_init(&one_for_all_waiter_a);
+    one_for_all_waiter_a.bootstrap_fn = waiting_child_bootstrap;
+    one_for_all_waiter_a.user_data = "ofa_before";
+    one_for_all_waiter_a.supervisor_id = supervisor_id;
+    one_for_all_waiter_a.supervision_strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ALL;
+    one_for_all_waiter_a.restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
+    strncpy(one_for_all_waiter_a.name, "ofa_before", KAIN_ACTOR_NAME_MAX);
+
+    KainActorSpawnConfig one_for_all_waiter_b = one_for_all_waiter_a;
+    one_for_all_waiter_b.user_data = "ofa_after";
+    strncpy(one_for_all_waiter_b.name, "ofa_after", KAIN_ACTOR_NAME_MAX);
+
+    KainActorSpawnConfig one_for_all_crasher;
+    kain_actor_spawn_config_init(&one_for_all_crasher);
+    one_for_all_crasher.bootstrap_fn = one_for_all_child_bootstrap;
+    one_for_all_crasher.supervisor_id = supervisor_id;
+    one_for_all_crasher.supervision_strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ALL;
+    one_for_all_crasher.restart_policy = KAIN_RESTART_POLICY_TRANSIENT;
+    strncpy(one_for_all_crasher.name, "ofa_crasher", KAIN_ACTOR_NAME_MAX);
+
+    KainActorId ofa_before_id = kain_actor_spawn(&one_for_all_waiter_a, &diag);
+    KainActorId ofa_after_id = kain_actor_spawn(&one_for_all_waiter_b, &diag);
+    KainActorId ofa_crasher_id = kain_actor_spawn(&one_for_all_crasher, &diag);
+
+    if (ofa_before_id == KAIN_ACTOR_ID_INVALID ||
+        ofa_after_id == KAIN_ACTOR_ID_INVALID ||
+        ofa_crasher_id == KAIN_ACTOR_ID_INVALID) {
+        printf("FAIL: One-for-all actors failed to spawn\n");
+        return 1;
+    }
+
+    sleep(3);
+
+    if (g_one_for_all_start_count < 2) {
+        printf("FAIL: One-for-all child should have restarted once after crashing\n");
+        return 1;
+    }
+    if (kain_actor_get_state(ofa_before_id) != KAIN_ACTOR_STATE_TERMINATED ||
+        kain_actor_get_state(ofa_after_id) != KAIN_ACTOR_STATE_TERMINATED) {
+        printf("FAIL: One-for-all strategy should shut down sibling actors\n");
+        return 1;
+    }
+
+    /* Test 5: Rest-for-one should only shut down younger siblings */
+    printf("\n--- Test 5: Rest-For-One Strategy ---\n");
+
+    g_rest_for_one_start_count = 0;
+
+    KainActorSpawnConfig rest_waiter_old;
+    kain_actor_spawn_config_init(&rest_waiter_old);
+    rest_waiter_old.bootstrap_fn = waiting_child_bootstrap;
+    rest_waiter_old.user_data = "rest_old";
+    rest_waiter_old.supervisor_id = supervisor_id;
+    rest_waiter_old.supervision_strategy = KAIN_SUPERVISION_STRATEGY_REST_FOR_ONE;
+    rest_waiter_old.restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
+    strncpy(rest_waiter_old.name, "rest_old", KAIN_ACTOR_NAME_MAX);
+
+    KainActorSpawnConfig rest_crasher;
+    kain_actor_spawn_config_init(&rest_crasher);
+    rest_crasher.bootstrap_fn = rest_for_one_child_bootstrap;
+    rest_crasher.supervisor_id = supervisor_id;
+    rest_crasher.supervision_strategy = KAIN_SUPERVISION_STRATEGY_REST_FOR_ONE;
+    rest_crasher.restart_policy = KAIN_RESTART_POLICY_TRANSIENT;
+    strncpy(rest_crasher.name, "rest_crasher", KAIN_ACTOR_NAME_MAX);
+
+    KainActorSpawnConfig rest_waiter_new = rest_waiter_old;
+    rest_waiter_new.user_data = "rest_new";
+    strncpy(rest_waiter_new.name, "rest_new", KAIN_ACTOR_NAME_MAX);
+
+    KainActorId rest_old_id = kain_actor_spawn(&rest_waiter_old, &diag);
+    KainActorId rest_crasher_id = kain_actor_spawn(&rest_crasher, &diag);
+    KainActorId rest_new_id = kain_actor_spawn(&rest_waiter_new, &diag);
+
+    if (rest_old_id == KAIN_ACTOR_ID_INVALID ||
+        rest_crasher_id == KAIN_ACTOR_ID_INVALID ||
+        rest_new_id == KAIN_ACTOR_ID_INVALID) {
+        printf("FAIL: Rest-for-one actors failed to spawn\n");
+        return 1;
+    }
+
+    sleep(3);
+
+    if (g_rest_for_one_start_count < 2) {
+        printf("FAIL: Rest-for-one child should have restarted once after crashing\n");
+        return 1;
+    }
+    if (kain_actor_get_state(rest_new_id) != KAIN_ACTOR_STATE_TERMINATED) {
+        printf("FAIL: Rest-for-one strategy should shut down younger siblings\n");
+        return 1;
+    }
+    if (kain_actor_get_state(rest_old_id) != KAIN_ACTOR_STATE_RUNNING) {
+        printf("FAIL: Rest-for-one strategy should preserve older siblings\n");
         return 1;
     }
 

@@ -8,6 +8,7 @@
 
 #include "kain_runtime_reflection.h"
 #include "kain_runtime_diagnostics.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,10 +65,34 @@ struct KainReflectionPayload {
 
 /* Forward declarations */
 static int json_parse(JsonParser* parser, const char* json);
-static int json_expect(JsonParser* parser, JsonTokenType type);
-static const char* json_token_string(JsonParser* parser, JsonToken* token, char* out, size_t out_size);
-static long long json_token_number(JsonParser* parser, JsonToken* token);
 static int parse_reflection_payload_json(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag);
+static void json_skip_ws(JsonParser* parser);
+static int json_match_literal(JsonParser* parser, const char* literal);
+static int json_match_char(JsonParser* parser, char expected);
+static int json_skip_string(JsonParser* parser);
+static int json_parse_string(JsonParser* parser, char* out, size_t out_size);
+static int json_parse_u64(JsonParser* parser, unsigned long long* out);
+static int json_skip_value(JsonParser* parser);
+static int json_skip_object(JsonParser* parser);
+static int json_skip_array(JsonParser* parser);
+static int json_parse_top_level(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag);
+static int json_parse_type_array(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag);
+static int json_parse_item_array(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag);
+static int json_parse_named_object_array(JsonParser* parser, KainDiagnostic* diag, const char* array_name);
+static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag);
+static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag);
+static KainTypeKind reflection_type_kind_from_string(const char* kind);
+static KainItemKind reflection_item_kind_from_string(const char* kind);
+static int reflection_ensure_type_capacity(KainReflectionPayload* payload, int min_capacity);
+static int reflection_ensure_item_capacity(KainReflectionPayload* payload, int min_capacity);
+static char* reflection_strdup(const char* text);
+static void reflection_set_diag(
+    KainDiagnostic* diag,
+    KainDiagSeverity severity,
+    int code,
+    const char* message,
+    const char* detail
+);
 
 int kain_reflection_load_from_json(
     const char* json,
@@ -107,7 +132,7 @@ int kain_reflection_load_from_json(
         return -1;
     }
 
-    (*payload)->json_source = strdup(json);
+    (*payload)->json_source = reflection_strdup(json);
     if (!(*payload)->json_source) {
         free(*payload);
         *payload = NULL;
@@ -537,8 +562,23 @@ static int json_parse(JsonParser* parser, const char* json) {
     parser->token_count = 0;
     parser->current_token = 0;
 
-    /* For now, just mark as parsed - full JSON parsing would be more complex */
-    /* This is a placeholder that assumes well-formed JSON from the compiler */
+    if (!json) {
+        return -1;
+    }
+
+    json_skip_ws(parser);
+    if (parser->length >= 3 &&
+        (unsigned char)parser->json[0] == 0xEF &&
+        (unsigned char)parser->json[1] == 0xBB &&
+        (unsigned char)parser->json[2] == 0xBF) {
+        parser->pos = 3;
+        json_skip_ws(parser);
+    }
+
+    if (parser->pos >= parser->length || parser->json[parser->pos] != '{') {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -547,10 +587,19 @@ static int parse_reflection_payload_json(
     KainReflectionPayload* payload,
     KainDiagnostic* diag
 ) {
-    /* Placeholder implementation - in production, this would parse the JSON */
-    /* For now, initialize with default values */
-    payload->schema_major = KAIN_REFLECTION_SCHEMA_VERSION_MAJOR;
-    payload->schema_minor = KAIN_REFLECTION_SCHEMA_VERSION_MINOR;
+    if (!parser || !payload) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Invalid reflection parser state",
+            NULL
+        );
+        return -1;
+    }
+
+    payload->schema_major = 0;
+    payload->schema_minor = 0;
     payload->type_count = 0;
     payload->type_capacity = 0;
     payload->types = NULL;
@@ -558,8 +607,902 @@ static int parse_reflection_payload_json(
     payload->item_capacity = 0;
     payload->items = NULL;
 
-    /* TODO: Implement full JSON parsing for reflection payloads */
-    /* This would parse the schema_version, types, items, actors, components, messages fields */
+    if (json_parse_top_level(parser, payload, diag) != 0) {
+        return -1;
+    }
+
+    if (payload->schema_minor == 0) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_INVALID_SCHEMA,
+            "Reflection payload is missing schema_version",
+            NULL
+        );
+        return -1;
+    }
+
+    payload->schema_major = KAIN_REFLECTION_SCHEMA_VERSION_MAJOR;
+    return 0;
+}
+
+static void json_skip_ws(JsonParser* parser) {
+    if (!parser || !parser->json) {
+        return;
+    }
+
+    while (parser->pos < parser->length) {
+        char ch = parser->json[parser->pos];
+        if (ch != ' ' && ch != '\n' && ch != '\r' && ch != '\t') {
+            break;
+        }
+        parser->pos++;
+    }
+}
+
+static int json_match_literal(JsonParser* parser, const char* literal) {
+    size_t length;
+
+    if (!parser || !literal) {
+        return 0;
+    }
+
+    json_skip_ws(parser);
+    length = strlen(literal);
+    if (parser->pos + length > parser->length) {
+        return 0;
+    }
+    if (strncmp(parser->json + parser->pos, literal, length) != 0) {
+        return 0;
+    }
+
+    parser->pos += length;
+    return 1;
+}
+
+static int json_match_char(JsonParser* parser, char expected) {
+    json_skip_ws(parser);
+    if (!parser || parser->pos >= parser->length || parser->json[parser->pos] != expected) {
+        return 0;
+    }
+    parser->pos++;
+    return 1;
+}
+
+static int json_skip_string(JsonParser* parser) {
+    char scratch[4];
+    return json_parse_string(parser, scratch, sizeof(scratch));
+}
+
+static int json_parse_string(JsonParser* parser, char* out, size_t out_size) {
+    size_t out_pos = 0;
+
+    if (!parser || parser->pos >= parser->length || parser->json[parser->pos] != '"') {
+        return 0;
+    }
+
+    parser->pos++;
+    if (out && out_size > 0) {
+        out[0] = '\0';
+    }
+
+    while (parser->pos < parser->length) {
+        char ch = parser->json[parser->pos++];
+
+        if (ch == '"') {
+            if (out && out_size > 0) {
+                out[out_pos < out_size ? out_pos : out_size - 1] = '\0';
+            }
+            return 1;
+        }
+
+        if (ch == '\\') {
+            if (parser->pos >= parser->length) {
+                return 0;
+            }
+
+            ch = parser->json[parser->pos++];
+            switch (ch) {
+                case '"': break;
+                case '\\': break;
+                case '/': break;
+                case 'b': ch = '\b'; break;
+                case 'f': ch = '\f'; break;
+                case 'n': ch = '\n'; break;
+                case 'r': ch = '\r'; break;
+                case 't': ch = '\t'; break;
+                case 'u':
+                    if (parser->pos + 4 > parser->length) {
+                        return 0;
+                    }
+                    parser->pos += 4;
+                    ch = '?';
+                    break;
+                default:
+                    return 0;
+            }
+        }
+
+        if (out && out_size > 0 && out_pos + 1 < out_size) {
+            out[out_pos++] = ch;
+        } else if (out && out_size > 0) {
+            out_pos++;
+        }
+    }
 
     return 0;
+}
+
+static int json_parse_u64(JsonParser* parser, unsigned long long* out) {
+    char* end = NULL;
+    unsigned long long value;
+
+    if (!parser || !out) {
+        return 0;
+    }
+
+    json_skip_ws(parser);
+    if (parser->pos >= parser->length) {
+        return 0;
+    }
+
+    errno = 0;
+    value = strtoull(parser->json + parser->pos, &end, 10);
+    if (end == parser->json + parser->pos || errno != 0) {
+        return 0;
+    }
+
+    parser->pos = (size_t)(end - parser->json);
+    *out = value;
+    return 1;
+}
+
+static int json_skip_value(JsonParser* parser) {
+    json_skip_ws(parser);
+    if (!parser || parser->pos >= parser->length) {
+        return 0;
+    }
+
+    switch (parser->json[parser->pos]) {
+        case '{':
+            return json_skip_object(parser);
+        case '[':
+            return json_skip_array(parser);
+        case '"':
+            return json_skip_string(parser);
+        case 't':
+            return json_match_literal(parser, "true");
+        case 'f':
+            return json_match_literal(parser, "false");
+        case 'n':
+            return json_match_literal(parser, "null");
+        default:
+            return json_parse_u64(parser, &(unsigned long long){0});
+    }
+}
+
+static int json_skip_object(JsonParser* parser) {
+    if (!json_match_char(parser, '{')) {
+        return 0;
+    }
+
+    json_skip_ws(parser);
+    if (json_match_char(parser, '}')) {
+        return 1;
+    }
+
+    while (parser->pos < parser->length) {
+        json_skip_ws(parser);
+        if (!json_skip_string(parser)) {
+            return 0;
+        }
+        if (!json_match_char(parser, ':')) {
+            return 0;
+        }
+        if (!json_skip_value(parser)) {
+            return 0;
+        }
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        return json_match_char(parser, '}');
+    }
+
+    return 0;
+}
+
+static int json_skip_array(JsonParser* parser) {
+    if (!json_match_char(parser, '[')) {
+        return 0;
+    }
+
+    json_skip_ws(parser);
+    if (json_match_char(parser, ']')) {
+        return 1;
+    }
+
+    while (parser->pos < parser->length) {
+        if (!json_skip_value(parser)) {
+            return 0;
+        }
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        return json_match_char(parser, ']');
+    }
+
+    return 0;
+}
+
+static int reflection_ensure_type_capacity(KainReflectionPayload* payload, int min_capacity) {
+    int new_capacity;
+    KainTypeSchema* types;
+
+    if (payload->type_capacity >= min_capacity) {
+        return 0;
+    }
+
+    new_capacity = payload->type_capacity > 0 ? payload->type_capacity : 4;
+    while (new_capacity < min_capacity) {
+        new_capacity *= 2;
+    }
+
+    types = (KainTypeSchema*)realloc(payload->types, (size_t)new_capacity * sizeof(KainTypeSchema));
+    if (!types) {
+        return -1;
+    }
+
+    payload->types = types;
+    payload->type_capacity = new_capacity;
+    return 0;
+}
+
+static int reflection_ensure_item_capacity(KainReflectionPayload* payload, int min_capacity) {
+    int new_capacity;
+    KainItemMetadata* items;
+
+    if (payload->item_capacity >= min_capacity) {
+        return 0;
+    }
+
+    new_capacity = payload->item_capacity > 0 ? payload->item_capacity : 4;
+    while (new_capacity < min_capacity) {
+        new_capacity *= 2;
+    }
+
+    items = (KainItemMetadata*)realloc(payload->items, (size_t)new_capacity * sizeof(KainItemMetadata));
+    if (!items) {
+        return -1;
+    }
+
+    payload->items = items;
+    payload->item_capacity = new_capacity;
+    return 0;
+}
+
+static KainTypeKind reflection_type_kind_from_string(const char* kind) {
+    if (!kind) {
+        return KAIN_TYPE_KIND_UNKNOWN;
+    }
+    if (strcmp(kind, "primitive") == 0) return KAIN_TYPE_KIND_PRIMITIVE;
+    if (strcmp(kind, "struct") == 0) return KAIN_TYPE_KIND_STRUCT;
+    if (strcmp(kind, "enum") == 0) return KAIN_TYPE_KIND_ENUM;
+    if (strcmp(kind, "array") == 0) return KAIN_TYPE_KIND_ARRAY;
+    if (strcmp(kind, "pointer") == 0) return KAIN_TYPE_KIND_POINTER;
+    if (strcmp(kind, "function") == 0) return KAIN_TYPE_KIND_FUNCTION;
+    if (strcmp(kind, "actor") == 0) return KAIN_TYPE_KIND_ACTOR;
+    if (strcmp(kind, "message") == 0) return KAIN_TYPE_KIND_MESSAGE;
+    return KAIN_TYPE_KIND_UNKNOWN;
+}
+
+static KainItemKind reflection_item_kind_from_string(const char* kind) {
+    if (!kind) {
+        return KAIN_ITEM_KIND_UNKNOWN;
+    }
+    if (strcmp(kind, "function") == 0) return KAIN_ITEM_KIND_FUNCTION;
+    if (strcmp(kind, "struct") == 0) return KAIN_ITEM_KIND_STRUCT;
+    if (strcmp(kind, "enum") == 0) return KAIN_ITEM_KIND_ENUM;
+    if (strcmp(kind, "actor") == 0) return KAIN_ITEM_KIND_ACTOR;
+    if (strcmp(kind, "component") == 0) return KAIN_ITEM_KIND_COMPONENT;
+    if (strcmp(kind, "message") == 0) return KAIN_ITEM_KIND_MESSAGE;
+    if (strcmp(kind, "service") == 0) return KAIN_ITEM_KIND_SERVICE;
+    if (strcmp(kind, "module") == 0) return KAIN_ITEM_KIND_MODULE;
+    return KAIN_ITEM_KIND_UNKNOWN;
+}
+
+static int json_parse_named_object_array(JsonParser* parser, KainDiagnostic* diag, const char* array_name) {
+    char key[KAIN_REFLECTION_NAME_MAX];
+
+    if (!json_match_char(parser, '[')) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Expected reflection array",
+            array_name
+        );
+        return -1;
+    }
+
+    json_skip_ws(parser);
+    if (json_match_char(parser, ']')) {
+        return 0;
+    }
+
+    while (parser->pos < parser->length) {
+        json_skip_ws(parser);
+        if (!json_match_char(parser, '{')) {
+            reflection_set_diag(
+                diag,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                "Expected reflection object",
+                array_name
+            );
+            return -1;
+        }
+
+        int saw_name = 0;
+        int saw_item_id = 0;
+        while (parser->pos < parser->length) {
+            json_skip_ws(parser);
+            char field_name[KAIN_REFLECTION_NAME_MAX];
+            if (!json_parse_string(parser, field_name, sizeof(field_name))) {
+                reflection_set_diag(
+                    diag,
+                    KAIN_DIAG_SEVERITY_ERROR,
+                    KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                    "Failed to parse reflection object field name",
+                    array_name
+                );
+                return -1;
+            }
+            if (!json_match_char(parser, ':')) {
+                reflection_set_diag(
+                    diag,
+                    KAIN_DIAG_SEVERITY_ERROR,
+                    KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                    "Failed to parse reflection object field separator",
+                    array_name
+                );
+                return -1;
+            }
+            if (strcmp(field_name, "name") == 0) {
+                if (!json_parse_string(parser, key, sizeof(key))) {
+                    reflection_set_diag(
+                        diag,
+                        KAIN_DIAG_SEVERITY_ERROR,
+                        KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                        "Failed to parse reflection object name",
+                        array_name
+                    );
+                    return -1;
+                }
+                saw_name = 1;
+            } else if (strcmp(field_name, "item_id") == 0) {
+                unsigned long long dummy = 0;
+                if (!json_parse_u64(parser, &dummy)) {
+                    reflection_set_diag(
+                        diag,
+                        KAIN_DIAG_SEVERITY_ERROR,
+                        KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                        "Failed to parse reflection object item_id",
+                        array_name
+                    );
+                    return -1;
+                }
+                saw_item_id = 1;
+            } else {
+                if (!json_skip_value(parser)) {
+                    reflection_set_diag(
+                        diag,
+                        KAIN_DIAG_SEVERITY_ERROR,
+                        KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                        "Failed to skip reflection object value",
+                        array_name
+                    );
+                    return -1;
+                }
+            }
+
+            json_skip_ws(parser);
+            if (json_match_char(parser, ',')) {
+                continue;
+            }
+            if (json_match_char(parser, '}')) {
+                break;
+            }
+            reflection_set_diag(
+                diag,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                "Malformed reflection object",
+                array_name
+            );
+            return -1;
+        }
+
+        if (!saw_name || !saw_item_id) {
+            reflection_set_diag(
+                diag,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_REFLECTION_INVALID_SCHEMA,
+                "Reflection object missing required metadata",
+                array_name
+            );
+            return -1;
+        }
+
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        if (json_match_char(parser, ']')) {
+            return 0;
+        }
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Malformed reflection array",
+            array_name
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag) {
+    char field_name[KAIN_REFLECTION_NAME_MAX];
+    char name[KAIN_REFLECTION_NAME_MAX] = {0};
+    char kind[KAIN_REFLECTION_NAME_MAX] = {0};
+    unsigned long long type_id = 0;
+    unsigned long long size_hint = 0;
+    int has_type_id = 0;
+    int has_size_hint = 0;
+    int field_count = 0;
+
+    if (!json_match_char(parser, '{')) {
+        return -1;
+    }
+
+    while (parser->pos < parser->length) {
+        json_skip_ws(parser);
+        if (!json_parse_string(parser, field_name, sizeof(field_name))) {
+            return -1;
+        }
+        if (!json_match_char(parser, ':')) {
+            return -1;
+        }
+
+        if (strcmp(field_name, "type_id") == 0) {
+            if (!json_parse_u64(parser, &type_id)) {
+                return -1;
+            }
+            has_type_id = 1;
+        } else if (strcmp(field_name, "name") == 0) {
+            if (!json_parse_string(parser, name, sizeof(name))) {
+                return -1;
+            }
+        } else if (strcmp(field_name, "kind") == 0) {
+            if (!json_parse_string(parser, kind, sizeof(kind))) {
+                return -1;
+            }
+        } else if (strcmp(field_name, "size_hint") == 0) {
+            if (json_match_literal(parser, "null")) {
+                has_size_hint = 0;
+            } else if (json_parse_u64(parser, &size_hint)) {
+                has_size_hint = 1;
+            } else {
+                return -1;
+            }
+        } else if (strcmp(field_name, "fields") == 0) {
+            if (!json_match_char(parser, '[')) {
+                return -1;
+            }
+            json_skip_ws(parser);
+            if (json_match_char(parser, ']')) {
+                field_count = 0;
+            } else {
+                while (parser->pos < parser->length) {
+                    if (!json_skip_value(parser)) {
+                        return -1;
+                    }
+                    field_count++;
+                    json_skip_ws(parser);
+                    if (json_match_char(parser, ',')) {
+                        continue;
+                    }
+                    if (json_match_char(parser, ']')) {
+                        break;
+                    }
+                    return -1;
+                }
+            }
+        } else {
+            if (!json_skip_value(parser)) {
+                return -1;
+            }
+        }
+
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        if (json_match_char(parser, '}')) {
+            break;
+        }
+        return -1;
+    }
+
+    if (!has_type_id || name[0] == '\0') {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_INVALID_SCHEMA,
+            "Reflection type is missing required fields",
+            name[0] ? name : NULL
+        );
+        return -1;
+    }
+
+    if (reflection_ensure_type_capacity(payload, payload->type_count + 1) != 0) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Failed to grow reflection type table",
+            NULL
+        );
+        return -1;
+    }
+
+    KainTypeSchema* schema = &payload->types[payload->type_count++];
+    ZeroMemory(schema, sizeof(*schema));
+    schema->type_id = type_id;
+    schema->kind = reflection_type_kind_from_string(kind);
+    strncpy(schema->name, name, KAIN_REFLECTION_NAME_MAX - 1);
+    schema->name[KAIN_REFLECTION_NAME_MAX - 1] = '\0';
+    schema->size_bytes = has_size_hint ? (size_t)size_hint : 0u;
+    schema->align_bytes = 0u;
+    schema->field_count = field_count;
+    schema->fields = NULL;
+    return 0;
+}
+
+static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag) {
+    char field_name[KAIN_REFLECTION_NAME_MAX];
+    char name[KAIN_REFLECTION_NAME_MAX] = {0};
+    char kind[KAIN_REFLECTION_NAME_MAX] = {0};
+    char module_path[KAIN_REFLECTION_PATH_MAX] = {0};
+    unsigned long long item_id = 0;
+    unsigned long long type_id = 0;
+    int has_item_id = 0;
+    int has_type_id = 0;
+
+    if (!json_match_char(parser, '{')) {
+        return -1;
+    }
+
+    while (parser->pos < parser->length) {
+        json_skip_ws(parser);
+        if (!json_parse_string(parser, field_name, sizeof(field_name))) {
+            return -1;
+        }
+        if (!json_match_char(parser, ':')) {
+            return -1;
+        }
+
+        if (strcmp(field_name, "item_id") == 0) {
+            if (!json_parse_u64(parser, &item_id)) {
+                return -1;
+            }
+            has_item_id = 1;
+        } else if (strcmp(field_name, "name") == 0) {
+            if (!json_parse_string(parser, name, sizeof(name))) {
+                return -1;
+            }
+        } else if (strcmp(field_name, "kind") == 0) {
+            if (!json_parse_string(parser, kind, sizeof(kind))) {
+                return -1;
+            }
+        } else if (strcmp(field_name, "module_path") == 0) {
+            if (!json_parse_string(parser, module_path, sizeof(module_path))) {
+                return -1;
+            }
+        } else if (strcmp(field_name, "type_id") == 0) {
+            if (json_match_literal(parser, "null")) {
+                has_type_id = 0;
+            } else if (json_parse_u64(parser, &type_id)) {
+                has_type_id = 1;
+            } else {
+                return -1;
+            }
+        } else {
+            if (!json_skip_value(parser)) {
+                return -1;
+            }
+        }
+
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        if (json_match_char(parser, '}')) {
+            break;
+        }
+        return -1;
+    }
+
+    if (!has_item_id || name[0] == '\0') {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_INVALID_SCHEMA,
+            "Reflection item is missing required fields",
+            name[0] ? name : NULL
+        );
+        return -1;
+    }
+
+    if (reflection_ensure_item_capacity(payload, payload->item_count + 1) != 0) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Failed to grow reflection item table",
+            NULL
+        );
+        return -1;
+    }
+
+    KainItemMetadata* item = &payload->items[payload->item_count++];
+    ZeroMemory(item, sizeof(*item));
+    item->item_id = item_id;
+    item->kind = reflection_item_kind_from_string(kind);
+    strncpy(item->name, name, KAIN_REFLECTION_NAME_MAX - 1);
+    item->name[KAIN_REFLECTION_NAME_MAX - 1] = '\0';
+    strncpy(item->module_path, module_path, KAIN_REFLECTION_PATH_MAX - 1);
+    item->module_path[KAIN_REFLECTION_PATH_MAX - 1] = '\0';
+    if (has_type_id) {
+        item->type_id = type_id;
+    }
+    return 0;
+}
+
+static int json_parse_type_array(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag) {
+    if (!json_match_char(parser, '[')) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Expected types array",
+            NULL
+        );
+        return -1;
+    }
+
+    json_skip_ws(parser);
+    if (json_match_char(parser, ']')) {
+        return 0;
+    }
+
+    while (parser->pos < parser->length) {
+        if (parse_type_object(parser, payload, diag) != 0) {
+            return -1;
+        }
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        if (json_match_char(parser, ']')) {
+            return 0;
+        }
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Malformed types array",
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int json_parse_item_array(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag) {
+    if (!json_match_char(parser, '[')) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Expected items array",
+            NULL
+        );
+        return -1;
+    }
+
+    json_skip_ws(parser);
+    if (json_match_char(parser, ']')) {
+        return 0;
+    }
+
+    while (parser->pos < parser->length) {
+        if (parse_item_object(parser, payload, diag) != 0) {
+            return -1;
+        }
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        if (json_match_char(parser, ']')) {
+            return 0;
+        }
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Malformed items array",
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int json_parse_top_level(JsonParser* parser, KainReflectionPayload* payload, KainDiagnostic* diag) {
+    char key[KAIN_REFLECTION_NAME_MAX];
+    unsigned long long schema_version = 0;
+    int saw_schema_version = 0;
+
+    if (!json_match_char(parser, '{')) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Expected top-level reflection object",
+            NULL
+        );
+        return -1;
+    }
+
+    while (parser->pos < parser->length) {
+        if (json_match_char(parser, '}')) {
+            break;
+        }
+
+        if (!json_parse_string(parser, key, sizeof(key))) {
+            reflection_set_diag(
+                diag,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                "Failed to parse reflection payload key",
+                NULL
+            );
+            return -1;
+        }
+        if (!json_match_char(parser, ':')) {
+            reflection_set_diag(
+                diag,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                "Failed to parse reflection payload separator",
+                key
+            );
+            return -1;
+        }
+
+        if (strcmp(key, "schema_version") == 0) {
+            if (!json_parse_u64(parser, &schema_version)) {
+                reflection_set_diag(
+                    diag,
+                    KAIN_DIAG_SEVERITY_ERROR,
+                    KAIN_DIAG_CODE_REFLECTION_INVALID_SCHEMA,
+                    "Reflection payload schema_version is invalid",
+                    NULL
+                );
+                return -1;
+            }
+            saw_schema_version = 1;
+        } else if (strcmp(key, "types") == 0) {
+            if (json_parse_type_array(parser, payload, diag) != 0) {
+                return -1;
+            }
+        } else if (strcmp(key, "items") == 0) {
+            if (json_parse_item_array(parser, payload, diag) != 0) {
+                return -1;
+            }
+        } else if (strcmp(key, "actors") == 0 || strcmp(key, "components") == 0 || strcmp(key, "messages") == 0) {
+            if (json_parse_named_object_array(parser, diag, key) != 0) {
+                return -1;
+            }
+        } else {
+            if (!json_skip_value(parser)) {
+                reflection_set_diag(
+                    diag,
+                    KAIN_DIAG_SEVERITY_ERROR,
+                    KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+                    "Failed to skip unknown reflection payload field",
+                    key
+                );
+                return -1;
+            }
+        }
+
+        json_skip_ws(parser);
+        if (json_match_char(parser, ',')) {
+            continue;
+        }
+        if (json_match_char(parser, '}')) {
+            break;
+        }
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED,
+            "Malformed top-level reflection payload",
+            key
+        );
+        return -1;
+    }
+
+    if (!saw_schema_version) {
+        reflection_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_REFLECTION_INVALID_SCHEMA,
+            "Reflection payload is missing schema_version",
+            NULL
+        );
+        return -1;
+    }
+
+    payload->schema_major = KAIN_REFLECTION_SCHEMA_VERSION_MAJOR;
+    payload->schema_minor = (unsigned int)schema_version;
+    return 0;
+}
+
+static char* reflection_strdup(const char* text) {
+    size_t length;
+    char* copy;
+
+    if (!text) {
+        return NULL;
+    }
+
+    length = strlen(text);
+    copy = (char*)malloc(length + 1);
+    if (!copy) {
+        return NULL;
+    }
+
+    memcpy(copy, text, length + 1);
+    return copy;
+}
+
+static void reflection_set_diag(
+    KainDiagnostic* diag,
+    KainDiagSeverity severity,
+    int code,
+    const char* message,
+    const char* detail
+) {
+    if (!diag) {
+        return;
+    }
+
+    kain_diagnostic_create(
+        diag,
+        KAIN_DIAG_SUBSYSTEM_REFLECTION,
+        severity,
+        code,
+        message,
+        detail,
+        "runtime/native/src/core/kain_runtime_reflection.c"
+    );
 }

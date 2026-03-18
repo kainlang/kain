@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "types": [
+    {
+      "type_id": 1,
+      "name": "Point",
+      "kind": "struct",
+      "size_hint": 16,
+      "fields": []
+    }
+  ],
+  "items": [
+    {
+      "item_id": 1,
+      "name": "Point",
+      "kind": "struct",
+      "module_path": "app::geometry",
+      "type_id": 1
+    }
+  ],
+  "actors": [],
+  "components": [],
+  "messages": []
+}

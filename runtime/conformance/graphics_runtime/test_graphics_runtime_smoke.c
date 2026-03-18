@@ -118,6 +118,188 @@ static const char* kRustGraphicsBundleJson =
     "  \"requirements\": []\n"
     "}\n";
 
+static const char* kInvalidMaterialGraphicsBundleJson =
+    "{\n"
+    "  \"schema_version\": 1,\n"
+    "  \"target\": \"llvm\",\n"
+    "  \"render\": {\n"
+    "    \"scenes\": [\n"
+    "      {\n"
+    "        \"viewport_node\": \"surface.node.9\",\n"
+    "        \"viewport_kind\": \"viewport3d\",\n"
+    "        \"scene\": \"magma_terraces\",\n"
+    "        \"title\": \"Magma Terraces\",\n"
+    "        \"material_refs\": [\"terrain\"],\n"
+    "        \"shader_bundle_ref_keys\": [\n"
+    "          \"shader::terrain::vertex\",\n"
+    "          \"shader::terrain::fragment\",\n"
+    "          \"shader::terrain::compute\"\n"
+    "        ],\n"
+    "        \"parameters\": [\n"
+    "          {\"key\": \"roughness\", \"type\": \"float\", \"default\": 0.65}\n"
+    "        ],\n"
+    "        \"resource_bindings\": [\n"
+    "          {\"key\": \"terrain.albedo\", \"type\": \"texture2d\", \"stage\": \"fragment\", \"slot\": 0},\n"
+    "          {\"key\": \"terrain.heightfield\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"read_write\", \"slot\": 1}\n"
+    "        ]\n"
+    "      }\n"
+    "    ],\n"
+    "    \"materials\": [\n"
+    "      {\n"
+    "        \"id\": \"terrain\",\n"
+    "        \"source\": \"kain-core\",\n"
+    "        \"shader_bundle_ref_keys\": [\n"
+    "          \"shader::terrain::fragment\",\n"
+    "          \"shader::terrain::compute\"\n"
+    "        ],\n"
+    "        \"parameters\": [\n"
+    "          {\"key\": \"roughness\", \"type\": \"float\", \"default\": 0.65}\n"
+    "        ],\n"
+    "        \"resource_bindings\": [\n"
+    "          {\"key\": \"terrain.albedo\", \"type\": \"texture2d\", \"stage\": \"fragment\", \"slot\": 0},\n"
+    "          {\"key\": \"terrain.heightfield\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"read_write\", \"slot\": 1}\n"
+    "        ]\n"
+    "      }\n"
+    "    ]\n"
+    "  },\n"
+    "  \"shader_bundle_refs\": [\n"
+    "    {\n"
+    "      \"key\": \"shader::terrain::vertex\",\n"
+    "      \"shader\": \"terrain\",\n"
+    "      \"module_name\": \"terrain\",\n"
+    "      \"stage\": \"vertex\",\n"
+    "      \"entry_point\": \"main\",\n"
+    "      \"source\": \"kain-core\"\n"
+    "    },\n"
+    "    {\n"
+    "      \"key\": \"shader::terrain::fragment\",\n"
+    "      \"shader\": \"terrain\",\n"
+    "      \"module_name\": \"terrain\",\n"
+    "      \"stage\": \"fragment\",\n"
+    "      \"entry_point\": \"main\",\n"
+    "      \"source\": \"kain-core\"\n"
+    "    },\n"
+    "    {\n"
+    "      \"key\": \"shader::terrain::compute\",\n"
+    "      \"shader\": \"terrain\",\n"
+    "      \"module_name\": \"terrain\",\n"
+    "      \"stage\": \"compute\",\n"
+    "      \"entry_point\": \"main\",\n"
+    "      \"workgroup_size\": [8, 8, 1],\n"
+    "      \"dispatch_size\": [16, 16, 1],\n"
+    "      \"resource_bindings\": [\n"
+    "        {\"key\": \"terrain.heightfield\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"read\", \"slot\": 0},\n"
+    "        {\"key\": \"terrain.dispatch\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"write\", \"slot\": 1}\n"
+    "      ],\n"
+    "      \"source\": \"kain-core\"\n"
+    "    }\n"
+    "  ],\n"
+    "  \"assets\": [\n"
+    "    {\n"
+    "      \"key\": \"asset::terrain\",\n"
+    "      \"kind\": \"runtime\",\n"
+    "      \"source\": \"terrain.glb\"\n"
+    "    }\n"
+    "  ],\n"
+    "  \"tool_caps\": [\"viewport.3d\", \"tool.graph\"],\n"
+    "  \"requirements\": [\n"
+    "    \"host.raw-native\",\n"
+    "    \"runtime.contract.bundle\",\n"
+    "    \"shader.bundle.metadata\"\n"
+    "  ]\n"
+    "}\n";
+
+static const char* kInvalidComputeGraphicsBundleJson =
+    "{\n"
+    "  \"schema_version\": 1,\n"
+    "  \"target\": \"llvm\",\n"
+    "  \"render\": {\n"
+    "    \"scenes\": [\n"
+    "      {\n"
+    "        \"viewport_node\": \"surface.node.9\",\n"
+    "        \"viewport_kind\": \"viewport3d\",\n"
+    "        \"scene\": \"magma_terraces\",\n"
+    "        \"title\": \"Magma Terraces\",\n"
+    "        \"material_refs\": [\"terrain\"],\n"
+    "        \"shader_bundle_ref_keys\": [\n"
+    "          \"shader::terrain::vertex\",\n"
+    "          \"shader::terrain::fragment\",\n"
+    "          \"shader::terrain::compute\"\n"
+    "        ],\n"
+    "        \"parameters\": [\n"
+    "          {\"key\": \"roughness\", \"type\": \"float\", \"default\": 0.65}\n"
+    "        ],\n"
+    "        \"resource_bindings\": [\n"
+    "          {\"key\": \"terrain.albedo\", \"type\": \"texture2d\", \"stage\": \"fragment\", \"access\": \"sample\", \"slot\": 0},\n"
+    "          {\"key\": \"terrain.heightfield\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"read_write\", \"slot\": 1}\n"
+    "        ]\n"
+    "      }\n"
+    "    ],\n"
+    "    \"materials\": [\n"
+    "      {\n"
+    "        \"id\": \"terrain\",\n"
+    "        \"source\": \"kain-core\",\n"
+    "        \"shader_bundle_ref_keys\": [\n"
+    "          \"shader::terrain::fragment\",\n"
+    "          \"shader::terrain::compute\"\n"
+    "        ],\n"
+    "        \"parameters\": [\n"
+    "          {\"key\": \"roughness\", \"type\": \"float\", \"default\": 0.65}\n"
+    "        ],\n"
+    "        \"resource_bindings\": [\n"
+    "          {\"key\": \"terrain.albedo\", \"type\": \"texture2d\", \"stage\": \"fragment\", \"access\": \"sample\", \"slot\": 0},\n"
+    "          {\"key\": \"terrain.heightfield\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"read_write\", \"slot\": 1}\n"
+    "        ]\n"
+    "      }\n"
+    "    ]\n"
+    "  },\n"
+    "  \"shader_bundle_refs\": [\n"
+    "    {\n"
+    "      \"key\": \"shader::terrain::vertex\",\n"
+    "      \"shader\": \"terrain\",\n"
+    "      \"module_name\": \"terrain\",\n"
+    "      \"stage\": \"vertex\",\n"
+    "      \"entry_point\": \"main\",\n"
+    "      \"source\": \"kain-core\"\n"
+    "    },\n"
+    "    {\n"
+    "      \"key\": \"shader::terrain::fragment\",\n"
+    "      \"shader\": \"terrain\",\n"
+    "      \"module_name\": \"terrain\",\n"
+    "      \"stage\": \"fragment\",\n"
+    "      \"entry_point\": \"main\",\n"
+    "      \"source\": \"kain-core\"\n"
+    "    },\n"
+    "    {\n"
+    "      \"key\": \"shader::terrain::compute\",\n"
+    "      \"shader\": \"terrain\",\n"
+    "      \"module_name\": \"terrain\",\n"
+    "      \"stage\": \"compute\",\n"
+    "      \"entry_point\": \"main\",\n"
+    "      \"workgroup_size\": [8, 8, 1],\n"
+    "      \"dispatch_size\": [16, 16, 1],\n"
+    "      \"resource_bindings\": [\n"
+    "        {\"key\": \"terrain.heightfield\", \"type\": \"storage_buffer\", \"access\": \"read\", \"slot\": 0},\n"
+    "        {\"key\": \"terrain.dispatch\", \"type\": \"storage_buffer\", \"stage\": \"compute\", \"access\": \"write\", \"slot\": 1}\n"
+    "      ],\n"
+    "      \"source\": \"kain-core\"\n"
+    "    }\n"
+    "  ],\n"
+    "  \"assets\": [\n"
+    "    {\n"
+    "      \"key\": \"asset::terrain\",\n"
+    "      \"kind\": \"runtime\",\n"
+    "      \"source\": \"terrain.glb\"\n"
+    "    }\n"
+    "  ],\n"
+    "  \"tool_caps\": [\"viewport.3d\", \"tool.graph\"],\n"
+    "  \"requirements\": [\n"
+    "    \"host.raw-native\",\n"
+    "    \"runtime.contract.bundle\",\n"
+    "    \"shader.bundle.metadata\"\n"
+    "  ]\n"
+    "}\n";
+
 static int check_true(int condition, const char* label) {
     if (!condition) {
         fprintf(stderr, "[FAIL] %s\n", label);
@@ -339,9 +521,59 @@ static int test_graphics_invalid_and_rejected_target(void) {
     return 1;
 }
 
+static int test_graphics_rejects_incomplete_material_plan(void) {
+    KainRuntimeGraphicsBundle bundle;
+    KainRuntimeGraphicsValidation validation;
+
+    if (!check_true(kain_runtime_graphics_load_from_json(kInvalidMaterialGraphicsBundleJson, &bundle), "load_invalid_material_bundle")) {
+        return 0;
+    }
+    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_invalid_material_bundle")) {
+        return 0;
+    }
+    if (!check_true(validation.has_material_bindings == 0, "validation.has_material_bindings(invalid material)")) {
+        return 0;
+    }
+    if (!check_true(validation.material_binding_valid == 0, "validation.material_binding_valid(invalid material)")) {
+        return 0;
+    }
+    if (!check_true(validation.gl_lane_ready == 0, "validation.gl_lane_ready(invalid material)")) {
+        return 0;
+    }
+    if (!check_contains(validation.reason, "material binding plan", "validation.reason(invalid material)")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_graphics_rejects_incomplete_compute_plan(void) {
+    KainRuntimeGraphicsBundle bundle;
+    KainRuntimeGraphicsValidation validation;
+
+    if (!check_true(kain_runtime_graphics_load_from_json(kInvalidComputeGraphicsBundleJson, &bundle), "load_invalid_compute_bundle")) {
+        return 0;
+    }
+    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_invalid_compute_bundle")) {
+        return 0;
+    }
+    if (!check_true(validation.has_material_bindings == 1, "validation.has_material_bindings(invalid compute)")) {
+        return 0;
+    }
+    if (!check_true(validation.compute_plan_valid == 0, "validation.compute_plan_valid(invalid compute)")) {
+        return 0;
+    }
+    if (!check_true(validation.gl_lane_ready == 0, "validation.gl_lane_ready(invalid compute)")) {
+        return 0;
+    }
+    if (!check_contains(validation.reason, "compute dispatch plan", "validation.reason(invalid compute)")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     int passed = 0;
-    int total = 4;
+    int total = 6;
 
     printf("Running graphics runtime smoke tests\n");
 
@@ -359,6 +591,14 @@ int main(void) {
     }
     if (test_graphics_invalid_and_rejected_target()) {
         printf("[PASS] invalid and target-rejected bundles\n");
+        ++passed;
+    }
+    if (test_graphics_rejects_incomplete_material_plan()) {
+        printf("[PASS] incomplete material plan rejected\n");
+        ++passed;
+    }
+    if (test_graphics_rejects_incomplete_compute_plan()) {
+        printf("[PASS] incomplete compute plan rejected\n");
         ++passed;
     }
 

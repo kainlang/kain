@@ -333,6 +333,96 @@ static int kain_runtime_graphics_parse_binding_objects(
     return count;
 }
 
+static int kain_runtime_graphics_binding_is_valid(const KainRuntimeGraphicsBinding* binding) {
+    if (!binding) {
+        return 0;
+    }
+    return binding->key[0] &&
+        binding->resource_type[0] &&
+        binding->stage[0] &&
+        binding->access[0] &&
+        binding->slot >= 0;
+}
+
+static int kain_runtime_graphics_binding_stage_matches(
+    const KainRuntimeGraphicsBinding* binding,
+    const char* stage_name
+) {
+    if (!binding || !stage_name || !binding->stage[0]) {
+        return 0;
+    }
+    return _stricmp(binding->stage, stage_name) == 0;
+}
+
+static int kain_runtime_graphics_binding_array_is_valid(
+    const KainRuntimeGraphicsBinding* bindings,
+    int binding_count,
+    const char* required_stage
+) {
+    int i;
+    int has_required_stage = 0;
+    if (!bindings || binding_count <= 0) {
+        return 0;
+    }
+    for (i = 0; i < binding_count; ++i) {
+        if (!kain_runtime_graphics_binding_is_valid(&bindings[i])) {
+            return 0;
+        }
+        if (required_stage &&
+            kain_runtime_graphics_binding_stage_matches(&bindings[i], required_stage)) {
+            has_required_stage = 1;
+        }
+    }
+    return required_stage ? has_required_stage : 1;
+}
+
+static int kain_runtime_graphics_material_plan_is_valid(
+    const KainRuntimeGraphicsMaterialPlan* material
+) {
+    if (!material ||
+        !material->loaded ||
+        !material->material_id[0] ||
+        !material->source[0] ||
+        material->shader_ref_count <= 0 ||
+        !kain_runtime_graphics_binding_array_is_valid(
+            material->resource_bindings,
+            material->resource_binding_count,
+            "fragment"
+        )) {
+        return 0;
+    }
+    return kain_runtime_graphics_binding_array_is_valid(
+        material->resource_bindings,
+        material->resource_binding_count,
+        NULL
+    ) && material->resource_binding_count > 0;
+}
+
+static int kain_runtime_graphics_compute_plan_is_valid(
+    const KainRuntimeGraphicsComputePlan* compute
+) {
+    if (!compute ||
+        !compute->loaded ||
+        !compute->shader_key[0] ||
+        !compute->module_name[0] ||
+        !compute->entry_point[0] ||
+        compute->workgroup_size[0] <= 0 ||
+        compute->workgroup_size[1] <= 0 ||
+        compute->workgroup_size[2] <= 0 ||
+        compute->dispatch_size[0] <= 0 ||
+        compute->dispatch_size[1] <= 0 ||
+        compute->dispatch_size[2] <= 0 ||
+        !kain_runtime_graphics_binding_array_is_valid(
+            compute->resource_bindings,
+            compute->resource_binding_count,
+            "compute"
+        ) ||
+        compute->resource_binding_count <= 0) {
+        return 0;
+    }
+    return 1;
+}
+
 static const char* kain_runtime_graphics_find_stage_object(
     const char* array_start,
     const char* array_end,
@@ -869,23 +959,14 @@ int kain_runtime_graphics_validate_bundle(
         bundle->primary_scene[0];
     has_viewport3d = bundle->primary_viewport_kind[0] &&
         _stricmp(bundle->primary_viewport_kind, "viewport3d") == 0;
-    has_material_bindings = bundle->primary_material.loaded &&
-        bundle->primary_material.material_id[0] &&
-        bundle->primary_material.shader_ref_count > 0 &&
-        bundle->primary_material.resource_binding_count > 0;
+    has_material_bindings = kain_runtime_graphics_material_plan_is_valid(&bundle->primary_material);
     has_compute_plan = bundle->primary_compute.loaded &&
         bundle->primary_compute.shader_key[0] &&
+        bundle->primary_compute.module_name[0] &&
         bundle->primary_compute.entry_point[0];
     material_binding_valid = has_material_bindings;
     compute_plan_valid = !has_compute_artifacts ||
-        (has_compute_plan &&
-            bundle->primary_compute.workgroup_size[0] > 0 &&
-            bundle->primary_compute.workgroup_size[1] > 0 &&
-            bundle->primary_compute.workgroup_size[2] > 0 &&
-            bundle->primary_compute.dispatch_size[0] > 0 &&
-            bundle->primary_compute.dispatch_size[1] > 0 &&
-            bundle->primary_compute.dispatch_size[2] > 0 &&
-            bundle->primary_compute.resource_binding_count > 0);
+        (has_compute_plan && kain_runtime_graphics_compute_plan_is_valid(&bundle->primary_compute));
     validation->has_render_scene = has_render_scene;
     validation->has_viewport3d = has_viewport3d;
     validation->has_material_bindings = has_material_bindings;

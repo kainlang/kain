@@ -395,6 +395,7 @@ static void kain_actor_finalize_exit_state(
 void kain_actor_spawn_config_init(KainActorSpawnConfig* config) {
     memset(config, 0, sizeof(KainActorSpawnConfig));
     config->mailbox_capacity = KAIN_MAILBOX_DEFAULT_CAPACITY;
+    config->supervision_strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ONE;
     config->restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
     config->supervisor_id = KAIN_ACTOR_ID_INVALID;
 }
@@ -468,7 +469,7 @@ KainActorId kain_actor_spawn(
     if (config->supervisor_id != KAIN_ACTOR_ID_INVALID) {
         actor->supervisor.supervisor_id = config->supervisor_id;
         actor->supervisor.restart_policy = config->restart_policy;
-        actor->supervisor.strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ONE;
+        actor->supervisor.strategy = config->supervision_strategy;
         actor->supervisor.restart_count = 0;
         actor->supervisor.last_restart_time = 0;
         actor->supervisor.restart_window_start = 0;
@@ -482,6 +483,9 @@ KainActorId kain_actor_spawn(
     actor->spawn_config.bootstrap_fn = config->bootstrap_fn;
     actor->spawn_config.user_data = config->user_data;
     actor->spawn_config.mailbox_capacity = config->mailbox_capacity;
+    actor->spawn_config.supervision_strategy = config->supervision_strategy;
+    actor->spawn_config.restart_policy = config->restart_policy;
+    actor->spawn_config.supervisor_id = config->supervisor_id;
     if (config->name[0] != '\0') {
         strncpy(actor->spawn_config.name, config->name, KAIN_ACTOR_NAME_MAX - 1);
         actor->spawn_config.name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
@@ -1762,8 +1766,9 @@ static KainActorId kain_actor_restart_child(KainActorState_Internal* child, Kain
     config.bootstrap_fn = child->spawn_config.bootstrap_fn;
     config.user_data = child->spawn_config.user_data;
     config.mailbox_capacity = child->spawn_config.mailbox_capacity;
-    config.supervisor_id = child->supervisor.supervisor_id;
-    config.restart_policy = child->supervisor.restart_policy;
+    config.supervision_strategy = child->spawn_config.supervision_strategy;
+    config.supervisor_id = child->spawn_config.supervisor_id;
+    config.restart_policy = child->spawn_config.restart_policy;
     
     if (child->spawn_config.name[0] != '\0') {
         strncpy(config.name, child->spawn_config.name, KAIN_ACTOR_NAME_MAX - 1);

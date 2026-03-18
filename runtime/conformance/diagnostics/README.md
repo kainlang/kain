@@ -1,73 +1,60 @@
 # Diagnostics Conformance Tests
 
 **Category:** Diagnostics  
-**Purpose:** Validate structured diagnostics, error codes, and failure reporting
+**Purpose:** Validate structured diagnostics, error codes, and startup failure reporting
 
 ---
 
-## Test Coverage
+## Harness
 
-### Subsystem Diagnostics
-- [ ] Contract subsystem errors
-- [ ] Reflection subsystem errors
-- [ ] Actor subsystem errors
-- [ ] Async subsystem errors
-- [ ] UI subsystem errors
-- [ ] Graphics subsystem errors
-- [ ] Platform subsystem errors
-- [ ] Host bridge subsystem errors
+This directory now contains a real compile-and-run diagnostics harness with hard per-step timeouts.
+
+- `run_tests.sh` compiles the lane and runs each executable with a timeout guard
+- `compile_tests.sh` builds the focused diagnostics test binaries
+- `_shared/run_with_timeout.py` is used for both compilation and execution time limits
+
+## Current Test Coverage
+
+### Structured Diagnostics
+- `test_structured_runtime_diagnostics.c`
+- Diagnostic record creation
+- Diagnostic formatting
+- Collector aggregation
+- Severity counters
+- Collector clearing
 
 ### Error Code Stability
-- [ ] Stable error codes across versions
-- [ ] Error code uniqueness
-- [ ] Error code documentation
-- [ ] Error code categorization
+- `test_diagnostic_error_codes.c`
+- Stable family bases
+- Representative stable codes
+- Subsystem and severity name mappings
 
-### Startup Validation
-- [ ] Contract mismatch diagnostics
-- [ ] Missing required service
-- [ ] Optional service downgrade
-- [ ] Version incompatibility
-- [ ] Invalid bundle path
-- [ ] Malformed artifact
-
-### Runtime Failures
-- [ ] Actor spawn failure
-- [ ] Mailbox overflow
-- [ ] Task cancellation
-- [ ] Resource exhaustion
-- [ ] Invalid operation
-- [ ] Platform capability missing
-
-### Diagnostic Format
-- [ ] Structured diagnostic output
-- [ ] Human-readable messages
-- [ ] Machine-readable codes
-- [ ] Source path attribution
-- [ ] Severity levels
-- [ ] Detail information
+### Startup Failure Reporting
+- `test_startup_failure_reporting.c`
+- Required service failure reporting
+- Structured fatal diagnostics
+- Optional service downgrade reporting
+- Startup report formatting
 
 ---
 
 ## Running Tests
 
 ```bash
-# Run all diagnostics tests
+# Run all diagnostics tests with the default timeouts
 ./run_tests.sh
 
-# Run specific test
-./run_tests.sh test_diagnostics_contract_mismatch.kn
+# Run with explicit timeouts
+./run_tests.sh --compile-timeout 300 --test-timeout 20
 
-# Run on specific backend
-./run_tests.sh --backend native
+# Run in verbose mode
+./run_tests.sh --verbose
 ```
 
 ---
 
 ## Notes
 
-- Diagnostics tests validate error reporting quality
-- Tests should verify both error codes and messages
-- Focus on diagnostic stability across versions
-- Document expected diagnostic format
-
+- The diagnostics lane is intentionally focused on the canonical runtime APIs that already exist today.
+- Startup validation tests should verify both the legacy validation result and the structured startup report.
+- Keep new diagnostics coverage centered in this directory so the lane stays easy to execute and audit.

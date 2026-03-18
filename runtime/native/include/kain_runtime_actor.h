@@ -225,6 +225,9 @@ typedef struct {
     KainActorBootstrapFn bootstrap_fn;
     void* user_data;
     size_t mailbox_capacity;
+    KainSupervisionStrategy supervision_strategy;
+    KainRestartPolicy restart_policy;
+    KainActorId supervisor_id;
     char name[KAIN_ACTOR_NAME_MAX];
 } KainActorSpawnConfigStored;
 
@@ -362,6 +365,7 @@ typedef struct {
     KainActorBootstrapFn bootstrap_fn;
     void* user_data;
     size_t mailbox_capacity;
+    KainSupervisionStrategy supervision_strategy;
     KainRestartPolicy restart_policy;
     KainActorId supervisor_id;
     char name[KAIN_ACTOR_NAME_MAX];

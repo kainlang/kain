@@ -8,39 +8,39 @@
 ## Test Coverage
 
 ### Payload Loading
-- [ ] Valid reflection payload parsing
-- [ ] Invalid JSON handling
-- [ ] Schema version validation
+- [x] Valid reflection payload parsing
+- [x] Invalid JSON handling
+- [x] Schema version validation
 - [ ] Payload size limits
-- [ ] Malformed payload handling
+- [x] Malformed payload handling
 
 ### Type Lookup
-- [ ] Lookup by type name
-- [ ] Lookup by type ID
+- [x] Lookup by type name
+- [x] Lookup by type ID
 - [ ] Nested type resolution
 - [ ] Generic type resolution
-- [ ] Type not found handling
+- [x] Type not found handling
 
 ### Item Identity
-- [ ] Actor metadata lookup
-- [ ] Message metadata lookup
-- [ ] Component metadata lookup
+- [x] Actor metadata lookup
+- [x] Message metadata lookup
+- [x] Component metadata lookup
 - [ ] Service metadata lookup
-- [ ] Item identity uniqueness
+- [x] Item identity uniqueness
 
 ### Service Binding
 - [ ] Required service resolution
 - [ ] Optional service resolution
 - [ ] Service version compatibility
-- [ ] Missing service handling
+- [x] Missing service handling
 - [ ] Service downgrade reporting
 
 ### Compatibility Metadata
-- [ ] Runtime version compatibility
-- [ ] ABI version compatibility
+- [x] Runtime version compatibility
+- [x] ABI version compatibility
 - [ ] Feature compatibility
 - [ ] Migration metadata
-- [ ] Compatibility class validation
+- [x] Compatibility class validation
 
 ---
 
@@ -50,10 +50,13 @@
 # Run all reflection tests
 ./run_tests.sh
 
-# Run specific test
-./run_tests.sh test_reflection_payload_valid.kn
+# Run with verbose output
+./run_tests.sh --verbose
 
-# Run on specific backend
+# Run with custom timeouts
+./run_tests.sh --compile-timeout 300 --test-timeout 20
+
+# Run on specific backend label
 ./run_tests.sh --backend native
 ```
 
@@ -62,7 +65,7 @@
 ## Notes
 
 - Reflection tests validate metadata-driven runtime behavior
-- Tests should cover both valid and invalid payloads
-- Focus on schema validation and lookup correctness
-- Document expected reflection payload format
+- The current lane focuses on compiler-shaped payload loading and lookup
+- Tests cover valid and invalid payloads
+- The native runtime currently stores type and item metadata; actor/component/message arrays are validated structurally on load
 
