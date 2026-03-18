@@ -34,7 +34,10 @@
       "native/src/core/kain_runtime_diagnostics.c",
       "native/src/core/kain_runtime_services.c",
       "native/src/core/kain_runtime_contract.c",
-      "native/src/core/kain_runtime_realtime.c"
+      "native/src/core/kain_runtime_realtime.c",
+      "native/src/core/kain_runtime_memory.c",
+      "native/src/core/kain_runtime_bitfield.c",
+      "native/src/core/kain_runtime_union.c"
     ],
     "asset": [
       "native/src/asset/kain_asset_gltf.c"
@@ -69,6 +72,39 @@
       "description": "Core allocation, retain/release, and memory management",
       "implementation_files": ["native/src/core/kain_runtime_core.c"],
       "header_files": ["native/include/kain_runtime_base.h"]
+    },
+    {
+      "key": "lowlevel.memory",
+      "name": "Low-Level Memory Helpers",
+      "provider": "native-core",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Canonical low-level memory helpers: bind_local, addr_of, ptr_offset, field_ptr, index_ptr, mem_load, mem_store, alloc, realloc",
+      "implementation_files": ["native/src/core/kain_runtime_memory.c"],
+      "header_files": ["native/include/kain_runtime_memory.h"]
+    },
+    {
+      "key": "lowlevel.bitfield",
+      "name": "Low-Level Bitfield Helpers",
+      "provider": "native-core",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Canonical bitfield access helpers: bitfield_get, bitfield_set with ABI-aware packing",
+      "implementation_files": ["native/src/core/kain_runtime_bitfield.c"],
+      "header_files": ["native/include/kain_runtime_bitfield.h"]
+    },
+    {
+      "key": "lowlevel.union",
+      "name": "Low-Level Union Helpers",
+      "provider": "native-core",
+      "requirement": "required",
+      "status": "available",
+      "abi_version": "0.1.0",
+      "description": "Canonical union access helpers: union_get, union_set, union_wrap with deterministic initialization",
+      "implementation_files": ["native/src/core/kain_runtime_union.c"],
+      "header_files": ["native/include/kain_runtime_union.h"]
     },
     {
       "key": "base.diagnostics",

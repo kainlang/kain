@@ -130,18 +130,18 @@ Execution rules for the agent:
     - Add native runtime tests for loading valid and invalid reflection payloads
     - _Requirements: 4.1, 4.3, 13.3_
 
-- [~] 4. Phase 4: Low-Level Memory Helper ABI Parity
-  - [~] 4.1 Inventory canonical low-level helper requirements
+- [-] 4. Phase 4: Low-Level Memory Helper ABI Parity
+  - [x] 4.1 Inventory canonical low-level helper requirements
     - Derive the actual helper surface from `crates/kain-core/src/low_level_memory.rs` and `LOW_LEVEL_MEMORY_STATUS.md`
     - Produce an implementation checklist mapping compiler expectations to native helper exports
     - _Requirements: 3.1, 3.4, 14.4_
 
-  - [~] 4.2 Add canonical helper declarations to native headers
+  - [x] 4.2 Add canonical helper declarations to native headers
     - Define the native helper ABI in headers under `runtime/native/include`
     - Cover address-of, bind-local, load/store, field/index pointer, union, bitfield, and related memory operations
     - _Requirements: 3.1, 3.2, 3.6_
 
-  - [~] 4.3 Implement missing native helper functions
+  - [x] 4.3 Implement missing native helper functions
     - Add the helper implementations in native core modules
     - Respect ABI-aware packing, alignment, bit ordering, and ownership behavior
     - _Requirements: 3.2, 3.3, 3.6_

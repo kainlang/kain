@@ -1889,6 +1889,26 @@ impl LlvmGenerator {
         self.emit("declare void @KAIN_sleep(double)");
         self.emit("declare i1 @deep_eq(i8*, i8*)");
 
+        // Low-Level Memory Helpers (Canonical ABI)
+        // Source: runtime/native/include/kain_runtime_memory.h
+        // Requirements: 1.4, 3.1, 3.4, 3.5
+        self.emit("");
+        self.emit("; Low-Level Memory Helper Surface");
+        self.emit("; Category 1: Pointer and Address Operations");
+        self.emit("declare i8* @__kain_bind_local(i8*)");
+        self.emit("declare i8* @__kain_addr_of(i8*, i64)");
+        self.emit("declare i8* @__kain_ptr_offset(i8*, i64, i64)");
+        self.emit("declare i8* @__kain_field_ptr(i8*, i8*, i64)");
+        self.emit("declare i8* @__kain_index_ptr(i8*, i64, i64)");
+        self.emit("");
+        self.emit("; Category 2: Memory Load/Store Operations");
+        self.emit("declare void @__kain_mem_load(i8*, i8*, i64)");
+        self.emit("declare void @__kain_mem_store(i8*, i8*, i64)");
+        self.emit("");
+        self.emit("; Category 3: Allocation Operations");
+        self.emit("declare i8* @__kain_alloc(i64, i64, i32)");
+        self.emit("declare i8* @__kain_realloc(i8*, i64, i64, i32)");
+
         // StdLib
         self.emit_stdlib_externs();
     }
