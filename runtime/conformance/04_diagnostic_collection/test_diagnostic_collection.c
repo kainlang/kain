@@ -5,9 +5,9 @@
  * Validates diagnostic aggregation, reporting, and batch operations.
  */
 
-#include "../../include/kain_runtime_diagnostics.h"
-#include "../../include/kain_runtime_version.h"
-#include "../../include/kain_runtime_base.h"
+#include "kain_runtime_diagnostics.h"
+#include "kain_runtime_version.h"
+#include "kain_runtime_base.h"
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
