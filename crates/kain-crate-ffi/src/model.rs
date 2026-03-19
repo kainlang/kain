@@ -153,6 +153,7 @@ pub struct BindingReport {
     pub source_fingerprints: Vec<FileFingerprint>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct BridgeFunctionBinding {
     pub emitted_name: String,
@@ -229,6 +230,7 @@ impl BridgeType {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct GeneratedModuleItem {
     pub name: String,
@@ -250,6 +252,7 @@ pub struct BindingBundle {
     pub source_fingerprints: Vec<FileFingerprint>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct GeneratedArtifacts {
     pub canonical_module_source: String,

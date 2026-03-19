@@ -1,7 +1,28 @@
 #include "../../native/include/kain_runtime_host_bridge.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+static void copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 static int register_runtime_service(
     KainServiceRegistry* registry,
@@ -45,8 +66,8 @@ int main(void) {
     kain_host_bridge_service_descriptor_init(&service);
     kain_diagnostic_init(&diag);
 
-    strcpy(module.module_id, "bridge.python.tools");
-    strcpy(module.module_name, "Python Tool Bridge");
+    copy_text(module.module_id, sizeof(module.module_id), "bridge.python.tools");
+    copy_text(module.module_name, sizeof(module.module_name), "Python Tool Bridge");
     module.provider = KAIN_SERVICE_PROVIDER_HOST_PYTHON;
     module.lane = KAIN_FOREIGN_RUNTIME_PYTHON;
     module.required_capability_mask = 0x1u;
@@ -65,9 +86,9 @@ int main(void) {
         return 1;
     }
 
-    strcpy(service.service_key, "python.exec");
-    strcpy(service.service_name, "Python Execution");
-    strcpy(service.module_id, module.module_id);
+    copy_text(service.service_key, sizeof(service.service_key), "python.exec");
+    copy_text(service.service_name, sizeof(service.service_name), "Python Execution");
+    copy_text(service.module_id, sizeof(service.module_id), module.module_id);
     service.provider = KAIN_SERVICE_PROVIDER_HOST_PYTHON;
     service.capability_mask = 0x1u;
     if (kain_host_bridge_register_service(&bridge, &service, &diag) != 0) {

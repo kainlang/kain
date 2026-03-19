@@ -133,7 +133,7 @@ impl DetailsGenerator {
 
         // Generate button handler declarations
         for field in &st.fields {
-            if let Some(button_attr) = field.attributes.iter().find(|a| a.name == "button") {
+            if field.attributes.iter().any(|a| a.name == "button") {
                 let handler_name = format!("OnButton_{}", field.name);
                 self.push_line(&format!("FReply {}();", handler_name));
             }

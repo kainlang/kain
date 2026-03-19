@@ -11,7 +11,7 @@
 
 use crate::ue5::context::Ue5Context;
 use crate::ue5::types::TypeMapper;
-use kain_core::ast::{Attribute, Block, Field, Function};
+use kain_core::ast::{Attribute, Block, Function};
 
 /// Blueprint event intermediate representation
 /// Represents a function that can be overridden in Blueprint with native implementation

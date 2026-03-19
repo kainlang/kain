@@ -1,5 +1,7 @@
 //! SPIR-V Code Generation for GPU shaders
 
+#![allow(dead_code, unused_variables)]
+
 use kain_core::ast::{
     BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
 };

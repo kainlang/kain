@@ -57,6 +57,21 @@ echo ""
     $LDFLAGS
 
 echo ""
+echo "=== Compiling Graphics Binding Rules ==="
+
+"$C_COMPILER" $CFLAGS \
+    "$SCRIPT_DIR/test_graphics_runtime_binding_rules.c" \
+    "$OUT_DIR/kain_runtime_core.o" \
+    "$OUT_DIR/kain_runtime_version.o" \
+    "$OUT_DIR/kain_runtime_diagnostics.o" \
+    "$OUT_DIR/kain_runtime_win32_shared.o" \
+    "$OUT_DIR/kain_runtime_realtime.o" \
+    "$OUT_DIR/kain_gl_win32_host.o" \
+    -o "$OUT_DIR/graphics_runtime_binding_rules.exe" \
+    $LDFLAGS
+
+echo ""
 echo "=== Compilation Complete ==="
 echo "Run tests with:"
 echo "  $OUT_DIR/graphics_runtime_smoke.exe"
+echo "  $OUT_DIR/graphics_runtime_binding_rules.exe"

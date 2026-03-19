@@ -60,10 +60,13 @@ typedef struct {
     KainActorSchedulerNode* tail;
     int shutdown;
     int active_workers;
+    size_t busy_workers;
+    size_t max_busy_workers;
     size_t queue_depth;
     size_t max_queue_depth;
     size_t total_enqueued;
     size_t total_dequeued;
+    size_t overflow_thread_spawns;
     
 #ifdef _WIN32
     CRITICAL_SECTION lock;
@@ -89,6 +92,8 @@ static void kain_scheduler_init(void);
 static void kain_scheduler_shutdown(void);
 static void kain_scheduler_enqueue(KainActorState_Internal* actor);
 static KainActorId kain_scheduler_dequeue(void);
+static int kain_scheduler_should_overflow(void);
+static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDiagnostic* diag);
 static void kain_actor_handle_child_exit(KainActorState_Internal* child);
 static int kain_actor_should_restart(KainActorState_Internal* child);
 static KainActorId kain_actor_restart_child(KainActorState_Internal* child, KainDiagnostic* diag);
@@ -98,6 +103,7 @@ static void kain_actor_finalize_exit_state(
     KainActorState_Internal* actor,
     KainActorExitReason bootstrap_exit_reason
 );
+static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src);
 
 /*
  * Initialize Actor Runtime
@@ -447,10 +453,7 @@ KainActorId kain_actor_spawn(
     actor->in_scheduler_queue = 0;
     actor->spawn_sequence = 0;
     
-    if (config->name[0] != '\0') {
-        strncpy(actor->name, config->name, KAIN_ACTOR_NAME_MAX - 1);
-        actor->name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
-    }
+    kain_actor_copy_name(actor->name, sizeof(actor->name), config->name);
 
     /* Initialize mailbox */
     if (kain_actor_mailbox_init(&actor->mailbox, config->mailbox_capacity) != 0) {
@@ -486,12 +489,11 @@ KainActorId kain_actor_spawn(
     actor->spawn_config.supervision_strategy = config->supervision_strategy;
     actor->spawn_config.restart_policy = config->restart_policy;
     actor->spawn_config.supervisor_id = config->supervisor_id;
-    if (config->name[0] != '\0') {
-        strncpy(actor->spawn_config.name, config->name, KAIN_ACTOR_NAME_MAX - 1);
-        actor->spawn_config.name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
-    } else {
-        actor->spawn_config.name[0] = '\0';
-    }
+    kain_actor_copy_name(
+        actor->spawn_config.name,
+        sizeof(actor->spawn_config.name),
+        config->name
+    );
 
     /* Insert into actor table */
     KainActorId actor_id = kain_actor_table_insert(actor);
@@ -510,41 +512,37 @@ KainActorId kain_actor_spawn(
 
     /* Spawn thread or enqueue to scheduler */
     if (KAIN_SCHEDULER_USE_POOLED) {
-        /* Use scheduler work queue */
-        kain_scheduler_enqueue(actor);
+        if (kain_scheduler_should_overflow()) {
+#ifdef _WIN32
+            EnterCriticalSection(&g_scheduler.lock);
+#else
+            pthread_mutex_lock(&g_scheduler.lock);
+#endif
+            g_scheduler.overflow_thread_spawns++;
+#ifdef _WIN32
+            LeaveCriticalSection(&g_scheduler.lock);
+#else
+            pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+
+            if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
+                kain_actor_table_remove(actor_id);
+                kain_actor_mailbox_destroy(&actor->mailbox);
+                free(actor);
+                return KAIN_ACTOR_ID_INVALID;
+            }
+        } else {
+            /* Use scheduler work queue */
+            kain_scheduler_enqueue(actor);
+        }
     } else {
         /* Use dedicated thread per actor */
-#ifdef _WIN32
-        actor->thread_handle = CreateThread(NULL, 0, kain_actor_thread_proc, actor, 0, &actor->thread_id);
-        if (actor->thread_handle == NULL) {
-            if (diag != NULL) {
-                kain_diagnostic_init(diag);
-                diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
-                diag->severity = KAIN_DIAG_SEVERITY_ERROR;
-                diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
-                snprintf(diag->message, sizeof(diag->message), "Thread creation failed");
-            }
+        if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
             kain_actor_table_remove(actor_id);
             kain_actor_mailbox_destroy(&actor->mailbox);
             free(actor);
             return KAIN_ACTOR_ID_INVALID;
         }
-#else
-        int result = pthread_create(&actor->thread, NULL, kain_actor_thread_proc, actor);
-        if (result != 0) {
-            if (diag != NULL) {
-                kain_diagnostic_init(diag);
-                diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
-                diag->severity = KAIN_DIAG_SEVERITY_ERROR;
-                diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
-                snprintf(diag->message, sizeof(diag->message), "Thread creation failed");
-            }
-            kain_actor_table_remove(actor_id);
-            kain_actor_mailbox_destroy(&actor->mailbox);
-            free(actor);
-            return KAIN_ACTOR_ID_INVALID;
-        }
-#endif
     }
 
     return actor_id;
@@ -751,6 +749,8 @@ int kain_actor_try_receive(
     KainActorMessage* message,
     KainDiagnostic* diag
 ) {
+    (void)diag;
+
     if (mailbox == NULL || message == NULL) {
         return -1;
     }
@@ -894,6 +894,9 @@ int kain_actor_get_supervision_snapshot(
     snapshot->last_observed_child_id = actor->last_observed_child_id;
     snapshot->last_observed_child_exit_reason = actor->last_observed_child_exit_reason;
     snapshot->supervision_limit_hits = actor->supervision_limit_hits;
+    snapshot->restart_attempt_count = actor->restart_attempt_count;
+    snapshot->strategy_shutdown_count = actor->strategy_shutdown_count;
+    snapshot->escalation_count = actor->escalation_count;
     return 0;
 }
 
@@ -1206,6 +1209,19 @@ static unsigned int kain_actor_registry_hash(const char* name) {
     return hash % KAIN_ACTOR_REGISTRY_SIZE;
 }
 
+static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src) {
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    if (src == NULL || src[0] == '\0') {
+        dest[0] = '\0';
+        return;
+    }
+
+    snprintf(dest, dest_size, "%s", src);
+}
+
 int kain_actor_registry_register(
     const char* name,
     KainActorId actor_id,
@@ -1255,8 +1271,7 @@ int kain_actor_registry_register(
         return -1;
     }
 
-    strncpy(entry->name, name, KAIN_ACTOR_NAME_MAX - 1);
-    entry->name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
+    kain_actor_copy_name(entry->name, sizeof(entry->name), name);
     entry->actor_id = actor_id;
     entry->next = g_actor_registry.buckets[bucket];
     g_actor_registry.buckets[bucket] = entry;
@@ -1310,6 +1325,8 @@ int kain_actor_registry_unregister(
     const char* name,
     KainDiagnostic* diag
 ) {
+    (void)diag;
+
     if (name == NULL) {
         return -1;
     }
@@ -1398,6 +1415,9 @@ void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot) {
     snapshot->total_dequeued = g_scheduler.total_dequeued;
     snapshot->worker_count = KAIN_SCHEDULER_WORKER_COUNT;
     snapshot->active_workers = g_scheduler.active_workers;
+    snapshot->busy_workers = g_scheduler.busy_workers;
+    snapshot->max_busy_workers = g_scheduler.max_busy_workers;
+    snapshot->overflow_thread_spawns = g_scheduler.overflow_thread_spawns;
     snapshot->shutdown = g_scheduler.shutdown;
 
 #ifdef _WIN32
@@ -1467,6 +1487,21 @@ static void* kain_scheduler_worker_thread(void* param) {
         /* Execute actor bootstrap */
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
         if (actor != NULL && actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
+#ifdef _WIN32
+            EnterCriticalSection(&g_scheduler.lock);
+#else
+            pthread_mutex_lock(&g_scheduler.lock);
+#endif
+            g_scheduler.busy_workers++;
+            if (g_scheduler.busy_workers > g_scheduler.max_busy_workers) {
+                g_scheduler.max_busy_workers = g_scheduler.busy_workers;
+            }
+#ifdef _WIN32
+            LeaveCriticalSection(&g_scheduler.lock);
+#else
+            pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+
             actor->state = KAIN_ACTOR_STATE_RUNNING;
             
             KainActorExitReason exit_reason = actor->bootstrap_fn(
@@ -1487,6 +1522,20 @@ static void* kain_scheduler_worker_thread(void* param) {
                 actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
                 kain_actor_propagate_links(actor);
             }
+
+#ifdef _WIN32
+            EnterCriticalSection(&g_scheduler.lock);
+#else
+            pthread_mutex_lock(&g_scheduler.lock);
+#endif
+            if (g_scheduler.busy_workers > 0) {
+                g_scheduler.busy_workers--;
+            }
+#ifdef _WIN32
+            LeaveCriticalSection(&g_scheduler.lock);
+#else
+            pthread_mutex_unlock(&g_scheduler.lock);
+#endif
         }
     }
 
@@ -1527,10 +1576,13 @@ static void kain_scheduler_init(void) {
     g_scheduler.tail = NULL;
     g_scheduler.shutdown = 0;
     g_scheduler.active_workers = KAIN_SCHEDULER_WORKER_COUNT;
+    g_scheduler.busy_workers = 0;
+    g_scheduler.max_busy_workers = 0;
     g_scheduler.queue_depth = 0;
     g_scheduler.max_queue_depth = 0;
     g_scheduler.total_enqueued = 0;
     g_scheduler.total_dequeued = 0;
+    g_scheduler.overflow_thread_spawns = 0;
     
     /* Spawn worker threads */
     for (int i = 0; i < KAIN_SCHEDULER_WORKER_COUNT; i++) {
@@ -1652,6 +1704,65 @@ static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
 #endif
 }
 
+static int kain_scheduler_should_overflow(void) {
+    int saturated = 0;
+
+    if (!KAIN_SCHEDULER_USE_POOLED) {
+        return 0;
+    }
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_lock(&g_scheduler.lock);
+#endif
+    saturated = (!g_scheduler.shutdown &&
+                 g_scheduler.busy_workers >= (size_t)KAIN_SCHEDULER_WORKER_COUNT);
+#ifdef _WIN32
+    LeaveCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+
+    return saturated;
+}
+
+static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDiagnostic* diag) {
+    if (actor == NULL) {
+        return -1;
+    }
+
+#ifdef _WIN32
+    actor->thread_handle = CreateThread(NULL, 0, kain_actor_thread_proc, actor, 0, &actor->thread_id);
+    if (actor->thread_handle == NULL) {
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
+            snprintf(diag->message, sizeof(diag->message), "Thread creation failed");
+        }
+        return -1;
+    }
+#else
+    {
+        int result = pthread_create(&actor->thread, NULL, kain_actor_thread_proc, actor);
+        if (result != 0) {
+            if (diag != NULL) {
+                kain_diagnostic_init(diag);
+                diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+                diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+                diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
+                snprintf(diag->message, sizeof(diag->message), "Thread creation failed");
+            }
+            return -1;
+        }
+    }
+#endif
+
+    return 0;
+}
+
 static KainActorId kain_scheduler_dequeue(void) {
     /* Caller must hold scheduler lock */
     if (g_scheduler.head == NULL) {
@@ -1770,21 +1881,20 @@ static KainActorId kain_actor_restart_child(KainActorState_Internal* child, Kain
     config.supervisor_id = child->spawn_config.supervisor_id;
     config.restart_policy = child->spawn_config.restart_policy;
     
-    if (child->spawn_config.name[0] != '\0') {
-        strncpy(config.name, child->spawn_config.name, KAIN_ACTOR_NAME_MAX - 1);
-        config.name[KAIN_ACTOR_NAME_MAX - 1] = '\0';
-    }
+    kain_actor_copy_name(config.name, sizeof(config.name), child->spawn_config.name);
 
     /* Spawn new actor instance */
     KainActorId new_id = kain_actor_spawn(&config, diag);
     
     if (new_id != KAIN_ACTOR_ID_INVALID) {
         time_t now = time(NULL);
+        child->restart_attempt_count = child->restart_attempt_count + 1;
         child->supervisor.restart_count = child->supervisor.restart_count + 1;
         child->supervisor.last_restart_time = now;
         /* Update restart tracking in the new actor instance */
         KainActorState_Internal* new_actor = kain_actor_table_get(new_id);
         if (new_actor != NULL) {
+            new_actor->restart_attempt_count = child->restart_attempt_count;
             new_actor->supervisor.restart_count = child->supervisor.restart_count;
             new_actor->supervisor.last_restart_time = now;
             new_actor->supervisor.restart_window_start = child->supervisor.restart_window_start;
@@ -1810,6 +1920,7 @@ static void kain_actor_escalate_to_supervisor(KainActorState_Internal* child) {
     }
 
     /* Terminate supervisor with escalation exit reason */
+    supervisor->escalation_count++;
     supervisor->exit_reason = KAIN_ACTOR_EXIT_SUPERVISOR_ESCALATION;
     supervisor->state = KAIN_ACTOR_STATE_FAILED;
     
@@ -1852,6 +1963,7 @@ static void kain_actor_apply_supervision_strategy(
                     actor->supervisor.supervisor_id == supervisor->actor_id &&
                     actor->actor_id != failed_child->actor_id) {
                     /* Shutdown sibling actor */
+                    supervisor->strategy_shutdown_count++;
                     kain_actor_shutdown(actor->actor_id, NULL);
                 }
             }
@@ -1865,6 +1977,7 @@ static void kain_actor_apply_supervision_strategy(
                     actor->supervisor.supervisor_id == supervisor->actor_id &&
                     actor->actor_id != failed_child->actor_id &&
                     actor->spawn_sequence > failed_child->spawn_sequence) {
+                    supervisor->strategy_shutdown_count++;
                     kain_actor_shutdown(actor->actor_id, NULL);
                 }
             }

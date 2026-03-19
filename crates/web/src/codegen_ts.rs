@@ -514,6 +514,7 @@ impl TSGen {
     }
 
     fn gen_stmt(&mut self, stmt: &Stmt) {
+        #[allow(unreachable_patterns)]
         match stmt {
             Stmt::Expr(expr) => {
                 self.gen_expr(expr);

@@ -111,7 +111,7 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
     comptime::eval_program(&mut ast)?;
 
     // 3. Type check
-    let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
+    let _typed_ast = types::check(&ast, &span_mapper, "<input>")?;
 
     // 4. Codegen (handled by backend crates)
     // This is just a placeholder - actual codegen happens in cli/

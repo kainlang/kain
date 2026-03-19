@@ -15,10 +15,11 @@
 //!
 //! Compile with: kain file.kn -t ue5 -o Output.generated.h
 
+#![allow(dead_code, unused_assignments, unused_mut, unused_variables)]
+
 use kain_core::ast::{
     Actor, BinaryOp, Block, ElseBranch, Enum, EnumVariantFields, Expr, Field, Function, Impl,
-    MessageHandler, Param, Pattern, ShaderStage, Stmt, Struct, Type, TypeAlias, UnaryOp, Variant,
-    VariantFields,
+    MessageHandler, Param, Pattern, ShaderStage, Stmt, Struct, Type, UnaryOp, VariantFields,
 };
 use kain_core::error::KainResult;
 use kain_core::types::{TypedItem, TypedShader};
@@ -52,9 +53,9 @@ impl ProgramItems for MonomorphizedProgram {
     }
 }
 use crate::ue5::{
-    escape_string as ue5_escape_string, get_ue_log_format_spec, map_type as ue5_map_type,
-    to_actor_name, to_component_name, to_enum_name, to_pascal_case, to_struct_name,
-    to_subsystem_name, to_uobject_name, FunctionBuilder, PropertyBuilder, TypeMapConfig,
+    escape_string as ue5_escape_string, get_ue_log_format_spec, to_actor_name,
+    to_component_name, to_enum_name, to_pascal_case, to_struct_name, to_subsystem_name,
+    to_uobject_name,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 

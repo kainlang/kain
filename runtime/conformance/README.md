@@ -15,9 +15,9 @@ This directory contains runtime-specific harnesses and ABI parity tests for the 
 ## Reality Check (March 18, 2026)
 
 - `runtime/conformance/run_all.sh --verbose` currently passes all 10 registered categories on the active Windows lane
-- `abi_parity`, `actor_runtime`, `async_runtime`, `ui_runtime`, `graphics_runtime`, `hot_reload`, `host_bridge`, and `platform_parity` are compile-and-run harnesses with timeout-guarded execution
-- `reflection/` and `diagnostics/` are still placeholder category runners today; they report status and return success, but they do not yet provide the same end-to-end executable coverage as the other categories
-- Treat the green aggregate run as strong progress, not as proof that reflection and diagnostics are fully conformance-complete
+- All 10 registered categories now run through executable harnesses with timeout-guarded compilation and execution, including `reflection/` and `diagnostics/`
+- `actor_runtime/` now emits its binaries into `runtime/conformance/actor_runtime/bin/` so aggregate and targeted Windows runs are less likely to trip over executable file locks
+- Treat the green aggregate run as strong proof of lane-level runtime coverage on Windows, not as proof that every broader Phase 13 end-to-end parity claim is finished
 
 ---
 

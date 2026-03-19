@@ -4007,7 +4007,7 @@ impl LlvmGenerator {
             Expr::Match {
                 scrutinee,
                 arms,
-                span,
+                span: _,
             } => {
                 let (val, val_ty) = self.compile_expr(scrutinee)?;
                 let enum_name = if val_ty.starts_with('%') && val_ty.ends_with('*') {

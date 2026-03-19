@@ -19,6 +19,10 @@
 #include <unistd.h>
 #endif
 
+static void copy_actor_name(char* dest, const char* src) {
+    snprintf(dest, KAIN_ACTOR_NAME_MAX, "%s", src);
+}
+
 /* Counters for child restarts */
 static int g_child_start_count = 0;
 static int g_bounded_child_start_count = 0;
@@ -179,7 +183,7 @@ int main(void) {
     KainActorSpawnConfig supervisor_config;
     kain_actor_spawn_config_init(&supervisor_config);
     supervisor_config.bootstrap_fn = supervisor_bootstrap;
-    strncpy(supervisor_config.name, "supervisor", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(supervisor_config.name, "supervisor");
     
     KainDiagnostic diag;
     KainActorId supervisor_id = kain_actor_spawn(&supervisor_config, &diag);
@@ -200,7 +204,7 @@ int main(void) {
     child_config.bootstrap_fn = bounded_crash_child_bootstrap;
     child_config.supervisor_id = supervisor_id;
     child_config.restart_policy = KAIN_RESTART_POLICY_PERMANENT;
-    strncpy(child_config.name, "permanent_child", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(child_config.name, "permanent_child");
     
     KainActorId child_id = kain_actor_spawn(&child_config, &diag);
     
@@ -270,7 +274,7 @@ int main(void) {
     temp_config.bootstrap_fn = temporary_child_bootstrap;
     temp_config.supervisor_id = supervisor_id;
     temp_config.restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
-    strncpy(temp_config.name, "temporary_child", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(temp_config.name, "temporary_child");
     
     KainActorId temp_id = kain_actor_spawn(&temp_config, &diag);
     printf("Temporary child spawned with ID: %llu\n", temp_id);
@@ -310,7 +314,7 @@ int main(void) {
     transient_config.bootstrap_fn = supervised_child_bootstrap;
     transient_config.supervisor_id = supervisor_id;
     transient_config.restart_policy = KAIN_RESTART_POLICY_TRANSIENT;
-    strncpy(transient_config.name, "transient_child", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(transient_config.name, "transient_child");
     
     KainActorId transient_id = kain_actor_spawn(&transient_config, &diag);
     printf("Transient child spawned with ID: %llu\n", transient_id);
@@ -352,11 +356,11 @@ int main(void) {
     one_for_all_waiter_a.supervisor_id = supervisor_id;
     one_for_all_waiter_a.supervision_strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ALL;
     one_for_all_waiter_a.restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
-    strncpy(one_for_all_waiter_a.name, "ofa_before", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(one_for_all_waiter_a.name, "ofa_before");
 
     KainActorSpawnConfig one_for_all_waiter_b = one_for_all_waiter_a;
     one_for_all_waiter_b.user_data = "ofa_after";
-    strncpy(one_for_all_waiter_b.name, "ofa_after", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(one_for_all_waiter_b.name, "ofa_after");
 
     KainActorSpawnConfig one_for_all_crasher;
     kain_actor_spawn_config_init(&one_for_all_crasher);
@@ -364,7 +368,7 @@ int main(void) {
     one_for_all_crasher.supervisor_id = supervisor_id;
     one_for_all_crasher.supervision_strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ALL;
     one_for_all_crasher.restart_policy = KAIN_RESTART_POLICY_TRANSIENT;
-    strncpy(one_for_all_crasher.name, "ofa_crasher", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(one_for_all_crasher.name, "ofa_crasher");
 
     KainActorId ofa_before_id = kain_actor_spawn(&one_for_all_waiter_a, &diag);
     KainActorId ofa_after_id = kain_actor_spawn(&one_for_all_waiter_b, &diag);
@@ -401,7 +405,7 @@ int main(void) {
     rest_waiter_old.supervisor_id = supervisor_id;
     rest_waiter_old.supervision_strategy = KAIN_SUPERVISION_STRATEGY_REST_FOR_ONE;
     rest_waiter_old.restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
-    strncpy(rest_waiter_old.name, "rest_old", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(rest_waiter_old.name, "rest_old");
 
     KainActorSpawnConfig rest_crasher;
     kain_actor_spawn_config_init(&rest_crasher);
@@ -409,11 +413,11 @@ int main(void) {
     rest_crasher.supervisor_id = supervisor_id;
     rest_crasher.supervision_strategy = KAIN_SUPERVISION_STRATEGY_REST_FOR_ONE;
     rest_crasher.restart_policy = KAIN_RESTART_POLICY_TRANSIENT;
-    strncpy(rest_crasher.name, "rest_crasher", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(rest_crasher.name, "rest_crasher");
 
     KainActorSpawnConfig rest_waiter_new = rest_waiter_old;
     rest_waiter_new.user_data = "rest_new";
-    strncpy(rest_waiter_new.name, "rest_new", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(rest_waiter_new.name, "rest_new");
 
     KainActorId rest_old_id = kain_actor_spawn(&rest_waiter_old, &diag);
     KainActorId rest_crasher_id = kain_actor_spawn(&rest_crasher, &diag);

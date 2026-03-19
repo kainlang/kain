@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
+static int g_failed = 0;
+
 static void kain_ui_runtime_test_fill_bundle(KainUiCompiledBundle* bundle) {
     kain_ui_compiled_bundle_init(bundle);
     bundle->loaded = 1;
@@ -107,14 +109,15 @@ static void kain_ui_runtime_test_fill_state(KainUiRuntimeState* state, const Kai
 static int test_fail(const char* message) {
     fprintf(stderr, "[FAIL] %s\n", message);
     fflush(stderr);
-    return 1;
+    g_failed = 1;
+    return 0;
 }
 
 static int test_true(int condition, const char* message) {
     if (!condition) {
         return test_fail(message);
     }
-    return 0;
+    return 1;
 }
 
 static int route_event(KainUiRuntimeState* state, KainUiRuntimeEvent* event, KainUiRuntimeEventResult* result) {
@@ -258,5 +261,5 @@ int main(void) {
 cleanup:
     free(bundle);
     free(state);
-    return 0;
+    return g_failed ? 1 : 0;
 }

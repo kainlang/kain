@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER_SCRIPT="$(cd "$SCRIPT_DIR/.." && pwd)/_shared/run_with_timeout.py"
+BIN_DIR="$SCRIPT_DIR/bin"
 
 BACKEND="${BACKEND:-all}"
 COMPILE_TIMEOUT_SEC="${ACTOR_COMPILE_TIMEOUT_SEC:-300}"
@@ -112,7 +113,7 @@ echo "Executing actor runtime tests..."
 for test_name in "${TEST_BINARIES[@]}"; do
     ((TOTAL_TESTS+=1))
 
-    if [[ ! -x "$SCRIPT_DIR/$test_name" ]]; then
+    if [[ ! -x "$BIN_DIR/$test_name" ]]; then
         echo "[FAIL] $test_name (binary missing)" >&2
         ((FAILED_TESTS+=1))
         continue
@@ -120,7 +121,7 @@ for test_name in "${TEST_BINARIES[@]}"; do
 
     if [[ $VERBOSE -eq 1 ]]; then
         set +e
-        run_with_timeout "$TEST_TIMEOUT_SEC" "$test_name" "$SCRIPT_DIR/$test_name"
+        run_with_timeout "$TEST_TIMEOUT_SEC" "$test_name" "$BIN_DIR/$test_name"
         test_status=$?
         set -e
         if [[ $test_status -eq 0 ]]; then
@@ -137,7 +138,7 @@ for test_name in "${TEST_BINARIES[@]}"; do
         fi
     else
         set +e
-        run_with_timeout "$TEST_TIMEOUT_SEC" "$test_name" "$SCRIPT_DIR/$test_name" > /dev/null 2>&1
+        run_with_timeout "$TEST_TIMEOUT_SEC" "$test_name" "$BIN_DIR/$test_name" > /dev/null 2>&1
         test_status=$?
         set -e
         if [[ $test_status -eq 0 ]]; then

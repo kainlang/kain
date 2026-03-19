@@ -9,7 +9,7 @@
 //! - @camera fields → camera configuration
 //! - Preview scene with configurable lighting
 
-use kain_core::ast::{Field, Struct, Type};
+use kain_core::ast::{Struct, Type};
 use kain_core::types::TypedStruct;
 
 pub struct ViewportGenerator {
@@ -46,7 +46,7 @@ impl ViewportGenerator {
             .fields
             .iter()
             .any(|f| f.attributes.iter().any(|a| a.name == "preview_mesh"));
-        let has_camera = st
+        let _has_camera = st
             .fields
             .iter()
             .any(|f| f.attributes.iter().any(|a| a.name == "camera"));

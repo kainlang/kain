@@ -27,6 +27,7 @@ impl StringBuilder {
         Self { lines: Vec::new() }
     }
 
+    #[allow(dead_code)]
     fn push(&mut self, text: &str) {
         self.lines.push(text.to_string());
     }
@@ -763,7 +764,7 @@ impl CppGen {
             }
 
             Expr::Match {
-                scrutinee, arms, ..
+                scrutinee, arms: _arms, ..
             } => {
                 // C++ doesn't have pattern matching - use std::visit for variants
                 let scrut = self.gen_expr(scrutinee);
@@ -813,7 +814,7 @@ impl CppGen {
                 )
             }
 
-            Expr::Block(block, _) => {
+            Expr::Block(_block, _) => {
                 // Immediately invoked lambda for block expressions
                 format!("[&](){{ /* block */ }}()")
             }

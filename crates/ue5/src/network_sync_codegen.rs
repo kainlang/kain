@@ -8,9 +8,9 @@
 //! - Owner time synchronization
 //! - GetLifetimeReplicatedProps implementation
 
-use crate::network_sync_ir::{
-    NetworkConfigIR, NetworkSyncIR, ReplicatedPropertyIR, ReplicationModeIR,
-};
+#![allow(dead_code, unused_variables)]
+
+use crate::network_sync_ir::{NetworkSyncIR, ReplicationModeIR};
 
 /// Output from network sync code generation
 #[derive(Debug, Clone)]
@@ -160,7 +160,7 @@ fn generate_constructor_init(ir: &NetworkSyncIR, output: &mut NetworkSyncCodegen
 /// Generate tick method logic for interpolation and extrapolation
 fn generate_tick_logic(
     ir: &NetworkSyncIR,
-    class_name: &str,
+    _class_name: &str,
     output: &mut NetworkSyncCodegenOutput,
 ) {
     let mut has_interpolated = false;

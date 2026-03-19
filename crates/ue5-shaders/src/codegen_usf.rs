@@ -13,7 +13,7 @@ use crate::validation::ShaderValidator;
 use kain_core::ast::{BinaryOp, Block, Expr, Pattern, ShaderStage, Stmt, Type};
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
-    TypedActor, TypedComponent, TypedItem, TypedProgram, TypedShader, TypedStruct,
+    TypedItem, TypedProgram, TypedShader, TypedStruct,
 };
 use std::collections::HashMap;
 
@@ -818,7 +818,7 @@ fn generate_cpp_implementation_cached(
     // Bind UAVs
     if !all_uav_outputs.is_empty() {
         output.push_str("    // Bind UAVs\n");
-        for (name, ty, _) in &all_uav_outputs {
+        for (name, _ty, _) in &all_uav_outputs {
             // Check if we need to create UAV from texture before binding
             // But usually for Compute Shader helper, we expect FRDGTextureUAVRef
             // However, our signature takes FRDGTextureRef for simplicity.
@@ -1096,6 +1096,7 @@ struct USFContext {
     // Maps variable name -> (code, type) for proper type tracking
     vars: HashMap<String, (String, String)>,
     indent_level: usize,
+    #[allow(dead_code)]
     uniform_bindings: Vec<(String, String, u32)>,
     packer: Option<InterpolatorPacker>,
     is_vertex_shader: bool,
@@ -1128,8 +1129,11 @@ struct PackedRegister {
 
 #[derive(Debug, Clone)]
 struct PackedVar {
+    #[allow(dead_code)]
     name: String,
+    #[allow(dead_code)]
     ty: String,      // USF type string
+    #[allow(dead_code)]
     swizzle: String, // "x", "xy", "xyz", "xyzw", "zw", etc.
 }
 
@@ -1150,6 +1154,7 @@ impl USFContext {
         }
     }
 
+    #[allow(dead_code)]
     fn with_knowledge(mut self, sk: ShaderKnowledge) -> Self {
         self.shader_knowledge = Some(sk);
         self
@@ -1362,7 +1367,7 @@ fn generate_swizzle(start: usize, count: usize) -> String {
 /// Emit just the shader entry point function (no declarations - those are now global)
 pub fn emit_shader_body(
     shader: &TypedShader,
-    mirrors: &CachedMirrors,
+    _mirrors: &CachedMirrors,
     type_db: HashMap<String, HashMap<String, String>>,
 ) -> KainResult<String> {
     let mut output = String::new();
@@ -1407,7 +1412,7 @@ pub fn emit_shader_body(
             ctx.is_compute_3d = is_3d;
 
             // Check for @compute(x,y,z) attribute
-            let mut threads = if is_3d { (8, 8, 8) } else { (8, 8, 1) };
+            let threads = if is_3d { (8, 8, 8) } else { (8, 8, 1) };
             /*
             // Attributes not yet supported on Shader AST node
             for attr in &shader.ast.attributes {
@@ -3262,7 +3267,6 @@ fn generate_single_usf_cached(
         }
     }
 
-    let type_db = build_struct_map(program);
     generate_cached(&filtered_program, mirrors)
 }
 
@@ -3416,7 +3420,7 @@ pub fn compile_shader_artifacts(
 ///
 /// Returns `None` when no component mirrors exist (nothing to write).
 /// Call once per plugin build and write to `Public/{plugin_name}ShaderTypes.h`.
-pub fn generate_shared_types_header(program: &TypedProgram, plugin_name: &str) -> Option<String> {
+pub fn generate_shared_types_header(program: &TypedProgram, _plugin_name: &str) -> Option<String> {
     let mirrors = CachedMirrors::from_program(program);
     if mirrors.0.is_empty() {
         return None;

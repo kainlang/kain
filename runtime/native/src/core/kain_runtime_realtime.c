@@ -337,11 +337,28 @@ static int kain_runtime_graphics_binding_is_valid(const KainRuntimeGraphicsBindi
     if (!binding) {
         return 0;
     }
-    return binding->key[0] &&
-        binding->resource_type[0] &&
-        binding->stage[0] &&
-        binding->access[0] &&
-        binding->slot >= 0;
+    if (!binding->key[0] ||
+        !binding->resource_type[0] ||
+        !binding->stage[0] ||
+        !binding->access[0] ||
+        binding->slot < 0) {
+        return 0;
+    }
+
+    /* Keep stage/access semantics strict so the runtime doesn't "accept junk" and then fail later. */
+    if (_stricmp(binding->stage, "vertex") != 0 &&
+        _stricmp(binding->stage, "fragment") != 0 &&
+        _stricmp(binding->stage, "compute") != 0) {
+        return 0;
+    }
+    if (_stricmp(binding->access, "sample") != 0 &&
+        _stricmp(binding->access, "read") != 0 &&
+        _stricmp(binding->access, "write") != 0 &&
+        _stricmp(binding->access, "read_write") != 0) {
+        return 0;
+    }
+
+    return 1;
 }
 
 static int kain_runtime_graphics_binding_stage_matches(
@@ -365,9 +382,21 @@ static int kain_runtime_graphics_binding_array_is_valid(
         return 0;
     }
     for (i = 0; i < binding_count; ++i) {
+        int j;
         if (!kain_runtime_graphics_binding_is_valid(&bindings[i])) {
             return 0;
         }
+
+        /* Resource binding plans must be stable and non-ambiguous. */
+        for (j = 0; j < i; ++j) {
+            if (bindings[j].slot == bindings[i].slot) {
+                return 0;
+            }
+            if (bindings[j].key[0] && bindings[i].key[0] && strcmp(bindings[j].key, bindings[i].key) == 0) {
+                return 0;
+            }
+        }
+
         if (required_stage &&
             kain_runtime_graphics_binding_stage_matches(&bindings[i], required_stage)) {
             has_required_stage = 1;

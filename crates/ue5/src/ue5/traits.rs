@@ -148,7 +148,7 @@ fn generate_method_impl(method: &Function, class_name: &str) -> String {
 
 pub fn generate_class_interface_list(
     impls: &[&Impl],
-    all_traits: &HashMap<String, &Trait>,
+    _all_traits: &HashMap<String, &Trait>,
 ) -> String {
     let interfaces: Vec<String> = impls
         .iter()

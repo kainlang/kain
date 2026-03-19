@@ -6,6 +6,8 @@
 //! - UK2Node_AsyncAction subclasses for latent Blueprint actions
 //! - Blueprint-callable functions (already handled by existing codegen)
 
+#![allow(dead_code, unused_variables)]
+
 use crate::blueprint_ir::{
     AsyncBlueprintIR, AsyncOutputPinIR, BlueprintEventIR, BlueprintParamIR, K2NodeIR, K2PinIR,
     K2PinType,
@@ -59,7 +61,7 @@ pub struct AsyncBlueprintCodegenOutput {
 pub fn generate_blueprint_event_code(
     ir: &BlueprintEventIR,
     class_name: &str,
-    api_macro: &str,
+    _api_macro: &str,
 ) -> BlueprintEventCodegenOutput {
     let mut header_declaration = String::new();
     let mut source_implementation = String::new();
@@ -77,7 +79,7 @@ pub fn generate_blueprint_event_code(
 }
 
 /// Generate Blueprint event header declaration
-fn generate_event_header_declaration(ir: &BlueprintEventIR, class_name: &str, output: &mut String) {
+fn generate_event_header_declaration(ir: &BlueprintEventIR, _class_name: &str, output: &mut String) {
     // Generate UFUNCTION macro
     output.push_str("    UFUNCTION(BlueprintNativeEvent, Category = \"");
     output.push_str(&ir.category);
@@ -497,7 +499,7 @@ fn generate_output_delegate_declaration(pin: &AsyncOutputPinIR, output: &mut Str
 
     output.push_str(&format!("(F{}Delegate", pin.name));
 
-    for (i, param) in pin.params.iter().enumerate() {
+    for (_i, param) in pin.params.iter().enumerate() {
         output.push_str(", ");
         output.push_str(&param.cpp_type);
         output.push_str(", ");

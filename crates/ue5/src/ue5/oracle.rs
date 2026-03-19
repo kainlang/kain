@@ -8,6 +8,8 @@
 // - EpicGames.UHT/Specifiers/UhtFunctionSpecifiers.cs
 // - EpicGames.UHT/Specifiers/UhtPropertyMemberSpecifiers.cs
 
+#![allow(dead_code, unused_variables, unused_assignments)]
+
 use super::engine_knowledge::EngineKnowledge;
 use super::naming::{
     to_actor_name, to_component_name, to_enum_name, to_struct_name, to_uobject_name,

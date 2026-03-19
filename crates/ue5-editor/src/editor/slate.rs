@@ -8,6 +8,8 @@
 //! - Slot configuration (padding, alignment, fill)
 //! - Event handler generation
 
+#![allow(dead_code, unused_variables)]
+
 use kain_core::ast::{Attribute, Block, ElseBranch, Expr, Function, Pattern, Stmt, Struct, Type};
 use kain_core::types::TypedStruct;
 use std::collections::HashMap;
@@ -235,6 +237,7 @@ pub struct SlateGenerator {
     /// Generated code lines
     lines: Vec<String>,
     /// Slot configurations by widget path
+    #[allow(dead_code)]
     slot_configs: HashMap<String, SlotConfig>,
     /// Counter for shader brushes to generate unique member names
     shader_brush_counter: usize,
@@ -1227,7 +1230,7 @@ impl SlateGenerator {
                     }
                 }
             }
-            Expr::Call { callee, args, .. } => {
+            Expr::Call { callee, args: _args, .. } => {
                 // Check for shader_image
                 if let Expr::Ident(name, _) = &**callee {
                     if name == "shader_image" {
@@ -1399,9 +1402,10 @@ impl SlateGenerator {
         }
     }
 
+    #[allow(dead_code)]
     fn generate_widget_tree(&mut self, expr: &Expr, st: &TypedStruct) {
         match expr {
-            Expr::Call { callee, args, .. } => {
+            Expr::Call { callee, args: _args, .. } => {
                 // Check for shader_image
                 if let Expr::Ident(name, _) = &**callee {
                     if name == "shader_image" {
@@ -1503,6 +1507,7 @@ impl SlateGenerator {
         }
     }
 
+    #[allow(dead_code)]
     fn generate_slot(&mut self, args: &[kain_core::ast::CallArg], st: &TypedStruct) {
         if let Some(parent) = self.parent_stack.last() {
             if parent.has_slots() {
@@ -2715,6 +2720,7 @@ impl SlateGenerator {
 
     /// Return the SNew type string for a list widget, including the `<ItemPtr>` template arg
     /// when an item type is known from a previous `generate_list_view_support()` call.
+    #[allow(dead_code)]
     fn list_widget_stype(&self, slate_class: &str) -> String {
         self.list_widget_stype_for(slate_class, None)
     }

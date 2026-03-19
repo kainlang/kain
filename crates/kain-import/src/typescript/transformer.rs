@@ -28,6 +28,7 @@ enum SpreadFallbackMode {
     KeepExplicitFields,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 struct LoweringPolicy {
     jsx_fallback: JsxFallbackMode,

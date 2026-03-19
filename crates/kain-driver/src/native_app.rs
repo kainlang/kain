@@ -877,6 +877,8 @@ fn io_error(context: &'static str) -> impl Fn(std::io::Error) -> KainError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kain_core::{realtime_app_bundle_from_json, RuntimeReflectionPayload};
+    use kain_ui::{ui_runtime_bundle_from_json, validate_ui_runtime_bundle};
     use tempfile::TempDir;
 
     #[test]
@@ -1123,6 +1125,126 @@ component App():
                 assert!(metadata_json.contains("\"update\""));
                 assert!(metadata_json.contains("\"uninstall\""));
             }
+        }
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_round_trips_emitted_sidecars() {
+        let temp = TempDir::new().expect("temp dir");
+        let project_dir = temp.path().join("native-app-end-to-end");
+        let source = r#"
+component App():
+    render <panel title="End-to-End Bundle Proof" />
+"#;
+
+        let bundle = compile_native_app_bundle(
+            source,
+            &NativeAppBundleConfig {
+                app_name: Some("Bundle Proof".to_string()),
+                window_title: Some("Bundle Proof".to_string()),
+                source_file_name: Some("bundle_proof.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        assert!(bundle.runtime_contract.reflection_payload.is_some());
+        assert!(bundle.runtime_version.is_some());
+
+        let materialized = materialize_native_app_bundle(
+            source,
+            &bundle,
+            &NativeAppMaterializationConfig {
+                project_dir: project_dir.clone(),
+                runtime_crate_name: "kain-ui-native".to_string(),
+                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
+                artifact_output_dir: PathBuf::from("generated"),
+                build_executable: false,
+                release: false,
+                executable_output_dir: None,
+            },
+        )
+        .expect("materialization should succeed");
+
+        let runtime_bundle_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME))
+            .expect("runtime bundle sidecar");
+        let runtime_contract_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME))
+            .expect("runtime contract sidecar");
+        let realtime_bundle_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME))
+            .expect("realtime bundle sidecar");
+        let reflection_payload_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME))
+            .expect("reflection payload sidecar");
+
+        let runtime_bundle_json = fs::read_to_string(runtime_bundle_path).expect("runtime bundle");
+        let runtime_bundle =
+            ui_runtime_bundle_from_json(&runtime_bundle_json).expect("parse runtime bundle");
+        validate_ui_runtime_bundle(&runtime_bundle).expect("validate runtime bundle");
+        assert_eq!(
+            runtime_bundle.metadata.app_name.as_deref(),
+            Some("bundle-proof")
+        );
+        assert_eq!(runtime_bundle.metadata.window_title, "Bundle Proof");
+        assert_eq!(runtime_bundle.metadata.root_component, "App");
+        assert_eq!(runtime_bundle.output, bundle.ui);
+
+        let runtime_contract_json =
+            fs::read_to_string(runtime_contract_path).expect("runtime contract");
+        let runtime_contract: RuntimeContractBundle =
+            serde_json::from_str(&runtime_contract_json).expect("parse runtime contract");
+        assert_eq!(runtime_contract.target, "rust");
+        assert_eq!(runtime_contract, bundle.runtime_contract);
+
+        let realtime_bundle_json = fs::read_to_string(realtime_bundle_path).expect("realtime");
+        let realtime_bundle =
+            realtime_app_bundle_from_json(&realtime_bundle_json).expect("parse realtime bundle");
+        assert_eq!(realtime_bundle, bundle.realtime);
+
+        let reflection_payload_json =
+            fs::read_to_string(reflection_payload_path).expect("reflection payload");
+        let reflection_payload: RuntimeReflectionPayload =
+            serde_json::from_str(&reflection_payload_json).expect("parse reflection payload");
+        assert_eq!(
+            &reflection_payload,
+            bundle
+                .runtime_contract
+                .reflection_payload
+                .as_ref()
+                .expect("bundle reflection payload")
+        );
+
+        if let Some(version_path) = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME))
+        {
+            let version_json = fs::read_to_string(version_path).expect("runtime version");
+            let version: RuntimeVersionMetadata =
+                serde_json::from_str(&version_json).expect("parse runtime version");
+            let expected = bundle.runtime_version.as_ref().expect("bundle runtime version");
+            assert_eq!(version.runtime_major, expected.runtime_major);
+            assert_eq!(version.runtime_minor, expected.runtime_minor);
+            assert_eq!(version.runtime_patch, expected.runtime_patch);
+            assert_eq!(version.abi_major, expected.abi_major);
+            assert_eq!(version.abi_minor, expected.abi_minor);
+            assert_eq!(version.abi_patch, expected.abi_patch);
+            assert_eq!(version.runtime_version_string, expected.runtime_version_string);
+            assert_eq!(version.abi_version_string, expected.abi_version_string);
+            assert_eq!(version.compatibility_class, expected.compatibility_class);
+            assert_eq!(version.runtime_lane, expected.runtime_lane);
+            assert_eq!(version.target_platforms, expected.target_platforms);
+            assert_eq!(version.active_platforms, expected.active_platforms);
         }
     }
 }

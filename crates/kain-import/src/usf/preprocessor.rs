@@ -439,7 +439,6 @@ pub fn strip_engine_includes(source: &str) -> String {
 
 /// Expand UE5 macros in USF source
 pub fn expand_ue5_macros(source: &str) -> String {
-    let preprocessor = UsfPreprocessor::new(source.to_string());
     let mut output = source.to_string();
 
     let macros = get_ue5_macro_expansions();

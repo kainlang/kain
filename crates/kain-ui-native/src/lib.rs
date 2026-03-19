@@ -3822,7 +3822,9 @@ pub fn summarize_patches(patches: &[UiPatch]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_ui::{ui_runtime_systems_from_tree, UiNodeId};
+    use kain_ui::{ui_runtime_systems_from_tree, UiNativeProjectionKind, UiNodeId};
+    use std::fs;
+    use std::path::Path;
 
     #[test]
     fn runtime_bundle_json_round_trip_preserves_compiled_ui_output() {
@@ -3839,6 +3841,62 @@ mod tests {
         );
         assert_eq!(decoded.metadata.root_component, "App");
         assert_eq!(decoded.output, output);
+    }
+
+    #[test]
+    fn runtime_bundle_loads_shared_native_projection_fixture() {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json",
+        );
+        let json = fs::read_to_string(&fixture).expect("shared UI bundle fixture should exist");
+        let bundle = runtime_bundle_from_json(&json).expect("shared UI bundle fixture should deserialize");
+
+        assert_eq!(
+            bundle.schema_version,
+            KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION
+        );
+        assert_eq!(bundle.metadata.window_title, "Kain UI Parity Fixture");
+        assert_eq!(bundle.native_projection.root_id, Some(1));
+        assert_eq!(
+            bundle.native_projection.primary_panel_title.as_deref(),
+            Some("UI Surface")
+        );
+        assert_eq!(
+            bundle.native_projection.primary_viewport_title.as_deref(),
+            Some("Viewport")
+        );
+        assert_eq!(
+            bundle.native_projection.primary_viewport_scene.as_deref(),
+            Some("magma_terraces")
+        );
+        assert!(
+            bundle
+                .native_projection
+                .nodes
+                .iter()
+                .any(|node| matches!(node.kind, UiNativeProjectionKind::Viewport3D))
+        );
+        assert!(
+            bundle
+                .native_projection
+                .nodes
+                .iter()
+                .any(|node| matches!(node.kind, UiNativeProjectionKind::Panel))
+        );
+        assert_eq!(bundle.output.tree.root, Some(UiNodeId(1)));
+        assert_eq!(bundle.output.tree.nodes.len(), 3);
+        assert!(matches!(
+            bundle.output.tree.nodes.get(&UiNodeId(1)).map(|node| &node.kind),
+            Some(UiWidgetKind::Panel)
+        ));
+        assert!(matches!(
+            bundle.output.tree.nodes.get(&UiNodeId(2)).map(|node| &node.kind),
+            Some(UiWidgetKind::Element(value)) if value == "input"
+        ));
+        assert!(matches!(
+            bundle.output.tree.nodes.get(&UiNodeId(3)).map(|node| &node.kind),
+            Some(UiWidgetKind::Viewport3D)
+        ));
     }
 
     #[test]

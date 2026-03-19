@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/../.."
 NATIVE_SRC="$RUNTIME_DIR/native/src"
 NATIVE_INCLUDE="$RUNTIME_DIR/native/include"
+BIN_DIR="$SCRIPT_DIR/bin"
 
 CFLAGS="-I$NATIVE_INCLUDE -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -D_CRT_SECURE_NO_WARNINGS"
 LDFLAGS=""
@@ -36,32 +37,27 @@ echo ""
 
 pushd "$SCRIPT_DIR" > /dev/null
 
-rm -f \
-    kain_runtime_win32_shared.o \
-    kain_ui_compiled_bundle.o \
-    kain_ui_runtime.o \
-    kain_ui_compiled_overlay.o \
-    kain_ui_overlay.o \
-    test_ui_runtime_bundle \
-    test_ui_runtime_bundle.exe \
-    test_ui_runtime_focus \
-    test_ui_runtime_focus.exe
+mkdir -p "$BIN_DIR"
+rm -f "$BIN_DIR"/*.o "$BIN_DIR"/*.obj "$BIN_DIR"/*.exe "$BIN_DIR"/* 2>/dev/null || true
 
 echo "Compiling supporting runtime objects..."
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c" -o kain_runtime_win32_shared.o
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_bundle.c" -o kain_ui_compiled_bundle.o
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_runtime.c" -o kain_ui_runtime.o
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c" -o "$BIN_DIR/kain_runtime_win32_shared.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_bundle.c" -o "$BIN_DIR/kain_ui_compiled_bundle.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_runtime.c" -o "$BIN_DIR/kain_ui_runtime.o"
 
 echo "Compiling overlay sources (compile-only smoke)..."
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_overlay.c" -o kain_ui_compiled_overlay.o
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_overlay.c" -o kain_ui_overlay.o
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_overlay.c" -o "$BIN_DIR/kain_ui_compiled_overlay.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_overlay.c" -o "$BIN_DIR/kain_ui_overlay.o"
 
 echo ""
 echo "Compiling test_ui_runtime_bundle..."
-"$C_COMPILER" $CFLAGS test_ui_runtime_bundle.c kain_ui_runtime.o kain_ui_compiled_bundle.o kain_runtime_win32_shared.o -o test_ui_runtime_bundle.exe $LDFLAGS
+"$C_COMPILER" $CFLAGS test_ui_runtime_bundle.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_runtime_win32_shared.o" -o "$BIN_DIR/test_ui_runtime_bundle.exe" $LDFLAGS
 
 echo "Compiling test_ui_runtime_focus..."
-"$C_COMPILER" $CFLAGS test_ui_runtime_focus.c kain_ui_runtime.o kain_ui_compiled_bundle.o kain_runtime_win32_shared.o -o test_ui_runtime_focus.exe $LDFLAGS
+"$C_COMPILER" $CFLAGS test_ui_runtime_focus.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_runtime_win32_shared.o" -o "$BIN_DIR/test_ui_runtime_focus.exe" $LDFLAGS
+
+echo "Compiling test_ui_runtime_parity..."
+"$C_COMPILER" $CFLAGS test_ui_runtime_parity.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_runtime_win32_shared.o" -o "$BIN_DIR/test_ui_runtime_parity.exe" $LDFLAGS
 
 echo ""
 echo "=== Compilation Complete ==="

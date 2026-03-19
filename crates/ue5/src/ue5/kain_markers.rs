@@ -110,17 +110,20 @@ pub fn blueprint_function_marker(func: &Function, config: &MarkerConfig) -> Stri
 
 // Helper functions - simplified versions
 
-fn format_type(ty: &Type) -> String {
+#[allow(dead_code)]
+fn format_type(_ty: &Type) -> String {
     // Simplified - just return the type name
     "Type".to_string()
 }
 
-fn format_expr(expr: &Expr) -> String {
+#[allow(dead_code)]
+fn format_expr(_expr: &Expr) -> String {
     // Simplified - just return placeholder
     "...".to_string()
 }
 
-fn format_attr_args(args: &[CallArg]) -> String {
+#[allow(dead_code)]
+fn format_attr_args(_args: &[CallArg]) -> String {
     // Simplified
     "...".to_string()
 }

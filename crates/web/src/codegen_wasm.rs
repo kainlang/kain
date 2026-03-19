@@ -207,6 +207,7 @@ struct CompilationContext<'a> {
     tmp_i32: LocalId,
     tmp_i32_2: LocalId,
     tmp_i64: LocalId,
+    #[allow(dead_code)]
     funcref_table: Option<walrus::TableId>,
     lambda_table: &'a HashMap<u32, (u32, walrus::FunctionId)>,
 }
@@ -1989,7 +1990,7 @@ impl WasmCompiler {
                 } else if width >= 63 {
                     i64::MAX
                 } else {
-                    ((1i64 << width) - 1i64)
+                    (1i64 << width) - 1i64
                 };
                 let sign_bit = if width > 0 && width < 63 {
                     1i64 << (width - 1)
@@ -2035,7 +2036,7 @@ impl WasmCompiler {
                 } else if width >= 63 {
                     i64::MAX
                 } else {
-                    ((1i64 << width) - 1i64)
+                    (1i64 << width) - 1i64
                 };
                 let shifted_mask = if bit_offset > 0 {
                     mask.checked_shl(bit_offset as u32).unwrap_or(0)

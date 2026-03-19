@@ -124,12 +124,45 @@ else
     exit $test_status
 fi
 
+echo ""
+echo "Executing graphics binding rules..."
+
+if [[ ! -x "$SCRIPT_DIR/bin/graphics_runtime_binding_rules.exe" ]]; then
+    echo "Graphics binding rules binary missing: $SCRIPT_DIR/bin/graphics_runtime_binding_rules.exe" >&2
+    popd > /dev/null
+    exit 1
+fi
+
+if [[ $VERBOSE -eq 1 ]]; then
+    set +e
+    run_with_timeout "$TEST_TIMEOUT_SEC" "graphics binding rules" "$SCRIPT_DIR/bin/graphics_runtime_binding_rules.exe"
+    rules_status=$?
+    set -e
+else
+    set +e
+    run_with_timeout "$TEST_TIMEOUT_SEC" "graphics binding rules" "$SCRIPT_DIR/bin/graphics_runtime_binding_rules.exe" > /dev/null 2>&1
+    rules_status=$?
+    set -e
+fi
+
+if [[ $rules_status -eq 0 ]]; then
+    echo "[PASS] graphics binding rules"
+else
+    if [[ $rules_status -eq 124 ]]; then
+        echo "[TIMEOUT] graphics binding rules" >&2
+    else
+        echo "[FAIL] graphics binding rules" >&2
+    fi
+    popd > /dev/null
+    exit $rules_status
+fi
+
 popd > /dev/null
 
 echo ""
 echo "Graphics runtime summary"
-echo "  total:   1"
-echo "  passed:  1"
+echo "  total:   2"
+echo "  passed:  2"
 echo "  failed:  0"
 echo "  timeout: 0"
 

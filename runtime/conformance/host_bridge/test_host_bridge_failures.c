@@ -1,7 +1,28 @@
 #include "../../native/include/kain_runtime_host_bridge.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+static void copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 static int register_runtime_service(
     KainServiceRegistry* registry,
@@ -32,7 +53,7 @@ static int test_abi_mismatch(void) {
     kain_host_bridge_module_descriptor_init(&module);
     kain_diagnostic_init(&diag);
 
-    strcpy(module.module_id, "bridge.bad_abi");
+    copy_text(module.module_id, sizeof(module.module_id), "bridge.bad_abi");
     module.provider = KAIN_SERVICE_PROVIDER_HOST_NODE;
     module.lane = KAIN_FOREIGN_RUNTIME_NODE;
     module.abi_version = KAIN_RUNTIME_ABI_VERSION_ENCODE(1, 0, 0);
@@ -55,7 +76,7 @@ static int test_missing_service(void) {
     kain_host_bridge_module_descriptor_init(&module);
     kain_diagnostic_init(&diag);
 
-    strcpy(module.module_id, "bridge.missing_service");
+    copy_text(module.module_id, sizeof(module.module_id), "bridge.missing_service");
     module.provider = KAIN_SERVICE_PROVIDER_HOST_PYTHON;
     module.lane = KAIN_FOREIGN_RUNTIME_PYTHON;
     if (kain_host_bridge_module_add_required_service(&module, KAIN_SERVICE_KEY_REFLECTION) != 0) {
@@ -83,7 +104,7 @@ static int test_uninstall_removes_services(void) {
     kain_host_bridge_service_descriptor_init(&service);
     kain_diagnostic_init(&diag);
 
-    strcpy(module.module_id, "bridge.cleanup");
+    copy_text(module.module_id, sizeof(module.module_id), "bridge.cleanup");
     module.provider = KAIN_SERVICE_PROVIDER_HOST_RUST;
     module.lane = KAIN_FOREIGN_RUNTIME_RUST;
     if (kain_host_bridge_module_add_required_service(&module, KAIN_SERVICE_KEY_CONTRACT) != 0) {
@@ -94,9 +115,9 @@ static int test_uninstall_removes_services(void) {
         return 0;
     }
 
-    strcpy(service.service_key, "rust.bundle_loader");
-    strcpy(service.service_name, "Rust Bundle Loader");
-    strcpy(service.module_id, module.module_id);
+    copy_text(service.service_key, sizeof(service.service_key), "rust.bundle_loader");
+    copy_text(service.service_name, sizeof(service.service_name), "Rust Bundle Loader");
+    copy_text(service.module_id, sizeof(service.module_id), module.module_id);
     service.provider = KAIN_SERVICE_PROVIDER_HOST_RUST;
     if (kain_host_bridge_register_service(&bridge, &service, &diag) != 0) {
         fprintf(stderr, "expected cleanup service registration to succeed: %s\n", diag.message);

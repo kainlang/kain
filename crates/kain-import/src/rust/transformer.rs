@@ -1882,6 +1882,7 @@ impl RustTransformer {
         }
     }
 
+    #[allow(dead_code)]
     fn pattern_to_name(&self, pat: &syn::Pat) -> String {
         match pat {
             syn::Pat::Ident(pi) => {
@@ -2551,6 +2552,7 @@ fn path_to_ident(path: &syn::Path) -> String {
         .join("::")
 }
 
+#[allow(dead_code)]
 fn variant_name(path: &syn::Path) -> String {
     path.segments
         .last()

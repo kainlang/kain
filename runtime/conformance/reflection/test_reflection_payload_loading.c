@@ -17,13 +17,51 @@
 #include <stdlib.h>
 #endif
 
-static const char* FIXTURE_PATH = "fixtures/native_reflection_payload.json";
 static const char* FIXTURE_ENV = "KAIN_REFLECTION_FIXTURE_PATH";
 
+static void build_fixture_path(char* out, size_t out_size) {
+    const char* source = __FILE__;
+    const char* last_slash = strrchr(source, '/');
+#ifdef _WIN32
+    const char* last_backslash = strrchr(source, '\\');
+    if (!last_slash || (last_backslash && last_backslash > last_slash)) {
+        last_slash = last_backslash;
+    }
+#endif
+
+    assert(out != NULL);
+    assert(out_size > 0);
+
+    if (!last_slash) {
+        snprintf(out, out_size, "fixtures/native_reflection_payload.json");
+        return;
+    }
+
+    snprintf(
+        out,
+        out_size,
+        "%.*s/fixtures/native_reflection_payload.json",
+        (int)(last_slash - source),
+        source
+    );
+}
+
 static char* read_file(const char* path) {
-    FILE* file = fopen(path, "rb");
+    FILE* file = NULL;
     long size;
     char* buffer;
+
+    if (!path) {
+        return NULL;
+    }
+
+#ifdef _WIN32
+    if (fopen_s(&file, path, "rb") != 0) {
+        file = NULL;
+    }
+#else
+    file = fopen(path, "rb");
+#endif
 
     if (!file) {
         return NULL;
@@ -118,11 +156,14 @@ int main(void) {
     KainDiagnostic diag;
     unsigned int major = 0;
     unsigned int minor = 0;
-    char* json = read_file(FIXTURE_PATH);
+    char fixture_path[512];
+    char* json;
     int result = 0;
 
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    build_fixture_path(fixture_path, sizeof(fixture_path));
+    json = read_file(fixture_path);
 
     printf("TEST: reflection payload load from JSON\n");
     assert(json != NULL);
@@ -146,7 +187,7 @@ int main(void) {
 
     printf("TEST: reflection payload load from file path\n");
     kain_diagnostic_init(&diag);
-    result = kain_reflection_load_from_path(FIXTURE_PATH, &payload, &diag);
+    result = kain_reflection_load_from_path(fixture_path, &payload, &diag);
     if (result != 0) {
         dump_diag(&diag);
     }
@@ -158,7 +199,7 @@ int main(void) {
     kain_reflection_free(payload);
 
     printf("TEST: reflection payload load from env\n");
-    set_fixture_env(FIXTURE_PATH);
+    set_fixture_env(fixture_path);
     kain_diagnostic_init(&diag);
     result = kain_reflection_load_from_env(FIXTURE_ENV, &payload, &diag);
     if (result != 0) {

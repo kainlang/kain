@@ -1,7 +1,29 @@
 #include "../../include/kain_runtime_host_bridge.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+static void kain_copy_text(char* out, size_t out_cap, const char* text) {
+    size_t length;
+
+    if (!out || out_cap == 0) {
+        return;
+    }
+
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_cap) {
+        length = out_cap - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 static void kain_host_bridge_set_diag(
     KainDiagnostic* diag,
@@ -68,12 +90,11 @@ int kain_host_bridge_module_add_required_service(
     if (descriptor->required_service_count >= KAIN_HOST_BRIDGE_MAX_REQUIRED_SERVICES) {
         return -1;
     }
-    strncpy(
+    kain_copy_text(
         descriptor->required_services[descriptor->required_service_count],
-        service_key,
-        KAIN_SERVICE_KEY_MAX - 1
+        sizeof(descriptor->required_services[descriptor->required_service_count]),
+        service_key
     );
-    descriptor->required_services[descriptor->required_service_count][KAIN_SERVICE_KEY_MAX - 1] = '\0';
     descriptor->required_service_count += 1;
     return 0;
 }

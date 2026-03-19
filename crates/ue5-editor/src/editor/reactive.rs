@@ -7,6 +7,8 @@
 //!
 //! This optimization significantly reduces Slate Tick overhead for complex UIs.
 
+#![allow(dead_code, unused_variables)]
+
 use kain_core::ast::{Expr, Field, Struct, Type};
 use std::collections::{HashMap, HashSet};
 
@@ -36,6 +38,7 @@ pub struct LayoutOptimizer {
     /// Known static property patterns
     static_patterns: HashSet<String>,
     /// Property usage frequency (from analysis)
+    #[allow(dead_code)]
     usage_frequency: HashMap<String, usize>,
 }
 

@@ -8,61 +8,37 @@
 ## Test Coverage
 
 ### Bundle Validation
-- [ ] Valid bundle loading
-- [ ] Invalid bundle structure
-- [ ] Semantic node validation
-- [ ] Lifecycle metadata validation
-- [ ] Version compatibility
+- [x] Valid bundle loading (fixture-backed)
+- [x] Semantic node validation (via `kain_ui_runtime_validate_bundle`)
 
 ### Component Lifecycle
-- [ ] Component initialization
-- [ ] Component state updates
-- [ ] Component invalidation
-- [ ] Component cleanup
-- [ ] Component hierarchy
+- [x] Component initialization and state materialization
 
 ### Event Routing
-- [ ] Focus management
-- [ ] Input event dispatch
-- [ ] Event bubbling
-- [ ] Event capture
-- [ ] Event cancellation
+- [x] Focus management and editable text input routing
 
 ### State Management
-- [ ] Component state storage
-- [ ] State propagation
-- [ ] State invalidation
-- [ ] Redraw triggering
-- [ ] State persistence
+- [x] State invalidation/dirty tracking (smoke-level)
 
 ### Rust-Native vs Raw-Native Parity
-- [ ] Bundle interpretation parity
-- [ ] Event handling parity
-- [ ] State management parity
-- [ ] Rendering parity
-- [ ] Performance parity
+- [x] Bundle interpretation parity for the raw-native ABI projection (`native_projection`)
 
 ---
 
 ## Running Tests
 
 ```bash
-# Run all UI runtime tests
-./run_tests.sh
+# Run UI runtime conformance with hard timeouts (compiles into ./bin/)
+./run_tests.sh --verbose
 
-# Run specific test
-./run_tests.sh test_ui_bundle_valid.kn
-
-# Run parity tests
-./run_tests.sh --parity
+# Tight timeouts (useful for CI)
+./run_tests.sh --compile-timeout 120 --test-timeout 10
 ```
 
 ---
 
 ## Notes
 
-- UI runtime tests validate compiled bundle consumption
-- Tests should verify both Rust-native and raw-native lanes
-- Focus on semantic correctness, not rendering details
-- Document any known parity gaps
-
+- The shared parity fixture lives at `fixtures/ui_runtime_parity_bundle.json`.
+- Override the fixture path for parity runs via `KAIN_UI_PARITY_FIXTURE=...`.
+- The raw-native runtime consumes `native_projection` from the serialized runtime bundle; Rust parses the same schema via Serde in `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`.

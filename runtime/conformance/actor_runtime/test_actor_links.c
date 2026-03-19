@@ -19,6 +19,10 @@
 #include <unistd.h>
 #endif
 
+static void copy_actor_name(char* dest, const char* src) {
+    snprintf(dest, KAIN_ACTOR_NAME_MAX, "%s", src);
+}
+
 /* Actor that crashes after a delay */
 static KainActorExitReason crashing_actor_bootstrap(
     KainActorId actor_id,
@@ -72,7 +76,7 @@ int main(void) {
     KainActorSpawnConfig config1;
     kain_actor_spawn_config_init(&config1);
     config1.bootstrap_fn = crashing_actor_bootstrap;
-    strncpy(config1.name, "crasher", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(config1.name, "crasher");
     
     KainDiagnostic diag;
     KainActorId actor1_id = kain_actor_spawn(&config1, &diag);
@@ -87,7 +91,7 @@ int main(void) {
     KainActorSpawnConfig config2;
     kain_actor_spawn_config_init(&config2);
     config2.bootstrap_fn = linked_actor_bootstrap;
-    strncpy(config2.name, "linked", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(config2.name, "linked");
     
     KainActorId actor2_id = kain_actor_spawn(&config2, &diag);
     
@@ -126,14 +130,14 @@ int main(void) {
     KainActorSpawnConfig config3;
     kain_actor_spawn_config_init(&config3);
     config3.bootstrap_fn = linked_actor_bootstrap;
-    strncpy(config3.name, "actor3", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(config3.name, "actor3");
     
     KainActorId actor3_id = kain_actor_spawn(&config3, &diag);
     
     KainActorSpawnConfig config4;
     kain_actor_spawn_config_init(&config4);
     config4.bootstrap_fn = linked_actor_bootstrap;
-    strncpy(config4.name, "actor4", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(config4.name, "actor4");
     
     KainActorId actor4_id = kain_actor_spawn(&config4, &diag);
     

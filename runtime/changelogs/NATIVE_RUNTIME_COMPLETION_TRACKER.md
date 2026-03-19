@@ -2,7 +2,7 @@
 
 **Spec:** `.kiro/specs/kain-native-runtime-completion`  
 **Last Updated:** 2026-03-18  
-**Status:** Reality checkpoint - Phases 0-5, 7, 10, 11, and 12 are materially complete; Phases 6, 8, 9, and 13 remain partial
+**Status:** Reality checkpoint - Phases 0-5, 7, 8, 10, 11, and 12 are materially complete; Phases 6, 9, and 13 remain partial
 
 ---
 
@@ -18,7 +18,7 @@ This document tracks the implementation progress of the KAIN Native Runtime Comp
 
 ## March 18, 2026 Reality Update
 
-This section is the current source of truth. Older detailed phase tables below were produced during the long-haul run and should be treated as historical logs until they are fully rewritten.
+This section is the current source of truth. Older detailed phase tables and gap lists below were produced during the long-haul run and should be treated as historical logs until they are fully rewritten.
 
 ### Phase Status Snapshot
 
@@ -26,14 +26,14 @@ This section is the current source of truth. Older detailed phase tables below w
 |------|--------|-------|
 | 0. Baseline audit and harnesses | ✅ Complete | Conformance harness family exists and is the shared validation spine. |
 | 1. ABI, service tables, version metadata | ✅ Complete | ABI metadata, service registry, startup validation, and driver threading are in place. |
-| 2. Diagnostics hardening | ✅ Complete | Runtime diagnostics/error-code scaffolding landed, but see conformance note below. |
-| 3. Reflection payload emission and consumption | ✅ Complete | Compiler emission, bundle materialization, native loading, and validation exist. |
+| 2. Diagnostics hardening | ✅ Complete | Runtime diagnostics/error codes landed and now have a real executable conformance lane. |
+| 3. Reflection payload emission and consumption | ✅ Complete | Compiler emission, bundle materialization, native loading, validation, and reflection conformance harnesses exist. |
 | 4. Low-level memory helper ABI parity | ✅ Complete | ABI parity tests are now runnable through the conformance harness. |
 | 5. Actor bootstrap and minimal actor runtime | ✅ Complete | The broken bootstrap path was replaced and the actor lane is executable. |
-| 6. Full actor runtime semantics | ⚠️ Partial | Monitors/links/registry/backpressure are live, but supervision policy and scheduler depth remain partial. |
+| 6. Full actor runtime semantics | ⚠️ Partial | Monitors/links/registry/backpressure are live, supervision is observable, and the scheduler has saturation fallback instrumentation, but deeper policy semantics remain partial. |
 | 7. Native async, futures, and timers | ✅ Complete | Async executor/timers landed, and compiler/runtime contract metadata now expresses async requirements. |
-| 8. UI runtime and component convergence | ⚠️ Partial | Runtime bundle validation, focus routing, and editable groundwork are in; Rust-native/raw-native parity remains partial. |
-| 9. Shader, material, and compute runtime | ⚠️ Partial | Artifact validation and metadata loading are in; full material lifecycle and compute execution remain partial. |
+| 8. UI runtime and component convergence | ✅ Complete | Runtime bundle validation, focus routing, editable groundwork, and raw-native/Rust-native parity now line up through a shared fixture. |
+| 9. Shader, material, and compute runtime | ⚠️ Partial | Artifact validation, metadata loading, and stricter binding-rule coverage are in; full material lifecycle and compute execution remain partial. |
 | 10. Hot reload, compatibility, lifecycle APIs | ✅ Complete | Compatibility validation, lifecycle hooks, migration/state transfer, and rejection rules are present. |
 | 11. Host bridge and foreign runtime services | ✅ Complete | Host bridge registry, module ABI checks, and conformance tests are in place. |
 | 12. Cross-platform runtime boundaries | ✅ Complete | Win32 boundaries were isolated and Linux/macOS stubs plus contract-visible availability landed. |
@@ -45,17 +45,19 @@ This section is the current source of truth. Older detailed phase tables below w
 - `runtime/conformance/run_all.sh --verbose` passes all 10 registered categories on Windows as of March 18, 2026
 - `cargo test -p kain-core runtime_contract` passes
 - `cargo test -p kain-driver native_app` passes
-- `abi_parity`, `actor_runtime`, `async_runtime`, `ui_runtime`, `graphics_runtime`, `hot_reload`, `host_bridge`, and `platform_parity` are executable harnesses
-- `reflection/` and `diagnostics/` remain placeholder category runners today, so their green status should not be overstated
+- `cargo test -p kain-driver materialize_native_app_bundle_ -- --nocapture` passes and round-trips the emitted native bundle sidecars
+- All 10 conformance categories are now executable harnesses, including `reflection/` and `diagnostics/`
+- `actor_runtime/` now builds into an isolated `bin/` directory, which removes the in-place executable lock contention that previously made overlapping Windows runs flaky
+- `ui_runtime/` now has a shared parity fixture plus raw-native and Rust-native bundle projection checks
+- The remaining caution is Phase 13 depth: lane-level conformance is green, but broader end-to-end parity and final-lane claims still need careful truth-keeping
 
 ### Remaining Honest Gaps
 
-- 6.4 supervision policies are still partial
-- 6.5 scheduler policy depth is still partial
-- 8.5 raw-native vs Rust-native UI bundle parity is still partial
-- 9.4 material/runtime resource lifetime work is still partial
-- 9.5 compute execution support is still partial
-- 13.1, 13.2, and 13.4 should remain partial until the parity/final-lane claims are backed by deeper end-to-end proof
+- 6.4 supervision policies are still partial, even though restart observability and `one_for_one` / `one_for_all` / `rest_for_one` coverage are now present
+- 6.5 scheduler policy depth is still partial, even though pooled workers now expose busy/overflow instrumentation and a saturation escape hatch for blocked workers
+- 9.4 material/runtime resource lifetime work is still partial, though binding rules are now much stricter and snapshot-safe
+- 9.5 compute execution support is still partial, though compute binding validation and reload behavior are now covered by conformance
+- 13.2 and 13.4 should remain partial until the parity/final-lane claims are backed by deeper end-to-end proof
 
 ---
 
@@ -411,17 +413,17 @@ The native runtime now exposes canonical ABI version constants:
 
 ### Phase 8: UI Runtime and Component Convergence
 
-**Status:** Not Started  
+**Status:** Complete  
 **Dependencies:** Phase 7 completion
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 8.1 Harden compiled bundle validation | ⏸️ Not Started | |
-| 8.2 Introduce component/runtime state records | ⏸️ Not Started | |
-| 8.3 Implement focus and event routing | ⏸️ Not Started | |
-| 8.4 Add editable control groundwork | ⏸️ Not Started | |
-| 8.5 Validate raw-native vs Rust-native bundle parity | ⏸️ Not Started | |
-| 8.6 Add UI/runtime smoke tests | ⏸️ Not Started | |
+| 8.1 Harden compiled bundle validation | ✅ Complete | |
+| 8.2 Introduce component/runtime state records | ✅ Complete | |
+| 8.3 Implement focus and event routing | ✅ Complete | |
+| 8.4 Add editable control groundwork | ✅ Complete | |
+| 8.5 Validate raw-native vs Rust-native bundle parity | ✅ Complete | |
+| 8.6 Add UI/runtime smoke tests | ✅ Complete | |
 
 **Open Issues:**
 - None yet
@@ -430,17 +432,17 @@ The native runtime now exposes canonical ABI version constants:
 
 ### Phase 9: Shader, Material, and Compute Runtime
 
-**Status:** Not Started  
+**Status:** Partial  
 **Dependencies:** Phase 8 completion
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 9.1 Define runtime-consumable shader/material/compute artifacts | ⏸️ Not Started | |
-| 9.2 Add native artifact loaders and validators | ⏸️ Not Started | |
-| 9.3 Create a backend contract for graphics execution | ⏸️ Not Started | |
-| 9.4 Implement material/runtime resource binding | ⏸️ Not Started | |
-| 9.5 Implement compute runtime support | ⏸️ Not Started | |
-| 9.6 Add graphics/runtime smokes | ⏸️ Not Started | |
+| 9.1 Define runtime-consumable shader/material/compute artifacts | ✅ Complete | |
+| 9.2 Add native artifact loaders and validators | ✅ Complete | |
+| 9.3 Create a backend contract for graphics execution | ✅ Complete | |
+| 9.4 Implement material/runtime resource binding | ⚠️ Partial | Binding rules are stricter and snapshot persistence is now covered, but resource lifetime modeling is still incomplete. |
+| 9.5 Implement compute runtime support | ⚠️ Partial | Compute validation and reload behavior are covered, but full execution/runtime dispatch plumbing is still incomplete. |
+| 9.6 Add graphics/runtime smokes | ✅ Complete | |
 
 **Open Issues:**
 - None yet
@@ -508,7 +510,7 @@ The native runtime now exposes canonical ABI version constants:
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 13.1 Add end-to-end native bundle tests | ⏸️ Not Started | |
+| 13.1 Add end-to-end native bundle tests | ✅ Complete | Focused `kain-driver` lane round-trips emitted bundle sidecars and validates UI/realtime/contract/reflection materialization |
 | 13.2 Add backend/runtime parity matrix checks | ⏸️ Not Started | |
 | 13.3 Update runtime docs and matrices | ⏸️ Not Started | |
 | 13.4 Final checkpoint - native runtime reaches "full lane" status | ⏸️ Not Started | |

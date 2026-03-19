@@ -556,7 +556,7 @@ impl EngineKnowledge {
         // Try with prefixes
         for prefix in &["U", "A", "F", "E"] {
             let prefixed = format!("{}{}", prefix, kain_name);
-            if let Some(class) = self.classes.get(&prefixed) {
+            if let Some(_class) = self.classes.get(&prefixed) {
                 if self.is_uobject_derived(&prefixed) {
                     return Some(format!("{}*", prefixed));
                 }

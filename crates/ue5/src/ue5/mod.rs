@@ -48,6 +48,7 @@ pub use module_graph::ModuleGraph;
 pub use naming::*;
 pub use oracle::{validate_program, validate_program_with_knowledge};
 pub use project::*;
+#[allow(unused_imports)]
 pub use resolver::*;
 pub use stdlib_resolver::StdLibResolver;
 pub use syntax::*;

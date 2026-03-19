@@ -1,4 +1,4 @@
-use minijinja::{context, Environment};
+use minijinja::Environment;
 use once_cell::sync::Lazy;
 
 pub static TEMPLATES: Lazy<Ue5Templates> = Lazy::new(|| Ue5Templates::new());

@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "app_name": null,
+    "window_title": "Kain UI Parity Fixture",
+    "root_component": "App",
+    "source_file_name": null,
+    "initial_window_size": [1440.0, 920.0]
+  },
+  "output": {
+    "tree": {
+      "root": 1,
+      "nodes": {
+        "1": {
+          "id": 1,
+          "kind": "Panel",
+          "props": {},
+          "children": [2, 3],
+          "layout": {
+            "kind": "Stack",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": []
+        },
+        "2": {
+          "id": 2,
+          "kind": {
+            "Element": "input"
+          },
+          "props": {},
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": []
+        },
+        "3": {
+          "id": 3,
+          "kind": "Viewport3D",
+          "props": {},
+          "children": [],
+          "layout": {
+            "kind": "Absolute",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": []
+        }
+      }
+    },
+    "patches": []
+  },
+  "native_projection": {
+    "root_id": 1,
+    "primary_panel_title": "UI Surface",
+    "primary_viewport_title": "Viewport",
+    "primary_viewport_scene": "magma_terraces",
+    "nodes": [
+      {
+        "id": 1,
+        "parent_id": null,
+        "depth": 0,
+        "kind": "Panel",
+        "title": "Root Panel",
+        "text": "compiled overlay",
+        "tag": "panel",
+        "scene": "magma_terraces",
+        "layout_kind": "Stack",
+        "child_count": 2
+      },
+      {
+        "id": 2,
+        "parent_id": 1,
+        "depth": 1,
+        "kind": "Element",
+        "title": "Name Field",
+        "text": "Ada",
+        "tag": "input",
+        "scene": "magma_terraces",
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 3,
+        "parent_id": 1,
+        "depth": 1,
+        "kind": "Viewport3D",
+        "title": "Viewport",
+        "text": "",
+        "tag": "viewport",
+        "scene": "magma_terraces",
+        "layout_kind": "Absolute",
+        "child_count": 0
+      }
+    ]
+  }
+}

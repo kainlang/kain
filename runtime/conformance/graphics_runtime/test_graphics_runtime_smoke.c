@@ -419,6 +419,40 @@ static int test_graphics_bundle_from_json(void) {
     return 1;
 }
 
+static int test_graphics_material_and_compute_snapshot_persistence(void) {
+    KainRuntimeGraphicsBundle bundle;
+    KainRuntimeGraphicsBundle snapshot;
+    KainRuntimeGraphicsValidation validation;
+    char summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
+
+    if (!check_true(kain_runtime_graphics_load_from_json(kGraphicsBundleJson, &bundle), "load_snapshot_bundle")) {
+        return 0;
+    }
+
+    snapshot = bundle;
+    memset(&bundle, 0, sizeof(bundle));
+
+    if (!check_true(snapshot.loaded == 1, "snapshot.loaded")) return 0;
+    if (!check_true(snapshot.primary_material.loaded == 1, "snapshot.primary_material.loaded")) return 0;
+    if (!check_true(snapshot.primary_material.resource_binding_count == 2, "snapshot.primary_material.resource_binding_count")) return 0;
+    if (!check_true(snapshot.primary_compute.loaded == 1, "snapshot.primary_compute.loaded")) return 0;
+    if (!check_true(snapshot.primary_compute.resource_binding_count == 2, "snapshot.primary_compute.resource_binding_count")) return 0;
+    if (!check_true(snapshot.primary_compute.workgroup_size[0] == 8, "snapshot.primary_compute.workgroup_size[0]")) return 0;
+    if (!check_true(snapshot.primary_compute.dispatch_size[0] == 16, "snapshot.primary_compute.dispatch_size[0]")) return 0;
+    if (!check_true(kain_runtime_graphics_validate_bundle(&snapshot, &validation), "validate_snapshot_bundle")) return 0;
+    if (!check_true(validation.gl_lane_ready == 1, "validation.gl_lane_ready(snapshot)")) return 0;
+    if (!check_true(validation.material_binding_valid == 1, "validation.material_binding_valid(snapshot)")) return 0;
+    if (!check_true(validation.compute_plan_valid == 1, "validation.compute_plan_valid(snapshot)")) return 0;
+    if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&snapshot) == 1, "gl_surface_supports_graphics_bundle(snapshot)")) return 0;
+
+    kain_runtime_graphics_format_summary(&snapshot, summary, sizeof(summary));
+    if (!check_contains(summary, "material bindings 2", "snapshot summary material bindings")) return 0;
+    if (!check_contains(summary, "compute bindings 2", "snapshot summary compute bindings")) return 0;
+    if (!check_contains(summary, "compute dispatch 16,16,1", "snapshot summary compute dispatch")) return 0;
+
+    return 1;
+}
+
 static int test_graphics_bundle_from_path(void) {
     const char* temp_path = "graphics_runtime_smoke_bundle.realtime_app.json";
     KainRuntimeGraphicsBundle bundle;
@@ -573,12 +607,16 @@ static int test_graphics_rejects_incomplete_compute_plan(void) {
 
 int main(void) {
     int passed = 0;
-    int total = 6;
+    int total = 7;
 
     printf("Running graphics runtime smoke tests\n");
 
     if (test_graphics_bundle_from_json()) {
         printf("[PASS] graphics bundle from json\n");
+        ++passed;
+    }
+    if (test_graphics_material_and_compute_snapshot_persistence()) {
+        printf("[PASS] graphics material and compute snapshot persistence\n");
         ++passed;
     }
     if (test_graphics_bundle_from_path()) {

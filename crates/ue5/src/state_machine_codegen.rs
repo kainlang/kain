@@ -8,7 +8,9 @@
 //! - State entry/exit methods
 //! - State machine update logic
 
-use crate::state_machine_ir::{StateIR, StateMachineIR, TransitionIR};
+#![allow(dead_code, unused_variables)]
+
+use crate::state_machine_ir::StateMachineIR;
 
 /// Output from state machine code generation
 #[derive(Debug, Clone)]
@@ -61,7 +63,7 @@ pub fn generate_state_machine_code(
 /// Generate header file content
 fn generate_header(ir: &StateMachineIR, class_name: &str, api_macro: &str, output: &mut String) {
     // Header guard
-    let guard = format!("{}_{}_H", class_name.to_uppercase(), "GENERATED");
+    let _guard = format!("{}_{}_H", class_name.to_uppercase(), "GENERATED");
     output.push_str(&format!("#pragma once\n\n"));
 
     // Includes

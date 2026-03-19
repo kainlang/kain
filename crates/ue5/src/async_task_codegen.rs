@@ -7,7 +7,7 @@
 //! - Task cancellation support
 //! - Task priority support
 
-use crate::async_task_ir::{AsyncTaskCallbackIR, AsyncTaskFieldIR, AsyncTaskIR, AsyncTaskThreadIR};
+use crate::async_task_ir::{AsyncTaskCallbackIR, AsyncTaskIR, AsyncTaskThreadIR};
 
 /// Output from async task code generation
 #[derive(Debug, Clone)]
@@ -377,7 +377,7 @@ fn generate_queue_header(
 
 /// Generate callback declaration in queue header
 fn generate_callback_declaration(
-    ir: &AsyncTaskIR,
+    _ir: &AsyncTaskIR,
     callback: &AsyncTaskCallbackIR,
     output: &mut String,
 ) {
@@ -523,7 +523,7 @@ fn generate_queue_source(
 
 /// Generate callback implementation in queue source
 fn generate_callback_implementation(
-    ir: &AsyncTaskIR,
+    _ir: &AsyncTaskIR,
     callback: &AsyncTaskCallbackIR,
     queue_class_name: &str,
     output: &mut String,

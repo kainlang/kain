@@ -1,7 +1,28 @@
 #include "../../native/include/kain_runtime_compatibility.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+static void copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 static int g_migration_calls = 0;
 
@@ -22,7 +43,7 @@ static int test_install_activate_snapshot_restore(void) {
 
     kain_diagnostic_init(&diag);
     kain_bundle_compat_metadata_init(&metadata);
-    strcpy(metadata.bundle_id, "runtime.hot_reload.lifecycle");
+    copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.lifecycle");
 
     handle = kain_bundle_install("bundle_v1.knb", &metadata, &diag);
     if (!handle) {
@@ -72,7 +93,7 @@ static int test_update_requires_migration_hook(void) {
 
     kain_diagnostic_init(&diag);
     kain_bundle_compat_metadata_init(&metadata);
-    strcpy(metadata.bundle_id, "runtime.hot_reload.migration");
+    copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.migration");
 
     handle = kain_bundle_install("bundle_v1.knb", &metadata, &diag);
     if (!handle) {
@@ -81,7 +102,7 @@ static int test_update_requires_migration_hook(void) {
     }
 
     kain_bundle_compat_metadata_init(&update);
-    strcpy(update.bundle_id, "runtime.hot_reload.migration");
+    copy_text(update.bundle_id, sizeof(update.bundle_id), "runtime.hot_reload.migration");
     update.bundle_version_minor = 1;
     update.migration_requirement = KAIN_MIGRATION_MANUAL;
 

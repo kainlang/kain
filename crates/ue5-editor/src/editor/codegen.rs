@@ -7,7 +7,6 @@ use kain_core::types::{TypedItem, TypedProgram};
 use std::collections::HashSet;
 
 // Import the UE5 support library
-use ue5::ue5::naming;
 use ue5::ue5::Ue5Context;
 
 use crate::editor::details::DetailsGenerator;
@@ -740,7 +739,7 @@ impl Ue5EditorGen {
         let has_viewports = program.items.iter().any(|item| {
             matches!(item, TypedItem::Struct(st) if st.ast.attributes.iter().any(|a| a.name == "viewport"))
         });
-        let has_toolbars = program.items.iter().any(|item| {
+        let _has_toolbars = program.items.iter().any(|item| {
             matches!(item, TypedItem::Struct(st) if st.ast.attributes.iter().any(|a| a.name == "toolbar"))
         });
 

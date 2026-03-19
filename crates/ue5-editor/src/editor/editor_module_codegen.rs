@@ -9,7 +9,7 @@
 //! - FTSTicker registration for editor updates
 
 use crate::editor::editor_module_ir::{
-    EditorModuleIR, MenuEntryIR, ToolbarButtonIR, ToolbarPositionIR,
+    EditorModuleIR, MenuEntryIR, ToolbarButtonIR,
 };
 
 /// Output from editor module code generation
@@ -300,7 +300,7 @@ fn generate_shutdown_module(ir: &EditorModuleIR, class_name: &str, output: &mut 
 
 /// Generate menu entry callback implementation
 fn generate_menu_entry_callback(
-    ir: &EditorModuleIR,
+    _ir: &EditorModuleIR,
     class_name: &str,
     menu_entry: &MenuEntryIR,
     output: &mut String,
@@ -323,7 +323,7 @@ fn generate_menu_entry_callback(
 
 /// Generate toolbar button callback implementation
 fn generate_toolbar_button_callback(
-    ir: &EditorModuleIR,
+    _ir: &EditorModuleIR,
     class_name: &str,
     toolbar_button: &ToolbarButtonIR,
     output: &mut String,

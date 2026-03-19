@@ -10,13 +10,12 @@
 //! Think of it as TypeScript that refused to put up a build wall between you and your code.
 
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, EnumVariantFields, Expr, Impl, JSXAttrValue, JSXNode, Pattern,
-    Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
+    BinaryOp, Block, ElseBranch, EnumVariantFields, Expr, JSXAttrValue, JSXNode, Pattern, Stmt,
+    Type, UnaryOp, VariantFields,
 };
 use kain_core::error::KainResult;
 use kain_core::types::{
-    FloatSize, IntSize, ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem,
-    TypedProgram, TypedStruct,
+    ResolvedType, TypedComponent, TypedEnum, TypedFunction, TypedItem, TypedProgram, TypedStruct,
 };
 use std::collections::HashSet;
 

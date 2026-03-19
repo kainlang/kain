@@ -292,6 +292,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Generate a list of expected tokens for error messages
+    #[allow(dead_code)]
     fn expected_tokens_list(&self, expected: &[&str]) -> String {
         match expected.len() {
             0 => "something else".to_string(),
@@ -1250,6 +1251,7 @@ impl<'a> Parser<'a> {
             span: start.merge(body_span),
         }))
     }
+    #[allow(dead_code)]
     fn parse_component(&mut self, vis: Visibility) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Component)?;
@@ -1857,6 +1859,7 @@ impl<'a> Parser<'a> {
         }))
     }
 
+    #[allow(dead_code)]
     fn parse_actor(&mut self) -> KainResult<Item> {
         self.parse_actor_with_attrs(vec![])
     }
@@ -2713,6 +2716,7 @@ impl<'a> Parser<'a> {
         Ok(generics)
     }
 
+    #[allow(dead_code)]
     fn parse_generics_as_types(&mut self) -> KainResult<Vec<Type>> {
         let mut generics = Vec::new();
         if !self.check(TokenKind::Lt) {

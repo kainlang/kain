@@ -123,7 +123,7 @@ impl ValidationRules {
         // Check for duplicate rule IDs
         let mut seen_ids = HashMap::new();
         for rule in &self.rules {
-            if let Some(first_occurrence) = seen_ids.insert(&rule.id, rule) {
+            if let Some(_first_occurrence) = seen_ids.insert(&rule.id, rule) {
                 return Err(KainError::config_error(format!(
                     "Duplicate rule ID '{}' found in validation rules",
                     rule.id

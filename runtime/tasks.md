@@ -16,9 +16,10 @@ Execution rules for the agent:
 
 - Windows conformance currently passes all 10 registered categories through `runtime/conformance/run_all.sh`
 - `cargo test -p kain-core runtime_contract` and `cargo test -p kain-driver native_app` are passing
-- Reflection and diagnostics still need deeper end-to-end conformance runners, so the green suite should not be overstated as total feature closure
+- `cargo test -p kain-driver materialize_native_app_bundle_round_trips_emitted_sidecars -- --nocapture` now gives Phase 13.1 a real sidecar round-trip proof
+- Reflection and diagnostics now have real compile-and-run conformance runners, but the green suite still should not be overstated as total feature closure
 - Phase 6, Task 6.4 and Task 6.5 remain partial
-- Phase 8, Task 8.5 remains partial
+- Phase 8, Task 8.5 is now complete through a shared parity fixture and raw-native/Rust-native bundle loader checks
 - Phase 9, Task 9.4 and Task 9.5 remain partial
 - Phase 13 remains partial until parity/docs/final-lane claims are fully tightened
 
@@ -201,7 +202,7 @@ Execution rules for the agent:
     - Add tests for actor exit and mailbox cleanup
     - _Requirements: 5.1, 5.6, 13.2_
 
-- [-] 6. Phase 6: Full Actor Runtime Semantics
+- [~] 6. Phase 6: Full Actor Runtime Semantics
   - [x] 6.1 Add bounded mailbox policy and backpressure
     - Implement capacity-aware mailboxes and explicit push failure/blocking behavior
     - Record overload diagnostics and counters
@@ -217,14 +218,16 @@ Execution rules for the agent:
     - Define exit reason structures and crash-containment behavior
     - _Requirements: 6.3_
 
-  - [-] 6.4 Implement supervision policies
+  - [~] 6.4 Implement supervision policies
     - Add restart, shutdown, and escalation policies for supervisors and children
     - Ensure restarts are bounded and observable
+    - Current state: restart-limit tracking, child-exit observability, and `one_for_one` / `one_for_all` / `rest_for_one` coverage are in; deeper policy hardening still remains
     - _Requirements: 6.2, 6.3_
 
   - [~] 6.5 Introduce scheduler policy beyond raw thread-per-actor spawn
     - Add a scheduler queue and fairness rules that can host actor work without unbounded thread explosion
     - Integrate blocking waits and sleeps through scheduler-aware primitives where possible
+    - Current state: pooled workers, queue depth stats, busy-worker stats, and a saturation overflow-thread escape hatch are in; deeper policy/fairness work still remains
     - _Requirements: 6.5, 6.6, 7.3_
 
   - [x] 6.6 Add supervision and monitor tests
@@ -258,7 +261,7 @@ Execution rules for the agent:
     - Test wake, cancellation, timer delay, actor/task interop, and completion diagnostics
     - _Requirements: 7.1, 7.2, 7.4, 13.1_
 
-- [~] 8. Phase 8: UI Runtime and Component Convergence
+- [x] 8. Phase 8: UI Runtime and Component Convergence
   - [x] 8.1 Harden compiled bundle validation
     - Expand bundle validation in `runtime/native/src/ui/kain_ui_compiled_bundle.c`
     - Validate node shape, semantic fields, lifecycle metadata, and compatibility versioning
@@ -278,9 +281,10 @@ Execution rules for the agent:
     - If full controls are too large for one phase, still land the canonical runtime plumbing and capability checks
     - _Requirements: 8.4, 14.5_
 
-  - [~] 8.5 Validate raw-native vs Rust-native bundle parity
+  - [x] 8.5 Validate raw-native vs Rust-native bundle parity
     - Compare interpretation of shared UI bundle contracts across native lanes
     - Add explicit tests where they diverge
+    - Current state: shared parity fixture plus raw-native C and Rust-native Serde checks now prove the same native projection contract
     - _Requirements: 8.5_
 
   - [x] 8.6 Add UI/runtime smoke tests
@@ -303,10 +307,12 @@ Execution rules for the agent:
 
   - [~] 9.4 Implement material/runtime resource binding
     - Add runtime structures for material instances, parameters, caches, and resource lifetime
+    - Current state: binding rules are now strict about stage/access values and duplicate slots/keys, but richer resource lifetime modeling is still partial
     - _Requirements: 9.3, 9.6_
 
   - [~] 9.5 Implement compute runtime support
     - Add compute pipeline creation, dispatch, synchronization, and diagnostics
+    - Current state: compute binding validation and snapshot persistence are real, but full execution/runtime dispatch plumbing remains partial
     - _Requirements: 9.4_
 
   - [x] 9.6 Add graphics/runtime smokes
@@ -381,8 +387,8 @@ Execution rules for the agent:
     - _Requirements: 12.3, 12.4, 12.5_
 
 - [~] 13. Phase 13: End-to-End Conformance and Repo Hardening
-  - [~] 13.1 Add end-to-end native bundle tests
-    - Cover native app bundle emission, runtime contract/reflection loading, realtime/UI bundle loading, and startup validation
+  - [x] 13.1 Add end-to-end native bundle tests
+    - Cover native app bundle emission, materialization, runtime contract/reflection loading, realtime/UI bundle loading, and startup validation
     - _Requirements: 4.2, 10.6, 13.4_
 
   - [~] 13.2 Add backend/runtime parity matrix checks

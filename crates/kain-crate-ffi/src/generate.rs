@@ -204,7 +204,7 @@ fn render_bridge_manifest(resolved: &ResolvedCrate, _bridge_dir: &Path) -> Strin
     )
 }
 
-fn render_bridge_source(resolved: &ResolvedCrate, functions: &[BridgeFunctionBinding]) -> String {
+fn render_bridge_source(_resolved: &ResolvedCrate, functions: &[BridgeFunctionBinding]) -> String {
     let mut output = String::new();
     output.push_str("use kain_core::error::KainError;\n");
     output.push_str("use kain_core::runtime::{Env, Value};\n");

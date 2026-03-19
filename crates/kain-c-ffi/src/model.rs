@@ -191,6 +191,7 @@ pub struct BindingBundle {
     pub source_fingerprints: Vec<FileFingerprint>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct GeneratedArtifacts {
     pub canonical_module_source: String,

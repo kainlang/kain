@@ -1,8 +1,30 @@
 #include "../../include/kain_runtime_diagnostics.h"
 #include "../../include/kain_runtime_version.h"
 #include "../../include/kain_runtime_base.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+
+static void kain_copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 void kain_diagnostic_init(KainDiagnostic* diag) {
     if (!diag) {
@@ -35,20 +57,9 @@ void kain_diagnostic_create(
     diag->severity = severity;
     diag->code = code;
     
-    if (message) {
-        strncpy(diag->message, message, KAIN_DIAG_MESSAGE_MAX - 1);
-        diag->message[KAIN_DIAG_MESSAGE_MAX - 1] = '\0';
-    }
-    
-    if (detail) {
-        strncpy(diag->detail, detail, KAIN_DIAG_DETAIL_MAX - 1);
-        diag->detail[KAIN_DIAG_DETAIL_MAX - 1] = '\0';
-    }
-    
-    if (source_path) {
-        strncpy(diag->source_path, source_path, KAIN_DIAG_SOURCE_PATH_MAX - 1);
-        diag->source_path[KAIN_DIAG_SOURCE_PATH_MAX - 1] = '\0';
-    }
+    kain_copy_text(diag->message, sizeof(diag->message), message);
+    kain_copy_text(diag->detail, sizeof(diag->detail), detail);
+    kain_copy_text(diag->source_path, sizeof(diag->source_path), source_path);
     
     /* Capture runtime ABI version */
     if (kain_runtime_version_get_info(&version_info) == 0) {

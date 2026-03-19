@@ -22,6 +22,10 @@
 /* Global flag to track if monitor notification was received */
 static int g_monitor_notification_received = 0;
 
+static void copy_actor_name(char* dest, const char* src) {
+    snprintf(dest, KAIN_ACTOR_NAME_MAX, "%s", src);
+}
+
 /* Monitored actor that exits after a short delay */
 static KainActorExitReason monitored_actor_bootstrap(
     KainActorId actor_id,
@@ -76,7 +80,7 @@ int main(void) {
     KainActorSpawnConfig monitor_config;
     kain_actor_spawn_config_init(&monitor_config);
     monitor_config.bootstrap_fn = monitoring_actor_bootstrap;
-    strncpy(monitor_config.name, "monitor", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(monitor_config.name, "monitor");
     
     KainDiagnostic diag;
     KainActorId monitor_id = kain_actor_spawn(&monitor_config, &diag);
@@ -91,7 +95,7 @@ int main(void) {
     KainActorSpawnConfig monitored_config;
     kain_actor_spawn_config_init(&monitored_config);
     monitored_config.bootstrap_fn = monitored_actor_bootstrap;
-    strncpy(monitored_config.name, "monitored", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(monitored_config.name, "monitored");
     
     KainActorId monitored_id = kain_actor_spawn(&monitored_config, &diag);
     

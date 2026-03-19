@@ -14,12 +14,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void copy_actor_name(char* dest, const char* src) {
+    snprintf(dest, KAIN_ACTOR_NAME_MAX, "%s", src);
+}
+
 /* Simple actor that just exits */
 KainActorExitReason simple_actor_bootstrap(
     KainActorId actor_id,
     KainActorMailbox* mailbox,
     void* user_data
 ) {
+    (void)actor_id;
+    (void)mailbox;
+    (void)user_data;
     return KAIN_ACTOR_EXIT_NORMAL;
 }
 
@@ -33,7 +40,7 @@ int main(void) {
     KainActorSpawnConfig config;
     kain_actor_spawn_config_init(&config);
     config.bootstrap_fn = simple_actor_bootstrap;
-    strncpy(config.name, "test_actor", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(config.name, "test_actor");
     
     KainDiagnostic diag;
     KainActorId actor_id = kain_actor_spawn(&config, &diag);

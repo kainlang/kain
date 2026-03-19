@@ -86,6 +86,9 @@ static KainItemKind reflection_item_kind_from_string(const char* kind);
 static int reflection_ensure_type_capacity(KainReflectionPayload* payload, int min_capacity);
 static int reflection_ensure_item_capacity(KainReflectionPayload* payload, int min_capacity);
 static char* reflection_strdup(const char* text);
+static void reflection_copy_text(char* out, size_t out_size, const char* text);
+static FILE* reflection_open_file(const char* path, const char* mode);
+static char* reflection_get_env_value(const char* env_name);
 static void reflection_set_diag(
     KainDiagnostic* diag,
     KainDiagSeverity severity,
@@ -201,7 +204,7 @@ int kain_reflection_load_from_path(
         return -1;
     }
 
-    FILE* file = fopen(path, "rb");
+    FILE* file = reflection_open_file(path, "rb");
     if (!file) {
         if (diag) {
             kain_diagnostic_init(diag);
@@ -305,7 +308,8 @@ int kain_reflection_load_from_env(
         return -1;
     }
 
-    const char* path = getenv(env_name);
+    char* env_value = reflection_get_env_value(env_name);
+    const char* path = env_value;
     if (!path) {
         if (diag) {
             kain_diagnostic_init(diag);
@@ -322,7 +326,11 @@ int kain_reflection_load_from_env(
         return -1;
     }
 
-    return kain_reflection_load_from_path(path, payload, diag);
+    {
+        int result = kain_reflection_load_from_path(path, payload, diag);
+        free(env_value);
+        return result;
+    }
 }
 
 void kain_reflection_free(KainReflectionPayload* payload) {
@@ -678,7 +686,10 @@ static int json_parse_string(JsonParser* parser, char* out, size_t out_size) {
     size_t out_pos = 0;
 
     if (!parser || parser->pos >= parser->length || parser->json[parser->pos] != '"') {
-        return 0;
+        json_skip_ws(parser);
+        if (!parser || parser->pos >= parser->length || parser->json[parser->pos] != '"') {
+            return 0;
+        }
     }
 
     parser->pos++;
@@ -1064,32 +1075,42 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
     int has_type_id = 0;
     int has_size_hint = 0;
     int field_count = 0;
+#define REFLECTION_TYPE_FAIL(message) do { \
+    reflection_set_diag( \
+        diag, \
+        KAIN_DIAG_SEVERITY_ERROR, \
+        KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED, \
+        message, \
+        name[0] ? name : NULL \
+    ); \
+    return -1; \
+} while (0)
 
     if (!json_match_char(parser, '{')) {
-        return -1;
+        REFLECTION_TYPE_FAIL("Expected reflection type object");
     }
 
     while (parser->pos < parser->length) {
         json_skip_ws(parser);
         if (!json_parse_string(parser, field_name, sizeof(field_name))) {
-            return -1;
+            REFLECTION_TYPE_FAIL("Failed to parse reflection type field name");
         }
         if (!json_match_char(parser, ':')) {
-            return -1;
+            REFLECTION_TYPE_FAIL("Failed to parse reflection type field separator");
         }
 
         if (strcmp(field_name, "type_id") == 0) {
             if (!json_parse_u64(parser, &type_id)) {
-                return -1;
+                REFLECTION_TYPE_FAIL("Failed to parse reflection type type_id");
             }
             has_type_id = 1;
         } else if (strcmp(field_name, "name") == 0) {
             if (!json_parse_string(parser, name, sizeof(name))) {
-                return -1;
+                REFLECTION_TYPE_FAIL("Failed to parse reflection type name");
             }
         } else if (strcmp(field_name, "kind") == 0) {
             if (!json_parse_string(parser, kind, sizeof(kind))) {
-                return -1;
+                REFLECTION_TYPE_FAIL("Failed to parse reflection type kind");
             }
         } else if (strcmp(field_name, "size_hint") == 0) {
             if (json_match_literal(parser, "null")) {
@@ -1097,11 +1118,11 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
             } else if (json_parse_u64(parser, &size_hint)) {
                 has_size_hint = 1;
             } else {
-                return -1;
+                REFLECTION_TYPE_FAIL("Failed to parse reflection type size_hint");
             }
         } else if (strcmp(field_name, "fields") == 0) {
             if (!json_match_char(parser, '[')) {
-                return -1;
+                REFLECTION_TYPE_FAIL("Failed to parse reflection type fields array");
             }
             json_skip_ws(parser);
             if (json_match_char(parser, ']')) {
@@ -1109,7 +1130,7 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
             } else {
                 while (parser->pos < parser->length) {
                     if (!json_skip_value(parser)) {
-                        return -1;
+                        REFLECTION_TYPE_FAIL("Failed to parse reflection type field value");
                     }
                     field_count++;
                     json_skip_ws(parser);
@@ -1119,12 +1140,12 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
                     if (json_match_char(parser, ']')) {
                         break;
                     }
-                    return -1;
+                    REFLECTION_TYPE_FAIL("Malformed reflection type fields array");
                 }
             }
         } else {
             if (!json_skip_value(parser)) {
-                return -1;
+                REFLECTION_TYPE_FAIL("Failed to skip reflection type value");
             }
         }
 
@@ -1135,7 +1156,7 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
         if (json_match_char(parser, '}')) {
             break;
         }
-        return -1;
+        REFLECTION_TYPE_FAIL("Malformed reflection type object");
     }
 
     if (!has_type_id || name[0] == '\0') {
@@ -1164,12 +1185,12 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
     ZeroMemory(schema, sizeof(*schema));
     schema->type_id = type_id;
     schema->kind = reflection_type_kind_from_string(kind);
-    strncpy(schema->name, name, KAIN_REFLECTION_NAME_MAX - 1);
-    schema->name[KAIN_REFLECTION_NAME_MAX - 1] = '\0';
+    reflection_copy_text(schema->name, sizeof(schema->name), name);
     schema->size_bytes = has_size_hint ? (size_t)size_hint : 0u;
     schema->align_bytes = 0u;
     schema->field_count = field_count;
     schema->fields = NULL;
+#undef REFLECTION_TYPE_FAIL
     return 0;
 }
 
@@ -1182,36 +1203,46 @@ static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload,
     unsigned long long type_id = 0;
     int has_item_id = 0;
     int has_type_id = 0;
+#define REFLECTION_ITEM_FAIL(message) do { \
+    reflection_set_diag( \
+        diag, \
+        KAIN_DIAG_SEVERITY_ERROR, \
+        KAIN_DIAG_CODE_REFLECTION_PARSE_FAILED, \
+        message, \
+        name[0] ? name : NULL \
+    ); \
+    return -1; \
+} while (0)
 
     if (!json_match_char(parser, '{')) {
-        return -1;
+        REFLECTION_ITEM_FAIL("Expected reflection item object");
     }
 
     while (parser->pos < parser->length) {
         json_skip_ws(parser);
         if (!json_parse_string(parser, field_name, sizeof(field_name))) {
-            return -1;
+            REFLECTION_ITEM_FAIL("Failed to parse reflection item field name");
         }
         if (!json_match_char(parser, ':')) {
-            return -1;
+            REFLECTION_ITEM_FAIL("Failed to parse reflection item field separator");
         }
 
         if (strcmp(field_name, "item_id") == 0) {
             if (!json_parse_u64(parser, &item_id)) {
-                return -1;
+                REFLECTION_ITEM_FAIL("Failed to parse reflection item item_id");
             }
             has_item_id = 1;
         } else if (strcmp(field_name, "name") == 0) {
             if (!json_parse_string(parser, name, sizeof(name))) {
-                return -1;
+                REFLECTION_ITEM_FAIL("Failed to parse reflection item name");
             }
         } else if (strcmp(field_name, "kind") == 0) {
             if (!json_parse_string(parser, kind, sizeof(kind))) {
-                return -1;
+                REFLECTION_ITEM_FAIL("Failed to parse reflection item kind");
             }
         } else if (strcmp(field_name, "module_path") == 0) {
             if (!json_parse_string(parser, module_path, sizeof(module_path))) {
-                return -1;
+                REFLECTION_ITEM_FAIL("Failed to parse reflection item module_path");
             }
         } else if (strcmp(field_name, "type_id") == 0) {
             if (json_match_literal(parser, "null")) {
@@ -1219,11 +1250,11 @@ static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload,
             } else if (json_parse_u64(parser, &type_id)) {
                 has_type_id = 1;
             } else {
-                return -1;
+                REFLECTION_ITEM_FAIL("Failed to parse reflection item type_id");
             }
         } else {
             if (!json_skip_value(parser)) {
-                return -1;
+                REFLECTION_ITEM_FAIL("Failed to skip reflection item value");
             }
         }
 
@@ -1234,7 +1265,7 @@ static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload,
         if (json_match_char(parser, '}')) {
             break;
         }
-        return -1;
+        REFLECTION_ITEM_FAIL("Malformed reflection item object");
     }
 
     if (!has_item_id || name[0] == '\0') {
@@ -1263,13 +1294,12 @@ static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload,
     ZeroMemory(item, sizeof(*item));
     item->item_id = item_id;
     item->kind = reflection_item_kind_from_string(kind);
-    strncpy(item->name, name, KAIN_REFLECTION_NAME_MAX - 1);
-    item->name[KAIN_REFLECTION_NAME_MAX - 1] = '\0';
-    strncpy(item->module_path, module_path, KAIN_REFLECTION_PATH_MAX - 1);
-    item->module_path[KAIN_REFLECTION_PATH_MAX - 1] = '\0';
+    reflection_copy_text(item->name, sizeof(item->name), name);
+    reflection_copy_text(item->module_path, sizeof(item->module_path), module_path);
     if (has_type_id) {
         item->type_id = type_id;
     }
+#undef REFLECTION_ITEM_FAIL
     return 0;
 }
 
@@ -1483,6 +1513,55 @@ static char* reflection_strdup(const char* text) {
 
     memcpy(copy, text, length + 1);
     return copy;
+}
+
+static void reflection_copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
+
+static FILE* reflection_open_file(const char* path, const char* mode) {
+#ifdef _WIN32
+    FILE* file = NULL;
+    if (fopen_s(&file, path, mode) != 0) {
+        return NULL;
+    }
+    return file;
+#else
+    return fopen(path, mode);
+#endif
+}
+
+static char* reflection_get_env_value(const char* env_name) {
+#ifdef _WIN32
+    size_t length = 0;
+    char* value = NULL;
+    if (!env_name) {
+        return NULL;
+    }
+    if (_dupenv_s(&value, &length, env_name) != 0) {
+        return NULL;
+    }
+    return value;
+#else
+    return getenv(env_name);
+#endif
 }
 
 static void reflection_set_diag(

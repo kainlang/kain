@@ -307,6 +307,9 @@ typedef struct {
     KainActorId last_observed_child_id;
     KainActorExitReason last_observed_child_exit_reason;
     int supervision_limit_hits;
+    size_t restart_attempt_count;
+    size_t strategy_shutdown_count;
+    size_t escalation_count;
     
     /* Scheduler integration */
     int in_scheduler_queue;         /* 1 if currently in ready queue */
@@ -344,6 +347,9 @@ typedef struct {
     KainActorId last_observed_child_id;
     KainActorExitReason last_observed_child_exit_reason;
     int supervision_limit_hits;
+    size_t restart_attempt_count;
+    size_t strategy_shutdown_count;
+    size_t escalation_count;
 } KainActorSupervisionSnapshot;
 
 typedef struct {
@@ -353,6 +359,9 @@ typedef struct {
     size_t total_dequeued;
     int worker_count;
     int active_workers;
+    size_t busy_workers;
+    size_t max_busy_workers;
+    size_t overflow_thread_spawns;
     int shutdown;
 } KainActorSchedulerSnapshot;
 

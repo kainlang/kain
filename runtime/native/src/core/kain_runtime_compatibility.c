@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 #define KAIN_BUNDLE_PATH_MAX 512
@@ -22,6 +23,8 @@ struct KainBundleHandle {
 };
 
 static void kain_copy_text(char* out, size_t out_cap, const char* text) {
+    size_t length;
+
     if (!out || out_cap == 0) {
         return;
     }
@@ -29,8 +32,14 @@ static void kain_copy_text(char* out, size_t out_cap, const char* text) {
         out[0] = '\0';
         return;
     }
-    strncpy(out, text, out_cap - 1);
-    out[out_cap - 1] = '\0';
+
+    length = strlen(text);
+    if (length >= out_cap) {
+        length = out_cap - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
 }
 
 static int kain_runtime_version_is_compatible(unsigned int required_runtime_version) {

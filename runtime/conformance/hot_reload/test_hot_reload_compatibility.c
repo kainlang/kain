@@ -1,14 +1,35 @@
 #include "../../native/include/kain_runtime_compatibility.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+static void copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 static int test_compatible_bundle(void) {
     KainBundleCompatibilityMetadata metadata;
     KainCompatibilityValidationResult result;
 
     kain_bundle_compat_metadata_init(&metadata);
-    strcpy(metadata.bundle_id, "runtime.hot_reload.ok");
+    copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.ok");
     metadata.bundle_version_major = 1;
     metadata.bundle_version_minor = 0;
     metadata.bundle_version_patch = 0;
@@ -29,7 +50,7 @@ static int test_abi_mismatch_rejected(void) {
     KainCompatibilityValidationResult result;
 
     kain_bundle_compat_metadata_init(&metadata);
-    strcpy(metadata.bundle_id, "runtime.hot_reload.abi_mismatch");
+    copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.abi_mismatch");
     metadata.required_abi_version = KAIN_RUNTIME_ABI_VERSION_ENCODE(1, 0, 0);
 
     if (kain_bundle_validate_compatibility(&metadata, &result) == 0) {
@@ -48,7 +69,7 @@ static int test_runtime_mismatch_rejected(void) {
     KainCompatibilityValidationResult result;
 
     kain_bundle_compat_metadata_init(&metadata);
-    strcpy(metadata.bundle_id, "runtime.hot_reload.runtime_mismatch");
+    copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.runtime_mismatch");
     metadata.required_runtime_version = KAIN_RUNTIME_VERSION_ENCODE(0, 2, 0);
 
     if (kain_bundle_validate_compatibility(&metadata, &result) == 0) {
@@ -68,7 +89,7 @@ static int test_validation_formatting(void) {
     char buffer[512];
 
     kain_bundle_compat_metadata_init(&metadata);
-    strcpy(metadata.bundle_id, "runtime.hot_reload.format");
+    copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.format");
     if (kain_bundle_validate_compatibility(&metadata, &result) != 0) {
         fprintf(stderr, "formatting precondition failed\n");
         return 0;

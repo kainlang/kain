@@ -1,7 +1,29 @@
 #include "../../include/kain_runtime_services.h"
 #include "../../include/kain_runtime_base.h"
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+
+static void kain_copy_text(char* out, size_t out_size, const char* text) {
+    size_t length;
+
+    if (!out || out_size == 0) {
+        return;
+    }
+
+    if (!text) {
+        out[0] = '\0';
+        return;
+    }
+
+    length = strlen(text);
+    if (length >= out_size) {
+        length = out_size - 1;
+    }
+
+    memcpy(out, text, length);
+    out[length] = '\0';
+}
 
 /* Global service registry singleton */
 static KainServiceRegistry g_service_registry = {0};
@@ -49,16 +71,9 @@ int kain_service_registry_register(
     descriptor = &registry->services[registry->service_count];
     ZeroMemory(descriptor, sizeof(*descriptor));
     
-    strncpy(descriptor->key, key, KAIN_SERVICE_KEY_MAX - 1);
-    descriptor->key[KAIN_SERVICE_KEY_MAX - 1] = '\0';
-    
-    strncpy(descriptor->name, name, KAIN_SERVICE_NAME_MAX - 1);
-    descriptor->name[KAIN_SERVICE_NAME_MAX - 1] = '\0';
-    
-    if (description) {
-        strncpy(descriptor->description, description, KAIN_SERVICE_DESCRIPTION_MAX - 1);
-        descriptor->description[KAIN_SERVICE_DESCRIPTION_MAX - 1] = '\0';
-    }
+    kain_copy_text(descriptor->key, sizeof(descriptor->key), key);
+    kain_copy_text(descriptor->name, sizeof(descriptor->name), name);
+    kain_copy_text(descriptor->description, sizeof(descriptor->description), description);
     
     descriptor->provider = provider;
     descriptor->status = status;
@@ -308,8 +323,9 @@ int kain_service_registry_format_list(
             break;
         }
         
-        strcat(out, line);
-        written += line_len;
+        memcpy(out + written, line, (size_t)line_len);
+        written += (size_t)line_len;
+        out[written] = '\0';
     }
     
     return (int)written;

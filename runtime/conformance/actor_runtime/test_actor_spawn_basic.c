@@ -14,12 +14,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void copy_actor_name(char* dest, const char* src) {
+    snprintf(dest, KAIN_ACTOR_NAME_MAX, "%s", src);
+}
+
 /* Test actor bootstrap function */
 KainActorExitReason test_actor_bootstrap(
     KainActorId actor_id,
     KainActorMailbox* mailbox,
     void* user_data
 ) {
+    (void)user_data;
     printf("Actor %llu started\n", actor_id);
     
     /* Receive one message */
@@ -52,7 +57,7 @@ int main(void) {
     config.bootstrap_fn = test_actor_bootstrap;
     config.user_data = NULL;
     config.mailbox_capacity = 10;
-    strncpy(config.name, "test_actor", KAIN_ACTOR_NAME_MAX);
+    copy_actor_name(config.name, "test_actor");
     
     /* Spawn actor */
     KainDiagnostic diag;
@@ -68,11 +73,19 @@ int main(void) {
     /* Send a message to the actor */
     KainActorMessage msg;
     msg.type_tag = 42;
-    msg.data = strdup("Hello, Actor!");
-    msg.data_size = strlen("Hello, Actor!") + 1;
+    msg.data = malloc(sizeof("Hello, Actor!"));
+    if (msg.data != NULL) {
+        memcpy(msg.data, "Hello, Actor!", sizeof("Hello, Actor!"));
+        msg.data_size = sizeof("Hello, Actor!");
+    } else {
+        msg.data_size = 0;
+    }
     msg.sender_id = KAIN_ACTOR_ID_INVALID;
     
     int result = kain_actor_send(actor_id, &msg, &diag);
+    if (msg.data != NULL) {
+        free(msg.data);
+    }
     if (result != 0) {
         printf("FAIL: Failed to send message: %s\n", diag.message);
         return 1;
