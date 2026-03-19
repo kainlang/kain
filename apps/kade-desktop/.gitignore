@@ -1,0 +1,13 @@
+target/
+outputs/
+deps/
+.kain/
+native-app/
+native-app/target/
+native-app/generated/
+generated/
+state/sessions/
+state/workspaces/
+state/*.json
+*.exe
+*.pdb

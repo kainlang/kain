@@ -1,0 +1,33 @@
+{
+  "app_id": "kade.desktop",
+  "name": "Kade Desktop",
+  "version": "0.1.0",
+  "window_title": "Kade Desktop",
+  "root_component": "App",
+  "layout_id": "kade_desktop_shell",
+  "manifests": {
+    "panels": "config/panels.json",
+    "commands": "config/commands.json",
+    "providers": "config/providers.json",
+    "tools": "config/tools.json"
+  },
+  "required_runtime_capabilities": [
+    "ui.runtime",
+    "actor.runtime",
+    "async.runtime",
+    "host.bridge",
+    "reflection",
+    "filesystem",
+    "process",
+    "network.http"
+  ],
+  "target_outputs": [
+    "native-ui-bundle",
+    "native-exe"
+  ],
+  "persistence": {
+    "session_store": "state/sessions",
+    "workspace_store": "state/workspaces",
+    "provider_store": "state/providers.json"
+  }
+}

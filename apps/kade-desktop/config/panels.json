@@ -1,0 +1,38 @@
+{
+  "layout": "dock",
+  "panels": [
+    {
+      "id": "workspace_rail",
+      "title": "Workspace",
+      "dock": "left",
+      "kind": "tree",
+      "split_ratio": 0.23,
+      "min_width": 220,
+      "max_width": 340
+    },
+    {
+      "id": "chat_surface",
+      "title": "Chat Surface",
+      "dock": "center",
+      "kind": "conversation"
+    },
+    {
+      "id": "control_plane",
+      "title": "Control Plane",
+      "dock": "right",
+      "kind": "inspector",
+      "split_ratio": 0.25,
+      "min_width": 260,
+      "max_width": 360
+    },
+    {
+      "id": "execution_lane",
+      "title": "Execution",
+      "dock": "bottom",
+      "kind": "timeline",
+      "split_ratio": 0.24,
+      "min_height": 180,
+      "max_height": 300
+    }
+  ]
+}

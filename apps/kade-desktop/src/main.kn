@@ -1,0 +1,10 @@
+component App():
+    render <slot>
+        <panel title="Kade Desktop Source Shell" layout="dock" persistent_layout_id="kade_desktop_source_shell" gap={12} padding={12}>
+            <inspector title="Generated Build Path">
+                <text role="metric">{"This source file is now a thin bootstrap shell."}</text>
+                <text role="muted">{"Use the controller to ingest config/*.json and materialize generated/main.generated.kn."}</text>
+                <text role="muted">{"scripts/build-native-ui.ps1 and scripts/bootstrap-state.ps1 do this automatically."}</text>
+            </inspector>
+        </panel>
+    </slot>

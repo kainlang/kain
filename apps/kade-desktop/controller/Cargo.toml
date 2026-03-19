@@ -1,0 +1,14 @@
+[package]
+name = "kade-desktop-controller"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3.8"

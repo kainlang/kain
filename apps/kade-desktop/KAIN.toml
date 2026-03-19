@@ -1,0 +1,8 @@
+[package]
+name = "kade-desktop"
+version = "0.1.0"
+
+[build]
+entry = "generated/main.generated.kn"
+output = "outputs"
+targets = ["run", "test"]

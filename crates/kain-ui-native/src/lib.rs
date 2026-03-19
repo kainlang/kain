@@ -25,9 +25,8 @@ use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
     ui_runtime_bundle_to_json, ui_step_animation_runtime, validate_ui_runtime_bundle,
     UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength, UiLengthUnit, UiNode,
-    UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle, UiRuntimeMetadata,
-    UiStyleState, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
-    UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
+    UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle, UiRuntimeMetadata, UiStyleState,
+    UiThemeRegistry, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
 use wgpu::util::DeviceExt;
 
@@ -42,6 +41,101 @@ const DEFAULT_VIEWPORT_STARTUP_DELAY_MS: u64 = 350;
 const DEFAULT_VIEWPORT_MAX_AXIS_PX: u64 = 640;
 const KAIN_UI_NATIVE_REALTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_REALTIME_BUNDLE";
 const KAIN_UI_NATIVE_SHADER_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_SHADER_BUNDLE";
+const KAIN_UI_NATIVE_APP_MANIFEST_ENV: &str = "KAIN_UI_NATIVE_APP_MANIFEST";
+const KAIN_UI_NATIVE_APP_SNAPSHOT_ENV: &str = "KAIN_UI_NATIVE_APP_SNAPSHOT";
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeSnapshot {
+    app_id: String,
+    name: String,
+    version: String,
+    window_title: String,
+    root_component: String,
+    layout_id: String,
+    required_runtime_capabilities: Vec<String>,
+    panels: Vec<NativeAppRuntimePanel>,
+    commands: Vec<NativeAppRuntimeCommand>,
+    providers: Vec<NativeAppRuntimeProvider>,
+    tools: Vec<NativeAppRuntimeTool>,
+    sessions: NativeAppRuntimeSessions,
+    recent_sessions: Vec<NativeAppRuntimeRecentSession>,
+    workspaces: Vec<NativeAppRuntimeWorkspace>,
+    updated_at: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimePanel {
+    id: String,
+    title: String,
+    dock: String,
+    kind: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeCommand {
+    id: String,
+    label: String,
+    surface: String,
+    intent: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeProvider {
+    id: String,
+    label: String,
+    transport: String,
+    profile_kind: String,
+    supports_tools: bool,
+    supports_streaming: bool,
+    active: bool,
+    profile_configured: bool,
+    profile_keys: Vec<String>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeTool {
+    id: String,
+    label: String,
+    capability: String,
+    approval: String,
+    decision: Option<String>,
+    scope_decisions: Vec<NativeAppRuntimeToolScopeDecision>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeSessions {
+    total_sessions: usize,
+    active_provider: String,
+    recent_session_id: Option<String>,
+    recent_session_title: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeToolScopeDecision {
+    scope: String,
+    decision: String,
+    updated_at: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeRecentSession {
+    id: String,
+    title: String,
+    provider_id: String,
+    status: String,
+    workspace_root: Option<String>,
+    updated_at: String,
+    message_count: usize,
+    last_message_role: Option<String>,
+    last_message_preview: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct NativeAppRuntimeWorkspace {
+    root: String,
+    session_count: usize,
+    recent_session_title: Option<String>,
+}
 
 pub const KAIN_UI_NATIVE_DEMO_SOURCE: &str = r#"
 component App():
@@ -230,6 +324,13 @@ fn load_shader_bundle_from_env() -> Option<(ShaderArtifactBundle, String)> {
     shader_artifact_bundle_from_json(&json)
         .ok()
         .map(|bundle| (bundle, path))
+}
+
+fn load_runtime_snapshot_from_env() -> Option<(NativeAppRuntimeSnapshot, String)> {
+    let (json, path) = load_json_string_from_env(KAIN_UI_NATIVE_APP_SNAPSHOT_ENV)?;
+    serde_json::from_str(&json)
+        .ok()
+        .map(|snapshot| (snapshot, path))
 }
 
 impl RealtimeBundleCatalog {
@@ -1981,6 +2082,8 @@ struct KainUiNativeApp {
     runtime_settings: KainUiNativeRuntimeSettings,
     output: UiBuildOutput,
     debug_tree: String,
+    app_manifest_path: Option<String>,
+    app_runtime_snapshot: Option<NativeAppRuntimeSnapshot>,
     scene_catalog: SceneCatalog,
     realtime_catalog: RealtimeBundleCatalog,
     renderer: Box<dyn RenderBackend>,
@@ -2019,8 +2122,11 @@ impl KainUiNativeApp {
     ) -> Self {
         let realtime_bundle = load_realtime_bundle_from_env();
         let shader_bundle = load_shader_bundle_from_env();
+        let app_manifest_path = env_var_trimmed(KAIN_UI_NATIVE_APP_MANIFEST_ENV);
+        let runtime_snapshot = load_runtime_snapshot_from_env();
         let realtime_bundle_origin = realtime_bundle.as_ref().map(|(_, path)| path.clone());
         let shader_bundle_origin = shader_bundle.as_ref().map(|(_, path)| path.clone());
+        let runtime_snapshot_origin = runtime_snapshot.as_ref().map(|(_, path)| path.clone());
         let realtime_catalog = realtime_bundle
             .as_ref()
             .map(|(bundle, _)| RealtimeBundleCatalog::from_bundle(bundle))
@@ -2031,7 +2137,7 @@ impl KainUiNativeApp {
             shader_bundle.as_ref().map(|(bundle, _)| bundle),
         );
         trace_runtime(format!(
-            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} realtime_bundle={} shader_bundle={}",
+            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} realtime_bundle={} shader_bundle={} app_manifest={} runtime_snapshot={}",
             config.window_title,
             config.root_component,
             boot_mode.label(),
@@ -2045,6 +2151,8 @@ impl KainUiNativeApp {
             shader_bundle_origin
                 .as_deref()
                 .unwrap_or("<none>"),
+            app_manifest_path.as_deref().unwrap_or("<none>"),
+            runtime_snapshot_origin.as_deref().unwrap_or("<none>"),
         ));
         let debug_tree = render_ui_output_debug(&output);
         Self {
@@ -2052,6 +2160,8 @@ impl KainUiNativeApp {
             runtime_settings,
             output,
             debug_tree,
+            app_manifest_path,
+            app_runtime_snapshot: runtime_snapshot.map(|(snapshot, _)| snapshot),
             scene_catalog: SceneCatalog::default(),
             realtime_catalog,
             renderer,
@@ -2558,6 +2668,18 @@ impl eframe::App for KainUiNativeApp {
                                         .monospace()
                                         .color(app_theme.palette.accent),
                                 );
+                                if let Some(snapshot) = &self.app_runtime_snapshot {
+                                    ui.add_space(6.0);
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "sessions: {}  |  provider: {}",
+                                            snapshot.sessions.total_sessions,
+                                            snapshot.sessions.active_provider
+                                        ))
+                                        .monospace()
+                                        .color(app_theme.palette.accent_soft),
+                                    );
+                                }
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     ui.label(
                                         RichText::new(format!(
@@ -2602,6 +2724,182 @@ impl eframe::App for KainUiNativeApp {
                                 .monospace()
                                 .color(app_theme.palette.highlight),
                         );
+                        if let Some(path) = &self.app_manifest_path {
+                            ui.label(
+                                RichText::new(format!("app manifest: {path}"))
+                                    .monospace()
+                                    .color(app_theme.palette.accent_soft),
+                            );
+                        }
+                        if let Some(snapshot) = &self.app_runtime_snapshot {
+                            ui.separator();
+                            ui.heading(RichText::new("Desktop Snapshot").color(app_theme.palette.text));
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} {}  |  app_id={}  |  layout={}",
+                                    snapshot.name, snapshot.version, snapshot.app_id, snapshot.layout_id
+                                ))
+                                .monospace()
+                                .color(app_theme.palette.accent_soft),
+                            );
+                            ui.label(
+                                RichText::new(format!(
+                                    "window={}  |  root={}  |  updated={}",
+                                    snapshot.window_title, snapshot.root_component, snapshot.updated_at
+                                ))
+                                .monospace()
+                                .color(app_theme.palette.highlight),
+                            );
+                            ui.label(
+                                RichText::new(format!(
+                                    "sessions={}  |  active_provider={}  |  recent_session={}",
+                                    snapshot.sessions.total_sessions,
+                                    snapshot.sessions.active_provider,
+                                    snapshot
+                                        .sessions
+                                        .recent_session_title
+                                        .as_deref()
+                                        .unwrap_or("<none>")
+                                ))
+                                .monospace()
+                                .color(app_theme.palette.success),
+                            );
+                            if let Some(session_id) = &snapshot.sessions.recent_session_id {
+                                ui.label(
+                                    RichText::new(format!("recent_session_id={session_id}"))
+                                        .monospace()
+                                        .color(app_theme.palette.accent_soft),
+                                );
+                            }
+                            ui.collapsing("Required Capabilities", |ui| {
+                                for capability in &snapshot.required_runtime_capabilities {
+                                    ui.label(RichText::new(capability).monospace());
+                                }
+                            });
+                            ui.collapsing("Panels", |ui| {
+                                for panel in &snapshot.panels {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} [{}] -> {} ({})",
+                                            panel.title, panel.id, panel.dock, panel.kind
+                                        ))
+                                        .monospace(),
+                                    );
+                                }
+                            });
+                            ui.collapsing("Commands", |ui| {
+                                for command in &snapshot.commands {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} [{}] -> {} @ {}",
+                                            command.label, command.id, command.intent, command.surface
+                                        ))
+                                        .monospace(),
+                                    );
+                                }
+                            });
+                            ui.collapsing("Providers", |ui| {
+                                for provider in &snapshot.providers {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} [{}] transport={} profile={} tools={} streaming={} active={} configured={} keys={}",
+                                            provider.label,
+                                            provider.id,
+                                            provider.transport,
+                                            provider.profile_kind,
+                                            provider.supports_tools,
+                                            provider.supports_streaming,
+                                            provider.active,
+                                            provider.profile_configured,
+                                            if provider.profile_keys.is_empty() {
+                                                "<none>".to_string()
+                                            } else {
+                                                provider.profile_keys.join(",")
+                                            }
+                                        ))
+                                        .monospace(),
+                                    );
+                                }
+                            });
+                            ui.collapsing("Tools", |ui| {
+                                for tool in &snapshot.tools {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} [{}] {} approval={} decision={}",
+                                            tool.label,
+                                            tool.id,
+                                            tool.capability,
+                                            tool.approval,
+                                            tool.decision.as_deref().unwrap_or("<unset>")
+                                        ))
+                                        .monospace(),
+                                    );
+                                    for scoped in &tool.scope_decisions {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "  {} => {} ({})",
+                                                scoped.scope, scoped.decision, scoped.updated_at
+                                            ))
+                                            .monospace()
+                                            .color(app_theme.palette.accent_soft),
+                                        );
+                                    }
+                                }
+                            });
+                            ui.collapsing("Recent Sessions", |ui| {
+                                for session in &snapshot.recent_sessions {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} [{}] provider={} status={} messages={} updated={}",
+                                            session.title,
+                                            session.id,
+                                            session.provider_id,
+                                            session.status,
+                                            session.message_count,
+                                            session.updated_at
+                                        ))
+                                        .monospace(),
+                                    );
+                                    if let Some(workspace_root) = &session.workspace_root {
+                                        ui.label(
+                                            RichText::new(format!("  workspace={workspace_root}"))
+                                                .monospace()
+                                                .color(app_theme.palette.highlight),
+                                        );
+                                    }
+                                    if let Some(preview) = &session.last_message_preview {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "  {}: {}",
+                                                session
+                                                    .last_message_role
+                                                    .as_deref()
+                                                    .unwrap_or("message"),
+                                                preview
+                                            ))
+                                            .monospace()
+                                            .color(app_theme.palette.accent_soft),
+                                        );
+                                    }
+                                }
+                            });
+                            ui.collapsing("Workspaces", |ui| {
+                                for workspace in &snapshot.workspaces {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} sessions={} recent={}",
+                                            workspace.root,
+                                            workspace.session_count,
+                                            workspace
+                                                .recent_session_title
+                                                .as_deref()
+                                                .unwrap_or("<none>")
+                                        ))
+                                        .monospace(),
+                                    );
+                                }
+                            });
+                        }
 
                         ui.collapsing("Semantic Tree", |ui| {
                             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -2907,10 +3205,28 @@ fn render_children(
             egui::ScrollArea::vertical()
         };
         scroll_area.auto_shrink([false, false]).show(ui, |ui| {
-            render_children_content(app, ui, ctx, tree, theme_registry, app_theme, node, layout_gap);
+            render_children_content(
+                app,
+                ui,
+                ctx,
+                tree,
+                theme_registry,
+                app_theme,
+                node,
+                layout_gap,
+            );
         });
     } else {
-        render_children_content(app, ui, ctx, tree, theme_registry, app_theme, node, layout_gap);
+        render_children_content(
+            app,
+            ui,
+            ctx,
+            tree,
+            theme_registry,
+            app_theme,
+            node,
+            layout_gap,
+        );
     }
 
     ui.spacing_mut().item_spacing = item_spacing;
@@ -3845,11 +4161,11 @@ mod tests {
 
     #[test]
     fn runtime_bundle_loads_shared_native_projection_fixture() {
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../../runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json",
-        );
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json");
         let json = fs::read_to_string(&fixture).expect("shared UI bundle fixture should exist");
-        let bundle = runtime_bundle_from_json(&json).expect("shared UI bundle fixture should deserialize");
+        let bundle =
+            runtime_bundle_from_json(&json).expect("shared UI bundle fixture should deserialize");
 
         assert_eq!(
             bundle.schema_version,
@@ -3869,24 +4185,25 @@ mod tests {
             bundle.native_projection.primary_viewport_scene.as_deref(),
             Some("magma_terraces")
         );
-        assert!(
-            bundle
-                .native_projection
-                .nodes
-                .iter()
-                .any(|node| matches!(node.kind, UiNativeProjectionKind::Viewport3D))
-        );
-        assert!(
-            bundle
-                .native_projection
-                .nodes
-                .iter()
-                .any(|node| matches!(node.kind, UiNativeProjectionKind::Panel))
-        );
+        assert!(bundle
+            .native_projection
+            .nodes
+            .iter()
+            .any(|node| matches!(node.kind, UiNativeProjectionKind::Viewport3D)));
+        assert!(bundle
+            .native_projection
+            .nodes
+            .iter()
+            .any(|node| matches!(node.kind, UiNativeProjectionKind::Panel)));
         assert_eq!(bundle.output.tree.root, Some(UiNodeId(1)));
         assert_eq!(bundle.output.tree.nodes.len(), 3);
         assert!(matches!(
-            bundle.output.tree.nodes.get(&UiNodeId(1)).map(|node| &node.kind),
+            bundle
+                .output
+                .tree
+                .nodes
+                .get(&UiNodeId(1))
+                .map(|node| &node.kind),
             Some(UiWidgetKind::Panel)
         ));
         assert!(matches!(
@@ -3894,7 +4211,12 @@ mod tests {
             Some(UiWidgetKind::Element(value)) if value == "input"
         ));
         assert!(matches!(
-            bundle.output.tree.nodes.get(&UiNodeId(3)).map(|node| &node.kind),
+            bundle
+                .output
+                .tree
+                .nodes
+                .get(&UiNodeId(3))
+                .map(|node| &node.kind),
             Some(UiWidgetKind::Viewport3D)
         ));
     }

@@ -2633,6 +2633,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kade-desktop-controller"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "kain-3d"
 version = "0.1.0"
 dependencies = [
