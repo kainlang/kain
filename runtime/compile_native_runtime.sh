@@ -57,10 +57,74 @@ done
 OUTPUT_DIR="$PROJECT_ROOT/generated/native_runtime/$BUILD_TYPE"
 mkdir -p "$OUTPUT_DIR"
 
-# Source and include paths
-RUNTIME_SOURCE="$PROJECT_ROOT/runtime/kain_runtime.c"
-INCLUDE_DIR="$PROJECT_ROOT/runtime/native/include"
-THIRD_PARTY_INCLUDE="$PROJECT_ROOT/runtime/native/third_party/cgltf"
+MANIFEST_PATH="$PROJECT_ROOT/runtime/native_runtime.toml"
+
+parse_manifest_array() {
+    local key="$1"
+    awk -v key="$key" '
+        BEGIN {
+            in_array = 0
+        }
+        {
+            raw = $0
+            if (!in_array && raw ~ "^[[:space:]]*" key "[[:space:]]*=[[:space:]]*\\[") {
+                in_array = 1
+                sub(/^.*\[/, "", raw)
+            } else if (!in_array) {
+                next
+            }
+
+            line = raw
+            sub(/#.*/, "", line)
+            closing = (line ~ /\]/)
+            gsub(/\]/, "", line)
+            gsub(/"/, "", line)
+            gsub(/,/, " ", line)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+
+            if (length(line) > 0) {
+                count = split(line, parts, /[[:space:]]+/)
+                for (i = 1; i <= count; ++i) {
+                    if (parts[i] != "") {
+                        print parts[i]
+                    }
+                }
+            }
+
+            if (closing) {
+                exit
+            }
+        }
+    ' "$MANIFEST_PATH"
+}
+
+RUNTIME_SOURCES=()
+RUNTIME_INCLUDE_DIRS=()
+RUNTIME_BUNDLE_NAME="kain-native-runtime"
+
+if [[ -f "$MANIFEST_PATH" ]]; then
+    mapfile -t MANIFEST_SOURCES < <(parse_manifest_array "sources")
+    mapfile -t MANIFEST_INCLUDE_DIRS < <(parse_manifest_array "include_dirs")
+
+    if [[ ${#MANIFEST_SOURCES[@]} -gt 0 ]]; then
+        for relative_source in "${MANIFEST_SOURCES[@]}"; do
+            RUNTIME_SOURCES+=("$PROJECT_ROOT/runtime/$relative_source")
+        done
+        for relative_include in "${MANIFEST_INCLUDE_DIRS[@]}"; do
+            RUNTIME_INCLUDE_DIRS+=("$PROJECT_ROOT/runtime/$relative_include")
+        done
+    fi
+fi
+
+if [[ ${#RUNTIME_SOURCES[@]} -eq 0 ]]; then
+    echo "Warning: runtime/native_runtime.toml not found or empty; falling back to legacy runtime/kain_runtime.c"
+    RUNTIME_BUNDLE_NAME="kain-runtime-legacy"
+    RUNTIME_SOURCES=("$PROJECT_ROOT/runtime/kain_runtime.c")
+fi
+
+if [[ ${#RUNTIME_INCLUDE_DIRS[@]} -eq 0 ]]; then
+    RUNTIME_INCLUDE_DIRS=("$PROJECT_ROOT/runtime/native/include")
+fi
 
 # Detect platform
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
@@ -77,6 +141,8 @@ fi
 echo "=== KAIN Native Runtime Compilation ==="
 echo "Platform: $PLATFORM"
 echo "Build Type: $BUILD_TYPE"
+echo "Runtime Bundle: $RUNTIME_BUNDLE_NAME"
+echo "Sources: ${#RUNTIME_SOURCES[@]}"
 echo "Output: $OUTPUT_DIR"
 echo ""
 
@@ -101,108 +167,119 @@ fi
 echo "Compiler: $COMPILER ($COMPILER_TYPE)"
 echo ""
 
-# Build compiler command based on compiler type and platform
-COMPILE_CMD=""
-OUTPUT_FILE=""
+build_compile_command() {
+    local source_path="$1"
+    local output_path="$2"
+    local -n out_cmd_ref=$3
 
-if [[ "$COMPILER_TYPE" == "msvc" ]]; then
-    # MSVC compiler
-    OUTPUT_FILE="$OUTPUT_DIR/kain_runtime.obj"
-    
-    COMPILE_CMD="$COMPILER /nologo"
-    
-    # Warning level
-    COMPILE_CMD="$COMPILE_CMD /W3"
-    
-    # Optimization
-    if [[ "$BUILD_TYPE" == "release" ]]; then
-        COMPILE_CMD="$COMPILE_CMD /O2"
+    if [[ "$COMPILER_TYPE" == "msvc" ]]; then
+        out_cmd_ref=("$COMPILER" "/nologo" "/W3")
+        if [[ "$BUILD_TYPE" == "release" ]]; then
+            out_cmd_ref+=("/O2")
+        else
+            out_cmd_ref+=("/Od" "/Zi")
+        fi
+        for include_dir in "${RUNTIME_INCLUDE_DIRS[@]}"; do
+            out_cmd_ref+=("/I" "$include_dir")
+        done
+        if [[ "$PLATFORM" == "windows" ]]; then
+            out_cmd_ref+=("/D" "WIN32" "/D" "_WINDOWS")
+        fi
+        out_cmd_ref+=("/c" "$source_path" "/Fo:$output_path")
     else
-        COMPILE_CMD="$COMPILE_CMD /Od /Zi"
+        out_cmd_ref=("$COMPILER" "-Wall" "-Wextra")
+        if [[ "$BUILD_TYPE" == "release" ]]; then
+            out_cmd_ref+=("-O2")
+        else
+            out_cmd_ref+=("-O0" "-g")
+        fi
+        for include_dir in "${RUNTIME_INCLUDE_DIRS[@]}"; do
+            out_cmd_ref+=("-I" "$include_dir")
+        done
+        if [[ "$PLATFORM" == "windows" ]]; then
+            out_cmd_ref+=("-D" "WIN32" "-D" "_WINDOWS")
+        fi
+        out_cmd_ref+=("-c" "$source_path" "-o" "$output_path")
     fi
-    
-    # Include paths
-    COMPILE_CMD="$COMPILE_CMD /I \"$INCLUDE_DIR\""
-    COMPILE_CMD="$COMPILE_CMD /I \"$THIRD_PARTY_INCLUDE\""
-    
-    # Platform defines
-    if [[ "$PLATFORM" == "windows" ]]; then
-        COMPILE_CMD="$COMPILE_CMD /D WIN32 /D _WINDOWS"
-    fi
-    
-    # Compile only (no linking)
-    COMPILE_CMD="$COMPILE_CMD /c \"$RUNTIME_SOURCE\""
-    COMPILE_CMD="$COMPILE_CMD /Fo:\"$OUTPUT_FILE\""
-    
-else
-    # GCC/Clang compiler
-    if [[ "$PLATFORM" == "windows" ]]; then
-        OUTPUT_FILE="$OUTPUT_DIR/kain_runtime.obj"
+}
+
+run_compile_command() {
+    local -n cmd_ref=$1
+    if [[ "$VERBOSE" == true ]]; then
+        printf '%q ' "${cmd_ref[@]}"
+        echo ""
+        "${cmd_ref[@]}"
     else
-        OUTPUT_FILE="$OUTPUT_DIR/kain_runtime.o"
+        local output
+        if ! output=$("${cmd_ref[@]}" 2>&1); then
+            if [[ -n "$output" ]]; then
+                printf '%s\n' "$output"
+            fi
+            return 1
+        fi
+        if [[ -n "$output" ]]; then
+            printf '%s\n' "$output"
+        fi
     fi
-    
-    COMPILE_CMD="$COMPILER"
-    
-    # Warning flags
-    COMPILE_CMD="$COMPILE_CMD -Wall -Wextra"
-    
-    # Optimization
-    if [[ "$BUILD_TYPE" == "release" ]]; then
-        COMPILE_CMD="$COMPILE_CMD -O2"
-    else
-        COMPILE_CMD="$COMPILE_CMD -O0 -g"
-    fi
-    
-    # Include paths
-    COMPILE_CMD="$COMPILE_CMD -I \"$INCLUDE_DIR\""
-    COMPILE_CMD="$COMPILE_CMD -I \"$THIRD_PARTY_INCLUDE\""
-    
-    # Platform defines
-    if [[ "$PLATFORM" == "windows" ]]; then
-        COMPILE_CMD="$COMPILE_CMD -D WIN32 -D _WINDOWS"
-    fi
-    
-    # Compile only (no linking)
-    COMPILE_CMD="$COMPILE_CMD -c \"$RUNTIME_SOURCE\""
-    COMPILE_CMD="$COMPILE_CMD -o \"$OUTPUT_FILE\""
+}
+
+OBJECT_EXT="o"
+if [[ "$PLATFORM" == "windows" ]]; then
+    OBJECT_EXT="obj"
 fi
 
-# Show command if verbose
-if [[ "$VERBOSE" == true ]]; then
-    echo "Compile command:"
-    echo "$COMPILE_CMD"
-    echo ""
-fi
+COMPILED_OBJECTS=()
 
-# Execute compilation
 echo "Compiling native runtime..."
-if [[ "$VERBOSE" == true ]]; then
-    eval "$COMPILE_CMD"
-else
-    eval "$COMPILE_CMD" 2>&1 | grep -v "^$" || true
-fi
+for index in "${!RUNTIME_SOURCES[@]}"; do
+    SOURCE_PATH="${RUNTIME_SOURCES[$index]}"
+    if [[ ! -f "$SOURCE_PATH" ]]; then
+        echo ""
+        echo "❌ Runtime source not found: $SOURCE_PATH"
+        exit 1
+    fi
 
-# Check if output file was created
-if [[ -f "$OUTPUT_FILE" ]]; then
-    FILE_SIZE=$(stat -f%z "$OUTPUT_FILE" 2>/dev/null || stat -c%s "$OUTPUT_FILE" 2>/dev/null || echo "unknown")
-    echo ""
-    echo "✅ Compilation successful!"
-    echo "Output: $OUTPUT_FILE"
-    echo "Size: $FILE_SIZE bytes"
-    echo ""
-    echo "Note: This is a compilation-only check. Linking and runtime execution"
-    echo "      validation will be added in later phases."
-else
-    echo ""
-    echo "❌ Compilation failed - output file not created"
-    exit 1
-fi
+    SOURCE_BASENAME="$(basename "$SOURCE_PATH")"
+    SOURCE_STEM="${SOURCE_BASENAME%.*}"
+    OUTPUT_FILE="$(printf "%s/%02d_%s.%s" "$OUTPUT_DIR" "$index" "$SOURCE_STEM" "$OBJECT_EXT")"
+
+    COMPILE_CMD=()
+    build_compile_command "$SOURCE_PATH" "$OUTPUT_FILE" COMPILE_CMD
+
+    if [[ "$VERBOSE" == true ]]; then
+        echo "Compiling $SOURCE_BASENAME"
+    fi
+
+    if ! run_compile_command COMPILE_CMD; then
+        echo ""
+        echo "❌ Compilation failed for $SOURCE_PATH"
+        exit 1
+    fi
+
+    if [[ ! -f "$OUTPUT_FILE" ]]; then
+        echo ""
+        echo "❌ Compilation failed - output file not created for $SOURCE_PATH"
+        exit 1
+    fi
+
+    COMPILED_OBJECTS+=("$OUTPUT_FILE")
+done
+
+echo ""
+echo "✅ Compilation successful!"
+echo "Objects:"
+for object_file in "${COMPILED_OBJECTS[@]}"; do
+    FILE_SIZE=$(stat -f%z "$object_file" 2>/dev/null || stat -c%s "$object_file" 2>/dev/null || echo "unknown")
+    echo "  - $object_file ($FILE_SIZE bytes)"
+done
+echo ""
+echo "Note: This is a compilation-only check of the manifest-driven runtime bundle."
+echo "      Linking and runtime execution validation remain separate steps."
 
 # Summary
 echo ""
 echo "=== Validation Summary ==="
-echo "✅ Native runtime source compiles successfully"
+echo "✅ Native runtime bundle sources compile successfully"
 echo "✅ All headers are accessible"
 echo "✅ Platform-specific code is properly guarded"
 echo ""

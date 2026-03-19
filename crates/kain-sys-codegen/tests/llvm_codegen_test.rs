@@ -405,12 +405,26 @@ fn llvm_consumes_lowered_memory_helpers_into_pointer_ir() {
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("ptrtoint i64* %x.addr_"));
-    assert!(llvm.contains("inttoptr i64 "));
-    assert!(llvm.contains("store i64 7, i64* %"));
+    assert!(llvm.contains("%x.addr_"));
+    assert!(llvm.contains("call void @__kain_mem_store(i8* "));
+    assert!(llvm.contains("call void @__kain_mem_load(i8* "));
+    assert!(llvm.contains("alloca i64"));
     assert!(llvm.contains("load i64, i64* %"));
-    assert!(!llvm.contains("@__kain_mem_store"));
-    assert!(!llvm.contains("@__kain_mem_load"));
+}
+
+#[test]
+fn llvm_sizes_runtime_memory_helpers_for_bool_values() {
+    let typed = typed_program_from_source(
+        "fn flip(p: ptr<Bool>) -> Bool:\n    mem_store(p, true, \"Bool\")\n    return mem_load(p, \"Bool\")\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("call void @__kain_mem_store(i8* "));
+    assert!(llvm.contains("call void @__kain_mem_load(i8* "));
+    assert!(llvm.contains("alloca i1"));
+    assert!(llvm.contains("load i1, i1* %"));
 }
 
 #[test]
@@ -422,11 +436,9 @@ fn llvm_consumes_lowered_alloc_and_realloc_helpers() {
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
+    assert!(llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(llvm.contains("call i8* @__kain_realloc(i8*"));
     assert!(llvm.contains("ptrtoint i8*"));
-    assert!(llvm.contains("phi i64"));
-    assert!(!llvm.contains("@__kain_alloc"));
-    assert!(!llvm.contains("@__kain_realloc"));
 }
 
 #[test]
@@ -518,9 +530,9 @@ fn llvm_generates_actor_spawn_and_send_message_paths() {
 
     assert!(llvm.contains("define void @Printer_run(i8* %arg)"));
     // Verify that actor spawn uses the actor-specific entrypoint, not default_actor_run
-    assert!(llvm.contains(
-        "call void @KAIN_spawn(i8* bitcast (void (i8*)* @Printer_run to i8*), i8*"
-    ));
+    assert!(
+        llvm.contains("call void @KAIN_spawn(i8* bitcast (void (i8*)* @Printer_run to i8*), i8*")
+    );
     assert!(llvm.contains("call void @mq_push(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));
 }

@@ -140,11 +140,13 @@ impl RuntimeVersionMetadata {
 }
 
 fn find_native_runtime_manifest() -> Option<PathBuf> {
-    // Try KAIN_RUNTIME_MANIFEST environment variable
-    if let Ok(explicit) = std::env::var("KAIN_RUNTIME_MANIFEST") {
-        let candidate = PathBuf::from(explicit);
-        if candidate.exists() {
-            return Some(candidate);
+    // Prefer the CLI/runtime bundle env var, but keep the legacy driver name for compatibility.
+    for env_var in ["KAIN_RUNTIME_MANIFEST_PATH", "KAIN_RUNTIME_MANIFEST"] {
+        if let Ok(explicit) = std::env::var(env_var) {
+            let candidate = PathBuf::from(explicit);
+            if candidate.exists() {
+                return Some(candidate);
+            }
         }
     }
 
@@ -1236,14 +1238,20 @@ component App():
             let version_json = fs::read_to_string(version_path).expect("runtime version");
             let version: RuntimeVersionMetadata =
                 serde_json::from_str(&version_json).expect("parse runtime version");
-            let expected = bundle.runtime_version.as_ref().expect("bundle runtime version");
+            let expected = bundle
+                .runtime_version
+                .as_ref()
+                .expect("bundle runtime version");
             assert_eq!(version.runtime_major, expected.runtime_major);
             assert_eq!(version.runtime_minor, expected.runtime_minor);
             assert_eq!(version.runtime_patch, expected.runtime_patch);
             assert_eq!(version.abi_major, expected.abi_major);
             assert_eq!(version.abi_minor, expected.abi_minor);
             assert_eq!(version.abi_patch, expected.abi_patch);
-            assert_eq!(version.runtime_version_string, expected.runtime_version_string);
+            assert_eq!(
+                version.runtime_version_string,
+                expected.runtime_version_string
+            );
             assert_eq!(version.abi_version_string, expected.abi_version_string);
             assert_eq!(version.compatibility_class, expected.compatibility_class);
             assert_eq!(version.runtime_lane, expected.runtime_lane);

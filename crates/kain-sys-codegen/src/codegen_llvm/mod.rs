@@ -10,6 +10,7 @@ use kain_core::ast::{
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram};
+use kain_core::Span;
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
 };
@@ -473,6 +474,115 @@ impl LlvmGenerator {
         } else {
             self.compile_expr(expr)
         }
+    }
+
+    fn align_abi_size(size: usize, align: usize) -> usize {
+        if align <= 1 {
+            size
+        } else {
+            size.div_ceil(align) * align
+        }
+    }
+
+    fn abi_layout_for_ty(&self, ty: &str, span: Span) -> KainResult<(usize, usize)> {
+        match ty {
+            "i1" | "i8" => Ok((1, 1)),
+            "i64" | "double" => Ok((8, 8)),
+            "void" => Err(KainError::codegen(
+                "Cannot compute runtime memory layout for void",
+                span,
+            )),
+            _ if ty.ends_with('*') => Ok((8, 8)),
+            _ if ty.starts_with('%') => {
+                let struct_name = ty.trim_start_matches('%');
+                let fields = self.struct_defs.get(struct_name).ok_or_else(|| {
+                    KainError::codegen(format!("Unknown LLVM struct layout: {}", struct_name), span)
+                })?;
+                let mut size = 0usize;
+                let mut max_align = 1usize;
+                for (_, field_ty) in fields {
+                    let (field_size, field_align) = self.abi_layout_for_ty(field_ty, span)?;
+                    size = Self::align_abi_size(size, field_align);
+                    size += field_size;
+                    max_align = max_align.max(field_align);
+                }
+                Ok((Self::align_abi_size(size, max_align), max_align))
+            }
+            _ => Err(KainError::codegen(
+                format!("Unsupported LLVM runtime memory layout for type {}", ty),
+                span,
+            )),
+        }
+    }
+
+    fn compile_runtime_mem_load(
+        &mut self,
+        pointer: &Expr,
+        load_ty: &str,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let (ptr, ptr_ty) = self.compile_expr(pointer)?;
+        let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+        let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
+
+        let ptr_i8 = self.next_reg();
+        self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
+
+        let temp_ptr = self.next_reg();
+        self.emit(&format!("  {} = alloca {}", temp_ptr, load_ty));
+
+        let temp_i8 = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast {}* {} to i8*",
+            temp_i8, load_ty, temp_ptr
+        ));
+
+        self.emit(&format!(
+            "  call void @__kain_mem_load(i8* {}, i8* {}, i64 {})",
+            ptr_i8, temp_i8, load_size
+        ));
+
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}",
+            loaded, load_ty, load_ty, temp_ptr
+        ));
+        Ok((loaded, load_ty.to_string()))
+    }
+
+    fn compile_runtime_mem_store(
+        &mut self,
+        pointer: &Expr,
+        value: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let (ptr, ptr_ty) = self.compile_expr(pointer)?;
+        let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+        let (stored_value, stored_ty) = self.compile_expr(value)?;
+        let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
+
+        let ptr_i8 = self.next_reg();
+        self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
+
+        let temp_ptr = self.next_reg();
+        self.emit(&format!("  {} = alloca {}", temp_ptr, stored_ty));
+        self.emit(&format!(
+            "  store {} {}, {}* {}",
+            stored_ty, stored_value, stored_ty, temp_ptr
+        ));
+
+        let temp_i8 = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast {}* {} to i8*",
+            temp_i8, stored_ty, temp_ptr
+        ));
+
+        self.emit(&format!(
+            "  call void @__kain_mem_store(i8* {}, i8* {}, i64 {})",
+            ptr_i8, temp_i8, store_size
+        ));
+
+        Ok((stored_value, stored_ty))
     }
 
     fn coerce_to_i64_storage(&mut self, val: &str, ty: &str) -> String {
@@ -1176,7 +1286,10 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = bitcast {}* {} to i8*", ptr_i8, ty, addr));
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_bind_local(i8* {})", result, ptr_i8));
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_bind_local(i8* {})",
+                    result, ptr_i8
+                ));
                 // Convert back to i64 for compatibility with existing codegen
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1209,7 +1322,10 @@ impl LlvmGenerator {
                 };
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_addr_of(i8* {}, i64 {})", result, ptr_i8, size));
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_addr_of(i8* {}, i64 {})",
+                    result, ptr_i8, size
+                ));
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1218,58 +1334,24 @@ impl LlvmGenerator {
             "__kain_mem_load" => {
                 // Canonical ABI: void __kain_mem_load(i8* ptr, i8* out, i64 size)
                 // Requirements: 1.4, 3.2
-                // Current implementation uses simplified inline load for i64
-                // TODO: Align with canonical ABI when native runtime implements __kain_mem_load
                 if args.len() != 1 {
                     return Some(Err(KainError::codegen(
                         "__kain_mem_load expects 1 argument",
                         span,
                     )));
                 }
-                let compiled = match self.compile_expr(&args[0].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled.0, &compiled.1);
-                let typed_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = inttoptr i64 {} to i64*",
-                    typed_ptr, ptr_i64
-                ));
-                let loaded = self.next_reg();
-                self.emit(&format!("  {} = load i64, i64* {}", loaded, typed_ptr));
-                Some(Ok((loaded, "i64".to_string())))
+                Some(self.compile_runtime_mem_load(&args[0].value, "i64", span))
             }
             "__kain_mem_store" => {
                 // Canonical ABI: void __kain_mem_store(i8* ptr, i8* value, i64 size)
                 // Requirements: 1.4, 3.2
-                // Current implementation uses simplified inline store
-                // TODO: Align with canonical ABI when native runtime implements __kain_mem_store
                 if args.len() != 2 {
                     return Some(Err(KainError::codegen(
                         "__kain_mem_store expects 2 arguments",
                         span,
                     )));
                 }
-                let compiled_ptr = match self.compile_expr(&args[0].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
-                let (val, val_ty) = match self.compile_expr(&args[1].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let typed_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = inttoptr i64 {} to {}*",
-                    typed_ptr, ptr_i64, val_ty
-                ));
-                self.emit(&format!(
-                    "  store {} {}, {}* {}",
-                    val_ty, val, val_ty, typed_ptr
-                ));
-                Some(Ok((val, val_ty)))
+                Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span))
             }
             "__kain_field_ptr" => {
                 // Canonical ABI: i8* __kain_field_ptr(i8* ptr, const char* field, size_t offset)
@@ -1285,28 +1367,33 @@ impl LlvmGenerator {
                     Err(err) => return Some(Err(err)),
                 };
                 let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1);
-                
+
                 // Get field name (for diagnostics, not used in calculation)
                 let field_name = match &args[1].value {
                     Expr::String(s, _) => s.clone(),
                     _ => "unknown".to_string(),
                 };
                 let (field_str, _) = self.compile_string_literal(&field_name);
-                
+
                 let (offset, _) = match self.compile_expr(&args[2].value) {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                
+
                 // Cast base to i8*
                 let base_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i8*", base_ptr, base_i64));
-                
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i8*",
+                    base_ptr, base_i64
+                ));
+
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_field_ptr(i8* {}, i8* {}, i64 {})", 
-                    result, base_ptr, field_str, offset));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_field_ptr(i8* {}, i8* {}, i64 {})",
+                    result, base_ptr, field_str, offset
+                ));
+
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1334,16 +1421,21 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                
+
                 // Cast base to i8*
                 let base_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i8*", base_ptr, base_i64));
-                
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i8*",
+                    base_ptr, base_i64
+                ));
+
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_index_ptr(i8* {}, i64 {}, i64 {})", 
-                    result, base_ptr, index, stride));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_index_ptr(i8* {}, i64 {}, i64 {})",
+                    result, base_ptr, index, stride
+                ));
+
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1371,16 +1463,21 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                
+
                 // Cast base to i8*
                 let base_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i8*", base_ptr, base_i64));
-                
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i8*",
+                    base_ptr, base_i64
+                ));
+
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_ptr_offset(i8* {}, i64 {}, i64 {})", 
-                    result, base_ptr, offset, stride));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_ptr_offset(i8* {}, i64 {}, i64 {})",
+                    result, base_ptr, offset, stride
+                ));
+
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1407,12 +1504,14 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                
+
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_alloc(i64 {}, i64 {}, i32 {})", 
-                    result, size, stride, zeroed));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_alloc(i64 {}, i64 {}, i32 {})",
+                    result, size, stride, zeroed
+                ));
+
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1444,16 +1543,18 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                
+
                 // Cast to i8*
                 let ptr_i8 = self.next_reg();
                 self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-                
+
                 // Call canonical helper
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @__kain_realloc(i8* {}, i64 {}, i64 {}, i32 {})", 
-                    result, ptr_i8, size, stride, zeroed_new));
-                
+                self.emit(&format!(
+                    "  {} = call i8* @__kain_realloc(i8* {}, i64 {}, i64 {}, i32 {})",
+                    result, ptr_i8, size, stride, zeroed_new
+                ));
+
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
@@ -1966,7 +2067,7 @@ impl LlvmGenerator {
     }
 
     fn emit_runtime(&mut self) {
-        // Runtime implemented in C (KAIN_runtime.c)
+        // Runtime implemented by the manifest-driven native C bundle under runtime/native.
     }
 
     fn emit_externs(&mut self) {
@@ -2723,8 +2824,15 @@ impl LlvmGenerator {
                 .compile_block_with_result(block)
                 .map(|res| res.unwrap_or(("0".into(), "i64".into()))),
             Expr::Cast { value, target, .. } => {
-                let (val, src_ty) = self.compile_expr(value)?;
                 let dst_ty = self.map_type_from_ast(target);
+                if let Expr::Call { callee, args, span } = value.as_ref() {
+                    if let Expr::Ident(name, _) = callee.as_ref() {
+                        if name == "__kain_mem_load" && args.len() == 1 {
+                            return self.compile_runtime_mem_load(&args[0].value, &dst_ty, *span);
+                        }
+                    }
+                }
+                let (val, src_ty) = self.compile_expr(value)?;
                 if src_ty == dst_ty {
                     Ok((val, dst_ty))
                 } else if src_ty == "i64" && dst_ty == "double" {
@@ -2806,36 +2914,20 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = add i64 {}, {}", res, base_i64, scaled));
                 Ok((res, "i64".into()))
             }
-            Expr::MemLoad { pointer, .. } => {
-                let call = Expr::Call {
-                    callee: Box::new(Expr::Ident("__kain_mem_load".to_string(), pointer.span())),
-                    args: vec![kain_core::ast::CallArg {
-                        name: None,
-                        value: (**pointer).clone(),
-                        span: pointer.span(),
-                    }],
-                    span: pointer.span(),
-                };
-                self.compile_expr(&call)
+            Expr::MemLoad {
+                pointer,
+                load_ty,
+                span,
+                ..
+            } => {
+                let target_ty = load_ty
+                    .as_ref()
+                    .map(|ty| self.map_type_from_ast(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                self.compile_runtime_mem_load(pointer, &target_ty, *span)
             }
             Expr::MemStore { pointer, value, .. } => {
-                let call = Expr::Call {
-                    callee: Box::new(Expr::Ident("__kain_mem_store".to_string(), value.span())),
-                    args: vec![
-                        kain_core::ast::CallArg {
-                            name: None,
-                            value: (**pointer).clone(),
-                            span: pointer.span(),
-                        },
-                        kain_core::ast::CallArg {
-                            name: None,
-                            value: (**value).clone(),
-                            span: value.span(),
-                        },
-                    ],
-                    span: value.span(),
-                };
-                self.compile_expr(&call)
+                self.compile_runtime_mem_store(pointer, value, value.span())
             }
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
