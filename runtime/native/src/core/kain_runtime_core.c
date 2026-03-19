@@ -1,9 +1,12 @@
 #include "../../include/kain_runtime_base.h"
 #include "../../include/kain_runtime_diagnostics.h"
+#include <ctype.h>
 
 static RcHeader* get_header(void* ptr) {
     return ((RcHeader*)ptr) - 1;
 }
+
+void* kain_alloc_rc(size_t size, long long type_tag);
 
 /* Global diagnostic for last error (thread-unsafe, but matches current runtime model) */
 static KainDiagnostic g_last_diagnostic;
@@ -23,6 +26,20 @@ static void emit_diagnostic(
     if (severity >= KAIN_DIAG_SEVERITY_ERROR) {
         kain_diagnostic_print(&g_last_diagnostic);
     }
+}
+
+static char* kain_string_new_with_len(const char* src, size_t len) {
+    char* buf = (char*)kain_alloc_rc(len + 1, 1);
+    if (!buf) return NULL;
+    if (src && len > 0) {
+        memcpy(buf, src, len);
+    }
+    buf[len] = '\0';
+    return buf;
+}
+
+static int kain_char_is_space(char c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' || c == '\v';
 }
 
 void array_free_elems(void* ptr);
@@ -468,6 +485,252 @@ void file_write(char* path, char* content) {
 
 void write_file(char* path, char* content) {
     file_write(path, content);
+}
+
+char* read_line(void) {
+    char buffer[8192];
+    size_t len;
+    if (!fgets(buffer, (int)sizeof(buffer), stdin)) {
+        return string_new("");
+    }
+    len = strlen(buffer);
+    while (len > 0 && (buffer[len - 1] == '\n' || buffer[len - 1] == '\r')) {
+        len--;
+    }
+    return kain_string_new_with_len(buffer, len);
+}
+
+void stdout_write(char* text) {
+    if (!text) return;
+    fputs(text, stdout);
+    fflush(stdout);
+}
+
+char* stdin_read_exact(long long length) {
+    size_t remaining;
+    size_t offset = 0;
+    char* buffer;
+    if (length <= 0) {
+        return string_new("");
+    }
+    remaining = (size_t)length;
+    buffer = (char*)kain_alloc_rc(remaining + 1, 1);
+    if (!buffer) {
+        return NULL;
+    }
+    while (remaining > 0) {
+        size_t read_count = fread(buffer + offset, 1, remaining, stdin);
+        if (read_count == 0) {
+            break;
+        }
+        offset += read_count;
+        remaining -= read_count;
+    }
+    buffer[offset] = '\0';
+    return buffer;
+}
+
+int file_exists(char* path) {
+    if (!path || !path[0]) return 0;
+#ifdef _WIN32
+    {
+        DWORD attrs = GetFileAttributesA(path);
+        return attrs != INVALID_FILE_ATTRIBUTES;
+    }
+#else
+    return access(path, F_OK) == 0;
+#endif
+}
+
+char* env(char* name) {
+    if (!name || !name[0]) {
+        return string_new("");
+    }
+#ifdef _WIN32
+    {
+        char* value = NULL;
+        size_t length = 0;
+        if (_dupenv_s(&value, &length, name) != 0 || !value) {
+            free(value);
+            return string_new("");
+        }
+        if (!value[0]) {
+            free(value);
+            return string_new("");
+        }
+        {
+            char* result = string_new(value);
+            free(value);
+            return result;
+        }
+    }
+#else
+    {
+        const char* value = getenv(name);
+        if (!value || !value[0]) {
+            return string_new("");
+        }
+        return string_new((char*)value);
+    }
+#endif
+}
+
+char* trim(char* s) {
+    const char* start;
+    const char* end;
+    if (!s) {
+        return string_new("");
+    }
+    start = s;
+    while (*start && kain_char_is_space(*start)) {
+        start++;
+    }
+    end = start + strlen(start);
+    while (end > start && kain_char_is_space(*(end - 1))) {
+        end--;
+    }
+    return kain_string_new_with_len(start, (size_t)(end - start));
+}
+
+char* to_upper(char* s) {
+    size_t i;
+    size_t len;
+    char* out;
+    if (!s) {
+        return string_new("");
+    }
+    len = strlen(s);
+    out = (char*)kain_alloc_rc(len + 1, 1);
+    if (!out) return NULL;
+    for (i = 0; i < len; ++i) {
+        out[i] = (char)toupper((unsigned char)s[i]);
+    }
+    out[len] = '\0';
+    return out;
+}
+
+char* to_lower(char* s) {
+    size_t i;
+    size_t len;
+    char* out;
+    if (!s) {
+        return string_new("");
+    }
+    len = strlen(s);
+    out = (char*)kain_alloc_rc(len + 1, 1);
+    if (!out) return NULL;
+    for (i = 0; i < len; ++i) {
+        out[i] = (char)tolower((unsigned char)s[i]);
+    }
+    out[len] = '\0';
+    return out;
+}
+
+int contains(char* s, char* sub) {
+    if (!s || !sub) return 0;
+    return strstr(s, sub) != NULL;
+}
+
+int starts_with(char* s, char* prefix) {
+    size_t prefix_len;
+    if (!s || !prefix) return 0;
+    prefix_len = strlen(prefix);
+    return strncmp(s, prefix, prefix_len) == 0;
+}
+
+int ends_with(char* s, char* suffix) {
+    size_t s_len;
+    size_t suffix_len;
+    if (!s || !suffix) return 0;
+    s_len = strlen(s);
+    suffix_len = strlen(suffix);
+    if (suffix_len > s_len) return 0;
+    return strncmp(s + (s_len - suffix_len), suffix, suffix_len) == 0;
+}
+
+char* char_at(char* s, long long index) {
+    size_t s_len;
+    char ch;
+    if (!s || index < 0) {
+        return string_new("");
+    }
+    s_len = strlen(s);
+    if ((size_t)index >= s_len) {
+        return string_new("");
+    }
+    ch = s[index];
+    return kain_string_new_with_len(&ch, 1);
+}
+
+char* substring(char* s, long long start, long long end) {
+    size_t s_len;
+    size_t slice_start;
+    size_t slice_end;
+    if (!s) {
+        return string_new("");
+    }
+    s_len = strlen(s);
+    if (start < 0) start = 0;
+    if (end < 0 || (size_t)end > s_len) end = (long long)s_len;
+    if ((size_t)start > s_len) start = (long long)s_len;
+    if (end < start) end = start;
+    slice_start = (size_t)start;
+    slice_end = (size_t)end;
+    return kain_string_new_with_len(s + slice_start, slice_end - slice_start);
+}
+
+char* replace(char* s, char* from, char* to) {
+    const char* cursor;
+    const char* match;
+    size_t source_len;
+    size_t from_len;
+    size_t to_len;
+    size_t final_len = 0;
+    size_t replacements = 0;
+    char* out;
+    char* write_cursor;
+    if (!s) return string_new("");
+    if (!from || !from[0]) return string_new(s);
+    if (!to) to = "";
+
+    source_len = strlen(s);
+    from_len = strlen(from);
+    to_len = strlen(to);
+    cursor = s;
+    while ((match = strstr(cursor, from)) != NULL) {
+        final_len += (size_t)(match - cursor);
+        final_len += to_len;
+        cursor = match + from_len;
+        replacements++;
+    }
+    final_len += strlen(cursor);
+    if (replacements == 0) {
+        return string_new(s);
+    }
+    out = (char*)kain_alloc_rc(final_len + 1, 1);
+    if (!out) return NULL;
+    write_cursor = out;
+    cursor = s;
+    while ((match = strstr(cursor, from)) != NULL) {
+        size_t prefix_len = (size_t)(match - cursor);
+        if (prefix_len > 0) {
+            memcpy(write_cursor, cursor, prefix_len);
+            write_cursor += prefix_len;
+        }
+        if (to_len > 0) {
+            memcpy(write_cursor, to, to_len);
+            write_cursor += to_len;
+        }
+        cursor = match + from_len;
+    }
+    if (*cursor) {
+        size_t tail_len = strlen(cursor);
+        memcpy(write_cursor, cursor, tail_len);
+        write_cursor += tail_len;
+    }
+    *write_cursor = '\0';
+    (void)source_len;
+    return out;
 }
 
 long long len(void* value) {

@@ -1308,6 +1308,16 @@ impl Env {
             }
         });
 
+        self.define_native("to_upper", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("to_upper: expected 1 argument (string)"));
+            }
+            match &args[0] {
+                Value::String(s) => Ok(Value::String(s.to_uppercase())),
+                _ => Err(KainError::runtime("to_upper: argument must be a string")),
+            }
+        });
+
         self.define_native("upper", |_env, args| {
             if args.len() != 1 {
                 return Err(KainError::runtime("upper: expected 1 argument (string)"));
@@ -1315,6 +1325,16 @@ impl Env {
             match &args[0] {
                 Value::String(s) => Ok(Value::String(s.to_uppercase())),
                 _ => Err(KainError::runtime("upper: argument must be a string")),
+            }
+        });
+
+        self.define_native("to_lower", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("to_lower: expected 1 argument (string)"));
+            }
+            match &args[0] {
+                Value::String(s) => Ok(Value::String(s.to_lowercase())),
+                _ => Err(KainError::runtime("to_lower: argument must be a string")),
             }
         });
 
@@ -1715,6 +1735,58 @@ impl Env {
             let mut line = String::new();
             stdin.lock().read_line(&mut line).ok();
             Ok(Value::String(line.trim_end().to_string()))
+        });
+
+        self.define_native("stdout_write", |_env, args| {
+            use std::io::{self, Write};
+            if args.len() != 1 {
+                return Err(KainError::runtime(
+                    "stdout_write: expected 1 argument (string)",
+                ));
+            }
+            let text = match &args[0] {
+                Value::String(text) => text,
+                _ => return Err(KainError::runtime("stdout_write: argument must be string")),
+            };
+            let mut stdout = io::stdout().lock();
+            stdout
+                .write_all(text.as_bytes())
+                .map_err(|err| KainError::runtime(format!("stdout_write failed: {}", err)))?;
+            stdout.flush().map_err(|err| {
+                KainError::runtime(format!("stdout_write flush failed: {}", err))
+            })?;
+            Ok(Value::Unit)
+        });
+
+        self.define_native("stdin_read_exact", |_env, args| {
+            use std::io::{self, Read};
+            if args.len() != 1 {
+                return Err(KainError::runtime(
+                    "stdin_read_exact: expected 1 argument (length)",
+                ));
+            }
+            let length = match &args[0] {
+                Value::Int(length) if *length >= 0 => *length as usize,
+                Value::Int(_) => {
+                    return Err(KainError::runtime(
+                        "stdin_read_exact: length must be non-negative",
+                    ))
+                }
+                _ => {
+                    return Err(KainError::runtime(
+                        "stdin_read_exact: argument must be an integer",
+                    ))
+                }
+            };
+            let mut stdin = io::stdin().lock();
+            let mut buffer = vec![0u8; length];
+            stdin
+                .read_exact(&mut buffer)
+                .map_err(|err| KainError::runtime(format!("stdin_read_exact failed: {}", err)))?;
+            let text = String::from_utf8(buffer).map_err(|err| {
+                KainError::runtime(format!("stdin_read_exact utf8 failed: {}", err))
+            })?;
+            Ok(Value::String(text))
         });
 
         self.define_native("file_exists", |_env, args| {

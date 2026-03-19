@@ -849,6 +849,33 @@ fn native_theme_preset(name: &str) -> NativeAppTheme {
             theme.timeline_mode = NativeSurfaceMode::Accent;
             theme.viewport_mode = NativeSurfaceMode::Canvas;
         }
+        "kade_desktop" | "kade-desktop" => {
+            theme.density = NativeDensity::Spacious;
+            theme.palette = NativeThemePalette {
+                bg_top: Color32::from_rgb(9, 12, 18),
+                bg_bottom: Color32::from_rgb(14, 18, 26),
+                surface_base: Color32::from_rgb(20, 25, 35),
+                surface_alt: Color32::from_rgb(27, 33, 46),
+                surface_raised: Color32::from_rgb(34, 42, 58),
+                surface_overlay: Color32::from_rgba_unmultiplied(11, 14, 20, 224),
+                outline_soft: Color32::from_rgb(70, 78, 95),
+                outline_bright: Color32::from_rgb(232, 171, 94),
+                accent: Color32::from_rgb(223, 146, 74),
+                accent_soft: Color32::from_rgb(245, 194, 135),
+                highlight: Color32::from_rgb(120, 198, 181),
+                success: Color32::from_rgb(126, 203, 145),
+                text: Color32::from_rgb(242, 236, 226),
+                text_muted: Color32::from_rgb(164, 160, 153),
+            };
+            theme.chrome_mode = NativeSurfaceMode::Layered;
+            theme.panel_mode = NativeSurfaceMode::Glass;
+            theme.inspector_mode = NativeSurfaceMode::Flat;
+            theme.tree_mode = NativeSurfaceMode::Ghost;
+            theme.graph_mode = NativeSurfaceMode::Canvas;
+            theme.timeline_mode = NativeSurfaceMode::Accent;
+            theme.viewport_mode = NativeSurfaceMode::Canvas;
+            theme.element_mode = NativeSurfaceMode::Ghost;
+        }
         _ => {}
     }
     theme.metrics = NativeThemeMetrics::from_density(theme.density, 1.0, 1.0);
@@ -1083,6 +1110,19 @@ fn show_runtime_topbar(app_theme: &NativeAppTheme) -> bool {
         ],
     )
     .unwrap_or(true)
+}
+
+fn show_runtime_inspector(app_theme: &NativeAppTheme, default_visible: bool) -> bool {
+    theme_lookup_bool(
+        None,
+        &app_theme.global_values,
+        &[
+            "theme.chrome.inspector.visible",
+            "chrome.inspector.visible",
+            "host.inspector.visible",
+        ],
+    )
+    .unwrap_or(default_visible)
 }
 
 fn resolve_widget_theme(
@@ -1408,6 +1448,20 @@ fn theme_lookup_widget_f32(
         .or_else(|| theme_lookup_f32(None, global, &refs))
 }
 
+fn theme_lookup_widget_bool(
+    local: &UiResolvedTheme,
+    global: &BTreeMap<String, UiValue>,
+    widget_key: &str,
+    variant: Option<&str>,
+    property: &str,
+) -> Option<bool> {
+    let keys = candidate_theme_keys(widget_key, variant, property);
+    let refs = keys.iter().map(String::as_str).collect::<Vec<_>>();
+    let empty = BTreeMap::new();
+    theme_lookup_bool(Some(&local.values), &empty, &refs)
+        .or_else(|| theme_lookup_bool(None, global, &refs))
+}
+
 fn theme_lookup_widget_color(
     local: &UiResolvedTheme,
     global: &BTreeMap<String, UiValue>,
@@ -1572,11 +1626,46 @@ fn parse_theme_color(value: &str) -> Option<Color32> {
 }
 
 fn themed_frame(theme: &NativeWidgetTheme) -> Frame {
+    let stroke_width = match theme.mode {
+        NativeSurfaceMode::Ghost => 0.0,
+        NativeSurfaceMode::Flat => 0.7,
+        NativeSurfaceMode::Layered => 0.8,
+        NativeSurfaceMode::Glass => 0.9,
+        NativeSurfaceMode::Canvas | NativeSurfaceMode::Accent => 1.0,
+    };
     Frame::new()
         .fill(theme.fill)
-        .stroke(Stroke::new(1.0, theme.stroke))
+        .stroke(Stroke::new(stroke_width, theme.stroke))
         .corner_radius(theme.radius)
         .inner_margin(theme.padding)
+}
+
+fn is_product_desktop_theme(
+    app_theme: &NativeAppTheme,
+    snapshot: Option<&NativeAppRuntimeSnapshot>,
+) -> bool {
+    matches!(
+        app_theme.name.trim().to_ascii_lowercase().as_str(),
+        "kade_desktop" | "kade-desktop"
+    ) || snapshot.is_some_and(|value| value.app_id.eq_ignore_ascii_case("kade.desktop"))
+}
+
+fn widget_title_visible(
+    node: &UiNode,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+) -> bool {
+    let local = ui_resolve_theme_for_node(node, theme_registry);
+    let widget_key = widget_kind_key(&node.kind);
+    let variant = node.style.variant.as_deref();
+    theme_lookup_widget_bool(
+        &local,
+        &app_theme.global_values,
+        widget_key,
+        variant,
+        "title.visible",
+    )
+    .unwrap_or(true)
 }
 
 fn apply_runtime_visuals(ctx: &egui::Context, app_theme: &NativeAppTheme) {
@@ -2625,77 +2714,181 @@ impl eframe::App for KainUiNativeApp {
         let animation_delta_ms = (self.frame_dt_seconds * 1000.0).round().clamp(1.0, 64.0) as u32;
         let _ = ui_step_animation_runtime(&mut self.output.systems, animation_delta_ms);
         let theme_registry = self.output.systems.theme_registry.clone();
+        let product_shell =
+            is_product_desktop_theme(&app_theme, self.app_runtime_snapshot.as_ref());
 
         if show_runtime_topbar(&app_theme) {
             trace_runtime("app_update: topbar");
             egui::TopBottomPanel::top("kain_ui_native_topbar")
                 .resizable(false)
                 .show(ctx, |ui| {
+                    let chrome_theme = NativeWidgetTheme::chrome(&app_theme);
                     Frame::new()
-                        .fill(NativeWidgetTheme::chrome(&app_theme).fill)
-                        .stroke(Stroke::new(
-                            1.0,
-                            NativeWidgetTheme::chrome(&app_theme).stroke,
-                        ))
+                        .fill(chrome_theme.fill)
+                        .stroke(Stroke::new(1.0, chrome_theme.stroke))
                         .corner_radius(app_theme.metrics.radius_medium)
                         .inner_margin(app_theme.metrics.tight_padding)
                         .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.heading(
-                                    RichText::new(&self.config.window_title)
-                                        .size(app_theme.typography.heading)
-                                        .color(app_theme.palette.text),
-                                );
-                                ui.add_space(6.0);
-                                ui.label(
-                                    RichText::new(format!(
-                                        "{} nodes  |  {} patches",
-                                        self.output.tree.nodes.len(),
-                                        self.output.patches.len()
-                                    ))
-                                    .monospace()
-                                    .color(app_theme.palette.accent_soft),
-                                );
-                                ui.add_space(6.0);
-                                ui.label(
-                                    RichText::new(format!("boot: {}", self.boot_mode.label()))
-                                        .monospace()
-                                        .color(app_theme.palette.success),
-                                );
-                                ui.add_space(6.0);
-                                ui.label(
-                                    RichText::new(format!("theme: {}", app_theme.name))
-                                        .monospace()
-                                        .color(app_theme.palette.accent),
-                                );
-                                if let Some(snapshot) = &self.app_runtime_snapshot {
-                                    ui.add_space(6.0);
-                                    ui.label(
-                                        RichText::new(format!(
-                                            "sessions: {}  |  provider: {}",
-                                            snapshot.sessions.total_sessions,
-                                            snapshot.sessions.active_provider
-                                        ))
-                                        .monospace()
-                                        .color(app_theme.palette.accent_soft),
-                                    );
-                                }
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    ui.label(
-                                        RichText::new(format!(
-                                            "root: {}",
-                                            self.config.root_component
-                                        ))
-                                        .monospace()
-                                        .color(app_theme.palette.highlight),
-                                    );
+                            if product_shell {
+                                ui.horizontal(|ui| {
+                                    ui.vertical(|ui| {
+                                        ui.label(
+                                            RichText::new(&self.config.window_title)
+                                                .size(app_theme.typography.heading)
+                                                .strong()
+                                                .color(app_theme.palette.text),
+                                        );
+                                        let subtitle = self
+                                            .app_runtime_snapshot
+                                            .as_ref()
+                                            .and_then(|snapshot| {
+                                                snapshot.sessions.recent_session_title.clone()
+                                            })
+                                            .unwrap_or_else(|| {
+                                                "Native agent workspace".to_string()
+                                            });
+                                        ui.label(
+                                            RichText::new(subtitle)
+                                                .size(app_theme.typography.small)
+                                                .color(app_theme.palette.text_muted),
+                                        );
+                                    });
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                        if let Some(snapshot) = &self.app_runtime_snapshot {
+                                            Frame::new()
+                                                .fill(alpha_tint(app_theme.palette.accent, 0.12))
+                                                .stroke(Stroke::new(
+                                                    1.0,
+                                                    app_theme.palette.accent_soft,
+                                                ))
+                                                .corner_radius(app_theme.metrics.radius_medium)
+                                                .inner_margin(app_theme.metrics.tight_padding)
+                                                .show(ui, |ui| {
+                                                    ui.label(
+                                                        RichText::new(
+                                                            snapshot
+                                                                .sessions
+                                                                .active_provider
+                                                                .clone(),
+                                                        )
+                                                        .size(app_theme.typography.small)
+                                                        .color(app_theme.palette.accent_soft),
+                                                    );
+                                                });
+                                            ui.add_space(8.0);
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "{} session{}",
+                                                    snapshot.sessions.total_sessions,
+                                                    if snapshot.sessions.total_sessions == 1 {
+                                                        ""
+                                                    } else {
+                                                        "s"
+                                                    }
+                                                ))
+                                                .size(app_theme.typography.small)
+                                                .color(app_theme.palette.text_muted),
+                                            );
+                                        }
+                                    });
                                 });
-                            });
+                            } else {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.heading(
+                                        RichText::new(&self.config.window_title)
+                                            .size(app_theme.typography.heading)
+                                            .color(app_theme.palette.text),
+                                    );
+                                    ui.add_space(10.0);
+                                    Frame::new()
+                                        .fill(alpha_tint(app_theme.palette.accent, 0.12))
+                                        .stroke(Stroke::new(1.0, app_theme.palette.accent_soft))
+                                        .corner_radius(app_theme.metrics.radius_medium)
+                                        .inner_margin(app_theme.metrics.tight_padding)
+                                        .show(ui, |ui| {
+                                            ui.label(
+                                                RichText::new("native agent desktop")
+                                                    .size(app_theme.typography.small)
+                                                    .color(app_theme.palette.accent_soft),
+                                            );
+                                        });
+                                    if let Some(snapshot) = &self.app_runtime_snapshot {
+                                        ui.add_space(8.0);
+                                        Frame::new()
+                                            .fill(alpha_tint(
+                                                app_theme.palette.surface_overlay,
+                                                0.92,
+                                            ))
+                                            .stroke(Stroke::new(
+                                                1.0,
+                                                app_theme.palette.outline_soft,
+                                            ))
+                                            .corner_radius(app_theme.metrics.radius_medium)
+                                            .inner_margin(app_theme.metrics.tight_padding)
+                                            .show(ui, |ui| {
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "{} sessions",
+                                                        snapshot.sessions.total_sessions
+                                                    ))
+                                                    .size(app_theme.typography.small)
+                                                    .color(app_theme.palette.text),
+                                                );
+                                            });
+                                        Frame::new()
+                                            .fill(alpha_tint(app_theme.palette.highlight, 0.12))
+                                            .stroke(Stroke::new(1.0, app_theme.palette.highlight))
+                                            .corner_radius(app_theme.metrics.radius_medium)
+                                            .inner_margin(app_theme.metrics.tight_padding)
+                                            .show(ui, |ui| {
+                                                ui.label(
+                                                    RichText::new(
+                                                        snapshot.sessions.active_provider.clone(),
+                                                    )
+                                                    .size(app_theme.typography.small)
+                                                    .color(app_theme.palette.highlight),
+                                                );
+                                            });
+                                        if let Some(session) =
+                                            snapshot.sessions.recent_session_title.as_deref()
+                                        {
+                                            ui.label(
+                                                RichText::new(session)
+                                                    .size(app_theme.typography.body)
+                                                    .color(app_theme.palette.text_muted),
+                                            );
+                                        }
+                                    }
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                        Frame::new()
+                                            .fill(alpha_tint(
+                                                app_theme.palette.surface_overlay,
+                                                0.82,
+                                            ))
+                                            .stroke(Stroke::new(
+                                                1.0,
+                                                app_theme.palette.outline_soft,
+                                            ))
+                                            .corner_radius(app_theme.metrics.radius_medium)
+                                            .inner_margin(app_theme.metrics.tight_padding)
+                                            .show(ui, |ui| {
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "root {}",
+                                                        self.config.root_component
+                                                    ))
+                                                    .size(app_theme.typography.small)
+                                                    .color(app_theme.palette.text_muted),
+                                                );
+                                            });
+                                    });
+                                });
+                            }
                         });
                 });
         }
 
-        if self.runtime_settings.show_runtime_inspector {
+        if show_runtime_inspector(&app_theme, self.runtime_settings.show_runtime_inspector) {
             trace_runtime("app_update: inspector");
             egui::SidePanel::right("kain_ui_native_inspector")
                 .default_width(match app_theme.density {
@@ -2998,6 +3191,7 @@ fn render_node(
 
     ui.scope(|ui| {
         let presentation = resolve_node_presentation(&app.output, node);
+        let product_shell = is_product_desktop_theme(app_theme, app.app_runtime_snapshot.as_ref());
         if presentation.translate_y > f32::EPSILON {
             ui.add_space(presentation.translate_y);
         }
@@ -3013,14 +3207,17 @@ fn render_node(
                     resolve_widget_theme(node, theme_registry, app_theme),
                     presentation,
                 );
+                let show_title = widget_title_visible(node, theme_registry, app_theme);
                 themed_frame(&theme).show(ui, |ui| {
-                    ui.label(
-                        RichText::new(title)
-                            .strong()
-                            .size(theme.title_size)
-                            .color(theme.title_color),
-                    );
-                    ui.add_space(theme.gap * 0.8);
+                    if show_title {
+                        ui.label(
+                            RichText::new(title)
+                                .strong()
+                                .size(theme.title_size)
+                                .color(theme.title_color),
+                        );
+                        ui.add_space(theme.gap * 0.8);
+                    }
                     render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
                 });
             }
@@ -3030,17 +3227,31 @@ fn render_node(
                     resolve_widget_theme(node, theme_registry, app_theme),
                     presentation,
                 );
+                let show_title = widget_title_visible(node, theme_registry, app_theme);
                 themed_frame(&theme).show(ui, |ui| {
-                    egui::CollapsingHeader::new(
-                        RichText::new(title)
-                            .strong()
-                            .size(theme.title_size)
-                            .color(theme.title_color),
-                    )
-                    .default_open(true)
-                    .show(ui, |ui| {
+                    if product_shell {
+                        if show_title {
+                            ui.label(
+                                RichText::new(title)
+                                    .size(theme.title_size)
+                                    .strong()
+                                    .color(theme.title_color),
+                            );
+                            ui.add_space(theme.gap * 0.55);
+                        }
                         render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                    });
+                    } else {
+                        egui::CollapsingHeader::new(
+                            RichText::new(title)
+                                .strong()
+                                .size(theme.title_size)
+                                .color(theme.title_color),
+                        )
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                        });
+                    }
                 });
             }
             UiWidgetKind::Tree => {
@@ -3049,16 +3260,29 @@ fn render_node(
                     resolve_widget_theme(node, theme_registry, app_theme),
                     presentation,
                 );
+                let show_title = widget_title_visible(node, theme_registry, app_theme);
                 themed_frame(&theme).show(ui, |ui| {
-                    egui::CollapsingHeader::new(
-                        RichText::new(title)
-                            .size(theme.title_size)
-                            .color(theme.title_color),
-                    )
-                    .default_open(true)
-                    .show(ui, |ui| {
+                    if product_shell {
+                        if show_title {
+                            ui.label(
+                                RichText::new(title)
+                                    .size(theme.title_size)
+                                    .color(theme.title_color),
+                            );
+                            ui.add_space(theme.gap * 0.45);
+                        }
                         render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                    });
+                    } else {
+                        egui::CollapsingHeader::new(
+                            RichText::new(title)
+                                .size(theme.title_size)
+                                .color(theme.title_color),
+                        )
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                        });
+                    }
                 });
             }
             UiWidgetKind::Graph => {
@@ -3140,14 +3364,16 @@ fn render_node(
                 );
             }
             UiWidgetKind::ComponentRef(name) => {
-                ui.label(
-                    RichText::new(format!("component {name}"))
-                        .monospace()
-                        .color(apply_node_presentation_to_color(
-                            app_theme.palette.highlight,
-                            presentation,
-                        )),
-                );
+                if !product_shell {
+                    ui.label(
+                        RichText::new(format!("component {name}"))
+                            .monospace()
+                            .color(apply_node_presentation_to_color(
+                                app_theme.palette.highlight,
+                                presentation,
+                            )),
+                    );
+                }
                 render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
             }
             UiWidgetKind::Element(tag) => {
@@ -3156,11 +3382,13 @@ fn render_node(
                     presentation,
                 );
                 themed_frame(&theme).show(ui, |ui| {
-                    ui.small(
-                        RichText::new(format!("<{tag}>"))
-                            .monospace()
-                            .color(theme.tag_color),
-                    );
+                    if !product_shell {
+                        ui.small(
+                            RichText::new(format!("<{tag}>"))
+                                .monospace()
+                                .color(theme.tag_color),
+                        );
+                    }
                     render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
                 });
             }

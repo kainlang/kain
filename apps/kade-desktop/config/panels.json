@@ -3,7 +3,7 @@
   "panels": [
     {
       "id": "workspace_rail",
-      "title": "Workspace",
+      "title": "Navigator",
       "dock": "left",
       "kind": "tree",
       "split_ratio": 0.23,
@@ -12,13 +12,13 @@
     },
     {
       "id": "chat_surface",
-      "title": "Chat Surface",
+      "title": "Assistant",
       "dock": "center",
       "kind": "conversation"
     },
     {
       "id": "control_plane",
-      "title": "Control Plane",
+      "title": "Workspace",
       "dock": "right",
       "kind": "inspector",
       "split_ratio": 0.25,
@@ -27,7 +27,7 @@
     },
     {
       "id": "execution_lane",
-      "title": "Execution",
+      "title": "Access",
       "dock": "bottom",
       "kind": "timeline",
       "split_ratio": 0.24,

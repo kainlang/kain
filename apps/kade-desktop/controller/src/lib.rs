@@ -811,10 +811,10 @@ fn truncate_message_preview(value: &str, max_chars: usize) -> String {
 }
 
 fn render_generated_shell(snapshot: &RuntimeSnapshot) -> String {
-    let workspace_title = panel_title(snapshot, "workspace_rail", "Workspace");
-    let chat_title = panel_title(snapshot, "chat_surface", "Chat Surface");
-    let control_title = panel_title(snapshot, "control_plane", "Control Plane");
-    let execution_title = panel_title(snapshot, "execution_lane", "Execution");
+    let workspace_title = panel_title(snapshot, "workspace_rail", "Navigator");
+    let chat_title = panel_title(snapshot, "chat_surface", "Assistant");
+    let control_title = panel_title(snapshot, "control_plane", "Workspace");
+    let execution_title = panel_title(snapshot, "execution_lane", "Access");
     let workspace_lines = if snapshot.workspaces.is_empty() {
         vec![render_text_line(
             "muted",
@@ -824,26 +824,30 @@ fn render_generated_shell(snapshot: &RuntimeSnapshot) -> String {
         snapshot
             .workspaces
             .iter()
-            .map(|workspace| {
-                render_text_line(
-                    "muted",
-                    &format!(
-                        "{} | sessions={} | recent={}",
-                        workspace.root,
-                        workspace.session_count,
-                        workspace
-                            .recent_session_title
-                            .as_deref()
-                            .unwrap_or("<none>")
+            .flat_map(|workspace| {
+                vec![
+                    render_text_line("title", &workspace.root),
+                    render_text_line(
+                        "caption",
+                        &format!(
+                            "{} sessions  |  recent {}",
+                            workspace.session_count,
+                            workspace.recent_session_title.as_deref().unwrap_or("none")
+                        ),
                     ),
-                )
+                ]
             })
             .collect()
     };
     let capability_lines = snapshot
         .required_runtime_capabilities
         .iter()
-        .map(|capability| render_text_line("caption", capability))
+        .map(|capability| {
+            render_text_line(
+                "caption",
+                &format!("{} ready", capability.replace('.', " / ")),
+            )
+        })
         .collect::<Vec<_>>();
     let session_lines = if snapshot.recent_sessions.is_empty() {
         vec![render_text_line("muted", "No chat sessions yet.")]
@@ -852,18 +856,18 @@ fn render_generated_shell(snapshot: &RuntimeSnapshot) -> String {
             .recent_sessions
             .iter()
             .flat_map(|session| {
-                let mut lines = vec![render_text_line(
-                    "metric",
+                let mut lines = vec![render_text_line("title", &session.title)];
+                lines.push(render_text_line(
+                    "caption",
                     &format!(
-                        "{} [{}] provider={} messages={}",
-                        session.title, session.id, session.provider_id, session.message_count
+                        "{}  |  {} message{}",
+                        session.provider_id,
+                        session.message_count,
+                        if session.message_count == 1 { "" } else { "s" }
                     ),
-                )];
+                ));
                 if let Some(workspace_root) = &session.workspace_root {
-                    lines.push(render_text_line(
-                        "muted",
-                        &format!("workspace={workspace_root}"),
-                    ));
+                    lines.push(render_text_line("body", workspace_root));
                 }
                 if let Some(preview) = &session.last_message_preview {
                     let role = session.last_message_role.as_deref().unwrap_or("message");
@@ -876,55 +880,62 @@ fn render_generated_shell(snapshot: &RuntimeSnapshot) -> String {
     let provider_lines = snapshot
         .providers
         .iter()
-        .map(|provider| {
+        .flat_map(|provider| {
             let configured = if provider.profile_configured {
-                format!("configured keys={}", provider.profile_keys.join(","))
+                format!("configured  |  keys {}", provider.profile_keys.join(", "))
             } else {
-                "no_profile".to_string()
+                "needs profile".to_string()
             };
-            render_text_line(
-                if provider.active { "metric" } else { "muted" },
-                &format!(
-                    "{} [{}] transport={} profile={} tools={} streaming={} {}",
-                    provider.label,
-                    provider.id,
-                    provider.transport,
-                    provider.profile_kind,
-                    provider.supports_tools,
-                    provider.supports_streaming,
-                    configured
+            vec![
+                render_text_line(
+                    if provider.active { "title" } else { "body" },
+                    &provider.label,
                 ),
-            )
+                render_text_line(
+                    "caption",
+                    &format!(
+                        "{}  |  {}  |  tools {}  |  streaming {}",
+                        provider.transport,
+                        provider.profile_kind,
+                        if provider.supports_tools { "on" } else { "off" },
+                        if provider.supports_streaming {
+                            "on"
+                        } else {
+                            "off"
+                        }
+                    ),
+                ),
+                render_text_line("caption", &configured),
+            ]
         })
         .collect::<Vec<_>>();
     let command_lines = snapshot
         .commands
         .iter()
-        .map(|command| {
-            render_text_line(
-                "caption",
-                &format!(
-                    "{} [{}] -> {} @ {}",
-                    command.label, command.id, command.intent, command.surface
+        .flat_map(|command| {
+            vec![
+                render_text_line("body", &command.label),
+                render_text_line(
+                    "caption",
+                    &format!("{}  |  {}", command.intent, command.surface),
                 ),
-            )
+            ]
         })
         .collect::<Vec<_>>();
     let tool_lines = snapshot
         .tools
         .iter()
         .flat_map(|tool| {
-            let mut lines = vec![render_text_line(
-                "metric",
+            let mut lines = vec![render_text_line("body", &tool.label)];
+            lines.push(render_text_line(
+                "caption",
                 &format!(
-                    "{} [{}] capability={} approval={} effective={}",
-                    tool.label,
-                    tool.id,
+                    "{}  |  approval {}  |  effective {}",
                     tool.capability,
                     tool.approval,
                     tool.decision.as_ref().map(render_decision).unwrap_or("ask")
                 ),
-            )];
+            ));
             if tool.scope_decisions.is_empty() {
                 lines.push(render_text_line("muted", "no scoped approvals saved"));
             } else {
@@ -945,24 +956,23 @@ fn render_generated_shell(snapshot: &RuntimeSnapshot) -> String {
         .collect::<Vec<_>>();
 
     format!(
-        "component App():\n    render <slot>\n        <theme name=\"kade_desktop\">\n            <scope name=\"shell\" selector=\"kade-shell\" />\n            <token name=\"surface.background\" category=\"color\" value=\"#0d1117\" />\n            <token name=\"text.default\" category=\"color\" value=\"#edf2f7\" />\n            <token name=\"accent.color\" category=\"color\" value=\"#5eead4\" />\n            <variant scope=\"shell\" name=\"command\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"glass\" />\n                <token name=\"surface.padding\" category=\"space\" value={{12}} />\n            </variant>\n            <variant scope=\"shell\" name=\"workspace\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"raised\" />\n                <token name=\"surface.padding\" category=\"space\" value={{10}} />\n            </variant>\n            <variant scope=\"shell\" name=\"chat\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"glass\" />\n                <token name=\"surface.padding\" category=\"space\" value={{14}} />\n            </variant>\n            <textvariant scope=\"shell\" name=\"hero\">\n                <token name=\"body.size\" category=\"type\" value={{28}} />\n            </textvariant>\n        </theme>\n        <panel title=\"{title}\" layout=\"dock\" persistent_layout_id=\"{layout_id}\" gap={{12}} padding={{12}}>\n            <panel title=\"{workspace_title}\" scope=\"shell\" variant=\"workspace\" dock=\"left\" split_ratio={{0.23}} min_width={{220}} max_width={{340}} resizable={{true}}>\n                <inspector title=\"Project Context\">\n{workspace_lines}\n                </inspector>\n                <inspector title=\"Pinned Context\">\n{capability_lines}\n                </inspector>\n            </panel>\n            <panel title=\"{chat_title}\" scope=\"shell\" variant=\"chat\" dock=\"center\" gap={{12}}>\n                <text role=\"hero\">{{\"{hero_text}\"}}</text>\n                <text role=\"caption\">{{\"{caption_text}\"}}</text>\n                <panel title=\"Recent Sessions\" layout=\"column\" gap={{10}}>\n                    <inspector title=\"Transcript\">\n{session_lines}\n                    </inspector>\n                </panel>\n            </panel>\n            <panel title=\"{control_title}\" scope=\"shell\" variant=\"command\" dock=\"right\" split_ratio={{0.25}} min_width={{260}} max_width={{360}} resizable={{true}}>\n                <inspector title=\"Providers\">\n{provider_lines}\n                </inspector>\n                <inspector title=\"Commands\">\n{command_lines}\n                </inspector>\n            </panel>\n            <panel title=\"{execution_title}\" dock=\"bottom\" split_ratio={{0.24}} min_height={{180}} max_height={{300}} resizable={{true}}>\n                <inspector title=\"Tool Approvals\">\n{tool_lines}\n                </inspector>\n            </panel>\n        </panel>\n    </slot>\n",
+        "component App():\n    render <slot>\n        <theme name=\"kade_desktop\">\n            <scope name=\"shell\" selector=\"kade-shell\" />\n            <token name=\"theme.background.top\" category=\"color\" value=\"#090c12\" />\n            <token name=\"theme.background.bottom\" category=\"color\" value=\"#101620\" />\n            <token name=\"theme.surface.default\" category=\"color\" value=\"#131a25\" />\n            <token name=\"theme.surface.alt\" category=\"color\" value=\"#1a2230\" />\n            <token name=\"theme.surface.raised\" category=\"color\" value=\"#232c3b\" />\n            <token name=\"theme.outline.soft\" category=\"color\" value=\"#3f4a5d\" />\n            <token name=\"theme.outline.bright\" category=\"color\" value=\"#d7a56a\" />\n            <token name=\"theme.accent.primary\" category=\"color\" value=\"#c98847\" />\n            <token name=\"theme.accent.soft\" category=\"color\" value=\"#edc496\" />\n            <token name=\"text.default\" category=\"color\" value=\"#f5efe6\" />\n            <token name=\"theme.typography.scale\" category=\"type\" value={{1.08}} />\n            <token name=\"theme.spacing.scale\" category=\"space\" value={{1.02}} />\n            <token name=\"theme.radius.scale\" category=\"radius\" value={{1.12}} />\n            <token name=\"theme.chrome.topbar.visible\" category=\"state\" value={{true}} />\n            <token name=\"theme.chrome.inspector.visible\" category=\"state\" value={{false}} />\n            <token name=\"widget.panel.surface.stroke\" category=\"color\" value=\"#00000000\" />\n            <token name=\"widget.inspector.surface.mode\" category=\"surface\" value=\"ghost\" />\n            <token name=\"widget.inspector.surface.stroke\" category=\"color\" value=\"#00000000\" />\n            <token name=\"widget.tree.surface.mode\" category=\"surface\" value=\"ghost\" />\n            <token name=\"widget.tree.surface.stroke\" category=\"color\" value=\"#00000000\" />\n            <variant scope=\"shell\" name=\"shell_root\">\n                <token name=\"title.visible\" category=\"state\" value={{false}} />\n                <token name=\"surface.mode\" category=\"surface\" value=\"ghost\" />\n                <token name=\"surface.padding\" category=\"space\" value={{6}} />\n            </variant>\n            <variant scope=\"shell\" name=\"sidebar\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"flat\" />\n                <token name=\"surface.padding\" category=\"space\" value={{14}} />\n            </variant>\n            <variant scope=\"shell\" name=\"workspace\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"ghost\" />\n                <token name=\"surface.padding\" category=\"space\" value={{10}} />\n            </variant>\n            <variant scope=\"shell\" name=\"stage\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"glass\" />\n                <token name=\"surface.padding\" category=\"space\" value={{20}} />\n                <token name=\"title.visible\" category=\"state\" value={{false}} />\n            </variant>\n            <variant scope=\"shell\" name=\"tray\">\n                <token name=\"surface.mode\" category=\"surface\" value=\"flat\" />\n                <token name=\"surface.padding\" category=\"space\" value={{14}} />\n            </variant>\n            <textvariant scope=\"shell\" name=\"hero\">\n                <token name=\"body.size\" category=\"type\" value={{34}} />\n            </textvariant>\n        </theme>\n        <panel title=\"{title}\" scope=\"shell\" variant=\"shell_root\" layout=\"dock\" persistent_layout_id=\"{layout_id}\" gap={{18}} padding={{18}}>\n            <panel title=\"{workspace_title}\" scope=\"shell\" variant=\"sidebar\" dock=\"left\" split_ratio={{0.22}} min_width={{240}} max_width={{360}} resizable={{true}}>\n                <inspector title=\"Projects\">\n{workspace_lines}\n                </inspector>\n                <inspector title=\"Runtime\">\n{capability_lines}\n                </inspector>\n            </panel>\n            <panel title=\"{chat_title}\" scope=\"shell\" variant=\"stage\" dock=\"center\" gap={{16}}>\n                <panel title=\"Session Overview\" scope=\"shell\" variant=\"workspace\" layout=\"column\" gap={{10}}>\n                    <text role=\"caption\">{{\"Native desktop assistant\"}}</text>\n                    <text role=\"hero\">{{\"{hero_text}\"}}</text>\n                    <text role=\"body\">{{\"{caption_text}\"}}</text>\n                </panel>\n                <panel title=\"Conversation\" scope=\"shell\" variant=\"workspace\" layout=\"column\" gap={{12}}>\n                    <inspector title=\"Recent Sessions\">\n{session_lines}\n                    </inspector>\n                </panel>\n            </panel>\n            <panel title=\"{control_title}\" scope=\"shell\" variant=\"sidebar\" dock=\"right\" split_ratio={{0.24}} min_width={{280}} max_width={{380}} resizable={{true}}>\n                <inspector title=\"Models\">\n{provider_lines}\n                </inspector>\n                <inspector title=\"Quick Actions\">\n{command_lines}\n                </inspector>\n            </panel>\n            <panel title=\"{execution_title}\" scope=\"shell\" variant=\"tray\" dock=\"bottom\" split_ratio={{0.22}} min_height={{180}} max_height={{320}} resizable={{true}}>\n                <inspector title=\"Access Rules\">\n{tool_lines}\n                </inspector>\n            </panel>\n        </panel>\n    </slot>\n",
         title = escape_kn_attr(&snapshot.window_title),
         layout_id = escape_kn_attr(&snapshot.layout_id),
         workspace_title = escape_kn_attr(workspace_title),
         chat_title = escape_kn_attr(chat_title),
         control_title = escape_kn_attr(control_title),
         execution_title = escape_kn_attr(execution_title),
-        hero_text = escape_kn_text(&format!(
-            "{} {} native agent shell",
-            snapshot.name, snapshot.version
-        )),
-        caption_text = escape_kn_text(&format!(
-            "Manifest-backed shell generated from {} panels, {} commands, {} providers, {} tools.",
-            snapshot.panels.len(),
-            snapshot.commands.len(),
-            snapshot.providers.len(),
-            snapshot.tools.len()
-        )),
+        hero_text = escape_kn_text(
+            snapshot
+                .sessions
+                .recent_session_title
+                .as_deref()
+                .unwrap_or(&snapshot.name),
+        ),
+        caption_text = escape_kn_text(
+            "Workspace-aware native desktop shell with provider routing, saved session context, and governed tool access.",
+        ),
         workspace_lines = workspace_lines.join("\n"),
         capability_lines = capability_lines.join("\n"),
         session_lines = session_lines.join("\n"),

@@ -113,11 +113,126 @@
     }
   ],
   "reflection": {
-    "emitted": false,
+    "emitted": true,
     "schema_names": [],
     "notes": [
-      "Runtime contract scaffolding emitted from kain-core.",
-      "Reflection payloads are not emitted yet; schema_names are placeholders for future reflection integration."
+      "Full reflection payload emitted from kain-core.",
+      "Includes type schemas, item metadata, actors, components, and messages."
     ]
+  },
+  "compatibility": {
+    "schema_version": 1,
+    "bundle_target": "llvm",
+    "bundle_lane": "raw-native",
+    "runtime_lane": null,
+    "compatibility_class": null,
+    "runtime_version": null,
+    "abi_version": null,
+    "install": {
+      "supported": true,
+      "mode": "materialize",
+      "notes": [
+        "Bundle sidecars are emitted with the runtime contract.",
+        "Install can proceed once version and compatibility metadata are present."
+      ]
+    },
+    "update": {
+      "supported": true,
+      "mode": "compatible-replace",
+      "notes": [
+        "Update is expected to replace a bundle only after compatibility validation passes.",
+        "Migration data is still optional at the compiler layer."
+      ]
+    },
+    "uninstall": {
+      "supported": true,
+      "mode": "sidecar-remove",
+      "notes": [
+        "Uninstall removes emitted bundle artifacts together with compatibility metadata."
+      ]
+    },
+    "migration_hints": [
+      "Preserve the runtime contract and reflection payload together when updating.",
+      "Validate bundle and runtime version records before activating a replacement."
+    ]
+  },
+  "reflection_payload": {
+    "schema_version": 1,
+    "types": [],
+    "items": [
+      {
+        "item_id": 1,
+        "name": "lab_path",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 2,
+        "name": "pick_profile",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 3,
+        "name": "particle_budget",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 4,
+        "name": "fog_density_for",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 5,
+        "name": "sample_total",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 6,
+        "name": "float_math_score",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 7,
+        "name": "build_ceiling_report",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 8,
+        "name": "attempt_http_probe",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 9,
+        "name": "configure_city_walkthrough",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 10,
+        "name": "main",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      }
+    ],
+    "actors": [],
+    "components": [],
+    "messages": []
   }
 }

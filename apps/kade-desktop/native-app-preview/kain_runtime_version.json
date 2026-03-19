@@ -1,0 +1,20 @@
+{
+  "runtime_major": 0,
+  "runtime_minor": 1,
+  "runtime_patch": 0,
+  "abi_major": 0,
+  "abi_minor": 1,
+  "abi_patch": 0,
+  "runtime_version_string": "0.1.0",
+  "abi_version_string": "0.1.0",
+  "compatibility_class": "experimental",
+  "runtime_lane": "raw-native",
+  "target_platforms": [
+    "windows",
+    "linux",
+    "macos"
+  ],
+  "active_platforms": [
+    "windows"
+  ]
+}

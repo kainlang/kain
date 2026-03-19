@@ -201,6 +201,6 @@ fn generated_shell_includes_manifest_driven_state() {
 
     assert!(shell.contains("Generated shell session"));
     assert!(shell.contains("openai_codex"));
-    assert!(shell.contains("run_terminal"));
+    assert!(shell.contains("Run Terminal"));
     assert!(shell.contains("Materialize the shell from manifests."));
 }

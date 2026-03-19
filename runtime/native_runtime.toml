@@ -1,25 +1,9 @@
 name = "kain-native-runtime"
 
-# Runtime Version and ABI Metadata
-# These values must match the constants defined in runtime/native/include/kain_runtime_version.h
-[version]
-runtime_major = 0
-runtime_minor = 1
-runtime_patch = 0
-abi_major = 0
-abi_minor = 1
-abi_patch = 0
-
-# Runtime Metadata
-[metadata]
-description = "KAIN native C runtime for compiled programs"
-target_platforms = ["windows", "linux", "macos"]
-active_platforms = ["windows"]  # Currently implemented platforms
-runtime_lane = "raw-native"
-compatibility_class = "experimental"  # experimental, stable, production
-
 # Core Runtime Sources
-# These provide the foundational runtime services and ABI
+# These provide the foundational runtime services and ABI.
+# Keep these at the manifest top level so the CLI native bundle loader
+# can resolve them directly during LLVM/native executable linking.
 sources = [
     "native/src/core/kain_runtime_core.c",
     "native/src/core/kain_runtime_version.c",
@@ -50,6 +34,24 @@ sources = [
 ]
 
 include_dirs = ["native/include"]
+
+# Runtime Version and ABI Metadata
+# These values must match the constants defined in runtime/native/include/kain_runtime_version.h
+[version]
+runtime_major = 0
+runtime_minor = 1
+runtime_patch = 0
+abi_major = 0
+abi_minor = 1
+abi_patch = 0
+
+# Runtime Metadata
+[metadata]
+description = "KAIN native C runtime for compiled programs"
+target_platforms = ["windows", "linux", "macos"]
+active_platforms = ["windows"]  # Currently implemented platforms
+runtime_lane = "raw-native"
+compatibility_class = "experimental"  # experimental, stable, production
 
 # Runtime Services Declaration
 # These services are registered at runtime initialization and used for capability discovery

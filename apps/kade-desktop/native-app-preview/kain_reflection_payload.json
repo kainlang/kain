@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "types": [],
+  "items": [
+    {
+      "item_id": 1,
+      "name": "App",
+      "kind": "component",
+      "module_path": "",
+      "type_id": null
+    }
+  ],
+  "actors": [],
+  "components": [
+    {
+      "item_id": 1,
+      "name": "App",
+      "props": [],
+      "state_type": null
+    }
+  ],
+  "messages": []
+}

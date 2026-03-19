@@ -51,7 +51,19 @@ impl StdLib {
             "Unit",
             "Print value with newline",
         );
+        lib.add_fn(
+            "stdout_write",
+            &[("value", "String")],
+            "Unit",
+            "Write raw text to stdout without an automatic newline",
+        );
         lib.add_fn("read_line", &[], "String", "Read line from stdin");
+        lib.add_fn(
+            "stdin_read_exact",
+            &[("length", "Int")],
+            "String",
+            "Read an exact number of bytes from stdin",
+        );
         lib.add_fn(
             "read_file",
             &[("path", "String")],
@@ -64,6 +76,13 @@ impl StdLib {
             "Unit",
             "Write to file",
         );
+        lib.add_fn(
+            "file_exists",
+            &[("path", "String")],
+            "Bool",
+            "Check whether a file path exists",
+        );
+        lib.add_fn("env", &[("name", "String")], "String", "Read an environment variable");
 
         // Math
         lib.add_fn("abs", &[("x", "Int")], "Int", "Absolute value");
@@ -237,6 +256,30 @@ impl StdLib {
             &[("s", "String"), ("from", "String"), ("to", "String")],
             "String",
             "Replace substring",
+        );
+        lib.add_fn(
+            "starts_with",
+            &[("s", "String"), ("prefix", "String")],
+            "Bool",
+            "Check whether a string starts with a prefix",
+        );
+        lib.add_fn(
+            "ends_with",
+            &[("s", "String"), ("suffix", "String")],
+            "Bool",
+            "Check whether a string ends with a suffix",
+        );
+        lib.add_fn(
+            "substring",
+            &[("s", "String"), ("start", "Int"), ("end", "Int")],
+            "String",
+            "Extract a substring using start and end character offsets",
+        );
+        lib.add_fn(
+            "char_at",
+            &[("s", "String"), ("index", "Int")],
+            "String",
+            "Read a single character at an index as a string",
         );
 
         // Conversion

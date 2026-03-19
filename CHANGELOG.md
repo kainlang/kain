@@ -5,6 +5,126 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=1728fc60bc4cb66e -->
+## 2026-03-19 03:15:20 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `64e4161`
+- Changed files: 37
+- [.M] `crates/kain-core/src/runtime.rs`
+- [.M] `crates/kain-core/src/stdlib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/conformance/abi_parity/bin/test_bitfield_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_bitfield_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_load_store_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_load_store_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_pointer_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_pointer_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_union_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_union_operations.ilk`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_links`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_monitors`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_registry`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_scheduler`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_spawn_basic`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_supervision`
+- [.M] `runtime/conformance/actor_runtime/bin/test_mailbox_backpressure`
+- [.M] `runtime/conformance/async_runtime/bin/test_async_sleep`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_cancel`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_spawn_basic`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_wake_poll`
+- [.M] `runtime/conformance/async_runtime/bin/test_timer_cancel`
+- [.M] `runtime/conformance/diagnostics/bin/test_diagnostic_error_codes`
+- [.M] `runtime/conformance/diagnostics/bin/test_startup_failure_reporting`
+- [.M] `runtime/conformance/diagnostics/bin/test_structured_runtime_diagnostics`
+- [.M] `runtime/conformance/host_bridge/test_host_bridge_failures`
+- [.M] `runtime/conformance/host_bridge/test_host_bridge_registration`
+- [.M] `runtime/conformance/hot_reload/test_hot_reload_compatibility`
+- [.M] `runtime/conformance/hot_reload/test_hot_reload_lifecycle`
+- [.M] `runtime/conformance/platform_parity/test_platform_descriptor`
+- [.M] `runtime/conformance/platform_parity/test_platform_stubs`
+- [.M] `runtime/conformance/reflection/bin/test_reflection_invalid_inputs.ilk`
+- [.M] `runtime/conformance/reflection/bin/test_reflection_payload_loading.ilk`
+- [.M] `runtime/native/src/core/kain_runtime_core.c`
+- [.M] `runtime/native_runtime.toml`
+
+<!-- polytools-changelog:fingerprint=09739ad6725cfaf4 -->
+## 2026-03-19 03:12:57 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `64e4161`
+- Changed files: 33
+- [.M] `crates/repomap.md`
+- [.M] `runtime/conformance/abi_parity/bin/test_bitfield_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_bitfield_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_load_store_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_load_store_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_pointer_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_pointer_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_union_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_union_operations.ilk`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_links`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_monitors`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_registry`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_scheduler`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_spawn_basic`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_supervision`
+- [.M] `runtime/conformance/actor_runtime/bin/test_mailbox_backpressure`
+- [.M] `runtime/conformance/async_runtime/bin/test_async_sleep`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_cancel`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_spawn_basic`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_wake_poll`
+- [.M] `runtime/conformance/async_runtime/bin/test_timer_cancel`
+- [.M] `runtime/conformance/diagnostics/bin/test_diagnostic_error_codes`
+- [.M] `runtime/conformance/diagnostics/bin/test_startup_failure_reporting`
+- [.M] `runtime/conformance/diagnostics/bin/test_structured_runtime_diagnostics`
+- [.M] `runtime/conformance/host_bridge/test_host_bridge_failures`
+- [.M] `runtime/conformance/host_bridge/test_host_bridge_registration`
+- [.M] `runtime/conformance/hot_reload/test_hot_reload_compatibility`
+- [.M] `runtime/conformance/hot_reload/test_hot_reload_lifecycle`
+- [.M] `runtime/conformance/platform_parity/test_platform_descriptor`
+- [.M] `runtime/conformance/platform_parity/test_platform_stubs`
+- [.M] `runtime/conformance/reflection/bin/test_reflection_invalid_inputs.ilk`
+- [.M] `runtime/conformance/reflection/bin/test_reflection_payload_loading.ilk`
+- [.M] `runtime/native_runtime.toml`
+
+<!-- polytools-changelog:fingerprint=e0f44edbc566a492 -->
+## 2026-03-19 03:07:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `64e4161`
+- Changed files: 32
+- [.M] `crates/repomap.md`
+- [.M] `runtime/conformance/abi_parity/bin/test_bitfield_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_bitfield_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_load_store_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_load_store_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_pointer_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_pointer_operations.ilk`
+- [.M] `runtime/conformance/abi_parity/bin/test_union_operations`
+- [.M] `runtime/conformance/abi_parity/bin/test_union_operations.ilk`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_links`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_monitors`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_registry`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_scheduler`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_spawn_basic`
+- [.M] `runtime/conformance/actor_runtime/bin/test_actor_supervision`
+- [.M] `runtime/conformance/actor_runtime/bin/test_mailbox_backpressure`
+- [.M] `runtime/conformance/async_runtime/bin/test_async_sleep`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_cancel`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_spawn_basic`
+- [.M] `runtime/conformance/async_runtime/bin/test_task_wake_poll`
+- [.M] `runtime/conformance/async_runtime/bin/test_timer_cancel`
+- [.M] `runtime/conformance/diagnostics/bin/test_diagnostic_error_codes`
+- [.M] `runtime/conformance/diagnostics/bin/test_startup_failure_reporting`
+- [.M] `runtime/conformance/diagnostics/bin/test_structured_runtime_diagnostics`
+- [.M] `runtime/conformance/host_bridge/test_host_bridge_failures`
+- [.M] `runtime/conformance/host_bridge/test_host_bridge_registration`
+- [.M] `runtime/conformance/hot_reload/test_hot_reload_compatibility`
+- [.M] `runtime/conformance/hot_reload/test_hot_reload_lifecycle`
+- [.M] `runtime/conformance/platform_parity/test_platform_descriptor`
+- [.M] `runtime/conformance/platform_parity/test_platform_stubs`
+- [.M] `runtime/conformance/reflection/bin/test_reflection_invalid_inputs.ilk`
+- [.M] `runtime/conformance/reflection/bin/test_reflection_payload_loading.ilk`
+
 <!-- polytools-changelog:fingerprint=6d745357e1228189 -->
 ## 2026-03-18 04:37:28 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
