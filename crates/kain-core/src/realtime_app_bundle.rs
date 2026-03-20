@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{CompileTarget, TypedItem, TypedProgram};
+use crate::ast::{ShaderStage, Type};
+use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{UiBuildOutput, UiSurfaceKind};
 
 pub const REALTIME_APP_BUNDLE_SCHEMA_VERSION: u32 = 1;
@@ -54,6 +55,22 @@ pub struct RealtimeShaderBundleRef {
     pub stage: String,
     pub entry_point: String,
     pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workgroup_size: Option<[u32; 3]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dispatch_size: Option<[u32; 3]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_bindings: Vec<RealtimeResourceBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeResourceBinding {
+    pub key: String,
+    #[serde(rename = "type")]
+    pub resource_type: String,
+    pub stage: String,
+    pub access: String,
+    pub slot: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -98,29 +115,120 @@ pub fn realtime_app_bundle_from_json(json: &str) -> Result<RealtimeAppBundle, se
 
 fn collect_shader_bundle_refs(program: &TypedProgram) -> Vec<RealtimeShaderBundleRef> {
     let mut refs = Vec::new();
-    for item in &program.items {
-        if let TypedItem::Shader(shader) = item {
-            let shader_name = shader.ast.name.clone();
-            refs.push(RealtimeShaderBundleRef {
-                key: format!("shader::{shader_name}::vertex"),
-                shader: shader_name.clone(),
-                module_name: shader_name.clone(),
-                stage: "vertex".to_string(),
-                entry_point: "main".to_string(),
-                source: "kain-core".to_string(),
-            });
-            refs.push(RealtimeShaderBundleRef {
-                key: format!("shader::{shader_name}::fragment"),
-                shader: shader_name.clone(),
-                module_name: shader_name,
-                stage: "fragment".to_string(),
-                entry_point: "main".to_string(),
-                source: "kain-core".to_string(),
-            });
-        }
-    }
+    collect_shader_bundle_refs_into(&program.items, &mut refs);
     refs.sort_by(|left, right| left.key.cmp(&right.key));
     refs
+}
+
+fn collect_shader_bundle_refs_into(items: &[TypedItem], output: &mut Vec<RealtimeShaderBundleRef>) {
+    for item in items {
+        match item {
+            TypedItem::Shader(shader) => {
+                output.push(shader_bundle_ref(shader));
+            }
+            TypedItem::Mod(module) => collect_shader_bundle_refs_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
+    let stage = shader_ref_stage_name(shader.ast.stage).to_string();
+    let key = format!("shader::{}::{}", shader.ast.name, stage);
+    let resource_bindings = collect_shader_resource_bindings(shader, &stage);
+    let (workgroup_size, dispatch_size) = if matches!(shader.ast.stage, ShaderStage::Compute) {
+        (
+            Some(compute_workgroup_size(shader)),
+            Some(default_compute_dispatch_size()),
+        )
+    } else {
+        (None, None)
+    };
+
+    RealtimeShaderBundleRef {
+        key,
+        shader: shader.ast.name.clone(),
+        module_name: shader.ast.name.clone(),
+        stage,
+        entry_point: "main".to_string(),
+        source: "kain-core".to_string(),
+        workgroup_size,
+        dispatch_size,
+        resource_bindings,
+    }
+}
+
+fn shader_ref_stage_name(stage: ShaderStage) -> &'static str {
+    match stage {
+        ShaderStage::Vertex => "vertex",
+        ShaderStage::Fragment | ShaderStage::Surface => "fragment",
+        ShaderStage::Compute => "compute",
+    }
+}
+
+fn compute_workgroup_size(shader: &TypedShader) -> [u32; 3] {
+    let mut size = [8, 8, 1];
+    for uniform in &shader.ast.uniforms {
+        match uniform.name.as_str() {
+            "LOCAL_SIZE_X" => size[0] = 8,
+            "LOCAL_SIZE_Y" => size[1] = 8,
+            "LOCAL_SIZE_Z" => size[2] = 1,
+            _ => {}
+        }
+    }
+    size
+}
+
+fn default_compute_dispatch_size() -> [u32; 3] {
+    [1, 1, 1]
+}
+
+fn collect_shader_resource_bindings(
+    shader: &TypedShader,
+    stage: &str,
+) -> Vec<RealtimeResourceBinding> {
+    let mut bindings = Vec::new();
+
+    for uniform in &shader.ast.uniforms {
+        if matches!(shader.ast.stage, ShaderStage::Compute)
+            && matches!(
+                uniform.name.as_str(),
+                "LOCAL_SIZE_X" | "LOCAL_SIZE_Y" | "LOCAL_SIZE_Z"
+            )
+        {
+            continue;
+        }
+
+        let resource_type = shader_resource_type(&uniform.ty).to_string();
+        let access = shader_resource_access(&uniform.ty, stage).to_string();
+        bindings.push(RealtimeResourceBinding {
+            key: uniform.name.clone(),
+            resource_type,
+            stage: stage.to_string(),
+            access,
+            slot: uniform.binding,
+        });
+    }
+
+    bindings.sort_by(|left, right| left.slot.cmp(&right.slot).then(left.key.cmp(&right.key)));
+    bindings
+}
+
+fn shader_resource_type(ty: &Type) -> &'static str {
+    match ty {
+        Type::Named { name, .. } if name == "Sampler2D" => "sampler2d",
+        Type::Named { name, .. } if name == "StorageBuffer" => "storage_buffer",
+        _ => "uniform",
+    }
+}
+
+fn shader_resource_access(ty: &Type, stage: &str) -> &'static str {
+    match ty {
+        Type::Named { name, .. } if name == "Sampler2D" => "sample",
+        Type::Named { name, .. } if name == "StorageBuffer" && stage == "compute" => "read_write",
+        Type::Named { name, .. } if name == "StorageBuffer" => "read",
+        _ => "read",
+    }
 }
 
 fn collect_scene_bindings(
@@ -261,7 +369,12 @@ fn collect_tool_caps(program: &TypedProgram, ui_output: Option<&UiBuildOutput>) 
     for item in &program.items {
         match item {
             TypedItem::Actor(_) => caps.push("scene.actors".to_string()),
-            TypedItem::Shader(_) => caps.push("gpu.shader".to_string()),
+            TypedItem::Shader(shader) => {
+                caps.push("gpu.shader".to_string());
+                if matches!(shader.ast.stage, ShaderStage::Compute) {
+                    caps.push("gpu.compute".to_string());
+                }
+            }
             TypedItem::GraphEditor(_) => caps.push("tool.graph-editor".to_string()),
             TypedItem::GraphRuntime(_) => caps.push("tool.graph-runtime".to_string()),
             _ => {}
@@ -279,12 +392,20 @@ fn collect_requirements(
     shader_bundle_refs: &[RealtimeShaderBundleRef],
     tool_caps: &[String],
 ) -> Vec<String> {
+    let has_compute_refs = shader_bundle_refs
+        .iter()
+        .any(|entry| entry.stage == "compute");
     let mut requirements = vec![
         "runtime.contract.bundle".to_string(),
         "shader.bundle.metadata".to_string(),
     ];
     if !shader_bundle_refs.is_empty() {
         requirements.push("gpu.shader-bundles".to_string());
+    }
+    if has_compute_refs {
+        requirements.push("gpu.compute-dispatch".to_string());
+        requirements.push("interop.shared-buffer".to_string());
+        requirements.push("data.continuous-stream".to_string());
     }
     if !scenes.is_empty() {
         requirements.push("scene.runtime-bundle".to_string());
@@ -394,5 +515,43 @@ component App():
             realtime_app_bundle_from_json(json).expect("realtime bundle should deserialize");
         assert_eq!(bundle.render.scenes[0].scene, "magma_terraces");
         assert_eq!(bundle.render.materials[0].id, "terrain");
+    }
+
+    #[test]
+    fn emits_compute_bundle_metadata_for_native_runtime_consumers() {
+        let source = r#"
+shader compute TensorBlend() -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = dispatch_thread_id.x
+    dst[idx] = src[idx]
+    return
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = diagnostics::SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<input>")
+            .parse()
+            .expect("ast");
+        let typed = types::check(&ast, &span_mapper, "<input>").expect("typed");
+
+        let bundle = emit_realtime_app_bundle(&typed, None, CompileTarget::Llvm);
+        assert_eq!(bundle.shader_bundle_refs.len(), 1);
+        assert_eq!(bundle.shader_bundle_refs[0].stage, "compute");
+        assert_eq!(bundle.shader_bundle_refs[0].workgroup_size, Some([8, 8, 1]));
+        assert_eq!(bundle.shader_bundle_refs[0].dispatch_size, Some([1, 1, 1]));
+        assert_eq!(bundle.shader_bundle_refs[0].resource_bindings.len(), 2);
+        assert!(bundle
+            .requirements
+            .iter()
+            .any(|entry| entry == "gpu.compute-dispatch"));
+        assert!(bundle
+            .requirements
+            .iter()
+            .any(|entry| entry == "interop.shared-buffer"));
+        assert!(bundle.tool_caps.iter().any(|entry| entry == "gpu.compute"));
     }
 }

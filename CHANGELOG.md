@@ -5,6 +5,182 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=92bd7546066c8707 -->
+## 2026-03-20 17:08:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 50
+- [.D] `crates/browser/desktop.ini`
+- [.M] `crates/cli/Cargo.toml`
+- [.D] `crates/cli/desktop.ini`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.D] `crates/desktop.ini`
+- [.D] `crates/gpu/desktop.ini`
+- [.D] `crates/kain-3D/desktop.ini`
+- [.D] `crates/kain-asm/desktop.ini`
+- [.D] `crates/kain-build/desktop.ini`
+- [.D] `crates/kain-c-ffi/desktop.ini`
+- [.D] `crates/kain-core/desktop.ini`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.D] `crates/kain-crate-ffi/desktop.ini`
+- [.D] `crates/kain-driver/desktop.ini`
+- [.D] `crates/kain-host-derive/desktop.ini`
+- [.D] `crates/kain-host/desktop.ini`
+- [.D] `crates/kain-import/desktop.ini`
+- [.D] `crates/kain-interop/desktop.ini`
+- [.D] `crates/kain-node/desktop.ini`
+- [.D] `crates/kain-omni/desktop.ini`
+- [.D] `crates/kain-python/desktop.ini`
+- [.D] `crates/kain-reflect/desktop.ini`
+- [.D] `crates/kain-sdk/desktop.ini`
+- [.D] `crates/kain-selfhost/desktop.ini`
+- [.D] `crates/kain-sys-codegen/desktop.ini`
+- [.D] `crates/kain-ui-native/desktop.ini`
+- [.D] `crates/kain-ui/desktop.ini`
+- [.M] `crates/repomap.md`
+- [.D] `crates/ue5-asset-utils/desktop.ini`
+- [.D] `crates/ue5-blueprints/desktop.ini`
+- [.D] `crates/ue5-config/desktop.ini`
+- [.D] `crates/ue5-editor/desktop.ini`
+- [.D] `crates/ue5-gas/desktop.ini`
+- [.D] `crates/ue5-graphs/desktop.ini`
+- [.D] `crates/ue5-materials/desktop.ini`
+- [.D] `crates/ue5-shaders/desktop.ini`
+- [.D] `crates/ue5/desktop.ini`
+- [.D] `crates/unreal/desktop.ini`
+- [.D] `crates/web/desktop.ini`
+- [.M] `runtime/README.md`
+- [.D] `runtime/desktop.ini`
+- [.M] `runtime/native/SERVICE_TABLE_MAPPING.md`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.D] `smoketest/desktop.ini`
+- [??] `crates/cli/src/bin/kn.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+- [??] `runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md`
+
+<!-- polytools-changelog:fingerprint=c54212f7b38f2cfa -->
+## 2026-03-20 16:26:14 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 13
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/README.md`
+- [.M] `runtime/native/SERVICE_TABLE_MAPPING.md`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [??] `crates/cli/src/bin/kn.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+- [??] `runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md`
+
+<!-- polytools-changelog:fingerprint=1a85222170cfeb6b -->
+## 2026-03-20 16:25:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 12
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/README.md`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [??] `crates/cli/src/bin/kn.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+- [??] `runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md`
+
+<!-- polytools-changelog:fingerprint=1728cf603c9dea54 -->
+## 2026-03-20 16:03:40 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 10
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [??] `crates/cli/src/bin/kn.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+
+<!-- polytools-changelog:fingerprint=919b3d31b9a77617 -->
+## 2026-03-20 16:02:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 8
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/repomap.md`
+- [??] `crates/cli/src/bin/kn.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+
+<!-- polytools-changelog:fingerprint=33f0e74cb3c50f47 -->
+## 2026-03-20 16:01:27 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 9
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/repomap.md`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/cli/src/bin/kn.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+
+<!-- polytools-changelog:fingerprint=fb4c01e70f9ee1ea -->
+## 2026-03-20 15:59:20 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 5
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+
+<!-- polytools-changelog:fingerprint=61b292827f3d4535 -->
+## 2026-03-20 15:59:10 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 4
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [??] `crates/cli/tests/launcher_kn_test.rs`
+
+<!-- polytools-changelog:fingerprint=0ee7c7d195c33caa -->
+## 2026-03-20 15:58:31 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 3
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=f6eaec91f75974b2 -->
+## 2026-03-20 15:57:38 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d89d52c`
+- Changed files: 2
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=ccbcc32ee43f751a -->
 ## 2026-03-20 00:43:08 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

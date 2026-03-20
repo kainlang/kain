@@ -4,6 +4,8 @@
 
 This document describes how existing runtime services map to the new canonical service table headers introduced in Phase 1, Task 1.2.
 
+For the end-to-end contract flow, also see [C_RUNTIME_CONTRACT_PIPELINE.md](./C_RUNTIME_CONTRACT_PIPELINE.md).
+
 ## New Canonical Headers
 
 The following headers define the canonical runtime service table ABI:
@@ -26,6 +28,7 @@ The following headers define the canonical runtime service table ABI:
 | `native.viewport` | `KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT` | Core | `gfx.viewport` | kain_runtime_services.h |
 | `native.asset.gltf` | `KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF` | Optional | `asset.gltf` | kain_runtime_services.h |
 | `native.ui.compiled-bundle` | `KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED` | Optional | `ui.bundle` | kain_runtime_services.h |
+| `native.compute` | `KAIN_RUNTIME_SERVICE_GFX_COMPUTE` | Optional | `gfx.compute` | kain_runtime_services.h |
 
 ### New Service Families
 
@@ -92,6 +95,7 @@ The existing service mask constants in `kain_runtime_contract.h` will be preserv
 #define KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT        (1u << 2)
 #define KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (1u << 3)
 #define KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED     (1u << 4)
+#define KAIN_RUNTIME_SERVICE_GFX_COMPUTE            (1u << 5)
 ```
 
 These will be mapped to the new service registry during Task 1.3 implementation.

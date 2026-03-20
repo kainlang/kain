@@ -55,6 +55,7 @@ Use these files in this order when judging the runtime:
 2. [native/](./native/)
 3. [conformance/README.md](./conformance/README.md)
 4. [changelogs/NATIVE_RUNTIME_COMPLETION_TRACKER.md](./changelogs/NATIVE_RUNTIME_COMPLETION_TRACKER.md)
+5. [native/C_RUNTIME_CONTRACT_PIPELINE.md](./native/C_RUNTIME_CONTRACT_PIPELINE.md)
 
 Important caveats:
 
@@ -121,6 +122,8 @@ The runtime has a real contract and service model:
 Current limitation:
 
 - The compiled runtime surface is broader than the currently auto-populated service registry. The registry still centers mainly on app host, input, viewport, glTF, and compiled UI bundle services. That means the runtime implementation is ahead of the startup discovery model.
+
+See [native/C_RUNTIME_CONTRACT_PIPELINE.md](./native/C_RUNTIME_CONTRACT_PIPELINE.md) for the contract-specific pipeline and maintenance rules.
 
 ### Windows-first platform boundary
 

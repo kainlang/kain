@@ -7,6 +7,7 @@
         └── 📂 src
     └── 📂 cli
         └── 📂 src
+            └── 📂 bin
             └── 📂 packager
         └── 📂 tests
             └── 📂 fixtures

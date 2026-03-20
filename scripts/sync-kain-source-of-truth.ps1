@@ -45,8 +45,15 @@ $installRoot = if ($env:CARGO_HOME) {
     Join-Path $env:USERPROFILE ".cargo"
 }
 $installDir = Join-Path $installRoot "bin"
-$sourceExe = Join-Path $repoRoot "target\release\kain.exe"
-$destExe = Join-Path $installDir "kain.exe"
+$binaryNames = @("kain", "kn")
+$binaryTargets = foreach ($name in $binaryNames) {
+    [pscustomobject]@{
+        Name = $name
+        Source = Join-Path $repoRoot ("target\release\" + $name + ".exe")
+        Destination = Join-Path $installDir ($name + ".exe")
+    }
+}
+$primaryBinary = $binaryTargets | Where-Object { $_.Name -eq "kain" } | Select-Object -First 1
 
 $resourceMap = [ordered]@{
     "KAIN_STDLIB_PATH" = (Join-Path $repoRoot "stdlib")
@@ -59,7 +66,7 @@ Write-Host "====================================================================
 Write-Host "Syncing KAIN source of truth" -ForegroundColor Cyan
 Write-Host "============================================================================" -ForegroundColor Cyan
 Write-Host "Repo Root : $repoRoot"
-Write-Host "Install   : $destExe"
+Write-Host "Install   : $installDir"
 Write-Host
 
 Push-Location $repoRoot
@@ -74,13 +81,18 @@ try {
         Write-Host "[1/4] Skipping build (using existing release binary)..." -ForegroundColor Yellow
     }
 
-    if (-not (Test-Path $sourceExe)) {
-        throw "Release binary not found at $sourceExe"
+    foreach ($binary in $binaryTargets) {
+        if (-not (Test-Path $binary.Source)) {
+            throw ("Release binary not found at " + $binary.Source)
+        }
     }
 
-    Write-Host "[2/4] Installing stable PATH binary..." -ForegroundColor Cyan
+    Write-Host "[2/4] Installing stable PATH binaries..." -ForegroundColor Cyan
     New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-    Copy-Item -Path $sourceExe -Destination $destExe -Force
+    foreach ($binary in $binaryTargets) {
+        Copy-Item -Path $binary.Source -Destination $binary.Destination -Force
+        Write-Host ("  [copy] {0} -> {1}" -f $binary.Source, $binary.Destination)
+    }
 
     Write-Host "[3/4] Applying KAIN resource roots to this session..." -ForegroundColor Cyan
     foreach ($entry in $resourceMap.GetEnumerator()) {
@@ -108,11 +120,14 @@ try {
     }
 
     Write-Host
-    Write-Host "Active PATH resolution:" -ForegroundColor Green
+    Write-Host "Active PATH resolution (kain):" -ForegroundColor Green
     & where.exe kain
     Write-Host
+    Write-Host "Active PATH resolution (kn):" -ForegroundColor Green
+    & where.exe kn
+    Write-Host
     Write-Host "Installed binary doctor output:" -ForegroundColor Green
-    & $destExe doctor
+    & $primaryBinary.Destination doctor
 }
 finally {
     Pop-Location

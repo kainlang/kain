@@ -35,6 +35,7 @@ _codex_smoke/out
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs and debug
 *.log
@@ -58,14 +59,9 @@ toolchain/llvm/bin/clang++
 toolchain/llvm/bin/llvm-ar
 toolchain/llvm/bin/llvm-config
 toolchain/llvm/bin/llvm-ranlib
-/target_selfhost_probe*/
-target_selfhost_probe*/
+target_selfhost_probe/
 target_selfhost_probe/**
-/target_selfhost_probe
-target_selfhost_probe/*
-*target_selfhost_probe\*
-target_selfhost_probe\
-target_selfhost_probe\**
+*target_selfhost_probe*
 # Third-party vendored deps
 third_party/
 third_party/modular_mojo/

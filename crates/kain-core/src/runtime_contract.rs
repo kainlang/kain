@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::ast::{ShaderStage, Type};
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::{CompileTarget, TypedItem, TypedProgram};
 
@@ -288,6 +289,37 @@ fn collect_runtime_capabilities(
             Some("Program declares GPU or material-oriented items."),
         ));
     }
+    if summary.compute_shaders > 0 {
+        capabilities.push(runtime_capability(
+            "gpu.compute",
+            "kain-core.shader",
+            Some(
+                "Program declares compute shaders that should materialize as native compute plans.",
+            ),
+        ));
+        capabilities.push(runtime_capability(
+            "gpu.compute-dispatch",
+            "kain-core.shader",
+            Some("Compute workgroup and dispatch metadata is emitted for runtime consumption."),
+        ));
+    }
+    if summary.compute_storage_buffers > 0 {
+        capabilities.push(runtime_capability(
+            "interop.shared-buffer",
+            "kain-core.shader",
+            Some("Compute shaders use storage buffers that should flow through neutral shared-buffer contracts."),
+        ));
+        capabilities.push(runtime_capability(
+            "data.tensor-buffer",
+            "kain-core.shader",
+            Some("Storage-buffer-backed compute lanes can carry tensor-oriented numeric payloads."),
+        ));
+        capabilities.push(runtime_capability(
+            "data.continuous-stream",
+            "kain-core.shader",
+            Some("Compute shaders participate in continuous stream processing over GPU-visible buffers."),
+        ));
+    }
     if summary.editor_modules > 0 || summary.graph_editors > 0 || summary.graph_runtimes > 0 {
         capabilities.push(runtime_capability(
             "tooling.editor-surfaces",
@@ -333,11 +365,11 @@ fn runtime_service_bindings_for_target(
             runtime_service_binding("host.ui-native", "kain-ui-native", "rust-native"),
         ],
         CompileTarget::Llvm => vec![
-            runtime_service_binding("native.app-host", "runtime/native", "raw-native"),
-            runtime_service_binding("native.input", "runtime/native", "raw-native"),
-            runtime_service_binding("native.viewport", "runtime/native", "raw-native"),
-            runtime_service_binding("native.asset.gltf", "runtime/native", "raw-native"),
-            runtime_service_binding("native.ui.compiled-bundle", "runtime/native", "raw-native"),
+            runtime_service_binding("platform.app-host", "runtime/native", "raw-native"),
+            runtime_service_binding("platform.input", "runtime/native", "raw-native"),
+            runtime_service_binding("gfx.viewport", "runtime/native", "raw-native"),
+            runtime_service_binding("asset.gltf", "runtime/native", "raw-native"),
+            runtime_service_binding("ui.bundle", "runtime/native", "raw-native"),
         ],
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {
             vec![runtime_service_binding("host.web", "web", "web")]
@@ -376,6 +408,14 @@ fn runtime_service_bindings_for_target(
             }
             _ => {}
         }
+    }
+
+    if summary.compute_shaders > 0 && matches!(target, CompileTarget::Llvm) {
+        bindings.push(runtime_service_binding(
+            "gfx.compute",
+            "runtime/native",
+            "raw-native",
+        ));
     }
 
     bindings
@@ -609,6 +649,8 @@ struct ItemSummary {
     actors: usize,
     async_tasks: usize,
     shaders: usize,
+    compute_shaders: usize,
+    compute_storage_buffers: usize,
     material_graphs: usize,
     material_functions: usize,
     graph_editors: usize,
@@ -628,7 +670,18 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
             TypedItem::Component(_) => summary.components += 1,
             TypedItem::Actor(_) => summary.actors += 1,
             TypedItem::AsyncTask(_) => summary.async_tasks += 1,
-            TypedItem::Shader(_) => summary.shaders += 1,
+            TypedItem::Shader(shader) => {
+                summary.shaders += 1;
+                if matches!(shader.ast.stage, ShaderStage::Compute) {
+                    summary.compute_shaders += 1;
+                    summary.compute_storage_buffers += shader
+                        .ast
+                        .uniforms
+                        .iter()
+                        .filter(|uniform| is_storage_buffer_type(&uniform.ty))
+                        .count();
+                }
+            }
             TypedItem::MaterialGraph(_) => summary.material_graphs += 1,
             TypedItem::MaterialFunction(_) => summary.material_functions += 1,
             TypedItem::GraphEditor(_) => summary.graph_editors += 1,
@@ -638,6 +691,10 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
             _ => {}
         }
     }
+}
+
+fn is_storage_buffer_type(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if name == "StorageBuffer")
 }
 
 fn emit_reflection_payload(program: &TypedProgram) -> RuntimeReflectionPayload {
@@ -952,5 +1009,74 @@ component App():
         assert!(json.contains("\"async.runtime\""));
         assert!(json.contains("\"async.timers\""));
         assert!(json.contains("\"async-task:LoadAssets\""));
+    }
+
+    #[test]
+    fn emits_compute_runtime_requirements_for_raw_native_lane() {
+        let compute_shader = crate::types::TypedShader {
+            ast: crate::ast::Shader {
+                name: "TensorPass".to_string(),
+                stage: ShaderStage::Compute,
+                inputs: Vec::new(),
+                outputs: crate::ast::Type::Unit(Span::default()),
+                uniforms: vec![
+                    crate::ast::Uniform {
+                        name: "src".to_string(),
+                        ty: crate::ast::Type::Named {
+                            name: "StorageBuffer".to_string(),
+                            generics: vec![crate::ast::Type::Named {
+                                name: "Float".to_string(),
+                                generics: Vec::new(),
+                                span: Span::default(),
+                            }],
+                            span: Span::default(),
+                        },
+                        binding: 0,
+                        span: Span::default(),
+                    },
+                    crate::ast::Uniform {
+                        name: "dst".to_string(),
+                        ty: crate::ast::Type::Named {
+                            name: "StorageBuffer".to_string(),
+                            generics: vec![crate::ast::Type::Named {
+                                name: "Float".to_string(),
+                                generics: Vec::new(),
+                                span: Span::default(),
+                            }],
+                            span: Span::default(),
+                        },
+                        binding: 1,
+                        span: Span::default(),
+                    },
+                ],
+                body: crate::ast::Block {
+                    stmts: Vec::new(),
+                    span: Span::default(),
+                },
+                span: Span::default(),
+            },
+            input_types: Vec::new(),
+            output_type: crate::types::ResolvedType::Unit,
+        };
+
+        let bundle = emit_runtime_contract_bundle(
+            &TypedProgram {
+                items: vec![TypedItem::Shader(compute_shader)],
+            },
+            CompileTarget::Llvm,
+        );
+
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "gpu.compute"));
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "interop.shared-buffer"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "gfx.compute"));
     }
 }

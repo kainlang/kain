@@ -1,6 +1,6 @@
-//! KAIN Compiler CLI
+// KAIN Compiler CLI
 
-use clap::Parser as ClapParser;
+use clap::{CommandFactory, FromArgMatches, Parser as ClapParser};
 use cli::import_asm;
 use cli::import_c;
 use cli::import_crate;
@@ -13,10 +13,12 @@ use cli::packager;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    compile, compile_realtime_app_bundle, compile_runtime_contract_bundle, parse_compile_target,
-    supported_targets_csv, target_extension, CompileTarget, BUILD_GIT_COMMIT_COUNT,
-    BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE,
-    BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
+    compile, compile_realtime_app_bundle, compile_runtime_contract_bundle,
+    detect_launcher_from_path, parse_compile_target, render_launcher_menu,
+    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
+    target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
+    BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
+    BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
@@ -1029,12 +1031,23 @@ fn main() {
 
     let handler = builder
         .spawn(|| {
-            let args = Args::parse();
+            let launcher = detect_launcher_from_path(std::env::current_exe().ok().as_deref());
+            let matches = Args::command()
+                .bin_name(launcher.display_name())
+                .get_matches();
+            let args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
 
             println!(
                 " {} Compiler v{} (build {})",
                 LANGUAGE_NAME, VERSION, BUILD_NUMBER
             );
+
+            if should_show_launcher_menu(launcher, args.command.is_some(), args.input.is_some()) {
+                if let Some(menu) = render_launcher_menu(launcher) {
+                    print!("{menu}");
+                }
+                return;
+            }
 
             match args.command {
                 Some(Commands::Init { path, name }) => {
@@ -1055,7 +1068,7 @@ fn main() {
                     });
                 }
                 Some(Commands::Doctor) => {
-                    print_doctor();
+                    print_doctor(launcher);
                 }
                 Some(Commands::Selfhost { command }) => {
                     if let Err(e) = selfhost::run(command) {
@@ -1443,10 +1456,15 @@ fn main() {
                                 std::process::exit(1);
                             }
                         } else {
-                            let Some(target) = parse_compile_target(&args.target) else {
+                            let resolved_target_alias = resolve_legacy_target_alias(
+                                launcher,
+                                &args.target,
+                                args.output.is_some(),
+                            );
+                            let Some(target) = parse_compile_target(&resolved_target_alias) else {
                                 eprintln!(
                                     " Unknown target: {}. Use: {}",
-                                    args.target,
+                                    resolved_target_alias,
                                     supported_targets_csv()
                                 );
                                 std::process::exit(1);
@@ -1489,13 +1507,12 @@ fn main() {
     handler.join().unwrap();
 }
 
-fn print_doctor() {
+fn print_doctor(active_launcher: LauncherKind) {
     let current_exe = std::env::current_exe().ok();
-    let path_command = which::which("kain").ok();
-    let path_matches = which::which_all("kain")
-        .ok()
-        .map(|mut paths| paths.by_ref().take(4).collect::<Vec<_>>())
-        .unwrap_or_default();
+    let kain_path_command = which::which("kain").ok();
+    let kn_path_command = which::which("kn").ok();
+    let kain_path_matches = collect_path_matches("kain");
+    let kn_path_matches = collect_path_matches("kn");
     let stdlib_roots = kain_core::stdlib::find_stdlib_search_roots();
     let runtime_c = find_runtime_c();
     let runtime_manifest = find_native_runtime_manifest();
@@ -1526,15 +1543,28 @@ fn print_doctor() {
         }
         None => println!(" Binary Path: <unknown>"),
     }
+    println!(" Active Launcher: {}", active_launcher.display_name());
 
-    match &path_command {
+    match &kain_path_command {
         Some(path) => println!(" PATH kain: {}", path.display()),
         None => println!(" PATH kain: <not found>"),
     }
 
-    if !path_matches.is_empty() {
-        println!(" PATH Matches:");
-        for path in &path_matches {
+    match &kn_path_command {
+        Some(path) => println!(" PATH kn: {}", path.display()),
+        None => println!(" PATH kn: <not found>"),
+    }
+
+    if !kain_path_matches.is_empty() {
+        println!(" PATH Matches (kain):");
+        for path in &kain_path_matches {
+            println!("   - {}", path.display());
+        }
+    }
+
+    if !kn_path_matches.is_empty() {
+        println!(" PATH Matches (kn):");
+        for path in &kn_path_matches {
             println!("   - {}", path.display());
         }
     }
@@ -1569,8 +1599,12 @@ fn print_doctor() {
     );
 
     println!(
-        " PATH Match Status: {}",
-        doctor_path_status(current_exe.as_deref(), path_command.as_deref())
+        " PATH Match Status (kain): {}",
+        doctor_path_status(current_exe.as_deref(), kain_path_command.as_deref(), "kain")
+    );
+    println!(
+        " PATH Match Status (kn): {}",
+        doctor_path_status(current_exe.as_deref(), kn_path_command.as_deref(), "kn")
     );
 
     if stdlib_roots.is_empty() {
@@ -1650,15 +1684,30 @@ fn is_cargo_bin_binary(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn doctor_path_status(current_exe: Option<&Path>, path_command: Option<&Path>) -> &'static str {
+fn collect_path_matches(command_name: &str) -> Vec<PathBuf> {
+    which::which_all(command_name)
+        .ok()
+        .map(|mut paths| paths.by_ref().take(4).collect::<Vec<_>>())
+        .unwrap_or_default()
+}
+
+fn doctor_path_status(
+    current_exe: Option<&Path>,
+    path_command: Option<&Path>,
+    command_name: &str,
+) -> String {
     match (current_exe, path_command) {
         (Some(current), Some(path_entry)) if paths_equivalent(current, path_entry) => {
-            "current process matches PATH"
+            "current process matches PATH".to_string()
         }
-        (Some(_), Some(_)) => "drift: current process differs from PATH",
-        (Some(_), None) => "current process exists, but kain is not resolvable from PATH",
-        (None, Some(_)) => "PATH resolves kain, but current process path is unknown",
-        (None, None) => "unknown",
+        (Some(_), Some(_)) => "drift: current process differs from PATH".to_string(),
+        (Some(_), None) => {
+            format!("current process exists, but {command_name} is not resolvable from PATH")
+        }
+        (None, Some(_)) => {
+            format!("PATH resolves {command_name}, but current process path is unknown")
+        }
+        (None, None) => "unknown".to_string(),
     }
 }
 

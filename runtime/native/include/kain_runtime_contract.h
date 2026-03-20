@@ -20,6 +20,7 @@
 #define KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT        (1u << 2)
 #define KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (1u << 3)
 #define KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED     (1u << 4)
+#define KAIN_RUNTIME_SERVICE_GFX_COMPUTE            (1u << 5)
 
 #define KAIN_RUNTIME_SERVICE_CORE_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST | \
@@ -29,7 +30,8 @@
 
 #define KAIN_RUNTIME_SERVICE_OPTIONAL_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF | \
-    KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED \
+    KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED | \
+    KAIN_RUNTIME_SERVICE_GFX_COMPUTE \
 )
 
 typedef struct {
@@ -47,6 +49,7 @@ typedef struct {
     int has_native_viewport;
     int has_native_asset_gltf;
     int has_native_ui_compiled_bundle;
+    int has_gfx_compute;
     unsigned int service_mask;
     unsigned int required_abi_version;
     char target[KAIN_RUNTIME_CONTRACT_MAX_TARGET];
@@ -94,7 +97,6 @@ void kain_runtime_contract_format_service_mask(
     char* out,
     size_t out_cap
 );
-#endif
 
 /*
  * Populate Service Registry
@@ -127,4 +129,4 @@ int kain_runtime_contract_validate_startup_enhanced(
     KainStartupValidationResult* result
 );
 
-#endif
+#endif /* KAIN_RUNTIME_CONTRACT_H */
