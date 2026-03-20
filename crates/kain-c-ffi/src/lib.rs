@@ -50,12 +50,20 @@ pub fn import_library(
     register();
     let (resolved, manifest_context) = resolve_library(import_name, prepare)?;
     let bundle = extract_binding_bundle(&resolved)?;
-    let hash = build_cache_hash(&resolved, &bundle.source_fingerprints, BRIDGE_FORMAT_VERSION);
+    let hash = build_cache_hash(
+        &resolved,
+        &bundle.source_fingerprints,
+        BRIDGE_FORMAT_VERSION,
+    );
     let cache_dir = default_cache_root(prepare).join("c_ffi").join(hash);
     fs::create_dir_all(&cache_dir).map_err(KainError::Io)?;
 
-    let (artifacts, mut output) =
-        write_generated_artifacts(&resolved, &bundle, &cache_dir, options.output_dir.as_deref())?;
+    let (artifacts, mut output) = write_generated_artifacts(
+        &resolved,
+        &bundle,
+        &cache_dir,
+        options.output_dir.as_deref(),
+    )?;
     output.config_root = manifest_context.root_dir.clone();
     output.c_ffi_config = manifest_context.config.clone();
 
@@ -156,14 +164,13 @@ fn ensure_bridge_loaded(dylib_path: &Path) -> Result<(), KainError> {
         ))
     })?;
     let register = unsafe {
-        let symbol: Symbol<RegisterBridgeFn> =
-            library.get(BRIDGE_SYMBOL_NAME).map_err(|err| {
-                KainError::runtime(format!(
-                    "Bridge '{}' is missing symbol '{}': {err}",
-                    canonical_path.display(),
-                    String::from_utf8_lossy(BRIDGE_SYMBOL_NAME)
-                ))
-            })?;
+        let symbol: Symbol<RegisterBridgeFn> = library.get(BRIDGE_SYMBOL_NAME).map_err(|err| {
+            KainError::runtime(format!(
+                "Bridge '{}' is missing symbol '{}': {err}",
+                canonical_path.display(),
+                String::from_utf8_lossy(BRIDGE_SYMBOL_NAME)
+            ))
+        })?;
         *symbol
     };
     LOADED_BRIDGES
@@ -293,12 +300,15 @@ fn load_c_ffi_config(root: &Path) -> Result<Option<config::CFfiConfig>, KainErro
             ))
         })?;
         if let Some(table) = value.get("c_ffi") {
-            let config = table.clone().try_into::<config::CFfiConfig>().map_err(|err| {
-                KainError::runtime(format!(
-                    "Failed to parse [c_ffi] in '{}': {err}",
-                    manifest_path.display()
-                ))
-            })?;
+            let config = table
+                .clone()
+                .try_into::<config::CFfiConfig>()
+                .map_err(|err| {
+                    KainError::runtime(format!(
+                        "Failed to parse [c_ffi] in '{}': {err}",
+                        manifest_path.display()
+                    ))
+                })?;
             return Ok(Some(config));
         }
         return Ok(None);

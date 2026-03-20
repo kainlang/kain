@@ -1,9 +1,9 @@
 //! KAIN Compiler CLI
 
 use clap::Parser as ClapParser;
-use cli::import_crate;
 use cli::import_asm;
 use cli::import_c;
+use cli::import_crate;
 use cli::import_rust;
 use cli::import_typescript;
 use cli::lsp;
@@ -18,8 +18,8 @@ use cli::{
     BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE,
     BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
-use serde::Deserialize;
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
+use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -872,8 +872,9 @@ fn run_compile(
                         .arg("-Wno-override-module")
                         .arg("-g"); // Debug info
 
-                    runtime_link_libs =
-                        unique_link_libs([runtime_link_libs, default_native_runtime_link_libs()].concat());
+                    runtime_link_libs = unique_link_libs(
+                        [runtime_link_libs, default_native_runtime_link_libs()].concat(),
+                    );
 
                     for link_lib in runtime_link_libs {
                         cmd.arg(format!("-l{}", link_lib));
@@ -1758,8 +1759,8 @@ fn write_realtime_app_artifact(
     output_path: &Path,
     root_component: Option<&str>,
 ) -> Result<PathBuf, String> {
-    let bundle_output =
-        compile_realtime_app_bundle(source, target, root_component).map_err(|err| err.to_string())?;
+    let bundle_output = compile_realtime_app_bundle(source, target, root_component)
+        .map_err(|err| err.to_string())?;
     let realtime_path = realtime_app_artifact_path(output_path);
     if let Some(parent) = realtime_path.parent() {
         fs::create_dir_all(parent).map_err(|err| {

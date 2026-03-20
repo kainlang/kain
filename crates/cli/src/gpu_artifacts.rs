@@ -35,7 +35,13 @@ pub fn write_gpu_artifacts_bundle(
     let bundle_path = with_file_name_suffix(&base_path, ".shader_bundle", "json");
     let hlsl_path = with_file_name_suffix(&base_path, ".derived", "hlsl");
 
-    for path in [&spirv_path, &rust_path, &json_path, &bundle_path, &hlsl_path] {
+    for path in [
+        &spirv_path,
+        &rust_path,
+        &json_path,
+        &bundle_path,
+        &hlsl_path,
+    ] {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| {
                 KainError::runtime(format!(

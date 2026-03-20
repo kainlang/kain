@@ -5,6 +5,68 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=fffe94b1ba9e5bd3 -->
+## 2026-03-19 21:23:23 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2f5a78a`
+- Changed files: 31
+- [.M] `crates/cli/src/gpu_artifacts.rs`
+- [.M] `crates/cli/src/import_crate.rs`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/gpu/src/codegen_spirv.rs`
+- [.M] `crates/kain-3D/src/lib.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-c-ffi/src/generate.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-core/src/runtime.rs`
+- [.M] `crates/kain-core/src/stdlib.rs`
+- [.M] `crates/kain-crate-ffi/src/generate.rs`
+- [.M] `crates/kain-crate-ffi/src/lib.rs`
+- [.M] `crates/kain-crate-ffi/src/resolve.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/kain-node/src/lib.rs`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-sys-codegen/src/codegen_cpp/mod.rs`
+- [.M] `crates/kain-sys-codegen/tests/cpp_helper_documentation_test.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `crates/ue5-editor/src/editor/editor_module_codegen.rs`
+- [.M] `crates/ue5-editor/src/editor/slate.rs`
+- [.M] `crates/ue5-shaders/src/codegen_usf.rs`
+- [.M] `crates/ue5/src/blueprint_codegen.rs`
+- [.M] `crates/ue5/src/codegen_ue5.rs`
+- [.M] `runtime/parallel/rust/kain-runtime-parallel/src/main.rs`
+- [??] `runtime/README.md`
+
+<!-- polytools-changelog:fingerprint=9dbfc6d2485938aa -->
+## 2026-03-19 21:20:58 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2f5a78a`
+- Changed files: 4
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [??] `runtime/README.md`
+
+<!-- polytools-changelog:fingerprint=bfca579c6df1e615 -->
+## 2026-03-19 21:17:49 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2f5a78a`
+- Changed files: 2
+- [.M] `crates/kain-ui/src/lib.rs`
+- [??] `runtime/README.md`
+
+<!-- polytools-changelog:fingerprint=85571263e8761276 -->
+## 2026-03-19 18:47:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2f5a78a`
+- Changed files: 1
+- [??] `runtime/README.md`
+
 <!-- polytools-changelog:fingerprint=1728fc60bc4cb66e -->
 ## 2026-03-19 03:15:20 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

@@ -1230,7 +1230,11 @@ impl SlateGenerator {
                     }
                 }
             }
-            Expr::Call { callee, args: _args, .. } => {
+            Expr::Call {
+                callee,
+                args: _args,
+                ..
+            } => {
                 // Check for shader_image
                 if let Expr::Ident(name, _) = &**callee {
                     if name == "shader_image" {
@@ -1405,7 +1409,11 @@ impl SlateGenerator {
     #[allow(dead_code)]
     fn generate_widget_tree(&mut self, expr: &Expr, st: &TypedStruct) {
         match expr {
-            Expr::Call { callee, args: _args, .. } => {
+            Expr::Call {
+                callee,
+                args: _args,
+                ..
+            } => {
                 // Check for shader_image
                 if let Expr::Ident(name, _) = &**callee {
                     if name == "shader_image" {

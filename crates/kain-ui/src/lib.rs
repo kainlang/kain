@@ -588,10 +588,19 @@ pub struct UiSurface {
     pub kind: UiSurfaceKind,
     pub node: UiNodeId,
     pub title: Option<String>,
+    #[serde(default)]
+    pub renderer_preference: UiSurfaceRendererPreference,
+    #[serde(default)]
+    pub composition_mode: UiSurfaceCompositionMode,
+    #[serde(default)]
+    pub gpu_backing_required: bool,
+    #[serde(default)]
+    pub shader: Option<UiSurfaceShaderBinding>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UiSurfaceKind {
+    Canvas,
     Graph,
     Timeline,
     Table,
@@ -600,6 +609,36 @@ pub enum UiSurfaceKind {
     Viewport3D,
     Overlay,
     Custom(String),
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSurfaceRendererPreference {
+    #[default]
+    Auto,
+    Native,
+    Dom,
+    Wgpu,
+    Shader,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSurfaceCompositionMode {
+    #[default]
+    Host,
+    LayeredGpu,
+    Viewport,
+    ShaderCanvas,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiSurfaceShaderBinding {
+    pub shader_ref: String,
+    pub entry_point: Option<String>,
+    pub stage: Option<String>,
+    pub derived_format: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1038,13 +1077,8 @@ pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
             });
         }
 
-        if let Some(surface_kind) = surface_kind_for_node(node) {
-            systems.surfaces.push(UiSurface {
-                id: format!("surface.node.{}", node.id.0),
-                kind: surface_kind.clone(),
-                node: node.id,
-                title: node_prop_string(node, "title"),
-            });
+        if let Some(surface) = ui_surface_for_node(node) {
+            systems.surfaces.push(surface);
             systems.animation_tracks.push(UiAnimationTrack {
                 id: format!("animation.node.{}", node.id.0),
                 target: node.id,
@@ -1779,8 +1813,36 @@ pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProje
     projection
 }
 
+fn ui_surface_for_node(node: &UiNode) -> Option<UiSurface> {
+    let kind = surface_kind_for_node(node)?;
+    let shader = surface_shader_binding_for_node(node);
+    let renderer_preference = surface_renderer_preference_for_node(node, shader.as_ref(), &kind);
+    let composition_mode = surface_composition_mode_for_node(node, shader.as_ref(), &kind);
+    let gpu_backing_required = surface_gpu_backing_required(
+        node,
+        shader.as_ref(),
+        &kind,
+        renderer_preference,
+        composition_mode,
+    );
+
+    Some(UiSurface {
+        id: format!("surface.node.{}", node.id.0),
+        kind,
+        node: node.id,
+        title: node_prop_string(node, "title"),
+        renderer_preference,
+        composition_mode,
+        gpu_backing_required,
+        shader,
+    })
+}
+
 fn surface_kind_for_node(node: &UiNode) -> Option<UiSurfaceKind> {
     match node.kind {
+        UiWidgetKind::Element(ref tag) if is_canvas_surface_element(tag, node) => {
+            Some(UiSurfaceKind::Canvas)
+        }
         UiWidgetKind::Graph => Some(UiSurfaceKind::Graph),
         UiWidgetKind::Timeline => Some(UiSurfaceKind::Timeline),
         UiWidgetKind::Table => Some(UiSurfaceKind::Table),
@@ -1788,6 +1850,149 @@ fn surface_kind_for_node(node: &UiNode) -> Option<UiSurfaceKind> {
         UiWidgetKind::Viewport2D => Some(UiSurfaceKind::Viewport2D),
         UiWidgetKind::Viewport3D => Some(UiSurfaceKind::Viewport3D),
         UiWidgetKind::Overlay => Some(UiSurfaceKind::Overlay),
+        _ => None,
+    }
+}
+
+fn is_canvas_surface_element(tag: &str, node: &UiNode) -> bool {
+    matches!(
+        tag.trim().to_ascii_lowercase().as_str(),
+        "canvas" | "gpu" | "gpu_surface" | "shader_surface"
+    ) || surface_shader_binding_for_node(node).is_some()
+}
+
+fn surface_shader_binding_for_node(node: &UiNode) -> Option<UiSurfaceShaderBinding> {
+    let shader_ref = first_string_prop(
+        node,
+        &[
+            "shader_ref",
+            "shader",
+            "shader_bundle_ref",
+            "shader_ref_key",
+            "surface_shader",
+        ],
+    )?;
+
+    Some(UiSurfaceShaderBinding {
+        shader_ref,
+        entry_point: first_string_prop(
+            node,
+            &["shader_entry", "shader_entry_point", "surface_shader_entry"],
+        ),
+        stage: first_string_prop(node, &["shader_stage", "surface_shader_stage"]),
+        derived_format: first_string_prop(
+            node,
+            &["shader_format", "shader_payload", "surface_shader_format"],
+        ),
+    })
+}
+
+fn surface_renderer_preference_for_node(
+    node: &UiNode,
+    shader: Option<&UiSurfaceShaderBinding>,
+    kind: &UiSurfaceKind,
+) -> UiSurfaceRendererPreference {
+    if let Some(explicit) = first_string_prop(
+        node,
+        &[
+            "renderer",
+            "surface_renderer",
+            "gpu_renderer",
+            "ui_renderer",
+        ],
+    )
+    .and_then(parse_surface_renderer_preference)
+    {
+        return explicit;
+    }
+
+    if shader.is_some() {
+        return UiSurfaceRendererPreference::Shader;
+    }
+
+    match kind {
+        UiSurfaceKind::Canvas | UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D => {
+            UiSurfaceRendererPreference::Wgpu
+        }
+        _ => UiSurfaceRendererPreference::Auto,
+    }
+}
+
+fn surface_composition_mode_for_node(
+    node: &UiNode,
+    shader: Option<&UiSurfaceShaderBinding>,
+    kind: &UiSurfaceKind,
+) -> UiSurfaceCompositionMode {
+    if let Some(explicit) = first_string_prop(
+        node,
+        &[
+            "composition",
+            "surface_composition",
+            "gpu_composition",
+            "surface_mode",
+        ],
+    )
+    .and_then(parse_surface_composition_mode)
+    {
+        return explicit;
+    }
+
+    if shader.is_some() {
+        return UiSurfaceCompositionMode::ShaderCanvas;
+    }
+
+    match kind {
+        UiSurfaceKind::Canvas => UiSurfaceCompositionMode::ShaderCanvas,
+        UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D => UiSurfaceCompositionMode::Viewport,
+        UiSurfaceKind::Graph | UiSurfaceKind::Timeline | UiSurfaceKind::Overlay => {
+            UiSurfaceCompositionMode::LayeredGpu
+        }
+        _ => UiSurfaceCompositionMode::Host,
+    }
+}
+
+fn surface_gpu_backing_required(
+    node: &UiNode,
+    shader: Option<&UiSurfaceShaderBinding>,
+    kind: &UiSurfaceKind,
+    renderer_preference: UiSurfaceRendererPreference,
+    composition_mode: UiSurfaceCompositionMode,
+) -> bool {
+    if let Some(explicit) = first_bool_prop(node, &["gpu", "gpu_backed", "surface_gpu"]) {
+        return explicit;
+    }
+
+    shader.is_some()
+        || matches!(
+            kind,
+            UiSurfaceKind::Canvas | UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D
+        )
+        || matches!(
+            renderer_preference,
+            UiSurfaceRendererPreference::Wgpu | UiSurfaceRendererPreference::Shader
+        )
+        || !matches!(composition_mode, UiSurfaceCompositionMode::Host)
+}
+
+fn parse_surface_renderer_preference(value: String) -> Option<UiSurfaceRendererPreference> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiSurfaceRendererPreference::Auto),
+        "native" | "host" => Some(UiSurfaceRendererPreference::Native),
+        "dom" | "web" => Some(UiSurfaceRendererPreference::Dom),
+        "wgpu" | "gpu" => Some(UiSurfaceRendererPreference::Wgpu),
+        "shader" | "shader_canvas" => Some(UiSurfaceRendererPreference::Shader),
+        _ => None,
+    }
+}
+
+fn parse_surface_composition_mode(value: String) -> Option<UiSurfaceCompositionMode> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "host" | "retained" => Some(UiSurfaceCompositionMode::Host),
+        "layered_gpu" | "gpu_layer" | "layered-gpu" => Some(UiSurfaceCompositionMode::LayeredGpu),
+        "viewport" => Some(UiSurfaceCompositionMode::Viewport),
+        "shader_canvas" | "shader-canvas" | "canvas" => {
+            Some(UiSurfaceCompositionMode::ShaderCanvas)
+        }
         _ => None,
     }
 }
@@ -1841,6 +2046,26 @@ fn node_prop_string(node: &UiNode, key: &str) -> Option<String> {
     node.props.get(key).and_then(|value| match value {
         UiValue::String(value) => Some(value.clone()),
         _ => None,
+    })
+}
+
+fn first_string_prop(node: &UiNode, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| node_prop_string(node, key))
+}
+
+fn first_bool_prop(node: &UiNode, keys: &[&str]) -> Option<bool> {
+    keys.iter().find_map(|key| {
+        node.props.get(*key).and_then(|value| match value {
+            UiValue::Bool(value) => Some(*value),
+            UiValue::Int(value) => Some(*value != 0),
+            UiValue::Float(value) => Some(value.abs() > f64::EPSILON),
+            UiValue::String(value) => match value.trim().to_ascii_lowercase().as_str() {
+                "1" | "true" | "yes" | "on" => Some(true),
+                "0" | "false" | "no" | "off" => Some(false),
+                _ => None,
+            },
+            UiValue::Null => None,
+        })
     })
 }
 
@@ -2200,6 +2425,11 @@ mod tests {
         let build = builder.finish();
 
         assert_eq!(build.systems.surfaces.len(), 1);
+        assert_eq!(build.systems.surfaces[0].kind, UiSurfaceKind::Graph);
+        assert_eq!(
+            build.systems.surfaces[0].composition_mode,
+            UiSurfaceCompositionMode::LayeredGpu
+        );
         assert_eq!(build.systems.animation_tracks.len(), 1);
         assert_eq!(build.systems.hot_reload.identity_aliases.len(), 2);
         assert_eq!(
@@ -2244,6 +2474,74 @@ mod tests {
 
         assert!(!bundle.output.systems.is_empty());
         assert_eq!(bundle.output.systems.workspace_layout.roots.len(), 1);
+    }
+
+    #[test]
+    fn canvas_elements_with_shader_refs_promote_to_gpu_surfaces() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        let canvas_id = builder.alloc_id();
+
+        let root = UiNode::new(root_id, UiWidgetKind::Panel);
+        builder.add_node(root);
+
+        let mut canvas = UiNode::new(canvas_id, UiWidgetKind::Element("canvas".to_string()));
+        canvas
+            .props
+            .insert("title".to_string(), UiValue::from("Hero Surface"));
+        canvas
+            .props
+            .insert("shader_ref".to_string(), UiValue::from("ui.hero_surface"));
+        canvas
+            .props
+            .insert("shader_stage".to_string(), UiValue::from("fragment"));
+        canvas
+            .props
+            .insert("shader_format".to_string(), UiValue::from("wgsl"));
+        builder.add_node(canvas);
+        builder.replace_children(root_id, vec![canvas_id]);
+        builder.set_root(root_id);
+
+        let build = builder.finish();
+        let surface = build
+            .systems
+            .surfaces
+            .iter()
+            .find(|surface| surface.node == canvas_id)
+            .expect("canvas node should become a runtime surface");
+
+        assert_eq!(surface.kind, UiSurfaceKind::Canvas);
+        assert_eq!(surface.title.as_deref(), Some("Hero Surface"));
+        assert_eq!(
+            surface.renderer_preference,
+            UiSurfaceRendererPreference::Shader
+        );
+        assert_eq!(
+            surface.composition_mode,
+            UiSurfaceCompositionMode::ShaderCanvas
+        );
+        assert!(surface.gpu_backing_required);
+        assert_eq!(
+            surface
+                .shader
+                .as_ref()
+                .map(|binding| binding.shader_ref.as_str()),
+            Some("ui.hero_surface")
+        );
+        assert_eq!(
+            surface
+                .shader
+                .as_ref()
+                .and_then(|binding| binding.stage.as_deref()),
+            Some("fragment")
+        );
+        assert_eq!(
+            surface
+                .shader
+                .as_ref()
+                .and_then(|binding| binding.derived_format.as_deref()),
+            Some("wgsl")
+        );
     }
 
     #[test]

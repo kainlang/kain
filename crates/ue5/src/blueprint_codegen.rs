@@ -79,7 +79,11 @@ pub fn generate_blueprint_event_code(
 }
 
 /// Generate Blueprint event header declaration
-fn generate_event_header_declaration(ir: &BlueprintEventIR, _class_name: &str, output: &mut String) {
+fn generate_event_header_declaration(
+    ir: &BlueprintEventIR,
+    _class_name: &str,
+    output: &mut String,
+) {
     // Generate UFUNCTION macro
     output.push_str("    UFUNCTION(BlueprintNativeEvent, Category = \"");
     output.push_str(&ir.category);

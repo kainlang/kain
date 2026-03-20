@@ -651,8 +651,14 @@ fn register_node_env(env: &mut Env) {
     env.register_native_fn("js_image_text", builtin_js_image_text);
     env.register_native_fn("js_image_bytes", builtin_js_image_bytes);
     env.register_native_fn("js_image_buffer", builtin_js_image_buffer);
-    env.register_native_fn("kain_shared_buffer_from_js", builtin_kain_shared_buffer_from_js);
-    env.register_native_fn("kain_shared_image_from_js", builtin_kain_shared_image_from_js);
+    env.register_native_fn(
+        "kain_shared_buffer_from_js",
+        builtin_kain_shared_buffer_from_js,
+    );
+    env.register_native_fn(
+        "kain_shared_image_from_js",
+        builtin_kain_shared_image_from_js,
+    );
 }
 
 fn builtin_js_eval(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {

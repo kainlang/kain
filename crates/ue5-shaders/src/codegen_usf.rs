@@ -12,9 +12,7 @@ use crate::type_mapping::TYPE_MAPPER;
 use crate::validation::ShaderValidator;
 use kain_core::ast::{BinaryOp, Block, Expr, Pattern, ShaderStage, Stmt, Type};
 use kain_core::error::{KainError, KainResult};
-use kain_core::types::{
-    TypedItem, TypedProgram, TypedShader, TypedStruct,
-};
+use kain_core::types::{TypedItem, TypedProgram, TypedShader, TypedStruct};
 use std::collections::HashMap;
 
 /// Pre-computed component mirror structs.
@@ -1132,7 +1130,7 @@ struct PackedVar {
     #[allow(dead_code)]
     name: String,
     #[allow(dead_code)]
-    ty: String,      // USF type string
+    ty: String, // USF type string
     #[allow(dead_code)]
     swizzle: String, // "x", "xy", "xyz", "xyzw", "zw", etc.
 }

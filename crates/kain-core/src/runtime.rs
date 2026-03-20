@@ -1752,9 +1752,9 @@ impl Env {
             stdout
                 .write_all(text.as_bytes())
                 .map_err(|err| KainError::runtime(format!("stdout_write failed: {}", err)))?;
-            stdout.flush().map_err(|err| {
-                KainError::runtime(format!("stdout_write flush failed: {}", err))
-            })?;
+            stdout
+                .flush()
+                .map_err(|err| KainError::runtime(format!("stdout_write flush failed: {}", err)))?;
             Ok(Value::Unit)
         });
 

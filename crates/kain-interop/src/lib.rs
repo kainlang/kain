@@ -101,11 +101,7 @@ impl KainSharedImage {
         let strides = if metadata.representation == "raster" && metadata.height > 0 {
             if metadata.channels > 0 {
                 match metadata.layout.as_str() {
-                    "CHW" => vec![
-                        metadata.height * metadata.width,
-                        metadata.width,
-                        1,
-                    ],
+                    "CHW" => vec![metadata.height * metadata.width, metadata.width, 1],
                     _ => vec![metadata.width * metadata.channels, metadata.channels, 1],
                 }
             } else {
@@ -211,7 +207,10 @@ pub fn shared_buffer_info_value(buffer: &KainSharedBuffer) -> Value {
         "element_size".to_string(),
         Value::Int(buffer.metadata.element_size),
     );
-    fields.insert("shape".to_string(), int_list_to_value(&buffer.metadata.shape));
+    fields.insert(
+        "shape".to_string(),
+        int_list_to_value(&buffer.metadata.shape),
+    );
     fields.insert(
         "strides".to_string(),
         int_list_to_value(&buffer.metadata.strides),
@@ -248,7 +247,10 @@ pub fn shared_buffer_info_value(buffer: &KainSharedBuffer) -> Value {
         "element_count".to_string(),
         Value::Int(element_count(&buffer.metadata.shape)),
     );
-    Value::Struct("KainSharedBufferInfo".to_string(), Arc::new(RwLock::new(fields)))
+    Value::Struct(
+        "KainSharedBufferInfo".to_string(),
+        Arc::new(RwLock::new(fields)),
+    )
 }
 
 pub fn shared_image_info_value(image: &KainSharedImage) -> Value {
@@ -312,7 +314,10 @@ pub fn shared_image_info_value(image: &KainSharedImage) -> Value {
         "byte_length".to_string(),
         Value::Int(image.buffer.byte_length() as i64),
     );
-    Value::Struct("KainSharedImageInfo".to_string(), Arc::new(RwLock::new(fields)))
+    Value::Struct(
+        "KainSharedImageInfo".to_string(),
+        Arc::new(RwLock::new(fields)),
+    )
 }
 
 fn register_interop_stdlib(stdlib: &mut StdLib) {
@@ -437,7 +442,8 @@ fn builtin_shared_buffer_from_bytes(_env: &mut Env, args: Vec<Value>) -> KainRes
         ));
     }
     let bytes = value_to_bytes("kain_shared_buffer_from_bytes", &args[0])?;
-    let element_type = value_to_string_arg("kain_shared_buffer_from_bytes", "element_type", &args[1])?;
+    let element_type =
+        value_to_string_arg("kain_shared_buffer_from_bytes", "element_type", &args[1])?;
     let shape = value_to_int_list("kain_shared_buffer_from_bytes", "shape", &args[2])?;
     let format = value_to_string_arg("kain_shared_buffer_from_bytes", "format", &args[3])?;
     let mime_type = value_to_string_arg("kain_shared_buffer_from_bytes", "mime_type", &args[4])?;
@@ -446,7 +452,11 @@ fn builtin_shared_buffer_from_bytes(_env: &mut Env, args: Vec<Value>) -> KainRes
         element_type,
         strides: compact_strides(&shape),
         shape,
-        format: if format.is_empty() { None } else { Some(format) },
+        format: if format.is_empty() {
+            None
+        } else {
+            Some(format)
+        },
         mime_type: if mime_type.is_empty() {
             None
         } else {
@@ -457,7 +467,9 @@ fn builtin_shared_buffer_from_bytes(_env: &mut Env, args: Vec<Value>) -> KainRes
         ownership: "owned".to_string(),
         labels: vec!["kain".to_string(), "buffer".to_string()],
     };
-    Ok(shared_buffer_value(KainSharedBuffer::owned(metadata, bytes)))
+    Ok(shared_buffer_value(KainSharedBuffer::owned(
+        metadata, bytes,
+    )))
 }
 
 fn builtin_shared_buffer_replace_bytes(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -557,11 +569,7 @@ fn int_list_to_value(values: &[i64]) -> Value {
 
 fn string_list_to_value(values: &[String]) -> Value {
     Value::Array(Arc::new(RwLock::new(
-        values
-            .iter()
-            .cloned()
-            .map(Value::String)
-            .collect(),
+        values.iter().cloned().map(Value::String).collect(),
     )))
 }
 
@@ -574,7 +582,10 @@ fn optional_string_to_value(value: Option<String>) -> Value {
 
 fn bytes_to_value(bytes: &[u8]) -> Value {
     Value::Array(Arc::new(RwLock::new(
-        bytes.iter().map(|value| Value::Int(*value as i64)).collect(),
+        bytes
+            .iter()
+            .map(|value| Value::Int(*value as i64))
+            .collect(),
     )))
 }
 

@@ -10,9 +10,9 @@ pub use kain_core::*;
 pub mod error;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub mod gpu_artifacts;
-pub mod import_crate;
 pub mod import_asm;
 pub mod import_c;
+pub mod import_crate;
 pub mod import_rust;
 pub mod import_typescript;
 pub mod lsp;

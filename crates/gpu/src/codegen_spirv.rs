@@ -960,8 +960,7 @@ fn emit_vector_constructor(
             return Err(KainError::codegen(
                 format!(
                     "Unsupported argument type '{:?}' for {} constructor",
-                    value_ty,
-                    result_type_name
+                    value_ty, result_type_name
                 ),
                 expr.span(),
             ));

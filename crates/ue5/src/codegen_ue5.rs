@@ -53,9 +53,8 @@ impl ProgramItems for MonomorphizedProgram {
     }
 }
 use crate::ue5::{
-    escape_string as ue5_escape_string, get_ue_log_format_spec, to_actor_name,
-    to_component_name, to_enum_name, to_pascal_case, to_struct_name, to_subsystem_name,
-    to_uobject_name,
+    escape_string as ue5_escape_string, get_ue_log_format_spec, to_actor_name, to_component_name,
+    to_enum_name, to_pascal_case, to_struct_name, to_subsystem_name, to_uobject_name,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 

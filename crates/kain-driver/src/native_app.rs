@@ -13,7 +13,8 @@ use kain_core::{
     RuntimeContractBundle, RuntimePlatformAvailabilityMetadata, RuntimeVersionRecord,
 };
 use kain_ui::{
-    ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeMetadata,
+    ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeBundle,
+    UiRuntimeMetadata,
 };
 
 const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
@@ -198,6 +199,7 @@ pub struct NativeAppBundle {
     pub realtime: RealtimeAppBundle,
     pub shader_bundle: Option<ShaderArtifactBundleOutput>,
     pub ui: UiBuildOutput,
+    pub ui_runtime_bundle: UiRuntimeBundle,
     pub rust: RustBundleOutput,
     pub runtime_version: Option<RuntimeVersionMetadata>,
 }
@@ -261,6 +263,23 @@ impl DriverSession {
             .bundle;
         let shader_bundle = self.compile_shader_artifact_bundle(source).ok();
         let ui = build_ui_output_from_source(source, &root_component)?;
+        let metadata = NativeAppMetadata {
+            app_name,
+            window_title,
+            root_component,
+            source_file_name,
+            initial_window_size: config.initial_window_size,
+        };
+        let ui_runtime_bundle = ui_runtime_bundle_from_output(
+            UiRuntimeMetadata {
+                app_name: Some(metadata.app_name.clone()),
+                window_title: metadata.window_title.clone(),
+                root_component: metadata.root_component.clone(),
+                source_file_name: Some(metadata.source_file_name.clone()),
+                initial_window_size: metadata.initial_window_size,
+            },
+            ui.clone(),
+        );
         let rust = self.compile_rust_artifact_bundle(source, config.include_spirv)?;
 
         // Load runtime version metadata
@@ -274,17 +293,12 @@ impl DriverSession {
         }
 
         Ok(NativeAppBundle {
-            metadata: NativeAppMetadata {
-                app_name,
-                window_title,
-                root_component,
-                source_file_name,
-                initial_window_size: config.initial_window_size,
-            },
+            metadata,
             runtime_contract,
             realtime,
             shader_bundle,
             ui,
+            ui_runtime_bundle,
             rust,
             runtime_version,
         })
@@ -729,18 +743,7 @@ fn rust_string_literal(value: &str) -> String {
 }
 
 fn render_runtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
-    let runtime_bundle = ui_runtime_bundle_from_output(
-        UiRuntimeMetadata {
-            app_name: Some(bundle.metadata.app_name.clone()),
-            window_title: bundle.metadata.window_title.clone(),
-            root_component: bundle.metadata.root_component.clone(),
-            source_file_name: Some(bundle.metadata.source_file_name.clone()),
-            initial_window_size: bundle.metadata.initial_window_size,
-        },
-        bundle.ui.clone(),
-    );
-
-    ui_runtime_bundle_to_json(&runtime_bundle).map_err(|err| {
+    ui_runtime_bundle_to_json(&bundle.ui_runtime_bundle).map_err(|err| {
         KainError::runtime(format!(
             "Failed to serialize native app runtime bundle for {}: {err}",
             bundle.metadata.app_name
@@ -906,7 +909,9 @@ component App():
     fn compile_native_app_bundle_collects_ui_and_rust_outputs() {
         let source = r#"
 component App():
-    render <panel title="Studio" />
+    render <panel title="Studio">
+        <canvas title="Hero Surface" shader_ref="ui.hero_surface" />
+    </panel>
 "#;
 
         let bundle = compile_native_app_bundle(
@@ -932,6 +937,14 @@ component App():
             .iter()
             .any(|capability| capability.key == "ui.runtime-bundle"));
         assert!(bundle.ui.tree.root.is_some());
+        assert_eq!(bundle.ui_runtime_bundle.output, bundle.ui);
+        assert!(bundle
+            .ui_runtime_bundle
+            .output
+            .systems
+            .surfaces
+            .iter()
+            .any(|surface| surface.gpu_backing_required));
         assert!(bundle.rust.bundle.primary.contents.contains("fn"));
     }
 
@@ -1203,6 +1216,7 @@ component App():
         );
         assert_eq!(runtime_bundle.metadata.window_title, "Bundle Proof");
         assert_eq!(runtime_bundle.metadata.root_component, "App");
+        assert_eq!(runtime_bundle, bundle.ui_runtime_bundle);
         assert_eq!(runtime_bundle.output, bundle.ui);
 
         let runtime_contract_json =

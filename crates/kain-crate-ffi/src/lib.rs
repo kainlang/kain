@@ -66,13 +66,15 @@ pub fn import_crate(
         env!("CARGO_PKG_VERSION"),
         BRIDGE_FORMAT_VERSION,
     );
-    let cache_dir = default_cache_root(prepare)
-        .join("crate_ffi")
-        .join(hash);
+    let cache_dir = default_cache_root(prepare).join("crate_ffi").join(hash);
     fs::create_dir_all(&cache_dir).map_err(KainError::Io)?;
 
-    let (artifacts, mut output) =
-        write_generated_artifacts(&resolved, &bundle, &cache_dir, options.output_dir.as_deref())?;
+    let (artifacts, mut output) = write_generated_artifacts(
+        &resolved,
+        &bundle,
+        &cache_dir,
+        options.output_dir.as_deref(),
+    )?;
     output.config_root = manifest_context.root_dir.clone();
     output.rust_ffi_config = manifest_context.config.clone();
 
@@ -81,7 +83,9 @@ pub fn import_crate(
             fs::create_dir_all(parent).map_err(KainError::Io)?;
         }
         let report_json = serde_json::to_string_pretty(&artifacts.report).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize crate FFI report override: {err}"))
+            KainError::runtime(format!(
+                "Failed to serialize crate FFI report override: {err}"
+            ))
         })?;
         fs::write(report_json_path, report_json).map_err(KainError::Io)?;
     }
@@ -146,7 +150,9 @@ pub fn detect_rust_crate_imports(source: &str) -> Vec<String> {
 }
 
 fn apply_loaded_bridges(env: &mut Env) {
-    let registry = LOADED_BRIDGES.read().expect("crate ffi bridge registry read");
+    let registry = LOADED_BRIDGES
+        .read()
+        .expect("crate ffi bridge registry read");
     for bridge in registry.values() {
         unsafe { (bridge.register)(env as *mut Env) };
     }
@@ -170,14 +176,13 @@ fn ensure_bridge_loaded(dylib_path: &Path) -> Result<(), KainError> {
         ))
     })?;
     let register = unsafe {
-        let symbol: Symbol<RegisterBridgeFn> =
-            library.get(BRIDGE_SYMBOL_NAME).map_err(|err| {
-                KainError::runtime(format!(
-                    "Bridge '{}' is missing symbol '{}': {err}",
-                    canonical_path.display(),
-                    String::from_utf8_lossy(BRIDGE_SYMBOL_NAME)
-                ))
-            })?;
+        let symbol: Symbol<RegisterBridgeFn> = library.get(BRIDGE_SYMBOL_NAME).map_err(|err| {
+            KainError::runtime(format!(
+                "Bridge '{}' is missing symbol '{}': {err}",
+                canonical_path.display(),
+                String::from_utf8_lossy(BRIDGE_SYMBOL_NAME)
+            ))
+        })?;
         *symbol
     };
     LOADED_BRIDGES
@@ -288,9 +293,15 @@ mod tests {
         .expect("import crate");
 
         assert!(output.canonical_module_source.contains("mod rust:"));
-        assert!(output.canonical_module_source.contains("fn add(a: Int, b: Int) -> Int:"));
-        assert!(output.canonical_module_source.contains("fn rust_sample_ffi_add(a: Int, b: Int) -> Int:"));
-        assert!(output.prelude_source.contains("use rust::sample_ffi::rust_sample_ffi_add"));
+        assert!(output
+            .canonical_module_source
+            .contains("fn add(a: Int, b: Int) -> Int:"));
+        assert!(output
+            .canonical_module_source
+            .contains("fn rust_sample_ffi_add(a: Int, b: Int) -> Int:"));
+        assert!(output
+            .prelude_source
+            .contains("use rust::sample_ffi::rust_sample_ffi_add"));
         assert!(output.report_json_path.exists());
     }
 
@@ -322,12 +333,16 @@ mod tests {
 
         let first = import_crate("sample_live_ffi", &options, &prepare).expect("first import");
         assert!(
-            first.dylib_path
+            first
+                .dylib_path
                 .as_ref()
                 .is_some_and(|value| value.exists()),
             "first live import should build a bridge library"
         );
-        assert!(!first.cache_hit, "first live import should build the bridge");
+        assert!(
+            !first.cache_hit,
+            "first live import should build the bridge"
+        );
 
         let second = import_crate("sample_live_ffi", &options, &prepare).expect("second import");
         assert!(
@@ -337,6 +352,9 @@ mod tests {
                 .is_some_and(|value| value.exists()),
             "second live import should reuse the bridge library"
         );
-        assert!(second.cache_hit, "second live import should reuse the cached bridge");
+        assert!(
+            second.cache_hit,
+            "second live import should reuse the cached bridge"
+        );
     }
 }

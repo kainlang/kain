@@ -36,6 +36,6 @@ pub use shader_bundle::{
     VIEWPORT_SHADER_SOURCE_ORIGIN,
 };
 pub use wgpu_renderer::{
-    GpuVertex, GizmoVertex, ParticleVertex, PreparedWgpuFrame, SceneUniforms, WgpuRenderer,
-    WgpuRendererInitError, prepare_wgpu_frame,
+    prepare_wgpu_frame, GizmoVertex, GpuVertex, ParticleVertex, PreparedWgpuFrame, SceneUniforms,
+    WgpuRenderer, WgpuRendererInitError,
 };

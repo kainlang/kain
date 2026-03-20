@@ -89,7 +89,11 @@ pub fn resolve_crate(
     }
 
     if let Some(config) = manifest_context.config.as_ref() {
-        if let Some(path_entry) = config.path_crates.iter().find(|entry| entry.name == crate_name) {
+        if let Some(path_entry) = config
+            .path_crates
+            .iter()
+            .find(|entry| entry.name == crate_name)
+        {
             let resolved =
                 resolve_config_path_crate(crate_name, path_entry, &manifest_context, options)?;
             return Ok((resolved, manifest_context));
@@ -107,7 +111,10 @@ pub fn resolve_crate(
 
     let mut searched = Vec::new();
     if let Some(manifest_path) = manifest_context.manifest_path.as_ref() {
-        searched.push(format!("workspace/dependencies via {}", manifest_path.display()));
+        searched.push(format!(
+            "workspace/dependencies via {}",
+            manifest_path.display()
+        ));
     }
     if let Some(root) = manifest_context.root_dir.as_ref() {
         searched.push(format!("KAIN manifest at {}", root.display()));
@@ -142,7 +149,11 @@ pub fn load_manifest_context(
         .map(|root| load_rust_ffi_config(root.as_path()))
         .transpose()?
         .flatten();
-    let manifest_path = if let Some(path) = prepare.manifest_path.as_ref().or(options.manifest_path.as_ref()) {
+    let manifest_path = if let Some(path) = prepare
+        .manifest_path
+        .as_ref()
+        .or(options.manifest_path.as_ref())
+    {
         Some(canonicalize_lossy(path))
     } else if let Some(config_manifest) = config
         .as_ref()
@@ -210,7 +221,10 @@ pub fn rustc_version_and_target() -> Result<(String, String), KainError> {
         .find(|line| line.starts_with("host: "))
         .unwrap_or("host: unknown");
     Ok((
-        version_line.trim_start_matches("release: ").trim().to_string(),
+        version_line
+            .trim_start_matches("release: ")
+            .trim()
+            .to_string(),
         host_line.trim_start_matches("host: ").trim().to_string(),
     ))
 }
@@ -290,11 +304,11 @@ fn resolve_explicit_crate_path(
         .find(|package| canonicalize_lossy(Path::new(&package.manifest_path)) == manifest_path)
         .or_else(|| metadata.packages.first())
         .ok_or_else(|| {
-        KainError::runtime(format!(
-            "Cargo metadata for '{}' did not include a root package",
-            manifest_path.display()
-        ))
-    })?;
+            KainError::runtime(format!(
+                "Cargo metadata for '{}' did not include a root package",
+                manifest_path.display()
+            ))
+        })?;
 
     build_resolved_crate(
         crate_name,
@@ -329,10 +343,17 @@ fn resolve_registry_crate(
 ) -> Result<ResolvedCrate, KainError> {
     let resolution_root = std::env::temp_dir()
         .join("kain_crate_ffi_registry_resolution")
-        .join(format!("{}_{}", crate_name, sanitize_for_filename(&entry.version)));
+        .join(format!(
+            "{}_{}",
+            crate_name,
+            sanitize_for_filename(&entry.version)
+        ));
     fs::create_dir_all(&resolution_root).map_err(KainError::Io)?;
     let dependency_key = crate_name.replace('-', "_");
-    let package_name = entry.package.clone().unwrap_or_else(|| crate_name.to_string());
+    let package_name = entry
+        .package
+        .clone()
+        .unwrap_or_else(|| crate_name.to_string());
     let manifest_path = resolution_root.join(CARGO_MANIFEST_NAME);
 
     let mut dependency_lines = Vec::new();
@@ -357,7 +378,9 @@ fn resolve_registry_crate(
     let package = metadata
         .packages
         .iter()
-        .find(|package| package.name == package_name || package_matches_import_name(package, crate_name))
+        .find(|package| {
+            package.name == package_name || package_matches_import_name(package, crate_name)
+        })
         .ok_or_else(|| {
             KainError::runtime(format!(
                 "Cargo metadata could not resolve registry crate '{crate_name}' from version '{}'",
@@ -474,7 +497,10 @@ fn normalized_feature_set(options: &ImportCrateOptions) -> Vec<String> {
     features.into_iter().collect()
 }
 
-fn load_metadata(manifest_path: &Path, options: &ImportCrateOptions) -> Result<CargoMetadata, KainError> {
+fn load_metadata(
+    manifest_path: &Path,
+    options: &ImportCrateOptions,
+) -> Result<CargoMetadata, KainError> {
     let mut command = Command::new("cargo");
     command
         .arg("metadata")
@@ -548,7 +574,11 @@ fn load_rust_ffi_config(root: &Path) -> Result<Option<RustFfiConfig>, KainError>
 fn find_kain_manifest_root(start_dir: &Path) -> Option<PathBuf> {
     start_dir
         .ancestors()
-        .find(|dir| KAIN_MANIFEST_NAMES.iter().any(|name| dir.join(name).exists()))
+        .find(|dir| {
+            KAIN_MANIFEST_NAMES
+                .iter()
+                .any(|name| dir.join(name).exists())
+        })
         .map(Path::to_path_buf)
 }
 
@@ -571,13 +601,7 @@ fn resolve_relative_to(path: &Path, base_dir: &Path) -> PathBuf {
 fn sanitize_for_filename(value: &str) -> String {
     value
         .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() {
-                ch
-            } else {
-                '_'
-            }
-        })
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
         .collect()
 }
 

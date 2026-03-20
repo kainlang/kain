@@ -280,7 +280,8 @@ impl TerrainSurface {
             for x in 0..segments_x {
                 let tx = x as f32 / (segments_x - 1) as f32;
                 let local_x = tx * 2.0 - 1.0;
-                heights[index_of(x, z)] = sample_terrain_height(self, local_x, local_z, time_seconds);
+                heights[index_of(x, z)] =
+                    sample_terrain_height(self, local_x, local_z, time_seconds);
             }
         }
 
@@ -299,10 +300,16 @@ impl TerrainSurface {
                 let right = heights[index_of((x + 1).min(segments_x - 1), z)];
                 let down = heights[index_of(x, z.saturating_sub(1))];
                 let up = heights[index_of(x, (z + 1).min(segments_z - 1))];
-                let tangent_x =
-                    Vec3::new(2.0 * self.half_extents.x / (segments_x - 1) as f32, right - left, 0.0);
-                let tangent_z =
-                    Vec3::new(0.0, up - down, 2.0 * self.half_extents.z / (segments_z - 1) as f32);
+                let tangent_x = Vec3::new(
+                    2.0 * self.half_extents.x / (segments_x - 1) as f32,
+                    right - left,
+                    0.0,
+                );
+                let tangent_z = Vec3::new(
+                    0.0,
+                    up - down,
+                    2.0 * self.half_extents.z / (segments_z - 1) as f32,
+                );
                 let normal = tangent_z.cross(tangent_x).normalize();
 
                 vertices.push(Vertex {
@@ -324,7 +331,10 @@ impl TerrainSurface {
             }
         }
 
-        Mesh { vertices, triangles }
+        Mesh {
+            vertices,
+            triangles,
+        }
     }
 }
 
@@ -481,10 +491,26 @@ fn build_magma_terraces_scene() -> SceneDescription {
     }
 
     let vent_specs = [
-        ("vent_north", Vec3::new(0.0, 1.38, -1.8), Vec3::new(0.55, 1.8, 0.55)),
-        ("vent_south", Vec3::new(0.0, 1.28, 1.85), Vec3::new(0.48, 1.6, 0.48)),
-        ("vent_east", Vec3::new(1.85, 1.16, 0.15), Vec3::new(0.44, 1.45, 0.44)),
-        ("vent_west", Vec3::new(-1.75, 1.1, -0.2), Vec3::new(0.42, 1.35, 0.42)),
+        (
+            "vent_north",
+            Vec3::new(0.0, 1.38, -1.8),
+            Vec3::new(0.55, 1.8, 0.55),
+        ),
+        (
+            "vent_south",
+            Vec3::new(0.0, 1.28, 1.85),
+            Vec3::new(0.48, 1.6, 0.48),
+        ),
+        (
+            "vent_east",
+            Vec3::new(1.85, 1.16, 0.15),
+            Vec3::new(0.44, 1.45, 0.44),
+        ),
+        (
+            "vent_west",
+            Vec3::new(-1.75, 1.1, -0.2),
+            Vec3::new(0.42, 1.35, 0.42),
+        ),
     ];
     for (id, translation, scale) in vent_specs {
         instances.push(SceneInstance {
@@ -498,11 +524,36 @@ fn build_magma_terraces_scene() -> SceneDescription {
     }
 
     let terrace_blocks = [
-        ("north_plate", Vec3::new(0.0, 0.42, -3.8), Vec3::new(1.8, 0.38, 0.9), "ash"),
-        ("south_plate", Vec3::new(0.0, 0.32, 3.65), Vec3::new(1.7, 0.32, 0.82), "ash"),
-        ("east_shelf", Vec3::new(3.65, -0.2, 0.0), Vec3::new(0.86, 0.42, 1.85), "basalt"),
-        ("west_shelf", Vec3::new(-3.55, -0.1, 0.0), Vec3::new(0.92, 0.48, 1.72), "basalt"),
-        ("magma_bridge", Vec3::new(0.0, 1.26, 0.0), Vec3::new(0.42, 0.08, 2.1), "magma"),
+        (
+            "north_plate",
+            Vec3::new(0.0, 0.42, -3.8),
+            Vec3::new(1.8, 0.38, 0.9),
+            "ash",
+        ),
+        (
+            "south_plate",
+            Vec3::new(0.0, 0.32, 3.65),
+            Vec3::new(1.7, 0.32, 0.82),
+            "ash",
+        ),
+        (
+            "east_shelf",
+            Vec3::new(3.65, -0.2, 0.0),
+            Vec3::new(0.86, 0.42, 1.85),
+            "basalt",
+        ),
+        (
+            "west_shelf",
+            Vec3::new(-3.55, -0.1, 0.0),
+            Vec3::new(0.92, 0.48, 1.72),
+            "basalt",
+        ),
+        (
+            "magma_bridge",
+            Vec3::new(0.0, 1.26, 0.0),
+            Vec3::new(0.42, 0.08, 2.1),
+            "magma",
+        ),
     ];
     for (id, translation, scale, material) in terrace_blocks {
         instances.push(SceneInstance {
@@ -516,10 +567,30 @@ fn build_magma_terraces_scene() -> SceneDescription {
     }
 
     let orb_specs = [
-        ("magma_core", Vec3::new(0.0, 2.2, 0.0), Vec3::new(0.56, 0.56, 0.56), "magma"),
-        ("sulfur_beacon_a", Vec3::new(-2.1, 2.1, 2.4), Vec3::new(0.28, 0.28, 0.28), "sulfur"),
-        ("sulfur_beacon_b", Vec3::new(2.3, 2.4, -2.0), Vec3::new(0.32, 0.32, 0.32), "sulfur"),
-        ("obsidian_eye", Vec3::new(0.0, 2.9, -0.2), Vec3::new(0.22, 0.22, 0.22), "obsidian"),
+        (
+            "magma_core",
+            Vec3::new(0.0, 2.2, 0.0),
+            Vec3::new(0.56, 0.56, 0.56),
+            "magma",
+        ),
+        (
+            "sulfur_beacon_a",
+            Vec3::new(-2.1, 2.1, 2.4),
+            Vec3::new(0.28, 0.28, 0.28),
+            "sulfur",
+        ),
+        (
+            "sulfur_beacon_b",
+            Vec3::new(2.3, 2.4, -2.0),
+            Vec3::new(0.32, 0.32, 0.32),
+            "sulfur",
+        ),
+        (
+            "obsidian_eye",
+            Vec3::new(0.0, 2.9, -0.2),
+            Vec3::new(0.22, 0.22, 0.22),
+            "obsidian",
+        ),
     ];
     for (id, translation, scale, material) in orb_specs {
         instances.push(SceneInstance {
@@ -1249,7 +1320,8 @@ fn sample_terrain_height(
         * (local_z * 3.8 - time_seconds * 0.16).cos())
         * surface.height_amplitude
         * 0.14;
-    let flow_wave = (((local_x + local_z) * surface.ripple_frequency) + time_seconds * surface.flow_speed)
+    let flow_wave = (((local_x + local_z) * surface.ripple_frequency)
+        + time_seconds * surface.flow_speed)
         .sin()
         * surface.ripple_amplitude;
     let counter_wave = (((local_x - local_z) * (surface.ripple_frequency * 0.72))
@@ -1261,8 +1333,7 @@ fn sample_terrain_height(
         * surface.height_amplitude
         * 0.34
         * ((time_seconds * (surface.flow_speed * 1.85)) + radius * 11.0).sin();
-    let raw_height = surface.base_height
-        + rim_t * surface.rim_strength
+    let raw_height = surface.base_height + rim_t * surface.rim_strength
         - basin_t * surface.caldera_depth
         + ridge_noise
         + flow_wave

@@ -8,9 +8,7 @@
 //! - Toolbar extension registration
 //! - FTSTicker registration for editor updates
 
-use crate::editor::editor_module_ir::{
-    EditorModuleIR, MenuEntryIR, ToolbarButtonIR,
-};
+use crate::editor::editor_module_ir::{EditorModuleIR, MenuEntryIR, ToolbarButtonIR};
 
 /// Output from editor module code generation
 #[derive(Debug, Clone)]

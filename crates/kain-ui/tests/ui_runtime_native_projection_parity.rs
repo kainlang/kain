@@ -81,4 +81,3 @@ fn ui_native_projection_parity_fixture_is_stable() {
     let kind_json = serde_json::to_string(&viewport.kind).expect("serialize kind");
     assert_eq!(kind_json, "\"Viewport3D\"");
 }
-

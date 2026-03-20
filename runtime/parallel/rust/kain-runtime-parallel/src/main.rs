@@ -23,7 +23,8 @@ fn run() -> Result<(), String> {
     let workspace_root = discover_workspace_root()?;
     let pairing = load_pairing_manifest(&workspace_root.join(DEFAULT_PAIRING_MANIFEST))?;
     let toolchains = load_toolchain_config(&workspace_root.join(DEFAULT_TOOLCHAIN_CONFIG))?;
-    let native_metadata = load_native_metadata(&workspace_root.join(&pairing.native_runtime.metadata_path))?;
+    let native_metadata =
+        load_native_metadata(&workspace_root.join(&pairing.native_runtime.metadata_path))?;
 
     match command.as_str() {
         "summary" => println!(
@@ -42,12 +43,16 @@ fn run() -> Result<(), String> {
             .map_err(|error| error.to_string())?
         ),
         "report" => {
-            let issues = validate_pairings(&workspace_root, &pairing, &toolchains, &native_metadata);
+            let issues =
+                validate_pairings(&workspace_root, &pairing, &toolchains, &native_metadata);
             if !issues.is_empty() {
                 for issue in &issues {
                     eprintln!("- {issue}");
                 }
-                return Err(format!("cannot write report; {} validation issue(s) remain", issues.len()));
+                return Err(format!(
+                    "cannot write report; {} validation issue(s) remain",
+                    issues.len()
+                ));
             }
             let output_path = workspace_root
                 .join(&toolchains.outputs.report_dir)
@@ -106,14 +111,19 @@ fn run_check(
         );
         println!(
             "  report dir: {}",
-            workspace_root.join(&toolchains.outputs.report_dir).display()
+            workspace_root
+                .join(&toolchains.outputs.report_dir)
+                .display()
         );
         Ok(())
     } else {
         for issue in &issues {
             eprintln!("- {issue}");
         }
-        Err(format!("parallel runtime check failed with {} issue(s)", issues.len()))
+        Err(format!(
+            "parallel runtime check failed with {} issue(s)",
+            issues.len()
+        ))
     }
 }
 
@@ -130,21 +140,24 @@ fn discover_workspace_root() -> Result<PathBuf, String> {
 }
 
 fn load_pairing_manifest(path: &Path) -> Result<PairingManifest, String> {
-    let text =
-        fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    serde_json::from_str(&text).map_err(|error| format!("failed to parse {}: {error}", path.display()))
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|error| format!("failed to parse {}: {error}", path.display()))
 }
 
 fn load_toolchain_config(path: &Path) -> Result<ToolchainConfig, String> {
-    let text =
-        fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    serde_json::from_str(&text).map_err(|error| format!("failed to parse {}: {error}", path.display()))
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|error| format!("failed to parse {}: {error}", path.display()))
 }
 
 fn load_native_metadata(path: &Path) -> Result<NativeRuntimeMetadata, String> {
-    let text =
-        fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    serde_json::from_str(&text).map_err(|error| format!("failed to parse {}: {error}", path.display()))
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|error| format!("failed to parse {}: {error}", path.display()))
 }
 
 fn format_summary(
@@ -181,8 +194,16 @@ fn format_summary(
         count_services_by_status(&native_metadata.services, "planned")
     );
     let _ = writeln!(output, "toolchains:");
-    let _ = writeln!(output, "  cargo: {}", resolve_binary_status(&toolchains.tools.cargo));
-    let _ = writeln!(output, "  zig: {}", resolve_binary_status(&toolchains.tools.zig));
+    let _ = writeln!(
+        output,
+        "  cargo: {}",
+        resolve_binary_status(&toolchains.tools.cargo)
+    );
+    let _ = writeln!(
+        output,
+        "  zig: {}",
+        resolve_binary_status(&toolchains.tools.zig)
+    );
     let _ = writeln!(
         output,
         "  clang({}): {}",
@@ -192,7 +213,9 @@ fn format_summary(
     let _ = writeln!(
         output,
         "report dir: {}",
-        workspace_root.join(&toolchains.outputs.report_dir).display()
+        workspace_root
+            .join(&toolchains.outputs.report_dir)
+            .display()
     );
     let _ = writeln!(output, "components:");
     for (lane, count) in count_components_by_lane(&pairing.pairing_components) {
@@ -239,7 +262,10 @@ fn validate_pairings(
     ] {
         let absolute = workspace_root.join(relative);
         if !absolute.exists() {
-            issues.push(format!("missing declared runtime file: {}", absolute.display()));
+            issues.push(format!(
+                "missing declared runtime file: {}",
+                absolute.display()
+            ));
         }
     }
 
@@ -249,10 +275,16 @@ fn validate_pairings(
     }
 
     if !binary_available(&toolchains.tools.cargo) {
-        issues.push(format!("cargo tool unavailable: {}", toolchains.tools.cargo.command));
+        issues.push(format!(
+            "cargo tool unavailable: {}",
+            toolchains.tools.cargo.command
+        ));
     }
     if !binary_available(&toolchains.tools.zig) {
-        issues.push(format!("zig tool unavailable: {}", toolchains.tools.zig.command));
+        issues.push(format!(
+            "zig tool unavailable: {}",
+            toolchains.tools.zig.command
+        ));
     }
     if env::var(&toolchains.tools.clang.env)
         .ok()
@@ -355,7 +387,11 @@ fn format_component(component: &PairingComponent) -> String {
     let _ = writeln!(output, "status: {}", component.status);
     let _ = writeln!(output, "phases: {:?}", component.phases);
     let _ = writeln!(output, "summary: {}", component.summary);
-    let _ = writeln!(output, "pairs with: {}", component.pairs_with_services.join(", "));
+    let _ = writeln!(
+        output,
+        "pairs with: {}",
+        component.pairs_with_services.join(", ")
+    );
     let _ = writeln!(
         output,
         "depends on services: {}",
@@ -371,8 +407,16 @@ fn format_component(component: &PairingComponent) -> String {
 
 fn format_toolchains(toolchains: &ToolchainConfig) -> String {
     let mut output = String::new();
-    let _ = writeln!(output, "cargo: {}", resolve_binary_status(&toolchains.tools.cargo));
-    let _ = writeln!(output, "zig: {}", resolve_binary_status(&toolchains.tools.zig));
+    let _ = writeln!(
+        output,
+        "cargo: {}",
+        resolve_binary_status(&toolchains.tools.cargo)
+    );
+    let _ = writeln!(
+        output,
+        "zig: {}",
+        resolve_binary_status(&toolchains.tools.zig)
+    );
     let _ = writeln!(
         output,
         "clang({}): {}",
@@ -383,7 +427,10 @@ fn format_toolchains(toolchains: &ToolchainConfig) -> String {
 }
 
 fn count_services_by_status(services: &[NativeServiceMetadata], status: &str) -> usize {
-    services.iter().filter(|service| service.status == status).count()
+    services
+        .iter()
+        .filter(|service| service.status == status)
+        .count()
 }
 
 fn count_native_source_entries(groups: &BTreeMap<String, Vec<String>>) -> usize {
@@ -402,14 +449,20 @@ fn binary_available(tool: &ToolchainBinary) -> bool {
     if command_exists(&tool.command) {
         return true;
     }
-    tool.fallback.iter().any(|candidate| command_exists(candidate))
+    tool.fallback
+        .iter()
+        .any(|candidate| command_exists(candidate))
 }
 
 fn resolve_binary_status(tool: &ToolchainBinary) -> String {
     if command_exists(&tool.command) {
         return format!("available ({})", tool.command);
     }
-    if let Some(candidate) = tool.fallback.iter().find(|candidate| command_exists(candidate)) {
+    if let Some(candidate) = tool
+        .fallback
+        .iter()
+        .find(|candidate| command_exists(candidate))
+    {
         return format!("available via fallback ({candidate})");
     }
     format!("missing ({})", tool.command)

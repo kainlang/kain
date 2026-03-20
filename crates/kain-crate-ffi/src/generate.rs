@@ -57,7 +57,11 @@ pub fn write_generated_artifacts(
     fs::write(&prelude_path, &prelude_source).map_err(KainError::Io)?;
     fs::write(&report_json_path, report_json).map_err(KainError::Io)?;
     fs::write(&report_text_path, &report_text).map_err(KainError::Io)?;
-    fs::write(&bridge_manifest_path, render_bridge_manifest(resolved, &bridge_dir)).map_err(KainError::Io)?;
+    fs::write(
+        &bridge_manifest_path,
+        render_bridge_manifest(resolved, &bridge_dir),
+    )
+    .map_err(KainError::Io)?;
     fs::write(&bridge_source_path, &bridge_source).map_err(KainError::Io)?;
 
     report.report_json_path = report_json_path.display().to_string();
@@ -299,9 +303,7 @@ fn render_return_conversion(ty: &BridgeType) -> String {
         | BridgeType::StringOwned
         | BridgeType::StringRef
         | BridgeType::Option(_)
-        | BridgeType::Array(_) => {
-            "    Ok(ToKainValue::to_kain_value(result))\n".to_string()
-        }
+        | BridgeType::Array(_) => "    Ok(ToKainValue::to_kain_value(result))\n".to_string(),
     }
 }
 

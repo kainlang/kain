@@ -82,7 +82,12 @@ impl StdLib {
             "Bool",
             "Check whether a file path exists",
         );
-        lib.add_fn("env", &[("name", "String")], "String", "Read an environment variable");
+        lib.add_fn(
+            "env",
+            &[("name", "String")],
+            "String",
+            "Read an environment variable",
+        );
 
         // Math
         lib.add_fn("abs", &[("x", "Int")], "Int", "Absolute value");

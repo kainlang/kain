@@ -202,7 +202,10 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
     output.push_str("use libloading::{Library, Symbol};\n");
     output.push_str("use std::ffi::{c_void, CStr, CString};\n");
     output.push_str("use std::sync::{Arc, RwLock};\n\n");
-    output.push_str(&format!("const SHARED_LIB_PATH: &str = {:?};\n\n", shared_lib_path));
+    output.push_str(&format!(
+        "const SHARED_LIB_PATH: &str = {:?};\n\n",
+        shared_lib_path
+    ));
     output.push_str(
         r#"#[derive(Clone)]
 struct CAbiOpaqueHandle {
@@ -388,7 +391,9 @@ fn render_bridge_wrapper(binding: &CFunctionBinding) -> String {
         .map(|param| param.name.as_str())
         .collect::<Vec<_>>()
         .join(", ");
-    output.push_str(&format!("    let result = unsafe {{ symbol({call_args}) }};\n"));
+    output.push_str(&format!(
+        "    let result = unsafe {{ symbol({call_args}) }};\n"
+    ));
     for line in post_call {
         output.push_str(&line);
     }

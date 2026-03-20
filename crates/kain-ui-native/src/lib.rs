@@ -26,6 +26,7 @@ use kain_ui::{
     ui_runtime_bundle_to_json, ui_step_animation_runtime, validate_ui_runtime_bundle,
     UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength, UiLengthUnit, UiNode,
     UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle, UiRuntimeMetadata, UiStyleState,
+    UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
     UiThemeRegistry, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
 use wgpu::util::DeviceExt;
@@ -213,7 +214,7 @@ struct KainUiNativeRuntimeSettings {
 impl Default for KainUiNativeRuntimeSettings {
     fn default() -> Self {
         Self {
-            renderer: NativeRendererPreference::Glow,
+            renderer: NativeRendererPreference::Wgpu,
             show_runtime_inspector: true,
             enable_viewports: true,
             repaint_interval_ms: DEFAULT_REPAINT_INTERVAL_MS,
@@ -3377,26 +3378,241 @@ fn render_node(
                 render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
             }
             UiWidgetKind::Element(tag) => {
-                let theme = apply_node_presentation_to_theme(
-                    resolve_widget_theme(node, theme_registry, app_theme),
-                    presentation,
-                );
-                themed_frame(&theme).show(ui, |ui| {
-                    if !product_shell {
-                        ui.small(
-                            RichText::new(format!("<{tag}>"))
-                                .monospace()
-                                .color(theme.tag_color),
+                if let Some(surface) = surface_descriptor_for_node(app, node).cloned() {
+                    if surface.kind == UiSurfaceKind::Canvas
+                        || surface.shader.is_some()
+                        || surface.gpu_backing_required
+                    {
+                        render_gpu_canvas_surface(
+                            app,
+                            ui,
+                            ctx,
+                            tree,
+                            theme_registry,
+                            app_theme,
+                            node,
+                            tag,
+                            &surface,
+                            presentation,
+                        );
+                    } else {
+                        render_generic_element_node(
+                            app,
+                            ui,
+                            ctx,
+                            tree,
+                            theme_registry,
+                            app_theme,
+                            node,
+                            tag,
+                            presentation,
+                            product_shell,
                         );
                     }
-                    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                });
+                } else {
+                    render_generic_element_node(
+                        app,
+                        ui,
+                        ctx,
+                        tree,
+                        theme_registry,
+                        app_theme,
+                        node,
+                        tag,
+                        presentation,
+                        product_shell,
+                    );
+                }
             }
             UiWidgetKind::Table | UiWidgetKind::Overlay | UiWidgetKind::Slot => {
                 render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
             }
         }
     });
+}
+
+fn render_generic_element_node(
+    app: &mut KainUiNativeApp,
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    node: &UiNode,
+    tag: &str,
+    presentation: NativeNodePresentation,
+    product_shell: bool,
+) {
+    let theme = apply_node_presentation_to_theme(
+        resolve_widget_theme(node, theme_registry, app_theme),
+        presentation,
+    );
+    themed_frame(&theme).show(ui, |ui| {
+        if !product_shell {
+            ui.small(
+                RichText::new(format!("<{tag}>"))
+                    .monospace()
+                    .color(theme.tag_color),
+            );
+        }
+        render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+    });
+}
+
+fn render_gpu_canvas_surface(
+    app: &mut KainUiNativeApp,
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    node: &UiNode,
+    tag: &str,
+    surface: &UiSurface,
+    presentation: NativeNodePresentation,
+) {
+    let fallback_title = match surface.title.as_deref() {
+        Some(title) if !title.trim().is_empty() => title,
+        _ => "GPU Surface",
+    };
+    let runtime_renderer = app.runtime_settings.effective_renderer_label().to_string();
+    let shader_ref = surface
+        .shader
+        .as_ref()
+        .map(|binding| binding.shader_ref.clone())
+        .unwrap_or_else(|| "<none>".to_string());
+    let shader_stage = surface
+        .shader
+        .as_ref()
+        .and_then(|binding| binding.stage.as_deref())
+        .unwrap_or("runtime-selected")
+        .to_string();
+    let shader_format = surface
+        .shader
+        .as_ref()
+        .and_then(|binding| binding.derived_format.as_deref())
+        .unwrap_or("runtime-selected")
+        .to_string();
+    let descriptor_tag = format!(
+        "{} / {}",
+        surface_renderer_preference_label(surface.renderer_preference),
+        surface_composition_mode_label(surface.composition_mode)
+    );
+
+    render_surface_frame(
+        ui,
+        node,
+        theme_registry,
+        app_theme,
+        presentation,
+        fallback_title,
+        Vec2::new(ui.available_width().max(280.0), 180.0),
+        egui::Sense::hover(),
+        |ui, rect, _response, theme| {
+            let painter = ui.painter();
+            let inner = rect.shrink(4.0);
+            let inner_radius = (theme.radius - 4.0).max(6.0);
+            painter.rect_filled(inner, inner_radius, theme.canvas_fill);
+
+            let stripe_height = (inner.height() * 0.34).clamp(24.0, 72.0);
+            let stripe = egui::Rect::from_min_max(
+                egui::pos2(inner.left(), inner.bottom() - stripe_height),
+                inner.right_bottom(),
+            );
+            painter.rect_filled(stripe, inner_radius, alpha_tint(theme.accent, 0.18));
+
+            for index in 0..7 {
+                let t = index as f32 / 6.0;
+                let x = inner.left() + (inner.width() * t);
+                painter.line_segment(
+                    [
+                        egui::pos2(x, inner.top()),
+                        egui::pos2(x - 18.0, inner.bottom()),
+                    ],
+                    Stroke::new(1.0, alpha_tint(theme.stroke, 0.38)),
+                );
+            }
+
+            painter.rect_stroke(
+                inner,
+                inner_radius,
+                Stroke::new(1.0, alpha_tint(theme.accent, 0.78)),
+                egui::StrokeKind::Inside,
+            );
+
+            painter.text(
+                inner.left_top() + egui::vec2(14.0, 14.0),
+                egui::Align2::LEFT_TOP,
+                format!("<{tag}>"),
+                egui::FontId::monospace(11.0),
+                theme.tag_color,
+            );
+            painter.text(
+                inner.left_top() + egui::vec2(14.0, 34.0),
+                egui::Align2::LEFT_TOP,
+                format!("shader: {shader_ref}"),
+                egui::FontId::monospace(12.0),
+                theme.title_color,
+            );
+            painter.text(
+                inner.left_top() + egui::vec2(14.0, 54.0),
+                egui::Align2::LEFT_TOP,
+                format!("stage: {shader_stage}  format: {shader_format}"),
+                egui::FontId::monospace(10.5),
+                theme.body_color,
+            );
+            painter.text(
+                inner.left_top() + egui::vec2(14.0, 72.0),
+                egui::Align2::LEFT_TOP,
+                format!("surface: {descriptor_tag}  host: {runtime_renderer}"),
+                egui::FontId::monospace(10.0),
+                theme.muted_color,
+            );
+            painter.text(
+                inner.right_bottom() - egui::vec2(14.0, 14.0),
+                egui::Align2::RIGHT_BOTTOM,
+                if surface.gpu_backing_required {
+                    "gpu-backed"
+                } else {
+                    "cpu-preview"
+                },
+                egui::FontId::monospace(10.0),
+                theme.tag_color,
+            );
+        },
+    );
+
+    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+}
+
+fn surface_descriptor_for_node<'a>(
+    app: &'a KainUiNativeApp,
+    node: &UiNode,
+) -> Option<&'a UiSurface> {
+    app.output
+        .systems
+        .surfaces
+        .iter()
+        .find(|surface| surface.node == node.id)
+}
+
+fn surface_renderer_preference_label(preference: UiSurfaceRendererPreference) -> &'static str {
+    match preference {
+        UiSurfaceRendererPreference::Auto => "auto",
+        UiSurfaceRendererPreference::Native => "native",
+        UiSurfaceRendererPreference::Dom => "dom",
+        UiSurfaceRendererPreference::Wgpu => "wgpu",
+        UiSurfaceRendererPreference::Shader => "shader",
+    }
+}
+
+fn surface_composition_mode_label(mode: UiSurfaceCompositionMode) -> &'static str {
+    match mode {
+        UiSurfaceCompositionMode::Host => "host",
+        UiSurfaceCompositionMode::LayeredGpu => "layered-gpu",
+        UiSurfaceCompositionMode::Viewport => "viewport",
+        UiSurfaceCompositionMode::ShaderCanvas => "shader-canvas",
+    }
 }
 
 fn render_children(
@@ -4369,6 +4585,13 @@ mod tests {
     use kain_ui::{ui_runtime_systems_from_tree, UiNativeProjectionKind, UiNodeId};
     use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn native_runtime_defaults_to_wgpu_renderer() {
+        let settings = KainUiNativeRuntimeSettings::default();
+        assert_eq!(settings.renderer, NativeRendererPreference::Wgpu);
+        assert_eq!(settings.eframe_renderer(), eframe::Renderer::Wgpu);
+    }
 
     #[test]
     fn runtime_bundle_json_round_trip_preserves_compiled_ui_output() {

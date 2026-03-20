@@ -17,7 +17,10 @@ pub fn import_crate(crate_name: &str, options: ImportCrateOptions) -> KainResult
     println!("  Prelude: {}", output.prelude_path.display());
     println!("  Report JSON: {}", output.report_json_path.display());
     println!("  Report Text: {}", output.report_text_path.display());
-    println!("  Bridge Manifest: {}", output.bridge_manifest_path.display());
+    println!(
+        "  Bridge Manifest: {}",
+        output.bridge_manifest_path.display()
+    );
     if let Some(dylib_path) = output.dylib_path.as_ref() {
         println!("  Bridge Library: {}", dylib_path.display());
     }
