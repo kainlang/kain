@@ -1,10 +1,11 @@
 use std::{
-    collections::BTreeMap,
-    fs::OpenOptions,
+    collections::{hash_map::DefaultHasher, BTreeMap},
+    fs::{self, OpenOptions},
+    hash::{Hash, Hasher},
     io::Write,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
@@ -19,15 +20,17 @@ use kain_3d::{
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
     shader_artifact_bundle_from_json, CompiledMaterialDefinition, RealtimeAppBundle,
-    RealtimeSceneBinding, RealtimeShaderBundleRef, ShaderArtifactBundle,
+    RealtimeSceneBinding, RealtimeShaderBundleRef, ShaderArtifactBundle, ShaderEntryPoint,
+    ShaderResourceLayout,
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
-    ui_runtime_bundle_to_json, ui_step_animation_runtime, validate_ui_runtime_bundle,
-    UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength, UiLengthUnit, UiNode,
-    UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle, UiRuntimeMetadata, UiStyleState,
-    UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
-    UiThemeRegistry, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
+    ui_runtime_bundle_to_json, ui_step_animation_runtime, ui_transfer_hot_reload_state,
+    validate_ui_runtime_bundle, UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength,
+    UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle,
+    UiRuntimeMetadata, UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
+    UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
+    UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
 use wgpu::util::DeviceExt;
 
@@ -40,10 +43,62 @@ const DEFAULT_VIEWPORT_RENDER_INTERVAL_IDLE_MS: u64 = 180;
 const DEFAULT_VIEWPORT_RENDER_INTERVAL_INTERACTIVE_MS: u64 = 66;
 const DEFAULT_VIEWPORT_STARTUP_DELAY_MS: u64 = 350;
 const DEFAULT_VIEWPORT_MAX_AXIS_PX: u64 = 640;
+const KAIN_UI_NATIVE_RUNTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_RUNTIME_BUNDLE";
 const KAIN_UI_NATIVE_REALTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_REALTIME_BUNDLE";
 const KAIN_UI_NATIVE_SHADER_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_SHADER_BUNDLE";
 const KAIN_UI_NATIVE_APP_MANIFEST_ENV: &str = "KAIN_UI_NATIVE_APP_MANIFEST";
 const KAIN_UI_NATIVE_APP_SNAPSHOT_ENV: &str = "KAIN_UI_NATIVE_APP_SNAPSHOT";
+const UI_SHADER_SURFACE_VERTEX_ENTRY: &str = "kain_ui_surface_vs_main";
+const UI_SHADER_SURFACE_FULLSCREEN_VERTEX_WGSL: &str = r#"
+struct KainUiSurfaceVertexOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn kain_ui_surface_vs_main(@builtin(vertex_index) vertex_index: u32) -> KainUiSurfaceVertexOut {
+    var positions = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -3.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(3.0, 1.0),
+    );
+    var uvs = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 2.0),
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(2.0, 0.0),
+    );
+    var output: KainUiSurfaceVertexOut;
+    output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
+    output.uv = uvs[vertex_index];
+    return output;
+}
+"#;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct UiShaderSurfaceUniforms {
+    resolution: [f32; 2],
+    pointer: [f32; 2],
+    time_seconds: f32,
+    opacity: f32,
+    frame_index: f32,
+    aspect_ratio: f32,
+    _pad: [f32; 8],
+}
+
+#[derive(Clone, Debug)]
+struct WatchedRuntimeFile {
+    path: String,
+    last_modified: Option<SystemTime>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct RuntimeArtifactWatch {
+    runtime_bundle: Option<WatchedRuntimeFile>,
+    realtime_bundle: Option<WatchedRuntimeFile>,
+    shader_bundle: Option<WatchedRuntimeFile>,
+    runtime_snapshot: Option<WatchedRuntimeFile>,
+}
 
 #[derive(Clone, Debug, serde::Deserialize)]
 struct NativeAppRuntimeSnapshot {
@@ -309,8 +364,15 @@ fn env_u64(key: &str) -> Option<u64> {
 
 fn load_json_string_from_env(key: &str) -> Option<(String, String)> {
     let path = env_var_trimmed(key)?;
-    let json = std::fs::read_to_string(&path).ok()?;
+    let json = fs::read_to_string(&path).ok()?;
     Some((json, path))
+}
+
+fn load_runtime_bundle_from_env() -> Option<(UiRuntimeBundle, String)> {
+    let (json, path) = load_json_string_from_env(KAIN_UI_NATIVE_RUNTIME_BUNDLE_ENV)?;
+    ui_runtime_bundle_from_json(&json)
+        .ok()
+        .map(|bundle| (bundle, path))
 }
 
 fn load_realtime_bundle_from_env() -> Option<(RealtimeAppBundle, String)> {
@@ -332,6 +394,53 @@ fn load_runtime_snapshot_from_env() -> Option<(NativeAppRuntimeSnapshot, String)
     serde_json::from_str(&json)
         .ok()
         .map(|snapshot| (snapshot, path))
+}
+
+fn file_modified_at(path: &str) -> Option<SystemTime> {
+    fs::metadata(path).ok()?.modified().ok()
+}
+
+impl WatchedRuntimeFile {
+    fn new(path: String) -> Self {
+        Self {
+            last_modified: file_modified_at(&path),
+            path,
+        }
+    }
+
+    fn take_if_changed(&mut self) -> Option<String> {
+        let modified = file_modified_at(&self.path)?;
+        if self
+            .last_modified
+            .is_some_and(|previous| previous >= modified)
+        {
+            return None;
+        }
+        self.last_modified = Some(modified);
+        Some(self.path.clone())
+    }
+}
+
+impl RuntimeArtifactWatch {
+    fn with_runtime_bundle_path(mut self, path: Option<String>) -> Self {
+        self.runtime_bundle = path.map(WatchedRuntimeFile::new);
+        self
+    }
+
+    fn with_realtime_bundle_path(mut self, path: Option<String>) -> Self {
+        self.realtime_bundle = path.map(WatchedRuntimeFile::new);
+        self
+    }
+
+    fn with_shader_bundle_path(mut self, path: Option<String>) -> Self {
+        self.shader_bundle = path.map(WatchedRuntimeFile::new);
+        self
+    }
+
+    fn with_runtime_snapshot_path(mut self, path: Option<String>) -> Self {
+        self.runtime_snapshot = path.map(WatchedRuntimeFile::new);
+        self
+    }
 }
 
 impl RealtimeBundleCatalog {
@@ -2049,6 +2158,34 @@ struct ResolvedViewportBinding {
     warning: Option<String>,
 }
 
+struct ShaderSurfaceState {
+    presented_state: Option<Arc<Mutex<PresentedShaderSurfaceGpuState>>>,
+    last_signature: Option<String>,
+    last_shader_ref: Option<String>,
+    last_warning: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedUiShaderSurface {
+    shader_ref: String,
+    shader_name: String,
+    module_name: String,
+    fragment_entry_point: String,
+    stage: String,
+    derived_format: String,
+    wgsl_source: String,
+    resource_layouts: Vec<ShaderResourceLayout>,
+    warning: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UiShaderBindingKind {
+    UniformBuffer,
+    StorageBuffer,
+    Texture2d,
+    Sampler,
+}
+
 #[derive(Clone, Copy)]
 struct PresentedViewportHost {
     target_format: wgpu::TextureFormat,
@@ -2085,6 +2222,35 @@ struct PresentedViewportDrawData {
 #[derive(Clone)]
 struct PresentedViewportCallback {
     state: Arc<Mutex<PresentedViewportGpuState>>,
+}
+
+struct PresentedShaderSurfaceGpuState {
+    target_format: wgpu::TextureFormat,
+    resources: Option<PresentedShaderSurfaceGpuResources>,
+    pending_frame: Option<PresentedShaderSurfaceFrame>,
+}
+
+struct PresentedShaderSurfaceGpuResources {
+    signature: String,
+    pipeline: wgpu::RenderPipeline,
+    bind_group: Option<wgpu::BindGroup>,
+    uniform_buffer: Option<wgpu::Buffer>,
+    _storage_buffer: Option<wgpu::Buffer>,
+    _fallback_texture: Option<wgpu::Texture>,
+    _fallback_texture_view: Option<wgpu::TextureView>,
+    _fallback_sampler: Option<wgpu::Sampler>,
+}
+
+#[derive(Clone)]
+struct PresentedShaderSurfaceFrame {
+    signature: String,
+    descriptor: ResolvedUiShaderSurface,
+    uniforms: UiShaderSurfaceUniforms,
+}
+
+#[derive(Clone)]
+struct PresentedShaderSurfaceCallback {
+    state: Arc<Mutex<PresentedShaderSurfaceGpuState>>,
 }
 
 struct ViewportCameraController {
@@ -2176,10 +2342,13 @@ struct KainUiNativeApp {
     app_runtime_snapshot: Option<NativeAppRuntimeSnapshot>,
     scene_catalog: SceneCatalog,
     realtime_catalog: RealtimeBundleCatalog,
+    shader_bundle: Option<ShaderArtifactBundle>,
     renderer: Box<dyn RenderBackend>,
     active_renderer_label: String,
     presented_viewport_host: Option<PresentedViewportHost>,
-    viewport_surfaces: BTreeMap<kain_ui::UiNodeId, ViewportSurfaceState>,
+    viewport_surfaces: BTreeMap<UiNodeId, ViewportSurfaceState>,
+    shader_surfaces: BTreeMap<UiNodeId, ShaderSurfaceState>,
+    runtime_artifact_watch: RuntimeArtifactWatch,
     viewport_input: ViewportInputSnapshot,
     start_time: Instant,
     last_frame_instant: Instant,
@@ -2210,6 +2379,7 @@ impl KainUiNativeApp {
         boot_mode: AppBootMode,
         runtime_settings: KainUiNativeRuntimeSettings,
     ) -> Self {
+        let runtime_bundle_origin = env_var_trimmed(KAIN_UI_NATIVE_RUNTIME_BUNDLE_ENV);
         let realtime_bundle = load_realtime_bundle_from_env();
         let shader_bundle = load_shader_bundle_from_env();
         let app_manifest_path = env_var_trimmed(KAIN_UI_NATIVE_APP_MANIFEST_ENV);
@@ -2221,13 +2391,18 @@ impl KainUiNativeApp {
             .as_ref()
             .map(|(bundle, _)| RealtimeBundleCatalog::from_bundle(bundle))
             .unwrap_or_default();
+        let runtime_artifact_watch = RuntimeArtifactWatch::default()
+            .with_runtime_bundle_path(runtime_bundle_origin.clone())
+            .with_realtime_bundle_path(realtime_bundle_origin.clone())
+            .with_shader_bundle_path(shader_bundle_origin.clone())
+            .with_runtime_snapshot_path(runtime_snapshot_origin.clone());
         let (renderer, active_renderer_label, presented_viewport_host) = select_viewport_renderer(
             runtime_settings,
             cc,
             shader_bundle.as_ref().map(|(bundle, _)| bundle),
         );
         trace_runtime(format!(
-            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} realtime_bundle={} shader_bundle={} app_manifest={} runtime_snapshot={}",
+            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} runtime_bundle={} realtime_bundle={} shader_bundle={} app_manifest={} runtime_snapshot={}",
             config.window_title,
             config.root_component,
             boot_mode.label(),
@@ -2235,6 +2410,7 @@ impl KainUiNativeApp {
             active_renderer_label,
             runtime_settings.show_runtime_inspector,
             runtime_settings.enable_viewports,
+            runtime_bundle_origin.as_deref().unwrap_or("<none>"),
             realtime_bundle_origin
                 .as_deref()
                 .unwrap_or("<none>"),
@@ -2254,16 +2430,121 @@ impl KainUiNativeApp {
             app_runtime_snapshot: runtime_snapshot.map(|(snapshot, _)| snapshot),
             scene_catalog: SceneCatalog::default(),
             realtime_catalog,
+            shader_bundle: shader_bundle.map(|(bundle, _)| bundle),
             renderer,
             active_renderer_label,
             presented_viewport_host,
             viewport_surfaces: BTreeMap::new(),
+            shader_surfaces: BTreeMap::new(),
+            runtime_artifact_watch,
             viewport_input: ViewportInputSnapshot::default(),
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
             frame_dt_seconds: 1.0 / 60.0,
             boot_mode,
         }
+    }
+
+    fn poll_runtime_reloads(&mut self) {
+        let runtime_bundle_path = self
+            .runtime_artifact_watch
+            .runtime_bundle
+            .as_mut()
+            .and_then(WatchedRuntimeFile::take_if_changed);
+        if let Some(path) = runtime_bundle_path {
+            match load_runtime_bundle_from_env() {
+                Some((bundle, _)) => self.apply_runtime_bundle_reload(bundle, &path),
+                None => trace_runtime(format!(
+                    "runtime_reload: failed to parse runtime bundle {path}"
+                )),
+            }
+        }
+
+        let realtime_bundle_path = self
+            .runtime_artifact_watch
+            .realtime_bundle
+            .as_mut()
+            .and_then(WatchedRuntimeFile::take_if_changed);
+        if let Some(path) = realtime_bundle_path {
+            match load_realtime_bundle_from_env() {
+                Some((bundle, _)) => {
+                    self.realtime_catalog = RealtimeBundleCatalog::from_bundle(&bundle);
+                    trace_runtime(format!("runtime_reload: refreshed realtime bundle {path}"));
+                }
+                None => trace_runtime(format!(
+                    "runtime_reload: failed to parse realtime bundle {path}"
+                )),
+            }
+        }
+
+        let shader_bundle_path = self
+            .runtime_artifact_watch
+            .shader_bundle
+            .as_mut()
+            .and_then(WatchedRuntimeFile::take_if_changed);
+        if let Some(path) = shader_bundle_path {
+            match load_shader_bundle_from_env() {
+                Some((bundle, _)) => {
+                    self.shader_bundle = Some(bundle);
+                    self.shader_surfaces.clear();
+                    trace_runtime(format!("runtime_reload: refreshed shader bundle {path}"));
+                }
+                None => trace_runtime(format!(
+                    "runtime_reload: failed to parse shader bundle {path}"
+                )),
+            }
+        }
+
+        let runtime_snapshot_path = self
+            .runtime_artifact_watch
+            .runtime_snapshot
+            .as_mut()
+            .and_then(WatchedRuntimeFile::take_if_changed);
+        if let Some(path) = runtime_snapshot_path {
+            match load_runtime_snapshot_from_env() {
+                Some((snapshot, _)) => {
+                    self.app_runtime_snapshot = Some(snapshot);
+                    trace_runtime(format!("runtime_reload: refreshed runtime snapshot {path}"));
+                }
+                None => trace_runtime(format!(
+                    "runtime_reload: failed to parse runtime snapshot {path}"
+                )),
+            }
+        }
+    }
+
+    fn apply_runtime_bundle_reload(&mut self, bundle: UiRuntimeBundle, path: &str) {
+        if let Err(err) = validate_ui_runtime_bundle(&bundle) {
+            trace_runtime(format!(
+                "runtime_reload: validation failed for runtime bundle {path}: {err}"
+            ));
+            return;
+        }
+
+        let mut next_output = bundle.output.clone();
+        let previous_output = std::mem::replace(&mut self.output, next_output.clone());
+        let report = ui_transfer_hot_reload_state(&previous_output, &mut next_output);
+        let previous_viewport_surfaces = std::mem::take(&mut self.viewport_surfaces);
+        let previous_shader_surfaces = std::mem::take(&mut self.shader_surfaces);
+        self.viewport_surfaces =
+            transfer_surface_state_map(&previous_output, &next_output, previous_viewport_surfaces);
+        self.shader_surfaces =
+            transfer_surface_state_map(&previous_output, &next_output, previous_shader_surfaces);
+        self.output = next_output;
+        self.debug_tree = render_ui_output_debug(&self.output);
+        self.config.window_title = bundle.metadata.window_title.clone();
+        self.config.root_component = bundle.metadata.root_component.clone();
+        self.config.initial_window_size = bundle.metadata.initial_window_size;
+
+        trace_runtime(format!(
+            "runtime_reload: applied runtime bundle {} focus={} selection={} docking={} animations={} session={}",
+            path,
+            report.focus_transferred,
+            report.selection_transferred,
+            report.docking_transferred,
+            report.animation_tracks_transferred,
+            report.session_values_transferred,
+        ));
     }
 }
 
@@ -2485,6 +2766,371 @@ impl CallbackTrait for PresentedViewportCallback {
     }
 }
 
+impl ShaderSurfaceState {
+    fn new(target_format: Option<wgpu::TextureFormat>) -> Self {
+        Self {
+            presented_state: target_format
+                .map(|format| Arc::new(Mutex::new(PresentedShaderSurfaceGpuState::new(format)))),
+            last_signature: None,
+            last_shader_ref: None,
+            last_warning: None,
+        }
+    }
+}
+
+impl PresentedShaderSurfaceGpuState {
+    fn new(target_format: wgpu::TextureFormat) -> Self {
+        Self {
+            target_format,
+            resources: None,
+            pending_frame: None,
+        }
+    }
+}
+
+impl CallbackTrait for PresentedShaderSurfaceCallback {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _screen_descriptor: &ScreenDescriptor,
+        _egui_encoder: &mut wgpu::CommandEncoder,
+        _callback_resources: &mut egui_wgpu::CallbackResources,
+    ) -> Vec<wgpu::CommandBuffer> {
+        let Ok(mut state) = self.state.lock() else {
+            return Vec::new();
+        };
+        let Some(frame) = state.pending_frame.as_ref().cloned() else {
+            return Vec::new();
+        };
+        let resources_need_rebuild = state
+            .resources
+            .as_ref()
+            .is_none_or(|resources| resources.signature != frame.signature);
+        if resources_need_rebuild {
+            match build_presented_shader_surface_resources(device, state.target_format, &frame) {
+                Ok(resources) => state.resources = Some(resources),
+                Err(err) => {
+                    trace_runtime(format!(
+                        "shader_surface_presented: init_failed shader={} error={err}",
+                        frame.descriptor.shader_ref
+                    ));
+                    return Vec::new();
+                }
+            }
+        }
+        let Some(resources) = state.resources.as_ref() else {
+            return Vec::new();
+        };
+        if let Some(buffer) = resources.uniform_buffer.as_ref() {
+            queue.write_buffer(buffer, 0, bytemuck::bytes_of(&frame.uniforms));
+        }
+        Vec::new()
+    }
+
+    fn paint(
+        &self,
+        info: egui::PaintCallbackInfo,
+        render_pass: &mut wgpu::RenderPass<'static>,
+        _callback_resources: &egui_wgpu::CallbackResources,
+    ) {
+        let Ok(state) = self.state.lock() else {
+            return;
+        };
+        let Some(resources) = state.resources.as_ref() else {
+            return;
+        };
+        let viewport = info.viewport_in_pixels();
+        let clip = info.clip_rect_in_pixels();
+        render_pass.set_viewport(
+            viewport.left_px as f32,
+            viewport.top_px as f32,
+            viewport.width_px as f32,
+            viewport.height_px as f32,
+            0.0,
+            1.0,
+        );
+        render_pass.set_scissor_rect(
+            clip.left_px.max(0) as u32,
+            clip.top_px.max(0) as u32,
+            clip.width_px.max(1) as u32,
+            clip.height_px.max(1) as u32,
+        );
+        render_pass.set_pipeline(&resources.pipeline);
+        if let Some(bind_group) = resources.bind_group.as_ref() {
+            render_pass.set_bind_group(0, bind_group, &[]);
+        }
+        render_pass.draw(0..3, 0..1);
+    }
+}
+
+fn build_presented_shader_surface_resources(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+    frame: &PresentedShaderSurfaceFrame,
+) -> Result<PresentedShaderSurfaceGpuResources, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("kain-ui-native-surface-vertex"),
+            source: wgpu::ShaderSource::Wgsl(UI_SHADER_SURFACE_FULLSCREEN_VERTEX_WGSL.into()),
+        });
+        let fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("kain-ui-native-surface-fragment"),
+            source: wgpu::ShaderSource::Wgsl(frame.descriptor.wgsl_source.clone().into()),
+        });
+
+        let mut resource_layouts = frame.descriptor.resource_layouts.clone();
+        resource_layouts.sort_by_key(|layout| (layout.descriptor_set, layout.binding));
+
+        let needs_uniform_buffer = resource_layouts.iter().any(|layout| {
+            layout.descriptor_set == 0
+                && matches!(
+                    shader_binding_kind(layout),
+                    Some(UiShaderBindingKind::UniformBuffer)
+                )
+        });
+        let needs_storage_buffer = resource_layouts.iter().any(|layout| {
+            layout.descriptor_set == 0
+                && matches!(
+                    shader_binding_kind(layout),
+                    Some(UiShaderBindingKind::StorageBuffer)
+                )
+        });
+        let needs_texture = resource_layouts.iter().any(|layout| {
+            layout.descriptor_set == 0
+                && matches!(
+                    shader_binding_kind(layout),
+                    Some(UiShaderBindingKind::Texture2d)
+                )
+        });
+        let needs_sampler = resource_layouts.iter().any(|layout| {
+            layout.descriptor_set == 0
+                && matches!(
+                    shader_binding_kind(layout),
+                    Some(UiShaderBindingKind::Sampler)
+                )
+        });
+
+        let uniform_buffer = needs_uniform_buffer.then(|| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("kain-ui-native-surface-uniforms"),
+                size: 4096,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        });
+        let storage_buffer = needs_storage_buffer.then(|| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("kain-ui-native-surface-storage"),
+                size: 4096,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        });
+        let fallback_texture = needs_texture.then(|| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("kain-ui-native-surface-fallback-texture"),
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            })
+        });
+        let fallback_texture_view = fallback_texture
+            .as_ref()
+            .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()));
+        let fallback_sampler = needs_sampler.then(|| {
+            device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("kain-ui-native-surface-fallback-sampler"),
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            })
+        });
+
+        let mut bind_group_layout_entries = Vec::new();
+        let mut bind_group_entries = Vec::new();
+
+        for layout in &resource_layouts {
+            if layout.descriptor_set != 0 {
+                continue;
+            }
+            match shader_binding_kind(layout) {
+                Some(UiShaderBindingKind::UniformBuffer) => {
+                    let buffer = uniform_buffer.as_ref().ok_or_else(|| {
+                        "shader surface uniform buffer was not created".to_string()
+                    })?;
+                    bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: layout.binding,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    });
+                    bind_group_entries.push(wgpu::BindGroupEntry {
+                        binding: layout.binding,
+                        resource: buffer.as_entire_binding(),
+                    });
+                }
+                Some(UiShaderBindingKind::StorageBuffer) => {
+                    let buffer = storage_buffer.as_ref().ok_or_else(|| {
+                        "shader surface storage buffer was not created".to_string()
+                    })?;
+                    bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: layout.binding,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    });
+                    bind_group_entries.push(wgpu::BindGroupEntry {
+                        binding: layout.binding,
+                        resource: buffer.as_entire_binding(),
+                    });
+                }
+                Some(UiShaderBindingKind::Texture2d) => {
+                    let view = fallback_texture_view.as_ref().ok_or_else(|| {
+                        "shader surface fallback texture view was not created".to_string()
+                    })?;
+                    bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: layout.binding,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    });
+                    bind_group_entries.push(wgpu::BindGroupEntry {
+                        binding: layout.binding,
+                        resource: wgpu::BindingResource::TextureView(view),
+                    });
+                }
+                Some(UiShaderBindingKind::Sampler) => {
+                    let sampler = fallback_sampler.as_ref().ok_or_else(|| {
+                        "shader surface fallback sampler was not created".to_string()
+                    })?;
+                    bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: layout.binding,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    });
+                    bind_group_entries.push(wgpu::BindGroupEntry {
+                        binding: layout.binding,
+                        resource: wgpu::BindingResource::Sampler(sampler),
+                    });
+                }
+                None => {}
+            }
+        }
+
+        let bind_group_layout = if bind_group_layout_entries.is_empty() {
+            None
+        } else {
+            Some(
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("kain-ui-native-surface-bind-group-layout"),
+                    entries: &bind_group_layout_entries,
+                }),
+            )
+        };
+
+        let bind_group_layout_refs = bind_group_layout.iter().collect::<Vec<_>>();
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("kain-ui-native-surface-pipeline-layout"),
+            bind_group_layouts: &bind_group_layout_refs,
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("kain-ui-native-surface-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vertex_shader,
+                entry_point: Some(UI_SHADER_SURFACE_VERTEX_ENTRY),
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &fragment_shader,
+                entry_point: Some(frame.descriptor.fragment_entry_point.as_str()),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            multiview: None,
+            cache: None,
+        });
+
+        let bind_group = bind_group_layout.as_ref().map(|layout| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("kain-ui-native-surface-bind-group"),
+                layout,
+                entries: &bind_group_entries,
+            })
+        });
+
+        Ok(PresentedShaderSurfaceGpuResources {
+            signature: frame.signature.clone(),
+            pipeline,
+            bind_group,
+            uniform_buffer,
+            _storage_buffer: storage_buffer,
+            _fallback_texture: fallback_texture,
+            _fallback_texture_view: fallback_texture_view,
+            _fallback_sampler: fallback_sampler,
+        })
+    }))
+    .map_err(|_| {
+        format!(
+            "wgpu surface pipeline creation panicked for shader {}",
+            frame.descriptor.shader_ref
+        )
+    })?
+}
+
+fn shader_binding_kind(layout: &ShaderResourceLayout) -> Option<UiShaderBindingKind> {
+    let kind = layout.kind.to_ascii_lowercase();
+    let ty = layout.ty.to_ascii_lowercase();
+    if kind.contains("uniform") {
+        Some(UiShaderBindingKind::UniformBuffer)
+    } else if kind.contains("storage") {
+        Some(UiShaderBindingKind::StorageBuffer)
+    } else if kind.contains("sampler") && !kind.contains("texture") {
+        Some(UiShaderBindingKind::Sampler)
+    } else if kind.contains("texture")
+        || ty.contains("sampler2d")
+        || ty.contains("texture2d")
+        || ty.contains("texture")
+    {
+        Some(UiShaderBindingKind::Texture2d)
+    } else {
+        None
+    }
+}
+
 fn build_presented_viewport_resources(
     device: &wgpu::Device,
     target_format: wgpu::TextureFormat,
@@ -2703,6 +3349,7 @@ impl eframe::App for KainUiNativeApp {
             .as_secs_f32()
             .clamp(1.0 / 240.0, 0.050);
         self.last_frame_instant = frame_now;
+        self.poll_runtime_reloads();
 
         let app_theme = resolve_app_theme(&self.output);
         apply_runtime_visuals(ctx, &app_theme);
@@ -2711,6 +3358,8 @@ impl eframe::App for KainUiNativeApp {
         ));
         self.viewport_input = snapshot_viewport_input(ctx);
         self.viewport_surfaces
+            .retain(|id, _| self.output.tree.nodes.contains_key(id));
+        self.shader_surfaces
             .retain(|id, _| self.output.tree.nodes.contains_key(id));
         let animation_delta_ms = (self.frame_dt_seconds * 1000.0).round().clamp(1.0, 64.0) as u32;
         let _ = ui_step_animation_runtime(&mut self.output.systems, animation_delta_ms);
@@ -3476,28 +4125,45 @@ fn render_gpu_canvas_surface(
         _ => "GPU Surface",
     };
     let runtime_renderer = app.runtime_settings.effective_renderer_label().to_string();
+    let resolved_shader = resolve_ui_shader_surface(app, surface);
     let shader_ref = surface
         .shader
         .as_ref()
         .map(|binding| binding.shader_ref.clone())
         .unwrap_or_else(|| "<none>".to_string());
-    let shader_stage = surface
-        .shader
+    let shader_stage = resolved_shader
         .as_ref()
-        .and_then(|binding| binding.stage.as_deref())
-        .unwrap_or("runtime-selected")
-        .to_string();
-    let shader_format = surface
-        .shader
+        .ok()
+        .map(|descriptor| descriptor.stage.clone())
+        .or_else(|| {
+            surface
+                .shader
+                .as_ref()
+                .and_then(|binding| binding.stage.clone())
+        })
+        .unwrap_or_else(|| "runtime-selected".to_string());
+    let shader_format = resolved_shader
         .as_ref()
-        .and_then(|binding| binding.derived_format.as_deref())
-        .unwrap_or("runtime-selected")
-        .to_string();
+        .ok()
+        .map(|descriptor| descriptor.derived_format.clone())
+        .or_else(|| {
+            surface
+                .shader
+                .as_ref()
+                .and_then(|binding| binding.derived_format.clone())
+        })
+        .unwrap_or_else(|| "runtime-selected".to_string());
     let descriptor_tag = format!(
         "{} / {}",
         surface_renderer_preference_label(surface.renderer_preference),
         surface_composition_mode_label(surface.composition_mode)
     );
+    let resolved_warning = resolved_shader.as_ref().err().cloned().or_else(|| {
+        resolved_shader
+            .as_ref()
+            .ok()
+            .and_then(|descriptor| descriptor.warning.clone())
+    });
 
     render_surface_frame(
         ui,
@@ -3508,29 +4174,86 @@ fn render_gpu_canvas_surface(
         fallback_title,
         Vec2::new(ui.available_width().max(280.0), 180.0),
         egui::Sense::hover(),
-        |ui, rect, _response, theme| {
+        |ui, rect, response, theme| {
             let painter = ui.painter();
             let inner = rect.shrink(4.0);
             let inner_radius = (theme.radius - 4.0).max(6.0);
-            painter.rect_filled(inner, inner_radius, theme.canvas_fill);
+            let mut rendered_with_gpu = false;
 
-            let stripe_height = (inner.height() * 0.34).clamp(24.0, 72.0);
-            let stripe = egui::Rect::from_min_max(
-                egui::pos2(inner.left(), inner.bottom() - stripe_height),
-                inner.right_bottom(),
-            );
-            painter.rect_filled(stripe, inner_radius, alpha_tint(theme.accent, 0.18));
+            if let (Ok(descriptor), Some(presented_host)) =
+                (resolved_shader.as_ref(), app.presented_viewport_host)
+            {
+                let state = app
+                    .shader_surfaces
+                    .entry(node.id)
+                    .or_insert_with(|| ShaderSurfaceState::new(Some(presented_host.target_format)));
+                let signature = shader_surface_signature(descriptor);
+                state.last_signature = Some(signature.clone());
+                state.last_shader_ref = Some(descriptor.shader_ref.clone());
+                state.last_warning = descriptor.warning.clone();
+                if state.presented_state.is_none() {
+                    state.presented_state = Some(Arc::new(Mutex::new(
+                        PresentedShaderSurfaceGpuState::new(presented_host.target_format),
+                    )));
+                }
+                if let Some(presented_state) = state.presented_state.as_ref() {
+                    let hover = response.hover_pos().unwrap_or(inner.center());
+                    let width = inner.width().max(1.0);
+                    let height = inner.height().max(1.0);
+                    let pointer = [
+                        ((hover.x - inner.left()) / width).clamp(0.0, 1.0),
+                        ((hover.y - inner.top()) / height).clamp(0.0, 1.0),
+                    ];
+                    let uniforms = UiShaderSurfaceUniforms {
+                        resolution: [width, height],
+                        pointer,
+                        time_seconds: app.start_time.elapsed().as_secs_f32(),
+                        opacity: presentation.opacity,
+                        frame_index: app.start_time.elapsed().as_secs_f32()
+                            / (app.frame_dt_seconds.max(1.0 / 240.0)),
+                        aspect_ratio: width / height,
+                        _pad: [0.0; 8],
+                    };
+                    if let Ok(mut gpu_state) = presented_state.lock() {
+                        gpu_state.pending_frame = Some(PresentedShaderSurfaceFrame {
+                            signature,
+                            descriptor: descriptor.clone(),
+                            uniforms,
+                        });
+                    }
+                    painter.add(egui::Shape::Callback(
+                        egui_wgpu::Callback::new_paint_callback(
+                            inner,
+                            PresentedShaderSurfaceCallback {
+                                state: Arc::clone(presented_state),
+                            },
+                        ),
+                    ));
+                    rendered_with_gpu = true;
+                }
+            }
 
-            for index in 0..7 {
-                let t = index as f32 / 6.0;
-                let x = inner.left() + (inner.width() * t);
-                painter.line_segment(
-                    [
-                        egui::pos2(x, inner.top()),
-                        egui::pos2(x - 18.0, inner.bottom()),
-                    ],
-                    Stroke::new(1.0, alpha_tint(theme.stroke, 0.38)),
+            if !rendered_with_gpu {
+                painter.rect_filled(inner, inner_radius, theme.canvas_fill);
+
+                let stripe_height = (inner.height() * 0.34).clamp(24.0, 72.0);
+                let stripe = egui::Rect::from_min_max(
+                    egui::pos2(inner.left(), inner.bottom() - stripe_height),
+                    inner.right_bottom(),
                 );
+                painter.rect_filled(stripe, inner_radius, alpha_tint(theme.accent, 0.18));
+
+                for index in 0..7 {
+                    let t = index as f32 / 6.0;
+                    let x = inner.left() + (inner.width() * t);
+                    painter.line_segment(
+                        [
+                            egui::pos2(x, inner.top()),
+                            egui::pos2(x - 18.0, inner.bottom()),
+                        ],
+                        Stroke::new(1.0, alpha_tint(theme.stroke, 0.38)),
+                    );
+                }
             }
 
             painter.rect_stroke(
@@ -3538,6 +4261,11 @@ fn render_gpu_canvas_surface(
                 inner_radius,
                 Stroke::new(1.0, alpha_tint(theme.accent, 0.78)),
                 egui::StrokeKind::Inside,
+            );
+            painter.rect_filled(
+                egui::Rect::from_min_size(inner.left_top(), egui::vec2(inner.width(), 82.0)),
+                inner_radius,
+                alpha_tint(theme.overlay_fill, 0.76),
             );
 
             painter.text(
@@ -3568,11 +4296,22 @@ fn render_gpu_canvas_surface(
                 egui::FontId::monospace(10.0),
                 theme.muted_color,
             );
+            if let Some(warning) = resolved_warning.as_deref() {
+                painter.text(
+                    inner.left_bottom() - egui::vec2(-14.0, 18.0),
+                    egui::Align2::LEFT_BOTTOM,
+                    warning,
+                    egui::FontId::monospace(9.5),
+                    Color32::LIGHT_YELLOW,
+                );
+            }
             painter.text(
                 inner.right_bottom() - egui::vec2(14.0, 14.0),
                 egui::Align2::RIGHT_BOTTOM,
-                if surface.gpu_backing_required {
-                    "gpu-backed"
+                if rendered_with_gpu {
+                    "wgpu-live"
+                } else if surface.gpu_backing_required {
+                    "gpu-preview"
                 } else {
                     "cpu-preview"
                 },
@@ -3583,6 +4322,205 @@ fn render_gpu_canvas_surface(
     );
 
     render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+}
+
+fn resolve_ui_shader_surface(
+    app: &KainUiNativeApp,
+    surface: &UiSurface,
+) -> Result<ResolvedUiShaderSurface, String> {
+    resolve_ui_shader_surface_from_catalog(
+        surface,
+        &app.realtime_catalog,
+        app.shader_bundle.as_ref(),
+    )
+}
+
+fn resolve_ui_shader_surface_from_catalog(
+    surface: &UiSurface,
+    realtime_catalog: &RealtimeBundleCatalog,
+    shader_bundle: Option<&ShaderArtifactBundle>,
+) -> Result<ResolvedUiShaderSurface, String> {
+    let binding = surface
+        .shader
+        .as_ref()
+        .ok_or_else(|| "surface did not declare a shader binding".to_string())?;
+    let shader_bundle =
+        shader_bundle.ok_or_else(|| "no shader bundle is loaded for this runtime".to_string())?;
+    let shader_ref = binding.shader_ref.trim();
+    if shader_ref.is_empty() {
+        return Err("surface shader binding was empty".to_string());
+    }
+
+    let resolved_ref = realtime_catalog
+        .shader_refs_by_key
+        .get(shader_ref)
+        .cloned()
+        .or_else(|| {
+            realtime_catalog
+                .shader_refs_by_key
+                .values()
+                .find(|candidate| {
+                    candidate.module_name == shader_ref || candidate.shader == shader_ref
+                })
+                .cloned()
+        });
+
+    let mut warning = None;
+    let shader_name = resolved_ref
+        .as_ref()
+        .map(|entry| entry.shader.clone())
+        .unwrap_or_else(|| shader_ref.to_string());
+    let module_name = resolved_ref
+        .as_ref()
+        .map(|entry| entry.module_name.clone())
+        .unwrap_or_else(|| shader_ref.to_string());
+    let stage = binding
+        .stage
+        .clone()
+        .or_else(|| resolved_ref.as_ref().map(|entry| entry.stage.clone()))
+        .unwrap_or_else(|| "fragment".to_string());
+    let fragment_entry_point = binding
+        .entry_point
+        .clone()
+        .or_else(|| {
+            resolved_ref
+                .as_ref()
+                .filter(|entry| entry.stage.eq_ignore_ascii_case("fragment"))
+                .map(|entry| entry.entry_point.clone())
+        })
+        .or_else(|| find_fragment_entry_point(shader_bundle, &module_name, &shader_name))
+        .unwrap_or_else(|| "main".to_string());
+
+    let wgsl_source = match wgsl_module_source(shader_bundle, &module_name) {
+        Ok(source) => source.into_owned(),
+        Err(err) => {
+            return Err(format!(
+                "module `{module_name}` could not be resolved from shader bundle: {err}"
+            ));
+        }
+    };
+
+    if resolved_ref.is_none() {
+        warning = Some(format!(
+            "shader ref `{shader_ref}` was not registered in realtime metadata; using module fallback"
+        ));
+    }
+
+    let resource_layouts = shader_bundle
+        .resource_layouts
+        .iter()
+        .filter(|layout| layout.shader == shader_name)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    Ok(ResolvedUiShaderSurface {
+        shader_ref: shader_ref.to_string(),
+        shader_name,
+        module_name,
+        fragment_entry_point,
+        stage,
+        derived_format: binding
+            .derived_format
+            .clone()
+            .unwrap_or_else(|| "wgsl-runtime".to_string()),
+        wgsl_source,
+        resource_layouts,
+        warning,
+    })
+}
+
+fn find_fragment_entry_point(
+    shader_bundle: &ShaderArtifactBundle,
+    module_name: &str,
+    shader_name: &str,
+) -> Option<String> {
+    shader_bundle
+        .entry_points
+        .iter()
+        .find_map(|entry| match_shader_entry(entry, module_name, shader_name, "fragment"))
+        .or_else(|| {
+            shader_bundle
+                .entry_points
+                .iter()
+                .find_map(|entry| match_shader_entry(entry, module_name, shader_name, "surface"))
+        })
+}
+
+fn match_shader_entry(
+    entry: &ShaderEntryPoint,
+    module_name: &str,
+    shader_name: &str,
+    stage: &str,
+) -> Option<String> {
+    if entry.stage.eq_ignore_ascii_case(stage)
+        && (entry.module_name == module_name || entry.shader == shader_name)
+    {
+        Some(entry.entry_point.clone())
+    } else {
+        None
+    }
+}
+
+fn shader_surface_signature(descriptor: &ResolvedUiShaderSurface) -> String {
+    let mut hasher = DefaultHasher::new();
+    descriptor.shader_name.hash(&mut hasher);
+    descriptor.module_name.hash(&mut hasher);
+    descriptor.fragment_entry_point.hash(&mut hasher);
+    descriptor.wgsl_source.hash(&mut hasher);
+    format!(
+        "{}:{}:{:016x}",
+        descriptor.module_name,
+        descriptor.fragment_entry_point,
+        hasher.finish()
+    )
+}
+
+fn transfer_surface_state_map<T>(
+    previous_output: &UiBuildOutput,
+    next_output: &UiBuildOutput,
+    previous_states: BTreeMap<UiNodeId, T>,
+) -> BTreeMap<UiNodeId, T> {
+    let previous_identity_map = native_node_identity_map(&previous_output.tree);
+    let next_identity_map = native_node_identity_map(&next_output.tree);
+    let aliases = next_output
+        .systems
+        .hot_reload
+        .identity_aliases
+        .iter()
+        .map(|alias| (alias.from.clone(), alias.to.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut transferred = BTreeMap::new();
+
+    for (previous_node_id, state) in previous_states {
+        if next_output.tree.nodes.contains_key(&previous_node_id) {
+            transferred.insert(previous_node_id, state);
+            continue;
+        }
+        let Some(previous_identity) = previous_identity_map.get(&previous_node_id) else {
+            continue;
+        };
+        let next_identity = aliases.get(previous_identity).unwrap_or(previous_identity);
+        if let Some((&next_node_id, _)) = next_identity_map
+            .iter()
+            .find(|(_, identity)| *identity == next_identity)
+        {
+            transferred.insert(next_node_id, state);
+        }
+    }
+
+    transferred
+}
+
+fn native_node_identity_map(tree: &UiTree) -> BTreeMap<UiNodeId, String> {
+    tree.nodes
+        .values()
+        .filter_map(|node| {
+            node.identity_key
+                .clone()
+                .or_else(|| node.layout.persistent_layout_id.clone())
+                .map(|identity| (node.id, identity))
+        })
+        .collect()
 }
 
 fn surface_descriptor_for_node<'a>(
@@ -4582,7 +5520,16 @@ pub fn summarize_patches(patches: &[UiPatch]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_ui::{ui_runtime_systems_from_tree, UiNativeProjectionKind, UiNodeId};
+    use kain_core::{
+        DerivedShaderArtifact, ShaderArtifactBundle, ShaderArtifactFormat, ShaderDebugBundle,
+        ShaderEntryPoint, ShaderReflectionSummary, ShaderResourceLayout,
+        SHADER_ARTIFACT_SCHEMA_VERSION,
+    };
+    use kain_ui::{
+        ui_runtime_systems_from_tree, UiNativeProjectionKind, UiNodeId, UiReloadIdentityAlias,
+        UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+        UiSurfaceShaderBinding, UiTreeBuilder,
+    };
     use std::fs;
     use std::path::Path;
 
@@ -4779,6 +5726,93 @@ mod tests {
         assert!(presentation.translate_y > 0.0);
     }
 
+    #[test]
+    fn shader_surface_state_map_transfers_across_hot_reload_aliases() {
+        let previous = surface_test_output(UiNodeId(1), UiNodeId(2), "hero.surface");
+        let mut next = surface_test_output(UiNodeId(10), UiNodeId(11), "hero.surface.next");
+        next.systems
+            .hot_reload
+            .identity_aliases
+            .push(UiReloadIdentityAlias {
+                from: "hero.surface".to_string(),
+                to: "hero.surface.next".to_string(),
+            });
+
+        let mut previous_states = BTreeMap::new();
+        previous_states.insert(
+            UiNodeId(2),
+            ShaderSurfaceState {
+                presented_state: None,
+                last_signature: Some("hero-surface-signature".to_string()),
+                last_shader_ref: Some("ui.hero_surface".to_string()),
+                last_warning: None,
+            },
+        );
+
+        let transferred = transfer_surface_state_map(&previous, &next, previous_states);
+        let transferred_state = transferred
+            .get(&UiNodeId(11))
+            .expect("shader surface state should move to aliased node identity");
+
+        assert_eq!(
+            transferred_state.last_signature.as_deref(),
+            Some("hero-surface-signature")
+        );
+        assert_eq!(
+            transferred_state.last_shader_ref.as_deref(),
+            Some("ui.hero_surface")
+        );
+        assert!(!transferred.contains_key(&UiNodeId(2)));
+    }
+
+    #[test]
+    fn resolve_shader_surface_uses_runtime_catalog_and_wgsl_output() {
+        let surface = UiSurface {
+            id: "surface.hero".to_string(),
+            kind: UiSurfaceKind::Canvas,
+            node: UiNodeId(7),
+            title: Some("Hero Surface".to_string()),
+            renderer_preference: UiSurfaceRendererPreference::Shader,
+            composition_mode: UiSurfaceCompositionMode::ShaderCanvas,
+            gpu_backing_required: true,
+            shader: Some(UiSurfaceShaderBinding {
+                shader_ref: "ui.hero_surface".to_string(),
+                entry_point: None,
+                stage: None,
+                derived_format: Some("wgsl".to_string()),
+            }),
+        };
+        let mut realtime_catalog = RealtimeBundleCatalog::default();
+        realtime_catalog.shader_refs_by_key.insert(
+            "ui.hero_surface".to_string(),
+            RealtimeShaderBundleRef {
+                key: "ui.hero_surface".to_string(),
+                shader: "hero_surface_fragment".to_string(),
+                module_name: "ui_hero_surface".to_string(),
+                stage: "fragment".to_string(),
+                entry_point: "hero_main".to_string(),
+                source: "inline".to_string(),
+            },
+        );
+        let shader_bundle = test_shader_artifact_bundle();
+
+        let resolved = resolve_ui_shader_surface_from_catalog(
+            &surface,
+            &realtime_catalog,
+            Some(&shader_bundle),
+        )
+        .expect("shader surface should resolve from runtime metadata");
+
+        assert_eq!(resolved.shader_ref, "ui.hero_surface");
+        assert_eq!(resolved.shader_name, "hero_surface_fragment");
+        assert_eq!(resolved.module_name, "ui_hero_surface");
+        assert_eq!(resolved.fragment_entry_point, "hero_main");
+        assert_eq!(resolved.derived_format, "wgsl");
+        assert_eq!(resolved.resource_layouts.len(), 1);
+        assert!(resolved.wgsl_source.contains("hero_main"));
+        assert!(resolved.warning.is_none());
+    }
+
     fn themed_test_output(child_values: Option<BTreeMap<String, UiValue>>) -> UiBuildOutput {
         let root_id = UiNodeId(1);
         let child_id = UiNodeId(2);
@@ -4816,6 +5850,85 @@ mod tests {
             tree: tree.clone(),
             patches: Vec::new(),
             systems: ui_runtime_systems_from_tree(&tree),
+        }
+    }
+
+    fn surface_test_output(
+        root_id: UiNodeId,
+        surface_node_id: UiNodeId,
+        identity: &str,
+    ) -> UiBuildOutput {
+        let mut builder = UiTreeBuilder::new();
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some(format!("root-{}", root_id.0));
+        builder.add_node(root);
+
+        let mut surface = UiNode::new(surface_node_id, UiWidgetKind::Element("canvas".to_string()));
+        surface.identity_key = Some(identity.to_string());
+        surface.layout.persistent_layout_id = Some(identity.to_string());
+        builder.add_node(surface);
+        builder.replace_children(root_id, vec![surface_node_id]);
+        builder.set_root(root_id);
+        builder.finish()
+    }
+
+    fn test_shader_artifact_bundle() -> ShaderArtifactBundle {
+        ShaderArtifactBundle {
+            schema_version: SHADER_ARTIFACT_SCHEMA_VERSION,
+            canonical_native_payload: ShaderArtifactFormat::Wgsl,
+            spirv_modules: Vec::new(),
+            reflection: ShaderReflectionSummary {
+                emitted: true,
+                shaders: Vec::new(),
+                notes: Vec::new(),
+            },
+            resource_layouts: vec![ShaderResourceLayout {
+                shader: "hero_surface_fragment".to_string(),
+                name: "UiRuntime".to_string(),
+                binding: 0,
+                descriptor_set: 0,
+                ty: "uniform_buffer".to_string(),
+                kind: "uniform_buffer".to_string(),
+            }],
+            entry_points: vec![ShaderEntryPoint {
+                shader: "hero_surface_fragment".to_string(),
+                module_name: "ui_hero_surface".to_string(),
+                entry_point: "hero_main".to_string(),
+                stage: "fragment".to_string(),
+            }],
+            stage_metadata: Vec::new(),
+            specialization_constants: Vec::new(),
+            debug: ShaderDebugBundle {
+                source_map: Vec::new(),
+                notes: Vec::new(),
+            },
+            derived_outputs: vec![DerivedShaderArtifact {
+                format: ShaderArtifactFormat::Wgsl,
+                module_name: "ui_hero_surface".to_string(),
+                contents: r#"
+struct UiRuntime {
+    resolution: vec2<f32>,
+    pointer: vec2<f32>,
+    time_seconds: f32,
+    opacity: f32,
+    frame_index: f32,
+    aspect_ratio: f32,
+    _pad0: vec4<f32>,
+    _pad1: vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> ui_runtime: UiRuntime;
+
+@fragment
+fn hero_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+    let pulse = 0.5 + 0.5 * sin(ui_runtime.time_seconds + position.x * 0.01);
+    return vec4<f32>(pulse, 0.25, 1.0 - pulse, ui_runtime.opacity);
+}
+"#
+                .trim()
+                .to_string(),
+            }],
         }
     }
 }

@@ -430,6 +430,10 @@ impl DriverSession {
             &runtime_bundle_path,
         )
         .unwrap_or_else(|| runtime_bundle_path.clone());
+        let runtime_bundle_file_name = runtime_bundle_path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .unwrap_or(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME);
         let realtime_bundle_file_name = realtime_bundle_path
             .file_name()
             .and_then(OsStr::to_str)
@@ -442,6 +446,7 @@ impl DriverSession {
         let main_rs = render_main_rs(
             &runtime_bundle_include_path,
             &config.runtime_crate_name,
+            runtime_bundle_file_name,
             realtime_bundle_file_name,
             shader_bundle_file_name.as_deref(),
         );
@@ -564,12 +569,14 @@ fn render_manifest(
 fn render_main_rs(
     runtime_bundle_include_path: &Path,
     runtime_crate_name: &str,
+    runtime_bundle_file_name: &str,
     realtime_bundle_file_name: &str,
     shader_bundle_file_name: Option<&str>,
 ) -> String {
     let runtime_bundle_include_path =
         rust_string_literal(&path_for_toml(runtime_bundle_include_path));
     let runtime_module_name = runtime_crate_name.replace('-', "_");
+    let runtime_bundle_file_name = rust_string_literal(runtime_bundle_file_name);
     let realtime_bundle_file_name = rust_string_literal(realtime_bundle_file_name);
     let shader_bundle_env = shader_bundle_file_name.map(rust_string_literal);
     let shader_bundle_setter = shader_bundle_env
@@ -586,7 +593,7 @@ fn render_main_rs(
     let app_snapshot_relative_path = rust_string_literal("../state/runtime_snapshot.json");
 
     format!(
-        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{shader_bundle_setter}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
+        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{shader_bundle_setter}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
 }
 
@@ -990,6 +997,8 @@ component App():
         assert!(manifest.contains("kain-ui-native"));
         let main_rs = fs::read_to_string(&materialized.main_rs_path).expect("main.rs");
         assert!(main_rs.contains("run_bundled_app_json"));
+        assert!(main_rs.contains("KAIN_UI_NATIVE_RUNTIME_BUNDLE"));
+        assert!(main_rs.contains("KAIN_UI_NATIVE_REALTIME_BUNDLE"));
         assert!(materialized
             .artifact_paths
             .iter()

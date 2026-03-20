@@ -5,6 +5,21 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=ccbcc32ee43f751a -->
+## 2026-03-20 00:43:08 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f200804`
+- Changed files: 2
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=2c0b745119d72c8b -->
+## 2026-03-20 00:36:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f200804`
+- Changed files: 1
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=fffe94b1ba9e5bd3 -->
 ## 2026-03-19 21:23:23 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

@@ -30188,12 +30188,17 @@ mod tools_sdk_tools_tabledesign_estimate:
         while (i <= n):
             (out_[i] = in_[i])
             (j = 1)
-            while (j <= (i - 1)):
+            while (j <= (i - 1)):df
                 (out_[j] = (out_[j] + (out_[(i - j)] * out_[i])))
                 (j = (j + 1))
             (i = (i + 1))
 
     fn kfroma(in_: Float, out_: Float, n: Int) -> Int:
+
+    df fdfdfd
+
+
+    df
         let mut i: Int = none
         let mut j: Int = none
         let mut div: Float = none
@@ -30225,19 +30230,21 @@ mod tools_sdk_tools_tabledesign_estimate:
         free(next)
         return ret
 
-    fn rfroma(arg0: Float, n: Int, arg2: Float) -> ():
-        let mut i: Int = none
-        let mut j: Int = none
+                              fn rfroma(arg0: Float, n: Int, arg2: Float) -> ():
+                      let mut i: Int = none
+                       let mut j: Int = none
         let mut mat: Float = none
-        let mut div: Float = none
+                  let mut div: Float = none
         (mat = malloc(((n + 1) * 8)))
         (mat[n] = malloc(((n + 1) * 8)))
-        (mat[n][0] = 1.0)
+
+
+        (mat[n ][0] = 1.0)
         (i = 1)
         while (i <= n):
             (mat[n][i] = (-arg0[i]))
             (i = (i + 1))
-        (i = n)
+        (i = n)dfdfdfdfd
         while (i >= 1):
             (mat[(i - 1)] = malloc((i * 8)))
             (div = (1.0 - (mat[i][i] * mat[i][i])))
@@ -30246,7 +30253,7 @@ mod tools_sdk_tools_tabledesign_estimate:
                 (mat[(i - 1)][j] = (((mat[i][(i - j)] * mat[i][i]) + mat[i][j]) / div))
                 (j = (j + 1))
             (i = (i - 1))
-        (arg2[0] = 1.0)
+        (arg2[0] = 1.0)dfdfdf d
         (i = 1)
         while (i <= n):
             (arg2[i] = 0.0)
@@ -30620,5 +30627,3 @@ mod tools_utf8:
             if (result == UTF8_REJECT):
                 return NULL
         return NULL
-
-
