@@ -61,6 +61,8 @@ pub const BUILD_GIT_DIRTY: &str = match option_env!("KAIN_GIT_DIRTY") {
 
 const KN_SHORTCUTS: &[&str] = &[
     "kn <file.kn>                Run a Kain file immediately",
+    "kn -c \"fn main(): ...\"      Run inline Kain code",
+    "Get-Content script.kn | kn   Run piped Kain source",
     "kn <file.kn> --watch        Re-run on save for fast authoring",
     "kn run <file.kn>            Explicit interpret mode",
     "kn build <file.kn> -t rust  Generate Rust output",

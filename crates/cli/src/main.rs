@@ -24,6 +24,7 @@ use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -73,6 +74,10 @@ struct Args {
 
     /// Source file to compile (legacy positional argument)
     input: Option<PathBuf>,
+
+    /// Inline Kain source, similar to `python -c`
+    #[arg(short = 'c', long, conflicts_with = "input")]
+    code: Option<String>,
 
     /// Output file
     #[arg(short, long)]
@@ -441,8 +446,36 @@ enum Commands {
     },
 }
 
-fn run_compile(
-    input: &PathBuf,
+fn normalize_script_source(source: String) -> String {
+    if let Some(rest) = source.strip_prefix("#!") {
+        if let Some(newline_index) = rest.find('\n') {
+            rest[(newline_index + 1)..].to_string()
+        } else {
+            String::new()
+        }
+    } else {
+        source
+    }
+}
+
+fn read_source_from_path(input: &Path) -> Result<String, String> {
+    let source = if input == Path::new("-") {
+        let mut buffer = String::new();
+        io::stdin()
+            .read_to_string(&mut buffer)
+            .map_err(|err| format!("Failed to read stdin: {err}"))?;
+        buffer
+    } else {
+        fs::read_to_string(input)
+            .map_err(|err| format!("Failed to read {}: {err}", input.display()))?
+    };
+    Ok(normalize_script_source(source))
+}
+
+fn run_source(
+    source_name: &str,
+    source_path: Option<&Path>,
+    source: &str,
     target: CompileTarget,
     output: Option<&PathBuf>,
     _emit_ast: bool,
@@ -451,17 +484,8 @@ fn run_compile(
     _analyze: bool,
     plugin_name: Option<&str>,
 ) -> bool {
-    // Read source
-    let source = match fs::read_to_string(input) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!(" Failed to read {}: {}", input.display(), e);
-            return false;
-        }
-    };
-
     if verbose {
-        println!(" Compiling: {}", input.display());
+        println!(" Compiling: {}", source_name);
         println!(
             " Source: {} bytes, {} lines",
             source.len(),
@@ -471,9 +495,16 @@ fn run_compile(
 
     // Compile SPIR-V as binary bytes (not the string summary used by compile()).
     if target == CompileTarget::Spirv {
-        let output_path = output
+        let output_path = match output
             .cloned()
-            .unwrap_or_else(|| input.with_extension(target_extension(target)));
+            .or_else(|| source_path.map(|path| path.with_extension(target_extension(target))))
+        {
+            Some(path) => path,
+            None => {
+                eprintln!(" Output path is required when compiling inline or stdin source.");
+                return false;
+            }
+        };
         match cli::compile_spirv_binary(&source) {
             Ok(spv_bytes) => {
                 if !ensure_parent_dir(&output_path) {
@@ -520,8 +551,13 @@ fn run_compile(
                             p.set_extension("ll");
                             p
                         }
+                    } else if let Some(path) = source_path {
+                        path.with_extension("ll")
                     } else {
-                        input.with_extension("ll")
+                        eprintln!(
+                            " Output path is required when compiling inline or stdin source."
+                        );
+                        return false;
                     }
                 } else if target == CompileTarget::Usf {
                     // For USF, always ensure .usf extension
@@ -529,13 +565,27 @@ fn run_compile(
                         let mut p = out.clone();
                         p.set_extension("usf");
                         p
+                    } else if let Some(path) = source_path {
+                        path.with_extension("usf")
                     } else {
-                        input.with_extension("usf")
+                        eprintln!(
+                            " Output path is required when compiling inline or stdin source."
+                        );
+                        return false;
                     }
                 } else {
-                    output
+                    match output
                         .cloned()
-                        .unwrap_or_else(|| input.with_extension(default_ext))
+                        .or_else(|| source_path.map(|path| path.with_extension(default_ext)))
+                    {
+                        Some(path) => path,
+                        None => {
+                            eprintln!(
+                                " Output path is required when compiling inline or stdin source."
+                            );
+                            return false;
+                        }
+                    }
                 };
 
                 if !ensure_parent_dir(&output_path) {
@@ -581,12 +631,8 @@ fn run_compile(
                         match kain_core::Lexer::new(&source).tokenize() {
                             Ok(tokens) => {
                                 let span_mapper = kain_core::diagnostics::SpanMapper::new(&source);
-                                match kain_core::Parser::new(
-                                    &tokens,
-                                    &span_mapper,
-                                    input.to_str().unwrap_or("<unknown>"),
-                                )
-                                .parse()
+                                match kain_core::Parser::new(&tokens, &span_mapper, source_name)
+                                    .parse()
                                 {
                                     Ok(ast) => {
                                         // Find the first shader in the AST
@@ -600,22 +646,22 @@ fn run_compile(
                                                 }
                                             })
                                             .unwrap_or_else(|| {
-                                                input
-                                                    .file_stem()
+                                                source_path
+                                                    .and_then(|path| path.file_stem())
                                                     .and_then(|s| s.to_str())
                                                     .unwrap_or("Shader")
                                                     .to_string()
                                             })
                                     }
-                                    Err(_) => input
-                                        .file_stem()
+                                    Err(_) => source_path
+                                        .and_then(|path| path.file_stem())
                                         .and_then(|s| s.to_str())
                                         .unwrap_or("Shader")
                                         .to_string(),
                                 }
                             }
-                            Err(_) => input
-                                .file_stem()
+                            Err(_) => source_path
+                                .and_then(|path| path.file_stem())
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("Shader")
                                 .to_string(),
@@ -920,6 +966,47 @@ fn run_compile(
     }
 }
 
+fn run_compile(
+    input: &PathBuf,
+    target: CompileTarget,
+    output: Option<&PathBuf>,
+    emit_ast: bool,
+    emit_typed: bool,
+    verbose: bool,
+    analyze: bool,
+    plugin_name: Option<&str>,
+) -> bool {
+    let source = match read_source_from_path(input) {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!(" {}", err);
+            return false;
+        }
+    };
+    let source_name = if input == Path::new("-") {
+        "<stdin>"
+    } else {
+        input.to_str().unwrap_or("<input>")
+    };
+    let source_path = if input == Path::new("-") {
+        None
+    } else {
+        Some(input.as_path())
+    };
+    run_source(
+        source_name,
+        source_path,
+        &source,
+        target,
+        output,
+        emit_ast,
+        emit_typed,
+        verbose,
+        analyze,
+        plugin_name,
+    )
+}
+
 fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
     match value.trim().to_ascii_lowercase().as_str() {
         "live" => Ok(ArtifactMode::Live),
@@ -1036,13 +1123,29 @@ fn main() {
                 .bin_name(launcher.display_name())
                 .get_matches();
             let args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+            let mut stdin_source = None;
+            if args.command.is_none()
+                && args.input.is_none()
+                && args.code.is_none()
+                && launcher.prefers_interpret_default()
+                && !io::stdin().is_terminal()
+            {
+                let mut buffer = String::new();
+                if io::stdin().read_to_string(&mut buffer).is_ok() && !buffer.trim().is_empty() {
+                    stdin_source = Some(normalize_script_source(buffer));
+                }
+            }
 
             println!(
                 " {} Compiler v{} (build {})",
                 LANGUAGE_NAME, VERSION, BUILD_NUMBER
             );
 
-            if should_show_launcher_menu(launcher, args.command.is_some(), args.input.is_some()) {
+            if should_show_launcher_menu(
+                launcher,
+                args.command.is_some(),
+                args.input.is_some() || args.code.is_some() || stdin_source.is_some(),
+            ) {
                 if let Some(menu) = render_launcher_menu(launcher) {
                     print!("{menu}");
                 }
@@ -1495,6 +1598,70 @@ fn main() {
                                     std::process::exit(1);
                                 }
                             }
+                        }
+                    } else if let Some(code) = args.code.as_deref() {
+                        let resolved_target_alias = resolve_legacy_target_alias(
+                            launcher,
+                            &args.target,
+                            args.output.is_some(),
+                        );
+                        let Some(target) = parse_compile_target(&resolved_target_alias) else {
+                            eprintln!(
+                                " Unknown target: {}. Use: {}",
+                                resolved_target_alias,
+                                supported_targets_csv()
+                            );
+                            std::process::exit(1);
+                        };
+                        if args.watch {
+                            eprintln!(" Watch mode is only supported for file-backed input.");
+                            std::process::exit(1);
+                        }
+                        if !run_source(
+                            "<inline>",
+                            None,
+                            code,
+                            target,
+                            args.output.as_ref(),
+                            args.emit_ast,
+                            args.emit_typed,
+                            args.verbose,
+                            args.analyze,
+                            args.plugin.as_deref(),
+                        ) {
+                            std::process::exit(1);
+                        }
+                    } else if let Some(stdin_source) = stdin_source.as_deref() {
+                        let resolved_target_alias = resolve_legacy_target_alias(
+                            launcher,
+                            &args.target,
+                            args.output.is_some(),
+                        );
+                        let Some(target) = parse_compile_target(&resolved_target_alias) else {
+                            eprintln!(
+                                " Unknown target: {}. Use: {}",
+                                resolved_target_alias,
+                                supported_targets_csv()
+                            );
+                            std::process::exit(1);
+                        };
+                        if args.watch {
+                            eprintln!(" Watch mode is only supported for file-backed input.");
+                            std::process::exit(1);
+                        }
+                        if !run_source(
+                            "<stdin>",
+                            None,
+                            stdin_source,
+                            target,
+                            args.output.as_ref(),
+                            args.emit_ast,
+                            args.emit_typed,
+                            args.verbose,
+                            args.analyze,
+                            args.plugin.as_deref(),
+                        ) {
+                            std::process::exit(1);
                         }
                     } else {
                         eprintln!(" No input file provided. Use --help for usage.");
