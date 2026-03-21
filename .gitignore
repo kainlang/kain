@@ -52,6 +52,7 @@ target-install/
 unreal/UE_API/
 /tmp/
 **/__pycache__/
+**/.zig-cache/
 generated/**/.~lock.*
 smoketest/**/.kain/cache/
 toolchain/llvm/bin/clang

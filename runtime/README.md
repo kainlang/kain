@@ -4,6 +4,8 @@ The Kain native runtime is the manifest-driven C runtime used by the LLVM/native
 
 The canonical runtime entrypoint is [native_runtime.toml](./native_runtime.toml), not the legacy umbrella file [kain_runtime.c](./kain_runtime.c). If you are working on native Kain executables, raw-native app hosting, or LLVM-linked runtime behavior, this folder is the source of truth.
 
+`runtime/parallel/` is the non-C companion lane for native runtime completion work. It shares the same architectural intent and metadata, but it must stay isolated from `runtime/native/` while the C runtime spec remains the active truth source.
+
 ## Executive Summary
 
 - For Windows-native LLVM executables, the runtime is already materially usable.
@@ -56,6 +58,7 @@ Use these files in this order when judging the runtime:
 3. [conformance/README.md](./conformance/README.md)
 4. [changelogs/NATIVE_RUNTIME_COMPLETION_TRACKER.md](./changelogs/NATIVE_RUNTIME_COMPLETION_TRACKER.md)
 5. [native/C_RUNTIME_CONTRACT_PIPELINE.md](./native/C_RUNTIME_CONTRACT_PIPELINE.md)
+6. [parallel/README.md](./parallel/README.md)
 
 Important caveats:
 

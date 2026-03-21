@@ -12,8 +12,9 @@
     │   └── kainplan/kain-fabric/ # active Fabric design/spec/task docs
     ├── generated/                # generated artifacts and large proof outputs
     ├── labs/                     # focused validation labs and smoke apps
-    ├── runtime/                  # native runtime contracts, headers, and C runtime
-    │   └── native/               # raw-native execution lane and viewport host
+    ├── runtime/                  # native runtime contracts, headers, C runtime, and parallel companion lane
+    │   ├── native/               # raw-native execution lane and viewport host
+    │   └── parallel/             # Rust/Zig companion lane for runtime completion work
     ├── smoketest/                # proof matrix for bridges, UI, 3D, and mixed runtimes
     ├── stdlib/                   # standard library data and runtime support
     ├── toolchain/                # LLVM and related toolchain assets
@@ -33,4 +34,5 @@ Notes:
 - `generated/` and `target/` are build outputs and should stay disposable.
 - `docs/kainplan/` is where active design docs live before they become stable reference material.
 - `runtime/native/` is the current raw-native C runtime lane, including the compute/viewer bridge.
+- `runtime/parallel/` is the companion Rust/Zig lane for runtime planning and reports.
 - `crates/repomap.md` remains the crate-level detail map for workspace internals.

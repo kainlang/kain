@@ -28,6 +28,10 @@ It exists so we can build Rust and Zig runtime-side systems in parallel with the
 
 This lane must not modify `runtime/native` C sources while the long-haul spec executor is still running.
 
+## Generated Artifacts
+
+The Zig build cache under `zig/.zig-cache/` is disposable output. It should be ignored, deleted when stale, and never treated as part of the lane source of truth.
+
 ## Validation
 
 Rust:

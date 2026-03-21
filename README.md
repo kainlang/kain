@@ -852,6 +852,9 @@ M:\Code\Kain
 │   └── unreal/*              # vendored Unreal asset/tooling crates
 ├── smoketest/                # proof matrix for bridges, mixed runtimes, UI, 3D
 ├── labs/                     # focused validation labs, including native viewport
+├── runtime/                  # native runtime contracts, C runtime, raw-native lane, and parallel companion lane
+│   ├── native/               # raw-native execution lane and viewport host
+│   └── parallel/             # Rust/Zig companion lane for runtime completion work
 ├── stdlib/                   # stdlib data and target/runtime support
 ├── toolchain/                # LLVM and related toolchain support
 ├── generated/                # generated artifacts and larger smoke outputs

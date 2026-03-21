@@ -5,6 +5,35 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=2d942489168b0914 -->
+## 2026-03-20 22:18:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ef60420`
+- Changed files: 8
+- [.M] `crates/cli/src/main.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/parallel/README.md`
+- [.D] `runtime/parallel/zig/.zig-cache/h/timestamp`
+- [.D] `runtime/parallel/zig/.zig-cache/o/f1ea4330472a4c6ebcbfed6922919020/dependencies.zig`
+- [.D] `runtime/parallel/zig/.zig-cache/z/609b622a07c51b03b4915f31114277a3`
+- [.D] `runtime/parallel/zig/.zig-cache/z/780d6e436e2fae933ca812aa89faecb4`
+- [.D] `runtime/parallel/zig/.zig-cache/z/d8925a1c9b97dbaa2e3f1d3a18fd0410`
+
+<!-- polytools-changelog:fingerprint=318596da8c744915 -->
+## 2026-03-20 21:35:15 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ef60420`
+- Changed files: 1
+- [.M] `crates/cli/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=c4d0f7b9e5e3cf9e -->
+## 2026-03-20 21:34:16 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ef60420`
+- Changed files: 2
+- [.M] `crates/cli/src/main.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+
 <!-- polytools-changelog:fingerprint=0c59e09ec2a95989 -->
 ## 2026-03-20 20:25:53 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

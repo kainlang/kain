@@ -24,7 +24,7 @@ use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, IsTerminal, Read};
+use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -1012,40 +1012,123 @@ fn run_compile(
     )
 }
 
-fn run_kn_paste_mode() -> bool {
-    println!(" kn Paste Mode");
-    if cfg!(windows) {
-        println!(" Paste a full Kain file, then press Ctrl+Z and Enter to run.");
-    } else {
-        println!(" Paste a full Kain file, then press Ctrl+D to run.");
-    }
-    println!(" Python FFI is available through std::python::*.");
-    println!();
+fn run_kn_repl() -> bool {
+    println!(
+        "Kain {} (build {}) [{}]",
+        VERSION, BUILD_NUMBER, BUILD_TARGET_TRIPLE
+    );
 
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    let mut stdout = io::stdout();
     let mut buffer = String::new();
-    if let Err(err) = io::stdin().read_to_string(&mut buffer) {
-        eprintln!(" Failed to read pasted Kain source: {}", err);
-        return false;
-    }
+    let mut line = String::new();
 
-    let source = normalize_script_source(buffer);
-    if source.trim().is_empty() {
-        println!(" No Kain source received.");
-        return true;
-    }
+    loop {
+        let prompt = if buffer.trim().is_empty() {
+            ">>> "
+        } else {
+            "... "
+        };
+        if write!(stdout, "{}", prompt)
+            .and_then(|_| stdout.flush())
+            .is_err()
+        {
+            eprintln!(" Failed to write REPL prompt.");
+            return false;
+        }
 
-    run_source(
-        "<paste>",
-        None,
-        &source,
-        CompileTarget::Interpret,
-        None,
-        false,
-        false,
-        false,
-        false,
-        None,
-    )
+        line.clear();
+        let bytes_read = match stdin.read_line(&mut line) {
+            Ok(value) => value,
+            Err(err) => {
+                eprintln!(" Failed to read REPL input: {}", err);
+                return false;
+            }
+        };
+
+        if bytes_read == 0 {
+            if buffer.trim().is_empty() {
+                println!();
+                return true;
+            }
+            let source = normalize_script_source(std::mem::take(&mut buffer));
+            if !run_source(
+                "<repl>",
+                None,
+                &source,
+                CompileTarget::Interpret,
+                None,
+                false,
+                false,
+                false,
+                false,
+                None,
+            ) {
+                return false;
+            }
+            println!();
+            return true;
+        }
+
+        let trimmed = line.trim_end_matches(['\r', '\n']);
+        match trimmed {
+            ".quit" | ".exit" => {
+                println!();
+                return true;
+            }
+            ".clear" => {
+                buffer.clear();
+                continue;
+            }
+            ".run" => {
+                if buffer.trim().is_empty() {
+                    continue;
+                }
+                let source = normalize_script_source(std::mem::take(&mut buffer));
+                if !run_source(
+                    "<repl>",
+                    None,
+                    &source,
+                    CompileTarget::Interpret,
+                    None,
+                    false,
+                    false,
+                    false,
+                    false,
+                    None,
+                ) {
+                    return false;
+                }
+                continue;
+            }
+            _ => {}
+        }
+
+        if trimmed.is_empty() {
+            if buffer.trim().is_empty() {
+                continue;
+            }
+            let source = normalize_script_source(std::mem::take(&mut buffer));
+            if !run_source(
+                "<repl>",
+                None,
+                &source,
+                CompileTarget::Interpret,
+                None,
+                false,
+                false,
+                false,
+                false,
+                None,
+            ) {
+                return false;
+            }
+            continue;
+        }
+
+        buffer.push_str(&line);
+    }
 }
 
 fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
@@ -1188,7 +1271,7 @@ fn main() {
                 && args.code.is_none()
                 && io::stdin().is_terminal()
             {
-                if !run_kn_paste_mode() {
+                if !run_kn_repl() {
                     std::process::exit(1);
                 }
                 return;
