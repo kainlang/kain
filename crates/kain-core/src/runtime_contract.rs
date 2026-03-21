@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{ShaderStage, Type};
+use crate::ast::{ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::{CompileTarget, TypedItem, TypedProgram};
 
@@ -301,6 +301,20 @@ fn collect_runtime_capabilities(
             "gpu.compute-dispatch",
             "kain-core.shader",
             Some("Compute workgroup and dispatch metadata is emitted for runtime consumption."),
+        ));
+        if summary.compute_plan_shaders > 0 {
+            capabilities.push(runtime_capability(
+                COMPUTE_PLAN_CAPABILITY_KEY,
+                "kain-core.shader",
+                Some(
+                    "Compute shaders author explicit dispatch, tensor, and neural-node plans in shader comptime metadata.",
+                ),
+            ));
+        }
+        capabilities.push(runtime_capability(
+            "neural.node-plan",
+            "kain-core.shader",
+            Some("Compute shaders emit experimental neural-node planning metadata for runtime orchestration."),
         ));
     }
     if summary.compute_storage_buffers > 0 {
@@ -650,6 +664,7 @@ struct ItemSummary {
     async_tasks: usize,
     shaders: usize,
     compute_shaders: usize,
+    compute_plan_shaders: usize,
     compute_storage_buffers: usize,
     material_graphs: usize,
     material_functions: usize,
@@ -674,6 +689,15 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                 summary.shaders += 1;
                 if matches!(shader.ast.stage, ShaderStage::Compute) {
                     summary.compute_shaders += 1;
+                    if shader
+                        .ast
+                        .explicit_compute_metadata()
+                        .ok()
+                        .flatten()
+                        .is_some()
+                    {
+                        summary.compute_plan_shaders += 1;
+                    }
                     summary.compute_storage_buffers += shader
                         .ast
                         .uniforms
@@ -1078,5 +1102,46 @@ component App():
             .service_bindings
             .iter()
             .any(|binding| binding.service == "gfx.compute"));
+    }
+
+    #[test]
+    fn emits_compute_plan_capability_for_explicit_metadata() {
+        let source = r#"
+shader compute TensorBlend() -> Void:
+    comptime:
+        let compute = (
+            [16, 8, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("TensorBlend", "blend", ["src"], ["dst"], false),
+            ],
+        )
+
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    let idx = dispatch_thread_id.x
+    dst[idx] = src[idx]
+    return
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
+
+        let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Llvm);
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == COMPUTE_PLAN_CAPABILITY_KEY));
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "gpu.compute-dispatch"));
     }
 }

@@ -5792,6 +5792,13 @@ mod tests {
                 stage: "fragment".to_string(),
                 entry_point: "hero_main".to_string(),
                 source: "inline".to_string(),
+                execution_domain: None,
+                workgroup_size: None,
+                dispatch_size: None,
+                resource_bindings: Vec::new(),
+                tensor_bindings: Vec::new(),
+                stream_bindings: Vec::new(),
+                neural_nodes: Vec::new(),
             },
         );
         let shader_bundle = test_shader_artifact_bundle();

@@ -10,6 +10,19 @@
 
 use crate::effects::Effect;
 use crate::span::Span;
+use std::fmt;
+
+/// Explicit compute-plan binding names recognized inside a `comptime` block.
+pub const COMPUTE_PLAN_BINDING_NAMES: &[&str] = &["compute", "compute_plan"];
+
+/// Default contract string used when a tensor plan does not specify one.
+pub const COMPUTE_TENSOR_DEFAULT_CONTRACT: &str = "kain.shared.buffer";
+
+/// Default role string used when a tensor plan does not specify one.
+pub const COMPUTE_TENSOR_DEFAULT_ROLE: &str = "state";
+
+/// Capability key emitted when a shader authors explicit compute metadata.
+pub const COMPUTE_PLAN_CAPABILITY_KEY: &str = "gpu.compute-plan";
 
 /// A complete KAIN program/module
 #[derive(Debug, Clone, PartialEq)]
@@ -263,6 +276,399 @@ pub struct Uniform {
     pub ty: Type,
     pub binding: u32,
     pub span: Span,
+}
+
+/// Explicit compute metadata authored in a compute shader's `comptime` block.
+///
+/// Convention:
+/// `let compute = ([dispatch_x, dispatch_y, dispatch_z], [tensor_plans], [node_plans])`
+///
+/// Tensor plans are tuples of:
+/// `("binding", "element_type", ["shape", "dims"], "role", "contract")`
+/// with `role` defaulting to `state` and `contract` defaulting to
+/// `kain.shared.buffer`.
+///
+/// Neural node plans are tuples of:
+/// `("node_key", "op", ["inputs"], ["outputs"], stateful)`
+/// with `stateful` defaulting to `false`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ComputeMetadata {
+    pub dispatch_size: [u32; 3],
+    pub tensor_plans: Vec<ComputeTensorPlan>,
+    pub neural_node_plans: Vec<ComputeNeuralNodePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputeTensorPlan {
+    pub key: String,
+    pub element_type: String,
+    pub shape: Vec<String>,
+    pub role: String,
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputeNeuralNodePlan {
+    pub key: String,
+    pub op: String,
+    pub inputs: Vec<String>,
+    pub outputs: Vec<String>,
+    pub stateful: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ComputeMetadataError {
+    MissingDispatchPlan,
+    InvalidPlanShape(String),
+    InvalidDispatchShape(String),
+    InvalidTensorPlan(String),
+    InvalidNeuralNodePlan(String),
+}
+
+impl fmt::Display for ComputeMetadataError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ComputeMetadataError::MissingDispatchPlan => {
+                write!(f, "compute plan is missing a dispatch size")
+            }
+            ComputeMetadataError::InvalidPlanShape(message) => {
+                write!(f, "invalid compute plan structure: {message}")
+            }
+            ComputeMetadataError::InvalidDispatchShape(message) => {
+                write!(f, "invalid dispatch size: {message}")
+            }
+            ComputeMetadataError::InvalidTensorPlan(message) => {
+                write!(f, "invalid tensor plan: {message}")
+            }
+            ComputeMetadataError::InvalidNeuralNodePlan(message) => {
+                write!(f, "invalid neural node plan: {message}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ComputeMetadataError {}
+
+impl Shader {
+    /// Extract explicit compute metadata from a shader's `comptime` block.
+    ///
+    /// Returns `Ok(None)` when no authored compute plan is present and
+    /// `Err(...)` when a plan is present but malformed.
+    pub fn explicit_compute_metadata(
+        &self,
+    ) -> Result<Option<ComputeMetadata>, ComputeMetadataError> {
+        extract_compute_metadata_from_block(&self.body)
+    }
+}
+
+fn extract_compute_metadata_from_block(
+    block: &Block,
+) -> Result<Option<ComputeMetadata>, ComputeMetadataError> {
+    for stmt in &block.stmts {
+        if let Stmt::Item(item) = stmt {
+            if let Item::Comptime(comptime) = item.as_ref() {
+                if let Some(metadata) =
+                    extract_compute_metadata_from_comptime_block(&comptime.body)?
+                {
+                    return Ok(Some(metadata));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+fn extract_compute_metadata_from_comptime_block(
+    block: &Block,
+) -> Result<Option<ComputeMetadata>, ComputeMetadataError> {
+    for stmt in &block.stmts {
+        match stmt {
+            Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(expr),
+                ..
+            } if is_compute_plan_binding(name) => {
+                return parse_compute_metadata_expr(expr).map(Some);
+            }
+            Stmt::Item(item) => {
+                if let Item::Comptime(comptime) = item.as_ref() {
+                    if let Some(metadata) =
+                        extract_compute_metadata_from_comptime_block(&comptime.body)?
+                    {
+                        return Ok(Some(metadata));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(None)
+}
+
+fn is_compute_plan_binding(name: &str) -> bool {
+    COMPUTE_PLAN_BINDING_NAMES.contains(&name)
+}
+
+fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMetadataError> {
+    let tuple_items = match expr {
+        Expr::Tuple(items, _) => items,
+        Expr::Array(items, _) => items,
+        Expr::Paren(inner, _) => return parse_compute_metadata_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidPlanShape(
+                "expected a tuple or array with dispatch, tensors, and neural nodes".to_string(),
+            ))
+        }
+    };
+
+    if tuple_items.len() != 3 {
+        return Err(ComputeMetadataError::InvalidPlanShape(format!(
+            "expected 3 entries (dispatch, tensors, nodes), found {}",
+            tuple_items.len()
+        )));
+    }
+
+    let dispatch_size = parse_dispatch_size_expr(&tuple_items[0])?;
+    let tensor_plans = parse_tensor_plan_list_expr(&tuple_items[1])?;
+    let neural_node_plans = parse_neural_node_plan_list_expr(&tuple_items[2])?;
+
+    Ok(ComputeMetadata {
+        dispatch_size,
+        tensor_plans,
+        neural_node_plans,
+    })
+}
+
+fn parse_dispatch_size_expr(expr: &Expr) -> Result<[u32; 3], ComputeMetadataError> {
+    let items = match expr {
+        Expr::Array(items, _) | Expr::Tuple(items, _) => items,
+        Expr::Paren(inner, _) => return parse_dispatch_size_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidDispatchShape(
+                "expected an array or tuple of three integers".to_string(),
+            ))
+        }
+    };
+
+    if items.len() != 3 {
+        return Err(ComputeMetadataError::InvalidDispatchShape(format!(
+            "expected exactly 3 dimensions, found {}",
+            items.len()
+        )));
+    }
+
+    let mut dispatch = [0u32; 3];
+    for (index, item) in items.iter().enumerate() {
+        let value = match item {
+            Expr::Int(n, _) if *n >= 0 && *n <= u32::MAX as i64 => *n as u32,
+            Expr::Paren(inner, _) => match &**inner {
+                Expr::Int(n, _) if *n >= 0 && *n <= u32::MAX as i64 => *n as u32,
+                _ => {
+                    return Err(ComputeMetadataError::InvalidDispatchShape(format!(
+                        "dimension {} must be a non-negative integer literal",
+                        index
+                    )))
+                }
+            },
+            _ => {
+                return Err(ComputeMetadataError::InvalidDispatchShape(format!(
+                    "dimension {} must be a non-negative integer literal",
+                    index
+                )))
+            }
+        };
+        dispatch[index] = value;
+    }
+
+    Ok(dispatch)
+}
+
+fn parse_tensor_plan_list_expr(
+    expr: &Expr,
+) -> Result<Vec<ComputeTensorPlan>, ComputeMetadataError> {
+    let items = match expr {
+        Expr::Array(items, _) | Expr::Tuple(items, _) => items,
+        Expr::Paren(inner, _) => return parse_tensor_plan_list_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidTensorPlan(
+                "expected an array or tuple of tensor plan entries".to_string(),
+            ))
+        }
+    };
+
+    let mut plans = Vec::with_capacity(items.len());
+    for item in items {
+        plans.push(parse_tensor_plan_expr(item)?);
+    }
+    Ok(plans)
+}
+
+fn parse_tensor_plan_expr(expr: &Expr) -> Result<ComputeTensorPlan, ComputeMetadataError> {
+    let fields = match expr {
+        Expr::Tuple(items, _) | Expr::Array(items, _) => items,
+        Expr::Paren(inner, _) => return parse_tensor_plan_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidTensorPlan(
+                "expected tensor plan to be a tuple or array".to_string(),
+            ))
+        }
+    };
+
+    if fields.len() < 3 {
+        return Err(ComputeMetadataError::InvalidTensorPlan(
+            "tensor plan needs at least binding, element type, and shape".to_string(),
+        ));
+    }
+
+    let key = expr_to_plan_string(&fields[0]).map_err(ComputeMetadataError::InvalidTensorPlan)?;
+    let element_type =
+        expr_to_plan_string(&fields[1]).map_err(ComputeMetadataError::InvalidTensorPlan)?;
+    let shape =
+        parse_string_list_expr(&fields[2]).map_err(ComputeMetadataError::InvalidTensorPlan)?;
+    let role = if let Some(expr) = fields.get(3) {
+        expr_to_plan_string(expr).map_err(ComputeMetadataError::InvalidTensorPlan)?
+    } else {
+        COMPUTE_TENSOR_DEFAULT_ROLE.to_string()
+    };
+    let contract = if let Some(expr) = fields.get(4) {
+        expr_to_plan_string(expr).map_err(ComputeMetadataError::InvalidTensorPlan)?
+    } else {
+        COMPUTE_TENSOR_DEFAULT_CONTRACT.to_string()
+    };
+
+    Ok(ComputeTensorPlan {
+        key,
+        element_type,
+        shape,
+        role,
+        contract,
+    })
+}
+
+fn parse_neural_node_plan_list_expr(
+    expr: &Expr,
+) -> Result<Vec<ComputeNeuralNodePlan>, ComputeMetadataError> {
+    let items = match expr {
+        Expr::Array(items, _) | Expr::Tuple(items, _) => items,
+        Expr::Paren(inner, _) => return parse_neural_node_plan_list_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidNeuralNodePlan(
+                "expected an array or tuple of neural node plan entries".to_string(),
+            ))
+        }
+    };
+
+    let mut plans = Vec::with_capacity(items.len());
+    for item in items {
+        plans.push(parse_neural_node_plan_expr(item)?);
+    }
+    Ok(plans)
+}
+
+fn parse_neural_node_plan_expr(expr: &Expr) -> Result<ComputeNeuralNodePlan, ComputeMetadataError> {
+    let fields = match expr {
+        Expr::Tuple(items, _) | Expr::Array(items, _) => items,
+        Expr::Paren(inner, _) => return parse_neural_node_plan_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidNeuralNodePlan(
+                "expected neural node plan to be a tuple or array".to_string(),
+            ))
+        }
+    };
+
+    if fields.len() < 4 {
+        return Err(ComputeMetadataError::InvalidNeuralNodePlan(
+            "neural node plan needs at least key, op, inputs, and outputs".to_string(),
+        ));
+    }
+
+    let key =
+        expr_to_plan_string(&fields[0]).map_err(ComputeMetadataError::InvalidNeuralNodePlan)?;
+    let op =
+        expr_to_plan_string(&fields[1]).map_err(ComputeMetadataError::InvalidNeuralNodePlan)?;
+    let inputs =
+        parse_string_list_expr(&fields[2]).map_err(ComputeMetadataError::InvalidNeuralNodePlan)?;
+    let outputs =
+        parse_string_list_expr(&fields[3]).map_err(ComputeMetadataError::InvalidNeuralNodePlan)?;
+    let stateful = if let Some(expr) = fields.get(4) {
+        parse_bool_expr(expr).map_err(ComputeMetadataError::InvalidNeuralNodePlan)?
+    } else {
+        false
+    };
+
+    Ok(ComputeNeuralNodePlan {
+        key,
+        op,
+        inputs,
+        outputs,
+        stateful,
+    })
+}
+
+fn parse_string_list_expr(expr: &Expr) -> Result<Vec<String>, String> {
+    let items = match expr {
+        Expr::Array(items, _) | Expr::Tuple(items, _) => items,
+        Expr::Paren(inner, _) => return parse_string_list_expr(inner),
+        _ => {
+            return Err("expected an array or tuple of strings".to_string());
+        }
+    };
+
+    let mut values = Vec::with_capacity(items.len());
+    for item in items {
+        values.push(expr_to_plan_string(item)?);
+    }
+    Ok(values)
+}
+
+fn parse_bool_expr(expr: &Expr) -> Result<bool, String> {
+    match expr {
+        Expr::Bool(value, _) => Ok(*value),
+        Expr::Paren(inner, _) => parse_bool_expr(inner),
+        _ => Err("expected a boolean literal".to_string()),
+    }
+}
+
+fn expr_to_plan_string(expr: &Expr) -> Result<String, String> {
+    match expr {
+        Expr::String(value, _) => Ok(value.clone()),
+        Expr::Ident(value, _) => Ok(value.clone()),
+        Expr::Int(value, _) => Ok(value.to_string()),
+        Expr::Float(value, _) => Ok(value.to_string()),
+        Expr::Bool(value, _) => Ok(value.to_string()),
+        Expr::None(_) => Ok("none".to_string()),
+        Expr::Field { object, field, .. } => {
+            Ok(format!("{}.{}", expr_to_plan_string(object)?, field))
+        }
+        Expr::Paren(inner, _) => expr_to_plan_string(inner),
+        Expr::Array(items, _) | Expr::Tuple(items, _) => {
+            let rendered = items
+                .iter()
+                .map(expr_to_plan_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rendered.join(", "))
+        }
+        Expr::Call { callee, args, .. } => {
+            let rendered_args = args
+                .iter()
+                .map(|arg| {
+                    if let Some(name) = &arg.name {
+                        Ok(format!("{}={}", name, expr_to_plan_string(&arg.value)?))
+                    } else {
+                        expr_to_plan_string(&arg.value)
+                    }
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(format!(
+                "{}({})",
+                expr_to_plan_string(callee)?,
+                rendered_args.join(", ")
+            ))
+        }
+        other => Err(format!("unsupported expression shape: {:?}", other)),
+    }
 }
 
 // === ACTORS (Erlang-style Concurrency) ===

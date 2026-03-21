@@ -447,6 +447,7 @@ enum Commands {
 }
 
 fn normalize_script_source(source: String) -> String {
+    let source = source.trim_start_matches('\u{feff}').to_string();
     if let Some(rest) = source.strip_prefix("#!") {
         if let Some(newline_index) = rest.find('\n') {
             rest[(newline_index + 1)..].to_string()
@@ -854,10 +855,18 @@ fn run_source(
                         } else {
                             out.clone()
                         }
-                    } else if cfg!(windows) {
-                        input.with_extension("exe")
                     } else {
-                        input.with_extension("")
+                        let Some(path) = source_path else {
+                            eprintln!(
+                                " Output path is required when compiling inline or stdin source."
+                            );
+                            return false;
+                        };
+                        if cfg!(windows) {
+                            path.with_extension("exe")
+                        } else {
+                            path.with_extension("")
+                        }
                     };
 
                     println!(" Linking executable...");
@@ -955,11 +964,7 @@ fn run_source(
         }
         Err(e) => {
             // Use pretty error formatting
-            let filename = input
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("input.kn");
-            let diag = kain_core::diagnostics::Diagnostics::new(&source, filename);
+            let diag = kain_core::diagnostics::Diagnostics::new(&source, source_name);
             eprint!("{}", diag.format_error(&e));
             false
         }
@@ -1004,6 +1009,42 @@ fn run_compile(
         verbose,
         analyze,
         plugin_name,
+    )
+}
+
+fn run_kn_paste_mode() -> bool {
+    println!(" kn Paste Mode");
+    if cfg!(windows) {
+        println!(" Paste a full Kain file, then press Ctrl+Z and Enter to run.");
+    } else {
+        println!(" Paste a full Kain file, then press Ctrl+D to run.");
+    }
+    println!(" Python FFI is available through std::python::*.");
+    println!();
+
+    let mut buffer = String::new();
+    if let Err(err) = io::stdin().read_to_string(&mut buffer) {
+        eprintln!(" Failed to read pasted Kain source: {}", err);
+        return false;
+    }
+
+    let source = normalize_script_source(buffer);
+    if source.trim().is_empty() {
+        println!(" No Kain source received.");
+        return true;
+    }
+
+    run_source(
+        "<paste>",
+        None,
+        &source,
+        CompileTarget::Interpret,
+        None,
+        false,
+        false,
+        false,
+        false,
+        None,
     )
 }
 
@@ -1140,6 +1181,18 @@ fn main() {
                 " {} Compiler v{} (build {})",
                 LANGUAGE_NAME, VERSION, BUILD_NUMBER
             );
+
+            if launcher.prefers_interpret_default()
+                && args.command.is_none()
+                && args.input.is_none()
+                && args.code.is_none()
+                && io::stdin().is_terminal()
+            {
+                if !run_kn_paste_mode() {
+                    std::process::exit(1);
+                }
+                return;
+            }
 
             if should_show_launcher_menu(
                 launcher,

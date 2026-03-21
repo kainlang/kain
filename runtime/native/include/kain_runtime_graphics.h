@@ -39,9 +39,13 @@ typedef struct {
     char shader_key[KAIN_RUNTIME_GRAPHICS_MAX_TAG];
     char module_name[KAIN_RUNTIME_GRAPHICS_MAX_TAG];
     char entry_point[KAIN_RUNTIME_GRAPHICS_MAX_TAG];
+    char execution_domain[KAIN_RUNTIME_GRAPHICS_MAX_TAG];
     int workgroup_size[3];
     int dispatch_size[3];
     int resource_binding_count;
+    int tensor_binding_count;
+    int stream_binding_count;
+    int neural_node_count;
     KainRuntimeGraphicsBinding resource_bindings[KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS];
 } KainRuntimeGraphicsComputePlan;
 
@@ -84,9 +88,24 @@ typedef struct {
     int compute_plan_valid;
     int gl_lane_ready;
     int compute_metadata_valid;
+    int tensor_metadata_valid;
+    int stream_metadata_valid;
+    int neural_metadata_valid;
     char summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
     char reason[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
 } KainRuntimeGraphicsValidation;
+
+typedef struct {
+    int executed;
+    unsigned long long dispatch_invocations;
+    unsigned long long accumulated_invocations;
+    double phase;
+    double throughput;
+    int tensor_binding_count;
+    int stream_binding_count;
+    int neural_node_count;
+    char summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
+} KainRuntimeGraphicsExecutionState;
 
 void kain_runtime_graphics_init(KainRuntimeGraphicsBundle* bundle);
 int kain_runtime_graphics_load_from_json(const char* json, KainRuntimeGraphicsBundle* bundle);
@@ -105,6 +124,13 @@ void kain_runtime_graphics_format_summary(
     const KainRuntimeGraphicsBundle* bundle,
     char* out,
     size_t out_cap
+);
+void kain_runtime_graphics_execution_state_init(KainRuntimeGraphicsExecutionState* state);
+int kain_runtime_graphics_execute_primary_compute(
+    const KainRuntimeGraphicsBundle* bundle,
+    double frame_delta,
+    double total_time,
+    KainRuntimeGraphicsExecutionState* state
 );
 int kain_win32_gl_surface_supports_graphics_bundle(const KainRuntimeGraphicsBundle* bundle);
 #endif

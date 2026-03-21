@@ -129,4 +129,6 @@ int kain_runtime_contract_validate_startup_enhanced(
     KainStartupValidationResult* result
 );
 
+#endif /* _WIN32 */
+
 #endif /* KAIN_RUNTIME_CONTRACT_H */

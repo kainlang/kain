@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{ShaderStage, Type};
+use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{UiBuildOutput, UiSurfaceKind};
 
@@ -56,11 +56,19 @@ pub struct RealtimeShaderBundleRef {
     pub entry_point: String,
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_domain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub workgroup_size: Option<[u32; 3]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dispatch_size: Option<[u32; 3]>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resource_bindings: Vec<RealtimeResourceBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tensor_bindings: Vec<RealtimeTensorBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stream_bindings: Vec<RealtimeStreamBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub neural_nodes: Vec<RealtimeNeuralNode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -71,6 +79,32 @@ pub struct RealtimeResourceBinding {
     pub stage: String,
     pub access: String,
     pub slot: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeTensorBinding {
+    pub key: String,
+    pub element_type: String,
+    pub shape: Vec<String>,
+    pub role: String,
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeStreamBinding {
+    pub key: String,
+    pub direction: String,
+    pub cadence: String,
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeNeuralNode {
+    pub key: String,
+    pub op: String,
+    pub inputs: Vec<String>,
+    pub outputs: Vec<String>,
+    pub stateful: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -89,8 +123,15 @@ pub fn emit_realtime_app_bundle(
     let scenes = collect_scene_bindings(ui_output, &shader_bundle_refs);
     let materials = collect_materials(program, &scenes);
     let assets = collect_assets(ui_output);
-    let tool_caps = collect_tool_caps(program, ui_output);
-    let requirements = collect_requirements(target, &scenes, &shader_bundle_refs, &tool_caps);
+    let has_explicit_compute_metadata = program_has_explicit_compute_metadata(program);
+    let tool_caps = collect_tool_caps(program, ui_output, has_explicit_compute_metadata);
+    let requirements = collect_requirements(
+        target,
+        &scenes,
+        &shader_bundle_refs,
+        &tool_caps,
+        has_explicit_compute_metadata,
+    );
 
     RealtimeAppBundle {
         schema_version: REALTIME_APP_BUNDLE_SCHEMA_VERSION,
@@ -136,14 +177,30 @@ fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
     let stage = shader_ref_stage_name(shader.ast.stage).to_string();
     let key = format!("shader::{}::{}", shader.ast.name, stage);
     let resource_bindings = collect_shader_resource_bindings(shader, &stage);
-    let (workgroup_size, dispatch_size) = if matches!(shader.ast.stage, ShaderStage::Compute) {
-        (
-            Some(compute_workgroup_size(shader)),
-            Some(default_compute_dispatch_size()),
-        )
-    } else {
-        (None, None)
-    };
+    let explicit_compute_metadata = shader.ast.explicit_compute_metadata().ok().flatten();
+    let tensor_bindings =
+        collect_tensor_bindings(&resource_bindings, explicit_compute_metadata.as_ref());
+    let stream_bindings = collect_stream_bindings(&resource_bindings);
+    let neural_nodes = collect_neural_nodes(
+        shader,
+        &resource_bindings,
+        explicit_compute_metadata.as_ref(),
+    );
+    let (execution_domain, workgroup_size, dispatch_size) =
+        if matches!(shader.ast.stage, ShaderStage::Compute) {
+            (
+                Some(compute_execution_domain(&resource_bindings)),
+                Some(compute_workgroup_size(shader)),
+                Some(
+                    explicit_compute_metadata
+                        .as_ref()
+                        .map(|metadata| metadata.dispatch_size)
+                        .unwrap_or_else(default_compute_dispatch_size),
+                ),
+            )
+        } else {
+            (None, None, None)
+        };
 
     RealtimeShaderBundleRef {
         key,
@@ -152,9 +209,13 @@ fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
         stage,
         entry_point: "main".to_string(),
         source: "kain-core".to_string(),
+        execution_domain,
         workgroup_size,
         dispatch_size,
         resource_bindings,
+        tensor_bindings,
+        stream_bindings,
+        neural_nodes,
     }
 }
 
@@ -200,7 +261,7 @@ fn collect_shader_resource_bindings(
         }
 
         let resource_type = shader_resource_type(&uniform.ty).to_string();
-        let access = shader_resource_access(&uniform.ty, stage).to_string();
+        let access = shader_resource_access(&uniform.ty, stage, &uniform.name).to_string();
         bindings.push(RealtimeResourceBinding {
             key: uniform.name.clone(),
             resource_type,
@@ -222,12 +283,190 @@ fn shader_resource_type(ty: &Type) -> &'static str {
     }
 }
 
-fn shader_resource_access(ty: &Type, stage: &str) -> &'static str {
+fn shader_resource_access(ty: &Type, stage: &str, name: &str) -> &'static str {
     match ty {
-        Type::Named { name, .. } if name == "Sampler2D" => "sample",
-        Type::Named { name, .. } if name == "StorageBuffer" && stage == "compute" => "read_write",
-        Type::Named { name, .. } if name == "StorageBuffer" => "read",
+        Type::Named {
+            name: type_name, ..
+        } if type_name == "Sampler2D" => "sample",
+        Type::Named {
+            name: type_name, ..
+        } if type_name == "StorageBuffer" && stage == "compute" => {
+            infer_storage_buffer_access(name)
+        }
+        Type::Named {
+            name: type_name, ..
+        } if type_name == "StorageBuffer" => "read",
         _ => "read",
+    }
+}
+
+fn infer_storage_buffer_access(name: &str) -> &'static str {
+    let lower = name.to_ascii_lowercase();
+    if lower.starts_with("out")
+        || lower.ends_with("_out")
+        || lower.contains("dst")
+        || lower.contains("dest")
+        || lower.contains("output")
+    {
+        "write"
+    } else if lower.starts_with("in")
+        || lower.contains("src")
+        || lower.contains("input")
+        || lower.contains("weight")
+        || lower.contains("bias")
+        || lower.contains("activation")
+    {
+        "read"
+    } else {
+        "read_write"
+    }
+}
+
+fn collect_tensor_bindings(
+    bindings: &[RealtimeResourceBinding],
+    explicit_metadata: Option<&ComputeMetadata>,
+) -> Vec<RealtimeTensorBinding> {
+    if let Some(metadata) = explicit_metadata {
+        if !metadata.tensor_plans.is_empty() {
+            return metadata
+                .tensor_plans
+                .iter()
+                .map(|plan| RealtimeTensorBinding {
+                    key: plan.key.clone(),
+                    element_type: plan.element_type.clone(),
+                    shape: plan.shape.clone(),
+                    role: plan.role.clone(),
+                    contract: plan.contract.clone(),
+                })
+                .collect();
+        }
+    }
+
+    bindings
+        .iter()
+        .filter(|binding| binding.resource_type == "storage_buffer")
+        .map(|binding| RealtimeTensorBinding {
+            key: binding.key.clone(),
+            element_type: infer_tensor_element_type(binding).to_string(),
+            shape: vec!["dispatch.x".to_string()],
+            role: tensor_role_from_access(&binding.access).to_string(),
+            contract: "kain.shared.buffer".to_string(),
+        })
+        .collect()
+}
+
+fn collect_stream_bindings(bindings: &[RealtimeResourceBinding]) -> Vec<RealtimeStreamBinding> {
+    bindings
+        .iter()
+        .filter(|binding| binding.resource_type == "storage_buffer")
+        .map(|binding| RealtimeStreamBinding {
+            key: binding.key.clone(),
+            direction: stream_direction_from_access(&binding.access).to_string(),
+            cadence: "continuous".to_string(),
+            contract: "kain.shared.buffer".to_string(),
+        })
+        .collect()
+}
+
+fn collect_neural_nodes(
+    shader: &TypedShader,
+    bindings: &[RealtimeResourceBinding],
+    explicit_metadata: Option<&ComputeMetadata>,
+) -> Vec<RealtimeNeuralNode> {
+    if let Some(metadata) = explicit_metadata {
+        if !metadata.neural_node_plans.is_empty() {
+            return metadata
+                .neural_node_plans
+                .iter()
+                .map(|plan| RealtimeNeuralNode {
+                    key: plan.key.clone(),
+                    op: plan.op.clone(),
+                    inputs: plan.inputs.clone(),
+                    outputs: plan.outputs.clone(),
+                    stateful: plan.stateful,
+                })
+                .collect();
+        }
+    }
+
+    let storage_bindings = bindings
+        .iter()
+        .filter(|binding| binding.resource_type == "storage_buffer")
+        .collect::<Vec<_>>();
+    if !matches!(shader.ast.stage, ShaderStage::Compute) || storage_bindings.is_empty() {
+        return Vec::new();
+    }
+
+    let inputs = storage_bindings
+        .iter()
+        .filter(|binding| binding.access == "read" || binding.access == "read_write")
+        .map(|binding| binding.key.clone())
+        .collect::<Vec<_>>();
+    let outputs = storage_bindings
+        .iter()
+        .filter(|binding| binding.access == "write" || binding.access == "read_write")
+        .map(|binding| binding.key.clone())
+        .collect::<Vec<_>>();
+
+    vec![RealtimeNeuralNode {
+        key: shader.ast.name.clone(),
+        op: infer_neural_op_name(&shader.ast.name).to_string(),
+        inputs,
+        outputs,
+        stateful: storage_bindings
+            .iter()
+            .any(|binding| binding.access == "read_write"),
+    }]
+}
+
+fn compute_execution_domain(bindings: &[RealtimeResourceBinding]) -> String {
+    if bindings
+        .iter()
+        .any(|binding| binding.resource_type == "storage_buffer")
+    {
+        "tensor-stream".to_string()
+    } else {
+        "compute".to_string()
+    }
+}
+
+fn tensor_role_from_access(access: &str) -> &'static str {
+    match access {
+        "read" => "input",
+        "write" => "output",
+        _ => "state",
+    }
+}
+
+fn stream_direction_from_access(access: &str) -> &'static str {
+    match access {
+        "read" => "ingress",
+        "write" => "egress",
+        _ => "bidirectional",
+    }
+}
+
+fn infer_neural_op_name(shader_name: &str) -> &'static str {
+    let lower = shader_name.to_ascii_lowercase();
+    if lower.contains("conv") {
+        "conv"
+    } else if lower.contains("attention") {
+        "attention"
+    } else if lower.contains("blend") {
+        "blend"
+    } else {
+        "gpu.compute"
+    }
+}
+
+fn infer_tensor_element_type(binding: &RealtimeResourceBinding) -> &'static str {
+    let lower = binding.key.to_ascii_lowercase();
+    if lower.contains("vec4") || lower.contains("rgba") {
+        "vec4<f32>"
+    } else if lower.contains("u32") || lower.contains("index") {
+        "u32"
+    } else {
+        "f32"
     }
 }
 
@@ -337,7 +576,31 @@ fn collect_assets(ui_output: Option<&UiBuildOutput>) -> Vec<RealtimeAssetBinding
     assets
 }
 
-fn collect_tool_caps(program: &TypedProgram, ui_output: Option<&UiBuildOutput>) -> Vec<String> {
+fn program_has_explicit_compute_metadata(program: &TypedProgram) -> bool {
+    program_items_have_explicit_compute_metadata(&program.items)
+}
+
+fn program_items_have_explicit_compute_metadata(items: &[TypedItem]) -> bool {
+    items.iter().any(|item| match item {
+        TypedItem::Shader(shader) => {
+            matches!(shader.ast.stage, ShaderStage::Compute)
+                && shader
+                    .ast
+                    .explicit_compute_metadata()
+                    .ok()
+                    .flatten()
+                    .is_some()
+        }
+        TypedItem::Mod(module) => program_items_have_explicit_compute_metadata(&module.items),
+        _ => false,
+    })
+}
+
+fn collect_tool_caps(
+    program: &TypedProgram,
+    ui_output: Option<&UiBuildOutput>,
+    has_explicit_compute_metadata: bool,
+) -> Vec<String> {
     let mut caps = Vec::new();
     if let Some(output) = ui_output {
         if output
@@ -373,6 +636,9 @@ fn collect_tool_caps(program: &TypedProgram, ui_output: Option<&UiBuildOutput>) 
                 caps.push("gpu.shader".to_string());
                 if matches!(shader.ast.stage, ShaderStage::Compute) {
                     caps.push("gpu.compute".to_string());
+                    if has_explicit_compute_metadata {
+                        caps.push(COMPUTE_PLAN_CAPABILITY_KEY.to_string());
+                    }
                 }
             }
             TypedItem::GraphEditor(_) => caps.push("tool.graph-editor".to_string()),
@@ -391,6 +657,7 @@ fn collect_requirements(
     scenes: &[RealtimeSceneBinding],
     shader_bundle_refs: &[RealtimeShaderBundleRef],
     tool_caps: &[String],
+    has_explicit_compute_metadata: bool,
 ) -> Vec<String> {
     let has_compute_refs = shader_bundle_refs
         .iter()
@@ -406,6 +673,9 @@ fn collect_requirements(
         requirements.push("gpu.compute-dispatch".to_string());
         requirements.push("interop.shared-buffer".to_string());
         requirements.push("data.continuous-stream".to_string());
+    }
+    if has_explicit_compute_metadata {
+        requirements.push(COMPUTE_PLAN_CAPABILITY_KEY.to_string());
     }
     if !scenes.is_empty() {
         requirements.push("scene.runtime-bundle".to_string());
@@ -541,9 +811,16 @@ shader compute TensorBlend() -> Void:
         let bundle = emit_realtime_app_bundle(&typed, None, CompileTarget::Llvm);
         assert_eq!(bundle.shader_bundle_refs.len(), 1);
         assert_eq!(bundle.shader_bundle_refs[0].stage, "compute");
+        assert_eq!(
+            bundle.shader_bundle_refs[0].execution_domain.as_deref(),
+            Some("tensor-stream")
+        );
         assert_eq!(bundle.shader_bundle_refs[0].workgroup_size, Some([8, 8, 1]));
         assert_eq!(bundle.shader_bundle_refs[0].dispatch_size, Some([1, 1, 1]));
         assert_eq!(bundle.shader_bundle_refs[0].resource_bindings.len(), 2);
+        assert_eq!(bundle.shader_bundle_refs[0].tensor_bindings.len(), 2);
+        assert_eq!(bundle.shader_bundle_refs[0].stream_bindings.len(), 2);
+        assert_eq!(bundle.shader_bundle_refs[0].neural_nodes.len(), 1);
         assert!(bundle
             .requirements
             .iter()
@@ -553,5 +830,53 @@ shader compute TensorBlend() -> Void:
             .iter()
             .any(|entry| entry == "interop.shared-buffer"));
         assert!(bundle.tool_caps.iter().any(|entry| entry == "gpu.compute"));
+    }
+
+    #[test]
+    fn emits_explicit_compute_plan_metadata_when_authored() {
+        let source = r#"
+shader compute TensorBlend() -> Void:
+    comptime:
+        let compute = (
+            [16, 8, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("TensorBlend", "blend", ["src"], ["dst"], false),
+            ],
+        )
+
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    let idx = dispatch_thread_id.x
+    dst[idx] = src[idx]
+    return
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = diagnostics::SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<input>")
+            .parse()
+            .expect("ast");
+        let typed = types::check(&ast, &span_mapper, "<input>").expect("typed");
+
+        let bundle = emit_realtime_app_bundle(&typed, None, CompileTarget::Llvm);
+        assert_eq!(bundle.shader_bundle_refs.len(), 1);
+        assert_eq!(bundle.shader_bundle_refs[0].dispatch_size, Some([16, 8, 1]));
+        assert_eq!(
+            bundle.shader_bundle_refs[0].tensor_bindings[0].shape,
+            vec!["dispatch.x".to_string()]
+        );
+        assert_eq!(bundle.shader_bundle_refs[0].neural_nodes[0].op, "blend");
+        assert!(bundle
+            .requirements
+            .iter()
+            .any(|entry| entry == "gpu.compute-plan"));
+        assert!(bundle
+            .tool_caps
+            .iter()
+            .any(|entry| entry == "gpu.compute-plan"));
     }
 }

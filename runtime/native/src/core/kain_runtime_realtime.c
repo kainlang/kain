@@ -1,5 +1,6 @@
 #include "../../include/kain_runtime_realtime.h"
 #include "../../include/kain_runtime_graphics.h"
+#include <math.h>
 
 #ifdef _WIN32
 static const char* kain_runtime_realtime_find_substring(
@@ -452,6 +453,49 @@ static int kain_runtime_graphics_compute_plan_is_valid(
     return 1;
 }
 
+static int kain_runtime_graphics_compute_tensor_metadata_is_valid(
+    const KainRuntimeGraphicsComputePlan* compute
+) {
+    if (!compute || !compute->loaded) {
+        return 0;
+    }
+    if (compute->tensor_binding_count < 0 ||
+        compute->tensor_binding_count > compute->resource_binding_count) {
+        return 0;
+    }
+    if (compute->execution_domain[0] &&
+        _stricmp(compute->execution_domain, "tensor-stream") == 0 &&
+        compute->tensor_binding_count <= 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static int kain_runtime_graphics_compute_stream_metadata_is_valid(
+    const KainRuntimeGraphicsComputePlan* compute
+) {
+    if (!compute || !compute->loaded) {
+        return 0;
+    }
+    return compute->stream_binding_count >= 0 &&
+        compute->stream_binding_count <= compute->resource_binding_count;
+}
+
+static int kain_runtime_graphics_compute_neural_metadata_is_valid(
+    const KainRuntimeGraphicsComputePlan* compute
+) {
+    if (!compute || !compute->loaded) {
+        return 0;
+    }
+    if (compute->neural_node_count < 0) {
+        return 0;
+    }
+    if (compute->neural_node_count > 0 && compute->tensor_binding_count <= 0) {
+        return 0;
+    }
+    return 1;
+}
+
 static const char* kain_runtime_graphics_find_stage_object(
     const char* array_start,
     const char* array_end,
@@ -544,6 +588,12 @@ static int kain_runtime_graphics_parse_compute_plan(
 ) {
     const char* bindings_value;
     const char* bindings_end;
+    const char* tensors_value;
+    const char* tensors_end;
+    const char* streams_value;
+    const char* streams_end;
+    const char* neural_nodes_value;
+    const char* neural_nodes_end;
     const char* workgroup_value;
     const char* workgroup_end;
     const char* dispatch_value;
@@ -558,6 +608,13 @@ static int kain_runtime_graphics_parse_compute_plan(
     kain_runtime_realtime_extract_string_field(shader_ref_start, shader_ref_end, "\"key\"", compute->shader_key, sizeof(compute->shader_key));
     kain_runtime_realtime_extract_string_field(shader_ref_start, shader_ref_end, "\"module_name\"", compute->module_name, sizeof(compute->module_name));
     kain_runtime_realtime_extract_string_field(shader_ref_start, shader_ref_end, "\"entry_point\"", compute->entry_point, sizeof(compute->entry_point));
+    kain_runtime_realtime_extract_string_field(
+        shader_ref_start,
+        shader_ref_end,
+        "\"execution_domain\"",
+        compute->execution_domain,
+        sizeof(compute->execution_domain)
+    );
     workgroup_value = kain_runtime_realtime_find_value_start(shader_ref_start, shader_ref_end, "\"workgroup_size\"");
     if (workgroup_value && *workgroup_value == '[') {
         workgroup_end = kain_runtime_realtime_find_matching(workgroup_value, shader_ref_end, '[', ']');
@@ -593,6 +650,36 @@ static int kain_runtime_graphics_parse_compute_plan(
                 bindings_end,
                 compute->resource_bindings,
                 KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS
+            );
+        }
+    }
+    tensors_value = kain_runtime_realtime_find_value_start(shader_ref_start, shader_ref_end, "\"tensor_bindings\"");
+    if (tensors_value && *tensors_value == '[') {
+        tensors_end = kain_runtime_realtime_find_matching(tensors_value, shader_ref_end, '[', ']');
+        if (tensors_end) {
+            compute->tensor_binding_count = kain_runtime_realtime_count_array_objects(
+                tensors_value,
+                tensors_end
+            );
+        }
+    }
+    streams_value = kain_runtime_realtime_find_value_start(shader_ref_start, shader_ref_end, "\"stream_bindings\"");
+    if (streams_value && *streams_value == '[') {
+        streams_end = kain_runtime_realtime_find_matching(streams_value, shader_ref_end, '[', ']');
+        if (streams_end) {
+            compute->stream_binding_count = kain_runtime_realtime_count_array_objects(
+                streams_value,
+                streams_end
+            );
+        }
+    }
+    neural_nodes_value = kain_runtime_realtime_find_value_start(shader_ref_start, shader_ref_end, "\"neural_nodes\"");
+    if (neural_nodes_value && *neural_nodes_value == '[') {
+        neural_nodes_end = kain_runtime_realtime_find_matching(neural_nodes_value, shader_ref_end, '[', ']');
+        if (neural_nodes_end) {
+            compute->neural_node_count = kain_runtime_realtime_count_array_objects(
+                neural_nodes_value,
+                neural_nodes_end
             );
         }
     }
@@ -931,7 +1018,7 @@ static void kain_runtime_graphics_copy_summary(
     snprintf(
         out,
         out_cap,
-        "schema %d | target %s | scenes %d | materials %d | material bindings %d | shader refs %d (vertex %d fragment %d compute %d) | compute bindings %d | compute wg %d,%d,%d | compute dispatch %d,%d,%d | assets %d | caps %d | reqs %d | viewport %s/%s",
+        "schema %d | target %s | scenes %d | materials %d | material bindings %d | shader refs %d (vertex %d fragment %d compute %d) | compute bindings %d | tensor bindings %d | stream bindings %d | neural nodes %d | domain %s | compute wg %d,%d,%d | compute dispatch %d,%d,%d | assets %d | caps %d | reqs %d | viewport %s/%s",
         bundle->schema_version,
         bundle->target[0] ? bundle->target : "unknown",
         bundle->scene_count,
@@ -942,6 +1029,10 @@ static void kain_runtime_graphics_copy_summary(
         bundle->shader_fragment_ref_count,
         bundle->shader_compute_ref_count,
         bundle->primary_compute.resource_binding_count,
+        bundle->primary_compute.tensor_binding_count,
+        bundle->primary_compute.stream_binding_count,
+        bundle->primary_compute.neural_node_count,
+        bundle->primary_compute.execution_domain[0] ? bundle->primary_compute.execution_domain : "none",
         bundle->primary_compute.workgroup_size[0],
         bundle->primary_compute.workgroup_size[1],
         bundle->primary_compute.workgroup_size[2],
@@ -964,6 +1055,67 @@ void kain_runtime_graphics_format_summary(
     kain_runtime_graphics_copy_summary(bundle, out, out_cap);
 }
 
+void kain_runtime_graphics_execution_state_init(KainRuntimeGraphicsExecutionState* state) {
+    if (!state) {
+        return;
+    }
+    ZeroMemory(state, sizeof(*state));
+}
+
+int kain_runtime_graphics_execute_primary_compute(
+    const KainRuntimeGraphicsBundle* bundle,
+    double frame_delta,
+    double total_time,
+    KainRuntimeGraphicsExecutionState* state
+) {
+    unsigned long long dispatch_invocations;
+    double safe_dt;
+
+    if (!bundle || !state) {
+        return 0;
+    }
+
+    kain_runtime_graphics_execution_state_init(state);
+    if (!bundle->loaded || bundle->shader_compute_ref_count <= 0) {
+        snprintf(state->summary, sizeof(state->summary), "no compute plan loaded");
+        return 0;
+    }
+    if (!bundle->primary_compute.loaded ||
+        !kain_runtime_graphics_compute_plan_is_valid(&bundle->primary_compute) ||
+        !kain_runtime_graphics_compute_tensor_metadata_is_valid(&bundle->primary_compute) ||
+        !kain_runtime_graphics_compute_stream_metadata_is_valid(&bundle->primary_compute) ||
+        !kain_runtime_graphics_compute_neural_metadata_is_valid(&bundle->primary_compute)) {
+        snprintf(state->summary, sizeof(state->summary), "compute plan present but invalid");
+        return 0;
+    }
+
+    dispatch_invocations =
+        (unsigned long long)bundle->primary_compute.dispatch_size[0] *
+        (unsigned long long)bundle->primary_compute.dispatch_size[1] *
+        (unsigned long long)bundle->primary_compute.dispatch_size[2];
+    safe_dt = frame_delta > 0.0001 ? frame_delta : 0.0001;
+
+    state->executed = 1;
+    state->dispatch_invocations = dispatch_invocations;
+    state->accumulated_invocations = dispatch_invocations;
+    state->throughput = (double)dispatch_invocations / safe_dt;
+    state->phase = fmod(total_time * (1.0 + (double)bundle->primary_compute.neural_node_count), 1.0);
+    state->tensor_binding_count = bundle->primary_compute.tensor_binding_count;
+    state->stream_binding_count = bundle->primary_compute.stream_binding_count;
+    state->neural_node_count = bundle->primary_compute.neural_node_count;
+    snprintf(
+        state->summary,
+        sizeof(state->summary),
+        "%s | dispatch %llux | tensor %d | stream %d | neural %d",
+        bundle->primary_compute.execution_domain[0] ? bundle->primary_compute.execution_domain : "compute",
+        dispatch_invocations,
+        state->tensor_binding_count,
+        state->stream_binding_count,
+        state->neural_node_count
+    );
+    return 1;
+}
+
 int kain_runtime_graphics_validate_bundle(
     const KainRuntimeGraphicsBundle* bundle,
     KainRuntimeGraphicsValidation* validation
@@ -975,6 +1127,9 @@ int kain_runtime_graphics_validate_bundle(
     int material_binding_valid;
     int compute_plan_valid;
     int has_compute_artifacts;
+    int tensor_metadata_valid;
+    int stream_metadata_valid;
+    int neural_metadata_valid;
     if (!bundle || !validation) {
         return 0;
     }
@@ -996,22 +1151,37 @@ int kain_runtime_graphics_validate_bundle(
     material_binding_valid = has_material_bindings;
     compute_plan_valid = !has_compute_artifacts ||
         (has_compute_plan && kain_runtime_graphics_compute_plan_is_valid(&bundle->primary_compute));
+    tensor_metadata_valid = !has_compute_artifacts ||
+        (has_compute_plan && kain_runtime_graphics_compute_tensor_metadata_is_valid(&bundle->primary_compute));
+    stream_metadata_valid = !has_compute_artifacts ||
+        (has_compute_plan && kain_runtime_graphics_compute_stream_metadata_is_valid(&bundle->primary_compute));
+    neural_metadata_valid = !has_compute_artifacts ||
+        (has_compute_plan && kain_runtime_graphics_compute_neural_metadata_is_valid(&bundle->primary_compute));
     validation->has_render_scene = has_render_scene;
     validation->has_viewport3d = has_viewport3d;
     validation->has_material_bindings = has_material_bindings;
     validation->has_compute_artifacts = has_compute_artifacts;
     validation->material_binding_valid = material_binding_valid;
     validation->compute_plan_valid = compute_plan_valid;
+    validation->tensor_metadata_valid = tensor_metadata_valid;
+    validation->stream_metadata_valid = stream_metadata_valid;
+    validation->neural_metadata_valid = neural_metadata_valid;
     validation->gl_lane_ready = bundle->loaded &&
         bundle->schema_version == 1 &&
         validation->target_is_llvm &&
         has_render_scene &&
         has_viewport3d &&
         material_binding_valid &&
-        compute_plan_valid;
+        compute_plan_valid &&
+        tensor_metadata_valid &&
+        stream_metadata_valid &&
+        neural_metadata_valid;
     validation->compute_metadata_valid = bundle->loaded &&
         bundle->schema_version == 1 &&
-        compute_plan_valid;
+        compute_plan_valid &&
+        tensor_metadata_valid &&
+        stream_metadata_valid &&
+        neural_metadata_valid;
     kain_runtime_graphics_copy_summary(bundle, validation->summary, sizeof(validation->summary));
 
     if (!bundle->loaded) {
@@ -1073,6 +1243,33 @@ int kain_runtime_graphics_validate_bundle(
             validation->reason,
             sizeof(validation->reason),
             "graphics bundle is missing a valid compute dispatch plan",
+            _TRUNCATE
+        );
+        return 0;
+    }
+    if (!tensor_metadata_valid) {
+        strncpy_s(
+            validation->reason,
+            sizeof(validation->reason),
+            "graphics bundle tensor metadata is inconsistent with compute bindings",
+            _TRUNCATE
+        );
+        return 0;
+    }
+    if (!stream_metadata_valid) {
+        strncpy_s(
+            validation->reason,
+            sizeof(validation->reason),
+            "graphics bundle stream metadata is inconsistent with compute bindings",
+            _TRUNCATE
+        );
+        return 0;
+    }
+    if (!neural_metadata_valid) {
+        strncpy_s(
+            validation->reason,
+            sizeof(validation->reason),
+            "graphics bundle neural metadata requires tensor bindings",
             _TRUNCATE
         );
         return 0;

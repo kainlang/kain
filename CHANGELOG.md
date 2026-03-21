@@ -5,6 +5,150 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=0c59e09ec2a95989 -->
+## 2026-03-20 20:25:53 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 11
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/ast.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/kain-core/tests/compute_metadata_test.rs`
+
+<!-- polytools-changelog:fingerprint=fde8818d1586836f -->
+## 2026-03-20 20:25:17 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 10
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/ast.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=6aef34a7a1c8e90a -->
+## 2026-03-20 20:24:53 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 9
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/ast.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=4a340daf5fbed58e -->
+## 2026-03-20 20:18:48 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 8
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=9815337212366f13 -->
+## 2026-03-20 19:19:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 7
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+
+<!-- polytools-changelog:fingerprint=d89db23b5debfc9c -->
+## 2026-03-20 18:25:27 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 8
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+
+<!-- polytools-changelog:fingerprint=dad772ed49673791 -->
+## 2026-03-20 18:25:14 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 7
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+
+<!-- polytools-changelog:fingerprint=c7cb88f9c45f4591 -->
+## 2026-03-20 18:20:51 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 5
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+
+<!-- polytools-changelog:fingerprint=c93aaaeedcd122d0 -->
+## 2026-03-20 18:19:38 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 3
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+
+<!-- polytools-changelog:fingerprint=bb971fcd90de4dc8 -->
+## 2026-03-20 18:05:18 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 1
+- [.M] `crates/cli/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=c7272c425628f059 -->
+## 2026-03-20 18:04:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 2
+- [.M] `crates/cli/src/main.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+
+<!-- polytools-changelog:fingerprint=bb971fcd90de4dc8 -->
+## 2026-03-20 18:02:29 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `227cc98`
+- Changed files: 1
+- [.M] `crates/cli/src/main.rs`
+
 <!-- polytools-changelog:fingerprint=f36a3530c491248a -->
 ## 2026-03-20 18:00:05 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

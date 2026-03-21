@@ -10,7 +10,8 @@ It is written for engineers, agents, and future-you who need the truth of the cu
 Validated against:
 
 - workspace manifest: `M:\Code\Kain\Cargo.toml`
-- workspace map: `M:\Code\Kain\crates\repomap.md`
+- root workspace map: `M:\Code\Kain\repomap.md`
+- crate workspace map: `M:\Code\Kain\crates\repomap.md`
 - live CLI: `M:\Code\Kain\target\debug\kain.exe`
 - proof suites: `M:\Code\Kain\smoketest\*` and `M:\Code\Kain\labs\*`
 
@@ -703,6 +704,24 @@ Current artifact bundle story:
 - reflection JSON
 - derived HLSL where applicable
 
+### Explicit Compute Plans
+
+Compute shaders can now carry authored `comptime` metadata that describes:
+
+- dispatch size
+- tensor bindings, roles, and contract names
+- stream bindings
+- neural node plans
+
+That metadata is compiler-owned truth, not a host-local guess. It now flows through `kain-core` into runtime contract bundles, marks `gpu.compute-plan` as a required capability when present, and gives the raw-native viewport lane enough structure to validate and step a per-frame compute execution state.
+
+The native runtime should still treat that as an execution bridge, not as full GPU dispatch. The useful distinction is:
+
+- authored compute intent lives in the compiler
+- runtime contracts carry it forward
+- the raw-native viewport surfaces and advances it
+- future real dispatch backends should consume the same plan instead of inventing a parallel dialect
+
 Core command:
 
 ```powershell
@@ -841,6 +860,7 @@ M:\Code\Kain
 
 For crate-level detail, check:
 
+- `M:\Code\Kain\repomap.md`
 - `M:\Code\Kain\crates\repomap.md`
 
 ---
@@ -912,6 +932,7 @@ kain gpu-artifacts src/shader.kn --output dist
 - Do not describe Rust crate FFI as merely planned. It is active and has multiple smoke suites.
 - Do not describe native UI/3D as hypothetical. There is a real build command and a real viewport smoke lab.
 - Do not describe `kain-driver`, `kain-host`, `kain-reflect`, `kain-sdk`, or `kain-omni` as incidental crates. They define the current architecture.
+- Do not flatten authored compute metadata back into heuristic-only dispatch planning when the compiler already emitted a concrete plan.
 - When documenting portability, call out host-backed-only behavior explicitly.
 
 ---
@@ -928,6 +949,7 @@ If you last looked at Kain when it was mostly "compiler + importers + UE5/web/sy
 6. `kain-3D` and `kain-ui-native` make Kain a native-tool/runtime stack, not just a text compiler.
 7. `kain build native-ui` and `kain omni` are now part of the real command surface.
 8. The smoke folder is now a major source of truth for current capability, especially FFI and hybrid lanes.
+9. Explicit compute metadata now threads from shader `comptime` into runtime contracts and raw-native execution state.
 
 ---
 

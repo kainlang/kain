@@ -1,6 +1,7 @@
 #include "../../../include/kain_runtime_win32.h"
 #include "../../../include/kain_runtime_asset.h"
 #include "../../../include/kain_runtime_contract.h"
+#include "../../../include/kain_runtime_graphics.h"
 #include "../../../include/kain_runtime_realtime.h"
 #include "../../../include/kain_runtime_ui.h"
 
@@ -27,6 +28,9 @@ typedef struct {
     KainWin32MouseCapture mouse_capture;
     KainRuntimeContractBundle runtime_contract;
     KainRuntimeContractValidation contract_validation;
+    KainRuntimeGraphicsBundle graphics_bundle;
+    KainRuntimeGraphicsValidation graphics_validation;
+    KainRuntimeGraphicsExecutionState compute_execution;
     KainRuntimeRealtimeBundle realtime_bundle;
     KainUiCompiledBundle compiled_ui;
     KainNativeSceneAsset world_asset;
@@ -109,6 +113,30 @@ static void kain_native_viewport_try_load_realtime_bundle(KainNativeViewportApp*
     }
 }
 
+static void kain_native_viewport_try_load_graphics_bundle(KainNativeViewportApp* app) {
+    if (!app) {
+        return;
+    }
+
+    if (!kain_runtime_graphics_load_for_current_process(
+            KAIN_RUNTIME_GRAPHICS_ENV,
+            &app->graphics_bundle
+        )) {
+        kain_runtime_graphics_init(&app->graphics_bundle);
+        kain_runtime_graphics_validation_init(&app->graphics_validation);
+        kain_runtime_graphics_execution_state_init(&app->compute_execution);
+        return;
+    }
+
+    if (!kain_runtime_graphics_validate_bundle(&app->graphics_bundle, &app->graphics_validation)) {
+        fprintf(
+            stderr,
+            "[KAIN][raw-native-viewport] graphics bundle degraded: %s\n",
+            app->graphics_validation.reason[0] ? app->graphics_validation.reason : "unknown"
+        );
+    }
+}
+
 static unsigned int kain_native_viewport_optional_service_mask(void) {
     unsigned int mask = 0u;
     char* compiled_ui_path = kain_env_dup(KAIN_UI_COMPILED_BUNDLE_ENV);
@@ -119,6 +147,7 @@ static unsigned int kain_native_viewport_optional_service_mask(void) {
     if (world_asset_path && world_asset_path[0]) {
         mask |= KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF;
     }
+    mask |= KAIN_RUNTIME_SERVICE_GFX_COMPUTE;
     kain_env_free(compiled_ui_path);
     kain_env_free(world_asset_path);
     return mask;
@@ -434,10 +463,11 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     char stats_line[256];
     char asset_line[256];
     char realtime_line[256];
+    char compute_line[256];
     char config_line[256];
     char contract_line[256];
     char validation_line[256];
-    const char* live_lines[6];
+    const char* live_lines[7];
     const char* help_lines[1];
     KainUiCompiledOverlaySpec overlay_spec;
     const KainViewportProfile* profile = app->settings.profile;
@@ -469,7 +499,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         snprintf(
             contract_line,
             sizeof(contract_line),
-            "contract %s via %s  |  core %d/3  |  extras %d/2  |  items %d",
+            "contract %s via %s  |  core %d/3  |  extras %d/3  |  items %d",
             app->runtime_contract.target[0] ? app->runtime_contract.target : "unknown",
             app->runtime_contract.load_origin[0] ? app->runtime_contract.load_origin : "path",
             app->runtime_contract.core_service_count,
@@ -527,12 +557,38 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
             KAIN_RUNTIME_REALTIME_ENV
         );
     }
+    if (app->compute_execution.executed) {
+        snprintf(
+            compute_line,
+            sizeof(compute_line),
+            "compute %s  |  invocations %llu  |  phase %.2f",
+            app->graphics_bundle.primary_compute.execution_domain[0]
+                ? app->graphics_bundle.primary_compute.execution_domain
+                : "compute",
+            app->compute_execution.dispatch_invocations,
+            app->compute_execution.phase
+        );
+    } else if (app->graphics_bundle.loaded && app->graphics_validation.reason[0]) {
+        snprintf(
+            compute_line,
+            sizeof(compute_line),
+            "compute idle  |  %s",
+            app->graphics_validation.reason
+        );
+    } else {
+        snprintf(
+            compute_line,
+            sizeof(compute_line),
+            "compute missing  |  runtime bundle has no executable primary_compute lane"
+        );
+    }
     live_lines[0] = stats_line;
     live_lines[1] = config_line;
     live_lines[2] = asset_line;
     live_lines[3] = realtime_line;
-    live_lines[4] = contract_line;
-    live_lines[5] = validation_line;
+    live_lines[4] = compute_line;
+    live_lines[5] = contract_line;
+    live_lines[6] = validation_line;
     help_lines[0] = "WASD move  |  Space jump  |  Shift sprint  |  Click capture mouse  |  Esc release";
 
     ZeroMemory(&overlay_spec, sizeof(overlay_spec));
@@ -546,7 +602,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     overlay_spec.fallback_title = "KAIN RAW NATIVE VIEWPORT";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
-    overlay_spec.live_line_count = 6;
+    overlay_spec.live_line_count = 7;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 1;
     overlay_spec.fallback_hint = app->contract_validation.warning_count > 0
@@ -562,6 +618,9 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
 static void kain_gl_render_frame(KainNativeViewportApp* app) {
     const KainViewportProfile* profile = app->settings.profile;
     GLfloat fog_color[4];
+    double compute_phase = app->compute_execution.executed ? app->compute_execution.phase : 0.0;
+    double effective_far_clip = app->camera_far_clip + (compute_phase * 18.0);
+    double effective_fog_density = app->settings.fog_density * (1.0 + compute_phase * 0.25);
     glViewport(0, 0, app->width, app->height);
     glClearColor(profile->clear_color[0], profile->clear_color[1], profile->clear_color[2], profile->clear_color[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -581,14 +640,14 @@ static void kain_gl_render_frame(KainNativeViewportApp* app) {
     fog_color[3] = profile->fog_color[3];
     glFogfv(GL_FOG_COLOR, fog_color);
     glFogf(GL_FOG_MODE, GL_EXP2);
-    glFogf(GL_FOG_DENSITY, (GLfloat)app->settings.fog_density);
+    glFogf(GL_FOG_DENSITY, (GLfloat)effective_fog_density);
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, profile->ambient_light);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, profile->diffuse_light);
     glLightfv(GL_LIGHT0, GL_POSITION, profile->light_position);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    kain_gl_perspective(72.0, (double)app->width / (double)app->height, 0.1, app->camera_far_clip);
+    kain_gl_perspective(72.0, (double)app->width / (double)app->height, 0.1, effective_far_clip);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -736,6 +795,12 @@ static void kain_native_viewport_host_frame(KainWin32AppHost* host, void* user_d
     app->frame_delta = frame_delta;
     app->frame_fps = host->frame_fps;
     app->total_time += frame_delta;
+    kain_runtime_graphics_execute_primary_compute(
+        &app->graphics_bundle,
+        frame_delta,
+        app->total_time,
+        &app->compute_execution
+    );
     kain_native_update_camera(app, frame_delta);
     kain_gl_render_frame(app);
     kain_win32_gl_surface_present(&app->surface);
@@ -826,6 +891,7 @@ static void kain_run_native_viewport(double x, double y, const char* window_titl
         return;
     }
     kain_native_viewport_try_load_realtime_bundle(&app);
+    kain_native_viewport_try_load_graphics_bundle(&app);
     kain_native_viewport_try_load_compiled_ui(&app);
     kain_native_scene_asset_init(&app.world_asset);
     app.width = app.settings.window_width;

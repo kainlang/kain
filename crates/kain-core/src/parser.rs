@@ -1620,7 +1620,7 @@ impl<'a> Parser<'a> {
         };
         let body_span = body.span;
 
-        Ok(Item::Shader(Shader {
+        let shader = Shader {
             name,
             stage,
             inputs,
@@ -1628,7 +1628,21 @@ impl<'a> Parser<'a> {
             uniforms,
             body,
             span: start.merge(body_span),
-        }))
+        };
+
+        if matches!(shader.stage, ShaderStage::Compute) {
+            if let Err(err) = shader.explicit_compute_metadata() {
+                return Err(self.parser_error(
+                    format!(
+                        "Invalid explicit compute metadata in shader '{}': {}",
+                        shader.name, err
+                    ),
+                    shader.span,
+                ));
+            }
+        }
+
+        Ok(Item::Shader(shader))
     }
 
     fn parse_struct_with_attrs(
@@ -3741,6 +3755,13 @@ impl<'a> Parser<'a> {
             }
             TokenKind::LParen => {
                 self.advance();
+                self.skip_newlines();
+                let indented = if self.check(TokenKind::Indent) {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
                 if self.check(TokenKind::RParen) {
                     self.advance();
                     Ok(Expr::Tuple(vec![], span.merge(self.current_span())))
@@ -3748,16 +3769,24 @@ impl<'a> Parser<'a> {
                     let first = self.parse_expr()?;
                     if self.check(TokenKind::Comma) {
                         self.advance();
+                        self.skip_newlines();
                         let mut items = vec![first];
-                        while !self.check(TokenKind::RParen) {
+                        while !self.check(TokenKind::RParen) && !(indented && self.check(TokenKind::Dedent)) {
                             items.push(self.parse_expr()?);
-                            if !self.check(TokenKind::RParen) {
+                            if !self.check(TokenKind::RParen) && !(indented && self.check(TokenKind::Dedent)) {
                                 self.expect(TokenKind::Comma)?;
+                                self.skip_newlines();
                             }
+                        }
+                        if indented && self.check(TokenKind::Dedent) {
+                            self.advance();
                         }
                         self.expect(TokenKind::RParen)?;
                         Ok(Expr::Tuple(items, span.merge(self.current_span())))
                     } else {
+                        if indented && self.check(TokenKind::Dedent) {
+                            self.advance();
+                        }
                         self.expect(TokenKind::RParen)?;
                         Ok(Expr::Paren(
                             Box::new(first),
