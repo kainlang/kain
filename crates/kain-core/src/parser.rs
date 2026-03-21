@@ -3771,9 +3771,13 @@ impl<'a> Parser<'a> {
                         self.advance();
                         self.skip_newlines();
                         let mut items = vec![first];
-                        while !self.check(TokenKind::RParen) && !(indented && self.check(TokenKind::Dedent)) {
+                        while !self.check(TokenKind::RParen)
+                            && !(indented && self.check(TokenKind::Dedent))
+                        {
                             items.push(self.parse_expr()?);
-                            if !self.check(TokenKind::RParen) && !(indented && self.check(TokenKind::Dedent)) {
+                            if !self.check(TokenKind::RParen)
+                                && !(indented && self.check(TokenKind::Dedent))
+                            {
                                 self.expect(TokenKind::Comma)?;
                                 self.skip_newlines();
                             }

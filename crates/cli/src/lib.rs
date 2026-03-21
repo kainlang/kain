@@ -8,6 +8,7 @@ pub use kain_core::*;
 
 // CLI-specific modules
 pub mod error;
+pub mod fabric;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub mod gpu_artifacts;
 pub mod import_asm;
@@ -15,6 +16,7 @@ pub mod import_c;
 pub mod import_crate;
 pub mod import_rust;
 pub mod import_typescript;
+pub mod llvm_native_stage;
 pub mod lsp;
 pub mod native_ui_build;
 pub mod omni;

@@ -330,6 +330,50 @@ component App():
     }
 
     #[test]
+    fn native_ui_build_materializes_compute_residency_sidecars() {
+        let temp = TempDir::new().expect("temp dir");
+        let input = temp.path().join("app.kn");
+        fs::write(
+            &input,
+            r#"
+component App():
+    render <panel title="Compute Residency" />
+
+shader compute SampleCompute(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    return vec4(1.0, 1.0, 1.0, 1.0)
+"#,
+        )
+        .expect("write source");
+
+        let result = run_native_ui_build_pipeline(
+            &input,
+            &NativeUiBuildConfig {
+                project_dir: Some(temp.path().join("dist").join("compute-app")),
+                build_executable: false,
+                runtime_dependency: NativeUiRuntimeDependencyConfig::Version("0.1.0".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("native ui build should succeed");
+
+        assert!(result
+            .generated
+            .artifact_paths
+            .iter()
+            .any(|path| path.ends_with("kain_compute_residency.json")));
+        assert!(result.generated.artifact_paths.iter().any(|path| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value.starts_with("kain_compute_residency_"))
+        }));
+
+        let main_rs = fs::read_to_string(&result.generated.main_rs_path).expect("main.rs");
+        assert!(main_rs.contains("KAIN_COMPUTE_RESIDENCY"));
+    }
+
+    #[test]
     fn explicit_runtime_path_is_rebased_relative_to_project() {
         let temp = TempDir::new().expect("temp dir");
         let project_dir = temp.path().join("build").join("app");

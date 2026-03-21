@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub mod fabric;
+
 use kain_asm;
 use kain_core::ast::{Block, Expr, Function, Impl, Item, Pattern, Program, Stmt, Struct, Type};
 use kain_core::error::KainError;
@@ -13,6 +15,8 @@ use kain_import::typescript::import_typescript_file;
 use kain_sys_codegen::RustArtifactKind;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+pub use fabric::*;
 #[derive(Debug, Error)]
 pub enum OmniError {
     #[error("IO error: {0}")]

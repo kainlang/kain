@@ -44,7 +44,7 @@ kain/
 │   └── cli/                         # CLI binary + packager
 ├── unreal/
 │   ├── metadata/                    # JSON databases (21K types, 2.3K widgets, 7.2K functions)
-│   └── scripts/                     # Python extractors (corpus, shader, module graph)
+│   └── scripts/                     # Workspace scripts and helpers (extractors, repair, Linux pipeline)
 ├── testing/                         # Test plugins
 │   ├── Phase3/SlateTest4/           # ACTIVE: "Ulta" comprehensive test
 │   ├── Phase4/                      # Shader tests
@@ -1279,6 +1279,7 @@ material MyMaterial:
 - `unreal/scripts/shader_extractor.py` - Extract shader metadata
 - `python/post_process.py` - C++ cleanup
 - `python/ue5_validator.py` - Validate generated code
+- `scripts/kain_linux_pipeline.sh` - Linux staging, smoke, and selfhost helper
 
 ---
 

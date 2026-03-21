@@ -1,0 +1,17 @@
+[package]
+name = "kain-gpu-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Runtime-facing Vulkan compute executor for KAIN GPU payloads"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+ash = "0.37.3"
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+kain-core = { path = "../kain-core" }
+kain-interop = { path = "../kain-interop" }

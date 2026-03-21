@@ -1,6 +1,7 @@
 #ifndef KAIN_RUNTIME_GRAPHICS_H
 #define KAIN_RUNTIME_GRAPHICS_H
 
+#include <stddef.h>
 #include "kain_runtime_win32.h"
 
 #ifdef _WIN32
@@ -15,6 +16,9 @@
 #define KAIN_RUNTIME_GRAPHICS_MAX_INLINE 256
 #define KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY 256
 #define KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS 8
+#define KAIN_COMPUTE_RESIDENCY_ENV "KAIN_COMPUTE_RESIDENCY"
+#define KAIN_GPU_RUNTIME_LIBRARY_ENV "KAIN_GPU_RUNTIME_LIBRARY"
+#define KAIN_GPU_RUNTIME_WINDOWS_DLL "kain_gpu_runtime.dll"
 
 typedef struct {
     char key[KAIN_RUNTIME_GRAPHICS_MAX_TAG];
@@ -106,6 +110,29 @@ typedef struct {
     int neural_node_count;
     char summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
 } KainRuntimeGraphicsExecutionState;
+
+typedef struct {
+    const char* shader_bundle_path;
+    const char* compute_residency_path;
+    const char* compute_key;
+} KainGpuRuntimeDispatchRequest;
+
+typedef struct {
+    int status_code;
+    unsigned long long dispatch_invocations;
+    unsigned int tensor_binding_count;
+    unsigned int stream_binding_count;
+    unsigned int neural_node_count;
+    char message[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
+} KainGpuRuntimeDispatchResult;
+
+typedef void* (*KainGpuRuntimeCreateFn)(const void* config);
+typedef int (*KainGpuRuntimeDispatchFn)(
+    void* handle,
+    const KainGpuRuntimeDispatchRequest* request,
+    KainGpuRuntimeDispatchResult* result
+);
+typedef void (*KainGpuRuntimeDestroyFn)(void* handle);
 
 void kain_runtime_graphics_init(KainRuntimeGraphicsBundle* bundle);
 int kain_runtime_graphics_load_from_json(const char* json, KainRuntimeGraphicsBundle* bundle);

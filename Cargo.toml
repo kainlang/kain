@@ -26,6 +26,7 @@ members = [
     "crates/ue5-gas",
     "crates/ue5-config",
     "crates/gpu",
+    "crates/kain-gpu-runtime",
     "crates/web",
     "crates/kain-sys-codegen",
     "crates/cli",

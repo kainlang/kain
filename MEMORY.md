@@ -10,6 +10,72 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-21 - LLVM Native Packaging Stopped Being A Side Quest
+
+This pass closed an important emotional gap in the pipeline.
+We already had a real compute executor, a residency contract, and a raw-native viewport that wanted to consume them, but the normal LLVM/native build lane was still too casual about staging the runtime truth beside the executable.
+That kind of gap is how strong systems quietly turn back into demos.
+
+The main correction was architectural discipline:
+we pulled the LLVM/native artifact staging logic out of the CLI monolith and turned it into a dedicated library module.
+That sounds small, but it matters because `kn` still includes `main.rs` directly, so every extra ounce of packaging logic left in that file gets duplicated in the noisiest possible compilation path.
+Moving the staging code into a real module gave the packaging lane a stable home and stopped the raw-native build contract from living as a brittle side effect.
+
+### What The System Understands Now
+
+The LLVM/native lane now treats these artifacts as a single runtime story, not a bag of unrelated files:
+
+- runtime contract
+- realtime app bundle
+- compute residency manifest
+- compute residency payload binaries
+- shader bundle
+- `kain_gpu_runtime.dll`
+
+That means a raw-native build no longer has to rely on wishful thinking that the viewport will somehow discover the right compute-side assets later.
+The executable lane now stages the files that the runtime actually needs in order to execute `primary_compute` as runtime truth.
+
+### Why The Module Split Matters
+
+There was a deeper lesson hiding here:
+the raw-native packaging path is not just another helper.
+It is the place where compiler intent, runtime contracts, SPIR-V assets, residency sidecars, and native executable layout all become one physical deployment shape.
+That deserves a named seam.
+
+We created `cli/src/llvm_native_stage.rs` specifically so this deployment logic can grow without dragging more complexity into `main.rs`.
+This should be preserved.
+If future work adds release-vs-debug DLL policy, richer sidecar manifests, or platform-specific staging rules, that logic belongs in the staging module first, not scattered back into the CLI entrypoint.
+
+### Validation Outcome
+
+The good news is that the new packaging seam validated cleanly:
+
+- new CLI tests now prove LLVM/native staging for compute-bearing and UI-only sources
+- the native UI packaging regression still passes with compute residency sidecars present
+- the native runtime C smoke compile still passes
+- full `cargo test` still fails only on the pre-existing external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`
+
+That is exactly the result we wanted.
+This move changed the runtime deployment shape, but the workspace-wide failure signature did not get worse or shift in a suspicious way.
+
+### Guardrails
+
+- Do not move the raw-native artifact staging policy back into `main.rs`.
+- Do not let the LLVM/native lane emit only the `.ll` and executable while quietly omitting the runtime-side compute assets.
+- Do not treat the residency manifest as optional when `primary_compute` is part of the emitted truth.
+- If future packaging lanes appear, they should reuse the same staging semantics instead of inventing a second compute deployment dialect.
+
+## 2026-03-21 - Crates Guide Restored And Strategy Notes Indexed
+
+The repo map had drifted ahead of the filesystem again: `crates/README.md` was missing even though the root map still treated it like a first-class navigation point.
+I restored that guide, synced the root and crate-level maps, and added a small README for `docs/kainvsgiants/` so the strategy note folder is a deliberate doc surface instead of a loose one-off.
+
+Lesson:
+
+- If a folder is important enough to show up in the repo map, it is important enough to have a real README and stay in sync with the map.
+- `kain-gpu-runtime` now needs to stay visible as a runtime executor crate, not buried as a side artifact.
+- Stale audit dump docs should be retired in favor of a small, living folder guide.
+
 ## 2026-03-20 - Tensor-Stream Compute Lane Becomes Real Compiler/Runtime Memory
 
 Today the work stopped being "Kain has compute shaders somewhere" and started becoming "Kain is learning how to describe a compute-native execution lane as compiler-owned truth."
@@ -163,6 +229,70 @@ The repo already contains a strong clue for the next move:
 `crates/gpu/tests/spirv_execute.rs` is not hypothetical.
 It is a real Vulkan SPIR-V execution harness.
 The correct direction is to promote that into a reusable runtime/backend service rather than rebuilding execution semantics from scratch in every host.
+
+## 2026-03-20 - The Vulkan Executor Graduated Out Of Test-Only Space
+
+This was the first pass where the SPIR-V execution story stopped living only inside a test and started becoming runtime infrastructure.
+
+The important move was not just "we made another crate."
+The important move was that the old `spirv_execute.rs` Vulkan path was promoted into a dedicated runtime-facing module with a C ABI surface, and the raw-native viewport was pointed at that direction instead of only carrying synthetic compute state.
+
+### What Changed
+
+We now have a dedicated `kain-gpu-runtime` crate.
+That crate owns the Vulkan setup and SPIR-V dispatch logic that used to be trapped in the GPU test harness.
+The old test still matters, but it is now proving a library instead of being the only place where compute execution really exists.
+
+We also moved the residency sidecar from a loose compute metadata snapshot toward an actual bootstrap artifact:
+
+- deterministic compute residency manifest
+- per-binding payload files
+- resolved descriptor/binding metadata that the runtime can consume
+
+On top of that, `kain-interop` now has a concrete shared-buffer-to-GPU-binding adapter.
+That means the `kain.shared.buffer` contract is no longer just conceptual in this lane.
+It is beginning to function as the runtime-facing binding truth for compute execution.
+
+Finally, the raw-native viewport now has a real ABI loading path toward the GPU runtime.
+It is still early and not yet the final generalized host-bridge form, but the direction is correct:
+the C lane is no longer forced to fake compute forever.
+
+### Why This Matters
+
+Before this pass, the best compute execution path in the repo was:
+
+- real Vulkan dispatch in test code
+- runtime metadata in production code
+- synthetic execution state in the raw-native host
+
+That split was not sustainable.
+
+After this pass, the architecture is more coherent:
+
+- Vulkan dispatch is becoming reusable runtime code
+- residency is beginning to exist as a runtime bootstrap contract
+- shared buffers have a descriptor-facing adapter
+- raw-native is beginning to talk to a real compute executor
+
+That is the first shape that can realistically grow into a serious heterogeneous runtime story.
+
+### What Is Still Incomplete
+
+- The C ABI is intentionally minimal and still path-oriented in places.
+  It is enough to establish execution, but it is not yet the final "all buffer metadata passed explicitly as plain structs" design.
+
+- The residency sidecar is now real enough to bootstrap compute bindings, but uniform/scalar policy is still thinner than the storage-buffer lane.
+
+- The raw-native viewport can now prepare for real compute execution, but the packaging and native startup path still need a more complete production handoff for the runtime DLL in all lanes.
+
+- Full workspace validation is still constrained by unrelated repo blockers and Windows linker pressure, so broad green status remains noisy.
+
+### Guardrail
+
+Do not let `kain-gpu-runtime` turn into a random dumping ground for GPU experiments.
+It should stay the execution-side counterpart to compiler-owned SPIR-V bundles and residency contracts.
+Its job is not to become "another graphics engine."
+Its job is to make Kain-owned compute payloads executable as runtime truth.
 
 ### Guardrail
 

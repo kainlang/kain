@@ -1,0 +1,365 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use kain_core::error::KainError;
+use kain_core::{RealtimeAppBundle, RealtimeResourceBinding, RealtimeShaderBundleRef};
+use serde::{Deserialize, Serialize};
+
+pub const COMPUTE_RESIDENCY_FILE_NAME: &str = "kain_compute_residency.json";
+pub const COMPUTE_RESIDENCY_ENV_VAR: &str = "KAIN_COMPUTE_RESIDENCY";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ComputeResidencyBundle {
+    pub schema_version: u32,
+    pub target: String,
+    pub compute_shader_count: usize,
+    pub compute_shaders: Vec<ComputeResidencyEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ComputeResidencyEntry {
+    pub key: String,
+    pub shader: String,
+    pub module_name: String,
+    pub stage: String,
+    pub entry_point: String,
+    pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_domain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workgroup_size: Option<[u32; 3]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dispatch_size: Option<[u32; 3]>,
+    pub resource_binding_count: usize,
+    pub tensor_binding_count: usize,
+    pub stream_binding_count: usize,
+    pub neural_node_count: usize,
+    pub bindings: Vec<ComputeResidencyBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ComputeResidencyBinding {
+    pub key: String,
+    pub contract: String,
+    pub descriptor_kind: String,
+    pub element_type: String,
+    pub shape: Vec<i64>,
+    pub strides: Vec<i64>,
+    pub access_mode: String,
+    pub residency_role: String,
+    pub slot: u32,
+    pub byte_length: usize,
+    pub payload_file: String,
+}
+
+pub fn write_compute_residency_sidecars(
+    realtime: &RealtimeAppBundle,
+    artifact_root: &Path,
+) -> Result<Vec<PathBuf>, KainError> {
+    let Some(bundle) = build_compute_residency_bundle(realtime) else {
+        return Ok(Vec::new());
+    };
+
+    fs::create_dir_all(artifact_root).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to create compute residency artifact directory {}: {}",
+            artifact_root.display(),
+            err
+        ))
+    })?;
+
+    let mut written = Vec::new();
+    let main_path = artifact_root.join(COMPUTE_RESIDENCY_FILE_NAME);
+    let bundle_json = serde_json::to_string_pretty(&bundle).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to serialize compute residency bundle for {}: {}",
+            realtime.target, err
+        ))
+    })?;
+    fs::write(&main_path, bundle_json.as_bytes()).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to write compute residency bundle {}: {}",
+            main_path.display(),
+            err
+        ))
+    })?;
+    written.push(main_path);
+
+    for entry in &bundle.compute_shaders {
+        for binding in &entry.bindings {
+            let payload_path = artifact_root.join(&binding.payload_file);
+            let zero_bytes = vec![0u8; binding.byte_length];
+            fs::write(&payload_path, zero_bytes).map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to write compute residency payload {}: {}",
+                    payload_path.display(),
+                    err
+                ))
+            })?;
+            written.push(payload_path);
+        }
+    }
+
+    Ok(written)
+}
+
+fn build_compute_residency_bundle(realtime: &RealtimeAppBundle) -> Option<ComputeResidencyBundle> {
+    let mut compute_shaders = realtime
+        .shader_bundle_refs
+        .iter()
+        .filter(|shader| shader.stage.eq_ignore_ascii_case("compute"))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if compute_shaders.is_empty() {
+        return None;
+    }
+
+    compute_shaders.sort_by(|left, right| {
+        left.key
+            .cmp(&right.key)
+            .then(left.module_name.cmp(&right.module_name))
+            .then(left.entry_point.cmp(&right.entry_point))
+    });
+
+    let entries = compute_shaders
+        .into_iter()
+        .enumerate()
+        .map(|(_index, shader)| {
+            let bindings = build_binding_residency_entries(&shader);
+            ComputeResidencyEntry {
+                key: shader.key.clone(),
+                shader: shader.shader.clone(),
+                module_name: shader.module_name.clone(),
+                stage: shader.stage.clone(),
+                entry_point: shader.entry_point.clone(),
+                source: shader.source.clone(),
+                execution_domain: shader.execution_domain.clone(),
+                workgroup_size: shader.workgroup_size,
+                dispatch_size: shader.dispatch_size,
+                resource_binding_count: shader.resource_bindings.len(),
+                tensor_binding_count: shader.tensor_bindings.len(),
+                stream_binding_count: shader.stream_bindings.len(),
+                neural_node_count: shader.neural_nodes.len(),
+                bindings,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Some(ComputeResidencyBundle {
+        schema_version: 1,
+        target: realtime.target.clone(),
+        compute_shader_count: entries.len(),
+        compute_shaders: entries,
+    })
+}
+
+fn build_binding_residency_entries(shader: &RealtimeShaderBundleRef) -> Vec<ComputeResidencyBinding> {
+    shader
+        .resource_bindings
+        .iter()
+        .map(|binding| build_binding_residency_entry(shader, binding))
+        .collect()
+}
+
+fn build_binding_residency_entry(
+    shader: &RealtimeShaderBundleRef,
+    binding: &RealtimeResourceBinding,
+) -> ComputeResidencyBinding {
+    let tensor = shader
+        .tensor_bindings
+        .iter()
+        .find(|tensor| tensor.key == binding.key);
+    let dispatch_size = shader.dispatch_size.unwrap_or([1, 1, 1]);
+    let shape = tensor
+        .map(|tensor| resolve_tensor_shape(&tensor.shape, dispatch_size))
+        .unwrap_or_else(|| vec![1]);
+    let strides = compact_strides(&shape);
+    let element_type = tensor
+        .map(|tensor| tensor.element_type.clone())
+        .unwrap_or_else(|| fallback_element_type(binding).to_string());
+    let element_size = element_size_for(&element_type);
+    let byte_length = element_size
+        .saturating_mul(shape.iter().copied().product::<i64>().max(1) as usize);
+
+    ComputeResidencyBinding {
+        key: binding.key.clone(),
+        contract: tensor
+            .map(|tensor| tensor.contract.clone())
+            .unwrap_or_else(|| "kain.shared.buffer".to_string()),
+        descriptor_kind: descriptor_kind_for(binding).to_string(),
+        element_type,
+        shape,
+        strides,
+        access_mode: binding.access.clone(),
+        residency_role: tensor
+            .map(|tensor| tensor.role.clone())
+            .unwrap_or_else(|| residency_role_from_access(&binding.access).to_string()),
+        slot: binding.slot,
+        byte_length,
+        payload_file: compute_binding_payload_file_name(shader, binding),
+    }
+}
+
+fn sanitize_sidecar_stem(value: &str) -> String {
+    let mut sanitized = String::with_capacity(value.len());
+    let mut last_was_separator = false;
+
+    for ch in value.chars() {
+        let mapped = if ch.is_ascii_alphanumeric() {
+            ch.to_ascii_lowercase()
+        } else {
+            '_'
+        };
+        if mapped == '_' {
+            if !last_was_separator {
+                sanitized.push(mapped);
+                last_was_separator = true;
+            }
+        } else {
+            sanitized.push(mapped);
+            last_was_separator = false;
+        }
+    }
+
+    let trimmed = sanitized.trim_matches('_');
+    if trimmed.is_empty() {
+        "compute".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn compute_binding_payload_file_name(
+    shader: &RealtimeShaderBundleRef,
+    binding: &RealtimeResourceBinding,
+) -> String {
+    format!(
+        "kain_compute_residency_{}_{}.bin",
+        sanitize_sidecar_stem(&shader.key),
+        sanitize_sidecar_stem(&binding.key)
+    )
+}
+
+fn descriptor_kind_for(binding: &RealtimeResourceBinding) -> &'static str {
+    match binding.resource_type.as_str() {
+        "storage_buffer" => "storage_buffer",
+        _ => "uniform_buffer",
+    }
+}
+
+fn residency_role_from_access(access: &str) -> &'static str {
+    match access {
+        "read" => "required_input",
+        "write" => "required_output",
+        _ => "scratch_state",
+    }
+}
+
+fn fallback_element_type(binding: &RealtimeResourceBinding) -> &'static str {
+    if binding.resource_type == "storage_buffer" {
+        "f32"
+    } else {
+        "u32"
+    }
+}
+
+fn resolve_tensor_shape(shape: &[String], dispatch_size: [u32; 3]) -> Vec<i64> {
+    shape.iter()
+        .map(|dim| match dim.as_str() {
+            "dispatch.x" => dispatch_size[0] as i64,
+            "dispatch.y" => dispatch_size[1] as i64,
+            "dispatch.z" => dispatch_size[2] as i64,
+            other => other.parse::<i64>().unwrap_or(1).max(1),
+        })
+        .collect()
+}
+
+fn compact_strides(shape: &[i64]) -> Vec<i64> {
+    if shape.is_empty() {
+        return vec![1];
+    }
+    let mut strides = vec![0; shape.len()];
+    let mut stride = 1;
+    for (index, dim) in shape.iter().enumerate().rev() {
+        strides[index] = stride;
+        stride *= (*dim).max(1);
+    }
+    strides
+}
+
+fn element_size_for(element_type: &str) -> usize {
+    match element_type {
+        "u8" | "i8" | "bool" => 1,
+        "u16" | "i16" => 2,
+        "u32" | "i32" | "f32" => 4,
+        "u64" | "i64" | "f64" => 8,
+        "vec2<f32>" | "vec2<i32>" | "vec2<u32>" => 8,
+        "vec3<f32>" | "vec3<i32>" | "vec3<u32>" => 12,
+        "vec4<f32>" | "vec4<i32>" | "vec4<u32>" => 16,
+        _ => 4,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::{compile_native_app_bundle, NativeAppBundleConfig};
+    use tempfile::TempDir;
+
+    #[test]
+    fn writes_deterministic_compute_residency_sidecars() {
+        let temp = TempDir::new().expect("temp dir");
+        let artifact_root = temp.path().join("generated");
+        let source = r#"
+component App():
+    render <panel title="Residency" />
+
+shader compute SampleCompute(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    return vec4(1.0, 1.0, 1.0, 1.0)
+"#;
+
+        let bundle = compile_native_app_bundle(
+            source,
+            &NativeAppBundleConfig {
+                source_file_name: Some("residency.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        let built_a = build_compute_residency_bundle(&bundle.realtime)
+            .expect("expected compute residency bundle");
+        let built_b = build_compute_residency_bundle(&bundle.realtime)
+            .expect("expected compute residency bundle");
+        assert_eq!(built_a, built_b);
+
+        let written = write_compute_residency_sidecars(&bundle.realtime, &artifact_root)
+            .expect("compute residency sidecars should write");
+        assert_eq!(written.len(), 3);
+
+        let main_path = artifact_root.join(COMPUTE_RESIDENCY_FILE_NAME);
+        assert!(main_path.exists());
+
+        let main_json = fs::read_to_string(&main_path).expect("main residency json");
+        let main_bundle: ComputeResidencyBundle =
+            serde_json::from_str(&main_json).expect("parse residency json");
+        assert_eq!(main_bundle.compute_shader_count, 1);
+        assert_eq!(main_bundle.compute_shaders.len(), 1);
+        assert_eq!(
+            main_bundle.compute_shaders[0].key,
+            "shader::SampleCompute::compute"
+        );
+        assert_eq!(main_bundle.compute_shaders[0].resource_binding_count, 2);
+        assert_eq!(main_bundle.compute_shaders[0].bindings.len(), 2);
+        assert_eq!(main_bundle.compute_shaders[0].bindings[0].descriptor_kind, "storage_buffer");
+        assert_eq!(main_bundle.compute_shaders[0].bindings[0].shape, vec![1]);
+        assert!(written.iter().any(|path| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value.ends_with(".bin"))
+        }));
+    }
+}

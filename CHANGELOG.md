@@ -5,6 +5,479 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=2648c033aa7423b1 -->
+## 2026-03-21 01:18:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 27
+- [.D] `crates/CRATE_AUDIT_PART1.md`
+- [.D] `crates/CRATE_AUDIT_PART2.md`
+- [.D] `crates/MISSING_CRATE_ANALYSIS.md`
+- [.D] `crates/README_AUTOMATION.md`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/README.md`
+- [??] `crates/cli/src/fabric.rs`
+- [??] `crates/cli/src/llvm_native_stage.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+- [??] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=5c6b61fa61cc48f5 -->
+## 2026-03-21 01:11:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 28
+- [.D] `crates/CRATE_AUDIT_PART1.md`
+- [.D] `crates/CRATE_AUDIT_PART2.md`
+- [.D] `crates/MISSING_CRATE_ANALYSIS.md`
+- [.D] `crates/README_AUTOMATION.md`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/README.md`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/cli/src/fabric.rs`
+- [??] `crates/cli/src/llvm_native_stage.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+- [??] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=2648c033aa7423b1 -->
+## 2026-03-21 01:09:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 27
+- [.D] `crates/CRATE_AUDIT_PART1.md`
+- [.D] `crates/CRATE_AUDIT_PART2.md`
+- [.D] `crates/MISSING_CRATE_ANALYSIS.md`
+- [.D] `crates/README_AUTOMATION.md`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/README.md`
+- [??] `crates/cli/src/fabric.rs`
+- [??] `crates/cli/src/llvm_native_stage.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+- [??] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=f52454b889c48960 -->
+## 2026-03-21 01:03:59 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 26
+- [.D] `crates/CRATE_AUDIT_PART1.md`
+- [.D] `crates/CRATE_AUDIT_PART2.md`
+- [.D] `crates/MISSING_CRATE_ANALYSIS.md`
+- [.D] `crates/README_AUTOMATION.md`
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/README.md`
+- [??] `crates/cli/src/fabric.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+- [??] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=4b3dda1c5e620f08 -->
+## 2026-03-21 01:01:18 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 22
+- [.D] `crates/CRATE_AUDIT_PART1.md`
+- [.D] `crates/CRATE_AUDIT_PART2.md`
+- [.D] `crates/MISSING_CRATE_ANALYSIS.md`
+- [.D] `crates/README_AUTOMATION.md`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/README.md`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=914a6f3bf213f44a -->
+## 2026-03-21 00:18:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 21
+- [.D] `crates/CRATE_AUDIT_PART1.md`
+- [.D] `crates/CRATE_AUDIT_PART2.md`
+- [.D] `crates/MISSING_CRATE_ANALYSIS.md`
+- [.D] `crates/README_AUTOMATION.md`
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/README.md`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=0508a01b1df3ba94 -->
+## 2026-03-20 23:19:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 16
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/README.md`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=cad00ff6e5151f2a -->
+## 2026-03-20 23:18:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 16
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=dd6d7727e4356b42 -->
+## 2026-03-20 23:08:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 15
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=4b8f30f3afcc9890 -->
+## 2026-03-20 23:08:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 14
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=3571c91dbf1a8a27 -->
+## 2026-03-20 23:05:17 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 13
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=0aca5c2098a79dc0 -->
+## 2026-03-20 23:01:44 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 12
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=3571c91dbf1a8a27 -->
+## 2026-03-20 23:01:18 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 13
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=19e974f89914f8f8 -->
+## 2026-03-20 23:00:53 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 12
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=3571c91dbf1a8a27 -->
+## 2026-03-20 22:54:49 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 13
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/cli/.kain/cache/node_ffi/kain_node_bridge.cjs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=610145c300b7365f -->
+## 2026-03-20 22:54:02 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 12
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=9dfd9351b4c5f479 -->
+## 2026-03-20 22:51:12 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 11
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-core/src/parser.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=61a1c8119d40dffd -->
+## 2026-03-20 22:50:53 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 10
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-driver/src/compute_residency.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=11b3d1830a7430c6 -->
+## 2026-03-20 22:50:35 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 8
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/gpu/tests/spirv_execute.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=c0c9594b7d598473 -->
+## 2026-03-20 22:50:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 7
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=5cba9574fe1c99ce -->
+## 2026-03-20 22:49:57 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 6
+- [.M] `crates/gpu/Cargo.toml`
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=5d48552b6d8fd482 -->
+## 2026-03-20 22:49:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 5
+- [.M] `crates/kain-interop/src/lib.rs`
+- [??] `crates/kain-gpu-runtime/Cargo.toml`
+- [??] `crates/kain-gpu-runtime/src/bindings.rs`
+- [??] `crates/kain-gpu-runtime/src/executor.rs`
+- [??] `crates/kain-gpu-runtime/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=298926da58f04ca2 -->
+## 2026-03-20 22:48:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `436344f`
+- Changed files: 1
+- [.M] `crates/kain-interop/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=2d942489168b0914 -->
 ## 2026-03-20 22:18:45 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

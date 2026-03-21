@@ -31,6 +31,12 @@ typedef struct {
     KainRuntimeGraphicsBundle graphics_bundle;
     KainRuntimeGraphicsValidation graphics_validation;
     KainRuntimeGraphicsExecutionState compute_execution;
+    HMODULE gpu_runtime_library;
+    void* gpu_runtime_handle;
+    KainGpuRuntimeDispatchFn gpu_runtime_dispatch;
+    KainGpuRuntimeDestroyFn gpu_runtime_destroy;
+    char shader_bundle_path[KAIN_RUNTIME_GRAPHICS_MAX_PATH];
+    char compute_residency_path[KAIN_RUNTIME_GRAPHICS_MAX_PATH];
     KainRuntimeRealtimeBundle realtime_bundle;
     KainUiCompiledBundle compiled_ui;
     KainNativeSceneAsset world_asset;
@@ -137,6 +143,47 @@ static void kain_native_viewport_try_load_graphics_bundle(KainNativeViewportApp*
     }
 }
 
+static int kain_native_viewport_resolve_file(
+    const char* env_name,
+    const char* fallback_file_name,
+    char* out_path,
+    size_t out_cap
+) {
+    char* explicit_path = NULL;
+    char module_path[MAX_PATH];
+    char* file_name = NULL;
+
+    if (!out_path || out_cap == 0 || !fallback_file_name) {
+        return 0;
+    }
+    out_path[0] = '\0';
+
+    if (env_name) {
+        explicit_path = kain_env_dup(env_name);
+        if (explicit_path && explicit_path[0]) {
+            strncpy_s(out_path, out_cap, explicit_path, _TRUNCATE);
+            kain_env_free(explicit_path);
+            return 1;
+        }
+        kain_env_free(explicit_path);
+    }
+
+    if (!GetModuleFileNameA(NULL, module_path, (DWORD)sizeof(module_path))) {
+        return 0;
+    }
+    file_name = strrchr(module_path, '\\');
+    if (!file_name) {
+        return 0;
+    }
+    file_name[1] = '\0';
+    if (strnlen_s(module_path, sizeof(module_path)) + strlen(fallback_file_name) + 1 >= out_cap) {
+        return 0;
+    }
+    strcpy_s(out_path, out_cap, module_path);
+    strcat_s(out_path, out_cap, fallback_file_name);
+    return GetFileAttributesA(out_path) != INVALID_FILE_ATTRIBUTES;
+}
+
 static unsigned int kain_native_viewport_optional_service_mask(void) {
     unsigned int mask = 0u;
     char* compiled_ui_path = kain_env_dup(KAIN_UI_COMPILED_BUNDLE_ENV);
@@ -151,6 +198,109 @@ static unsigned int kain_native_viewport_optional_service_mask(void) {
     kain_env_free(compiled_ui_path);
     kain_env_free(world_asset_path);
     return mask;
+}
+
+static int kain_native_viewport_prepare_compute_executor(KainNativeViewportApp* app) {
+    char runtime_library_path[KAIN_RUNTIME_GRAPHICS_MAX_PATH];
+    KainGpuRuntimeCreateFn gpu_runtime_create;
+
+    if (!app) {
+        return 0;
+    }
+
+    kain_runtime_graphics_execution_state_init(&app->compute_execution);
+    if (app->graphics_bundle.shader_compute_ref_count <= 0) {
+        return 1;
+    }
+
+    if (!kain_native_viewport_resolve_file(
+            "KAIN_SHADER_BUNDLE_PATH",
+            "kain_shader_bundle.json",
+            app->shader_bundle_path,
+            sizeof(app->shader_bundle_path)
+        )) {
+        snprintf(
+            app->graphics_validation.reason,
+            sizeof(app->graphics_validation.reason),
+            "missing shader bundle sidecar for compute execution"
+        );
+        return 0;
+    }
+    if (!kain_native_viewport_resolve_file(
+            KAIN_COMPUTE_RESIDENCY_ENV,
+            "kain_compute_residency.json",
+            app->compute_residency_path,
+            sizeof(app->compute_residency_path)
+        )) {
+        snprintf(
+            app->graphics_validation.reason,
+            sizeof(app->graphics_validation.reason),
+            "missing compute residency sidecar for compute execution"
+        );
+        return 0;
+    }
+    if (!kain_native_viewport_resolve_file(
+            KAIN_GPU_RUNTIME_LIBRARY_ENV,
+            KAIN_GPU_RUNTIME_WINDOWS_DLL,
+            runtime_library_path,
+            sizeof(runtime_library_path)
+        )) {
+        snprintf(
+            app->graphics_validation.reason,
+            sizeof(app->graphics_validation.reason),
+            "missing %s for compute execution",
+            KAIN_GPU_RUNTIME_WINDOWS_DLL
+        );
+        return 0;
+    }
+
+    app->gpu_runtime_library = LoadLibraryA(runtime_library_path);
+    if (!app->gpu_runtime_library) {
+        snprintf(
+            app->graphics_validation.reason,
+            sizeof(app->graphics_validation.reason),
+            "failed to load compute runtime library %s",
+            runtime_library_path
+        );
+        return 0;
+    }
+
+    gpu_runtime_create = (KainGpuRuntimeCreateFn)GetProcAddress(
+        app->gpu_runtime_library,
+        "kain_gpu_runtime_create"
+    );
+    app->gpu_runtime_dispatch = (KainGpuRuntimeDispatchFn)GetProcAddress(
+        app->gpu_runtime_library,
+        "kain_gpu_runtime_dispatch_primary_compute"
+    );
+    app->gpu_runtime_destroy = (KainGpuRuntimeDestroyFn)GetProcAddress(
+        app->gpu_runtime_library,
+        "kain_gpu_runtime_destroy"
+    );
+    if (!gpu_runtime_create || !app->gpu_runtime_dispatch || !app->gpu_runtime_destroy) {
+        snprintf(
+            app->graphics_validation.reason,
+            sizeof(app->graphics_validation.reason),
+            "compute runtime library is missing required exports"
+        );
+        FreeLibrary(app->gpu_runtime_library);
+        app->gpu_runtime_library = NULL;
+        return 0;
+    }
+
+    app->gpu_runtime_handle = gpu_runtime_create(NULL);
+    if (!app->gpu_runtime_handle) {
+        snprintf(
+            app->graphics_validation.reason,
+            sizeof(app->graphics_validation.reason),
+            "compute runtime failed to initialize a Vulkan executor"
+        );
+        FreeLibrary(app->gpu_runtime_library);
+        app->gpu_runtime_library = NULL;
+        return 0;
+    }
+
+    return 1;
 }
 
 static void kain_native_viewport_emit_contract_diagnostics(
@@ -795,12 +945,44 @@ static void kain_native_viewport_host_frame(KainWin32AppHost* host, void* user_d
     app->frame_delta = frame_delta;
     app->frame_fps = host->frame_fps;
     app->total_time += frame_delta;
-    kain_runtime_graphics_execute_primary_compute(
-        &app->graphics_bundle,
-        frame_delta,
-        app->total_time,
-        &app->compute_execution
-    );
+    if (app->gpu_runtime_handle && app->gpu_runtime_dispatch && app->graphics_bundle.shader_compute_ref_count > 0) {
+        KainGpuRuntimeDispatchRequest request;
+        KainGpuRuntimeDispatchResult result;
+        request.shader_bundle_path = app->shader_bundle_path;
+        request.compute_residency_path = app->compute_residency_path;
+        request.compute_key = app->graphics_bundle.primary_compute.shader_key;
+        ZeroMemory(&result, sizeof(result));
+        if (app->gpu_runtime_dispatch(app->gpu_runtime_handle, &request, &result) == 0) {
+            app->compute_execution.executed = 1;
+            app->compute_execution.dispatch_invocations = result.dispatch_invocations;
+            app->compute_execution.accumulated_invocations += result.dispatch_invocations;
+            app->compute_execution.tensor_binding_count = (int)result.tensor_binding_count;
+            app->compute_execution.stream_binding_count = (int)result.stream_binding_count;
+            app->compute_execution.neural_node_count = (int)result.neural_node_count;
+            app->compute_execution.phase = fmod(app->total_time, 1.0);
+            app->compute_execution.throughput =
+                frame_delta > 0.0001 ? ((double)result.dispatch_invocations / frame_delta) : 0.0;
+            strncpy_s(
+                app->compute_execution.summary,
+                sizeof(app->compute_execution.summary),
+                result.message,
+                _TRUNCATE
+            );
+        } else {
+            fprintf(stderr, "[KAIN][raw-native-viewport] compute dispatch failed: %s\n", result.message);
+            app->compute_execution.executed = 0;
+            strncpy_s(
+                app->compute_execution.summary,
+                sizeof(app->compute_execution.summary),
+                result.message,
+                _TRUNCATE
+            );
+            app->running = 0;
+            if (app->hwnd) {
+                PostMessageA(app->hwnd, WM_CLOSE, 0, 0);
+            }
+        }
+    }
     kain_native_update_camera(app, frame_delta);
     kain_gl_render_frame(app);
     kain_win32_gl_surface_present(&app->surface);
@@ -811,6 +993,14 @@ static void kain_native_viewport_host_shutdown(KainWin32AppHost* host, void* use
     (void)host;
     if (!app) return;
     kain_native_capture_mouse(app, 0);
+    if (app->gpu_runtime_destroy && app->gpu_runtime_handle) {
+        app->gpu_runtime_destroy(app->gpu_runtime_handle);
+        app->gpu_runtime_handle = NULL;
+    }
+    if (app->gpu_runtime_library) {
+        FreeLibrary(app->gpu_runtime_library);
+        app->gpu_runtime_library = NULL;
+    }
     kain_native_scene_asset_shutdown(&app->world_asset);
     kain_native_shutdown_gl(app);
 }
@@ -892,6 +1082,25 @@ static void kain_run_native_viewport(double x, double y, const char* window_titl
     }
     kain_native_viewport_try_load_realtime_bundle(&app);
     kain_native_viewport_try_load_graphics_bundle(&app);
+    if (!kain_native_viewport_prepare_compute_executor(&app)) {
+        MessageBoxA(
+            NULL,
+            app.graphics_validation.reason[0]
+                ? app.graphics_validation.reason
+                : "Raw native compute executor initialization failed.",
+            "Kain Compute Runtime Error",
+            MB_OK | MB_ICONERROR
+        );
+        if (app.gpu_runtime_handle && app.gpu_runtime_destroy) {
+            app.gpu_runtime_destroy(app.gpu_runtime_handle);
+            app.gpu_runtime_handle = NULL;
+        }
+        if (app.gpu_runtime_library) {
+            FreeLibrary(app.gpu_runtime_library);
+            app.gpu_runtime_library = NULL;
+        }
+        return;
+    }
     kain_native_viewport_try_load_compiled_ui(&app);
     kain_native_scene_asset_init(&app.world_asset);
     app.width = app.settings.window_width;

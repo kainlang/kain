@@ -3,7 +3,7 @@
 This repository participates in the cross-repo investigator loop.
 
 Bridge root:
-- `M:\Shared\KainKOSBRIDGE`
+- `M:\Shared\KainKOSBRIDGE` 
 
 Run bootstrap:
 ```powershell

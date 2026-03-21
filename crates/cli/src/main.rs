@@ -1,11 +1,13 @@
 // KAIN Compiler CLI
 
 use clap::{CommandFactory, FromArgMatches, Parser as ClapParser};
+use cli::fabric;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_crate;
 use cli::import_rust;
 use cli::import_typescript;
+use cli::llvm_native_stage;
 use cli::lsp;
 use cli::native_ui_build;
 use cli::omni;
@@ -13,12 +15,11 @@ use cli::packager;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    compile, compile_realtime_app_bundle, compile_runtime_contract_bundle,
-    detect_launcher_from_path, parse_compile_target, render_launcher_menu,
-    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
-    target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
-    BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
-    BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
+    compile, detect_launcher_from_path, parse_compile_target, render_launcher_menu,
+    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv, target_extension,
+    CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA,
+    BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME,
+    LANGUAGE_NAME, VERSION,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
@@ -207,6 +208,12 @@ enum Commands {
     Omni {
         #[command(subcommand)]
         command: omni::OmniCommand,
+    },
+
+    /// Validate and scaffold local-first Fabric manifests for polyglot execution
+    Fabric {
+        #[command(subcommand)]
+        command: fabric::FabricCommand,
     },
 
     /// Build project or file. Without input, reads KAIN.toml for multi-target build.
@@ -604,21 +611,20 @@ fn run_source(
                 );
 
                 if target == CompileTarget::Llvm {
-                    match write_runtime_contract_artifact(&source, target, &output_path) {
-                        Ok(contract_path) => {
-                            println!(" Runtime contract: {}", contract_path.display());
+                    match llvm_native_stage::stage_llvm_native_artifacts(&source, &output_path, None)
+                    {
+                        Ok(staged) => {
+                            println!(" Runtime contract: {}", staged.runtime_contract_path.display());
+                            println!(" Realtime bundle: {}", staged.realtime_app_path.display());
+                            if let Some(compute_residency_path) = staged.compute_residency_path {
+                                println!(" Compute residency: {}", compute_residency_path.display());
+                            }
+                            if let Some(shader_bundle_path) = staged.shader_bundle_path {
+                                println!(" Shader bundle: {}", shader_bundle_path.display());
+                            }
                         }
                         Err(err) => {
-                            eprintln!(" Failed to write runtime contract artifact: {}", err);
-                            return false;
-                        }
-                    }
-                    match write_realtime_app_artifact(&source, target, &output_path, None) {
-                        Ok(realtime_path) => {
-                            println!(" Realtime bundle: {}", realtime_path.display());
-                        }
-                        Err(err) => {
-                            eprintln!(" Failed to write realtime app artifact: {}", err);
+                            eprintln!(" Failed to stage LLVM native artifacts: {}", err);
                             return false;
                         }
                     }
@@ -942,6 +948,16 @@ fn run_source(
                     match status {
                         Ok(s) if s.success() => {
                             println!(" Generated executable: {}", exe_path.display());
+                            match llvm_native_stage::stage_gpu_runtime_dll(&exe_path) {
+                                Ok(Some(dll_path)) => {
+                                    println!(" Compute runtime DLL: {}", dll_path.display());
+                                }
+                                Ok(None) => {}
+                                Err(err) => {
+                                    eprintln!(" Failed to stage compute runtime DLL: {}", err);
+                                    return false;
+                                }
+                            }
                         }
                         Ok(_) => {
                             eprintln!(" Linking failed.");
@@ -1318,6 +1334,12 @@ fn main() {
                 Some(Commands::Omni { command }) => {
                     if let Err(e) = omni::run(command) {
                         eprintln!(" Omni command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Fabric { command }) => {
+                    if let Err(e) = fabric::run(command) {
+                        eprintln!(" Fabric command failed: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -2068,71 +2090,6 @@ fn ensure_parent_dir(file_path: &PathBuf) -> bool {
     true
 }
 
-fn runtime_contract_artifact_path(output_path: &Path) -> PathBuf {
-    output_path.with_extension("runtime_contract.json")
-}
-
-fn realtime_app_artifact_path(output_path: &Path) -> PathBuf {
-    output_path.with_extension("realtime_app.json")
-}
-
-fn write_runtime_contract_artifact(
-    source: &str,
-    target: CompileTarget,
-    output_path: &Path,
-) -> Result<PathBuf, String> {
-    let contract_bundle =
-        compile_runtime_contract_bundle(source, target).map_err(|err| err.to_string())?;
-    let contract_json = kain_core::runtime_contract_bundle_to_json(&contract_bundle)
-        .map_err(|err| err.to_string())?;
-    let contract_path = runtime_contract_artifact_path(output_path);
-    if let Some(parent) = contract_path.parent() {
-        fs::create_dir_all(parent).map_err(|err| {
-            format!(
-                "unable to create runtime contract directory {}: {}",
-                parent.display(),
-                err
-            )
-        })?;
-    }
-    fs::write(&contract_path, contract_json.as_bytes()).map_err(|err| {
-        format!(
-            "unable to write runtime contract artifact {}: {}",
-            contract_path.display(),
-            err
-        )
-    })?;
-    Ok(contract_path)
-}
-
-fn write_realtime_app_artifact(
-    source: &str,
-    target: CompileTarget,
-    output_path: &Path,
-    root_component: Option<&str>,
-) -> Result<PathBuf, String> {
-    let bundle_output = compile_realtime_app_bundle(source, target, root_component)
-        .map_err(|err| err.to_string())?;
-    let realtime_path = realtime_app_artifact_path(output_path);
-    if let Some(parent) = realtime_path.parent() {
-        fs::create_dir_all(parent).map_err(|err| {
-            format!(
-                "unable to create realtime app directory {}: {}",
-                parent.display(),
-                err
-            )
-        })?;
-    }
-    fs::write(&realtime_path, bundle_output.bundle_json.as_bytes()).map_err(|err| {
-        format!(
-            "unable to write realtime app artifact {}: {}",
-            realtime_path.display(),
-            err
-        )
-    })?;
-    Ok(realtime_path)
-}
-
 fn find_runtime_c() -> Option<PathBuf> {
     if let Ok(env_path) = std::env::var("KAIN_RUNTIME_C_PATH") {
         let p = PathBuf::from(env_path);
@@ -2435,11 +2392,10 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        load_native_runtime_manifest, platform_link_libs, runtime_contract_artifact_path,
-        sanitize_runtime_name, NativeRuntimeLinkManifest,
+        load_native_runtime_manifest, platform_link_libs, sanitize_runtime_name,
+        NativeRuntimeLinkManifest,
     };
     use std::fs;
-    use std::path::Path;
 
     #[test]
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
@@ -2492,12 +2448,6 @@ macos = ["Cocoa"]
                 macos: vec!["Cocoa".to_string()],
             })
         );
-    }
-
-    #[test]
-    fn runtime_contract_artifact_path_stays_stable_for_llvm_outputs() {
-        let contract_path = runtime_contract_artifact_path(Path::new("build/demo.ll"));
-        assert_eq!(contract_path, Path::new("build/demo.runtime_contract.json"));
     }
 }
 

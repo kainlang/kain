@@ -11,6 +11,7 @@ Validated against:
 
 - workspace manifest: `M:\Code\Kain\Cargo.toml`
 - root workspace map: `M:\Code\Kain\repomap.md`
+- crate folder guide: `M:\Code\Kain\crates\README.md`
 - crate workspace map: `M:\Code\Kain\crates\repomap.md`
 - live CLI: `M:\Code\Kain\target\debug\kain.exe`
 - proof suites: `M:\Code\Kain\smoketest\*` and `M:\Code\Kain\labs\*`
@@ -62,6 +63,7 @@ Kain today is a layered system with all of the following active in the workspace
 - shared neutral interop contracts in `crates/kain-interop`
 - Rust crate FFI generation and live bridge loading in `crates/kain-crate-ffi`
 - C host-backed FFI lane in `crates/kain-c-ffi`
+- runtime-facing Vulkan compute executor in `crates/kain-gpu-runtime`
 - Python embedded runtime bridge in `crates/kain-python`
 - JavaScript/Node bridge in `crates/kain-node`
 - semantic UI compiler/runtime in `crates/kain-ui`
@@ -90,6 +92,7 @@ That means the current Kain story is:
 | Web backends | Active | `wasm`, `js`, `ts`, `ks`, `hybrid` |
 | System backends | Active | `llvm`, `rust`, `cpp` |
 | GPU backends | Active | `spirv`, `hlsl`, `usf`, plus artifact bundling |
+| GPU runtime executor | Active | Vulkan compute executor for authored payloads |
 | UE5 backend | Active and broad | runtime, editor, shaders, materials, graphs, blueprints, GAS/config adjacent crates |
 | Native UI build lane | Active | `kain build native-ui` materializes desktop apps |
 | 3D viewport/runtime lane | Active | `kain-3D` + `kain-ui-native` + WGPU viewport smoke |
@@ -688,6 +691,7 @@ This means Kain is now documenting not only a language but also a real native to
 Relevant crates:
 
 - `crates/gpu`
+- `crates/kain-gpu-runtime`
 - `crates/ue5-shaders`
 - `crates/kain-driver`
 
@@ -730,6 +734,24 @@ kain gpu-artifacts src/shader.kn --output dist
 
 This is more than simple shader text emission now.
 The repo has a bundle/reflection/host-wrapper story around GPU outputs.
+
+### GPU Runtime Executor
+
+`crates/kain-gpu-runtime` is the runtime-facing Vulkan lane that executes authored compute payloads against the current interop and shader bundle model.
+
+It currently owns:
+
+- Vulkan compute executor setup and teardown
+- buffer and binding preparation for shared payloads
+- dispatch request/result FFI structs for host-facing calls
+- compute residency and shader bundle loading
+- error reporting close to the runtime contract boundary
+
+This crate is intentionally narrower than the compiler or shader authoring pipeline:
+
+- it consumes prepared GPU payloads
+- it does not replace compiler ownership of the compute plan
+- it is the execution bridge, not the source of truth for authored shader intent
 
 ---
 
@@ -814,6 +836,7 @@ Relevant pieces:
 - `crates/kain-selfhost`
 - `crates/kain-driver`
 - `crates/kain-core`
+- `scripts/kain_linux_pipeline.sh`
 
 The current repo direction still includes Project Ouroboros style flows, but it now sits alongside a much larger runtime/interop stack than earlier README versions suggested.
 
@@ -834,6 +857,7 @@ M:\Code\Kain
 │   ├── kain-reflect/         # schema/reflection/type metadata
 │   ├── kain-interop/         # neutral shared buffer/image contracts
 │   ├── kain-c-ffi/           # C ABI runtime bridge lane
+│   ├── kain-gpu-runtime/     # runtime-facing Vulkan compute executor
 │   ├── kain-crate-ffi/       # Rust crate FFI extraction/generation/live bridge loading
 │   ├── kain-python/          # embedded Python bridge + DCC payload wrappers
 │   ├── kain-node/            # Node/JS runtime bridge
@@ -863,8 +887,9 @@ M:\Code\Kain
 
 For crate-level detail, check:
 
-- `M:\Code\Kain\repomap.md`
+- `M:\Code\Kain\crates\README.md`
 - `M:\Code\Kain\crates\repomap.md`
+- `M:\Code\Kain\repomap.md`
 
 ---
 

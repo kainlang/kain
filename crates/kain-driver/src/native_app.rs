@@ -3,6 +3,9 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
+use crate::compute_residency::{
+    write_compute_residency_sidecars, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
+};
 use crate::{DriverSession, RustBundleOutput, ShaderArtifactBundleOutput};
 use kain_core::ast::Item;
 use kain_core::diagnostics::SpanMapper;
@@ -24,6 +27,7 @@ const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: &str = "kain_realtime_app_bundle.jso
 const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
 const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: &str = "kain_runtime_version.json";
 const NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME: &str = "kain_reflection_payload.json";
+const NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME: &str = "kain_gpu_runtime.dll";
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -355,6 +359,15 @@ impl DriverSession {
             .map_err(io_error("write native app realtime bundle"))?;
         artifact_paths.push(realtime_bundle_path.clone());
 
+        let compute_residency_paths =
+            write_compute_residency_sidecars(&bundle.realtime, &artifact_root)?;
+        artifact_paths.extend(compute_residency_paths.iter().cloned());
+        if let Some(runtime_dll_path) =
+            materialize_gpu_runtime_library(&artifact_root, config.release)?
+        {
+            artifact_paths.push(runtime_dll_path);
+        }
+
         // Write runtime version metadata if available
         if let Some(runtime_version) = &bundle.runtime_version {
             let version_metadata_path =
@@ -438,6 +451,10 @@ impl DriverSession {
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME);
+        let compute_residency_file_name = compute_residency_paths
+            .first()
+            .and_then(|path| path.file_name())
+            .and_then(OsStr::to_str);
         let shader_bundle_file_name = shader_bundle_path.as_ref().and_then(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)
@@ -448,6 +465,7 @@ impl DriverSession {
             &config.runtime_crate_name,
             runtime_bundle_file_name,
             realtime_bundle_file_name,
+            compute_residency_file_name,
             shader_bundle_file_name.as_deref(),
         );
         fs::write(&main_rs_path, main_rs.as_bytes())
@@ -468,18 +486,27 @@ impl DriverSession {
             executable_path.as_ref(),
             config.executable_output_dir.as_deref(),
         ) {
+            let mut runtime_sidecar_file_names = vec![
+                NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME,
+                NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME,
+                NATIVE_APP_REALTIME_BUNDLE_FILE_NAME,
+                COMPUTE_RESIDENCY_FILE_NAME,
+                NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
+                NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
+                NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME,
+                NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME,
+            ];
+            runtime_sidecar_file_names.extend(
+                compute_residency_paths
+                    .iter()
+                    .filter_map(|path| path.file_name().and_then(OsStr::to_str))
+                    .filter(|file_name| *file_name != COMPUTE_RESIDENCY_FILE_NAME),
+            );
             copy_runtime_sidecars_to_executable_dir(
                 executable_path,
                 output_dir,
                 &artifact_paths,
-                &[
-                    NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME,
-                    NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME,
-                    NATIVE_APP_REALTIME_BUNDLE_FILE_NAME,
-                    NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
-                    NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
-                    NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME,
-                ],
+                &runtime_sidecar_file_names,
             )?;
         }
 
@@ -571,6 +598,7 @@ fn render_main_rs(
     runtime_crate_name: &str,
     runtime_bundle_file_name: &str,
     realtime_bundle_file_name: &str,
+    compute_residency_file_name: Option<&str>,
     shader_bundle_file_name: Option<&str>,
 ) -> String {
     let runtime_bundle_include_path =
@@ -578,6 +606,7 @@ fn render_main_rs(
     let runtime_module_name = runtime_crate_name.replace('-', "_");
     let runtime_bundle_file_name = rust_string_literal(runtime_bundle_file_name);
     let realtime_bundle_file_name = rust_string_literal(realtime_bundle_file_name);
+    let compute_residency_env = compute_residency_file_name.map(rust_string_literal);
     let shader_bundle_env = shader_bundle_file_name.map(rust_string_literal);
     let shader_bundle_setter = shader_bundle_env
         .as_deref()
@@ -587,13 +616,21 @@ fn render_main_rs(
             )
         })
         .unwrap_or_default();
+    let compute_residency_setter = compute_residency_env
+        .as_deref()
+        .map(|file_name| {
+            format!(
+                "    if let Some(path) = resolve_runtime_sidecar({file_name}) {{\n        std::env::set_var(\"{COMPUTE_RESIDENCY_ENV_VAR}\", &path);\n    }}\n"
+            )
+        })
+        .unwrap_or_default();
     let app_manifest_file_name = rust_string_literal("app_manifest.json");
     let app_snapshot_file_name = rust_string_literal("runtime_snapshot.json");
     let app_manifest_relative_path = rust_string_literal("../config/app_manifest.json");
     let app_snapshot_relative_path = rust_string_literal("../state/runtime_snapshot.json");
 
     format!(
-        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{shader_bundle_setter}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
+        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{compute_residency_setter}{shader_bundle_setter}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
 }
 
@@ -619,6 +656,80 @@ fn copy_runtime_sidecars_to_executable_dir(
         }
     }
     Ok(())
+}
+
+fn materialize_gpu_runtime_library(
+    artifact_root: &Path,
+    release: bool,
+) -> Result<Option<PathBuf>, KainError> {
+    if !cfg!(windows) {
+        return Ok(None);
+    }
+    let Some(workspace_root) = find_workspace_root_with_gpu_runtime() else {
+        return Ok(None);
+    };
+
+    let mut command = Command::new("cargo");
+    command.arg("build").arg("-p").arg("kain-gpu-runtime");
+    if release {
+        command.arg("--release");
+    }
+    command.current_dir(&workspace_root);
+    let output = command.output().map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to invoke cargo to build kain-gpu-runtime at {}: {}",
+            workspace_root.display(),
+            err
+        ))
+    })?;
+    if !output.status.success() {
+        return Err(KainError::runtime(format!(
+            "kain-gpu-runtime cargo build failed for {}:\n{}\n{}",
+            workspace_root.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let built_dll = workspace_root
+        .join("target")
+        .join(if release { "release" } else { "debug" })
+        .join(NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME);
+    if !built_dll.exists() {
+        return Ok(None);
+    }
+
+    let destination = artifact_root.join(NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME);
+    fs::copy(&built_dll, &destination).map_err(io_error("copy kain-gpu-runtime dll"))?;
+    Ok(Some(destination))
+}
+
+fn find_workspace_root_with_gpu_runtime() -> Option<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(dir) = std::env::current_dir() {
+        roots.push(dir);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            roots.push(dir.to_path_buf());
+        }
+    }
+
+    for mut dir in roots {
+        for _ in 0..12 {
+            if dir.join("crates")
+                .join("kain-gpu-runtime")
+                .join("Cargo.toml")
+                .exists()
+            {
+                return Some(dir);
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+    }
+    None
 }
 
 fn build_native_app_executable(
@@ -893,7 +1004,9 @@ fn io_error(context: &'static str) -> impl Fn(std::io::Error) -> KainError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_core::{realtime_app_bundle_from_json, RuntimeReflectionPayload};
+    use kain_core::{
+        realtime_app_bundle_from_json, RuntimeReflectionPayload,
+    };
     use kain_ui::{ui_runtime_bundle_from_json, validate_ui_runtime_bundle};
     use tempfile::TempDir;
 
@@ -1163,6 +1276,11 @@ component App():
         let source = r#"
 component App():
     render <panel title="End-to-End Bundle Proof" />
+
+shader compute SampleCompute(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    return vec4(1.0, 1.0, 1.0, 1.0)
 "#;
 
         let bundle = compile_native_app_bundle(
@@ -1214,6 +1332,20 @@ component App():
             .iter()
             .find(|path| path.ends_with(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME))
             .expect("reflection payload sidecar");
+        let compute_residency_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(COMPUTE_RESIDENCY_FILE_NAME))
+            .expect("compute residency sidecar");
+        let compute_residency_payload_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| {
+                path.file_name()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.ends_with(".bin"))
+            })
+            .expect("compute residency payload sidecar");
 
         let runtime_bundle_json = fs::read_to_string(runtime_bundle_path).expect("runtime bundle");
         let runtime_bundle =
@@ -1252,6 +1384,35 @@ component App():
                 .as_ref()
                 .expect("bundle reflection payload")
         );
+
+        let compute_residency_json =
+            fs::read_to_string(compute_residency_path).expect("compute residency");
+        let compute_residency: crate::compute_residency::ComputeResidencyBundle =
+            serde_json::from_str(&compute_residency_json).expect("parse compute residency");
+        assert_eq!(compute_residency.compute_shader_count, 1);
+        assert_eq!(compute_residency.compute_shaders.len(), 1);
+        assert!(compute_residency_json.contains("SampleCompute"));
+        assert_eq!(compute_residency.compute_shaders[0].bindings.len(), 2);
+        assert_eq!(
+            compute_residency.compute_shaders[0].bindings[0].descriptor_kind,
+            "storage_buffer"
+        );
+        assert_eq!(
+            compute_residency.compute_shaders[0].bindings[0].payload_file,
+            compute_residency_payload_path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .expect("payload file name")
+        );
+
+        let compute_residency_payload =
+            fs::read(compute_residency_payload_path).expect("compute payload");
+        assert_eq!(
+            compute_residency_payload.len(),
+            compute_residency.compute_shaders[0].bindings[0].byte_length
+        );
+        let main_rs = fs::read_to_string(&materialized.main_rs_path).expect("main.rs");
+        assert!(main_rs.contains("KAIN_COMPUTE_RESIDENCY"));
 
         if let Some(version_path) = materialized
             .artifact_paths

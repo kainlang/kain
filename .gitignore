@@ -55,6 +55,7 @@ unreal/UE_API/
 **/.zig-cache/
 generated/**/.~lock.*
 smoketest/**/.kain/cache/
+**/.kain/
 toolchain/llvm/bin/clang
 toolchain/llvm/bin/clang++
 toolchain/llvm/bin/llvm-ar

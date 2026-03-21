@@ -54,6 +54,50 @@ pub struct KainSharedImage {
     pub buffer: Arc<KainSharedBuffer>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpuDescriptorKind {
+    StorageBuffer,
+    UniformBuffer,
+}
+
+impl GpuDescriptorKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            GpuDescriptorKind::StorageBuffer => "storage_buffer",
+            GpuDescriptorKind::UniformBuffer => "uniform_buffer",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpuBindingAccess {
+    Read,
+    Write,
+    ReadWrite,
+}
+
+impl GpuBindingAccess {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            GpuBindingAccess::Read => "read",
+            GpuBindingAccess::Write => "write",
+            GpuBindingAccess::ReadWrite => "read_write",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SharedBufferGpuBindingView {
+    pub contract: &'static str,
+    pub byte_length: usize,
+    pub element_type: String,
+    pub element_size: i64,
+    pub shape: Vec<i64>,
+    pub strides: Vec<i64>,
+    pub descriptor_kind: GpuDescriptorKind,
+    pub access: GpuBindingAccess,
+}
+
 impl KainSharedBuffer {
     pub fn owned(metadata: SharedBufferMetadata, bytes: Vec<u8>) -> Arc<Self> {
         Arc::new(Self {
@@ -78,6 +122,40 @@ impl KainSharedBuffer {
     pub fn byte_length(&self) -> usize {
         self.bytes.read().unwrap().len()
     }
+}
+
+pub fn shared_buffer_gpu_binding_view(
+    buffer: &KainSharedBuffer,
+    descriptor_kind: GpuDescriptorKind,
+    access: GpuBindingAccess,
+) -> KainResult<SharedBufferGpuBindingView> {
+    let byte_length = buffer.byte_length();
+    let required = required_shared_buffer_byte_length(&buffer.metadata)?;
+
+    if required > 0 && byte_length != required {
+        return Err(KainError::runtime(format!(
+            "shared buffer byte length mismatch for GPU binding: expected {required}, got {byte_length}"
+        )));
+    }
+
+    if matches!(descriptor_kind, GpuDescriptorKind::UniformBuffer)
+        && !matches!(access, GpuBindingAccess::Read)
+    {
+        return Err(KainError::runtime(
+            "uniform-buffer GPU bindings must be read-only".to_string(),
+        ));
+    }
+
+    Ok(SharedBufferGpuBindingView {
+        contract: "kain.shared.buffer",
+        byte_length,
+        element_type: buffer.metadata.element_type.clone(),
+        element_size: buffer.metadata.element_size,
+        shape: buffer.metadata.shape.clone(),
+        strides: buffer.metadata.strides.clone(),
+        descriptor_kind,
+        access,
+    })
 }
 
 impl KainSharedImage {
@@ -683,6 +761,33 @@ fn element_size_for(element_type: &str) -> KainResult<i64> {
     }
 }
 
+fn required_shared_buffer_byte_length(metadata: &SharedBufferMetadata) -> KainResult<usize> {
+    if metadata.element_size <= 0 {
+        return Err(KainError::runtime(
+            "shared buffer metadata must declare a positive element_size".to_string(),
+        ));
+    }
+    if metadata.shape.iter().any(|dim| *dim < 0) {
+        return Err(KainError::runtime(
+            "shared buffer shape dimensions must be non-negative".to_string(),
+        ));
+    }
+
+    let element_count = element_count(&metadata.shape);
+    if element_count < 0 {
+        return Err(KainError::runtime(
+            "shared buffer element_count must be non-negative".to_string(),
+        ));
+    }
+
+    let required = element_count
+        .checked_mul(metadata.element_size)
+        .ok_or_else(|| KainError::runtime("shared buffer byte length overflow".to_string()))?;
+
+    usize::try_from(required)
+        .map_err(|_| KainError::runtime("shared buffer byte length does not fit usize".to_string()))
+}
+
 fn kain_core_builtin_stub(builtin: BuiltinFn) -> BuiltinFn {
     builtin
 }
@@ -753,5 +858,65 @@ mod tests {
             fields.get("element_type"),
             Some(Value::String(value)) if value == "u8"
         ));
+    }
+
+    #[test]
+    fn shared_buffer_gpu_binding_view_reports_descriptor_ready_shape() {
+        let buffer = KainSharedBuffer::owned(
+            SharedBufferMetadata {
+                element_type: "f32".to_string(),
+                element_size: 4,
+                shape: vec![4, 4],
+                strides: vec![4, 1],
+                format: Some("f32".to_string()),
+                mime_type: Some("application/octet-stream".to_string()),
+                source_runtime: "kain".to_string(),
+                source_backend: Some("residency-sidecar".to_string()),
+                ownership: "owned".to_string(),
+                labels: vec!["gpu".to_string()],
+            },
+            vec![0; 64],
+        );
+
+        let view = shared_buffer_gpu_binding_view(
+            &buffer,
+            GpuDescriptorKind::StorageBuffer,
+            GpuBindingAccess::ReadWrite,
+        )
+        .expect("binding view");
+
+        assert_eq!(view.contract, "kain.shared.buffer");
+        assert_eq!(view.byte_length, 64);
+        assert_eq!(view.element_type, "f32");
+        assert_eq!(view.descriptor_kind.as_str(), "storage_buffer");
+        assert_eq!(view.access.as_str(), "read_write");
+    }
+
+    #[test]
+    fn shared_buffer_gpu_binding_view_rejects_uniform_write_access() {
+        let buffer = KainSharedBuffer::owned(
+            SharedBufferMetadata {
+                element_type: "f32".to_string(),
+                element_size: 4,
+                shape: vec![4],
+                strides: vec![1],
+                format: Some("f32".to_string()),
+                mime_type: Some("application/octet-stream".to_string()),
+                source_runtime: "kain".to_string(),
+                source_backend: Some("residency-sidecar".to_string()),
+                ownership: "owned".to_string(),
+                labels: vec!["gpu".to_string()],
+            },
+            vec![0; 16],
+        );
+
+        let error = shared_buffer_gpu_binding_view(
+            &buffer,
+            GpuDescriptorKind::UniformBuffer,
+            GpuBindingAccess::Write,
+        )
+        .expect_err("uniform write access should fail");
+
+        assert!(format!("{error}").contains("read-only"));
     }
 }
