@@ -10,6 +10,162 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-21 - Remaining Stale Root Docs Were Confirmed Safe To Remove
+
+This pass checked the still-pending root markdown deletions against the active docs map and found no current references outside the repo memory itself.
+
+That means these files can stay gone without breaking the current documentation surface:
+
+- `CODEGEN_OPERATOR_AUDIT.md`
+- `WILD_FEATURE_RECOMMENDATIONS.md`
+- `docs/archive/cleanup.md`
+- `docs/archive/EDITOR_PIPELINE_IMPROVEMENTS.md`
+- `docs/crates/UE5_EDITOR_CODEGEN_REFERENCE.md`
+
+The useful lesson here is that cleanup work should always be confirmed against the live repo maps before being treated as final. The repo-level docs can get ahead of the tree, but the tree must stay internally consistent.
+
+Current run recorded at 2026-03-21T17:17:46.8323301Z.
+
+## 2026-03-21 - Stale Root Docs And Empty Placeholders Were Removed
+
+This pass cleaned a small set of dead markdown artifacts that were no longer referenced by the active repo docs:
+
+- `CODEGEN_OPERATOR_AUDIT.md`
+- `WILD_FEATURE_RECOMMENDATIONS.md`
+- `docs/archive/cleanup.md`
+- `docs/archive/EDITOR_PIPELINE_IMPROVEMENTS.md`
+- `docs/crates/UE5_EDITOR_CODEGEN_REFERENCE.md`
+
+The useful lesson from this run is that repository searches can still be tripped up by parent ignore files outside the workspace. If `rg` starts failing on glob parsing, use `--no-ignore-parent` instead of assuming the repo itself is broken.
+
+Current run recorded at 2026-03-21T12:53:13.2630386-04:00.
+
+## 2026-03-21 - Kain Fabric Phase 1 Landed As A Real Manifest And Validation Surface
+
+Today `Kain Fabric` stopped being only a product idea and became a real repo-visible entry point.
+
+The important truth is narrow on purpose:
+Fabric is not a distributed runtime yet.
+It is not a cloud scheduler.
+It is not a replacement for compiler-owned execution semantics.
+
+What became real is the first honest layer:
+
+- a canonical `KAIN.fabric.toml` manifest
+- local-first Fabric templates
+- typed runtime-step declarations for `kain`, `python`, `rust_crate`, `c_abi`, and `node`
+- capability validation
+- dependency-cycle and duplicate-id validation
+- first-class CLI commands for `kain fabric init`, `kain fabric validate`, and `kain fabric run`
+
+### What Changed In Practice
+
+On the orchestration side, `crates/kain-omni` now owns a real Fabric manifest/validation path instead of leaving the concept as a doc-only plan.
+
+That path includes:
+
+- manifest schema/version truth
+- local and polyglot starter templates
+- runtime kind declarations
+- contract-kind declarations
+- local capability validation
+- dependency graph validation
+
+On the CLI side, `crates/cli` now exposes Fabric as a first-class command family instead of hiding it behind future-work docs.
+
+The commands are intentionally split by honesty:
+
+- `kain fabric init` scaffolds a workspace and starter manifest
+- `kain fabric validate` parses and validates a Fabric manifest
+- `kain fabric run` validates successfully and then explicitly reports that execution is not wired yet
+
+That last point matters.
+The run command is a truthful stub, not a fake implementation dressed up as a platform.
+
+### Files That Became The First Fabric Spine
+
+- `crates/kain-omni/src/fabric.rs`
+- `crates/kain-omni/src/lib.rs`
+- `crates/cli/src/fabric.rs`
+- `crates/cli/src/lib.rs`
+- `crates/cli/src/main.rs`
+
+### Architectural Meaning
+
+Three design bets became real today:
+
+1. Fabric will grow out of existing manifest infrastructure, not beside it.
+   `kain-omni` is now the home for Fabric manifest truth.
+
+2. Fabric will be local-first before it is ambitious.
+   The validator knows about local capabilities and local runtime kinds first.
+
+3. Fabric will stay subordinate to compiler/runtime truth.
+   It validates orchestration shape.
+   It does not define what compute, UI, shader, or runtime semantics mean.
+
+### Why This Matters
+
+This is the first point where Kain can start moving from:
+
+- "we have many bridges and many targets"
+
+toward:
+
+- "we have one typed entry point for heterogeneous software composition"
+
+That is strategically important because it gives Kain a practical adoption wedge that does not require users to rewrite everything into Kain first.
+
+### Validation That Passed
+
+The focused validation loop for the first Fabric slice passed:
+
+- `cargo fmt --package kain-omni --package cli`
+- `cargo test -p kain-omni fabric -- --nocapture`
+- `cargo test -p cli fabric -- --nocapture`
+- `target/debug/kain.exe fabric --help`
+- `target/debug/kain.exe fabric init --help`
+- `target/debug/kain.exe fabric validate --help`
+
+This does not mean the full workspace is globally clean.
+It means the Fabric phase-1 slice compiles and validates inside the existing repo reality.
+
+### What Is Still Incomplete
+
+- No Fabric executor exists yet.
+- `kain fabric run` does not execute steps.
+- No session lock file exists yet.
+- No event stream exists yet.
+- No `kain-host` Fabric runtime exists yet.
+- Python, Rust crate FFI, C ABI, and Node are declared runtime kinds, not executed Fabric adapters yet.
+- No end-to-end `smoketest/fabric/*` proof exists yet.
+
+### What Future Work Should Preserve
+
+- Do not turn Fabric into a second semantics layer.
+  It should orchestrate runtimes and contracts, not redefine them.
+
+- Do not invent a Fabric-specific compute dialect.
+  If compute plans, tensor metadata, or dispatch semantics already belong to compiler-owned bundles, Fabric should consume those outputs rather than replacing them.
+
+- Do not move Fabric ownership into a new god crate if `kain-omni`, `kain-driver`, `kain-interop`, and `kain-host` can keep the boundaries clean.
+
+- Do not claim remote/distributed execution until local session execution is undeniably real.
+
+- Do not let `kain fabric run` become a fake success command.
+  It should remain explicit about scaffolded versus implemented behavior.
+
+### Next Serious Move
+
+The next real step is Phase 2:
+
+- add a local Fabric session model in `kain-host`
+- make `kain fabric run` execute a Kain-only manifest first
+- emit session events and a lock/report artifact
+- then wire Python, Rust crate FFI, C ABI, and Node adapters one by one
+
+If that path holds, Fabric stops being "manifest paperwork" and starts becoming a genuine local-first polyglot execution lane for Kain.
+
 ## 2026-03-21 - LLVM Native Packaging Stopped Being A Side Quest
 
 This pass closed an important emotional gap in the pipeline.
