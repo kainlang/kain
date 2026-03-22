@@ -21,6 +21,13 @@ This directory contains runtime-specific harnesses and ABI parity tests for the 
 
 ---
 
+## Output Hygiene
+
+- `runtime/conformance/**/bin` outputs are disposable and should be cleared after each run.
+- Keep only the harness sources, configs, and summaries that need long-term tracking.
+
+---
+
 ## Conformance Test Categories
 
 ### 1. ABI Parity Tests (`abi_parity/`)

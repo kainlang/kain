@@ -20,6 +20,7 @@ Validated against:
 - apps folder guide: `M:\Code\Kain\apps\README.md`
 - toolchain folder guide: `M:\Code\Kain\toolchain\README.md`
 - testing folder guide: `M:\Code\Kain\testing\README.md`
+- Kain library guide: `M:\Code\Kain\kn_library\README.md`
 - live CLI (if built): `M:\Code\Kain\target\debug\kain.exe`
 - proof suites: `M:\Code\Kain\smoketest\*` and `M:\Code\Kain\labs\*`
 
@@ -887,6 +888,7 @@ M:\Code\Kain
 ├── runtime/                  # native runtime contracts, C runtime, raw-native lane, and parallel companion lane
 │   ├── native/               # raw-native execution lane and viewport host
 │   └── parallel/             # Rust/Zig companion lane for runtime completion work
+├── kn_library/               # curated Kain corpus, data tables, and library-oriented samples
 ├── stdlib/                   # stdlib data and target/runtime support
 ├── toolchain/                # LLVM and related toolchain support
 ├── generated/                # generated artifacts and larger smoke outputs

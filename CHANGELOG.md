@@ -5,6 +5,193 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=ae010a9a715cb8db -->
+## 2026-03-22 04:19:12 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `1d665b28`
+- Changed files: 60
+- [.M] `runtime/conformance/README.md`
+- [.D] `runtime/conformance/abi_parity/bin/test_bitfield_operations`
+- [.D] `runtime/conformance/abi_parity/bin/test_load_store_operations`
+- [.D] `runtime/conformance/abi_parity/bin/test_pointer_operations`
+- [.D] `runtime/conformance/abi_parity/bin/test_union_operations`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_links`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_monitors`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_registry`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_scheduler`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_spawn_basic`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_supervision`
+- [.D] `runtime/conformance/actor_runtime/bin/test_mailbox_backpressure`
+- [.D] `runtime/conformance/async_runtime/bin/test_async_sleep`
+- [.D] `runtime/conformance/async_runtime/bin/test_task_cancel`
+- [.D] `runtime/conformance/async_runtime/bin/test_task_spawn_basic`
+- [.D] `runtime/conformance/async_runtime/bin/test_task_wake_poll`
+- [.D] `runtime/conformance/async_runtime/bin/test_timer_cancel`
+- [.D] `runtime/conformance/diagnostics/bin/test_diagnostic_error_codes`
+- [.D] `runtime/conformance/diagnostics/bin/test_startup_failure_reporting`
+- [.D] `runtime/conformance/diagnostics/bin/test_structured_runtime_diagnostics`
+- [.D] `smoketest/3D/zen_workflow_city/helpers/__pycache__/workflow_city_kernel.cpython-311.pyc`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/Cargo.lock`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/Cargo.toml`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/smoke.kn`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/src/main.rs`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/Cargo.lock`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/Cargo.toml`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/smoke.kn`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/src/main.rs`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/Cargo.lock`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/Cargo.toml`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/smoke.kn`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/src/main.rs`
+- [.D] `smoketest/py_cargo_node/shared_prism_contract/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node/trinity_web_lattice/helpers/__pycache__/trinity_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node_c/quad_prism_halo/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+
+<!-- polytools-changelog:fingerprint=04adae17967d0a93 -->
+## 2026-03-22 04:17:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `1d665b28`
+- Changed files: 59
+- [.D] `runtime/conformance/abi_parity/bin/test_bitfield_operations`
+- [.D] `runtime/conformance/abi_parity/bin/test_load_store_operations`
+- [.D] `runtime/conformance/abi_parity/bin/test_pointer_operations`
+- [.D] `runtime/conformance/abi_parity/bin/test_union_operations`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_links`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_monitors`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_registry`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_scheduler`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_spawn_basic`
+- [.D] `runtime/conformance/actor_runtime/bin/test_actor_supervision`
+- [.D] `runtime/conformance/actor_runtime/bin/test_mailbox_backpressure`
+- [.D] `runtime/conformance/async_runtime/bin/test_async_sleep`
+- [.D] `runtime/conformance/async_runtime/bin/test_task_cancel`
+- [.D] `runtime/conformance/async_runtime/bin/test_task_spawn_basic`
+- [.D] `runtime/conformance/async_runtime/bin/test_task_wake_poll`
+- [.D] `runtime/conformance/async_runtime/bin/test_timer_cancel`
+- [.D] `runtime/conformance/diagnostics/bin/test_diagnostic_error_codes`
+- [.D] `runtime/conformance/diagnostics/bin/test_startup_failure_reporting`
+- [.D] `runtime/conformance/diagnostics/bin/test_structured_runtime_diagnostics`
+- [.D] `smoketest/3D/zen_workflow_city/helpers/__pycache__/workflow_city_kernel.cpython-311.pyc`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/Cargo.lock`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/Cargo.toml`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/smoke.kn`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/src/main.rs`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/Cargo.lock`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/Cargo.toml`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/smoke.kn`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/src/main.rs`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/Cargo.lock`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/Cargo.toml`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/smoke.kn`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/src/main.rs`
+- [.D] `smoketest/py_cargo_node/shared_prism_contract/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node/trinity_web_lattice/helpers/__pycache__/trinity_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node_c/quad_prism_halo/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+
+<!-- polytools-changelog:fingerprint=f13f1a9488840d20 -->
+## 2026-03-22 03:19:49 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `1d665b28`
+- Changed files: 40
+- [.D] `smoketest/3D/zen_workflow_city/helpers/__pycache__/workflow_city_kernel.cpython-311.pyc`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/Cargo.lock`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/Cargo.toml`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/smoke.kn`
+- [.D] `smoketest/UI/dock_layout_workbench/native-app/src/main.rs`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/Cargo.lock`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/Cargo.toml`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/smoke.kn`
+- [.D] `smoketest/UI/surface_modes_gallery/native-app/src/main.rs`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/Cargo.lock`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/Cargo.toml`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_runtime_contract.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/kain_shader_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/lib.rs`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/generated/native_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_realtime_app_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_runtime_contract.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/kain_shader_bundle.json`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/smoke.kn`
+- [.D] `smoketest/UI/theme_authoring_shell/native-app/src/main.rs`
+- [.D] `smoketest/py_cargo_node/shared_prism_contract/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node/trinity_web_lattice/helpers/__pycache__/trinity_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node_c/quad_prism_halo/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+
+<!-- polytools-changelog:fingerprint=d848b435e2405c78 -->
+## 2026-03-22 02:19:49 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `1d665b28`
+- Changed files: 4
+- [.D] `smoketest/3D/zen_workflow_city/helpers/__pycache__/workflow_city_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node/shared_prism_contract/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node/trinity_web_lattice/helpers/__pycache__/trinity_kernel.cpython-311.pyc`
+- [.D] `smoketest/py_cargo_node_c/quad_prism_halo/helpers/__pycache__/prism_kernel.cpython-311.pyc`
+
 <!-- polytools-changelog:fingerprint=bcc65f1d35d2dc5c -->
 ## 2026-03-22 01:17:48 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

@@ -38,6 +38,7 @@
     ├── third_party/              # vendored or external dependencies
     ├── unreal/                   # Unreal-facing support crates and asset tooling
     ├── guides/                   # longer-form repo guides and reference material
+    ├── kn_library/               # curated Kain corpus + data tables for library workflows
     ├── scripts/                  # workspace scripts and helpers
     ├── tools/                    # standalone utilities
     ├── apps/                     # application sources

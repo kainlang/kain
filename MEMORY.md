@@ -559,3 +559,27 @@ The top-level `Research/` and `reports/` folders were moved into the docs layer 
 
 - Removed cached `.kain` directories where possible; the cache inside `generated/_ue5_smoke_pokered/.kain` could not be deleted due to access locks.
 - `target/` still appears locked by another process and needs a clean sweep when the build pipeline releases it.
+
+## 2026-03-22 - Stale Native App Outputs Were Purged
+
+A cleanup pass removed generated native-app outputs that had leaked into source-controlled lanes, including app and smoketest native UI build products.
+
+Key takeaways:
+
+- `apps/kade-desktop/native-app` and `native-app-preview` are disposable build outputs, not canonical sources.
+- UI smoke `native-app` folders are build artifacts and should be cleared after validation runs.
+- `target/` and `.kain` caches are still the primary cleanup targets; some directories may be locked during active builds and must be cleared once the processes exit.
+
+Current run recorded at 2026-03-22T06:20:00-04:00.
+
+## 2026-03-22 - Conformance Bin Cleanup Pass
+
+Conformance harness binaries under `runtime/conformance/**/bin` are disposable artifacts and were cleared this run.
+Testing lane intermediate build outputs were removed to keep the test tree clean.
+
+Locked outputs remain under:
+- `generated/_ue5_smoke_pokered/.kain`
+- `smoketest/UI/website_clone_signalcraft/native-app/target`
+- `target/` (repo root)
+
+Current run recorded at 2026-03-22T04:19:26-04:00.

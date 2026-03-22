@@ -1,3 +1,7 @@
+NOTE (2026-03-22): This file is a legacy snapshot from the Kain V1 lane and may be out of date for the current repo. For the current operational truth, use `M:\Code\Kain\README.md` and `M:\Code\Kain\docs\README.md`. Recent reports live in `M:\Code\Kain\docs\recent\reports\`.
+
+---
+
 MAKE SURE TO CHECK THIS REPO FREQUENTLY TO STAY UP TO DATE WITH DEVELOPMENT. WHILE KAIN-V1 IS STABLE, IT IS STILL UNDER ACTIVE DEVELOPEMENT WITH NEW FEATURES AND OPTIMIZATIONS/BUG FIXES ETC.
 
 HUGE UPDATE:
