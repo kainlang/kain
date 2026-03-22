@@ -1,6 +1,0 @@
-# Generated import shim for crate cargo_node_weave
-use rust::cargo_node_weave::rust_cargo_node_weave_signal_bands as rust_cargo_node_weave_signal_bands
-use rust::cargo_node_weave::rust_cargo_node_weave_beacon_pairs as rust_cargo_node_weave_beacon_pairs
-use rust::cargo_node_weave::rust_cargo_node_weave_bar_energy as rust_cargo_node_weave_bar_energy
-use rust::cargo_node_weave::rust_cargo_node_weave_workbench_signature as rust_cargo_node_weave_workbench_signature
-use rust::cargo_node_weave::rust_cargo_node_weave_workbench_stamp_orbit as rust_cargo_node_weave_workbench_stamp_orbit

@@ -1,5 +1,0 @@
-# Generated import shim for C library beacon_math
-use c::beacon_math::c_beacon_math_beacon_add as c_beacon_math_beacon_add
-use c::beacon_math::c_beacon_math_beacon_is_even as c_beacon_math_beacon_is_even
-use c::beacon_math::c_beacon_math_beacon_label as c_beacon_math_beacon_label
-use c::beacon_math::c_beacon_math_beacon_scale as c_beacon_math_beacon_scale

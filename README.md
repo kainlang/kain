@@ -11,6 +11,8 @@ Validated against:
 
 - workspace manifest: `M:\Code\Kain\Cargo.toml`
 - root workspace map: `M:\Code\Kain\repomap.md`
+- docs folder guide: `M:\Code\Kain\docs\README.md`
+- docs pipeline index: `M:\Code\Kain\docs\pipeline\README.md`
 - crate folder guide: `M:\Code\Kain\crates\README.md`
 - crate workspace map: `M:\Code\Kain\crates\repomap.md`
 - live CLI: `M:\Code\Kain\target\debug\kain.exe`
@@ -885,8 +887,10 @@ M:\Code\Kain
 └── README.md                 # this file
 ```
 
-For crate-level detail, check:
+For navigation detail, check:
 
+- `M:\Code\Kain\docs\README.md`
+- `M:\Code\Kain\docs\pipeline\README.md`
 - `M:\Code\Kain\crates\README.md`
 - `M:\Code\Kain\crates\repomap.md`
 - `M:\Code\Kain\repomap.md`

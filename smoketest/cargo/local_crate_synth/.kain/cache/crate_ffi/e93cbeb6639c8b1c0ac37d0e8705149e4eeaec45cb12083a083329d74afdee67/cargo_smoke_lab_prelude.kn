@@ -1,8 +1,0 @@
-# Generated import shim for crate cargo_smoke_lab
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_add as rust_cargo_smoke_lab_add
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_amplify_series as rust_cargo_smoke_lab_amplify_series
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_sum_series as rust_cargo_smoke_lab_sum_series
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_every_above as rust_cargo_smoke_lab_every_above
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_compose_badge as rust_cargo_smoke_lab_compose_badge
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_wave_row as rust_cargo_smoke_lab_wave_row
-use rust::cargo_smoke_lab::rust_cargo_smoke_lab_pulse_profile_stamp as rust_cargo_smoke_lab_pulse_profile_stamp

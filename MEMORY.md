@@ -10,6 +10,42 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-21 - Pipeline Output Hygiene Was Re-centered
+
+The pipeline lanes were accumulating compiled outputs in `generated/`, `labs/`, and `smoketest/`.
+
+The working rule now:
+
+- compiled artifacts (`.exe`, `.dll`, `.lib`, `.obj`, `.o`, `.pdb`, `.ilk`) stay disposable
+- caches like `target/`, `.kain`, and `.kain-runtime` should be cleared after validation
+- any log or validation proof worth keeping should live under `docs/validation/` or `docs/recent/`
+
+## 2026-03-21 - Parent Ignore Globs Were Normalized
+
+Repo-wide searches were getting noisy because the parent `M:\.gitignore` had malformed Windows-style backslash globs.
+
+The fix was simple, but the lesson matters:
+
+- `gitignore` syntax needs to stay portable and valid, even in parent workspace files
+- a broken parent ignore file can make repo hygiene work look more broken than the tree actually is
+- when search tooling starts warning on ignore parsing, fix the ignore file instead of normalizing the warning away
+
+## 2026-03-21 - Docs Landing Pages Were Restored
+
+The repo map and README had drifted ahead of the filesystem again: `docs/README.md` was missing even though the root docs navigation still expected it.
+
+This pass restored the docs landing pages and tightened the doc anchors so future cleanup work has a real navigation layer to follow:
+
+- `docs/README.md`
+- `docs/crates/README.md`
+- `docs/pipeline/README.md`
+
+The important lesson is the same one that keeps repeating in this repo:
+
+- if a folder is important enough to show up in the repo map, it needs a living README
+- stale memory references should point at current doc anchors, not retired one-off audits
+- pipeline docs should stay pinned to the canonical runtime contract and not float as invisible knowledge
+
 ## 2026-03-21 - Remaining Stale Root Docs Were Confirmed Safe To Remove
 
 This pass checked the still-pending root markdown deletions against the active docs map and found no current references outside the repo memory itself.
@@ -20,7 +56,7 @@ That means these files can stay gone without breaking the current documentation 
 - `WILD_FEATURE_RECOMMENDATIONS.md`
 - `docs/archive/cleanup.md`
 - `docs/archive/EDITOR_PIPELINE_IMPROVEMENTS.md`
-- `docs/crates/UE5_EDITOR_CODEGEN_REFERENCE.md`
+- `docs/crates/README.md`
 
 The useful lesson here is that cleanup work should always be confirmed against the live repo maps before being treated as final. The repo-level docs can get ahead of the tree, but the tree must stay internally consistent.
 
@@ -34,7 +70,7 @@ This pass cleaned a small set of dead markdown artifacts that were no longer ref
 - `WILD_FEATURE_RECOMMENDATIONS.md`
 - `docs/archive/cleanup.md`
 - `docs/archive/EDITOR_PIPELINE_IMPROVEMENTS.md`
-- `docs/crates/UE5_EDITOR_CODEGEN_REFERENCE.md`
+- `docs/crates/README.md`
 
 The useful lesson from this run is that repository searches can still be tripped up by parent ignore files outside the workspace. If `rg` starts failing on glob parsing, use `--no-ignore-parent` instead of assuming the repo itself is broken.
 

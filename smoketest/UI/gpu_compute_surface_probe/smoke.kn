@@ -1,0 +1,36 @@
+component App():
+    render <slot layout="stack" gap={14} padding={14}>
+        <panel title="GPU Compute Surface Probe">
+            <text role="title">Primary compute lane smoke</text>
+            <text role="caption">This smoke exists to force native packaging of SPIR-V, compute residency sidecars, and the GPU runtime DLL beside a native executable.</text>
+        </panel>
+        <graph title="Dispatch Plan">
+            <text role="caption">dispatch 32x1x1 | local 1x1x1 | storage buffers src,dst | execution_domain tensor_stream</text>
+        </graph>
+        <viewport3d title="Tensor Stream Viewport" scene="tensor_stream_probe" />
+    </slot>
+
+shader compute StreamPulse(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [32, 1, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("stream_pulse", "pulse_mix", ["src"], ["dst"], false),
+            ],
+        )
+
+    let i = id.x
+    let sample = src[i]
+    let pulse = sample + Float(i) * 0.125
+    dst[i] = pulse
+    return vec4(pulse, pulse * 0.5, 1.0 - pulse, 1.0)

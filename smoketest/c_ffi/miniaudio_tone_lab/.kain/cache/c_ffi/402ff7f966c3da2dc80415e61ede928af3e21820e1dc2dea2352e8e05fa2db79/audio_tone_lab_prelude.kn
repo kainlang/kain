@@ -1,6 +1,0 @@
-# Generated import shim for C library audio_tone_lab
-use c::audio_tone_lab::c_audio_tone_lab_audiofx_wav_channels as c_audio_tone_lab_audiofx_wav_channels
-use c::audio_tone_lab::c_audio_tone_lab_audiofx_wav_frame_count as c_audio_tone_lab_audiofx_wav_frame_count
-use c::audio_tone_lab::c_audio_tone_lab_audiofx_wav_peak as c_audio_tone_lab_audiofx_wav_peak
-use c::audio_tone_lab::c_audio_tone_lab_audiofx_wav_signature as c_audio_tone_lab_audiofx_wav_signature
-use c::audio_tone_lab::c_audio_tone_lab_audiofx_write_sine_wave as c_audio_tone_lab_audiofx_write_sine_wave

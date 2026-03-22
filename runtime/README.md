@@ -326,6 +326,12 @@ What those mean:
 - `validate_native_runtime.sh` runs the canonical package tests plus runtime compilation
 - `conformance/run_all.sh --verbose` is the strongest current lane-level proof that the Windows native runtime behaves as expected
 
+Output hygiene:
+
+- treat `runtime/conformance/**/bin` and `generated/` binaries as disposable
+- keep `.exe`, `.dll`, `.lib`, `.obj`, `.o`, `.pdb`, `.ilk` outputs out of git
+- move validation logs that must be kept into `docs/validation/` or `docs/recent/`
+
 ## Guidance For Future Runtime Work
 
 When extending this runtime:
