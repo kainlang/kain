@@ -10,6 +10,16 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-21 - Testing Lane Guide Was Made Explicit
+
+The top-level `testing/` directory finally has a root README that explains how phases progress and which outputs stay disposable.
+
+Key takeaways:
+
+- treat `Intermediate/`, `_Builds/`, `Binaries/`, and compiled artifacts as disposable test outputs
+- keep durable test results in `docs/validation/` or `docs/recent/`
+- move probes from `Unsorted/` into the smallest stable phase once they are vetted
+
 ## 2026-03-21 - Pipeline Output Hygiene Was Re-centered
 
 The pipeline lanes were accumulating compiled outputs in `generated/`, `labs/`, and `smoketest/`.
@@ -61,6 +71,25 @@ That means these files can stay gone without breaking the current documentation 
 The useful lesson here is that cleanup work should always be confirmed against the live repo maps before being treated as final. The repo-level docs can get ahead of the tree, but the tree must stay internally consistent.
 
 Current run recorded at 2026-03-21T17:17:46.8323301Z.
+
+## 2026-03-22 - C Runtime Pipeline Notes Were Promoted
+
+The C runtime lane now has a dedicated pipeline doc under `docs/pipeline/` to keep
+runtime bundle validation, outputs, and cleanup rules anchored in the docs index.
+
+Key takeaways:
+
+- runtime bundle validation should write temporary JSON into `generated/` instead of the repo root
+- `graphics_runtime_smoke_*` bundles are disposable and should be removed after each run
+- `target/` remains disposable and should be cleared after pipeline runs (some files may be locked)
+
+Supporting updates:
+
+- `crates/README.md` now points at the crates maintenance pipeline doc
+- `ouroborosV2/README.md` is now the folder guide for the nested repo
+- the stale root `graphics_runtime_smoke_env_bundle.realtime_app.json` artifact was removed
+
+Current run recorded at 2026-03-22T00:19:52.9857184-04:00.
 
 ## 2026-03-21 - Stale Root Docs And Empty Placeholders Were Removed
 
@@ -505,3 +534,28 @@ This run tightened the repo's documentation around the compute lane and the top-
 
 When a feature starts crossing compiler, runtime contract, and native viewport boundaries, the docs should call out the ownership split explicitly.
 That keeps future changes from collapsing authored intent back into host-local inference.
+
+## 2026-03-21 - Crates + App/Toolchain Guides Hardened
+
+The docs layer now explicitly tracks the crates maintenance pipeline, and the repo has folder guides for `apps/` and `toolchain/`.
+
+The intent is to keep the crate surface and tooling lanes data-driven and discoverable:
+
+- `docs/pipeline/CRATES_PIPELINE.md` defines the update order for crates metadata.
+- `apps/README.md` and `toolchain/README.md` keep app outputs and toolchain drops understandable.
+
+
+## 2026-03-22 - Research + Report Lanes Re-homed
+
+The top-level `Research/` and `reports/` folders were moved into the docs layer to keep the repo root focused on source and runtime lanes.
+
+### What Changed
+
+- Consolidated `Research/` into `docs/research/` with a new folder guide.
+- Moved the latest report into `docs/recent/reports/` and kept the reports README as a sub-guide.
+- Updated the docs index and repo map to reflect the new `docs/research/` lane.
+
+### Cleanup Notes
+
+- Removed cached `.kain` directories where possible; the cache inside `generated/_ue5_smoke_pokered/.kain` could not be deleted due to access locks.
+- `target/` still appears locked by another process and needs a clean sweep when the build pipeline releases it.

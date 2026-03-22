@@ -24,6 +24,7 @@ Use this file when you need to decide where a new doc belongs before adding anot
 - `kainvsgiants/` holds strategic positioning notes.
 - `pipeline/` holds pipeline navigation and operational notes.
 - `recent/` holds fresh validation logs and recent work notes.
+- `research/` holds exploratory investigations and reverse-engineering notes.
 - `stdlib/` holds standard-library references.
 - `validation/` holds validation reports and logs.
 

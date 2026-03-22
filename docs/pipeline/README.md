@@ -7,8 +7,10 @@ It should stay focused on how the pipeline is organized, what the canonical trut
 ## Primary Anchors
 
 - [`../../runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md`](../../runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md) for the canonical native runtime contract pipeline.
+- [`./C_RUNTIME_PIPELINE.md`](./C_RUNTIME_PIPELINE.md) for the C runtime execution pipeline notes.
 - [`../../runtime/README.md`](../../runtime/README.md) for the broader native runtime overview.
 - [`../../runtime/parallel/README.md`](../../runtime/parallel/README.md) for the non-C companion lane.
+- [`./CRATES_PIPELINE.md`](./CRATES_PIPELINE.md) for the crate maintenance pipeline.
 - [`../README.md`](../README.md) for the docs landing page.
 
 ## Current Scope

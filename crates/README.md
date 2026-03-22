@@ -5,11 +5,13 @@ Use `crates/repomap.md` when you need the full tree view.
 
 ## What Lives Here
 
+- `browser` and `cli` are the end-user tooling and packaging lanes.
 - `kain-core` and `kain-driver` are the core compiler and orchestration layers.
 - `kain-host`, `kain-host-derive`, `kain-reflect`, and `kain-sdk` are the embeddable Rust host stack.
 - `kain-c-ffi`, `kain-crate-ffi`, `kain-interop`, and `kain-gpu-runtime` cover runtime bridge and payload execution lanes.
 - `kain-python`, `kain-node`, `kain-ui`, `kain-ui-native`, and `kain-3D` cover mixed-runtime and application materialization paths.
 - `kain-import`, `kain-asm`, `kain-build`, `kain-selfhost`, and `kain-omni` cover importer, bootstrap, and orchestration workflows.
+- `kain-sys-codegen` is the codegen scaffolding and backend support lane.
 - `gpu`, `web`, `ue5`, and `unreal` hold target-specific codegen and asset/tooling surfaces.
 
 ## Current Doc Anchors
@@ -19,6 +21,7 @@ Use `crates/repomap.md` when you need the full tree view.
 - [`../README.md`](../README.md) for the repo-level operating brief.
 - [`../repomap.md`](../repomap.md) for the workspace overview.
 - [`../runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md`](../runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md) for the native runtime contract lane.
+- [`../docs/pipeline/CRATES_PIPELINE.md`](../docs/pipeline/CRATES_PIPELINE.md) for the crates maintenance pipeline.
 - [`../docs/crates/README.md`](../docs/crates/README.md) for the docs-layer crate notes.
 
 ## Notes

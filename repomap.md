@@ -24,6 +24,7 @@
     │   ├── pipeline/             # pipeline docs and operational notes
     │   │   └── README.md         # docs index for runtime and pipeline notes
     │   ├── recent/               # fresh validation logs and recent notes
+    │   ├── research/             # exploratory investigations and RE notes
     │   ├── stdlib/               # stdlib docs and references
     │   └── validation/           # validation logs and reports
     ├── generated/                # generated artifacts and large proof outputs
@@ -60,3 +61,4 @@ Notes:
 - `docs/kainvsgiants/` is a focused strategy note folder with a single working paper.
 - `generated/README.md` defines which generated outputs stay disposable.
 - `labs/README.md` is the lab lane guide and cleanup policy.
+- `testing/README.md` is the testing lane guide and output hygiene rules.

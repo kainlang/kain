@@ -12,10 +12,15 @@ Validated against:
 - workspace manifest: `M:\Code\Kain\Cargo.toml`
 - root workspace map: `M:\Code\Kain\repomap.md`
 - docs folder guide: `M:\Code\Kain\docs\README.md`
+- research lane guide: `M:\Code\Kain\docs\research\README.md`
 - docs pipeline index: `M:\Code\Kain\docs\pipeline\README.md`
+- C runtime pipeline notes: `M:\Code\Kain\docs\pipeline\C_RUNTIME_PIPELINE.md`
 - crate folder guide: `M:\Code\Kain\crates\README.md`
 - crate workspace map: `M:\Code\Kain\crates\repomap.md`
-- live CLI: `M:\Code\Kain\target\debug\kain.exe`
+- apps folder guide: `M:\Code\Kain\apps\README.md`
+- toolchain folder guide: `M:\Code\Kain\toolchain\README.md`
+- testing folder guide: `M:\Code\Kain\testing\README.md`
+- live CLI (if built): `M:\Code\Kain\target\debug\kain.exe`
 - proof suites: `M:\Code\Kain\smoketest\*` and `M:\Code\Kain\labs\*`
 
 ---
@@ -24,6 +29,7 @@ Validated against:
 
 - Prefer the modern subcommand CLI.
 - Treat the live binary and source as truth when docs disagree.
+- Keep runtime pipeline outputs out of the repo root; use `generated\` and clean `target\` after runs.
 - Distinguish three layers before making claims:
   - Kain language/frontend features
   - importer or bridge behavior
