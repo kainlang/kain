@@ -5,10 +5,10 @@ It exists to keep the runtime contract, validation passes, and output hygiene in
 
 ## Canonical Truth Sources
 
-- `M:\Code\Kain\runtime\native\C_RUNTIME_CONTRACT_PIPELINE.md` for the contract-first lane.
-- `M:\Code\Kain\runtime\README.md` for the native runtime overview.
-- `M:\Code\Kain\runtime\conformance\` for the C-level validation suite.
-- `M:\Code\Kain\docs\pipeline\README.md` for the pipeline index.
+- `runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md` for the contract-first lane.
+- `runtime/README.md` for the native runtime overview.
+- `runtime/conformance/` for the C-level validation suite.
+- `docs/pipeline/README.md` for the pipeline index.
 
 ## Scope
 
@@ -33,8 +33,8 @@ It does not cover Rust/Zig parallel runtime work. That belongs to `runtime/paral
 
 The smoke and conformance checks live under:
 
-- `M:\Code\Kain\runtime\conformance\graphics_runtime\`
-- `M:\Code\Kain\smoketest\` for cross-lane integration
+- `runtime/conformance/graphics_runtime/`
+- `smoketest/` for cross-lane integration
 
 Key expected outcomes:
 
@@ -50,8 +50,8 @@ Keep them disposable and out of the repo root.
 
 Preferred locations:
 
-- `M:\Code\Kain\generated\` for short-lived JSON bundles and runtime outputs
-- `M:\Code\Kain\docs\validation\` for the few results worth keeping
+- `generated/` for short-lived JSON bundles and runtime outputs
+- `docs/validation/` for the few results worth keeping
 
 Clean up after each run:
 
