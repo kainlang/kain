@@ -1,0 +1,238 @@
+{
+  "version": 2,
+  "description": "Classification buckets for Ouroboros V2 selfhost phase2 generated-output failures.",
+  "buckets": [
+    {
+      "id": "memory_lowering_leakage",
+      "description": "Low-level memory lowering helpers or field layout metadata were emitted in a broken shape.",
+      "severity": "high",
+      "regexes": [
+        "cannot find value `bit_width` in this scope",
+        "cannot find value `field_offset` in this scope",
+        "cannot find value `field_bit_offset` in this scope",
+        "cannot find value `bit_signed` in this scope",
+        "LayoutRegistry",
+        "BitfieldPack",
+        "__kain_bitfield_"
+      ],
+      "candidate_rule_ids": [
+        "layout_registry_build_with_abi_stub"
+      ]
+    },
+    {
+      "id": "spawn_runtime_leakage",
+      "description": "Generated actor or spawn helpers leaked unresolved runtime channel/bootstrap variables.",
+      "severity": "high",
+      "regexes": [
+        "cannot find value `tx` in this scope",
+        "spawn",
+        "ActorRef",
+        "std::thread::spawn"
+      ],
+      "candidate_rule_ids": [
+        "spawn_runtime_stub"
+      ]
+    },
+    {
+      "id": "parser_helper_leakage",
+      "description": "Parser-side helper residue such as slice helpers or formatting fallbacks leaked into generated Rust.",
+      "severity": "medium",
+      "regexes": [
+        "cannot find function `slice` in this scope",
+        "slice\\(",
+        "lexer\\(",
+        "parse_jsx",
+        "argument never used",
+        "expected `,`, found `\\.`"
+      ],
+      "candidate_rule_ids": [
+        "source_string_slice_method",
+        "string_slice_range",
+        "vec_slice_prefix"
+      ]
+    },
+    {
+      "id": "span_ownership",
+      "description": "Ownership and move failures involving Span or dereferenced span values in generated Rust.",
+      "severity": "high",
+      "regexes": [
+        "cannot move out of `\\*span`",
+        "use of moved value: `span`",
+        "borrow of moved value: `span`",
+        "cannot find type `Span` in this scope",
+        "cannot find type `Spanned` in this scope",
+        "E0507",
+        "E0382",
+        "E0412"
+      ],
+      "candidate_rule_ids": [
+        "inject_span_primitives",
+        "span_deref_clone",
+        "helper_wrap_return_span_clone"
+      ]
+    },
+    {
+      "id": "placeholder_none",
+      "description": "Placeholder lowering artifacts such as bare None or closure/combinator placeholders that are not semantically valid Rust.",
+      "severity": "high",
+      "regexes": [
+        "expected `\\{`, found `None`",
+        "expected an `FnOnce\\(\\)` closure, found `Option<_>`",
+        "\\.ok_or_else\\(None\\)",
+        "\\.map\\(None\\)",
+        "\\.and_then\\(None\\)",
+        "\\.filter\\(None\\)",
+        "\\.unwrap_or_else\\(None\\)"
+      ],
+      "candidate_rule_ids": [
+        "placeholder_ok_or_else_none_to_closure",
+        "placeholder_map_none_to_closure",
+        "placeholder_and_then_none_to_closure",
+        "placeholder_filter_none_to_true_predicate",
+        "placeholder_unwrap_or_else_none_to_default",
+        "typed_branch_none_block"
+      ]
+    },
+    {
+      "id": "result_option_unit_coercion",
+      "description": "Generated return shapes and match arms disagree between Result, Option, and unit contexts.",
+      "severity": "high",
+      "regexes": [
+        "\\? operator has incompatible types",
+        "expected unit type `\\(\\)`",
+        "found enum `Option<",
+        "found enum `Result<",
+        "`match` arms have incompatible types"
+      ],
+      "candidate_rule_ids": [
+        "typed_branch_none_block",
+        "statement_placeholder_none_to_unit"
+      ]
+    },
+    {
+      "id": "type_shape_mismatch",
+      "description": "General generated type-shape mismatches that are not obviously parser/helper or placeholder-specific.",
+      "severity": "high",
+      "regexes": [
+        "error\\[E0308\\]: mismatched types",
+        "error\\[E0308\\]: `match` arms have incompatible types",
+        "expected `&String`, found `String`",
+        "missing lifetime specifier"
+      ],
+      "candidate_rule_ids": []
+    },
+    {
+      "id": "path_flattening",
+      "description": "Flattened-file path resolution fallout where module prefixes survive but the generated file is flattened.",
+      "severity": "high",
+      "regexes": [
+        "could not find `diagnostic_registry` in the crate root",
+        "could not find `ast` in the crate root",
+        "could not find `low_level_memory_metadata` in the crate root",
+        "failed to resolve: unresolved import",
+        "failed to resolve: could not find .* in the crate root"
+      ],
+      "candidate_rule_ids": [
+        "flattened_crate_ast_prefix",
+        "flattened_diagnostic_registry_prefix",
+        "flattened_low_level_memory_metadata_prefix"
+      ]
+    },
+    {
+      "id": "runtime_helper_transliteration",
+      "description": "Runtime or evaluator helpers were transliterated too literally for bootstrap-stage Rust.",
+      "severity": "medium",
+      "regexes": [
+        "eval_expr",
+        "call_function",
+        "pattern_matches",
+        "bind_pattern",
+        "define_native",
+        "with_gil"
+      ],
+      "candidate_rule_ids": [
+        "define_native_none_to_stub_fn",
+        "inject_bootstrap_native_stub",
+        "with_gil_none_to_noop_closure"
+      ]
+    },
+    {
+      "id": "helper_semantic_reconstruction",
+      "description": "Recurrent helper-specific semantic breakage in generated functions, especially AST rewrite and utility helpers.",
+      "severity": "medium",
+      "regexes": [
+        "wrap_return_in_poll_ready",
+        "wrap_stmt_returns",
+        "rewrite_access_to_self",
+        "cannot find value `_self` in this scope",
+        "cannot find value `param` in this scope"
+      ],
+      "candidate_rule_ids": [
+        "top_level_self_param_to_explicit_receiver_shared",
+        "top_level_self_param_to_explicit_receiver_mut",
+        "top_level_self_param_to_explicit_receiver_owned",
+        "helper_wrap_return_span_clone"
+      ]
+    },
+    {
+      "id": "trait_impl_fidelity",
+      "description": "Generated helper methods preserve self-like signatures or fmt/default shapes without preserving impl structure.",
+      "severity": "high",
+      "regexes": [
+        "`self` parameter is only allowed in associated functions",
+        "Formatter",
+        "Display",
+        "Default"
+      ],
+      "candidate_rule_ids": [
+        "top_level_self_param_to_explicit_receiver_shared",
+        "top_level_self_param_to_explicit_receiver_mut",
+        "top_level_self_param_to_explicit_receiver_owned"
+      ]
+    },
+    {
+      "id": "recursive_type_shape",
+      "description": "Recursive storage or type shape failures in generated Rust.",
+      "severity": "high",
+      "regexes": [
+        "recursive type .* has infinite size",
+        "cycle detected when computing drop-check constraints",
+        "E0072",
+        "E0391"
+      ],
+      "candidate_rule_ids": []
+    },
+    {
+      "id": "test_or_dev_leakage",
+      "description": "Test-only or dev-only code/dependencies leaking into the phase2 generated lane.",
+      "severity": "medium",
+      "regexes": [
+        "tempfile",
+        "test_",
+        "dev-dependencies",
+        "cfg\\(test\\)"
+      ],
+      "candidate_rule_ids": []
+    },
+    {
+      "id": "panic_macro_lowering",
+      "description": "Lowered panic macro calls keep `.to_string()` on literals, tripping format parsing in Rust 2021.",
+      "severity": "medium",
+      "regexes": [
+        "cannot find function `to_string` in this scope",
+        "formatting specifier missing",
+        "consider adding a format specifier"
+      ],
+      "candidate_rule_ids": [
+        "panic_literal_to_string_fix"
+      ]
+    },
+    {
+      "id": "unknown",
+      "description": "Fallback bucket for errors not matched by any known rule taxonomy.",
+      "severity": "review",
+      "regexes": [],
+      "candidate_rule_ids": []
+    }
+  ]
+}

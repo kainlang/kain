@@ -1,0 +1,155 @@
+{
+  "version": 3,
+  "schema_version": 1,
+  "description": "Manifest-driven orchestration for Ouroboros V2 selfhost lanes.",
+  "defaults": {
+    "repo_root": "M:\\Code\\Kain",
+    "ouroboros_root": "M:\\Code\\OuroborosV2",
+    "phase2_root": "M:\\Code\\OuroborosV2\\out\\selfhost\\phase2",
+    "repaired_root": "M:\\Code\\OuroborosV2\\out\\selfhost\\phase2_repaired",
+    "repair_docs": "M:\\Code\\OuroborosV2\\docs\\selfhost\\repairs",
+    "repair_runner": "M:\\Code\\OuroborosV2\\tools\\selfhost_repair\\repair_runner.py",
+    "core_check_script": "M:\\Code\\OuroborosV2\\scripts\\selfhost_stage2_core_check.ps1",
+    "full_check_script": "M:\\Code\\OuroborosV2\\scripts\\selfhost_repair_loop.ps1",
+    "workspace_status_script": "M:\\Code\\OuroborosV2\\scripts\\selfhost_workspace_status.ps1",
+    "pipeline_out": "M:\\Code\\OuroborosV2\\out\\selfhost\\pipeline"
+  },
+  "crate_slices": {
+    "phase2-core": [
+      "kain-core"
+    ],
+    "phase2-full": [
+      "kain-core",
+      "kain-import",
+      "kain-sys-codegen",
+      "cli"
+    ]
+  },
+  "lanes": [
+    {
+      "id": "analyze",
+      "description": "Classify current phase2 failures and refresh reports without mutation.",
+      "failure_policy": "stop_on_failure",
+      "continue_on_failure": false,
+      "dependencies": [],
+      "crate_slice": [],
+      "required_artifacts": [
+        "{phase2_root}\\stage2_workspace\\stage2_build.log"
+      ],
+      "steps": [
+        {
+          "id": "repair_analyze",
+          "kind": "python",
+          "timeout_seconds": 180,
+          "retry_policy": "never",
+          "consumes": [
+            "{phase2_root}\\stage2_workspace\\stage2_build.log"
+          ],
+          "produces": [
+            "{repaired_root}\\phase2_repair_report.json",
+            "{repaired_root}\\phase2_repair_report.md"
+          ],
+          "command": "{repair_runner} analyze --input-root {phase2_root} --repaired-root {repaired_root} --repair-docs {repair_docs}",
+          "expected_logs": [
+            "{repaired_root}\\phase2_repair_report.json",
+            "{repaired_root}\\phase2_repair_report.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase2-core",
+      "description": "Repair copied outputs and run the fast stage2 kain-core check against the repaired workspace.",
+      "failure_policy": "stop_on_failure",
+      "continue_on_failure": false,
+      "dependencies": [],
+      "crate_slice": [
+        "kain-core"
+      ],
+      "required_artifacts": [
+        "{phase2_root}\\stage2_workspace\\Cargo.toml",
+        "{phase2_root}\\stage2_workspace\\crates\\kain-core\\src\\lib.rs"
+      ],
+      "steps": [
+        {
+          "id": "repair_skip_validation",
+          "kind": "python",
+          "timeout_seconds": 300,
+          "retry_policy": "never",
+          "consumes": [
+            "{phase2_root}\\stage2_workspace\\Cargo.toml",
+            "{phase2_root}\\stage2_workspace\\crates\\kain-core\\src\\lib.rs"
+          ],
+          "produces": [
+            "{repaired_root}\\phase2_repair_report.json",
+            "{repaired_root}\\phase2_repair_report.md"
+          ],
+          "command": "{repair_runner} repair --validation skip --input-root {phase2_root} --repaired-root {repaired_root} --repair-docs {repair_docs}",
+          "expected_logs": [
+            "{repaired_root}\\phase2_repair_report.json",
+            "{repaired_root}\\phase2_repair_report.md"
+          ]
+        },
+        {
+          "id": "core_check",
+          "kind": "powershell_file",
+          "timeout_seconds": 900,
+          "retry_policy": "never",
+          "consumes": [
+            "{repaired_root}\\stage2_workspace\\Cargo.toml",
+            "{repaired_root}\\stage2_workspace\\crates\\kain-core\\src\\lib.rs"
+          ],
+          "produces": [
+            "{repaired_root}\\stage2_workspace\\stage2_kain-core_check.log",
+            "{repaired_root}\\front_errors.json",
+            "{repaired_root}\\front_errors.md"
+          ],
+          "command": "{core_check_script} -Workspace {repaired_root}\\stage2_workspace -Crate kain-core -Quiet",
+          "expected_logs": [
+            "{repaired_root}\\stage2_workspace\\stage2_kain-core_check.log"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase2-full",
+      "description": "Repair copied outputs, verify the core crate, then run the full stage2 workspace check against the repaired workspace.",
+      "failure_policy": "stop_on_failure",
+      "continue_on_failure": false,
+      "dependencies": [
+        "phase2-core"
+      ],
+      "crate_slice": [
+        "kain-core",
+        "kain-import",
+        "kain-sys-codegen",
+        "cli"
+      ],
+      "required_artifacts": [
+        "{phase2_root}\\stage2_workspace\\Cargo.toml",
+        "{phase2_root}\\stage2_workspace\\crates\\cli\\src\\main.rs"
+      ],
+      "steps": [
+        {
+          "id": "full_check",
+          "kind": "powershell_file",
+          "timeout_seconds": 1800,
+          "retry_policy": "never",
+          "consumes": [
+            "{repaired_root}\\stage2_workspace\\Cargo.toml",
+            "{repaired_root}\\stage2_workspace\\crates\\cli\\src\\main.rs"
+          ],
+          "produces": [
+            "{repaired_root}\\stage2_workspace\\stage2_build.log",
+            "{repaired_root}\\front_errors.json",
+            "{repaired_root}\\front_errors.md"
+          ],
+          "command": "{full_check_script} -Phase2Root {repaired_root} -ToolRoot {ouroboros_root}\\tools\\selfhost_repair -FullWorkspace",
+          "expected_logs": [
+            "{repaired_root}\\stage2_workspace\\stage2_build.log"
+          ]
+        }
+      ]
+    }
+  ]
+}

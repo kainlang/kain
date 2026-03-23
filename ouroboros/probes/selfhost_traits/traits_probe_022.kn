@@ -1,0 +1,16 @@
+enum TraitProbeValue022:
+    Unit
+    Text(String)
+
+impl Display for TraitProbeValue022:
+    fn fmt(_self: &Self_, f: &mut Formatter) -> Result<(), Error>:
+        match _self:
+            TraitProbeValue022::Unit => write(f, "unit-22")
+            TraitProbeValue022::Text(value) => write(f, value)
+
+impl Default for TraitProbeValue022:
+    fn default_() -> Self_:
+        TraitProbeValue022__Unit
+
+fn trait_helper_probe_022(value: TraitProbeValue022) -> String:
+    format("{}", value)

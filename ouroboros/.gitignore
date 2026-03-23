@@ -1,0 +1,23 @@
+# Generated selfhost outputs
+/out/
+
+# Python cache / virtual envs
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Logs and local reports
+*.log
+
+# Rust / cargo build artifacts
+**/target/
+Cargo.lock
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp

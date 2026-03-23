@@ -1,0 +1,23 @@
+component UiProbe047:
+    state counter: Int = 47
+
+fn eval_jsx_probe_047(node: JSXNode, span: Span) -> VNode:
+    match node:
+        JSXNode::Element { tag: tag, attrs: attrs, children: children } =>
+            VNode::Element {
+                tag: tag,
+                attrs: attrs,
+                children: children.map(none),
+                key: none
+            }
+        JSXNode::Fragment(children) => VNode::Fragment(children.map(none))
+        _ => VNode::Text(f"ui probe 47")
+
+fn reconcile_probe_047(prev: VNode, next: VNode, span: Span) -> VNode:
+    match next:
+        VNode::Component { instance: instance, rendered: rendered } =>
+            if prev == next:
+                none
+            else:
+                reconcile(prev, rendered, span)
+        _ => next

@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "name": "ouroboros_v2_selfhost",
+  "description": "Data-driven control plane for the Ouroboros V2 selfhost pipeline.",
+  "inventory_inputs": [
+    "macro_inventory.json",
+    "module_map.json",
+    "selfhost_allowlist.json",
+    "trait_inventory.json"
+  ],
+  "lanes": [
+    {
+      "id": "import_integrity",
+      "description": "Rust to KAIN strict selfhost import succeeds for the active slice.",
+      "gates": [
+        "no_import_rejection",
+        "no_hard_diagnostics",
+        "required_direct_lowering_cleared"
+      ]
+    },
+    {
+      "id": "parser_safe_emission",
+      "description": "Emitted KAIN bundles use parser-safe surface syntax.",
+      "gates": [
+        "bundle_emits",
+        "known_sensitive_forms_documented",
+        "bundle_reparse_ready"
+      ]
+    },
+    {
+      "id": "rust_roundtrip_validity",
+      "description": "Round-tripped Rust is structurally valid and blocker classes are classified.",
+      "gates": [
+        "typed_program_generation_succeeds",
+        "rust_codegen_succeeds",
+        "roundtrip_blockers_classified"
+      ]
+    },
+    {
+      "id": "executable_parity",
+      "description": "Stage-2 workspace builds a usable selfhosted kain executable.",
+      "gates": [
+        "stage2_workspace_assembles",
+        "cargo_build_succeeds",
+        "artifact_exists"
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "id": "wave0",
+      "crates": ["kain-core", "kain-import"],
+      "goal": "prove the Rust to KAIN to Rust corridor"
+    },
+    {
+      "id": "wave1",
+      "crates": ["kain-asm"],
+      "goal": "expand the compiler-owned selfhost slice"
+    },
+    {
+      "id": "wave2",
+      "crates": ["kain-omni", "cli"],
+      "goal": "reach executable orchestration parity"
+    },
+    {
+      "id": "wave3",
+      "crates": ["kain-sys-codegen", "web", "gpu"],
+      "goal": "reach backend parity core"
+    }
+  ],
+  "blocker_classes": [
+    "import_rejection",
+    "parser_unsafe_kain_emission",
+    "invalid_type_lowering",
+    "recursive_type_cycle",
+    "test_or_dev_leakage",
+    "symbol_collision",
+    "stage2_manifest_or_path_rewrite"
+  ],
+  "artifacts": {
+    "bundle_extension": ".kn",
+    "roundtrip_rust_extension": ".roundtrip.rs",
+    "stage2_workspace_dir": "stage2_workspace",
+    "stage2_build_log": "stage2_build.log",
+    "report_json_suffix": "_report.json",
+    "report_markdown_suffix": "_report.md"
+  },
+  "parallel_native_kain_candidates": [
+    "selfhost_profile.kn",
+    "diagnostics_model.kn",
+    "validation_matrix.kn",
+    "ui_layout_model.kn",
+    "render_command_model.kn"
+  ],
+  "command_verification": [
+    "kain --version",
+    "kain build",
+    "kain selfhost phase1"
+  ]
+}
