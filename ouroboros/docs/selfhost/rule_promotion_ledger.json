@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "description": "Tracks which repair rules are temporary artifact repairs versus candidates for upstream promotion.",
+  "entries": []
+}

@@ -1,0 +1,18 @@
+struct MemoryLayoutProbe030:
+    bits: Int
+    align: Int
+    span: Span
+
+fn lower_type_memory_probe_030(ty: Type, span: Span) -> Type:
+    match ty:
+        Type::Array(inner, size, type_span) => Type::Array(lower_type_memory(inner), size, type_span)
+        Type::Slice(inner, type_span) => Type::Slice(lower_type_memory(inner), type_span)
+        Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime, span: type_span } =>
+            Type::Ref { mutable_: mutable_, inner: lower_type_memory(inner), lifetime: lifetime, span: type_span }
+        Type::Result(ok, err, type_span) =>
+            Type::Result(lower_type_memory(ok), lower_type_memory(err), type_span)
+        _ => ty
+
+fn pointer_probe_030(ptr: Ptr<Int>, span: Span) -> Ptr<Int>:
+    mem_store(ptr, 30)
+    ptr_offset(ptr, 30)

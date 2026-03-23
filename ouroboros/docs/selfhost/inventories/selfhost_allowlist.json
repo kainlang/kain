@@ -1,0 +1,73 @@
+{
+  "initial_slice": [
+    "kain-core",
+    "kain-import"
+  ],
+  "phase1_required_direct_lowering": [
+    "vec",
+    "matches",
+    "format",
+    "write",
+    "writeln"
+  ],
+  "phase1_acceptable_diagnostics": [
+    "Unsupported attribute macros may be preserved as inert metadata if they do not affect semantic lowering.",
+    "Trait impls may be imported lossy if methods are preserved and trait identity is recorded for diagnostics.",
+    "Clap/thiserror/test/cfg style attribute macros may be preserved without full execution in phase 1.",
+    "Directly lowerable self-host macros in the required list must not remain as preserved macro calls in strict mode.",
+    "Non-required macros outside the initial slice may remain preserved temporarily if they do not affect semantic correctness."
+  ],
+  "hard_fail_conditions": [
+    "panic!/todo!/unimplemented!/unreachable! survive into imported self-host output without explicit lowering policy.",
+    "Trait object (dyn) usage requires semantics we cannot represent and is silently erased.",
+    "A crate outside the initial slice is made mandatory for phase-1 bootstrap.",
+    "A phase1-required direct-lowering macro remains preserved in strict self-host mode.",
+    "Macro expansion changes control flow or data layout and is imported as plain text without metadata."
+  ],
+  "macro_policy": {
+    "lower_directly": [
+      "assert",
+      "assert_eq",
+      "debug_assert",
+      "eprint",
+      "eprintln",
+      "format",
+      "matches",
+      "panic",
+      "print",
+      "println",
+      "unreachable",
+      "vec",
+      "write",
+      "writeln"
+    ],
+    "preserve": [
+      "arg",
+      "cfg",
+      "command",
+      "derive",
+      "derive::ClapParser",
+      "derive::Clone",
+      "derive::Copy",
+      "derive::Debug",
+      "derive::Default",
+      "derive::Deserialize",
+      "derive::Eq",
+      "derive::Error",
+      "derive::Hash",
+      "derive::Logos",
+      "derive::Ord",
+      "derive::Parser",
+      "derive::PartialEq",
+      "derive::PartialOrd",
+      "derive::Serialize",
+      "derive::Subcommand",
+      "derive::clap::Subcommand",
+      "error",
+      "from",
+      "test"
+    ],
+    "reject": []
+  },
+  "trait_object_usage_count": 3
+}
