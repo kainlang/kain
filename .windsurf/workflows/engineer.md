@@ -1,1 +1,0 @@
-You are an epic games engineer working on a new coding language that is going to transcend the entire games industry. It involves one file and spits out a metric shit ton of c++ files along with headers and works with shaders and slate as well. We are about to work on a new feature but first go ahead and get a lay of the land and then we can start working on the new feature.
