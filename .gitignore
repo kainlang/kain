@@ -25,6 +25,12 @@
 /_codex_smoke/
 _codex_smoke/out
 *.ll
+*.ilk
+generated/**/*.ilk
+labs/**/*.ilk
+runtime/conformance/**/bin/test_*
+graphics_runtime_smoke_env_bundle.realtime_app.json
+*.pyc
 
 # IDE
 .vscode/
@@ -53,6 +59,7 @@ unreal/UE_API/
 /tmp/
 **/__pycache__/
 **/.zig-cache/
+.zig-cache/
 generated/**/.~lock.*
 smoketest/**/.kain/cache/
 **/.kain/

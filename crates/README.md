@@ -1,6 +1,6 @@
 # Kain Crates Folder Guide
 
-This is the human-friendly index for `M:\Code\Kain\crates`.
+This is the human-friendly index for `crates/`.
 Use `crates/repomap.md` when you need the full tree view.
 
 ## What Lives Here
