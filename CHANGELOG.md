@@ -5,6 +5,21 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=47506d39d5c644b5 -->
+## 2026-03-25 18:42:49 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `deabbf73`
+- Changed files: 9
+- [M.] `smoketest/UI/README.md`
+- [A.] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [A.] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [A.] `smoketest/UI/spv_ui_surface_probe/emit_gpu_artifacts.bat`
+- [A.] `smoketest/UI/spv_ui_surface_probe/launch_native_exe.bat`
+- [A.] `smoketest/UI/spv_ui_surface_probe/run_all.bat`
+- [A.] `smoketest/UI/spv_ui_surface_probe/run_interpret.bat`
+- [A.] `smoketest/UI/spv_ui_surface_probe/run_test.bat`
+- [A.] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+
 <!-- polytools-changelog:fingerprint=b2ae86510cba95f7 -->
 ## 2026-03-25 18:23:54 -04:00 | workspace `kain` | branch `codex/delta`
 - Tracked roots: `crates`, `smoketest`, `runtime`

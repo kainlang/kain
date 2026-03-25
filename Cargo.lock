@@ -2782,6 +2782,7 @@ dependencies = [
  "kain-driver",
  "kain-host-derive",
  "kain-omni",
+ "kain-python",
  "kain-reflect",
  "serde_json",
  "tempfile",
