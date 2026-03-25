@@ -10,6 +10,7 @@ Each smoke lives in its own folder so we can keep authoring patterns, runner scr
 - `dock_layout_workbench`: dock composition, width/height constraints, split ratios, and resizable rails
 - `surface_modes_gallery`: widget-specific surface-mode mapping across panel, inspector, tree, graph, timeline, and viewport widgets
 - `gpu_compute_surface_probe`: explicit `primary_compute` metadata packaged into a native UI smoke with shader bundle and residency sidecars
+- `spv_ui_surface_probe`: compute-authored SDF-style UI surface concept with direct SPIR-V artifact emission and native packaging helpers
 - `website_clone_signalcraft`: top navigation, hero landing layout, scrollable rails, and native mount motion
 
 ## Run Model

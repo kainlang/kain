@@ -1,0 +1,79 @@
+component App():
+    render <slot layout="column" gap={14} padding={14}>
+        <theme name="spv_ui_surface">
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+            <token name="theme.background.top" category="color" value="#07111b" />
+            <token name="theme.background.bottom" category="color" value="#0d1827" />
+            <token name="theme.accent.primary" category="color" value="#4fd2ff" />
+            <token name="theme.highlight" category="color" value="#ffd16a" />
+            <token name="theme.text.default" category="color" value="#eef8ff" />
+            <token name="theme.text.muted" category="color" value="#91aac1" />
+        </theme>
+
+        <panel title="SPV UI Surface Probe" layout="column" gap={8}>
+            <text role="title">Procedural UI surface, emitted as SPIR-V</text>
+            <text role="caption">This smoke is the shortest path from Kain UI authoring to a shader-side surface concept. It is intentionally compute-driven today, not a finished fullscreen-quad renderer.</text>
+        </panel>
+
+        <graph title="Current Host / Client Split">
+            <text role="caption">Host next: fullscreen quad, pointer uniforms, interaction data, font atlas uploads.</text>
+            <text role="caption">Client now: rounded-rect SDF-like canvas math authored in Kain and emitted through the GPU artifact pipeline.</text>
+        </graph>
+
+        <panel title="Immediate Gotchas" layout="column" gap={6}>
+            <text role="caption">Text still needs a font atlas plus glyph layout buffers.</text>
+            <text role="caption">A true retained UI loop still belongs on the host side until the shader and runtime contract grows stronger data exchange.</text>
+        </panel>
+
+        <viewport3d title="Procedural Surface Preview" scene="tensor_stream_probe" />
+    </slot>
+
+shader compute UiSurfaceSdf(id: UVec3) -> Vec4:
+    uniform uv: StorageBuffer<Vec4> @0
+    uniform rgba: StorageBuffer<Vec4> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [
+                ("uv", "vec4", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("rgba", "vec4", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("ui_surface_sdf", "rounded_rect_surface", ["uv"], ["rgba"], false),
+            ],
+        )
+
+    let i = id.x
+    let sample = uv[i]
+    let px = vec2(sample.x, sample.y)
+
+    let center = vec2(0.5, 0.55)
+    let half_size = vec2(0.28, 0.10)
+    let radius = 0.045
+
+    let dx = abs(px.x - center.x) - (half_size.x - radius)
+    let dy = abs(px.y - center.y) - (half_size.y - radius)
+    let outer_x = max(dx, 0.0)
+    let outer_y = max(dy, 0.0)
+    let corner = sqrt(outer_x * outer_x + outer_y * outer_y) - radius
+    let inside = min(max(dx, dy), 0.0)
+    let sdf = inside + corner
+
+    let fill = clamp(1.0 - sdf * 34.0, 0.0, 1.0)
+    let edge = clamp(1.0 - abs(sdf) * 84.0, 0.0, 1.0)
+    let header = clamp(1.0 - abs(px.y - 0.28) * 14.0, 0.0, 1.0)
+    let focus = clamp(1.0 - sqrt((px.x - 0.72) * (px.x - 0.72) + (px.y - 0.55) * (px.y - 0.55)) * 5.0, 0.0, 1.0)
+
+    let r = 0.03 + fill * 0.07 + edge * 0.18 + header * 0.02 + focus * 0.10
+    let g = 0.05 + fill * 0.36 + edge * 0.14 + header * 0.06 + focus * 0.11
+    let b = 0.08 + fill * 0.49 + edge * 0.07 + header * 0.16 + focus * 0.04
+    let a = max(fill, header * 0.35)
+
+    let color = vec4(r, g, b, a)
+    rgba[i] = color
+    return color

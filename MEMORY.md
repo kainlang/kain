@@ -10,6 +10,35 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-25 - SPV UI Smoke Landed As An Honest First Probe Instead Of A Fake UI Engine Claim
+
+The repo now has a dedicated UI smoke for the "SPIR-V-based UI" direction under `smoketest/UI/spv_ui_surface_probe`.
+
+What changed:
+
+- a new smoke combines semantic UI authoring with a compute shader that behaves like a procedural UI surface concept
+- the smoke includes the usual interpret/test/native-app runners plus a direct `gpu-artifacts` helper so the emitted `.spv` can be inspected without pretending the host renderer is already complete
+- the smoke README states the current boundary explicitly: Kain can emit the shader-side surface idea today, but the full host-side fullscreen-quad/input/text/runtime loop is still future work
+
+Why this matters:
+
+- it gives future work a grounded proof point for "SPV UI" that matches current repo reality instead of skipping straight to Makepad/GPUI-class claims
+- it preserves the architecture rule that shader truth should be compiler-authored while the host/runtime side owns windowing, retained state, input routing, and text plumbing
+- it creates a small operator-friendly lane for inspecting emitted shader artifacts during UI/runtime experimentation
+
+What future work should preserve:
+
+- keep this lane honest about the current split between emitted SPIR-V artifacts and the still-missing dedicated host renderer
+- prefer small, inspectable smoke steps over prematurely claiming a full GPU-native widget engine
+- route future pointer/text/state work through shared runtime contracts and buffers instead of inventing one-off smoke-only wiring
+
+Next serious move:
+
+- add a minimal host surface that can present a shader-authored full-screen quad or equivalent canvas in the native UI lane
+- thread pointer/window inputs into the shader contract through a stable buffer or uniform path
+- then add font atlas and glyph-buffer plumbing so the SPV UI experiment stops being "shapes only"
+
+
 ## 2026-03-25 - Compute Plan Contract Started Moving From Heuristic To Authored
 
 The tensor-stream pipeline now has a stronger compiler-owned contract in `kain-core`.
