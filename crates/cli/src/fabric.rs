@@ -59,12 +59,16 @@ pub fn run(command: FabricCommand) -> KainResult<()> {
             Ok(())
         }
         FabricCommand::Run { manifest } => {
-            let result = kain_omni::validate_fabric_manifest_path(&manifest)
+            let result = kain_omni::execute_fabric_manifest_path(&manifest)
                 .map_err(|err| KainError::runtime(format!("Fabric run failed: {err}")))?;
-            print_validation_summary(&result);
-            Err(KainError::runtime(
-                "Fabric execution is not wired yet. Manifest validated successfully.".to_string(),
-            ))
+            print_execution_summary(&result);
+            match result.status {
+                kain_omni::FabricSessionStatus::Succeeded => Ok(()),
+                kain_omni::FabricSessionStatus::Failed => Err(KainError::runtime(format!(
+                    "Fabric execution failed. Report: {}",
+                    result.report_path.display()
+                ))),
+            }
         }
     }
 }
@@ -79,6 +83,22 @@ fn print_validation_summary(result: &kain_omni::FabricValidationResult) {
     println!("Required capabilities:");
     for capability in &result.required_capabilities {
         println!("  - {capability}");
+    }
+}
+
+fn print_execution_summary(result: &kain_omni::FabricExecutionResult) {
+    print_validation_summary(&result.validation);
+    println!("Session: {}", result.session_id);
+    println!("Status: {:?}", result.status);
+    println!("Session directory: {}", result.session_directory.display());
+    println!("Report: {}", result.report_path.display());
+    println!("Lock: {}", result.lock_path.display());
+    if let Some(events_path) = &result.events_path {
+        println!("Events: {}", events_path.display());
+    }
+    println!("Step results:");
+    for step in &result.step_results {
+        println!("  - {} [{}]: {:?}", step.id, step.runtime.display_name(), step.status);
     }
 }
 
@@ -133,10 +153,23 @@ mod tests {
     }
 
     #[test]
-    fn run_command_stays_truthful_until_executor_exists() {
+    fn run_command_executes_local_fabric_manifest() {
         let dir = tempfile::tempdir().unwrap();
         let init =
             kain_omni::init_fabric_manifest(dir.path(), kain_omni::FabricTemplateKind::Local)
+                .unwrap();
+
+        run(FabricCommand::Run {
+            manifest: init.manifest_path,
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn run_command_reports_failure_for_unsupported_runtime_steps() {
+        let dir = tempfile::tempdir().unwrap();
+        let init =
+            kain_omni::init_fabric_manifest(dir.path(), kain_omni::FabricTemplateKind::Polyglot)
                 .unwrap();
 
         let error = run(FabricCommand::Run {
@@ -145,6 +178,6 @@ mod tests {
         .unwrap_err();
         assert!(error
             .to_string()
-            .contains("Fabric execution is not wired yet"));
+            .contains("Fabric execution failed"));
     }
 }

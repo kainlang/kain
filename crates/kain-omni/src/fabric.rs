@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use kain_core::CompileTarget;
 use serde::{Deserialize, Serialize};
 
 use crate::{OmniError, OmniResult};
@@ -153,12 +156,101 @@ pub struct FabricInitResult {
     pub created_paths: Vec<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FabricValidationResult {
     pub manifest_path: PathBuf,
     pub step_count: usize,
     pub runtime_counts: BTreeMap<String, usize>,
     pub required_capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FabricSessionStatus {
+    Succeeded,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FabricStepStatus {
+    Pending,
+    Succeeded,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricStepExecution {
+    pub id: String,
+    pub runtime: FabricRuntimeKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<PathBuf>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    pub status: FabricStepStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_unix_ms: Option<u128>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finished_unix_ms: Option<u128>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricExecutionResult {
+    pub manifest_path: PathBuf,
+    pub validation: FabricValidationResult,
+    pub session_id: String,
+    pub workspace_root: PathBuf,
+    pub session_directory: PathBuf,
+    pub report_path: PathBuf,
+    pub lock_path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub events_path: Option<PathBuf>,
+    pub status: FabricSessionStatus,
+    pub started_unix_ms: u128,
+    pub finished_unix_ms: u128,
+    pub step_results: Vec<FabricStepExecution>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FabricEventRecord {
+    pub timestamp_unix_ms: u128,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<FabricRuntimeKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<FabricStepStatus>,
+    pub message: String,
+}
+
+struct FabricEventWriter {
+    file: Option<fs::File>,
+}
+
+impl FabricEventWriter {
+    fn new(path: Option<&Path>) -> OmniResult<Self> {
+        let file = match path {
+            Some(path) => Some(fs::File::create(path)?),
+            None => None,
+        };
+        Ok(Self { file })
+    }
+
+    fn write(&mut self, event: &FabricEventRecord) -> OmniResult<()> {
+        if let Some(file) = &mut self.file {
+            let encoded = serde_json::to_string(event).map_err(|err| {
+                OmniError::Config(format!("Failed to serialize Fabric event: {err}"))
+            })?;
+            writeln!(file, "{encoded}")?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for FabricManifest {
@@ -271,6 +363,11 @@ pub fn validate_fabric_manifest_path(path: &Path) -> OmniResult<FabricValidation
     validate_fabric_manifest(path, &manifest)
 }
 
+pub fn execute_fabric_manifest_path(path: &Path) -> OmniResult<FabricExecutionResult> {
+    let manifest = load_fabric_manifest(path)?;
+    execute_fabric_manifest(path, &manifest)
+}
+
 pub fn validate_fabric_manifest(
     manifest_path: &Path,
     manifest: &FabricManifest,
@@ -352,6 +449,199 @@ pub fn validate_fabric_manifest(
         runtime_counts,
         required_capabilities: required_capabilities.into_iter().collect(),
     })
+}
+
+pub fn execute_fabric_manifest(
+    manifest_path: &Path,
+    manifest: &FabricManifest,
+) -> OmniResult<FabricExecutionResult> {
+    let validation = validate_fabric_manifest(manifest_path, manifest)?;
+    let manifest_root = manifest_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let workspace_root = resolve_fabric_path(&manifest_root, &manifest.workspace.root);
+    let report_root = resolve_fabric_path(&workspace_root, &manifest.reports.directory);
+    fs::create_dir_all(&report_root)?;
+
+    let started_unix_ms = unix_timestamp_ms();
+    let session_id = format!("session-{}-{}", started_unix_ms, std::process::id());
+    let session_directory = report_root.join(&session_id);
+    fs::create_dir_all(&session_directory)?;
+
+    let report_path = session_directory.join("report.json");
+    let lock_path = session_directory.join("session.lock.json");
+    let events_path = manifest
+        .reports
+        .emit_jsonl_events
+        .then(|| session_directory.join("events.jsonl"));
+    let mut event_writer = FabricEventWriter::new(events_path.as_deref())?;
+    event_writer.write(&FabricEventRecord {
+        timestamp_unix_ms: started_unix_ms,
+        kind: "session_started".to_string(),
+        step_id: None,
+        runtime: None,
+        status: None,
+        message: format!("Executing Fabric manifest {}", manifest_path.display()),
+    })?;
+
+    let execution_order = topological_step_order(&manifest.steps)?;
+    let steps_by_id = manifest
+        .steps
+        .iter()
+        .cloned()
+        .map(|step| (step.id.clone(), step))
+        .collect::<BTreeMap<_, _>>();
+    let mut step_results = manifest
+        .steps
+        .iter()
+        .map(|step| {
+            (
+                step.id.clone(),
+                FabricStepExecution {
+                    id: step.id.clone(),
+                    runtime: step.runtime.clone(),
+                    entry: step.entry.clone(),
+                    depends_on: step.depends_on.clone(),
+                    status: FabricStepStatus::Pending,
+                    started_unix_ms: None,
+                    finished_unix_ms: None,
+                    output: None,
+                    error: None,
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    for step_id in &execution_order {
+        let step = steps_by_id.get(step_id).ok_or_else(|| {
+            OmniError::Config(format!(
+                "Fabric execution lost step definition for '{step_id}'"
+            ))
+        })?;
+
+        let blocked_by = step
+            .depends_on
+            .iter()
+            .filter(|dependency| {
+                step_results
+                    .get(*dependency)
+                    .is_some_and(|result| result.status != FabricStepStatus::Succeeded)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let step_result = step_results.get_mut(step_id).ok_or_else(|| {
+            OmniError::Config(format!("Fabric execution lost step state for '{step_id}'"))
+        })?;
+
+        if !blocked_by.is_empty() {
+            let finished_unix_ms = unix_timestamp_ms();
+            let message = format!(
+                "Blocked by incomplete dependencies: {}",
+                blocked_by.join(", ")
+            );
+            step_result.status = FabricStepStatus::Blocked;
+            step_result.finished_unix_ms = Some(finished_unix_ms);
+            step_result.error = Some(message.clone());
+            event_writer.write(&FabricEventRecord {
+                timestamp_unix_ms: finished_unix_ms,
+                kind: "step_blocked".to_string(),
+                step_id: Some(step.id.clone()),
+                runtime: Some(step.runtime.clone()),
+                status: Some(FabricStepStatus::Blocked),
+                message,
+            })?;
+            continue;
+        }
+
+        let step_started_unix_ms = unix_timestamp_ms();
+        step_result.started_unix_ms = Some(step_started_unix_ms);
+        event_writer.write(&FabricEventRecord {
+            timestamp_unix_ms: step_started_unix_ms,
+            kind: "step_started".to_string(),
+            step_id: Some(step.id.clone()),
+            runtime: Some(step.runtime.clone()),
+            status: Some(FabricStepStatus::Pending),
+            message: format!("Executing Fabric step '{}'", step.id),
+        })?;
+
+        match execute_fabric_step(&workspace_root, step) {
+            Ok(step_output) => {
+                let finished_unix_ms = unix_timestamp_ms();
+                step_result.status = FabricStepStatus::Succeeded;
+                step_result.finished_unix_ms = Some(finished_unix_ms);
+                step_result.output = Some(step_output.clone());
+                event_writer.write(&FabricEventRecord {
+                    timestamp_unix_ms: finished_unix_ms,
+                    kind: "step_succeeded".to_string(),
+                    step_id: Some(step.id.clone()),
+                    runtime: Some(step.runtime.clone()),
+                    status: Some(FabricStepStatus::Succeeded),
+                    message: format!("Step '{}' completed", step.id),
+                })?;
+            }
+            Err(message) => {
+                let finished_unix_ms = unix_timestamp_ms();
+                step_result.status = FabricStepStatus::Failed;
+                step_result.finished_unix_ms = Some(finished_unix_ms);
+                step_result.error = Some(message.clone());
+                event_writer.write(&FabricEventRecord {
+                    timestamp_unix_ms: finished_unix_ms,
+                    kind: "step_failed".to_string(),
+                    step_id: Some(step.id.clone()),
+                    runtime: Some(step.runtime.clone()),
+                    status: Some(FabricStepStatus::Failed),
+                    message,
+                })?;
+            }
+        }
+    }
+
+    let finished_unix_ms = unix_timestamp_ms();
+    let ordered_step_results = execution_order
+        .into_iter()
+        .map(|step_id| {
+            step_results.remove(&step_id).ok_or_else(|| {
+                OmniError::Config(format!("Fabric execution lost completed step '{step_id}'"))
+            })
+        })
+        .collect::<OmniResult<Vec<_>>>()?;
+    let status = if ordered_step_results
+        .iter()
+        .all(|result| result.status == FabricStepStatus::Succeeded)
+    {
+        FabricSessionStatus::Succeeded
+    } else {
+        FabricSessionStatus::Failed
+    };
+
+    let result = FabricExecutionResult {
+        manifest_path: manifest_path.to_path_buf(),
+        validation,
+        session_id,
+        workspace_root,
+        session_directory,
+        report_path: report_path.clone(),
+        lock_path: lock_path.clone(),
+        events_path: events_path.clone(),
+        status,
+        started_unix_ms,
+        finished_unix_ms,
+        step_results: ordered_step_results,
+    };
+
+    event_writer.write(&FabricEventRecord {
+        timestamp_unix_ms: finished_unix_ms,
+        kind: "session_finished".to_string(),
+        step_id: None,
+        runtime: None,
+        status: None,
+        message: format!("Fabric session finished with status {:?}", result.status),
+    })?;
+    write_fabric_json(&report_path, &result)?;
+    write_fabric_json(&lock_path, &result)?;
+    Ok(result)
 }
 
 pub fn supported_local_fabric_capabilities() -> BTreeSet<String> {
@@ -496,6 +786,105 @@ fn detect_dependency_cycles(steps: &[FabricStep]) -> OmniResult<()> {
         visit(&step.id, &graph, &mut states, &mut stack)?;
     }
     Ok(())
+}
+
+fn topological_step_order(steps: &[FabricStep]) -> OmniResult<Vec<String>> {
+    let mut in_degree = steps
+        .iter()
+        .map(|step| (step.id.clone(), step.depends_on.len()))
+        .collect::<BTreeMap<_, _>>();
+    let mut dependents = BTreeMap::<String, Vec<String>>::new();
+    for step in steps {
+        for dependency in &step.depends_on {
+            dependents
+                .entry(dependency.clone())
+                .or_default()
+                .push(step.id.clone());
+        }
+    }
+
+    let mut ready = in_degree
+        .iter()
+        .filter(|(_, count)| **count == 0)
+        .map(|(id, _)| id.clone())
+        .collect::<BTreeSet<_>>();
+    let mut ordered = Vec::with_capacity(steps.len());
+
+    while let Some(next_id) = ready.iter().next().cloned() {
+        ready.remove(&next_id);
+        ordered.push(next_id.clone());
+        if let Some(children) = dependents.get(&next_id) {
+            for child in children {
+                let Some(count) = in_degree.get_mut(child) else {
+                    return Err(OmniError::Config(format!(
+                        "Fabric execution graph lost dependent step '{child}'"
+                    )));
+                };
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    ready.insert(child.clone());
+                }
+            }
+        }
+    }
+
+    if ordered.len() != steps.len() {
+        return Err(OmniError::Config(
+            "Fabric execution order could not be resolved".to_string(),
+        ));
+    }
+
+    Ok(ordered)
+}
+
+fn execute_fabric_step(workspace_root: &Path, step: &FabricStep) -> Result<String, String> {
+    match step.runtime {
+        FabricRuntimeKind::Kain => {
+            let entry = step.entry.as_ref().ok_or_else(|| {
+                format!(
+                    "Fabric step '{}' is missing an entry path for runtime 'kain'",
+                    step.id
+                )
+            })?;
+            let resolved_entry = resolve_fabric_path(workspace_root, entry);
+            let source = fs::read_to_string(&resolved_entry).map_err(|err| {
+                format!(
+                    "Failed to read Kain Fabric entry '{}' for step '{}': {err}",
+                    resolved_entry.display(),
+                    step.id
+                )
+            })?;
+            kain_driver::compile(&source, CompileTarget::Interpret).map_err(|err| {
+                format!("Kain Fabric step '{}' failed during execution: {err}", step.id)
+            })
+        }
+        _ => Err(format!(
+            "Fabric runtime '{}' is not wired yet. Current executor only supports local 'kain' steps.",
+            step.runtime.display_name()
+        )),
+    }
+}
+
+fn resolve_fabric_path(base: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base.join(path)
+    }
+}
+
+fn write_fabric_json<T: Serialize>(path: &Path, value: &T) -> OmniResult<()> {
+    let encoded = serde_json::to_string_pretty(value)
+        .map_err(|err| OmniError::Config(format!("Failed to serialize Fabric artifact: {err}")))?;
+    fs::write(path, encoded)?;
+    Ok(())
+}
+
+fn unix_timestamp_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0)
 }
 
 fn write_if_missing(path: &Path, content: &str) -> OmniResult<()> {
@@ -659,7 +1048,7 @@ fn polyglot_manifest_template() -> FabricManifest {
 }
 
 #[cfg(test)]
-mod tests {
+    mod tests {
     use super::*;
 
     #[test]
@@ -778,5 +1167,124 @@ mod tests {
             .required_capabilities
             .iter()
             .any(|capability| capability == "contract.shared-image"));
+    }
+
+    #[test]
+    fn execute_local_fabric_manifest_runs_kain_step_and_writes_artifacts() {
+        let dir = tempfile::tempdir().unwrap();
+        let init = init_fabric_manifest(dir.path(), FabricTemplateKind::Local).unwrap();
+
+        let result = execute_fabric_manifest_path(&init.manifest_path).unwrap();
+
+        assert_eq!(result.status, FabricSessionStatus::Succeeded);
+        assert_eq!(result.step_results.len(), 1);
+        assert_eq!(result.step_results[0].status, FabricStepStatus::Succeeded);
+        assert_eq!(
+            result.step_results[0].output.as_deref(),
+            Some("kain-fabric-local")
+        );
+        assert!(result.report_path.exists());
+        assert!(result.lock_path.exists());
+        assert!(result.events_path.as_ref().is_some_and(|path| path.exists()));
+    }
+
+    #[test]
+    fn execute_polyglot_manifest_reports_unsupported_runtime_and_blocks_dependents() {
+        let dir = tempfile::tempdir().unwrap();
+        let init = init_fabric_manifest(dir.path(), FabricTemplateKind::Polyglot).unwrap();
+
+        let result = execute_fabric_manifest_path(&init.manifest_path).unwrap();
+
+        assert_eq!(result.status, FabricSessionStatus::Failed);
+        assert_eq!(result.step_results[0].id, "python_source");
+        assert_eq!(result.step_results[0].status, FabricStepStatus::Failed);
+        assert!(result.step_results[0]
+            .error
+            .as_deref()
+            .is_some_and(|message| message.contains("not wired yet")));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.id == "kain_orchestrator" && step.status == FabricStepStatus::Blocked));
+    }
+
+    #[test]
+    fn execute_fabric_manifest_respects_dependency_order_for_kain_steps() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(
+            dir.path().join("src").join("first.kn"),
+            "fn main() -> String:\n    return \"first\"\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("src").join("second.kn"),
+            "fn main() -> String:\n    return \"second\"\n",
+        )
+        .unwrap();
+
+        let manifest = FabricManifest {
+            version: FABRIC_SCHEMA_VERSION,
+            workspace: FabricWorkspace {
+                root: PathBuf::from("."),
+                search_roots: vec![PathBuf::from("src")],
+            },
+            requires: vec![FabricCapabilityRequirement {
+                key: "session.local".to_string(),
+                version: 1,
+                optional: false,
+            }],
+            steps: vec![
+                FabricStep {
+                    id: "first".to_string(),
+                    runtime: FabricRuntimeKind::Kain,
+                    entry: Some(PathBuf::from("src/first.kn")),
+                    module: None,
+                    crate_name: None,
+                    manifest_path: None,
+                    library: None,
+                    depends_on: Vec::new(),
+                    requires: Vec::new(),
+                    outputs: vec![FabricOutputBinding {
+                        name: "first_result".to_string(),
+                        kind: FabricContractKind::Value,
+                    }],
+                },
+                FabricStep {
+                    id: "second".to_string(),
+                    runtime: FabricRuntimeKind::Kain,
+                    entry: Some(PathBuf::from("src/second.kn")),
+                    module: None,
+                    crate_name: None,
+                    manifest_path: None,
+                    library: None,
+                    depends_on: vec!["first".to_string()],
+                    requires: Vec::new(),
+                    outputs: vec![FabricOutputBinding {
+                        name: "second_result".to_string(),
+                        kind: FabricContractKind::Value,
+                    }],
+                },
+            ],
+            reports: FabricReportConfig::default(),
+        };
+        let manifest_path = dir.path().join(FABRIC_MANIFEST_FILE_NAME);
+        fs::write(
+            &manifest_path,
+            toml::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let result = execute_fabric_manifest_path(&manifest_path).unwrap();
+
+        assert_eq!(result.status, FabricSessionStatus::Succeeded);
+        assert_eq!(
+            result
+                .step_results
+                .iter()
+                .map(|step| step.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "second"]
+        );
     }
 }
