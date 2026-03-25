@@ -1,0 +1,15 @@
+{
+  "name": "kain-universal-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ./helpers/web_runtime.mjs build manifests/app.json",
+    "print": "node ./helpers/web_runtime.mjs print manifests/app.json",
+    "serve:business": "node ./helpers/web_runtime.mjs serve manifests/app.json business_launch",
+    "serve:portfolio": "node ./helpers/web_runtime.mjs serve manifests/app.json portfolio_signal",
+    "serve:3d": "node ./helpers/web_runtime.mjs serve manifests/app.json immersive_luminous",
+    "serve:chat": "node ./helpers/web_runtime.mjs serve manifests/app.json chat_orbit",
+    "serve:actors": "node ./helpers/web_runtime.mjs serve manifests/app.json actor_mesh_foundry"
+  }
+}

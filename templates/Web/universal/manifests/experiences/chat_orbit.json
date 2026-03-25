@@ -1,0 +1,10 @@
+{
+  "mode": "chat",
+  "theme": "aurora_studio",
+  "content": "orbit_chat",
+  "scene": "luminous_grid",
+  "output_slug": "chat-orbit",
+  "page_title": "Orbit Chat Lab",
+  "eyebrow": "Chat Website",
+  "sections": ["features", "chat", "timeline", "cta"]
+}

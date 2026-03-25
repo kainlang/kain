@@ -1,0 +1,58 @@
+{
+  "brand": "Spectrum Portfolio",
+  "nav": [
+    { "label": "Selected Work", "href": "#work" },
+    { "label": "Process", "href": "#process" },
+    { "label": "Notes", "href": "#notes" }
+  ],
+  "hero": {
+    "kicker": "Portfolio archetype",
+    "title": "Case studies that stay filterable and alive.",
+    "body": "Portfolio surfaces get tag filtering, case-study cards, and narrative sequencing without dragging in a framework treadmill.",
+    "actions": [
+      { "label": "Browse Work", "href": "#work", "style": "primary" },
+      { "label": "Read Notes", "href": "#notes", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "09", "label": "case studies loaded" },
+    { "value": "04", "label": "tag filters active" },
+    { "value": "3x", "label": "faster updates from manifests" }
+  ],
+  "feature_cards": [
+    { "kicker": "Curate", "title": "Filterable work grid", "body": "Projects remain discoverable across product, brand, 3D, and tooling tags." },
+    { "kicker": "Narrate", "title": "Story capsules", "body": "Each portfolio entry supports summary, year, and tag metadata." },
+    { "kicker": "Extend", "title": "Ready for live data", "body": "Swap the local manifest for a generated feed when the runtime grows." }
+  ],
+  "story_cards": [
+    { "kicker": "Lens", "title": "Selected work", "body": "Present a sharp cut of projects without flattening them into one visual tone." },
+    { "kicker": "Method", "title": "Process notes", "body": "Support commentary, breakdowns, and build-story sections." }
+  ],
+  "portfolio_entries": [
+    { "year": "2026", "title": "Signalcraft Launch Rail", "summary": "A launch narrative system for product teams shipping motion-aware marketing surfaces.", "tags": ["product", "web", "3d"] },
+    { "year": "2026", "title": "Foundry Command Desk", "summary": "A tool-first shell for operations dashboards and actor-based routing.", "tags": ["tooling", "systems"] },
+    { "year": "2025", "title": "Orbit Chat Surface", "summary": "A conversation-led storefront where prompts drive layout changes.", "tags": ["chat", "web"] }
+  ],
+  "timeline": [
+    { "phase": "Select", "title": "Choose the signal", "body": "Lead with the work that best explains the operator you are." },
+    { "phase": "Filter", "title": "Let readers cut the grid", "body": "Tag filters reduce scroll fatigue and add intent." },
+    { "phase": "Deepen", "title": "Attach process notes", "body": "Turn finished work into reusable trust-building artifacts." }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "Ask for the strongest case study for product systems, chat, or 3D work." }
+  ],
+  "actor_roles": [
+    { "name": "portfolio_curator", "responsibility": "Selects the right project cluster for the viewer.", "channel": "selection.filter" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/api/runtime", "purpose": "returns portfolio metadata for richer clients" }
+  ],
+  "cta": {
+    "title": "A portfolio should feel like a deliberate system.",
+    "body": "Use this lane when you want more than a tiled screenshot dump.",
+    "actions": [
+      { "label": "Inspect Portfolio", "href": "#work", "style": "primary" }
+    ]
+  },
+  "footer": "portfolio experience"
+}

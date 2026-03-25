@@ -1,0 +1,20 @@
+use std::javascript::site_runtime
+
+fn output_path(name: String) -> String:
+    return "outputs/" + name
+
+fn main() -> String:
+    let summary = js_site_write_matrix("manifests/app.json")
+
+    let report = "Kain universal web template build\n"
+    let report = report + "template: universal\n"
+    let report = report + "default_experience: " + summary.default_experience + "\n"
+    let report = report + "experience_count: " + str(summary.experience_count) + "\n"
+    let report = report + "artifact_count: " + str(summary.artifact_count) + "\n"
+    let report = report + "output_root: " + summary.output_root + "\n"
+    let report = report + "server_port: " + str(summary.server_port) + "\n"
+    let report = report + "modes: business, portfolio, immersive3d, chat, actor_server"
+
+    write_file(output_path("web_template_build.txt"), report + "\n")
+    println(report)
+    return report

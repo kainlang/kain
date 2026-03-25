@@ -188,6 +188,8 @@ pub struct EngineModuleExport {
     pub import_shim_source: Option<String>,
 }
 
+pub mod fabric;
+
 pub mod bridge {
     use super::*;
 

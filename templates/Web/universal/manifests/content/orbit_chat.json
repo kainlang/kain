@@ -1,0 +1,56 @@
+{
+  "brand": "Orbit Chat Lab",
+  "nav": [
+    { "label": "Prompt Studio", "href": "#chat" },
+    { "label": "Capabilities", "href": "#systems" },
+    { "label": "Flows", "href": "#flows" }
+  ],
+  "hero": {
+    "kicker": "Chat archetype",
+    "title": "Conversation-first websites without collapsing into a chatbot widget.",
+    "body": "This lane treats chat as the page architecture: prompt seeds, response cards, action rails, and supporting systems all live inside the same manifest-driven shell.",
+    "actions": [
+      { "label": "Try Chat Lab", "href": "#chat", "style": "primary" },
+      { "label": "Read Flow Design", "href": "#flows", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "24/7", "label": "conversation-oriented entry point" },
+    { "value": "05", "label": "seeded assistant messages" },
+    { "value": "02", "label": "supporting runtime APIs" }
+  ],
+  "feature_cards": [
+    { "kicker": "Prompt", "title": "Seeded interactions", "body": "Start with curated prompts instead of an empty text box." },
+    { "kicker": "Route", "title": "Action-aware replies", "body": "Responses can point users toward docs, sales, portfolios, or live runtime state." },
+    { "kicker": "Escalate", "title": "Actor-ready backend", "body": "Chat surfaces can grow into actor-backed route and orchestration flows." }
+  ],
+  "story_cards": [
+    { "kicker": "Surface", "title": "The whole site is the assistant", "body": "Not just a floating support button bolted onto a landing page." },
+    { "kicker": "Control", "title": "Keep the conversation data-driven", "body": "Prompts and responses belong in manifests, not in opaque browser code." }
+  ],
+  "timeline": [
+    { "phase": "Seed", "title": "Curate strong starting prompts", "body": "Guide the first interaction so the page teaches itself quickly." },
+    { "phase": "Map", "title": "Connect prompts to systems", "body": "Tie conversation into docs, products, portfolio, or route layers." },
+    { "phase": "Scale", "title": "Swap in actor-backed responses", "body": "Use the same shell when the backend moves beyond static seeds." }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "Tell me what kind of site you want and I will route you to the right launch stack." },
+    { "role": "assistant", "text": "I can sketch a business homepage, a 3D campaign shell, or an actor-server dashboard." }
+  ],
+  "actor_roles": [
+    { "name": "prompt_router", "responsibility": "Matches user intent to the right site experience.", "channel": "chat.intent" },
+    { "name": "response_writer", "responsibility": "Builds next actions and summary cards.", "channel": "chat.response" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/api/chat", "purpose": "returns starter chat payloads and seed messages" },
+    { "method": "GET", "path": "/api/runtime", "purpose": "returns active experience metadata" }
+  ],
+  "cta": {
+    "title": "Start from a conversation, not a sitemap.",
+    "body": "Use the chat lane when prompt flow is the product surface.",
+    "actions": [
+      { "label": "Open Prompt Studio", "href": "#chat", "style": "primary" }
+    ]
+  },
+  "footer": "chat experience"
+}

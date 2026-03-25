@@ -1,0 +1,19 @@
+use std::javascript::bridge
+
+pub fn js_site_runtime() -> Any:
+    return js_bridge_import("./helpers/web_runtime.mjs")
+
+pub fn js_site_load_app(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "loadAppConfig", [path])
+
+pub fn js_site_build_experience(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildExperience", [path, experience_id])
+
+pub fn js_site_build_matrix(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildMatrix", [path])
+
+pub fn js_site_write_matrix(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "writeMatrix", [path])
+
+pub fn js_site_actor_report(path: String, experience_id: String) -> String:
+    return js_bridge_call_method(js_site_runtime(), "actorServerReport", [path, experience_id])

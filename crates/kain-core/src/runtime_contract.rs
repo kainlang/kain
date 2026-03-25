@@ -307,7 +307,7 @@ fn collect_runtime_capabilities(
                 COMPUTE_PLAN_CAPABILITY_KEY,
                 "kain-core.shader",
                 Some(
-                    "Compute shaders author explicit dispatch, tensor, and neural-node plans in shader comptime metadata.",
+                    "Compute shaders author explicit workgroup, dispatch, tensor, stream, and neural-node plans in shader comptime metadata.",
                 ),
             ));
         }

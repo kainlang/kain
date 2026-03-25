@@ -16,6 +16,7 @@ kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
 kain-crate-ffi = { path = "../kain-crate-ffi" }
 kain-asm = { path = "../kain-asm" }
+kain-host = { path = "../kain-host" }
 kain-import = { path = "../kain-import" }
 kain-omni = { path = "../kain-omni" }
 ue5 = { path = "../ue5", optional = true }

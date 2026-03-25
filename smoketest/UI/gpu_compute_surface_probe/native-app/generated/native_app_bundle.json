@@ -1,0 +1,1054 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "app_name": "ui-smoke-gpu-compute-surface-probe",
+    "window_title": "UI Smoke - GPU Compute Surface Probe",
+    "root_component": "App",
+    "source_file_name": "smoke.kn",
+    "initial_window_size": [
+      1440.0,
+      920.0
+    ]
+  },
+  "output": {
+    "tree": {
+      "root": 8,
+      "nodes": {
+        "1": {
+          "id": 1,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "title"
+            },
+            "text": {
+              "String": "Primary compute lane smoke"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "title",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "2": {
+          "id": 2,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "This smoke exists to force native packaging of SPIR-V, compute residency sidecars, and the GPU runtime DLL beside a native executable."
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "3": {
+          "id": 3,
+          "identity_key": null,
+          "kind": "Panel",
+          "props": {
+            "tag": {
+              "String": "panel"
+            },
+            "title": {
+              "String": "GPU Compute Surface Probe"
+            }
+          },
+          "children": [
+            1,
+            2
+          ],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "4": {
+          "id": 4,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "dispatch 32x1x1 | local 1x1x1 | storage buffers src,dst | execution_domain tensor_stream"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "5": {
+          "id": 5,
+          "identity_key": null,
+          "kind": "Graph",
+          "props": {
+            "tag": {
+              "String": "graph"
+            },
+            "title": {
+              "String": "Dispatch Plan"
+            }
+          },
+          "children": [
+            4
+          ],
+          "layout": {
+            "kind": "Absolute",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "6": {
+          "id": 6,
+          "identity_key": null,
+          "kind": "Viewport3D",
+          "props": {
+            "scene": {
+              "String": "tensor_stream_probe"
+            },
+            "tag": {
+              "String": "viewport3d"
+            },
+            "title": {
+              "String": "Tensor Stream Viewport"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Absolute",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "7": {
+          "id": 7,
+          "identity_key": null,
+          "kind": "Slot",
+          "props": {
+            "tag": {
+              "String": "slot"
+            }
+          },
+          "children": [
+            3,
+            5,
+            6
+          ],
+          "layout": {
+            "kind": "Stack",
+            "gap": 14.0,
+            "padding": 14.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "8": {
+          "id": 8,
+          "identity_key": null,
+          "kind": {
+            "ComponentRef": "App"
+          },
+          "props": {},
+          "children": [
+            7
+          ],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        }
+      }
+    },
+    "patches": [
+      {
+        "CreateNode": {
+          "node": {
+            "id": 1,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "title"
+              },
+              "text": {
+                "String": "Primary compute lane smoke"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "title",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 2,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "This smoke exists to force native packaging of SPIR-V, compute residency sidecars, and the GPU runtime DLL beside a native executable."
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 3,
+            "identity_key": null,
+            "kind": "Panel",
+            "props": {
+              "tag": {
+                "String": "panel"
+              },
+              "title": {
+                "String": "GPU Compute Surface Probe"
+              }
+            },
+            "children": [
+              1,
+              2
+            ],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 3,
+          "children": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 4,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "dispatch 32x1x1 | local 1x1x1 | storage buffers src,dst | execution_domain tensor_stream"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 5,
+            "identity_key": null,
+            "kind": "Graph",
+            "props": {
+              "tag": {
+                "String": "graph"
+              },
+              "title": {
+                "String": "Dispatch Plan"
+              }
+            },
+            "children": [
+              4
+            ],
+            "layout": {
+              "kind": "Absolute",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 5,
+          "children": [
+            4
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 6,
+            "identity_key": null,
+            "kind": "Viewport3D",
+            "props": {
+              "scene": {
+                "String": "tensor_stream_probe"
+              },
+              "tag": {
+                "String": "viewport3d"
+              },
+              "title": {
+                "String": "Tensor Stream Viewport"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Absolute",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 7,
+            "identity_key": null,
+            "kind": "Slot",
+            "props": {
+              "tag": {
+                "String": "slot"
+              }
+            },
+            "children": [
+              3,
+              5,
+              6
+            ],
+            "layout": {
+              "kind": "Stack",
+              "gap": 14.0,
+              "padding": 14.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 7,
+          "children": [
+            3,
+            5,
+            6
+          ]
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 8,
+            "identity_key": null,
+            "kind": {
+              "ComponentRef": "App"
+            },
+            "props": {},
+            "children": [
+              7
+            ],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 8,
+          "children": [
+            7
+          ]
+        }
+      },
+      {
+        "SetRoot": {
+          "id": 8
+        }
+      }
+    ],
+    "systems": {
+      "computed": [],
+      "resources": [],
+      "transactions": [],
+      "focus_graph": {
+        "scopes": [],
+        "default_scope": null
+      },
+      "event_routes": [],
+      "animation_tracks": [
+        {
+          "id": "animation.node.5",
+          "target": 5,
+          "property": "surface.opacity",
+          "duration_ms": 180,
+          "trigger": "Mount",
+          "easing": "EaseOut",
+          "preserve_on_reload": true
+        },
+        {
+          "id": "animation.node.6",
+          "target": 6,
+          "property": "surface.opacity",
+          "duration_ms": 180,
+          "trigger": "Mount",
+          "easing": "EaseOut",
+          "preserve_on_reload": true
+        }
+      ],
+      "surfaces": [
+        {
+          "id": "surface.node.5",
+          "kind": "Graph",
+          "node": 5,
+          "title": "Dispatch Plan",
+          "renderer_preference": "auto",
+          "composition_mode": "layered_gpu",
+          "gpu_backing_required": true,
+          "shader": null
+        },
+        {
+          "id": "surface.node.6",
+          "kind": "Viewport3D",
+          "node": 6,
+          "title": "Tensor Stream Viewport",
+          "renderer_preference": "wgpu",
+          "composition_mode": "viewport",
+          "gpu_backing_required": true,
+          "shader": null
+        }
+      ],
+      "scheduler": {
+        "phases": [
+          "Signals",
+          "Resources",
+          "Layout",
+          "Animation",
+          "Patches",
+          "Effects"
+        ],
+        "pending": [
+          {
+            "phase": "Animation",
+            "label": "animation-pass-node-5",
+            "target_nodes": [
+              5
+            ]
+          },
+          {
+            "phase": "Animation",
+            "label": "animation-pass-node-6",
+            "target_nodes": [
+              6
+            ]
+          }
+        ]
+      },
+      "selection_model": {
+        "scopes": [],
+        "active_scope": null
+      },
+      "command_buffer": {
+        "pending": []
+      },
+      "theme_registry": {
+        "active_theme": "default",
+        "scopes": [],
+        "semantic_tokens": [],
+        "variants": [],
+        "diff_keys": []
+      },
+      "workspace_layout": {
+        "roots": [],
+        "persistence_key": null,
+        "virtualization_enabled": false
+      },
+      "hot_reload": {
+        "preserve_focus": true,
+        "preserve_selection": true,
+        "preserve_docking": true,
+        "preserve_animation_state": true,
+        "preserve_session_state": true,
+        "identity_aliases": []
+      },
+      "signal_values": {},
+      "animation_state": {},
+      "session_state": {}
+    }
+  },
+  "native_projection": {
+    "root_id": 8,
+    "primary_panel_title": "GPU Compute Surface Probe",
+    "primary_viewport_title": "Tensor Stream Viewport",
+    "primary_viewport_scene": "tensor_stream_probe",
+    "nodes": [
+      {
+        "id": 8,
+        "parent_id": null,
+        "depth": 0,
+        "kind": "ComponentRef",
+        "title": null,
+        "text": null,
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 1
+      },
+      {
+        "id": 7,
+        "parent_id": 8,
+        "depth": 1,
+        "kind": "Slot",
+        "title": null,
+        "text": null,
+        "tag": "slot",
+        "scene": null,
+        "layout_kind": "Stack",
+        "child_count": 3
+      },
+      {
+        "id": 3,
+        "parent_id": 7,
+        "depth": 2,
+        "kind": "Panel",
+        "title": "GPU Compute Surface Probe",
+        "text": null,
+        "tag": "panel",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "child_count": 2
+      },
+      {
+        "id": 1,
+        "parent_id": 3,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Primary compute lane smoke",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 2,
+        "parent_id": 3,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "This smoke exists to force native packaging of SPIR-V, compute residency sidecars, and the GPU runtime DLL beside a native executable.",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 5,
+        "parent_id": 7,
+        "depth": 2,
+        "kind": "Graph",
+        "title": "Dispatch Plan",
+        "text": null,
+        "tag": "graph",
+        "scene": null,
+        "layout_kind": "Absolute",
+        "child_count": 1
+      },
+      {
+        "id": 4,
+        "parent_id": 5,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "dispatch 32x1x1 | local 1x1x1 | storage buffers src,dst | execution_domain tensor_stream",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "child_count": 0
+      },
+      {
+        "id": 6,
+        "parent_id": 7,
+        "depth": 2,
+        "kind": "Viewport3D",
+        "title": "Tensor Stream Viewport",
+        "text": null,
+        "tag": "viewport3d",
+        "scene": "tensor_stream_probe",
+        "layout_kind": "Absolute",
+        "child_count": 0
+      }
+    ]
+  }
+}

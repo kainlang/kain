@@ -1,0 +1,10 @@
+use std::javascript::bridge
+
+pub fn js_actor_runtime() -> Any:
+    return js_bridge_import("./helpers/web_runtime.mjs")
+
+pub fn js_actor_server_plan(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_actor_runtime(), "buildActorServerPlan", [path, experience_id])
+
+pub fn js_actor_server_report(path: String, experience_id: String) -> String:
+    return js_bridge_call_method(js_actor_runtime(), "actorServerReport", [path, experience_id])

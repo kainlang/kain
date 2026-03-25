@@ -1,0 +1,10 @@
+{
+  "kicker": "Immersive scene",
+  "title": "Luminous grid chamber",
+  "summary": "A premium reveal shell for product stories, launch events, and 3D-forward campaign pages.",
+  "layers": [
+    { "name": "hero_volume", "detail": "central lighting body and branded focal point" },
+    { "name": "orbit_rail", "detail": "camera path and motion halo" },
+    { "name": "cta_anchor", "detail": "call-to-action dock and supporting copy" }
+  ]
+}

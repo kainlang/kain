@@ -1,0 +1,33 @@
+version = 1
+
+[pack]
+name = "kain_universal_web"
+description = "Manifest-driven web template pack for business, portfolio, immersive 3D, chat, and actor-server experiences without requiring Rust or Cargo."
+default_template = "universal"
+
+[templates.universal]
+path = "universal"
+entry = "src/main.kn"
+native_preview_entry = "src/native_preview.kn"
+actor_server_entry = "src/actor_server.kn"
+package_manifest = "package.json"
+app_manifest = "manifests/app.json"
+supports = [
+  "business_site",
+  "portfolio_site",
+  "immersive_3d_site",
+  "chat_site",
+  "actor_server"
+]
+stdlib_modules = [
+  "std::javascript::site_runtime",
+  "std::javascript::site_actor"
+]
+
+[templates.universal.outputs]
+site_root = "outputs/sites"
+reports_root = "outputs"
+
+[templates.universal.runtime]
+node_command = "node"
+optional_typescript_runtime = "npx tsx"

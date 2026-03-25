@@ -1,0 +1,59 @@
+{
+  "brand": "Mesh Actor Ops",
+  "nav": [
+    { "label": "Routes", "href": "#routes" },
+    { "label": "Actors", "href": "#actors" },
+    { "label": "Control Room", "href": "#control" }
+  ],
+  "hero": {
+    "kicker": "Actor-server archetype",
+    "title": "Ship a local actor mesh with a website attached.",
+    "body": "This mode treats the website as the presentation shell for a Node-hosted actor runtime. Routes, actors, and runtime state all come from manifests that Kain can inspect and write.",
+    "actions": [
+      { "label": "Serve Actor Mesh", "href": "#routes", "style": "primary" },
+      { "label": "Inspect Runtime", "href": "#actors", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "05", "label": "HTTP routes templated" },
+    { "value": "04", "label": "actor roles scaffolded" },
+    { "value": "01", "label": "shared runtime helper" }
+  ],
+  "feature_cards": [
+    { "kicker": "Serve", "title": "Node-hosted runtime", "body": "Local HTTP serving is built into the helper with no external dependency surface." },
+    { "kicker": "Inspect", "title": "Actor topology as data", "body": "Route and actor definitions live in manifests and can be reported from Kain." },
+    { "kicker": "Bridge", "title": "Kain stays in the loop", "body": "The website runtime is still driven through Kain entrypoints and stdlib wrappers." }
+  ],
+  "story_cards": [
+    { "kicker": "Control", "title": "Presentation and runtime together", "body": "The page, APIs, and actor notes all belong to one template lane." },
+    { "kicker": "Extend", "title": "Ready for websocket or queue adapters", "body": "Add more runtime transports later without changing the manifest model." }
+  ],
+  "timeline": [
+    { "phase": "Define", "title": "Name the actors", "body": "Treat responsibilities and channels as first-class design inputs." },
+    { "phase": "Route", "title": "Map the HTTP surface", "body": "Expose runtime, actor, and chat metadata through stable route manifests." },
+    { "phase": "Operate", "title": "Use the page as a control room", "body": "The website becomes an operational shell instead of a static brochure." }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "I can describe the active routes, actor responsibilities, or next runtime extension points." }
+  ],
+  "actor_roles": [
+    { "name": "site_renderer", "responsibility": "Serves the current HTML shell and supporting assets.", "channel": "http.root" },
+    { "name": "runtime_reporter", "responsibility": "Returns build metadata for dashboards and probes.", "channel": "api.runtime" },
+    { "name": "chat_seed_router", "responsibility": "Supplies prompt-ready assistant messages.", "channel": "api.chat" },
+    { "name": "mesh_supervisor", "responsibility": "Owns actor topology and health reporting.", "channel": "api.actors" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/", "purpose": "serves the actor control-room shell" },
+    { "method": "GET", "path": "/api/runtime", "purpose": "returns template runtime metadata" },
+    { "method": "GET", "path": "/api/actors", "purpose": "returns actor topology and route contracts" },
+    { "method": "GET", "path": "/api/chat", "purpose": "returns prompt seeds for assistant surfaces" }
+  ],
+  "cta": {
+    "title": "Use one template to ship the website and the local control plane.",
+    "body": "This lane is for operator dashboards, local agents, and sites that need a process behind them.",
+    "actions": [
+      { "label": "Start Actor Runtime", "href": "#routes", "style": "primary" }
+    ]
+  },
+  "footer": "actor-server experience"
+}

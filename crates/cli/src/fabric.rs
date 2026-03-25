@@ -59,7 +59,7 @@ pub fn run(command: FabricCommand) -> KainResult<()> {
             Ok(())
         }
         FabricCommand::Run { manifest } => {
-            let result = kain_omni::execute_fabric_manifest_path(&manifest)
+            let result = kain_host::fabric::execute_fabric_manifest_path(&manifest)
                 .map_err(|err| KainError::runtime(format!("Fabric run failed: {err}")))?;
             print_execution_summary(&result);
             match result.status {

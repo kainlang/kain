@@ -182,6 +182,81 @@ static int kain_ui_extract_u64_field(
     return 1;
 }
 
+static int kain_ui_extract_i32_field(
+    const char* scope_start,
+    const char* scope_end,
+    const char* key,
+    int* out_value
+) {
+    const char* value_start = kain_ui_find_value_start(scope_start, scope_end, key);
+    char* end_ptr = NULL;
+    long value;
+
+    if (!out_value || !value_start || value_start >= scope_end || *value_start == '\"') {
+        return 0;
+    }
+    if (value_start + 4 <= scope_end && memcmp(value_start, "null", 4) == 0) {
+        return 0;
+    }
+
+    value = strtol(value_start, &end_ptr, 10);
+    if (!end_ptr || end_ptr == value_start) {
+        return 0;
+    }
+
+    *out_value = (int)value;
+    return 1;
+}
+
+static int kain_ui_extract_f32_field(
+    const char* scope_start,
+    const char* scope_end,
+    const char* key,
+    float* out_value
+) {
+    const char* value_start = kain_ui_find_value_start(scope_start, scope_end, key);
+    char* end_ptr = NULL;
+    double value;
+
+    if (!out_value || !value_start || value_start >= scope_end || *value_start == '\"') {
+        return 0;
+    }
+    if (value_start + 4 <= scope_end && memcmp(value_start, "null", 4) == 0) {
+        return 0;
+    }
+
+    value = strtod(value_start, &end_ptr);
+    if (!end_ptr || end_ptr == value_start) {
+        return 0;
+    }
+
+    *out_value = (float)value;
+    return 1;
+}
+
+static int kain_ui_extract_bool_field(
+    const char* scope_start,
+    const char* scope_end,
+    const char* key,
+    int* out_value
+) {
+    const char* value_start = kain_ui_find_value_start(scope_start, scope_end, key);
+
+    if (!out_value || !value_start || value_start >= scope_end) {
+        return 0;
+    }
+    if (value_start + 4 <= scope_end && memcmp(value_start, "true", 4) == 0) {
+        *out_value = 1;
+        return 1;
+    }
+    if (value_start + 5 <= scope_end && memcmp(value_start, "false", 5) == 0) {
+        *out_value = 0;
+        return 1;
+    }
+
+    return 0;
+}
+
 static KainUiCompiledNodeKind kain_ui_parse_node_kind(const char* value) {
     if (!value || !value[0]) return KAIN_UI_COMPILED_NODE_UNKNOWN;
     if (_stricmp(value, "Element") == 0) return KAIN_UI_COMPILED_NODE_ELEMENT;
@@ -240,6 +315,74 @@ static int kain_ui_parse_projection_node(
         node->layout_kind,
         sizeof(node->layout_kind)
     );
+    kain_ui_extract_string_field(
+        object_start,
+        object_end,
+        "\"dock_placement\"",
+        node->dock_placement,
+        sizeof(node->dock_placement)
+    );
+    if (kain_ui_extract_f32_field(object_start, object_end, "\"split_ratio\"", &node->split_ratio)) {
+        node->has_split_ratio = 1;
+    }
+    kain_ui_extract_bool_field(object_start, object_end, "\"resizable\"", &node->resizable);
+    kain_ui_extract_string_field(
+        object_start,
+        object_end,
+        "\"persistent_layout_id\"",
+        node->persistent_layout_id,
+        sizeof(node->persistent_layout_id)
+    );
+    kain_ui_extract_string_field(
+        object_start,
+        object_end,
+        "\"tab_group_id\"",
+        node->tab_group_id,
+        sizeof(node->tab_group_id)
+    );
+    kain_ui_extract_string_field(
+        object_start,
+        object_end,
+        "\"tab_label\"",
+        node->tab_label,
+        sizeof(node->tab_label)
+    );
+    if (kain_ui_extract_i32_field(object_start, object_end, "\"tab_order\"", &node->tab_order)) {
+        node->has_tab_order = 1;
+    }
+    kain_ui_extract_bool_field(
+        object_start,
+        object_end,
+        "\"tab_default_active\"",
+        &node->tab_default_active
+    );
+    kain_ui_extract_bool_field(object_start, object_end, "\"tab_closable\"", &node->tab_closable);
+    kain_ui_extract_bool_field(object_start, object_end, "\"tab_is_active\"", &node->tab_is_active);
+    return 1;
+}
+
+static int kain_ui_parse_projection_tab_group(
+    const char* object_start,
+    const char* object_end,
+    KainUiCompiledTabGroup* tab_group
+) {
+    if (!object_start || !object_end || !tab_group) {
+        return 0;
+    }
+
+    ZeroMemory(tab_group, sizeof(*tab_group));
+    kain_ui_extract_string_field(object_start, object_end, "\"id\"", tab_group->id, sizeof(tab_group->id));
+    if (!tab_group->id[0]) {
+        return 0;
+    }
+    kain_ui_extract_string_field(
+        object_start,
+        object_end,
+        "\"active_tab_layout_id\"",
+        tab_group->active_tab_layout_id,
+        sizeof(tab_group->active_tab_layout_id)
+    );
+    kain_ui_extract_i32_field(object_start, object_end, "\"tab_count\"", &tab_group->tab_count);
     return 1;
 }
 

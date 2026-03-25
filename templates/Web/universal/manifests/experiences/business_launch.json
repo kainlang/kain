@@ -1,0 +1,10 @@
+{
+  "mode": "business",
+  "theme": "aurora_studio",
+  "content": "signalcraft_business",
+  "scene": "luminous_grid",
+  "output_slug": "business-launch",
+  "page_title": "Signalcraft Systems",
+  "eyebrow": "Business Website",
+  "sections": ["features", "story", "timeline", "scene", "cta"]
+}
