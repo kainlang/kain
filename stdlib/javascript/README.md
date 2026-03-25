@@ -61,3 +61,33 @@ Those payload adapters are designed for helpers that return structured objects s
 - `{ kind: "canvas", mime_type: "image/svg+xml", width, height, text: "<svg...>", bytes: Uint8Array(...) }`
 
 If you want a runtime-neutral payload that can move into Rust crate FFI or future C/C++ bridges, convert it into the shared contract first with `js_web_shared_buffer(...)` or `js_web_shared_image(...)`.
+
+## Template-Oriented Helpers
+
+The JavaScript stdlib layer now also includes two template-facing wrappers for
+web application packs under `templates/Web`:
+
+- `std::javascript::site_runtime`
+- `std::javascript::site_actor`
+
+They are intentionally thin wrappers over a local helper module, usually
+`./helpers/web_runtime.mjs`, so Kain source can stay focused on orchestration
+instead of repeating Node import, manifest loading, and artifact-writing glue.
+
+Typical flow:
+
+```kain
+use std::javascript::site_runtime
+
+fn main() -> String:
+    let summary = js_site_write_matrix("manifests/app.json")
+    println("built " + str(summary.experience_count) + " experiences")
+    return summary.output_root
+```
+
+Those helpers are designed for no-Rust-required web templates where:
+
+- Kain owns app orchestration, semantic UI preview, and template composition
+- Node owns ecosystem-specific packaging, static serving, and actor-server glue
+- manifests stay as the single source of truth for themes, content, scenes,
+  experiences, and route surfaces

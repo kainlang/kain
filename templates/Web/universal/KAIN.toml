@@ -1,0 +1,13 @@
+[package]
+name = "kain_universal_web"
+version = "0.1.0"
+
+[build]
+entry = "src/main.kn"
+output = "outputs"
+targets = ["run", "test"]
+
+[node_ffi]
+command = "node"
+args = []
+cwd = "."

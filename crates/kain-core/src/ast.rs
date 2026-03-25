@@ -21,6 +21,12 @@ pub const COMPUTE_TENSOR_DEFAULT_CONTRACT: &str = "kain.shared.buffer";
 /// Default role string used when a tensor plan does not specify one.
 pub const COMPUTE_TENSOR_DEFAULT_ROLE: &str = "state";
 
+/// Default contract string used when a stream plan does not specify one.
+pub const COMPUTE_STREAM_DEFAULT_CONTRACT: &str = "kain.shared.buffer";
+
+/// Default cadence string used when a stream plan does not specify one.
+pub const COMPUTE_STREAM_DEFAULT_CADENCE: &str = "continuous";
+
 /// Capability key emitted when a shader authors explicit compute metadata.
 pub const COMPUTE_PLAN_CAPABILITY_KEY: &str = "gpu.compute-plan";
 
@@ -281,11 +287,20 @@ pub struct Uniform {
 /// Explicit compute metadata authored in a compute shader's `comptime` block.
 ///
 /// Convention:
+/// Legacy form:
 /// `let compute = ([dispatch_x, dispatch_y, dispatch_z], [tensor_plans], [node_plans])`
+///
+/// Extended form:
+/// `let compute = ([wg_x, wg_y, wg_z], [dispatch_x, dispatch_y, dispatch_z], [tensor_plans], [stream_plans], [node_plans])`
 ///
 /// Tensor plans are tuples of:
 /// `("binding", "element_type", ["shape", "dims"], "role", "contract")`
 /// with `role` defaulting to `state` and `contract` defaulting to
+/// `kain.shared.buffer`.
+///
+/// Stream plans are tuples of:
+/// `("binding", "direction", "cadence", "contract")`
+/// with `cadence` defaulting to `continuous` and `contract` defaulting to
 /// `kain.shared.buffer`.
 ///
 /// Neural node plans are tuples of:
@@ -293,8 +308,10 @@ pub struct Uniform {
 /// with `stateful` defaulting to `false`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ComputeMetadata {
+    pub workgroup_size: Option<[u32; 3]>,
     pub dispatch_size: [u32; 3],
     pub tensor_plans: Vec<ComputeTensorPlan>,
+    pub stream_plans: Option<Vec<ComputeStreamPlan>>,
     pub neural_node_plans: Vec<ComputeNeuralNodePlan>,
 }
 
@@ -304,6 +321,14 @@ pub struct ComputeTensorPlan {
     pub element_type: String,
     pub shape: Vec<String>,
     pub role: String,
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputeStreamPlan {
+    pub key: String,
+    pub direction: String,
+    pub cadence: String,
     pub contract: String,
 }
 
@@ -418,45 +443,70 @@ fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMe
         Expr::Paren(inner, _) => return parse_compute_metadata_expr(inner),
         _ => {
             return Err(ComputeMetadataError::InvalidPlanShape(
-                "expected a tuple or array with dispatch, tensors, and neural nodes".to_string(),
+                "expected a tuple or array with either (dispatch, tensors, nodes) or (workgroup, dispatch, tensors, streams, nodes)".to_string(),
             ))
         }
     };
 
-    if tuple_items.len() != 3 {
-        return Err(ComputeMetadataError::InvalidPlanShape(format!(
-            "expected 3 entries (dispatch, tensors, nodes), found {}",
-            tuple_items.len()
-        )));
-    }
+    let (workgroup_size, dispatch_expr, tensor_expr, stream_expr, node_expr) = match tuple_items.as_slice()
+    {
+        [dispatch_expr, tensor_expr, node_expr] => {
+            (None, dispatch_expr, tensor_expr, None, node_expr)
+        }
+        [workgroup_expr, dispatch_expr, tensor_expr, stream_expr, node_expr] => (
+            Some(parse_workgroup_size_expr(workgroup_expr)?),
+            dispatch_expr,
+            tensor_expr,
+            Some(stream_expr),
+            node_expr,
+        ),
+        _ => {
+            return Err(ComputeMetadataError::InvalidPlanShape(format!(
+                "expected 3 entries (dispatch, tensors, nodes) or 5 entries (workgroup, dispatch, tensors, streams, nodes), found {}",
+                tuple_items.len()
+            )))
+        }
+    };
 
-    let dispatch_size = parse_dispatch_size_expr(&tuple_items[0])?;
-    let tensor_plans = parse_tensor_plan_list_expr(&tuple_items[1])?;
-    let neural_node_plans = parse_neural_node_plan_list_expr(&tuple_items[2])?;
+    let dispatch_size = parse_dispatch_size_expr(dispatch_expr)?;
+    let tensor_plans = parse_tensor_plan_list_expr(tensor_expr)?;
+    let stream_plans = if let Some(expr) = stream_expr {
+        Some(parse_stream_plan_list_expr(expr)?)
+    } else {
+        None
+    };
+    let neural_node_plans = parse_neural_node_plan_list_expr(node_expr)?;
 
     Ok(ComputeMetadata {
+        workgroup_size,
         dispatch_size,
         tensor_plans,
+        stream_plans,
         neural_node_plans,
     })
 }
 
+fn parse_workgroup_size_expr(expr: &Expr) -> Result<[u32; 3], ComputeMetadataError> {
+    parse_dimension_triplet_expr(expr, "workgroup").map_err(ComputeMetadataError::InvalidPlanShape)
+}
+
 fn parse_dispatch_size_expr(expr: &Expr) -> Result<[u32; 3], ComputeMetadataError> {
+    parse_dimension_triplet_expr(expr, "dispatch")
+        .map_err(ComputeMetadataError::InvalidDispatchShape)
+}
+
+fn parse_dimension_triplet_expr(expr: &Expr, label: &str) -> Result<[u32; 3], String> {
     let items = match expr {
         Expr::Array(items, _) | Expr::Tuple(items, _) => items,
-        Expr::Paren(inner, _) => return parse_dispatch_size_expr(inner),
-        _ => {
-            return Err(ComputeMetadataError::InvalidDispatchShape(
-                "expected an array or tuple of three integers".to_string(),
-            ))
-        }
+        Expr::Paren(inner, _) => return parse_dimension_triplet_expr(inner, label),
+        _ => return Err("expected an array or tuple of three integers".to_string()),
     };
 
     if items.len() != 3 {
-        return Err(ComputeMetadataError::InvalidDispatchShape(format!(
+        return Err(format!(
             "expected exactly 3 dimensions, found {}",
             items.len()
-        )));
+        ));
     }
 
     let mut dispatch = [0u32; 3];
@@ -466,17 +516,17 @@ fn parse_dispatch_size_expr(expr: &Expr) -> Result<[u32; 3], ComputeMetadataErro
             Expr::Paren(inner, _) => match &**inner {
                 Expr::Int(n, _) if *n >= 0 && *n <= u32::MAX as i64 => *n as u32,
                 _ => {
-                    return Err(ComputeMetadataError::InvalidDispatchShape(format!(
-                        "dimension {} must be a non-negative integer literal",
+                    return Err(format!(
+                        "{label} dimension {} must be a non-negative integer literal",
                         index
-                    )))
+                    ))
                 }
             },
             _ => {
-                return Err(ComputeMetadataError::InvalidDispatchShape(format!(
-                    "dimension {} must be a non-negative integer literal",
+                return Err(format!(
+                    "{label} dimension {} must be a non-negative integer literal",
                     index
-                )))
+                ))
             }
         };
         dispatch[index] = value;
@@ -543,6 +593,65 @@ fn parse_tensor_plan_expr(expr: &Expr) -> Result<ComputeTensorPlan, ComputeMetad
         element_type,
         shape,
         role,
+        contract,
+    })
+}
+
+fn parse_stream_plan_list_expr(
+    expr: &Expr,
+) -> Result<Vec<ComputeStreamPlan>, ComputeMetadataError> {
+    let items = match expr {
+        Expr::Array(items, _) | Expr::Tuple(items, _) => items,
+        Expr::Paren(inner, _) => return parse_stream_plan_list_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidPlanShape(
+                "expected an array or tuple of stream plan entries".to_string(),
+            ))
+        }
+    };
+
+    let mut plans = Vec::with_capacity(items.len());
+    for item in items {
+        plans.push(parse_stream_plan_expr(item)?);
+    }
+    Ok(plans)
+}
+
+fn parse_stream_plan_expr(expr: &Expr) -> Result<ComputeStreamPlan, ComputeMetadataError> {
+    let fields = match expr {
+        Expr::Tuple(items, _) | Expr::Array(items, _) => items,
+        Expr::Paren(inner, _) => return parse_stream_plan_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidPlanShape(
+                "expected stream plan to be a tuple or array".to_string(),
+            ))
+        }
+    };
+
+    if fields.len() < 2 {
+        return Err(ComputeMetadataError::InvalidPlanShape(
+            "stream plan needs at least binding and direction".to_string(),
+        ));
+    }
+
+    let key = expr_to_plan_string(&fields[0]).map_err(ComputeMetadataError::InvalidPlanShape)?;
+    let direction =
+        expr_to_plan_string(&fields[1]).map_err(ComputeMetadataError::InvalidPlanShape)?;
+    let cadence = if let Some(expr) = fields.get(2) {
+        expr_to_plan_string(expr).map_err(ComputeMetadataError::InvalidPlanShape)?
+    } else {
+        COMPUTE_STREAM_DEFAULT_CADENCE.to_string()
+    };
+    let contract = if let Some(expr) = fields.get(3) {
+        expr_to_plan_string(expr).map_err(ComputeMetadataError::InvalidPlanShape)?
+    } else {
+        COMPUTE_STREAM_DEFAULT_CONTRACT.to_string()
+    };
+
+    Ok(ComputeStreamPlan {
+        key,
+        direction,
+        cadence,
         contract,
     })
 }

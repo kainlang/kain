@@ -1,0 +1,10 @@
+use std::javascript::site_actor
+
+fn output_path(name: String) -> String:
+    return "outputs/" + name
+
+fn main() -> String:
+    let report = js_actor_server_report("manifests/app.json", "actor_mesh_foundry")
+    write_file(output_path("actor_server_report.txt"), report + "\n")
+    println(report)
+    return report

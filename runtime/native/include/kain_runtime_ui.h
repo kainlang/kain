@@ -10,6 +10,8 @@
 #define KAIN_UI_COMPILED_BUNDLE_MAX_TEXT 320
 #define KAIN_UI_COMPILED_BUNDLE_MAX_TAG 64
 #define KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT 32
+#define KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT_ID 96
+#define KAIN_UI_COMPILED_BUNDLE_MAX_TAB_GROUPS 32
 #define KAIN_UI_COMPILED_OVERLAY_MAX_LINES 8
 
 typedef struct {
@@ -64,8 +66,26 @@ typedef struct {
     char tag[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
     char scene[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
     char layout_kind[KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT];
+    char dock_placement[KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT];
+    int has_split_ratio;
+    float split_ratio;
+    int resizable;
+    char persistent_layout_id[KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT_ID];
+    char tab_group_id[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
+    char tab_label[KAIN_UI_COMPILED_BUNDLE_MAX_TITLE];
+    int has_tab_order;
+    int tab_order;
+    int tab_default_active;
+    int tab_closable;
+    int tab_is_active;
     int child_count;
 } KainUiCompiledNode;
+
+typedef struct {
+    char id[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
+    char active_tab_layout_id[KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT_ID];
+    int tab_count;
+} KainUiCompiledTabGroup;
 
 typedef struct {
     int loaded;
@@ -75,6 +95,8 @@ typedef struct {
     char primary_panel_title[KAIN_UI_COMPILED_BUNDLE_MAX_TITLE];
     char primary_viewport_title[KAIN_UI_COMPILED_BUNDLE_MAX_TITLE];
     char primary_viewport_scene[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
+    int tab_group_count;
+    KainUiCompiledTabGroup tab_groups[KAIN_UI_COMPILED_BUNDLE_MAX_TAB_GROUPS];
     int node_count;
     KainUiCompiledNode nodes[KAIN_UI_COMPILED_BUNDLE_MAX_NODES];
 } KainUiCompiledBundle;

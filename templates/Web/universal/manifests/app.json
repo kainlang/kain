@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "name": "kain_universal_web",
+  "default_experience": "business_launch",
+  "output_root": "outputs/sites",
+  "registries": {
+    "themes": "manifests/themes/registry.json",
+    "content": "manifests/content/registry.json",
+    "scenes": "manifests/scenes/registry.json",
+    "experiences": "manifests/experiences/registry.json"
+  },
+  "site_runtime": {
+    "host": "127.0.0.1",
+    "default_port": 4318,
+    "client_features": [
+      "metric_card",
+      "portfolio_filter",
+      "chat_lab",
+      "actor_watch"
+    ]
+  },
+  "build": {
+    "experiences": [
+      "business_launch",
+      "portfolio_signal",
+      "immersive_luminous",
+      "chat_orbit",
+      "actor_mesh_foundry"
+    ]
+  }
+}

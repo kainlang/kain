@@ -921,6 +921,7 @@ dependencies = [
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
+ "kain-host",
  "kain-import",
  "kain-omni",
  "kain-sys-codegen",
@@ -2780,7 +2781,9 @@ dependencies = [
  "kain-core",
  "kain-driver",
  "kain-host-derive",
+ "kain-omni",
  "kain-reflect",
+ "serde_json",
  "tempfile",
 ]
 

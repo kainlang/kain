@@ -1,0 +1,53 @@
+{
+  "brand": "Luminous Port",
+  "nav": [
+    { "label": "World", "href": "#world" },
+    { "label": "Layers", "href": "#layers" },
+    { "label": "Edition", "href": "#edition" }
+  ],
+  "hero": {
+    "kicker": "Immersive 3D archetype",
+    "title": "Stage premium product stories with a 3D-first shell.",
+    "body": "The immersive mode gives a dedicated scene block, feature pacing, and atmospheric chrome so a web page can behave like a teaser environment rather than a brochure.",
+    "actions": [
+      { "label": "Open World", "href": "#world", "style": "primary" },
+      { "label": "Read Layer Map", "href": "#layers", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "3D", "label": "scene-first storytelling lane" },
+    { "value": "06", "label": "layer descriptors" },
+    { "value": "01", "label": "runtime for site and scene shell" }
+  ],
+  "feature_cards": [
+    { "kicker": "Stage", "title": "Cinematic hero shell", "body": "Use atmospheric gradients, ring staging, and scene notes to set the tone." },
+    { "kicker": "Bridge", "title": "Ready for runtime adapters", "body": "The scene manifest keeps room for future WebGPU, canvas, or semantic UI web backends." },
+    { "kicker": "Narrate", "title": "Scene metadata is content", "body": "Layers, labels, and summaries are editable without changing the runtime." }
+  ],
+  "story_cards": [
+    { "kicker": "Scene", "title": "Orbit chamber", "body": "A premium release deserves space to breathe before the copy grid takes over." },
+    { "kicker": "Motion", "title": "Progressive reveal", "body": "The starter is set up for future motion tracks and scene transitions." }
+  ],
+  "timeline": [
+    { "phase": "Frame", "title": "Define the reveal", "body": "Start with the atmosphere, not the CTA wall." },
+    { "phase": "Layer", "title": "Name the scene blocks", "body": "Keep the 3D narrative legible through authored layer descriptors." },
+    { "phase": "Convert", "title": "Add CTA after wonder", "body": "Sales surfaces land harder after the world is clear." }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "I can explain the scene layers, shader story, or technical stack behind the reveal." }
+  ],
+  "actor_roles": [
+    { "name": "scene_director", "responsibility": "Chooses which world state the visitor enters.", "channel": "scene.state" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/api/runtime", "purpose": "returns scene metadata for browser adapters" }
+  ],
+  "cta": {
+    "title": "Let the product feel expensive before the pricing section arrives.",
+    "body": "Use the immersive lane when the page itself needs to feel like an environment.",
+    "actions": [
+      { "label": "Serve Immersive Shell", "href": "#world", "style": "primary" }
+    ]
+  },
+  "footer": "immersive 3d experience"
+}

@@ -1,0 +1,10 @@
+{
+  "mode": "immersive3d",
+  "theme": "aurora_studio",
+  "content": "luminous_immersive",
+  "scene": "luminous_grid",
+  "output_slug": "immersive-luminous",
+  "page_title": "Luminous Port",
+  "eyebrow": "3D Website",
+  "sections": ["features", "scene", "story", "timeline", "cta"]
+}

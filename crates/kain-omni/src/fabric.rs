@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +53,7 @@ pub struct FabricWorkspace {
     pub search_roots: Vec<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FabricRuntimeKind {
     Kain,
@@ -153,12 +154,77 @@ pub struct FabricInitResult {
     pub created_paths: Vec<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FabricValidationResult {
     pub manifest_path: PathBuf,
     pub step_count: usize,
     pub runtime_counts: BTreeMap<String, usize>,
     pub required_capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FabricSessionStatus {
+    Succeeded,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FabricStepStatus {
+    Pending,
+    Succeeded,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricStepExecution {
+    pub id: String,
+    pub runtime: FabricRuntimeKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<PathBuf>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    pub status: FabricStepStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_unix_ms: Option<u128>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finished_unix_ms: Option<u128>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricExecutionResult {
+    pub manifest_path: PathBuf,
+    pub validation: FabricValidationResult,
+    pub session_id: String,
+    pub workspace_root: PathBuf,
+    pub session_directory: PathBuf,
+    pub report_path: PathBuf,
+    pub lock_path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub events_path: Option<PathBuf>,
+    pub status: FabricSessionStatus,
+    pub started_unix_ms: u128,
+    pub finished_unix_ms: u128,
+    pub step_results: Vec<FabricStepExecution>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricEventRecord {
+    pub timestamp_unix_ms: u128,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<FabricRuntimeKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<FabricStepStatus>,
+    pub message: String,
 }
 
 impl Default for FabricManifest {
@@ -354,6 +420,105 @@ pub fn validate_fabric_manifest(
     })
 }
 
+pub fn detect_dependency_cycles(steps: &[FabricStep]) -> OmniResult<()> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum VisitState {
+        Visiting,
+        Done,
+    }
+
+    fn visit(
+        step_id: &str,
+        graph: &BTreeMap<String, Vec<String>>,
+        states: &mut BTreeMap<String, VisitState>,
+        stack: &mut Vec<String>,
+    ) -> OmniResult<()> {
+        if let Some(state) = states.get(step_id).copied() {
+            if state == VisitState::Done {
+                return Ok(());
+            }
+            if state == VisitState::Visiting {
+                stack.push(step_id.to_string());
+                return Err(OmniError::Config(format!(
+                    "Fabric dependency cycle detected: {}",
+                    stack.join(" -> ")
+                )));
+            }
+        }
+
+        states.insert(step_id.to_string(), VisitState::Visiting);
+        stack.push(step_id.to_string());
+        if let Some(dependencies) = graph.get(step_id) {
+            for dependency in dependencies {
+                visit(dependency, graph, states, stack)?;
+            }
+        }
+        stack.pop();
+        states.insert(step_id.to_string(), VisitState::Done);
+        Ok(())
+    }
+
+    let graph = steps
+        .iter()
+        .map(|step| (step.id.clone(), step.depends_on.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut states = BTreeMap::new();
+    let mut stack = Vec::new();
+    for step in steps {
+        visit(&step.id, &graph, &mut states, &mut stack)?;
+    }
+    Ok(())
+}
+
+pub fn topological_step_order(steps: &[FabricStep]) -> OmniResult<Vec<String>> {
+    let mut in_degree = steps
+        .iter()
+        .map(|step| (step.id.clone(), step.depends_on.len()))
+        .collect::<BTreeMap<_, _>>();
+    let mut dependents = BTreeMap::<String, Vec<String>>::new();
+    for step in steps {
+        for dependency in &step.depends_on {
+            dependents
+                .entry(dependency.clone())
+                .or_default()
+                .push(step.id.clone());
+        }
+    }
+
+    let mut ready = in_degree
+        .iter()
+        .filter(|(_, count)| **count == 0)
+        .map(|(id, _)| id.clone())
+        .collect::<BTreeSet<_>>();
+    let mut ordered = Vec::with_capacity(steps.len());
+
+    while let Some(next_id) = ready.iter().next().cloned() {
+        ready.remove(&next_id);
+        ordered.push(next_id.clone());
+        if let Some(children) = dependents.get(&next_id) {
+            for child in children {
+                let Some(count) = in_degree.get_mut(child) else {
+                    return Err(OmniError::Config(format!(
+                        "Fabric execution graph lost dependent step '{child}'"
+                    )));
+                };
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    ready.insert(child.clone());
+                }
+            }
+        }
+    }
+
+    if ordered.len() != steps.len() {
+        return Err(OmniError::Config(
+            "Fabric execution order could not be resolved".to_string(),
+        ));
+    }
+
+    Ok(ordered)
+}
+
 pub fn supported_local_fabric_capabilities() -> BTreeSet<String> {
     [
         "session.local",
@@ -369,6 +534,28 @@ pub fn supported_local_fabric_capabilities() -> BTreeSet<String> {
     .into_iter()
     .map(str::to_string)
     .collect()
+}
+
+pub fn resolve_fabric_path(base: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base.join(path)
+    }
+}
+
+pub fn write_fabric_json<T: Serialize>(path: &Path, value: &T) -> OmniResult<()> {
+    let encoded = serde_json::to_string_pretty(value)
+        .map_err(|err| OmniError::Config(format!("Failed to serialize Fabric artifact: {err}")))?;
+    fs::write(path, encoded)?;
+    Ok(())
+}
+
+pub fn unix_timestamp_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0)
 }
 
 fn validate_capability_requirement(
@@ -445,56 +632,6 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
         }
     }
 
-    Ok(())
-}
-
-fn detect_dependency_cycles(steps: &[FabricStep]) -> OmniResult<()> {
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    enum VisitState {
-        Visiting,
-        Done,
-    }
-
-    fn visit(
-        step_id: &str,
-        graph: &BTreeMap<String, Vec<String>>,
-        states: &mut BTreeMap<String, VisitState>,
-        stack: &mut Vec<String>,
-    ) -> OmniResult<()> {
-        if let Some(state) = states.get(step_id).copied() {
-            if state == VisitState::Done {
-                return Ok(());
-            }
-            if state == VisitState::Visiting {
-                stack.push(step_id.to_string());
-                return Err(OmniError::Config(format!(
-                    "Fabric dependency cycle detected: {}",
-                    stack.join(" -> ")
-                )));
-            }
-        }
-
-        states.insert(step_id.to_string(), VisitState::Visiting);
-        stack.push(step_id.to_string());
-        if let Some(dependencies) = graph.get(step_id) {
-            for dependency in dependencies {
-                visit(dependency, graph, states, stack)?;
-            }
-        }
-        stack.pop();
-        states.insert(step_id.to_string(), VisitState::Done);
-        Ok(())
-    }
-
-    let graph = steps
-        .iter()
-        .map(|step| (step.id.clone(), step.depends_on.clone()))
-        .collect::<BTreeMap<_, _>>();
-    let mut states = BTreeMap::new();
-    let mut stack = Vec::new();
-    for step in steps {
-        visit(&step.id, &graph, &mut states, &mut stack)?;
-    }
     Ok(())
 }
 

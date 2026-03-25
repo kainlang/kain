@@ -1,0 +1,56 @@
+{
+  "brand": "Signalcraft Systems",
+  "nav": [
+    { "label": "Platform", "href": "#platform" },
+    { "label": "Stories", "href": "#stories" },
+    { "label": "Pricing", "href": "#pricing" },
+    { "label": "Docs", "href": "#docs" }
+  ],
+  "hero": {
+    "kicker": "Business website archetype",
+    "title": "Launch sites that read like software systems.",
+    "body": "Use one manifest-driven starter to ship landing pages, pricing rails, proof cards, and roadmap narratives without copy-pasting a front-end stack into every project.",
+    "actions": [
+      { "label": "Launch Product Story", "href": "#platform", "style": "primary" },
+      { "label": "Read Architecture", "href": "#docs", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "48h", "label": "from blank repo to launch surface" },
+    { "value": "12", "label": "reusable content blocks" },
+    { "value": "1x", "label": "manifest source of truth" }
+  ],
+  "feature_cards": [
+    { "kicker": "Narrative", "title": "Hero + proof stack", "body": "Prominent launch messaging, CTAs, and social proof cards are already wired into the template." },
+    { "kicker": "Systems", "title": "Section registry", "body": "Feature rails, timelines, case studies, and pricing copy stay content-driven." },
+    { "kicker": "Runtime", "title": "Node packaging lane", "body": "The browser output builds through Node FFI instead of requiring Rust toolchains." }
+  ],
+  "story_cards": [
+    { "kicker": "Week 1", "title": "Theme system", "body": "Color, type, spacing, and chrome are isolated in theme manifests." },
+    { "kicker": "Week 2", "title": "Content schema", "body": "Sections and cards moved out of hand-authored page code." },
+    { "kicker": "Week 3", "title": "Artifact matrix", "body": "Each experience now writes HTML, manifest, and server-plan outputs." }
+  ],
+  "timeline": [
+    { "phase": "Plan", "title": "Pick the archetype", "body": "Choose business, portfolio, immersive, chat, or actor-server mode." },
+    { "phase": "Shape", "title": "Swap manifests", "body": "Replace theme, content, and scene entries instead of rewriting page code." },
+    { "phase": "Ship", "title": "Serve locally", "body": "Use the packaged Node runtime to inspect the exact artifact users will see." }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "I can turn this starter into a SaaS launch site, docs hub, or campaign reveal." }
+  ],
+  "actor_roles": [
+    { "name": "campaign_router", "responsibility": "Routes visitors into the right launch flow.", "channel": "http.route" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/", "purpose": "serve the marketing shell" }
+  ],
+  "cta": {
+    "title": "Swap manifests, not frameworks.",
+    "body": "This starter is built to keep web products moving without rebuilding infrastructure every time.",
+    "actions": [
+      { "label": "Open Registry", "href": "#docs", "style": "primary" },
+      { "label": "Serve Locally", "href": "#platform", "style": "secondary" }
+    ]
+  },
+  "footer": "business launch experience"
+}

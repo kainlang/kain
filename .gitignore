@@ -37,7 +37,6 @@ graphics_runtime_smoke_env_bundle.realtime_app.json
 .idea/
 *.swp
 *.swo
-
 # OS
 .DS_Store
 Thumbs.db

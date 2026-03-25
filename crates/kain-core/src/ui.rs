@@ -698,6 +698,31 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
             UIAttr::Property { name, value } if name == "persistent_layout_id" => {
                 layout.persistent_layout_id = value_as_str(value).map(ToString::to_string);
             }
+            UIAttr::Property { name, value } if name == "tab_group_id" => {
+                layout.tab_group_id = value_as_str(value).map(ToString::to_string);
+            }
+            UIAttr::Property { name, value } if name == "tab_label" => {
+                layout.tab_label = value_as_str(value).map(ToString::to_string);
+            }
+            UIAttr::Property { name, value } if name == "tab_order" => {
+                layout.tab_order = runtime_value_to_i32(value).or(layout.tab_order);
+            }
+            UIAttr::Bool { name, value } if name == "tab_default_active" => {
+                layout.tab_default_active = *value;
+            }
+            UIAttr::Property { name, value } if name == "tab_default_active" => {
+                if let Some(value) = value_as_bool(value) {
+                    layout.tab_default_active = value;
+                }
+            }
+            UIAttr::Bool { name, value } if name == "tab_closable" => {
+                layout.tab_closable = *value;
+            }
+            UIAttr::Property { name, value } if name == "tab_closable" => {
+                if let Some(value) = value_as_bool(value) {
+                    layout.tab_closable = value;
+                }
+            }
             UIAttr::Bool { name, value } if name == "resizable" => {
                 layout.resizable = *value;
             }
@@ -768,6 +793,11 @@ fn should_skip_prop_attr(name: &str) -> bool {
             | "split_ratio"
             | "resizable"
             | "persistent_layout_id"
+            | "tab_group_id"
+            | "tab_label"
+            | "tab_order"
+            | "tab_default_active"
+            | "tab_closable"
             | "scope"
             | "theme_scope"
             | "variant"
@@ -910,6 +940,21 @@ fn runtime_value_to_f32(value: &Value) -> Option<f32> {
         Value::Int(value) => Some(*value as f32),
         Value::Float(value) => Some(*value as f32),
         Value::String(value) => value.trim().parse::<f32>().ok(),
+        _ => None,
+    }
+}
+
+fn runtime_value_to_i32(value: &Value) -> Option<i32> {
+    match value {
+        Value::Int(value) => i32::try_from(*value).ok(),
+        Value::Float(value) => {
+            if value.is_finite() && *value >= i32::MIN as f64 && *value <= i32::MAX as f64 {
+                Some(*value as i32)
+            } else {
+                None
+            }
+        }
+        Value::String(value) => value.trim().parse::<i32>().ok(),
         _ => None,
     }
 }
@@ -1768,7 +1813,7 @@ component App():
     fn test_layout_attrs_lower_into_semantic_layout() {
         let source = r#"
 component App():
-    render <panel layout="dock" dock="left" split_ratio={0.25} width="35%" min_width={220} max_width={480} flex_grow={1} flex_shrink={0} align="stretch" justify="space-between" overflow="hidden" resizable={true} persistent_layout_id="shell_left" />
+    render <panel layout="dock" dock="left" split_ratio={0.25} width="35%" min_width={220} max_width={480} flex_grow={1} flex_shrink={0} align="stretch" justify="space-between" overflow="hidden" resizable={true} persistent_layout_id="shell_left" tab_group_id="center_tabs" tab_label="Scene" tab_order={2} tab_default_active={true} tab_closable={true} />
 "#;
 
         let output = build_ui_output_from_source(source, "App").expect("source should render");
@@ -1802,9 +1847,16 @@ component App():
             panel.layout.persistent_layout_id.as_deref(),
             Some("shell_left")
         );
+        assert_eq!(panel.layout.tab_group_id.as_deref(), Some("center_tabs"));
+        assert_eq!(panel.layout.tab_label.as_deref(), Some("Scene"));
+        assert_eq!(panel.layout.tab_order, Some(2));
+        assert!(panel.layout.tab_default_active);
+        assert!(panel.layout.tab_closable);
         assert!(!panel.props.contains_key("layout"));
         assert!(!panel.props.contains_key("dock"));
         assert!(!panel.props.contains_key("resizable"));
+        assert!(!panel.props.contains_key("tab_group_id"));
+        assert!(!panel.props.contains_key("tab_default_active"));
     }
 
     #[test]

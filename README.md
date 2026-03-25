@@ -721,12 +721,20 @@ Current artifact bundle story:
 
 Compute shaders can now carry authored `comptime` metadata that describes:
 
+- workgroup size
 - dispatch size
 - tensor bindings, roles, and contract names
 - stream bindings
 - neural node plans
 
 That metadata is compiler-owned truth, not a host-local guess. It now flows through `kain-core` into runtime contract bundles, marks `gpu.compute-plan` as a required capability when present, and gives the raw-native viewport lane enough structure to validate and step a per-frame compute execution state.
+
+The compiler currently accepts both:
+
+- a legacy 3-entry plan: `(dispatch, tensors, nodes)`
+- an extended 5-entry plan: `(workgroup, dispatch, tensors, streams, nodes)`
+
+That keeps older authored shaders valid while allowing new compute lanes to move workgroup and stream semantics out of runtime heuristics and into compiler-owned bundle data.
 
 The native runtime should still treat that as an execution bridge, not as full GPU dispatch. The useful distinction is:
 

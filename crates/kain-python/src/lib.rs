@@ -4025,7 +4025,7 @@ fn extract_python_object(value: &Value, py: Python<'_>) -> KainResult<PyObject> 
     )))
 }
 
-fn value_to_pyobject(py: Python<'_>, value: &Value) -> KainResult<PyObject> {
+pub fn value_to_pyobject(py: Python<'_>, value: &Value) -> KainResult<PyObject> {
     match value {
         Value::Unit | Value::None => Ok(py.None()),
         Value::Bool(value) => Ok(value.into_py(py)),
@@ -4065,7 +4065,7 @@ fn value_to_pyobject(py: Python<'_>, value: &Value) -> KainResult<PyObject> {
     }
 }
 
-fn py_to_value(obj: &PyAny) -> KainResult<Value> {
+pub fn py_to_value(obj: &PyAny) -> KainResult<Value> {
     if obj.is_none() {
         return Ok(Value::None);
     }
@@ -4175,7 +4175,7 @@ fn try_array_like_to_value(obj: &PyAny) -> KainResult<Option<Value>> {
     Ok(Some(py_to_value(list_value)?))
 }
 
-fn wrap_python_object(obj: &PyAny) -> KainResult<Value> {
+pub fn wrap_python_object(obj: &PyAny) -> KainResult<Value> {
     let label = python_object_label(obj);
     Ok(Value::host_object(
         label,
@@ -4215,12 +4215,12 @@ fn python_object_label(obj: &PyAny) -> String {
     format!("python:{}", type_name)
 }
 
-fn python_scope_state(env: &Env) -> KainResult<Arc<PythonScopeState>> {
+pub fn python_scope_state(env: &Env) -> KainResult<Arc<PythonScopeState>> {
     env.get_extension_state::<PythonScopeState>(PYTHON_EXTENSION_KEY)
         .ok_or_else(|| KainError::runtime("Python runtime is not registered for this environment"))
 }
 
-fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResult<&'py PyDict> {
+pub fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResult<&'py PyDict> {
     scope
         .as_ref(py)
         .downcast::<PyDict>()

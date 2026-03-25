@@ -237,6 +237,16 @@ pub struct UiLayoutSpec {
     pub split_ratio: Option<f32>,
     pub resizable: bool,
     pub persistent_layout_id: Option<String>,
+    #[serde(default)]
+    pub tab_group_id: Option<String>,
+    #[serde(default)]
+    pub tab_label: Option<String>,
+    #[serde(default)]
+    pub tab_order: Option<i32>,
+    #[serde(default)]
+    pub tab_default_active: bool,
+    #[serde(default)]
+    pub tab_closable: bool,
 }
 
 impl Default for UiLayoutSpec {
@@ -261,6 +271,11 @@ impl Default for UiLayoutSpec {
             split_ratio: None,
             resizable: false,
             persistent_layout_id: None,
+            tab_group_id: None,
+            tab_label: None,
+            tab_order: None,
+            tab_default_active: false,
+            tab_closable: false,
         }
     }
 }
@@ -768,11 +783,16 @@ pub struct UiWorkspaceLayout {
     pub roots: Vec<UiDockNode>,
     pub persistence_key: Option<String>,
     pub virtualization_enabled: bool,
+    #[serde(default)]
+    pub active_tabs: BTreeMap<String, String>,
 }
 
 impl UiWorkspaceLayout {
     fn is_empty(&self) -> bool {
-        self.roots.is_empty() && self.persistence_key.is_none() && !self.virtualization_enabled
+        self.roots.is_empty()
+            && self.persistence_key.is_none()
+            && !self.virtualization_enabled
+            && self.active_tabs.is_empty()
     }
 }
 
@@ -895,6 +915,8 @@ pub struct UiNativeProjection {
     pub primary_panel_title: Option<String>,
     pub primary_viewport_title: Option<String>,
     pub primary_viewport_scene: Option<String>,
+    #[serde(default)]
+    pub tab_groups: Vec<UiNativeProjectionTabGroup>,
     pub nodes: Vec<UiNativeProjectionNode>,
 }
 
@@ -909,7 +931,34 @@ pub struct UiNativeProjectionNode {
     pub tag: Option<String>,
     pub scene: Option<String>,
     pub layout_kind: UiLayoutKind,
+    #[serde(default)]
+    pub dock_placement: Option<UiDockPlacement>,
+    #[serde(default)]
+    pub split_ratio: Option<f32>,
+    #[serde(default)]
+    pub resizable: bool,
+    #[serde(default)]
+    pub persistent_layout_id: Option<String>,
+    #[serde(default)]
+    pub tab_group_id: Option<String>,
+    #[serde(default)]
+    pub tab_label: Option<String>,
+    #[serde(default)]
+    pub tab_order: Option<i32>,
+    #[serde(default)]
+    pub tab_default_active: bool,
+    #[serde(default)]
+    pub tab_closable: bool,
+    #[serde(default)]
+    pub tab_is_active: bool,
     pub child_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiNativeProjectionTabGroup {
+    pub id: String,
+    pub active_tab_layout_id: Option<String>,
+    pub tab_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1105,6 +1154,8 @@ pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
                 });
         }
     }
+
+    systems.workspace_layout.active_tabs = resolve_workspace_active_tabs(tree, None);
 
     if !systems.theme_registry.scopes.is_empty() {
         systems.theme_registry.variants.push(UiThemeVariant {
@@ -1349,6 +1400,8 @@ pub struct UiPersistedDockState {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiWorkspaceLayoutSnapshot {
     pub persistence_key: Option<String>,
+    #[serde(default)]
+    pub active_tabs: BTreeMap<String, String>,
     pub nodes: BTreeMap<String, UiPersistedDockState>,
 }
 
@@ -1381,6 +1434,7 @@ pub fn ui_workspace_layout_snapshot(
 ) -> UiWorkspaceLayoutSnapshot {
     let mut snapshot = UiWorkspaceLayoutSnapshot {
         persistence_key: systems.workspace_layout.persistence_key.clone(),
+        active_tabs: systems.workspace_layout.active_tabs.clone(),
         nodes: BTreeMap::new(),
     };
 
@@ -1411,6 +1465,7 @@ pub fn ui_apply_workspace_layout_snapshot(
 ) -> usize {
     let mut applied = 0;
     systems.workspace_layout.persistence_key = snapshot.persistence_key.clone();
+    systems.workspace_layout.active_tabs = snapshot.active_tabs.clone();
 
     for node in tree.nodes.values_mut() {
         let Some(layout_id) = node
@@ -1431,7 +1486,10 @@ pub fn ui_apply_workspace_layout_snapshot(
         applied += 1;
     }
 
-    systems.workspace_layout = ui_runtime_systems_from_tree(tree).workspace_layout;
+    let mut rebuilt = ui_runtime_systems_from_tree(tree).workspace_layout;
+    rebuilt.persistence_key = snapshot.persistence_key.clone();
+    rebuilt.active_tabs = resolve_workspace_active_tabs(tree, Some(&snapshot.active_tabs));
+    systems.workspace_layout = rebuilt;
     applied
 }
 
@@ -1491,7 +1549,12 @@ fn solve_dock_children(
             .unwrap_or(0.25)
             .clamp(0.1, 0.9);
 
-        let child_rect = match child.layout.dock.unwrap_or(UiDockPlacement::Center) {
+        let dock_placement = child.layout.dock.unwrap_or(UiDockPlacement::Center);
+        if dock_placement == UiDockPlacement::Tab && !node_is_active_tab(tree, child, systems) {
+            continue;
+        }
+
+        let child_rect = match dock_placement {
             UiDockPlacement::Left => {
                 let width = remaining.width * preferred_ratio;
                 let child_rect = UiRect {
@@ -1626,6 +1689,68 @@ fn persisted_split_ratio(node: &UiNode, systems: &UiRuntimeSystems) -> Option<f3
         .iter()
         .find(|entry| entry.persistent_layout_id.as_ref() == Some(persisted_id))
         .and_then(|entry| entry.split_ratio)
+}
+
+fn node_layout_id(node: &UiNode) -> String {
+    node.layout
+        .persistent_layout_id
+        .clone()
+        .or_else(|| node.identity_key.clone())
+        .unwrap_or_else(|| format!("node-{}", node.id.0))
+}
+
+fn resolve_workspace_active_tabs(
+    tree: &UiTree,
+    persisted: Option<&BTreeMap<String, String>>,
+) -> BTreeMap<String, String> {
+    let mut grouped_tabs = BTreeMap::<String, Vec<(&UiNode, String)>>::new();
+    let mut resolved = BTreeMap::new();
+
+    for node in tree.nodes.values() {
+        let Some(group_id) = node.layout.tab_group_id.clone() else {
+            continue;
+        };
+        grouped_tabs
+            .entry(group_id)
+            .or_default()
+            .push((node, node_layout_id(node)));
+    }
+
+    for (group_id, mut tabs) in grouped_tabs {
+        if let Some(saved_layout_id) = persisted.and_then(|saved| saved.get(&group_id)) {
+            if tabs.iter().any(|(_, layout_id)| layout_id == saved_layout_id) {
+                resolved.insert(group_id, saved_layout_id.clone());
+                continue;
+            }
+        }
+
+        tabs.sort_by_key(|(node, _)| (node.layout.tab_order.unwrap_or(i32::MAX), node.id.0));
+        if let Some(layout_id) = tabs
+            .iter()
+            .find(|(node, _)| node.layout.tab_default_active)
+            .or_else(|| tabs.first())
+            .map(|(_, layout_id)| layout_id.clone())
+        {
+            resolved.insert(group_id, layout_id);
+        }
+    }
+
+    resolved
+}
+
+fn node_is_active_tab(tree: &UiTree, node: &UiNode, systems: &UiRuntimeSystems) -> bool {
+    let Some(group_id) = node.layout.tab_group_id.as_deref() else {
+        return true;
+    };
+    let active_tabs = if systems.workspace_layout.active_tabs.is_empty() {
+        resolve_workspace_active_tabs(tree, None)
+    } else {
+        systems.workspace_layout.active_tabs.clone()
+    };
+
+    active_tabs
+        .get(group_id)
+        .map_or(true, |active_layout_id| active_layout_id == &node_layout_id(node))
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1804,12 +1929,25 @@ pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProje
         root_id: output.tree.root.map(|id| id.0),
         ..UiNativeProjection::default()
     };
+    let active_tabs = if output.systems.workspace_layout.active_tabs.is_empty() {
+        resolve_workspace_active_tabs(&output.tree, None)
+    } else {
+        output.systems.workspace_layout.active_tabs.clone()
+    };
 
     let Some(root_id) = output.tree.root else {
         return projection;
     };
 
-    collect_native_projection_nodes(&output.tree, root_id, None, 0, &mut projection);
+    projection.tab_groups = build_native_projection_tab_groups(&output.tree, &active_tabs);
+    collect_native_projection_nodes(
+        &output.tree,
+        root_id,
+        None,
+        0,
+        &active_tabs,
+        &mut projection,
+    );
     projection
 }
 
@@ -2002,6 +2140,7 @@ fn collect_native_projection_nodes(
     id: UiNodeId,
     parent_id: Option<UiNodeId>,
     depth: u32,
+    active_tabs: &BTreeMap<String, String>,
     projection: &mut UiNativeProjection,
 ) {
     let Some(node) = tree.node(id) else {
@@ -2013,6 +2152,17 @@ fn collect_native_projection_nodes(
     let scene = node_prop_string(node, "scene");
     let tag = node_prop_string(node, "tag");
     let kind = UiNativeProjectionKind::from_widget_kind(&node.kind);
+    let persistent_layout_id = Some(node_layout_id(node));
+    let tab_is_active = node
+        .layout
+        .tab_group_id
+        .as_ref()
+        .and_then(|group_id| active_tabs.get(group_id))
+        .map_or(true, |active_layout_id| {
+            persistent_layout_id
+                .as_ref()
+                .is_some_and(|layout_id| active_layout_id == layout_id)
+        });
 
     if projection.primary_panel_title.is_none() && kind == UiNativeProjectionKind::Panel {
         projection.primary_panel_title = title.clone();
@@ -2034,12 +2184,48 @@ fn collect_native_projection_nodes(
         tag,
         scene,
         layout_kind: node.layout.kind,
+        dock_placement: node.layout.dock,
+        split_ratio: node.layout.split_ratio,
+        resizable: node.layout.resizable,
+        persistent_layout_id,
+        tab_group_id: node.layout.tab_group_id.clone(),
+        tab_label: node
+            .layout
+            .tab_label
+            .clone()
+            .or_else(|| title.clone()),
+        tab_order: node.layout.tab_order,
+        tab_default_active: node.layout.tab_default_active,
+        tab_closable: node.layout.tab_closable,
+        tab_is_active,
         child_count: node.children.len(),
     });
 
     for child in &node.children {
-        collect_native_projection_nodes(tree, *child, Some(id), depth + 1, projection);
+        collect_native_projection_nodes(tree, *child, Some(id), depth + 1, active_tabs, projection);
     }
+}
+
+fn build_native_projection_tab_groups(
+    tree: &UiTree,
+    active_tabs: &BTreeMap<String, String>,
+) -> Vec<UiNativeProjectionTabGroup> {
+    let mut counts = BTreeMap::<String, usize>::new();
+
+    for node in tree.nodes.values() {
+        if let Some(group_id) = node.layout.tab_group_id.clone() {
+            *counts.entry(group_id).or_default() += 1;
+        }
+    }
+
+    counts
+        .into_iter()
+        .map(|(id, tab_count)| UiNativeProjectionTabGroup {
+            active_tab_layout_id: active_tabs.get(&id).cloned(),
+            id,
+            tab_count,
+        })
+        .collect()
 }
 
 fn node_prop_string(node: &UiNode, key: &str) -> Option<String> {
@@ -2396,6 +2582,153 @@ mod tests {
             .nodes
             .iter()
             .any(|node| node.kind == UiNativeProjectionKind::Viewport3D));
+    }
+
+    #[test]
+    fn workspace_layout_snapshot_preserves_active_tab_state() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        let scene_id = builder.alloc_id();
+        let materials_id = builder.alloc_id();
+        let stats_id = builder.alloc_id();
+
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some("workspace".to_string());
+        root.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            persistent_layout_id: Some("workspace".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(root);
+
+        let mut scene = UiNode::new(scene_id, UiWidgetKind::Viewport3D);
+        scene.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Absolute,
+            dock: Some(UiDockPlacement::Tab),
+            persistent_layout_id: Some("scene-tab".to_string()),
+            tab_group_id: Some("center-tabs".to_string()),
+            tab_label: Some("Scene".to_string()),
+            tab_order: Some(0),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(scene);
+
+        let mut materials = UiNode::new(materials_id, UiWidgetKind::Inspector);
+        materials.layout = UiLayoutSpec {
+            kind: UiLayoutKind::FlexColumn,
+            dock: Some(UiDockPlacement::Tab),
+            persistent_layout_id: Some("materials-tab".to_string()),
+            tab_group_id: Some("center-tabs".to_string()),
+            tab_label: Some("Materials".to_string()),
+            tab_order: Some(1),
+            tab_default_active: true,
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(materials);
+
+        let mut stats = UiNode::new(stats_id, UiWidgetKind::Table);
+        stats.layout = UiLayoutSpec {
+            kind: UiLayoutKind::FlexColumn,
+            dock: Some(UiDockPlacement::Tab),
+            persistent_layout_id: Some("stats-tab".to_string()),
+            tab_group_id: Some("center-tabs".to_string()),
+            tab_label: Some("Stats".to_string()),
+            tab_order: Some(2),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(stats);
+
+        builder.replace_children(root_id, vec![scene_id, materials_id, stats_id]);
+        builder.set_root(root_id);
+
+        let mut build = builder.finish();
+        assert_eq!(
+            build.systems.workspace_layout.active_tabs.get("center-tabs"),
+            Some(&"materials-tab".to_string())
+        );
+
+        let snapshot = ui_workspace_layout_snapshot(&build.tree, &build.systems);
+        build
+            .systems
+            .workspace_layout
+            .active_tabs
+            .insert("center-tabs".to_string(), "scene-tab".to_string());
+        let applied =
+            ui_apply_workspace_layout_snapshot(&mut build.tree, &mut build.systems, &snapshot);
+        assert_eq!(applied, 4);
+        assert_eq!(
+            build.systems.workspace_layout.active_tabs.get("center-tabs"),
+            Some(&"materials-tab".to_string())
+        );
+    }
+
+    #[test]
+    fn native_projection_emits_tab_group_shell_metadata() {
+        let mut builder = UiTreeBuilder::new();
+        let root_id = builder.alloc_id();
+        let scene_id = builder.alloc_id();
+        let materials_id = builder.alloc_id();
+
+        let mut root = UiNode::new(root_id, UiWidgetKind::Panel);
+        root.identity_key = Some("shell".to_string());
+        root.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Dock,
+            persistent_layout_id: Some("shell".to_string()),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(root);
+
+        let mut scene = UiNode::new(scene_id, UiWidgetKind::Viewport3D);
+        scene
+            .props
+            .insert("title".to_string(), UiValue::from("Scene"));
+        scene.layout = UiLayoutSpec {
+            kind: UiLayoutKind::Absolute,
+            dock: Some(UiDockPlacement::Tab),
+            persistent_layout_id: Some("scene-tab".to_string()),
+            tab_group_id: Some("center-tabs".to_string()),
+            tab_order: Some(0),
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(scene);
+
+        let mut materials = UiNode::new(materials_id, UiWidgetKind::Inspector);
+        materials
+            .props
+            .insert("title".to_string(), UiValue::from("Materials"));
+        materials.layout = UiLayoutSpec {
+            kind: UiLayoutKind::FlexColumn,
+            dock: Some(UiDockPlacement::Tab),
+            persistent_layout_id: Some("materials-tab".to_string()),
+            tab_group_id: Some("center-tabs".to_string()),
+            tab_order: Some(1),
+            tab_default_active: true,
+            tab_closable: true,
+            ..UiLayoutSpec::default()
+        };
+        builder.add_node(materials);
+
+        builder.replace_children(root_id, vec![scene_id, materials_id]);
+        builder.set_root(root_id);
+
+        let output = builder.finish();
+        let projection = ui_native_projection_from_output(&output);
+        let materials = projection
+            .nodes
+            .iter()
+            .find(|node| node.persistent_layout_id.as_deref() == Some("materials-tab"))
+            .expect("materials tab should be projected");
+
+        assert_eq!(projection.tab_groups.len(), 1);
+        assert_eq!(projection.tab_groups[0].id, "center-tabs");
+        assert_eq!(
+            projection.tab_groups[0].active_tab_layout_id.as_deref(),
+            Some("materials-tab")
+        );
+        assert!(materials.tab_is_active);
+        assert_eq!(materials.tab_group_id.as_deref(), Some("center-tabs"));
+        assert_eq!(materials.tab_label.as_deref(), Some("Materials"));
+        assert!(materials.tab_closable);
     }
 
     #[test]

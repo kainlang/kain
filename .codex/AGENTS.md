@@ -1,0 +1,1 @@
+If doing work within this language, always update the MEMORY.md with recent changes and always check it before work. Furthermore if you are new, take a look at the readme.md

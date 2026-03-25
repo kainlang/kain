@@ -180,7 +180,8 @@ fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
     let explicit_compute_metadata = shader.ast.explicit_compute_metadata().ok().flatten();
     let tensor_bindings =
         collect_tensor_bindings(&resource_bindings, explicit_compute_metadata.as_ref());
-    let stream_bindings = collect_stream_bindings(&resource_bindings);
+    let stream_bindings =
+        collect_stream_bindings(&resource_bindings, explicit_compute_metadata.as_ref());
     let neural_nodes = collect_neural_nodes(
         shader,
         &resource_bindings,
@@ -190,7 +191,12 @@ fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
         if matches!(shader.ast.stage, ShaderStage::Compute) {
             (
                 Some(compute_execution_domain(&resource_bindings)),
-                Some(compute_workgroup_size(shader)),
+                Some(
+                    explicit_compute_metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.workgroup_size)
+                        .unwrap_or_else(|| compute_workgroup_size(shader)),
+                ),
                 Some(
                     explicit_compute_metadata
                         .as_ref()
@@ -355,7 +361,24 @@ fn collect_tensor_bindings(
         .collect()
 }
 
-fn collect_stream_bindings(bindings: &[RealtimeResourceBinding]) -> Vec<RealtimeStreamBinding> {
+fn collect_stream_bindings(
+    bindings: &[RealtimeResourceBinding],
+    explicit_metadata: Option<&ComputeMetadata>,
+) -> Vec<RealtimeStreamBinding> {
+    if let Some(metadata) = explicit_metadata {
+        if let Some(stream_plans) = &metadata.stream_plans {
+            return stream_plans
+                .iter()
+                .map(|plan| RealtimeStreamBinding {
+                    key: plan.key.clone(),
+                    direction: plan.direction.clone(),
+                    cadence: plan.cadence.clone(),
+                    contract: plan.contract.clone(),
+                })
+                .collect();
+        }
+    }
+
     bindings
         .iter()
         .filter(|binding| binding.resource_type == "storage_buffer")
@@ -838,10 +861,15 @@ shader compute TensorBlend() -> Void:
 shader compute TensorBlend() -> Void:
     comptime:
         let compute = (
+            [8, 4, 1],
             [16, 8, 1],
             [
                 ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
                 ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("src", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dst", "egress", "per-dispatch", "kain.shared.buffer"),
             ],
             [
                 ("TensorBlend", "blend", ["src"], ["dst"], false),
@@ -864,10 +892,20 @@ shader compute TensorBlend() -> Void:
 
         let bundle = emit_realtime_app_bundle(&typed, None, CompileTarget::Llvm);
         assert_eq!(bundle.shader_bundle_refs.len(), 1);
+        assert_eq!(bundle.shader_bundle_refs[0].workgroup_size, Some([8, 4, 1]));
         assert_eq!(bundle.shader_bundle_refs[0].dispatch_size, Some([16, 8, 1]));
         assert_eq!(
             bundle.shader_bundle_refs[0].tensor_bindings[0].shape,
             vec!["dispatch.x".to_string()]
+        );
+        assert_eq!(bundle.shader_bundle_refs[0].stream_bindings.len(), 2);
+        assert_eq!(
+            bundle.shader_bundle_refs[0].stream_bindings[0].direction,
+            "ingress"
+        );
+        assert_eq!(
+            bundle.shader_bundle_refs[0].stream_bindings[0].cadence,
+            "per-dispatch"
         );
         assert_eq!(bundle.shader_bundle_refs[0].neural_nodes[0].op, "blend");
         assert!(bundle

@@ -10,6 +10,69 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-25 - SPV UI Smoke Landed As An Honest First Probe Instead Of A Fake UI Engine Claim
+
+The repo now has a dedicated UI smoke for the "SPIR-V-based UI" direction under `smoketest/UI/spv_ui_surface_probe`.
+
+What changed:
+
+- a new smoke combines semantic UI authoring with a compute shader that behaves like a procedural UI surface concept
+- the smoke includes the usual interpret/test/native-app runners plus a direct `gpu-artifacts` helper so the emitted `.spv` can be inspected without pretending the host renderer is already complete
+- the smoke README states the current boundary explicitly: Kain can emit the shader-side surface idea today, but the full host-side fullscreen-quad/input/text/runtime loop is still future work
+
+Why this matters:
+
+- it gives future work a grounded proof point for "SPV UI" that matches current repo reality instead of skipping straight to Makepad/GPUI-class claims
+- it preserves the architecture rule that shader truth should be compiler-authored while the host/runtime side owns windowing, retained state, input routing, and text plumbing
+- it creates a small operator-friendly lane for inspecting emitted shader artifacts during UI/runtime experimentation
+
+What future work should preserve:
+
+- keep this lane honest about the current split between emitted SPIR-V artifacts and the still-missing dedicated host renderer
+- prefer small, inspectable smoke steps over prematurely claiming a full GPU-native widget engine
+- route future pointer/text/state work through shared runtime contracts and buffers instead of inventing one-off smoke-only wiring
+
+Next serious move:
+
+- add a minimal host surface that can present a shader-authored full-screen quad or equivalent canvas in the native UI lane
+- thread pointer/window inputs into the shader contract through a stable buffer or uniform path
+- then add font atlas and glyph-buffer plumbing so the SPV UI experiment stops being "shapes only"
+
+
+## 2026-03-25 - Compute Plan Contract Started Moving From Heuristic To Authored
+
+The tensor-stream pipeline now has a stronger compiler-owned contract in `kain-core`.
+
+What changed:
+
+- shader `comptime` compute metadata now supports an extended five-entry form that can author explicit `workgroup_size` and stream plans in addition to dispatch, tensor plans, and neural-node plans
+- the older three-entry form stays valid, so existing compute-plan shaders do not need to be rewritten just to keep parsing
+- realtime bundle emission now respects authored workgroup and stream metadata when present instead of always inferring those fields from storage buffers and placeholder `LOCAL_SIZE_*` handling
+
+Why this matters:
+
+- this narrows a real architecture gap between "compiler-owned compute truth" and "runtime guessed enough metadata to keep moving"
+- stream cadence and direction can now live in emitted bundle data instead of existing only as runtime heuristics
+- the bundle path is closer to the repo doctrine that authored Kain meaning should live in `kain-core` and `kain-driver`, not in host-local conventions
+
+What is still incomplete:
+
+- tensor shapes still fall back to inferred defaults when authors do not provide explicit tensor plans
+- compute residency is still file-first and writes zero-filled payload sidecars, which is useful for packaging but too weak to become the center of a serious tensor pipeline
+- the raw-native runtime still has a metadata/overlay execution path beside the real Vulkan dispatch lane
+
+What future work should preserve:
+
+- keep explicit workgroup, dispatch, tensor, stream, and neural metadata in one compiler-owned compute-plan contract
+- do not let future runtime lanes invent their own stream/workgroup dialects once the authored bundle shape exists
+- if Fabric, Python, Cargo FFI, or Node steps start orchestrating tensor pipelines, they should consume the same compute-plan and shared-buffer contract family rather than bypassing it
+
+Next serious move:
+
+- thread explicit stream/workgroup metadata through compute residency and runtime conformance
+- replace file-first compute payload handoff with stable runtime/shared-buffer handles or equivalent contract references
+- then make cross-lane execution prove that the same authored `primary_compute` plan behaves coherently in raw-native, Vulkan, and host-bridge lanes
+
 ## 2026-03-21 - Testing Lane Guide Was Made Explicit
 
 The top-level `testing/` directory finally has a root README that explains how phases progress and which outputs stay disposable.
@@ -583,3 +646,41 @@ Locked outputs remain under:
 - `target/` (repo root)
 
 Current run recorded at 2026-03-22T04:19:26-04:00.
+
+## 2026-03-25 - Universal Web Template Pack Landed
+
+A first serious web template lane now exists under `templates/Web/universal`.
+
+What changed:
+
+- `templates/Web` is no longer an empty placeholder; it now has a pack registry, durable docs, and a limitations file that records the real language/runtime gaps instead of hiding them inside one-off workarounds
+- `templates/Web/universal` now ships a no-Rust-required starter with:
+  - Kain entrypoints for build orchestration, actor-server reporting, and semantic UI preview
+  - a shared Node helper runtime for manifest loading, HTML rendering, local serving, and actor-route output
+  - manifest registries for themes, content, scenes, and experiences
+  - archetypes for business, portfolio, immersive 3D, chat, and actor-server site modes
+- `stdlib/javascript` gained `site_runtime.kn` and `site_actor.kn` so future web starters can call the shared helper surface without rewriting the same Node bridge boilerplate
+
+Why this matters:
+
+- it creates the first honest path toward web starters that keep Kain in control without forcing end users to install Cargo or Rust toolchains
+- it pushes the web lane toward a data-driven system instead of accumulating one-off HTML generators in smokes or app folders
+- it gives future work a stable place to extend client islands, actor routes, browser adapters, and eventual semantic UI web lowering
+
+What is still incomplete:
+
+- this template still uses Node-hosted browser and actor-server runtime glue because Kain UI does not yet have a first-class web backend
+- the client interaction layer is still JS-authored and should eventually become Kain-authored or semantic-UI-backed
+- there is not yet a first-class `kain init web` command that can select and hydrate these archetypes directly
+
+What future work should preserve:
+
+- keep themes, content, scenes, and experiences registry-driven
+- keep browser packaging and actor runtime logic centralized in shared helpers instead of cloning it into new starters
+- treat `templates/Web/limitations.md` as the contract for what should move upstream into the language/runtime rather than silently re-implementing workarounds
+
+Next serious move:
+
+- add first-class schema validation and CLI hydration for the web template registries
+- evolve the Node helper runtime into a reusable browser adapter surface that future KainScript or semantic UI web lanes can consume
+- then replace the current HTML-plus-islands workaround with a real semantic `kain-ui-web` lowering path

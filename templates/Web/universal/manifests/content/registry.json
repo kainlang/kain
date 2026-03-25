@@ -1,0 +1,9 @@
+{
+  "entries": {
+    "signalcraft_business": "signalcraft_business.json",
+    "spectrum_portfolio": "spectrum_portfolio.json",
+    "luminous_immersive": "luminous_immersive.json",
+    "orbit_chat": "orbit_chat.json",
+    "mesh_actor_ops": "mesh_actor_ops.json"
+  }
+}

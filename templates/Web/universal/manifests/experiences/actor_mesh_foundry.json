@@ -1,0 +1,10 @@
+{
+  "mode": "actor_server",
+  "theme": "ember_console",
+  "content": "mesh_actor_ops",
+  "scene": "mesh_control_room",
+  "output_slug": "actor-mesh-foundry",
+  "page_title": "Mesh Actor Ops",
+  "eyebrow": "Actor Server Website",
+  "sections": ["features", "server", "actors", "chat", "scene", "cta"]
+}

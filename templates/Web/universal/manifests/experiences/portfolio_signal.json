@@ -1,0 +1,10 @@
+{
+  "mode": "portfolio",
+  "theme": "ember_console",
+  "content": "spectrum_portfolio",
+  "scene": "luminous_grid",
+  "output_slug": "portfolio-signal",
+  "page_title": "Spectrum Portfolio",
+  "eyebrow": "Portfolio Website",
+  "sections": ["features", "portfolio", "timeline", "cta"]
+}

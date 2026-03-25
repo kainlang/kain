@@ -5,6 +5,217 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=b2ae86510cba95f7 -->
+## 2026-03-25 18:23:54 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `deabbf73`
+- Changed files: 9
+- [.M] `smoketest/UI/README.md`
+- [??] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [??] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [??] `smoketest/UI/spv_ui_surface_probe/emit_gpu_artifacts.bat`
+- [??] `smoketest/UI/spv_ui_surface_probe/launch_native_exe.bat`
+- [??] `smoketest/UI/spv_ui_surface_probe/run_all.bat`
+- [??] `smoketest/UI/spv_ui_surface_probe/run_interpret.bat`
+- [??] `smoketest/UI/spv_ui_surface_probe/run_test.bat`
+- [??] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=82dc181ecb4b43c4 -->
+## 2026-03-25 04:43:39 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b0f4cc6`
+- Changed files: 40
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-core/src/ast.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-core/tests/compute_metadata_test.rs`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-host/src/lib.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_ui.h`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_bundle.c`
+- [??] `crates/kain-host/src/fabric.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.lock`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.toml`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.spv`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/lib.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/native_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/smoke.kn`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=42d8cac540039f59 -->
+## 2026-03-25 04:42:21 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b0f4cc6`
+- Changed files: 39
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-core/src/ast.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-core/tests/compute_metadata_test.rs`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-host/src/lib.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_ui.h`
+- [??] `crates/kain-host/src/fabric.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.lock`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.toml`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.spv`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/lib.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/native_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/smoke.kn`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=9ad7c254db822c59 -->
+## 2026-03-25 04:22:21 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b0f4cc6`
+- Changed files: 36
+- [.M] `crates/cli/Cargo.toml`
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-core/src/ast.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/runtime_contract.rs`
+- [.M] `crates/kain-core/tests/compute_metadata_test.rs`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-host/src/lib.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [??] `crates/kain-host/src/fabric.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.lock`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.toml`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.spv`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/lib.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/native_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/smoke.kn`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=28be9d37a5d45c38 -->
+## 2026-03-25 04:14:48 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b0f4cc6`
+- Changed files: 22
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-host/src/lib.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [??] `crates/kain-host/src/fabric.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.lock`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.toml`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.spv`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/lib.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/native_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/smoke.kn`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=e24b94c8482c6782 -->
+## 2026-03-25 04:12:23 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b0f4cc6`
+- Changed files: 21
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-host/src/lib.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [??] `crates/kain-host/src/fabric.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.lock`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/Cargo.toml`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_dst.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_compute_residency_shader_streampulse_compute_src.bin`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_gpu.spv`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_reflection_payload.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/kain_runtime_version.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/lib.rs`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/generated/native_app_bundle.json`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/smoke.kn`
+- [??] `smoketest/UI/gpu_compute_surface_probe/native-app/src/main.rs`
+
+<!-- polytools-changelog:fingerprint=402bb294d36f4ada -->
+## 2026-03-23 21:41:11 -04:00 | workspace `kain` | branch `codex/delta`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `61c736e5`
+- Changed files: 2
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
 <!-- polytools-changelog:fingerprint=ae010a9a715cb8db -->
 ## 2026-03-22 04:19:12 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
